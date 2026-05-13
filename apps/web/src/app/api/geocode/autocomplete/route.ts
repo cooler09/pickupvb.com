@@ -12,6 +12,9 @@ export const dynamic = 'force-dynamic';
 const PHOTON_URL = 'https://photon.komoot.io/api/';
 const USER_AGENT = 'pickupvb.com/1.0 (+https://pickupvb.com)';
 
+// US + populated US territories (ISO 3166-1 alpha-2, lowercase to match Photon).
+const ALLOWED_COUNTRY_CODES = new Set(['us', 'pr', 'vi', 'gu', 'mp', 'as']);
+
 export type AutocompleteSuggestion = {
     label: string;
     addressLine: string;
@@ -81,6 +84,10 @@ export async function GET(request: NextRequest) {
 
     const data = (await res.json()) as { features?: PhotonFeature[] };
     const suggestions = (data.features ?? [])
+        .filter((f) => {
+            const cc = f.properties.countrycode?.toLowerCase();
+            return cc !== undefined && ALLOWED_COUNTRY_CODES.has(cc);
+        })
         .map(toSuggestion)
         .filter((s): s is AutocompleteSuggestion => s !== null);
 

@@ -22,13 +22,18 @@ export type GeocodeResult = {
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT = 'pickupvb.com/1.0 (+https://pickupvb.com)';
 
+// US + populated US territories (ISO 3166-1 alpha-2).
+const ALLOWED_COUNTRY_CODES = 'us,pr,vi,gu,mp,as';
+
 export async function geocodeAddress(input: GeocodeInput): Promise<GeocodeResult> {
     const q = [input.addressLine, input.city, input.region, input.postalCode, input.country]
         .map((s) => s.trim())
         .filter(Boolean)
         .join(', ');
 
-    const url = `${NOMINATIM_URL}?format=json&limit=1&q=${encodeURIComponent(q)}`;
+    const url =
+        `${NOMINATIM_URL}?format=json&limit=1&countrycodes=${ALLOWED_COUNTRY_CODES}` +
+        `&q=${encodeURIComponent(q)}`;
 
     const res = await fetch(url, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
@@ -44,7 +49,7 @@ export async function geocodeAddress(input: GeocodeInput): Promise<GeocodeResult
     const first = data[0];
     if (!first) {
         throw new Error(
-            'Could not find that address. Double-check the street, city, and postal code.',
+            'Could not find that address in the US. Double-check the street, city, and ZIP code.',
         );
     }
 
