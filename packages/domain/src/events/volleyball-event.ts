@@ -125,6 +125,52 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         return evt;
     }
 
+    /**
+     * Hydrate from persistence — bypasses invariant checks and event-raising.
+     * Use only from repository adapters when reading already-validated rows.
+     */
+    static fromPersistence(props: {
+        id: EventId;
+        hostId: UserId;
+        title: string;
+        description: string;
+        rules: string;
+        surface: Surface;
+        format: Format | null;
+        gender: Gender | null;
+        skillLevel: SkillLevel;
+        type: EventType;
+        visibility: Visibility;
+        location: Location;
+        startsAt: Date;
+        endsAt: Date;
+        capacity: Capacity | null;
+        status: EventStatus;
+        attendees: ReadonlyArray<UserId>;
+        teams: ReadonlyArray<TeamId>;
+    }): VolleyballEvent {
+        return new VolleyballEvent(
+            props.id,
+            props.hostId,
+            props.title,
+            props.description,
+            props.rules,
+            props.surface,
+            props.format,
+            props.gender,
+            props.skillLevel,
+            props.type,
+            props.visibility,
+            props.location,
+            props.startsAt,
+            props.endsAt,
+            props.capacity,
+            props.status,
+            new Set(props.attendees),
+            new Set(props.teams),
+        );
+    }
+
     // ---- Getters ---------------------------------------------------------
     get title(): string { return this._title; }
     get description(): string { return this._description; }
