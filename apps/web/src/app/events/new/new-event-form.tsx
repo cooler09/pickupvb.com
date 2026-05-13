@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import { EventType } from '@pickupvb/domain';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
+import DateTimePicker from '@/components/datetime-picker';
 import { createEventAction, type CreateEventState } from './actions';
 
 const initialState: CreateEventState = {};
@@ -42,6 +43,8 @@ export default function NewEventForm() {
     const [region, setRegion] = useState('');
     const [postalCode, setPostalCode] = useState('');
     const [country, setCountry] = useState('USA');
+    const [startsAt, setStartsAt] = useState<Date | null>(null);
+    const [endsAt, setEndsAt] = useState<Date | null>(null);
 
     function applySuggestion(s: Suggestion) {
         setAddressLine(s.addressLine);
@@ -177,12 +180,24 @@ export default function NewEventForm() {
                 <legend className="col-span-full text-lg font-semibold text-net-900">When</legend>
                 <div>
                     <label htmlFor="startsAt" className={labelClass}>Starts at</label>
-                    <input id="startsAt" name="startsAt" type="datetime-local" required className={inputClass} />
+                    <DateTimePicker
+                        name="startsAt"
+                        value={startsAt}
+                        onChange={setStartsAt}
+                        minDate={new Date()}
+                        inputClass={inputClass}
+                    />
                     <FieldError name="startsAt" errors={state.fieldErrors} />
                 </div>
                 <div>
                     <label htmlFor="endsAt" className={labelClass}>Ends at</label>
-                    <input id="endsAt" name="endsAt" type="datetime-local" required className={inputClass} />
+                    <DateTimePicker
+                        name="endsAt"
+                        value={endsAt}
+                        onChange={setEndsAt}
+                        minDate={startsAt ?? new Date()}
+                        inputClass={inputClass}
+                    />
                     <FieldError name="endsAt" errors={state.fieldErrors} />
                 </div>
             </fieldset>
