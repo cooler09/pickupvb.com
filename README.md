@@ -96,9 +96,12 @@ Available endpoints (all served by the Next.js app):
 1. Import this repo into Vercel.
 2. Set **Root Directory** to `apps/web`.
 3. Add the env vars from `.env.example`.
-   - `NEXT_PUBLIC_*` → exposed to browser.
-   - `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET` → server-only, used by
-     Route Handlers via the admin client.
+   - `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+     (the `sb_publishable_...` key) → exposed to the browser.
+   - `SUPABASE_URL` + `SUPABASE_SECRET_KEY` (the `sb_secret_...` key) →
+     server-only, used by Route Handlers via the admin client.
+   - These are the new Supabase API keys
+     ([discussion #29260](https://github.com/orgs/supabase/discussions/29260)).
 4. Every push to `main` triggers a production build automatically. Route
    Handlers run on the Vercel Node.js runtime — no separate API host required.
 
