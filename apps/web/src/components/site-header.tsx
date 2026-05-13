@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import type { Theme } from '@/lib/theme';
 import { ThemeToggle } from './theme-toggle';
+import { MobileMenu } from './mobile-menu';
 import { signOut } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -19,13 +20,19 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
         data: { user },
     } = await supabase.auth.getUser();
 
+    const userInfo = user
+        ? { email: user.email ?? null, initials: initialsOf(user.email ?? '?') }
+        : null;
+
     return (
         <header className="border-b border-border-base bg-surface">
-            <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+            <nav className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
                 <Link href="/" className="text-xl font-bold text-primary">
                     PickupVB
                 </Link>
-                <ul className="flex items-center gap-4 text-sm">
+
+                {/* Desktop nav */}
+                <ul className="hidden items-center gap-4 text-sm md:flex">
                     <li>
                         <Link href="/events" className="hover:text-primary">
                             Find events
@@ -44,17 +51,17 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                     <li>
                         <ThemeToggle current={theme} />
                     </li>
-                    {user ? (
+                    {userInfo ? (
                         <li className="flex items-center gap-3">
                             <span
                                 className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
-                                title={user.email ?? ''}
-                                aria-label={`Signed in as ${user.email ?? 'user'}`}
+                                title={userInfo.email ?? ''}
+                                aria-label={`Signed in as ${userInfo.email ?? 'user'}`}
                             >
-                                {initialsOf(user.email ?? '?')}
+                                {userInfo.initials}
                             </span>
-                            <span className="hidden text-fg/70 sm:inline">
-                                {user.email}
+                            <span className="hidden max-w-[12rem] truncate text-fg/70 lg:inline">
+                                {userInfo.email}
                             </span>
                             <form action={signOut}>
                                 <button
@@ -83,6 +90,9 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                         </>
                     )}
                 </ul>
+
+                {/* Mobile nav */}
+                <MobileMenu theme={theme} user={userInfo} />
             </nav>
         </header>
     );
