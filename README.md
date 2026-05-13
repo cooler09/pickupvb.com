@@ -5,50 +5,48 @@ and tournaments. Real-time spot updates. Host tools (brackets, seeding, scoring)
 
 ## Stack
 
-| Layer       | Tech                                         |
-| ----------- | -------------------------------------------- |
-| Monorepo    | pnpm workspaces + Turborepo                  |
-| Frontend    | Next.js 14 (App Router) + React 18 + Tailwind |
-| Backend API | NestJS 10 + Fastify + `@nestjs/cqrs`         |
-| Database    | Supabase (Postgres 15 + PostGIS + Realtime)  |
-| Auth        | Supabase Auth (email/password + OAuth)       |
-| Hosting     | Vercel (web), Fly.io (API), Supabase (DB)    |
-| CI/CD       | GitHub Actions + Vercel auto-deploy on push  |
+| Layer    | Tech                                                                  |
+| -------- | --------------------------------------------------------------------- |
+| Monorepo | pnpm workspaces + Turborepo                                           |
+| Frontend | Next.js 14 (App Router) + React 18 + Tailwind                         |
+| API      | Next.js Route Handlers (`app/api/*`) calling pure CQRS handlers       |
+| Domain   | Hand-rolled DDD/CQRS in `packages/{domain,application,infrastructure}` |
+| Database | Supabase (Postgres 15 + PostGIS + Realtime)                           |
+| Auth     | Supabase Auth (email/password + OAuth)                                |
+| Hosting  | Vercel (web + API) + Supabase (DB)                                    |
+| CI/CD    | GitHub Actions + Vercel auto-deploy on push                           |
 
 ## Architecture
 
 ```
 .
 ├── apps/
-│   ├── web/    # Next.js App Router – Tailwind, RSC, Supabase SSR auth
-│   └── api/    # NestJS + CQRS – commands, queries, controllers
+│   └── web/                       # Next.js – pages + API Route Handlers (app/api/*)
 ├── packages/
-│   ├── domain/    # DDD aggregates (VolleyballEvent, Team, UserProfile)
-│   ├── types/     # Shared DTOs & Zod schemas
-│   ├── supabase/  # Typed browser/server/admin clients
-│   └── config/    # Tailwind preset + tsconfig presets
+│   ├── domain/                    # Aggregates, value objects, repository ports (pure)
+│   ├── application/               # CQRS commands/queries + handlers (pure, no framework)
+│   ├── infrastructure/            # Adapters implementing domain ports (Supabase, etc.)
+│   ├── types/                     # Shared DTOs & Zod schemas
+│   ├── supabase/                  # Typed browser/server/admin clients
+│   └── config/                    # Tailwind preset + tsconfig presets
 └── supabase/
     ├── config.toml
     └── migrations/
 ```
 
-### DDD layout (per feature)
-
-Each feature module in the API follows the same structure:
+### Hexagonal / DDD flow
 
 ```
-events/
-├── application/         # CQRS messages, command/query handlers
-│   ├── commands/
-│   ├── queries/
-│   └── messages.ts
-├── infrastructure/      # Adapters implementing domain ports (repositories)
-└── events.controller.ts # HTTP boundary – validates input, dispatches messages
+HTTP request
+   → app/api/events/route.ts        (validate w/ Zod, auth via Supabase SSR)
+   → @pickupvb/application handler  (CreateEventHandler.execute(...))
+   → @pickupvb/domain aggregate     (VolleyballEvent.create – enforces invariants)
+   → @pickupvb/infrastructure repo  (SupabaseEventRepository.save)
 ```
 
 Domain logic (invariants like _"indoor events can only be 6s or quads"_) lives
-in [`packages/domain`](packages/domain) and is consumed by the API and the web
-form validators alike (single source of truth).
+in [`packages/domain`](packages/domain) and is reused by the Route Handlers and
+the web form validators (single source of truth).
 
 ## Getting started
 
@@ -79,29 +77,30 @@ Copy the printed `anon key` and `service_role key` into `.env`.
 ### Run everything
 
 ```bash
-pnpm dev                       # turbo runs web (:3000) + api (:4000)
+pnpm dev                       # turbo runs the Next.js app on :3000 (UI + /api/*)
 ```
+
+Available endpoints (all served by the Next.js app):
+
+- `GET /api/health`
+- `GET /api/events?...filters`
+- `POST /api/events`
+- `GET /api/events/[id]`
+- `POST /api/events/[id]/join`
+- `POST /api/events/[id]/leave`
 
 ## Deploying
 
-### Web (Vercel)
+### Web + API (Vercel)
 
 1. Import this repo into Vercel.
 2. Set **Root Directory** to `apps/web`.
-3. Add the env vars from `.env.example` (the `NEXT_PUBLIC_*` ones).
-4. Every push to `main` triggers a production build automatically.
-
-### API (Fly.io)
-
-```bash
-cd apps/api
-fly launch --no-deploy --copy-config
-fly secrets set SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... SUPABASE_JWT_SECRET=...
-fly deploy
-```
-
-Then add `FLY_API_TOKEN` to GitHub repo secrets — `.github/workflows/deploy-api.yml`
-will deploy on every push that touches `apps/api/**` or `packages/**`.
+3. Add the env vars from `.env.example`.
+   - `NEXT_PUBLIC_*` → exposed to browser.
+   - `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_JWT_SECRET` → server-only, used by
+     Route Handlers via the admin client.
+4. Every push to `main` triggers a production build automatically. Route
+   Handlers run on the Vercel Node.js runtime — no separate API host required.
 
 ### Database (Supabase Cloud)
 

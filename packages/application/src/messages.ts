@@ -1,5 +1,6 @@
 import type { CreateEventDto, SearchEventsDto } from '@pickupvb/types';
 
+// ---- Commands -------------------------------------------------------------
 export class CreateEventCommand {
     constructor(
         public readonly hostId: string,
@@ -14,6 +15,14 @@ export class JoinEventCommand {
     ) { }
 }
 
+export class LeaveEventCommand {
+    constructor(
+        public readonly eventId: string,
+        public readonly userId: string,
+    ) { }
+}
+
+// ---- Queries --------------------------------------------------------------
 export class SearchEventsQuery {
     constructor(
         public readonly viewerId: string | null,

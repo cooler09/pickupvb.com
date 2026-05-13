@@ -1,0 +1,22 @@
+{
+    "name": "@pickupvb/infrastructure",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "typecheck": "tsc --noEmit",
+        "lint": "echo 'lint: no rules yet' && exit 0",
+        "test": "echo 'no tests yet' && exit 0",
+        "clean": "rm -rf dist .turbo *.tsbuildinfo"
+    },
+    "dependencies": {
+        "@pickupvb/domain": "workspace:*",
+        "@pickupvb/supabase": "workspace:*"
+    },
+    "devDependencies": {
+        "typescript": "^5.5.4"
+    }
+}

@@ -12,7 +12,9 @@
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
+    "@pickupvb/application": "workspace:*",
     "@pickupvb/domain": "workspace:*",
+    "@pickupvb/infrastructure": "workspace:*",
     "@pickupvb/supabase": "workspace:*",
     "@pickupvb/types": "workspace:*",
     "@supabase/ssr": "^0.5.1",

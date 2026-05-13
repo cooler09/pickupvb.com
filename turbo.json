@@ -7,9 +7,7 @@
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "SUPABASE_SERVICE_ROLE_KEY",
     "SUPABASE_URL",
-    "SUPABASE_JWT_SECRET",
-    "API_URL",
-    "NEXT_PUBLIC_API_URL"
+    "SUPABASE_JWT_SECRET"
   ],
   "tasks": {
     "build": {

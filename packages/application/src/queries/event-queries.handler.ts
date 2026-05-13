@@ -1,0 +1,46 @@
+import type {
+    EventRepository,
+    EventSearchQuery,
+    VolleyballEventSummary,
+} from '@pickupvb/domain';
+import { GetEventByIdQuery, SearchEventsQuery } from '../messages';
+
+export class SearchEventsHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    execute({ viewerId, filters }: SearchEventsQuery): Promise<VolleyballEventSummary[]> {
+        const query: EventSearchQuery = {};
+        for (const [k, v] of Object.entries(filters)) {
+            if (v !== undefined) (query as Record<string, unknown>)[k] = v;
+        }
+        if (viewerId) query.viewerId = viewerId;
+        return this.repo.search(query);
+    }
+}
+
+export class GetEventByIdHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    async execute({ id }: GetEventByIdQuery) {
+        const event = await this.repo.findById(id);
+        if (!event) throw new Error('NOT_FOUND');
+        return {
+            id: String(event.id),
+            title: event.title,
+            description: event.description,
+            rules: event.rules,
+            surface: event.surface,
+            format: event.format,
+            gender: event.gender,
+            skillLevel: event.skillLevel,
+            type: event.type,
+            visibility: event.visibility,
+            status: event.status,
+            startsAt: event.startsAt,
+            endsAt: event.endsAt,
+            spotsRemaining: event.spotsRemaining,
+            attendeeCount: event.attendees.size,
+            teamCount: event.teams.size,
+        };
+    }
+}

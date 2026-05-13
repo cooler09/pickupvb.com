@@ -1,5 +1,3 @@
-import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { Inject } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import {
     Capacity,
@@ -9,11 +7,13 @@ import {
     type EventRepository,
 } from '@pickupvb/domain';
 import { CreateEventCommand } from '../messages';
-import { EVENT_REPOSITORY } from '../tokens';
 
-@CommandHandler(CreateEventCommand)
-export class CreateEventHandler implements ICommandHandler<CreateEventCommand, { id: string }> {
-    constructor(@Inject(EVENT_REPOSITORY) private readonly repo: EventRepository) { }
+/**
+ * Pure handler — takes a port (EventRepository), returns a result.
+ * No DI framework, no decorators, no HTTP coupling.
+ */
+export class CreateEventHandler {
+    constructor(private readonly repo: EventRepository) { }
 
     async execute({ hostId, dto }: CreateEventCommand): Promise<{ id: string }> {
         const id = randomUUID() as never;

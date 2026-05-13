@@ -1,0 +1,17 @@
+import { NextResponse } from 'next/server';
+import { LeaveEventCommand } from '@pickupvb/application';
+import { handlers } from '@/lib/handlers';
+import { handleError, requireUser } from '@/lib/api-helpers';
+
+export const dynamic = 'force-dynamic';
+
+export async function POST(_req: Request, { params }: { params: { id: string } }) {
+    try {
+        const auth = await requireUser();
+        if (auth.response) return auth.response;
+        await handlers.leaveEvent.execute(new LeaveEventCommand(params.id, auth.user.id));
+        return new NextResponse(null, { status: 204 });
+    } catch (err) {
+        return handleError(err);
+    }
+}
