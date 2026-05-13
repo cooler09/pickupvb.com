@@ -53,16 +53,20 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                     </li>
                     {userInfo ? (
                         <li className="flex items-center gap-3">
-                            <span
-                                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
-                                title={userInfo.email ?? ''}
-                                aria-label={`Signed in as ${userInfo.email ?? 'user'}`}
+                            <Link
+                                href="/profile"
+                                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary hover:bg-primary/25"
+                                title={userInfo.email ?? 'Your profile'}
+                                aria-label={`Your profile (${userInfo.email ?? 'signed in'})`}
                             >
                                 {userInfo.initials}
-                            </span>
-                            <span className="hidden max-w-[12rem] truncate text-fg/70 lg:inline">
+                            </Link>
+                            <Link
+                                href="/profile"
+                                className="hidden max-w-[12rem] truncate text-fg/70 hover:text-primary lg:inline"
+                            >
                                 {userInfo.email}
-                            </span>
+                            </Link>
                             <form action={signOut}>
                                 <button
                                     type="submit"

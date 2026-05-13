@@ -93,15 +93,19 @@ export function MobileMenu({ theme, user }: Props) {
 
                             {user ? (
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-3">
+                                    <Link
+                                        href="/profile"
+                                        className="flex items-center gap-3 rounded-md px-2 py-1 hover:bg-fg/5"
+                                    >
                                         <span
                                             className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary"
                                             aria-hidden="true"
                                         >
                                             {user.initials}
                                         </span>
-                                        <span className="truncate text-sm text-fg/80">{user.email}</span>
-                                    </div>
+                                        <span className="flex-1 truncate text-sm text-fg/80">{user.email}</span>
+                                        <span className="text-xs text-fg/60">Profile →</span>
+                                    </Link>
                                     <form action={signOut}>
                                         <button
                                             type="submit"
