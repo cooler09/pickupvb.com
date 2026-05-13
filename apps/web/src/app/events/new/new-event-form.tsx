@@ -10,9 +10,9 @@ import { createEventAction, type CreateEventState } from './actions';
 
 const initialState: CreateEventState = {};
 
-const labelClass = 'block text-sm font-medium text-net-900';
+const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
-    'mt-1 block w-full rounded-md border border-net-900/20 bg-white px-3 py-2 text-sm shadow-sm focus:border-court-500 focus:outline-none focus:ring-1 focus:ring-court-500';
+    'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
 const errorClass = 'mt-1 text-xs text-red-600';
 
 function FieldError({ name, errors }: { name: string; errors: Record<string, string> | undefined }) {
@@ -27,7 +27,7 @@ function SubmitButton() {
         <button
             type="submit"
             disabled={pending}
-            className="rounded-md bg-court-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-court-700 disabled:opacity-50"
+            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-50"
         >
             {pending ? 'Creating…' : 'Create event'}
         </button>
@@ -63,7 +63,7 @@ export default function NewEventForm() {
             )}
 
             <fieldset className="space-y-4">
-                <legend className="text-lg font-semibold text-net-900">Basics</legend>
+                <legend className="text-lg font-semibold text-fg">Basics</legend>
                 <div>
                     <label htmlFor="title" className={labelClass}>Title</label>
                     <input id="title" name="title" required minLength={3} maxLength={120} className={inputClass} />
@@ -71,14 +71,14 @@ export default function NewEventForm() {
                 </div>
                 <div>
                     <label htmlFor="description" className={labelClass}>
-                        Description <span className="text-net-800/50">(optional)</span>
+                        Description <span className="text-fg/50">(optional)</span>
                     </label>
                     <textarea id="description" name="description" rows={3} maxLength={4000} className={inputClass} />
                     <FieldError name="description" errors={state.fieldErrors} />
                 </div>
                 <div>
                     <label htmlFor="rules" className={labelClass}>
-                        Rules <span className="text-net-800/50">(optional)</span>
+                        Rules <span className="text-fg/50">(optional)</span>
                     </label>
                     <textarea id="rules" name="rules" rows={2} maxLength={4000} className={inputClass} />
                     <FieldError name="rules" errors={state.fieldErrors} />
@@ -86,7 +86,7 @@ export default function NewEventForm() {
             </fieldset>
 
             <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <legend className="col-span-full text-lg font-semibold text-net-900">Format</legend>
+                <legend className="col-span-full text-lg font-semibold text-fg">Format</legend>
                 <div>
                     <label htmlFor="type" className={labelClass}>Event type</label>
                     <select id="type" name="type" value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
@@ -150,8 +150,8 @@ export default function NewEventForm() {
             </fieldset>
 
             {type === EventType.OpenPlay && (
-                <fieldset className="space-y-3 rounded-md border border-net-900/10 p-4">
-                    <legend className="px-1 text-sm font-semibold text-net-900">Capacity</legend>
+                <fieldset className="space-y-3 rounded-md border border-border-base p-4">
+                    <legend className="px-1 text-sm font-semibold text-fg">Capacity</legend>
                     <div className="flex gap-4 text-sm">
                         <label className="flex items-center gap-2">
                             <input
@@ -185,7 +185,7 @@ export default function NewEventForm() {
             )}
 
             <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <legend className="col-span-full text-lg font-semibold text-net-900">When</legend>
+                <legend className="col-span-full text-lg font-semibold text-fg">When</legend>
                 <div>
                     <label htmlFor="startsAt" className={labelClass}>Starts at</label>
                     <DateTimePicker
@@ -211,11 +211,11 @@ export default function NewEventForm() {
             </fieldset>
 
             <fieldset className="space-y-4">
-                <legend className="text-lg font-semibold text-net-900">Location</legend>
+                <legend className="text-lg font-semibold text-fg">Location</legend>
                 <div>
                     <label htmlFor="addressSearch" className={labelClass}>Search address or venue</label>
                     <AddressAutocomplete onPick={applySuggestion} inputClass={inputClass} />
-                    <p className="mt-1 text-xs text-net-800/70">
+                    <p className="mt-1 text-xs text-muted">
                         Pick a result to auto-fill the fields below. You can edit them after.
                     </p>
                 </div>
@@ -249,7 +249,7 @@ export default function NewEventForm() {
             </fieldset>
 
             <div className="flex items-center justify-between">
-                <Link href="/events" className="text-sm text-court-600 hover:underline">
+                <Link href="/events" className="text-sm text-primary hover:underline">
                     ← Cancel
                 </Link>
                 <SubmitButton />

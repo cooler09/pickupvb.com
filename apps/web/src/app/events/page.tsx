@@ -84,7 +84,7 @@ export default async function EventsPage({
                 {user && (
                     <Link
                         href="/events/new"
-                        className="rounded-md bg-court-600 px-4 py-2 font-medium text-white hover:bg-court-700"
+                        className="rounded-md bg-primary px-4 py-2 font-medium text-white hover:bg-primary/90"
                     >
                         Host an event
                     </Link>
@@ -92,8 +92,8 @@ export default async function EventsPage({
             </div>
 
             {!user && (
-                <p className="rounded-md bg-sand-50 p-4 text-sm">
-                    <Link href="/login" className="font-semibold text-court-600 hover:underline">
+                <p className="rounded-md bg-highlight/30 p-4 text-sm">
+                    <Link href="/login" className="font-semibold text-primary hover:underline">
                         Sign in
                     </Link>{' '}
                     to RSVP and host events.
@@ -102,16 +102,16 @@ export default async function EventsPage({
 
             <form
                 method="get"
-                className="grid gap-3 rounded-lg border border-net-900/10 bg-white p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+                className="grid gap-3 rounded-lg border border-border-base bg-surface p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
             >
                 <label className="text-sm">
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-net-800/60">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
                         Surface
                     </span>
                     <select
                         name="surface"
                         defaultValue={surface ?? ''}
-                        className="mt-1 w-full rounded-md border border-net-900/15 px-2 py-1.5"
+                        className="mt-1 w-full rounded-md border border-border-base px-2 py-1.5"
                     >
                         <option value="">Any</option>
                         {SURFACES.map((s) => (
@@ -122,13 +122,13 @@ export default async function EventsPage({
                     </select>
                 </label>
                 <label className="text-sm">
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-net-800/60">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
                         Type
                     </span>
                     <select
                         name="type"
                         defaultValue={type ?? ''}
-                        className="mt-1 w-full rounded-md border border-net-900/15 px-2 py-1.5"
+                        className="mt-1 w-full rounded-md border border-border-base px-2 py-1.5"
                     >
                         <option value="">Any</option>
                         {TYPES.map((t) => (
@@ -139,13 +139,13 @@ export default async function EventsPage({
                     </select>
                 </label>
                 <label className="text-sm">
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-net-800/60">
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
                         Skill
                     </span>
                     <select
                         name="skill"
                         defaultValue={skillLevel ?? ''}
-                        className="mt-1 w-full rounded-md border border-net-900/15 px-2 py-1.5"
+                        className="mt-1 w-full rounded-md border border-border-base px-2 py-1.5"
                     >
                         <option value="">Any</option>
                         {SKILLS.map((s) => (
@@ -158,7 +158,7 @@ export default async function EventsPage({
                 <div className="flex items-end">
                     <button
                         type="submit"
-                        className="h-[34px] rounded-md bg-court-600 px-4 text-sm font-semibold text-white hover:bg-court-700"
+                        className="h-[34px] rounded-md bg-primary px-4 text-sm font-semibold text-white hover:bg-primary/90"
                     >
                         Apply
                     </button>
@@ -168,7 +168,7 @@ export default async function EventsPage({
                         <input type="hidden" name="lat" value={String(lat)} />
                         <input type="hidden" name="lng" value={String(lng)} />
                         <label className="text-sm sm:col-span-2">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-net-800/60">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
                                 Radius (km)
                             </span>
                             <input
@@ -177,7 +177,7 @@ export default async function EventsPage({
                                 min={1}
                                 max={500}
                                 defaultValue={radiusKm}
-                                className="mt-1 w-full rounded-md border border-net-900/15 px-2 py-1.5"
+                                className="mt-1 w-full rounded-md border border-border-base px-2 py-1.5"
                             />
                         </label>
                     </>
@@ -187,20 +187,20 @@ export default async function EventsPage({
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <NearMeButton />
                 {hasLocation && (
-                    <Link href="/events" className="text-sm text-court-600 hover:underline">
+                    <Link href="/events" className="text-sm text-primary hover:underline">
                         Clear location
                     </Link>
                 )}
             </div>
 
             {hasLocation && (
-                <p className="text-sm text-net-800/70">
+                <p className="text-sm text-muted">
                     Showing events within {radiusKm} km of your location.
                 </p>
             )}
 
             {events.length === 0 ? (
-                <p className="rounded-md bg-sand-50 p-6 text-center text-net-800/70">
+                <p className="rounded-md bg-highlight/30 p-6 text-center text-muted">
                     No events match your filters yet.
                 </p>
             ) : (
@@ -208,39 +208,39 @@ export default async function EventsPage({
                     {events.map((e) => (
                         <li
                             key={e.id}
-                            className="rounded-lg border border-net-900/10 bg-white p-4 hover:border-court-300"
+                            className="rounded-lg border border-border-base bg-surface p-4 hover:border-primary/40"
                         >
                             <Link
                                 href={`/events/${e.id}`}
-                                className="block font-semibold hover:text-court-600"
+                                className="block font-semibold hover:text-primary"
                             >
                                 {e.title}
                             </Link>
-                            <p className="mt-1 text-xs text-net-800/60">
+                            <p className="mt-1 text-xs text-muted">
                                 {formatStart(new Date(e.startsAt))}
                             </p>
-                            <p className="mt-1 text-sm text-net-800/80">
+                            <p className="mt-1 text-sm text-fg/80">
                                 {e.city}, {e.region}
                                 {e.distanceKm !== null && (
-                                    <span className="text-net-800/60">
+                                    <span className="text-muted">
                                         {' '}
                                         · {e.distanceKm.toFixed(1)} km
                                     </span>
                                 )}
                             </p>
                             <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
-                                <span className="rounded bg-court-100 px-1.5 py-0.5 text-court-700">
+                                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-primary">
                                     {TYPE_LABEL[e.type] ?? e.type}
                                 </span>
-                                <span className="rounded bg-net-900/5 px-1.5 py-0.5">
+                                <span className="rounded bg-fg/5 px-1.5 py-0.5">
                                     {SURFACE_LABEL[e.surface] ?? e.surface}
                                 </span>
-                                <span className="rounded bg-net-900/5 px-1.5 py-0.5">
+                                <span className="rounded bg-fg/5 px-1.5 py-0.5">
                                     {SKILL_LABEL[e.skillLevel] ?? e.skillLevel}
                                 </span>
                             </div>
                             {e.spotsRemaining !== null && (
-                                <p className="mt-2 text-xs text-net-800/70">
+                                <p className="mt-2 text-xs text-muted">
                                     {e.spotsRemaining} spots open
                                 </p>
                             )}

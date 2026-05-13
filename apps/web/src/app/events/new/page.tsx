@@ -18,7 +18,7 @@ export default async function NewEventPage() {
         <section className="mx-auto max-w-2xl space-y-6">
             <header className="space-y-1">
                 <h1 className="text-3xl font-bold">Host an event</h1>
-                <p className="text-sm text-net-800/70">
+                <p className="text-sm text-muted">
                     Fill out the details — your event will be published immediately.
                 </p>
             </header>

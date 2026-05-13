@@ -100,18 +100,18 @@ function LoginForm() {
                 <h1 className="text-2xl font-bold">
                     {signUp ? 'Create your account' : 'Welcome back'}
                 </h1>
-                <p className="text-sm text-net-900/70">
+                <p className="text-sm text-fg/70">
                     {signUp
                         ? 'Find pickup games, run tournaments, build your team.'
                         : 'Sign in to find games and manage your events.'}
                 </p>
             </div>
 
-            <div className="grid grid-cols-2 rounded-md border border-net-900/15 p-1 text-sm">
+            <div className="grid grid-cols-2 rounded-md border border-border-base p-1 text-sm">
                 <button
                     type="button"
                     onClick={() => switchMode('sign-in')}
-                    className={`rounded px-3 py-1.5 font-medium transition ${!signUp ? 'bg-court-600 text-white' : 'text-net-900/70'
+                    className={`rounded px-3 py-1.5 font-medium transition ${!signUp ? 'bg-primary text-white' : 'text-fg/70'
                         }`}
                 >
                     Sign in
@@ -119,7 +119,7 @@ function LoginForm() {
                 <button
                     type="button"
                     onClick={() => switchMode('sign-up')}
-                    className={`rounded px-3 py-1.5 font-medium transition ${signUp ? 'bg-court-600 text-white' : 'text-net-900/70'
+                    className={`rounded px-3 py-1.5 font-medium transition ${signUp ? 'bg-primary text-white' : 'text-fg/70'
                         }`}
                 >
                     Sign up
@@ -135,7 +135,7 @@ function LoginForm() {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-net-900/20 px-3 py-2"
+                        className="mt-1 w-full rounded-md border border-border-base px-3 py-2"
                     />
                 </label>
                 <label className="block">
@@ -147,10 +147,10 @@ function LoginForm() {
                         minLength={8}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-net-900/20 px-3 py-2"
+                        className="mt-1 w-full rounded-md border border-border-base px-3 py-2"
                     />
                     {signUp && (
-                        <span className="mt-1 block text-xs text-net-900/60">
+                        <span className="mt-1 block text-xs text-fg/60">
                             At least 8 characters.
                         </span>
                     )}
@@ -167,7 +167,7 @@ function LoginForm() {
                 {info && (
                     <div
                         role="status"
-                        className="rounded-md border border-court-200 bg-court-50 p-3 text-sm text-court-800"
+                        className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary"
                     >
                         {info}
                     </div>
@@ -176,7 +176,7 @@ function LoginForm() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-md bg-court-600 px-4 py-2 font-medium text-white hover:bg-court-700 disabled:opacity-60"
+                    className="w-full rounded-md bg-primary px-4 py-2 font-medium text-white hover:bg-primary/90 disabled:opacity-60"
                 >
                     {loading ? 'Working…' : signUp ? 'Create account' : 'Sign in'}
                 </button>
@@ -184,22 +184,22 @@ function LoginForm() {
 
             <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-net-900/15" />
+                    <div className="w-full border-t border-border-base" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-net-900/50">Or</span>
+                    <span className="bg-surface px-2 text-fg/50">Or</span>
                 </div>
             </div>
 
             <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="w-full rounded-md border border-net-900/20 px-4 py-2 font-medium hover:bg-net-900/5"
+                className="w-full rounded-md border border-border-base px-4 py-2 font-medium hover:bg-fg/5"
             >
                 Continue with Google
             </button>
 
-            <p className="text-center text-sm text-net-900/70">
+            <p className="text-center text-sm text-fg/70">
                 <Link href="/" className="hover:underline">
                     ← Back to home
                 </Link>

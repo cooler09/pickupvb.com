@@ -34,7 +34,7 @@ export function NearMeButton() {
                 type="button"
                 onClick={locate}
                 disabled={pending}
-                className="rounded-md border border-court-300 bg-white px-3 py-2 text-sm font-medium text-court-700 hover:bg-court-50 disabled:opacity-60"
+                className="rounded-md border border-primary/40 bg-surface px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-60"
             >
                 {pending ? 'Locating…' : '📍 Near me'}
             </button>

@@ -2,10 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light dark;
+/*
+ * Theme tokens. RGB triples (no alpha) so Tailwind's `<alpha-value>` works,
+ * e.g. `bg-surface/50` or `text-fg/70`.
+ *
+ * Light:  Background #F9EBD9 / Surface #EBD6D7 / Primary #439093 / Secondary
+ *         #F09B93 / Highlight #E9DD8A / Fg #183334 / Muted #555F60 / Border #EBD6D7
+ * Dark:   Background #183334 / Surface #234B4D / Primary #439093 / Secondary
+ *         #F09B93 / Highlight #E9DD8A / Fg #F9EBD9 / Muted #B8D0CF / Border #2E5A5C
+ */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-background:    249 235 217; /* #F9EBD9 */
+  --color-surface:       235 214 215; /* #EBD6D7 */
+  --color-primary:        67 144 147; /* #439093 */
+  --color-primary-fg:    249 235 217;
+  --color-secondary:     240 155 147; /* #F09B93 */
+  --color-secondary-fg:   24  51  52;
+  --color-highlight:     233 221 138; /* #E9DD8A */
+  --color-highlight-fg:   24  51  52;
+  --color-fg:             24  51  52; /* #183334 */
+  --color-muted:          85  95  96; /* #555F60 */
+  --color-border:        235 214 215; /* #EBD6D7 */
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-background:     24  51  52; /* #183334 */
+  --color-surface:        35  75  77; /* #234B4D */
+  --color-primary:        67 144 147; /* #439093 */
+  --color-primary-fg:    249 235 217;
+  --color-secondary:     240 155 147; /* #F09B93 */
+  --color-secondary-fg:   24  51  52;
+  --color-highlight:     233 221 138; /* #E9DD8A */
+  --color-highlight-fg:   24  51  52;
+  --color-fg:            249 235 217; /* #F9EBD9 */
+  --color-muted:         184 208 207; /* #B8D0CF */
+  --color-border:         46  90  92; /* #2E5A5C */
 }
 
 html, body {
-  @apply bg-white text-net-900 antialiased;
+  @apply bg-background text-fg antialiased;
 }

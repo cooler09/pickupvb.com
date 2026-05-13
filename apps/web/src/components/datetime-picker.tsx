@@ -71,13 +71,13 @@ export default function DateTimePicker({
                 aria-haspopup="dialog"
                 aria-expanded={open}
             >
-                {display || <span className="text-net-800/40">{placeholder}</span>}
+                {display || <span className="text-fg/40">{placeholder}</span>}
             </button>
             <input type="hidden" name={name} value={value ? value.toISOString() : ''} />
             {open && (
                 <div
                     role="dialog"
-                    className="absolute left-0 top-full z-20 mt-1 rounded-md border border-net-900/15 bg-white p-3 shadow-lg"
+                    className="absolute left-0 top-full z-20 mt-1 rounded-md border border-border-base bg-surface p-3 shadow-lg"
                 >
                     <DayPicker
                         mode="single"
@@ -86,8 +86,8 @@ export default function DateTimePicker({
                         {...(minDate ? { disabled: { before: minDate } } : {})}
                         showOutsideDays
                     />
-                    <div className="mt-2 flex items-center gap-2 border-t border-net-900/10 pt-2">
-                        <label htmlFor={`${name}-time`} className="text-sm text-net-900">
+                    <div className="mt-2 flex items-center gap-2 border-t border-border-base pt-2">
+                        <label htmlFor={`${name}-time`} className="text-sm text-fg">
                             Time
                         </label>
                         <input
@@ -95,12 +95,12 @@ export default function DateTimePicker({
                             type="time"
                             value={time}
                             onChange={(e) => handleTime(e.target.value)}
-                            className="rounded-md border border-net-900/20 px-2 py-1 text-sm focus:border-court-500 focus:outline-none focus:ring-1 focus:ring-court-500"
+                            className="rounded-md border border-border-base px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                         <button
                             type="button"
                             onClick={() => setOpen(false)}
-                            className="ml-auto rounded-md bg-court-600 px-3 py-1 text-xs font-semibold text-white hover:bg-court-700"
+                            className="ml-auto rounded-md bg-primary px-3 py-1 text-xs font-semibold text-white hover:bg-primary/90"
                         >
                             Done
                         </button>

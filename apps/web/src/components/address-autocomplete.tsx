@@ -110,7 +110,7 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
                 aria-autocomplete="list"
             />
             {loading && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-net-800/50">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-fg/50">
                     …
                 </span>
             )}
@@ -118,7 +118,7 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
                 <ul
                     id="address-suggestions"
                     role="listbox"
-                    className="absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-md border border-net-900/15 bg-white py-1 text-sm shadow-lg"
+                    className="absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-md border border-border-base bg-surface py-1 text-sm shadow-lg"
                 >
                     {suggestions.map((s, idx) => (
                         <li
@@ -130,7 +130,7 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
                                 pick(s);
                             }}
                             onMouseEnter={() => setActiveIdx(idx)}
-                            className={`cursor-pointer px-3 py-2 ${idx === activeIdx ? 'bg-court-50 text-court-700' : 'hover:bg-net-900/5'
+                            className={`cursor-pointer px-3 py-2 ${idx === activeIdx ? 'bg-primary/10 text-primary' : 'hover:bg-fg/5'
                                 }`}
                         >
                             {s.label}
