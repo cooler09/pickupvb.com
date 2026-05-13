@@ -1,6 +1,6 @@
-import Link from 'next/link';
-import { getServerSupabase } from '@/lib/supabase';
 import { redirect } from 'next/navigation';
+import { getServerSupabase } from '@/lib/supabase';
+import NewEventForm from './new-event-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,19 +11,18 @@ export default async function NewEventPage() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        redirect('/login');
+        redirect('/login?next=/events/new');
     }
 
     return (
-        <section className="space-y-6">
-            <h1 className="text-3xl font-bold">Host an event</h1>
-            <p className="text-net-800/70">
-                Event creation form coming soon. Wire this up to{' '}
-                <code className="rounded bg-net-900/5 px-1">POST /events</code> on the API.
-            </p>
-            <Link href="/events" className="text-court-600 hover:underline">
-                ← Back to events
-            </Link>
+        <section className="mx-auto max-w-2xl space-y-6">
+            <header className="space-y-1">
+                <h1 className="text-3xl font-bold">Host an event</h1>
+                <p className="text-sm text-net-800/70">
+                    Fill out the details — your event will be published immediately.
+                </p>
+            </header>
+            <NewEventForm />
         </section>
     );
 }
