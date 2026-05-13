@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import { EventType } from '@pickupvb/domain';
+import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import { createEventAction, type CreateEventState } from './actions';
 
 const initialState: CreateEventState = {};
@@ -36,6 +37,19 @@ export default function NewEventForm() {
     const [state, formAction] = useFormState(createEventAction, initialState);
     const [type, setType] = useState<string>(EventType.OpenPlay);
     const [capacityKind, setCapacityKind] = useState<'unlimited' | 'fixed'>('unlimited');
+    const [addressLine, setAddressLine] = useState('');
+    const [city, setCity] = useState('');
+    const [region, setRegion] = useState('');
+    const [postalCode, setPostalCode] = useState('');
+    const [country, setCountry] = useState('USA');
+
+    function applySuggestion(s: Suggestion) {
+        setAddressLine(s.addressLine);
+        setCity(s.city);
+        setRegion(s.region);
+        setPostalCode(s.postalCode);
+        if (s.country) setCountry(s.country);
+    }
 
     return (
         <form action={formAction} className="space-y-8">
@@ -175,45 +189,38 @@ export default function NewEventForm() {
 
             <fieldset className="space-y-4">
                 <legend className="text-lg font-semibold text-net-900">Location</legend>
-                <p className="text-xs text-net-800/70">
-                    Tip: get the latitude/longitude from Google Maps by right-clicking the spot and copying the
-                    coordinates.
-                </p>
+                <div>
+                    <label htmlFor="addressSearch" className={labelClass}>Search address or venue</label>
+                    <AddressAutocomplete onPick={applySuggestion} inputClass={inputClass} />
+                    <p className="mt-1 text-xs text-net-800/70">
+                        Pick a result to auto-fill the fields below. You can edit them after.
+                    </p>
+                </div>
                 <div>
                     <label htmlFor="addressLine" className={labelClass}>Address</label>
-                    <input id="addressLine" name="addressLine" required maxLength={200} className={inputClass} />
+                    <input id="addressLine" name="addressLine" required maxLength={200} value={addressLine} onChange={(e) => setAddressLine(e.target.value)} className={inputClass} />
                     <FieldError name="location.addressLine" errors={state.fieldErrors} />
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                         <label htmlFor="city" className={labelClass}>City</label>
-                        <input id="city" name="city" required maxLength={100} className={inputClass} />
+                        <input id="city" name="city" required maxLength={100} value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} />
                         <FieldError name="location.city" errors={state.fieldErrors} />
                     </div>
                     <div>
                         <label htmlFor="region" className={labelClass}>State / region</label>
-                        <input id="region" name="region" maxLength={100} className={inputClass} />
+                        <input id="region" name="region" maxLength={100} value={region} onChange={(e) => setRegion(e.target.value)} className={inputClass} />
                         <FieldError name="location.region" errors={state.fieldErrors} />
                     </div>
                     <div>
                         <label htmlFor="postalCode" className={labelClass}>Postal code</label>
-                        <input id="postalCode" name="postalCode" maxLength={20} className={inputClass} />
+                        <input id="postalCode" name="postalCode" maxLength={20} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} className={inputClass} />
                         <FieldError name="location.postalCode" errors={state.fieldErrors} />
                     </div>
                     <div>
                         <label htmlFor="country" className={labelClass}>Country</label>
-                        <input id="country" name="country" required defaultValue="USA" maxLength={100} className={inputClass} />
+                        <input id="country" name="country" required maxLength={100} value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass} />
                         <FieldError name="location.country" errors={state.fieldErrors} />
-                    </div>
-                    <div>
-                        <label htmlFor="latitude" className={labelClass}>Latitude</label>
-                        <input id="latitude" name="latitude" type="number" step="any" required min={-90} max={90} className={inputClass} />
-                        <FieldError name="location.latitude" errors={state.fieldErrors} />
-                    </div>
-                    <div>
-                        <label htmlFor="longitude" className={labelClass}>Longitude</label>
-                        <input id="longitude" name="longitude" type="number" step="any" required min={-180} max={180} className={inputClass} />
-                        <FieldError name="location.longitude" errors={state.fieldErrors} />
                     </div>
                 </div>
             </fieldset>

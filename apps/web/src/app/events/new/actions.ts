@@ -8,6 +8,7 @@ import { CreateEventCommand } from '@pickupvb/application';
 import { EventType } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { geocodeAddress } from '@/lib/geocode';
 
 export type CreateEventState = {
     error?: string;
@@ -34,6 +35,20 @@ export async function createEventAction(
     const capacityKind = String(formData.get('capacityKind') ?? 'unlimited');
     const maxSpotsRaw = emptyToUndefined(formData.get('maxSpots'));
 
+    const addressLine = emptyToUndefined(formData.get('addressLine')) ?? '';
+    const city = emptyToUndefined(formData.get('city')) ?? '';
+    const region = emptyToUndefined(formData.get('region')) ?? '';
+    const postalCode = emptyToUndefined(formData.get('postalCode')) ?? '';
+    const country = emptyToUndefined(formData.get('country')) ?? '';
+
+    let coords: { latitude: number; longitude: number };
+    try {
+        coords = await geocodeAddress({ addressLine, city, region, postalCode, country });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not geocode address.';
+        return { error: message, fieldErrors: { 'location.addressLine': message } };
+    }
+
     const raw = {
         title: emptyToUndefined(formData.get('title')) ?? '',
         description: emptyToUndefined(formData.get('description')) ?? '',
@@ -45,13 +60,13 @@ export async function createEventAction(
         type,
         visibility: String(formData.get('visibility') ?? ''),
         location: {
-            addressLine: emptyToUndefined(formData.get('addressLine')) ?? '',
-            city: emptyToUndefined(formData.get('city')) ?? '',
-            region: emptyToUndefined(formData.get('region')) ?? '',
-            postalCode: emptyToUndefined(formData.get('postalCode')) ?? '',
-            country: emptyToUndefined(formData.get('country')) ?? '',
-            latitude: Number(formData.get('latitude')),
-            longitude: Number(formData.get('longitude')),
+            addressLine,
+            city,
+            region,
+            postalCode,
+            country,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
         },
         startsAt: emptyToUndefined(formData.get('startsAt')) ?? '',
         endsAt: emptyToUndefined(formData.get('endsAt')) ?? '',
