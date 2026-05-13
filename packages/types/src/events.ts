@@ -27,8 +27,8 @@ export const CreateEventSchema = z
         description: z.string().max(4000).default(''),
         rules: z.string().max(4000).default(''),
         surface: z.enum(enumValues(Surface)),
-        format: z.enum(enumValues(Format)),
-        gender: z.enum(enumValues(Gender)),
+        format: z.enum(enumValues(Format)).optional(),
+        gender: z.enum(enumValues(Gender)).optional(),
         skillLevel: z.enum(enumValues(SkillLevel)),
         type: z.enum(enumValues(EventType)),
         visibility: z.enum(enumValues(Visibility)),
@@ -49,6 +49,10 @@ export const CreateEventSchema = z
     .refine(
         (d) => d.type !== EventType.OpenPlay || d.capacity !== undefined,
         { message: 'Open-play events require a capacity', path: ['capacity'] },
+    )
+    .refine(
+        (d) => d.type !== EventType.Tournament || (d.format !== undefined && d.gender !== undefined),
+        { message: 'Tournaments require format and gender', path: ['format'] },
     );
 
 export type CreateEventDto = z.infer<typeof CreateEventSchema>;

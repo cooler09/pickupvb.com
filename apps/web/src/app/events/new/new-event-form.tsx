@@ -70,12 +70,16 @@ export default function NewEventForm() {
                     <FieldError name="title" errors={state.fieldErrors} />
                 </div>
                 <div>
-                    <label htmlFor="description" className={labelClass}>Description</label>
+                    <label htmlFor="description" className={labelClass}>
+                        Description <span className="text-net-800/50">(optional)</span>
+                    </label>
                     <textarea id="description" name="description" rows={3} maxLength={4000} className={inputClass} />
                     <FieldError name="description" errors={state.fieldErrors} />
                 </div>
                 <div>
-                    <label htmlFor="rules" className={labelClass}>Rules</label>
+                    <label htmlFor="rules" className={labelClass}>
+                        Rules <span className="text-net-800/50">(optional)</span>
+                    </label>
                     <textarea id="rules" name="rules" rows={2} maxLength={4000} className={inputClass} />
                     <FieldError name="rules" errors={state.fieldErrors} />
                 </div>
@@ -100,25 +104,29 @@ export default function NewEventForm() {
                     </select>
                     <FieldError name="surface" errors={state.fieldErrors} />
                 </div>
-                <div>
-                    <label htmlFor="format" className={labelClass}>Format</label>
-                    <select id="format" name="format" defaultValue="sixes" className={inputClass}>
-                        <option value="sixes">Sixes</option>
-                        <option value="quads">Quads</option>
-                        <option value="triples">Triples</option>
-                        <option value="doubles">Doubles</option>
-                    </select>
-                    <FieldError name="format" errors={state.fieldErrors} />
-                </div>
-                <div>
-                    <label htmlFor="gender" className={labelClass}>Gender</label>
-                    <select id="gender" name="gender" defaultValue="coed" className={inputClass}>
-                        <option value="coed">Coed</option>
-                        <option value="mens">Men&apos;s</option>
-                        <option value="womens">Women&apos;s</option>
-                    </select>
-                    <FieldError name="gender" errors={state.fieldErrors} />
-                </div>
+                {type === EventType.Tournament ? (
+                    <>
+                        <div>
+                            <label htmlFor="format" className={labelClass}>Format</label>
+                            <select id="format" name="format" defaultValue="sixes" className={inputClass}>
+                                <option value="sixes">Sixes</option>
+                                <option value="quads">Quads</option>
+                                <option value="triples">Triples</option>
+                                <option value="doubles">Doubles</option>
+                            </select>
+                            <FieldError name="format" errors={state.fieldErrors} />
+                        </div>
+                        <div>
+                            <label htmlFor="gender" className={labelClass}>Gender</label>
+                            <select id="gender" name="gender" defaultValue="coed" className={inputClass}>
+                                <option value="coed">Coed</option>
+                                <option value="mens">Men&apos;s</option>
+                                <option value="womens">Women&apos;s</option>
+                            </select>
+                            <FieldError name="gender" errors={state.fieldErrors} />
+                        </div>
+                    </>
+                ) : null}
                 <div>
                     <label htmlFor="skillLevel" className={labelClass}>Skill level</label>
                     <select id="skillLevel" name="skillLevel" defaultValue="intermediate" className={inputClass}>

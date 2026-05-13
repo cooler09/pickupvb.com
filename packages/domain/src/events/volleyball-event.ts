@@ -33,8 +33,8 @@ export interface CreateEventProps {
     description: string;
     rules: string;
     surface: Surface;
-    format: Format;
-    gender: Gender;
+    format: Format | null;
+    gender: Gender | null;
     skillLevel: SkillLevel;
     type: EventType;
     visibility: Visibility;
@@ -64,8 +64,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         private _description: string,
         private _rules: string,
         public readonly surface: Surface,
-        public readonly format: Format,
-        public readonly gender: Gender,
+        public readonly format: Format | null,
+        public readonly gender: Gender | null,
         private _skillLevel: SkillLevel,
         public readonly type: EventType,
         private _visibility: Visibility,
@@ -82,7 +82,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
 
     // ---- Factory ---------------------------------------------------------
     static create(props: CreateEventProps): VolleyballEvent {
-        assertFormatAllowedForSurface(props.surface, props.format);
+        if (props.format !== null) {
+            assertFormatAllowedForSurface(props.surface, props.format);
+        }
 
         if (props.endsAt <= props.startsAt) {
             throw new InvariantViolation('Event end time must be after start time.');
