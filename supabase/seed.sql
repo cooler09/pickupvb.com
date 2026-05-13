@@ -1,0 +1,2 @@
+-- Optional local seed data. Run with: pnpm supabase:reset
+-- (Currently empty — add fixtures as the app grows.)
