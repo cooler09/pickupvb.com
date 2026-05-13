@@ -1,8 +1,16 @@
 import Link from 'next/link';
+import dynamicImport from 'next/dynamic';
 import { notFound } from 'next/navigation';
 import { GetEventByIdQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+
+const EventMap = dynamicImport(() => import('@/components/event-map'), {
+    ssr: false,
+    loading: () => (
+        <div className="h-[320px] w-full animate-pulse rounded-lg bg-net-900/5" />
+    ),
+});
 
 export const dynamic = 'force-dynamic';
 
@@ -125,6 +133,28 @@ export default async function EventDetailPage({ params }: { params: { id: string
                         </p>
                     )}
                 </div>
+            </section>
+
+            <section className="space-y-2">
+                <h2 className="text-lg font-semibold text-net-900">Where</h2>
+                <p className="text-net-800/90">{event.location.addressLine}</p>
+                <p className="text-sm text-net-800/70">
+                    {event.location.city}, {event.location.region} {event.location.postalCode}
+                </p>
+                <EventMap
+                    latitude={event.location.latitude}
+                    longitude={event.location.longitude}
+                    title={event.title}
+                    addressLine={event.location.addressLine}
+                />
+                <a
+                    href={`https://www.openstreetmap.org/?mlat=${event.location.latitude}&mlon=${event.location.longitude}#map=16/${event.location.latitude}/${event.location.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-court-600 hover:underline"
+                >
+                    Open in map ↗
+                </a>
             </section>
 
             {event.description && (

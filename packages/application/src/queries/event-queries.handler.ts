@@ -24,6 +24,7 @@ export class GetEventByIdHandler {
     async execute({ id }: GetEventByIdQuery) {
         const event = await this.repo.findById(id);
         if (!event) throw new Error('NOT_FOUND');
+        const loc = event.location;
         return {
             id: String(event.id),
             title: event.title,
@@ -41,6 +42,15 @@ export class GetEventByIdHandler {
             spotsRemaining: event.spotsRemaining,
             attendeeCount: event.attendees.size,
             teamCount: event.teams.size,
+            location: {
+                addressLine: loc.addressLine,
+                city: loc.city,
+                region: loc.region,
+                postalCode: loc.postalCode,
+                country: loc.country,
+                latitude: loc.latitude,
+                longitude: loc.longitude,
+            },
         };
     }
 }
