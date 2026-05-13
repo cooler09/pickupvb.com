@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { GetEventByIdQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { AttendeeList } from '@/components/attendee-list';
 
 const EventMap = dynamicImport(() => import('@/components/event-map'), {
     ssr: false,
@@ -71,7 +72,25 @@ export default async function EventDetailPage({ params }: { params: { id: string
     const {
         data: { user },
     } = await supabase.auth.getUser();
-    const isAttending = false; // TODO: wire from event.attendees once exposed in DTO
+
+    const { data: attendeeRows } = await supabase
+        .from('event_attendees')
+        .select('user_id, joined_at, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)')
+        .eq('event_id', event.id)
+        .order('joined_at', { ascending: true });
+
+    type AttendeeRow = {
+        user_id: string;
+        joined_at: string;
+        profiles: {
+            display_name: string;
+            first_name: string | null;
+            last_name: string | null;
+            avatar_url: string | null;
+        } | null;
+    };
+    const attendees: AttendeeRow[] = (attendeeRows as AttendeeRow[] | null) ?? [];
+    const isAttending = Boolean(user && attendees.some((a) => a.user_id === user.id));
 
     const startsAt = new Date(event.startsAt);
     const endsAt = new Date(event.endsAt);
@@ -170,6 +189,16 @@ export default async function EventDetailPage({ params }: { params: { id: string
                     <p className="whitespace-pre-wrap text-fg/90">{event.rules}</p>
                 </section>
             )}
+
+            <section>
+                <h2 className="mb-3 text-lg font-semibold text-fg">
+                    Players signed up{' '}
+                    <span className="text-sm font-normal text-muted">
+                        ({attendees.length})
+                    </span>
+                </h2>
+                <AttendeeList attendees={attendees} currentUserId={user?.id ?? null} />
+            </section>
 
             <section className="rounded-lg border border-border-base p-4">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
