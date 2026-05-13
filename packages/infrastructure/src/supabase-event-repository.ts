@@ -178,9 +178,53 @@ export class SupabaseEventRepository implements EventRepository {
         event.pullEvents();
     }
 
-    async search(_query: EventSearchQuery): Promise<VolleyballEventSummary[]> {
-        // TODO: call public.search_events RPC. Out of scope for the detail-page wiring.
-        void this.client;
-        return [];
+    async search(query: EventSearchQuery): Promise<VolleyballEventSummary[]> {
+        type SearchRow = {
+            id: string;
+            title: string;
+            surface: Surface;
+            format: Format | null;
+            gender: Gender | null;
+            skill_level: SkillLevel;
+            type: EventType;
+            starts_at: string;
+            city: string;
+            region: string;
+            spots_remaining: number | null;
+            distance_km: number | null;
+        };
+
+        const args = {
+            p_lat: query.near?.latitude ?? null,
+            p_lng: query.near?.longitude ?? null,
+            p_radius_km: query.near?.radiusKm ?? null,
+            p_surface: query.surface ?? null,
+            p_format: query.format ?? null,
+            p_gender: query.gender ?? null,
+            p_skill_level: query.skillLevel ?? null,
+            p_type: query.type ?? null,
+            p_starts_after: query.startsAfter?.toISOString() ?? null,
+            p_starts_before: query.startsBefore?.toISOString() ?? null,
+            p_limit: query.limit ?? 20,
+        };
+
+        const { data, error } = await this.client.rpc('search_events', args as never);
+        if (error) throw new Error(`search failed: ${error.message}`);
+
+        const rows = (data ?? []) as unknown as SearchRow[];
+        return rows.map((r) => ({
+            id: r.id,
+            title: r.title,
+            surface: r.surface,
+            format: r.format,
+            gender: r.gender,
+            skillLevel: r.skill_level,
+            type: r.type,
+            startsAt: new Date(r.starts_at),
+            city: r.city,
+            region: r.region,
+            spotsRemaining: r.spots_remaining,
+            distanceKm: r.distance_km,
+        }));
     }
 }

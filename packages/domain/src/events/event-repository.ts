@@ -32,8 +32,8 @@ export interface VolleyballEventSummary {
     id: string;
     title: string;
     surface: Surface;
-    format: Format;
-    gender: Gender;
+    format: Format | null;
+    gender: Gender | null;
     skillLevel: SkillLevel;
     type: EventType;
     startsAt: Date;
