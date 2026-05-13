@@ -1,6 +1,21 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
-export default function HomePage() {
+export default function HomePage({
+    searchParams,
+}: {
+    searchParams?: { code?: string; type?: string };
+}) {
+    // Supabase sometimes lands recovery/OAuth codes here when its allow-list falls back to Site URL.
+    // Forward to the appropriate callback so the user doesn't get stranded.
+    if (searchParams?.code) {
+        const target =
+            searchParams.type === 'recovery'
+                ? '/auth/reset-password'
+                : '/auth/callback';
+        redirect(`${target}?code=${encodeURIComponent(searchParams.code)}`);
+    }
+
     return (
         <section className="grid gap-10 md:grid-cols-2 md:items-center">
             <div className="space-y-6">
