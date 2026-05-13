@@ -149,10 +149,17 @@ function LoginForm() {
                         onChange={(e) => setPassword(e.target.value)}
                         className="mt-1 w-full rounded-md border border-border-base px-3 py-2"
                     />
-                    {signUp && (
+                    {signUp ? (
                         <span className="mt-1 block text-xs text-fg/60">
                             At least 8 characters.
                         </span>
+                    ) : (
+                        <Link
+                            href="/forgot-password"
+                            className="mt-1 block text-xs text-primary hover:underline"
+                        >
+                            Forgot password?
+                        </Link>
                     )}
                 </label>
 
