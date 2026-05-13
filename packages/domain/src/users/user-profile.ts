@@ -1,8 +1,8 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
-import type { Brand } from '../shared/brand.js';
 import { InvariantViolation } from '../shared/result.js';
+import type { UserId } from '../events/volleyball-event.js';
 
-export type UserId = Brand<string, 'UserId'>;
+export type { UserId };
 
 /**
  * User profile aggregate. Authentication itself lives in Supabase Auth;

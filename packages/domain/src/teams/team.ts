@@ -1,11 +1,10 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
-import type { Brand } from '../shared/brand.js';
 import { InvariantViolation } from '../shared/result.js';
 import { Format } from '../events/enums.js';
 import { playersPerSide } from '../events/rules.js';
+import type { TeamId, UserId } from '../events/volleyball-event.js';
 
-export type TeamId = Brand<string, 'TeamId'>;
-export type UserId = Brand<string, 'UserId'>;
+export type { TeamId, UserId };
 
 /**
  * Team aggregate used for tournament signup.

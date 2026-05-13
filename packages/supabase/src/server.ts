@@ -16,17 +16,17 @@ export function createSupabaseServerClient(cookieStore: CookieStore) {
         process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!,
         {
             cookies: {
-                get(name) {
+                get(name: string) {
                     return cookieStore.get(name)?.value;
                 },
-                set(name, value, options) {
+                set(name: string, value: string, options: CookieOptions) {
                     try {
                         cookieStore.set(name, value, options);
                     } catch {
                         // Server Components cannot set cookies; safe to ignore — middleware refreshes.
                     }
                 },
-                remove(name, options) {
+                remove(name: string, options: CookieOptions) {
                     try {
                         cookieStore.set(name, '', { ...options, maxAge: 0 });
                     } catch {

@@ -6,7 +6,7 @@ import {
     SkillLevel,
     Surface,
     Visibility,
-} from '@pickupvb/domain/events';
+} from '@pickupvb/domain';
 
 const enumValues = <T extends Record<string, string>>(e: T) =>
     Object.values(e) as [T[keyof T], ...T[keyof T][]];
@@ -42,7 +42,7 @@ export const CreateEventSchema = z
             ])
             .optional(),
     })
-    .refine((d) => d.endsAt > d.startsAt, {
+    .refine((d): boolean => (d.endsAt as Date) > (d.startsAt as Date), {
         message: 'endsAt must be after startsAt',
         path: ['endsAt'],
     })

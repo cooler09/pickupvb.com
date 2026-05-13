@@ -5,7 +5,7 @@ import {
     VolleyballEvent,
     VolleyballEventSummary,
 } from '@pickupvb/domain';
-import { createSupabaseAdminClient } from '@pickupvb/supabase/admin';
+import { createSupabaseAdminClient } from '@pickupvb/supabase';
 
 /**
  * Adapter implementing the domain EventRepository port using Supabase.
