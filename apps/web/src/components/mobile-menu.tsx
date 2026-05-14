@@ -79,6 +79,11 @@ export function MobileMenu({ theme, user }: Props) {
                                 </Link>
                             </li>
                             <li>
+                                <Link href="/groups" className="block rounded-md px-3 py-2 hover:bg-fg/5">
+                                    Groups
+                                </Link>
+                            </li>
+                            <li>
                                 <Link href="/tools" className="block rounded-md px-3 py-2 hover:bg-fg/5">
                                     Host tools
                                 </Link>

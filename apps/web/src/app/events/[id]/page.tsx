@@ -5,6 +5,7 @@ import { GetEventByIdQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { AttendeeList } from '@/components/attendee-list';
+import { addEventCoHost, removeEventCoHost } from '@/app/groups/actions';
 
 const EventMap = dynamicImport(() => import('@/components/event-map'), {
     ssr: false,
@@ -103,8 +104,104 @@ export default async function EventDetailPage({ params }: { params: { id: string
         friendIds = new Set(rows.map((r) => r.friend_id));
     }
 
+    // ---- Hosts (primary user, primary group, co-hosts) ---------------------
+    const { data: eventRow } = await supabase
+        .from('events')
+        .select('host_id, host_group_id')
+        .eq('id', event.id)
+        .maybeSingle();
+    const hostRow = eventRow as { host_id: string; host_group_id: string | null } | null;
+
+    type ProfileLite = {
+        id: string;
+        display_name: string;
+        first_name: string | null;
+        last_name: string | null;
+        avatar_url: string | null;
+    };
+    type GroupLite = { id: string; name: string; avatar_url: string | null; slug: string };
+
+    let primaryHostUser: ProfileLite | null = null;
+    if (hostRow?.host_id) {
+        const { data } = await supabase
+            .from('profiles')
+            .select('id, display_name, first_name, last_name, avatar_url')
+            .eq('id', hostRow.host_id)
+            .maybeSingle();
+        primaryHostUser = (data as ProfileLite | null) ?? null;
+    }
+
+    let primaryHostGroup: GroupLite | null = null;
+    if (hostRow?.host_group_id) {
+        const { data } = await supabase
+            .from('groups')
+            .select('id, name, avatar_url, slug')
+            .eq('id', hostRow.host_group_id)
+            .maybeSingle();
+        primaryHostGroup = (data as GroupLite | null) ?? null;
+    }
+
+    const { data: coHostRows } = await supabase
+        .from('event_co_hosts')
+        .select('host_user_id, host_group_id')
+        .eq('event_id', event.id);
+    const coHosts = (coHostRows as { host_user_id: string | null; host_group_id: string | null }[] | null) ?? [];
+    const coUserIds = coHosts.map((c) => c.host_user_id).filter((v): v is string => !!v);
+    const coGroupIds = coHosts.map((c) => c.host_group_id).filter((v): v is string => !!v);
+
+    const coHostUsers: ProfileLite[] = coUserIds.length
+        ? (((await supabase
+            .from('profiles')
+            .select('id, display_name, first_name, last_name, avatar_url')
+            .in('id', coUserIds)).data) as ProfileLite[] | null) ?? []
+        : [];
+    const coHostGroups: GroupLite[] = coGroupIds.length
+        ? (((await supabase
+            .from('groups')
+            .select('id, name, avatar_url, slug')
+            .in('id', coGroupIds)).data) as GroupLite[] | null) ?? []
+        : [];
+
+    function profileName(p: ProfileLite): string {
+        const full = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
+        return full || p.display_name || 'Player';
+    }
+
+    // Can the viewer manage this event (add/remove co-hosts)?
+    let canManageEvent = false;
+    if (user) {
+        if (user.id === hostRow?.host_id) {
+            canManageEvent = true;
+        } else if (hostRow?.host_group_id) {
+            const { data: roleRow } = await supabase
+                .from('group_members')
+                .select('role')
+                .eq('group_id', hostRow.host_group_id)
+                .eq('user_id', user.id)
+                .maybeSingle();
+            const role = (roleRow as { role: string } | null)?.role;
+            canManageEvent = role === 'owner' || role === 'admin';
+        }
+    }
+
+    // Groups the viewer can pick as a co-host (owner/admin of).
+    let myHostableGroups: { id: string; name: string }[] = [];
+    if (canManageEvent && user) {
+        const { data } = await supabase
+            .from('group_members')
+            .select('groups:groups!inner(id, name)')
+            .eq('user_id', user.id)
+            .in('role', ['owner', 'admin']);
+        type Row = { groups: { id: string; name: string } | null };
+        myHostableGroups = ((data as Row[] | null) ?? [])
+            .map((r) => r.groups)
+            .filter((g): g is { id: string; name: string } => g !== null)
+            .filter((g) => g.id !== hostRow?.host_group_id && !coGroupIds.includes(g.id));
+    }
+
     const startsAt = new Date(event.startsAt);
     const endsAt = new Date(event.endsAt);
+    const returnPath = `/events/${event.id}`;
 
     return (
         <article className="mx-auto max-w-3xl space-y-8">
@@ -141,6 +238,156 @@ export default async function EventDetailPage({ params }: { params: { id: string
                 </div>
                 <h1 className="text-3xl font-bold text-fg">{event.title}</h1>
             </header>
+
+            <section className="space-y-2 rounded-lg border border-border-base p-4">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                    Hosted by
+                </h2>
+                <ul className="flex flex-wrap gap-2">
+                    {primaryHostGroup && (
+                        <li>
+                            <Link
+                                href={`/groups/${primaryHostGroup.id}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary hover:bg-primary/20"
+                            >
+                                {primaryHostGroup.avatar_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={primaryHostGroup.avatar_url}
+                                        alt=""
+                                        className="h-5 w-5 rounded object-cover"
+                                    />
+                                ) : (
+                                    <span aria-hidden="true" className="text-xs">🏐</span>
+                                )}
+                                {primaryHostGroup.name}
+                            </Link>
+                        </li>
+                    )}
+                    {primaryHostUser && (
+                        <li>
+                            <Link
+                                href={`/players/${primaryHostUser.id}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
+                            >
+                                {profileName(primaryHostUser)}
+                                {primaryHostGroup && (
+                                    <span className="text-xs text-muted">(manager)</span>
+                                )}
+                            </Link>
+                        </li>
+                    )}
+                    {coHostGroups.map((g) => (
+                        <li key={`g-${g.id}`}>
+                            <Link
+                                href={`/groups/${g.id}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
+                            >
+                                {g.name}
+                                <span className="text-xs text-muted">(co-host)</span>
+                            </Link>
+                            {canManageEvent && (
+                                <form
+                                    action={removeEventCoHost.bind(null, event.id, { groupId: g.id }, returnPath)}
+                                    className="ml-1 inline"
+                                >
+                                    <button
+                                        type="submit"
+                                        title="Remove co-host"
+                                        className="text-xs text-muted hover:text-red-600"
+                                    >
+                                        ✕
+                                    </button>
+                                </form>
+                            )}
+                        </li>
+                    ))}
+                    {coHostUsers.map((p) => (
+                        <li key={`u-${p.id}`}>
+                            <Link
+                                href={`/players/${p.id}`}
+                                className="inline-flex items-center gap-2 rounded-full border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
+                            >
+                                {profileName(p)}
+                                <span className="text-xs text-muted">(co-host)</span>
+                            </Link>
+                            {canManageEvent && (
+                                <form
+                                    action={removeEventCoHost.bind(null, event.id, { userId: p.id }, returnPath)}
+                                    className="ml-1 inline"
+                                >
+                                    <button
+                                        type="submit"
+                                        title="Remove co-host"
+                                        className="text-xs text-muted hover:text-red-600"
+                                    >
+                                        ✕
+                                    </button>
+                                </form>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+
+                {canManageEvent && (
+                    <details className="mt-2">
+                        <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
+                            + Add co-host
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                            {myHostableGroups.length > 0 && (
+                                <form
+                                    action={addCoHostFromForm.bind(null, event.id, returnPath)}
+                                    className="flex flex-wrap items-end gap-2"
+                                >
+                                    <input type="hidden" name="kind" value="group" />
+                                    <label className="text-xs text-muted">
+                                        Group
+                                        <select
+                                            name="group_id"
+                                            defaultValue=""
+                                            className="mt-1 block rounded-md border border-border-base bg-surface px-2 py-1 text-sm"
+                                        >
+                                            <option value="">Pick a group…</option>
+                                            {myHostableGroups.map((g) => (
+                                                <option key={g.id} value={g.id}>
+                                                    {g.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                    <button
+                                        type="submit"
+                                        className="rounded-md border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
+                                    >
+                                        Add group
+                                    </button>
+                                </form>
+                            )}
+                            <form
+                                action={addCoHostFromForm.bind(null, event.id, returnPath)}
+                                className="flex flex-wrap items-end gap-2"
+                            >
+                                <input type="hidden" name="kind" value="user" />
+                                <label className="text-xs text-muted">
+                                    User ID
+                                    <input
+                                        name="user_id"
+                                        placeholder="UUID from /players/[id]"
+                                        className="mt-1 block w-72 rounded-md border border-border-base bg-surface px-2 py-1 text-sm"
+                                    />
+                                </label>
+                                <button
+                                    type="submit"
+                                    className="rounded-md border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
+                                >
+                                    Add user
+                                </button>
+                            </form>
+                        </div>
+                    </details>
+                )}
+            </section>
 
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-lg border border-border-base p-4">
@@ -252,4 +499,16 @@ export default async function EventDetailPage({ params }: { params: { id: string
             )}
         </article>
     );
+}
+
+async function addCoHostFromForm(eventId: string, returnPath: string, formData: FormData) {
+    'use server';
+    const kind = String(formData.get('kind') ?? '');
+    if (kind === 'group') {
+        const groupId = String(formData.get('group_id') ?? '').trim();
+        if (groupId) await addEventCoHost(eventId, { groupId }, returnPath);
+    } else if (kind === 'user') {
+        const userId = String(formData.get('user_id') ?? '').trim();
+        if (userId) await addEventCoHost(eventId, { userId }, returnPath);
+    }
 }

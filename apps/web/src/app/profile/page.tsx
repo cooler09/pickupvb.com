@@ -77,6 +77,25 @@ export default async function ProfilePage() {
         (e) => new Date(e.starts_at).getTime() >= Date.now(),
     );
 
+    // Groups the user is a member of (with role).
+    const { data: myGroupRows } = await supabase
+        .from('group_members')
+        .select('role, groups:groups!inner(id, slug, name, avatar_url, home_city)')
+        .eq('user_id', user.id);
+    type MyGroupRow = {
+        role: 'owner' | 'admin' | 'member';
+        groups: {
+            id: string;
+            slug: string;
+            name: string;
+            avatar_url: string | null;
+            home_city: string | null;
+        } | null;
+    };
+    const myGroups = ((myGroupRows as MyGroupRow[] | null) ?? []).filter(
+        (r): r is MyGroupRow & { groups: NonNullable<MyGroupRow['groups']> } => r.groups !== null,
+    );
+
     return (
         <div className="mx-auto max-w-xl space-y-10 py-4">
             <section className="space-y-6">
@@ -116,6 +135,63 @@ export default async function ProfilePage() {
                     events={upcomingHosted}
                     emptyState="You aren't hosting any upcoming events. Tap + New event to create one."
                 />
+            </section>
+
+            <section className="space-y-4">
+                <div className="flex items-baseline justify-between">
+                    <h2 className="text-xl font-bold">
+                        Groups{' '}
+                        <span className="text-sm font-normal text-muted">({myGroups.length})</span>
+                    </h2>
+                    <Link
+                        href="/groups/new"
+                        className="text-sm font-medium text-primary hover:underline"
+                    >
+                        + New group
+                    </Link>
+                </div>
+                {myGroups.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-border-base p-4 text-sm text-muted">
+                        You aren&apos;t a member of any groups yet.{' '}
+                        <Link href="/groups" className="text-primary hover:underline">
+                            Browse groups
+                        </Link>{' '}
+                        or create one.
+                    </p>
+                ) : (
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                        {myGroups.map((g) => (
+                            <li key={g.groups.id}>
+                                <Link
+                                    href={`/groups/${g.groups.id}`}
+                                    className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-2 hover:border-primary/40"
+                                >
+                                    {g.groups.avatar_url ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={g.groups.avatar_url}
+                                            alt=""
+                                            className="h-9 w-9 rounded-md object-cover"
+                                        />
+                                    ) : (
+                                        <span
+                                            aria-hidden="true"
+                                            className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/15 text-xs font-semibold text-primary"
+                                        >
+                                            {g.groups.name.slice(0, 2).toUpperCase()}
+                                        </span>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-medium">{g.groups.name}</p>
+                                        <p className="text-[10px] uppercase tracking-wide text-muted">
+                                            {g.role}
+                                        </p>
+                                    </div>
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </section>
 
             <section className="space-y-4">

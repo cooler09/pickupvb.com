@@ -14,6 +14,17 @@ export default async function NewEventPage() {
         redirect('/login?next=/events/new');
     }
 
+    // Groups the user can host as (must be owner/admin).
+    const { data: groupRows } = await supabase
+        .from('group_members')
+        .select('role, groups:groups!inner(id, name)')
+        .eq('user_id', user.id)
+        .in('role', ['owner', 'admin']);
+    type Row = { role: string; groups: { id: string; name: string } | null };
+    const hostableGroups = ((groupRows as Row[] | null) ?? [])
+        .map((r) => r.groups)
+        .filter((g): g is { id: string; name: string } => g !== null);
+
     return (
         <section className="mx-auto max-w-2xl space-y-6">
             <header className="space-y-1">
@@ -22,7 +33,7 @@ export default async function NewEventPage() {
                     Fill out the details — your event will be published immediately.
                 </p>
             </header>
-            <NewEventForm />
+            <NewEventForm hostableGroups={hostableGroups} />
         </section>
     );
 }

@@ -101,6 +101,19 @@ export async function createEventAction(
         return { error: message };
     }
 
+    // If the user chose to host on behalf of a group, attach it to the row.
+    // RLS on events_update enforces they're owner/admin of that group.
+    const hostGroupId = emptyToUndefined(formData.get('hostGroupId'));
+    if (hostGroupId) {
+        const { error: groupErr } = await supabase
+            .from('events')
+            .update({ host_group_id: hostGroupId } as never)
+            .eq('id', result.id);
+        if (groupErr) {
+            return { error: `Event created, but couldn't set group host: ${groupErr.message}` };
+        }
+    }
+
     revalidatePath('/events');
     redirect(`/events/${result.id}`);
 }

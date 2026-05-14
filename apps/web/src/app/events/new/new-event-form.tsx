@@ -34,7 +34,11 @@ function SubmitButton() {
     );
 }
 
-export default function NewEventForm() {
+export default function NewEventForm({
+    hostableGroups = [],
+}: {
+    hostableGroups?: { id: string; name: string }[];
+}) {
     const [state, formAction] = useFormState(createEventAction, initialState);
     const [type, setType] = useState<string>(EventType.OpenPlay);
     const [capacityKind, setCapacityKind] = useState<'unlimited' | 'fixed'>('unlimited');
@@ -64,6 +68,20 @@ export default function NewEventForm() {
 
             <fieldset className="space-y-4">
                 <legend className="text-lg font-semibold text-fg">Basics</legend>
+                <div>
+                    <label htmlFor="hostGroupId" className={labelClass}>Host as</label>
+                    <select id="hostGroupId" name="hostGroupId" defaultValue="" className={inputClass}>
+                        <option value="">Yourself</option>
+                        {hostableGroups.map((g) => (
+                            <option key={g.id} value={g.id}>
+                                {g.name}
+                            </option>
+                        ))}
+                    </select>
+                    <p className="mt-1 text-xs text-muted">
+                        Hosting on behalf of a group? You can pick any group you own or admin.
+                    </p>
+                </div>
                 <div>
                     <label htmlFor="title" className={labelClass}>Title</label>
                     <input id="title" name="title" required minLength={3} maxLength={120} className={inputClass} />

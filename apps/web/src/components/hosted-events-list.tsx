@@ -11,7 +11,7 @@ const SKILL_LABEL: Record<string, string> = {
     competitive: 'Competitive',
 };
 
-type HostedEventRow = {
+export type HostedEventRow = {
     id: string;
     title: string;
     starts_at: string;
@@ -37,20 +37,45 @@ function formatStart(d: Date): string {
 }
 
 /**
- * Loads events hosted by `hostId` that the **current viewer** is allowed to see.
- * Visibility is enforced by the `events` table RLS policy via the `events_view`
- * read model — we don't filter manually, we just query and trust RLS.
+ * Loads events hosted by `hostId` (as primary user host or as a co-host) that
+ * the **current viewer** is allowed to see. Visibility is enforced by RLS on
+ * `events` via the `events_view` read model — we don't filter manually.
  */
 export async function loadVisibleHostedEvents(hostId: string): Promise<HostedEventRow[]> {
     const supabase = getServerSupabase();
-    const { data } = await supabase
+
+    const { data: primary } = await supabase
         .from('events_view')
         .select(
             'id, title, starts_at, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
         )
         .eq('host_id', hostId)
         .order('starts_at', { ascending: true });
-    return (data as HostedEventRow[] | null) ?? [];
+
+    const { data: coRows } = await supabase
+        .from('event_co_hosts')
+        .select('event_id')
+        .eq('host_user_id', hostId);
+    const coIds = ((coRows as { event_id: string }[] | null) ?? []).map((r) => r.event_id);
+
+    let coEvents: HostedEventRow[] = [];
+    if (coIds.length > 0) {
+        const { data: coData } = await supabase
+            .from('events_view')
+            .select(
+                'id, title, starts_at, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
+            )
+            .in('id', coIds)
+            .order('starts_at', { ascending: true });
+        coEvents = (coData as HostedEventRow[] | null) ?? [];
+    }
+
+    const merged = new Map<string, HostedEventRow>();
+    for (const e of (primary as HostedEventRow[] | null) ?? []) merged.set(e.id, e);
+    for (const e of coEvents) merged.set(e.id, e);
+    return Array.from(merged.values()).sort(
+        (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+    );
 }
 
 export function HostedEventsList({
