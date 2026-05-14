@@ -35,8 +35,8 @@ export function FriendsList({
     if (friends.length === 0) {
         return (
             <p className="rounded-lg border border-dashed border-border-base p-4 text-sm text-muted">
-                You haven&apos;t added anyone yet. Find players on event pages and tap{' '}
-                <span className="font-medium text-fg">+ Add friend</span>.
+                You aren&apos;t following anyone yet. Find players on event pages and tap{' '}
+                <span className="font-medium text-fg">+ Follow</span>.
             </p>
         );
     }
@@ -73,16 +73,16 @@ export function FriendsList({
                                 {mutual ? (
                                     <span
                                         className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary"
-                                        title="You both added each other"
+                                        title="You both follow each other"
                                     >
                                         Mutual
                                     </span>
                                 ) : (
                                     <span
                                         className="rounded-full bg-fg/5 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-fg/60"
-                                        title="They haven't added you back yet"
+                                        title="They don't follow you back yet"
                                     >
-                                        One-way
+                                        Following
                                     </span>
                                 )}
                             </div>
@@ -96,9 +96,9 @@ export function FriendsList({
                             <button
                                 type="submit"
                                 className="rounded-md border border-border-base px-2 py-1 text-xs text-fg/70 hover:bg-red-50 hover:text-red-700"
-                                title="Remove friend"
+                                title="Unfollow"
                             >
-                                Remove
+                                Unfollow
                             </button>
                         </form>
                     </li>

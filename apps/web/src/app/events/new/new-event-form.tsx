@@ -142,8 +142,8 @@ export default function NewEventForm() {
                     <select id="visibility" name="visibility" defaultValue="public" className={inputClass}>
                         <option value="public">Public</option>
                         <option value="invite_only">Invite only</option>
-                        <option value="friends_of_host">Friends of host</option>
-                        <option value="friends_of_attendees">Friends of attendees</option>
+                        <option value="friends_of_host">People the host follows</option>
+                        <option value="friends_of_attendees">People attendees follow</option>
                     </select>
                     <FieldError name="visibility" errors={state.fieldErrors} />
                 </div>

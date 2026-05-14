@@ -82,7 +82,7 @@ export default async function ProfilePage() {
             <section className="space-y-4">
                 <div className="flex items-baseline justify-between">
                     <h2 className="text-xl font-bold">
-                        Friends{' '}
+                        Following{' '}
                         <span className="text-sm font-normal text-muted">
                             ({friends.length})
                         </span>

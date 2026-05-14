@@ -87,9 +87,9 @@ export function AttendeeList({
                                     <button
                                         type="submit"
                                         className="rounded-md border border-border-base px-2 py-1 text-xs text-fg/70 hover:bg-fg/5"
-                                        title="Remove from your friends"
+                                        title={`Unfollow ${name}`}
                                     >
-                                        ✓ Friend
+                                        ✓ Following
                                     </button>
                                 </form>
                             ) : (
@@ -97,9 +97,9 @@ export function AttendeeList({
                                     <button
                                         type="submit"
                                         className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/20"
-                                        title={`Add ${name} as a friend`}
+                                        title={`Follow ${name}`}
                                     >
-                                        + Add friend
+                                        + Follow
                                     </button>
                                 </form>
                             )
@@ -109,7 +109,7 @@ export function AttendeeList({
                                 href={`/login?next=${encodeURIComponent(returnPath)}`}
                                 className="rounded-md border border-border-base px-2 py-1 text-xs text-fg/70 hover:bg-fg/5"
                             >
-                                Sign in to add
+                                Sign in to follow
                             </Link>
                         )}
                     </li>
