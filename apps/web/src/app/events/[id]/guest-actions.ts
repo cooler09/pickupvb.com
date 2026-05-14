@@ -2,7 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { JoinEventCommand } from '@pickupvb/application';
+import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { verifyTurnstileToken } from '@/lib/turnstile';
 
 export type GuestSignupState = {
     error?: string;
@@ -13,23 +16,31 @@ function s(v: FormDataEntryValue | null): string {
     return (v == null ? '' : String(v)).trim();
 }
 
-function emptyToNull(v: string): string | null {
-    return v.length === 0 ? null : v;
-}
-
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/**
+ * Anonymous guest signup flow:
+ *   1. Verify Cloudflare Turnstile token (bot gate — anon auth opens up a
+ *      free auth.users row per visitor, so the captcha is non-negotiable).
+ *   2. If the visitor doesn't already have an anon session cookie, call
+ *      supabase.auth.signInAnonymously() to mint one.
+ *   3. Persist the visitor's chosen display_name (and optional email) onto
+ *      the auto-created profiles row + auth.users metadata.
+ *   4. Insert a normal event_attendees row through the app's existing
+ *      JoinEventCommand (capacity + visibility checks reuse the same path
+ *      as logged-in users).
+ *
+ * Conversion to a permanent account later is one `auth.updateUser({ email })`
+ * call — same auth.users.id, same attendee history.
+ */
 export async function signupAsGuest(
     eventId: string,
     _prev: GuestSignupState,
     formData: FormData,
 ): Promise<GuestSignupState> {
-    const supabase = getServerSupabase();
-
     const displayName = s(formData.get('display_name'));
     const email = s(formData.get('email'));
-    const phone = s(formData.get('phone'));
-    const notes = s(formData.get('notes'));
+    const turnstileToken = s(formData.get('cf-turnstile-response'));
 
     const fieldErrors: Record<string, string> = {};
     if (displayName.length < 1 || displayName.length > 80) {
@@ -38,54 +49,66 @@ export async function signupAsGuest(
     if (email.length > 0 && !EMAIL_RE.test(email)) {
         fieldErrors.email = 'That email address looks invalid.';
     }
-    if (phone.length > 0 && (phone.length < 3 || phone.length > 40)) {
-        fieldErrors.phone = 'Phone must be 3–40 characters.';
-    }
-    if (notes.length > 500) {
-        fieldErrors.notes = 'Notes must be 500 characters or less.';
-    }
     if (Object.keys(fieldErrors).length > 0) {
         return { error: 'Please fix the highlighted fields.', fieldErrors };
     }
 
-    const { data, error } = await supabase
-        .from('event_guests')
-        .insert({
-            event_id: eventId,
-            display_name: displayName,
-            email: emptyToNull(email),
-            phone: emptyToNull(phone),
-            notes: emptyToNull(notes),
-        } as never)
-        .select('id, cancel_token')
-        .single();
-
-    if (error) {
-        // Friendly message for the unique-name and full-event cases.
-        if (error.code === '23505') {
-            return {
-                error: 'Someone already signed up under that name. Try adding a last initial.',
-                fieldErrors: { display_name: 'Already taken for this event.' },
-            };
-        }
-        if (/full/i.test(error.message)) {
-            return { error: 'This event is full.' };
-        }
-        return { error: error.message };
+    const turnstile = await verifyTurnstileToken(turnstileToken || null);
+    if (!turnstile.ok) {
+        return { error: turnstile.error ?? 'Verification failed.' };
     }
 
-    const created = data as { id: string; cancel_token: string };
-    revalidatePath(`/events/${eventId}`);
-    redirect(`/events/${eventId}/joined?gid=${created.id}&t=${created.cancel_token}`);
-}
-
-export async function cancelGuestSignup(
-    eventId: string,
-    token: string,
-): Promise<void> {
-    if (!token) return;
     const supabase = getServerSupabase();
-    await supabase.rpc('cancel_guest_signup', { p_token: token } as never);
+
+    // (1) Reuse an existing session if any; otherwise mint a new anon user.
+    const {
+        data: { user: existing },
+    } = await supabase.auth.getUser();
+
+    let userId: string | null = existing?.id ?? null;
+    if (!userId) {
+        const { data, error } = await supabase.auth.signInAnonymously({
+            options: { data: { display_name: displayName } },
+        });
+        if (error || !data.user) {
+            return {
+                error:
+                    error?.message ??
+                    'Could not start a guest session. Anonymous sign-ins may be disabled.',
+            };
+        }
+        userId = data.user.id;
+    }
+
+    // (2) Sync the chosen name (and optional email) onto profile + auth user.
+    await supabase
+        .from('profiles')
+        .update({ display_name: displayName } as never)
+        .eq('id', userId);
+
+    if (email.length > 0) {
+        // Triggers email confirmation via Supabase if confirmations are on.
+        // We don't fail the signup if this errors — the attendee row matters.
+        const { error: updErr } = await supabase.auth.updateUser({ email });
+        if (updErr && !/already.*registered/i.test(updErr.message)) {
+            console.warn('[guest-signup] updateUser email failed:', updErr.message);
+        }
+    }
+
+    // (3) Join the event through the normal command (capacity + RLS).
+    try {
+        await handlers.joinEvent.execute(new JoinEventCommand(eventId, userId));
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/full/i.test(msg)) return { error: 'This event is full.' };
+        if (/already/i.test(msg)) {
+            // Already RSVPed (e.g. resubmit after refresh) — treat as success.
+            revalidatePath(`/events/${eventId}`);
+            redirect(`/events/${eventId}`);
+        }
+        return { error: msg };
+    }
+
     revalidatePath(`/events/${eventId}`);
     redirect(`/events/${eventId}`);
 }

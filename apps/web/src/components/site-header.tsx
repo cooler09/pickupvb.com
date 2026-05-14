@@ -20,7 +20,10 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
         data: { user },
     } = await supabase.auth.getUser();
 
-    const userInfo = user
+    const isAnon = Boolean(user && (user as { is_anonymous?: boolean }).is_anonymous);
+    const isRealUser = Boolean(user) && !isAnon;
+
+    const userInfo = isRealUser && user
         ? { email: user.email ?? null, initials: initialsOf(user.email ?? '?') }
         : null;
 
@@ -83,6 +86,16 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                         </li>
                     ) : (
                         <>
+                            {isAnon && (
+                                <li>
+                                    <Link
+                                        href="/claim"
+                                        className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/20"
+                                    >
+                                        Finish creating your account
+                                    </Link>
+                                </li>
+                            )}
                             <li>
                                 <Link href="/login" className="hover:text-primary">
                                     Sign in

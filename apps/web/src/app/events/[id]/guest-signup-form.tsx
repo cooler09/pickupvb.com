@@ -2,6 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { signupAsGuest, type GuestSignupState } from './guest-actions';
+import { TurnstileWidget } from '@/components/turnstile-widget';
 
 const initial: GuestSignupState = {};
 const labelClass = 'block text-xs font-medium text-fg';
@@ -49,45 +50,26 @@ export default function GuestSignupForm({ eventId }: { eventId: string }) {
                 />
                 <Err name="display_name" errors={state.fieldErrors} />
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                    <label htmlFor="email" className={labelClass}>
-                        Email <span className="text-fg/50">(optional)</span>
-                    </label>
-                    <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        maxLength={120}
-                        autoComplete="email"
-                        className={inputClass}
-                    />
-                    <Err name="email" errors={state.fieldErrors} />
-                </div>
-                <div>
-                    <label htmlFor="phone" className={labelClass}>
-                        Phone <span className="text-fg/50">(optional)</span>
-                    </label>
-                    <input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        maxLength={40}
-                        autoComplete="tel"
-                        className={inputClass}
-                    />
-                    <Err name="phone" errors={state.fieldErrors} />
-                </div>
-            </div>
             <div>
-                <label htmlFor="notes" className={labelClass}>
-                    Notes <span className="text-fg/50">(optional, e.g. &ldquo;bringing 2 friends&rdquo;)</span>
+                <label htmlFor="email" className={labelClass}>
+                    Email <span className="text-fg/50">(optional — lets you claim this RSVP later)</span>
                 </label>
-                <textarea id="notes" name="notes" rows={2} maxLength={500} className={inputClass} />
-                <Err name="notes" errors={state.fieldErrors} />
+                <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    maxLength={120}
+                    autoComplete="email"
+                    className={inputClass}
+                />
+                <Err name="email" errors={state.fieldErrors} />
             </div>
+
+            <TurnstileWidget />
+
             <p className="text-xs text-muted">
-                You don&apos;t need an account. We&apos;ll show you a link to cancel after signing up.
+                No password required. We&apos;ll create a temporary guest session so you can
+                manage or cancel your RSVP from any device this browser is signed in on.
             </p>
             <div className="flex justify-end">
                 <SubmitBtn />

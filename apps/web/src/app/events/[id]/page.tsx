@@ -94,17 +94,14 @@ export default async function EventDetailPage({ params }: { params: { id: string
     const attendees: AttendeeRow[] = (attendeeRows as AttendeeRow[] | null) ?? [];
     const isAttending = Boolean(user && attendees.some((a) => a.user_id === user.id));
 
-    // Anonymous guest signups (display_name only — fetched via SECURITY DEFINER
-    // RPC so anyone can read names without exposing PII columns).
-    type GuestRow = { id: string; display_name: string; created_at: string };
-    const { data: guestRows } = await supabase.rpc('list_event_guests', {
-        p_event_id: event.id,
-    } as never);
-    const guests: GuestRow[] = (guestRows as GuestRow[] | null) ?? [];
+    // An anonymous (guest) session counts as "no real account" for UI gating:
+    // they get the guest signup form / claim CTA instead of the full app shell.
+    const isAnon = Boolean(user && (user as { is_anonymous?: boolean }).is_anonymous);
+    const isRealUser = Boolean(user) && !isAnon;
 
     // Load the viewer's existing friend edges so we can mark "✓ Friend" inline.
     let friendIds = new Set<string>();
-    if (user) {
+    if (isRealUser && user) {
         const { data: friendRows } = await supabase
             .from('friendships')
             .select('friend_id')
@@ -461,7 +458,7 @@ export default async function EventDetailPage({ params }: { params: { id: string
                 <h2 className="mb-3 text-lg font-semibold text-fg">
                     Players signed up{' '}
                     <span className="text-sm font-normal text-muted">
-                        ({attendees.length + guests.length})
+                        ({attendees.length})
                     </span>
                 </h2>
                 <AttendeeList
@@ -470,27 +467,6 @@ export default async function EventDetailPage({ params }: { params: { id: string
                     friendIds={friendIds}
                     returnPath={`/events/${event.id}`}
                 />
-                {guests.length > 0 && (
-                    <ul className="mt-3 space-y-2">
-                        {guests.map((g) => (
-                            <li
-                                key={g.id}
-                                className="flex items-center gap-3 rounded-lg border border-border-base bg-surface px-3 py-2"
-                            >
-                                <span
-                                    aria-hidden="true"
-                                    className="flex h-8 w-8 items-center justify-center rounded-full bg-fg/10 text-xs font-semibold text-fg/70"
-                                >
-                                    {g.display_name.slice(0, 2).toUpperCase()}
-                                </span>
-                                <span className="flex-1 truncate text-sm text-fg">{g.display_name}</span>
-                                <span className="rounded-full bg-fg/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
-                                    Guest
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
             </section>
 
             <section className="rounded-lg border border-border-base p-4">
@@ -505,18 +481,11 @@ export default async function EventDetailPage({ params }: { params: { id: string
             {event.type === 'open_play' && event.status === 'published' && (
                 <div className="space-y-4">
                     <div className="flex justify-end">
-                        {!user ? (
-                            <Link
-                                href={`/login?next=/events/${event.id}`}
-                                className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
-                            >
-                                Sign in to join
-                            </Link>
-                        ) : isAttending ? (
+                        {isAttending ? (
                             <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
                                 You&apos;re signed up
                             </span>
-                        ) : (
+                        ) : isRealUser ? (
                             <form action={`/api/events/${event.id}/join`} method="post">
                                 <button
                                     type="submit"
@@ -525,10 +494,17 @@ export default async function EventDetailPage({ params }: { params: { id: string
                                     Join this event
                                 </button>
                             </form>
+                        ) : (
+                            <Link
+                                href={`/login?next=/events/${event.id}`}
+                                className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
+                            >
+                                Already have an account? Sign in
+                            </Link>
                         )}
                     </div>
 
-                    {!user && (
+                    {!isRealUser && !isAttending && (
                         <section className="rounded-lg border border-border-base p-4">
                             <h2 className="text-sm font-semibold text-fg">
                                 Sign up as a guest
