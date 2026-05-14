@@ -20,6 +20,8 @@ import {
     EventCancelled,
     EventCreated,
     EventPublished,
+    FreeAgentJoined,
+    FreeAgentLeft,
     SpotFilled,
     SpotReleased,
     TeamRegistered,
@@ -82,6 +84,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         private _status: EventStatus,
         private _attendees: Set<UserId>,
         private _teams: Set<TeamId>,
+        private _freeAgents: Map<UserId, string | null>,
     ) {
         super(id);
     }
@@ -126,6 +129,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
             EventStatus.Draft,
             new Set(),
             new Set(),
+            new Map(),
         );
         evt.raise(new EventCreated(evt.id));
         return evt;
@@ -154,6 +158,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         status: EventStatus;
         attendees: ReadonlyArray<UserId>;
         teams: ReadonlyArray<TeamId>;
+        /** Tuples of `[userId, notes]`. Notes default to `null` when absent. */
+        freeAgents?: ReadonlyArray<readonly [UserId, string | null]>;
     }): VolleyballEvent {
         return new VolleyballEvent(
             props.id,
@@ -174,6 +180,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
             props.status,
             new Set(props.attendees),
             new Set(props.teams),
+            new Map(props.freeAgents ?? []),
         );
     }
 
@@ -190,6 +197,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     get capacity(): Capacity | null { return this._capacity; }
     get attendees(): ReadonlySet<UserId> { return this._attendees; }
     get teams(): ReadonlySet<TeamId> { return this._teams; }
+    /** Free-agent signups, mapped to their optional notes blurb. */
+    get freeAgents(): ReadonlyMap<UserId, string | null> { return this._freeAgents; }
 
     get spotsRemaining(): number | null {
         if (!this._capacity) return null;
@@ -270,6 +279,44 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
             );
         }
         this.raise(new TeamWithdrawn(this.id, teamId));
+    }
+
+    /**
+     * Free-agent signup for a tournament. Lets a player advertise that
+     * they want to be picked up by a team that's short. Independent of
+     * team registration — a captain can be both.
+     */
+    joinAsFreeAgent(userId: UserId, notes: string | null): void {
+        if (this.type !== EventType.Tournament) {
+            throw new InvariantViolation('Free-agent signup is only for tournaments.');
+        }
+        if (this._status !== EventStatus.Published) {
+            throw new InvariantViolation('Event is not open for signups.');
+        }
+        if (this._freeAgents.has(userId)) {
+            throw new ConflictError('User is already signed up as a free agent.', {
+                eventId: this.id,
+                userId,
+            });
+        }
+        const trimmed = notes?.trim();
+        if (trimmed && trimmed.length > 280) {
+            throw new InvariantViolation('Free-agent notes are limited to 280 characters.');
+        }
+        this._freeAgents.set(userId, trimmed && trimmed.length > 0 ? trimmed : null);
+        this.raise(new FreeAgentJoined(this.id, userId));
+    }
+
+    /** Remove a free-agent signup. */
+    leaveAsFreeAgent(userId: UserId): void {
+        if (!this._freeAgents.delete(userId)) {
+            throw new NotFoundError(
+                'free_agent',
+                String(userId),
+                'User is not signed up as a free agent for this event.',
+            );
+        }
+        this.raise(new FreeAgentLeft(this.id, userId));
     }
 
     changeVisibility(visibility: Visibility): void {

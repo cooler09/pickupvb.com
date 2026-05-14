@@ -1,6 +1,11 @@
 import type { EventRepository } from '@pickupvb/domain';
 import { NotFoundError } from '@pickupvb/domain';
-import { JoinEventCommand, LeaveEventCommand } from '../messages';
+import {
+    JoinEventAsFreeAgentCommand,
+    JoinEventCommand,
+    LeaveEventAsFreeAgentCommand,
+    LeaveEventCommand,
+} from '../messages';
 
 export class JoinEventHandler {
     constructor(private readonly repo: EventRepository) { }
@@ -20,6 +25,28 @@ export class LeaveEventHandler {
         const event = await this.repo.findById(eventId);
         if (!event) throw new NotFoundError('event', eventId);
         event.leave(userId as never);
+        await this.repo.save(event);
+    }
+}
+
+export class JoinEventAsFreeAgentHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    async execute({ eventId, userId, notes }: JoinEventAsFreeAgentCommand): Promise<void> {
+        const event = await this.repo.findById(eventId);
+        if (!event) throw new NotFoundError('event', eventId);
+        event.joinAsFreeAgent(userId as never, notes);
+        await this.repo.save(event);
+    }
+}
+
+export class LeaveEventAsFreeAgentHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    async execute({ eventId, userId }: LeaveEventAsFreeAgentCommand): Promise<void> {
+        const event = await this.repo.findById(eventId);
+        if (!event) throw new NotFoundError('event', eventId);
+        event.leaveAsFreeAgent(userId as never);
         await this.repo.save(event);
     }
 }

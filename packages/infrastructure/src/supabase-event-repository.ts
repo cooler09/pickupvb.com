@@ -17,6 +17,7 @@ import {
     type EventSearchQuery,
     type FollowingFeedFilters,
     type FollowingFeedItem,
+    type FreeAgentLite,
     type FriendProfile,
     type GroupLite,
     type ProfileLite,
@@ -79,12 +80,14 @@ export class SupabaseEventRepository implements EventRepository {
         if (!data) return null;
         const row = data as unknown as EventRow;
 
-        const [{ data: attendees, error: aErr }, { data: teams, error: tErr }] = await Promise.all([
+        const [{ data: attendees, error: aErr }, { data: teams, error: tErr }, { data: freeAgents, error: fErr }] = await Promise.all([
             this.client.from('event_attendees').select('user_id').eq('event_id', id),
             this.client.from('event_teams').select('team_id').eq('event_id', id),
+            this.client.from('event_free_agents').select('user_id, notes').eq('event_id', id),
         ]);
         if (aErr) throw new Error(`findById attendees failed: ${aErr.message}`);
         if (tErr) throw new Error(`findById teams failed: ${tErr.message}`);
+        if (fErr) throw new Error(`findById free agents failed: ${fErr.message}`);
 
         return VolleyballEvent.fromPersistence({
             id: row.id as never,
@@ -115,6 +118,9 @@ export class SupabaseEventRepository implements EventRepository {
                 (a) => a.user_id as never,
             ),
             teams: ((teams ?? []) as Array<{ team_id: string }>).map((t) => t.team_id as never),
+            freeAgents: (
+                (freeAgents ?? []) as Array<{ user_id: string; notes: string | null }>
+            ).map((f) => [f.user_id as never, f.notes] as const),
         });
     }
 
@@ -182,6 +188,25 @@ export class SupabaseEventRepository implements EventRepository {
                     teamIds.map((team_id) => ({ event_id: String(event.id), team_id })) as never,
                 );
             if (insTErr) throw new Error(`save teams insert failed: ${insTErr.message}`);
+        }
+
+        // Free agents — same reconcile pattern, including each row's optional
+        // notes blurb (carried on the aggregate so save() round-trips it).
+        const freeAgentRows = Array.from(event.freeAgents.entries()).map(([u, notes]) => ({
+            event_id: String(event.id),
+            user_id: String(u),
+            notes,
+        }));
+        const { error: delFErr } = await this.client
+            .from('event_free_agents')
+            .delete()
+            .eq('event_id', String(event.id));
+        if (delFErr) throw new Error(`save free agents clear failed: ${delFErr.message}`);
+        if (freeAgentRows.length > 0) {
+            const { error: insFErr } = await this.client
+                .from('event_free_agents')
+                .insert(freeAgentRows as never);
+            if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
         }
 
         // Drain raised events so callers don't double-handle them.
@@ -267,6 +292,7 @@ export class SupabaseEventRepository implements EventRepository {
             primaryHostUserRes,
             primaryHostGroupRes,
             teamRowsRes,
+            freeAgentRowsRes,
         ] = await Promise.all([
             this.client
                 .from('event_attendees')
@@ -300,6 +326,13 @@ export class SupabaseEventRepository implements EventRepository {
                 )
                 .eq('event_id', id)
                 .order('registered_at', { ascending: true }),
+            this.client
+                .from('event_free_agents')
+                .select(
+                    'user_id, notes, joined_at, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)',
+                )
+                .eq('event_id', id)
+                .order('joined_at', { ascending: true }),
         ]);
 
         type AttendeeRow = {
@@ -446,6 +479,33 @@ export class SupabaseEventRepository implements EventRepository {
 
         const isAttending = !!viewerId && attendees.some((a) => a.userId === viewerId);
 
+        // ---- Free agents -----------------------------------------------
+        type FreeAgentRow = {
+            user_id: string;
+            notes: string | null;
+            joined_at: string;
+            profiles: {
+                display_name: string;
+                first_name: string | null;
+                last_name: string | null;
+                avatar_url: string | null;
+            } | null;
+        };
+        const faRows = (freeAgentRowsRes.data as FreeAgentRow[] | null) ?? [];
+        const freeAgents: FreeAgentLite[] = faRows.map((f) => ({
+            userId: f.user_id,
+            notes: f.notes,
+            joinedAt: new Date(f.joined_at),
+            profile: {
+                id: f.user_id,
+                displayName: f.profiles?.display_name ?? 'Player',
+                firstName: f.profiles?.first_name ?? null,
+                lastName: f.profiles?.last_name ?? null,
+                avatarUrl: f.profiles?.avatar_url ?? null,
+            },
+        }));
+        const isFreeAgent = !!viewerId && freeAgents.some((f) => f.userId === viewerId);
+
         let canManage = false;
         if (viewerId) {
             if (viewerId === row.host_id) canManage = true;
@@ -548,7 +608,9 @@ export class SupabaseEventRepository implements EventRepository {
             coHostGroups,
             attendees,
             teams,
+            freeAgents,
             isAttending,
+            isFreeAgent,
             canManage,
             viewerFriendIds,
             viewerHostableGroups,

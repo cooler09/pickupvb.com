@@ -11,6 +11,7 @@ import { EventTags } from './_components/event-tags';
 import { HostsSection } from './_components/hosts-section';
 import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
+import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
 
 const EventMap = dynamicImport(() => import('@/components/event-map'), {
     ssr: false,
@@ -204,6 +205,27 @@ export default async function EventDetailPage({
                     returnPath={returnPath}
                     {...(pickQuery(searchParams, 'team')
                         ? { resultCode: pickQuery(searchParams, 'team') }
+                        : {})}
+                />
+            )}
+
+            {event.type === 'tournament' && event.status === 'published' && (
+                <FreeAgentSignupPanel
+                    eventId={event.id}
+                    freeAgents={event.freeAgents.map((f) => ({
+                        userId: f.userId,
+                        notes: f.notes,
+                        profile: {
+                            displayName: f.profile.displayName,
+                            avatarUrl: f.profile.avatarUrl,
+                        },
+                    }))}
+                    isFreeAgent={event.isFreeAgent}
+                    viewerId={user?.id ?? null}
+                    isRealUser={isRealUser}
+                    returnPath={returnPath}
+                    {...(pickQuery(searchParams, 'fa')
+                        ? { resultCode: pickQuery(searchParams, 'fa') }
                         : {})}
                 />
             )}

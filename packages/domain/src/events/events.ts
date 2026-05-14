@@ -52,3 +52,17 @@ export class TeamWithdrawn extends BaseEvent {
         super(aggregateId);
     }
 }
+
+export class FreeAgentJoined extends BaseEvent {
+    readonly type = 'event.free_agent_joined';
+    constructor(aggregateId: string, public readonly userId: string) {
+        super(aggregateId);
+    }
+}
+
+export class FreeAgentLeft extends BaseEvent {
+    readonly type = 'event.free_agent_left';
+    constructor(aggregateId: string, public readonly userId: string) {
+        super(aggregateId);
+    }
+}

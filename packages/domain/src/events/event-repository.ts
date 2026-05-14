@@ -61,6 +61,17 @@ export interface AttendeeLite {
     profile: ProfileLite;
 }
 
+/**
+ * Tournament free-agent signup row. `notes` is an optional captain-facing
+ * blurb ("setter, can play Sat morning") supplied at signup.
+ */
+export interface FreeAgentLite {
+    userId: string;
+    joinedAt: Date;
+    notes: string | null;
+    profile: ProfileLite;
+}
+
 export interface TeamLite {
     teamId: string;
     name: string;
@@ -119,8 +130,12 @@ export interface EventDetailReadModel {
     attendees: AttendeeLite[];
     // Tournament teams (empty array for open-play events)
     teams: TeamLite[];
+    /** Tournament free agents — individuals signed up without a team. Empty for open-play. */
+    freeAgents: FreeAgentLite[];
     // Viewer-specific (null viewer => no session)
     isAttending: boolean;
+    /** True if the viewer is signed up as a free agent for this tournament. */
+    isFreeAgent: boolean;
     canManage: boolean;
     viewerFriendIds: ReadonlyArray<string>;
     viewerHostableGroups: ReadonlyArray<{ id: string; name: string }>;

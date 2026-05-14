@@ -23,6 +23,22 @@ export class LeaveEventCommand {
     ) { }
 }
 
+export class JoinEventAsFreeAgentCommand {
+    constructor(
+        public readonly eventId: string,
+        public readonly userId: string,
+        /** Optional captain-facing blurb (e.g. "setter, can play Sat morning"). */
+        public readonly notes: string | null,
+    ) { }
+}
+
+export class LeaveEventAsFreeAgentCommand {
+    constructor(
+        public readonly eventId: string,
+        public readonly userId: string,
+    ) { }
+}
+
 export class AddEventCoHostCommand {
     constructor(
         public readonly eventId: string,
