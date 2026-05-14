@@ -7,6 +7,7 @@ import {
     HostedEventsList,
     loadVisibleHostedEvents,
 } from '@/components/hosted-events-list';
+import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your profile — PickupVB' };
@@ -95,6 +96,14 @@ export default async function ProfilePage() {
     const myGroups = ((myGroupRows as MyGroupRow[] | null) ?? []).filter(
         (r): r is MyGroupRow & { groups: NonNullable<MyGroupRow['groups']> } => r.groups !== null,
     );
+    const groupsForSection: MyGroup[] = myGroups.map((r) => ({
+        id: r.groups.id,
+        slug: r.groups.slug,
+        name: r.groups.name,
+        avatarUrl: r.groups.avatar_url,
+        homeCity: r.groups.home_city,
+        role: r.role,
+    }));
 
     return (
         <div className="mx-auto max-w-xl space-y-10 py-4">
@@ -137,62 +146,7 @@ export default async function ProfilePage() {
                 />
             </section>
 
-            <section className="space-y-4">
-                <div className="flex items-baseline justify-between">
-                    <h2 className="text-xl font-bold">
-                        Groups{' '}
-                        <span className="text-sm font-normal text-muted">({myGroups.length})</span>
-                    </h2>
-                    <Link
-                        href="/groups/new"
-                        className="text-sm font-medium text-primary hover:underline"
-                    >
-                        + New group
-                    </Link>
-                </div>
-                {myGroups.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-border-base p-4 text-sm text-muted">
-                        You aren&apos;t a member of any groups yet.{' '}
-                        <Link href="/groups" className="text-primary hover:underline">
-                            Browse groups
-                        </Link>{' '}
-                        or create one.
-                    </p>
-                ) : (
-                    <ul className="grid gap-2 sm:grid-cols-2">
-                        {myGroups.map((g) => (
-                            <li key={g.groups.id}>
-                                <Link
-                                    href={`/groups/${g.groups.id}`}
-                                    className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-2 hover:border-primary/40"
-                                >
-                                    {g.groups.avatar_url ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            src={g.groups.avatar_url}
-                                            alt=""
-                                            className="h-9 w-9 rounded-md object-cover"
-                                        />
-                                    ) : (
-                                        <span
-                                            aria-hidden="true"
-                                            className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/15 text-xs font-semibold text-primary"
-                                        >
-                                            {g.groups.name.slice(0, 2).toUpperCase()}
-                                        </span>
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-medium">{g.groups.name}</p>
-                                        <p className="text-[10px] uppercase tracking-wide text-muted">
-                                            {g.role}
-                                        </p>
-                                    </div>
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </section>
+            <MyGroupsSection groups={groupsForSection} />
 
             <section className="space-y-4">
                 <div className="flex items-baseline justify-between">

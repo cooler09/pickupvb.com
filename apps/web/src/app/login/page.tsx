@@ -4,40 +4,22 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
-
-type Mode = 'sign-in' | 'sign-up';
-
-function friendlyError(message: string, mode: Mode): string {
-    const m = message.toLowerCase();
-    if (m.includes('invalid login credentials')) {
-        return mode === 'sign-in'
-            ? "We couldn't find an account with that email and password. Want to sign up instead?"
-            : message;
-    }
-    if (m.includes('user already registered') || m.includes('already exists')) {
-        return 'An account with that email already exists. Try signing in.';
-    }
-    if (m.includes('email not confirmed')) {
-        return 'Please confirm your email first — check your inbox for the link.';
-    }
-    if (m.includes('password should be')) {
-        return 'Password must be at least 8 characters.';
-    }
-    return message;
-}
+import { AuthModeTabs } from './_components/auth-mode-tabs';
+import { GoogleButton } from './_components/google-button';
+import { friendlyAuthError, type AuthMode } from './_lib/friendly-error';
 
 function LoginForm() {
     const router = useRouter();
     const params = useSearchParams();
-    const initialMode: Mode = params.get('mode') === 'sign-up' ? 'sign-up' : 'sign-in';
-    const [mode, setMode] = useState<Mode>(initialMode);
+    const initialMode: AuthMode = params.get('mode') === 'sign-up' ? 'sign-up' : 'sign-in';
+    const [mode, setMode] = useState<AuthMode>(initialMode);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [info, setInfo] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
-    function switchMode(next: Mode) {
+    function switchMode(next: AuthMode) {
         setMode(next);
         setError(null);
         setInfo(null);
@@ -54,7 +36,7 @@ function LoginForm() {
             const { error } = await supabase.auth.signInWithPassword({ email, password });
             setLoading(false);
             if (error) {
-                setError(friendlyError(error.message, mode));
+                setError(friendlyAuthError(error.message, mode));
                 return;
             }
             router.push('/events');
@@ -69,7 +51,7 @@ function LoginForm() {
         });
         setLoading(false);
         if (error) {
-            setError(friendlyError(error.message, mode));
+            setError(friendlyAuthError(error.message, mode));
             return;
         }
         if (!data.session) {
@@ -80,16 +62,6 @@ function LoginForm() {
         }
         router.push('/events');
         router.refresh();
-    }
-
-    async function signInWithGoogle() {
-        setError(null);
-        const supabase = createSupabaseBrowserClient();
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: { redirectTo: `${window.location.origin}/auth/callback` },
-        });
-        if (error) setError(error.message);
     }
 
     const signUp = mode === 'sign-up';
@@ -107,24 +79,7 @@ function LoginForm() {
                 </p>
             </div>
 
-            <div className="grid grid-cols-2 rounded-md border border-border-base p-1 text-sm">
-                <button
-                    type="button"
-                    onClick={() => switchMode('sign-in')}
-                    className={`rounded px-3 py-1.5 font-medium transition ${!signUp ? 'bg-primary text-white' : 'text-fg/70'
-                        }`}
-                >
-                    Sign in
-                </button>
-                <button
-                    type="button"
-                    onClick={() => switchMode('sign-up')}
-                    className={`rounded px-3 py-1.5 font-medium transition ${signUp ? 'bg-primary text-white' : 'text-fg/70'
-                        }`}
-                >
-                    Sign up
-                </button>
-            </div>
+            <AuthModeTabs mode={mode} onChange={switchMode} />
 
             <form onSubmit={onSubmit} className="space-y-4">
                 <label className="block">
@@ -198,13 +153,7 @@ function LoginForm() {
                 </div>
             </div>
 
-            <button
-                type="button"
-                onClick={signInWithGoogle}
-                className="w-full rounded-md border border-border-base px-4 py-2 font-medium hover:bg-fg/5"
-            >
-                Continue with Google
-            </button>
+            <GoogleButton />
 
             <p className="text-center text-sm text-fg/70">
                 <Link href="/" className="hover:underline">
