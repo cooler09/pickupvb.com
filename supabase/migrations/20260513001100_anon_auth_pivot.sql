@@ -20,13 +20,25 @@
 -- ============================================================================
 
 -- ---- Tear down the guest stack ---------------------------------------------
-alter publication supabase_realtime drop table public.event_guests;
+-- Drop the table first (with cascade) so any policies referencing the helper
+-- functions go away before we try to drop the functions themselves.
+do $$
+begin
+  if exists (
+    select 1 from pg_publication_tables
+     where pubname = 'supabase_realtime'
+       and schemaname = 'public'
+       and tablename = 'event_guests'
+  ) then
+    execute 'alter publication supabase_realtime drop table public.event_guests';
+  end if;
+end $$;
 
 drop trigger  if exists trg_enforce_event_capacity_guests on public.event_guests;
+drop table    if exists public.event_guests cascade;
 drop function if exists public.list_event_guests(uuid);
 drop function if exists public.cancel_guest_signup(uuid);
-drop function if exists public.event_is_published(uuid);
-drop table    if exists public.event_guests cascade;
+drop function if exists public.event_is_published(uuid) cascade;
 
 -- Restore capacity check to attendees-only.
 create or replace function public.enforce_event_capacity()
