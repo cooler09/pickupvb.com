@@ -61,6 +61,27 @@ export interface AttendeeLite {
     profile: ProfileLite;
 }
 
+export interface TeamLite {
+    teamId: string;
+    name: string;
+    format: Format;
+    captainId: string;
+    /** Captain profile (for display). */
+    captain: ProfileLite | null;
+    /** Roster size (members count). */
+    memberCount: number;
+}
+
+/** Team the viewer captains — used for the "Register a team" picker. */
+export interface CaptainedTeamLite {
+    id: string;
+    name: string;
+    format: Format;
+    memberCount: number;
+    /** True if this team is already registered for the event being viewed. */
+    isRegistered: boolean;
+}
+
 export interface EventDetailReadModel {
     // Base event
     id: string;
@@ -96,11 +117,15 @@ export interface EventDetailReadModel {
     coHostGroups: GroupLite[];
     // Attendees
     attendees: AttendeeLite[];
+    // Tournament teams (empty array for open-play events)
+    teams: TeamLite[];
     // Viewer-specific (null viewer => no session)
     isAttending: boolean;
     canManage: boolean;
     viewerFriendIds: ReadonlyArray<string>;
     viewerHostableGroups: ReadonlyArray<{ id: string; name: string }>;
+    /** Teams the viewer captains in the event's format (only meaningful for tournaments). */
+    viewerCaptainedTeams: ReadonlyArray<CaptainedTeamLite>;
 }
 
 export interface FollowingFeedFilters {

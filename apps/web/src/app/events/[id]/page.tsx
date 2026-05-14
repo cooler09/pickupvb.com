@@ -10,6 +10,7 @@ import { AttendeeList } from '@/components/attendee-list';
 import { EventTags } from './_components/event-tags';
 import { HostsSection } from './_components/hosts-section';
 import { RsvpPanel } from './_components/rsvp-panel';
+import { TournamentSignupPanel } from './_components/tournament-signup-panel';
 
 const EventMap = dynamicImport(() => import('@/components/event-map'), {
     ssr: false,
@@ -187,6 +188,21 @@ export default async function EventDetailPage({
                     isRealUser={isRealUser}
                     rsvp={pickQuery(searchParams, 'rsvp')}
                     rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
+                />
+            )}
+
+            {event.type === 'tournament' && event.status === 'published' && (
+                <TournamentSignupPanel
+                    eventId={event.id}
+                    eventFormat={event.format}
+                    teams={event.teams}
+                    viewerCaptainedTeams={event.viewerCaptainedTeams}
+                    viewerId={user?.id ?? null}
+                    isRealUser={isRealUser}
+                    returnPath={returnPath}
+                    {...(pickQuery(searchParams, 'team')
+                        ? { resultCode: pickQuery(searchParams, 'team') }
+                        : {})}
                 />
             )}
         </article>

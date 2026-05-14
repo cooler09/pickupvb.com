@@ -45,3 +45,10 @@ export class TeamRegistered extends BaseEvent {
         super(aggregateId);
     }
 }
+
+export class TeamWithdrawn extends BaseEvent {
+    readonly type = 'event.team_withdrawn';
+    constructor(aggregateId: string, public readonly teamId: string) {
+        super(aggregateId);
+    }
+}

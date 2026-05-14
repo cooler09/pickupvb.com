@@ -39,6 +39,47 @@ export class RemoveEventCoHostCommand {
     ) { }
 }
 
+// ---- Team commands -------------------------------------------------------
+export class CreateTeamCommand {
+    constructor(
+        public readonly captainId: string,
+        public readonly name: string,
+        public readonly format: string,
+    ) { }
+}
+
+export class AddTeamMemberCommand {
+    constructor(
+        public readonly teamId: string,
+        public readonly userId: string,
+        public readonly requesterId: string,
+    ) { }
+}
+
+export class RemoveTeamMemberCommand {
+    constructor(
+        public readonly teamId: string,
+        public readonly userId: string,
+        public readonly requesterId: string,
+    ) { }
+}
+
+export class RegisterTeamCommand {
+    constructor(
+        public readonly eventId: string,
+        public readonly teamId: string,
+        public readonly requesterId: string,
+    ) { }
+}
+
+export class WithdrawTeamCommand {
+    constructor(
+        public readonly eventId: string,
+        public readonly teamId: string,
+        public readonly requesterId: string,
+    ) { }
+}
+
 // ---- Queries --------------------------------------------------------------
 export class SearchEventsQuery {
     constructor(

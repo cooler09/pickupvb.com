@@ -23,6 +23,7 @@ import {
     SpotFilled,
     SpotReleased,
     TeamRegistered,
+    TeamWithdrawn,
 } from './events.js';
 import { Location } from './location.js';
 import { assertFormatAllowedForSurface } from './rules.js';
@@ -257,6 +258,18 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         }
         this._teams.add(teamId);
         this.raise(new TeamRegistered(this.id, teamId));
+    }
+
+    /** Tournament withdraw. */
+    withdrawTeam(teamId: TeamId): void {
+        if (!this._teams.delete(teamId)) {
+            throw new NotFoundError(
+                'team',
+                String(teamId),
+                'Team is not registered for this event.',
+            );
+        }
+        this.raise(new TeamWithdrawn(this.id, teamId));
     }
 
     changeVisibility(visibility: Visibility): void {

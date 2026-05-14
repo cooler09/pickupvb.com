@@ -10,6 +10,7 @@ import {
     Visibility,
     VolleyballEvent,
     type AttendeeLite,
+    type CaptainedTeamLite,
     type CoHostParty,
     type EventDetailReadModel,
     type EventRepository,
@@ -19,6 +20,7 @@ import {
     type FriendProfile,
     type GroupLite,
     type ProfileLite,
+    type TeamLite,
     type VolleyballEventSummary,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
@@ -264,6 +266,7 @@ export class SupabaseEventRepository implements EventRepository {
             coHostRowsRes,
             primaryHostUserRes,
             primaryHostGroupRes,
+            teamRowsRes,
         ] = await Promise.all([
             this.client
                 .from('event_attendees')
@@ -290,6 +293,13 @@ export class SupabaseEventRepository implements EventRepository {
                     .eq('id', row.host_group_id)
                     .maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
+            this.client
+                .from('event_teams')
+                .select(
+                    'team_id, registered_at, teams:teams!inner(id, name, format, captain_id)',
+                )
+                .eq('event_id', id)
+                .order('registered_at', { ascending: true }),
         ]);
 
         type AttendeeRow = {
@@ -320,6 +330,20 @@ export class SupabaseEventRepository implements EventRepository {
         const coUserIds = coHostRows.map((c) => c.host_user_id).filter((v): v is string => !!v);
         const coGroupIds = coHostRows.map((c) => c.host_group_id).filter((v): v is string => !!v);
 
+        // Registered tournament teams. Captain id only here — we batch-fetch
+        // captain profiles + roster sizes in the next parallel block.
+        type TeamJoinRow = {
+            team_id: string;
+            teams: { id: string; name: string; format: Format; captain_id: string } | null;
+        };
+        const teamJoinRows = (teamRowsRes.data as TeamJoinRow[] | null) ?? [];
+        const registeredTeamIds = teamJoinRows
+            .map((r) => r.teams?.id)
+            .filter((v): v is string => !!v);
+        const registeredCaptainIds = teamJoinRows
+            .map((r) => r.teams?.captain_id)
+            .filter((v): v is string => !!v);
+
         // Co-host detail fetch + viewer-specific fetches in parallel.
         const [
             coHostUsersRes,
@@ -327,6 +351,9 @@ export class SupabaseEventRepository implements EventRepository {
             viewerFriendsRes,
             viewerRoleRes,
             viewerHostableGroupsRes,
+            teamCaptainsRes,
+            teamMemberCountsRes,
+            viewerCaptainedTeamsRes,
         ] = await Promise.all([
             coUserIds.length
                 ? this.client
@@ -357,6 +384,28 @@ export class SupabaseEventRepository implements EventRepository {
                     .select('groups:groups!inner(id, name)')
                     .eq('user_id', viewerId)
                     .in('role', ['owner', 'admin'])
+                : Promise.resolve({ data: [], error: null }),
+            registeredCaptainIds.length
+                ? this.client
+                    .from('profiles')
+                    .select('id, display_name, first_name, last_name, avatar_url')
+                    .in('id', registeredCaptainIds)
+                : Promise.resolve({ data: [], error: null }),
+            registeredTeamIds.length
+                ? this.client
+                    .from('team_members')
+                    .select('team_id')
+                    .in('team_id', registeredTeamIds)
+                : Promise.resolve({ data: [], error: null }),
+            // Teams the viewer captains in this event's format. Only meaningful
+            // for tournaments; we still issue it for any logged-in viewer to
+            // keep the response shape uniform — the cost is one tiny query.
+            viewerId && row.format
+                ? this.client
+                    .from('teams')
+                    .select('id, name, format')
+                    .eq('captain_id', viewerId)
+                    .eq('format', row.format)
                 : Promise.resolve({ data: [], error: null }),
         ]);
 
@@ -412,6 +461,53 @@ export class SupabaseEventRepository implements EventRepository {
             .filter((g): g is { id: string; name: string } => g !== null)
             .filter((g) => g.id !== row.host_group_id && !coGroupIds.includes(g.id));
 
+        // ---- Build registered-team list (TeamLite[]) --------------------
+        const captainProfiles = new Map<string, ProfileLite>();
+        for (const p of (teamCaptainsRes.data as ProfileRow[] | null) ?? []) {
+            captainProfiles.set(p.id, toProfile(p));
+        }
+        const memberCounts = new Map<string, number>();
+        for (const m of (teamMemberCountsRes.data as { team_id: string }[] | null) ?? []) {
+            memberCounts.set(m.team_id, (memberCounts.get(m.team_id) ?? 0) + 1);
+        }
+        const teams: TeamLite[] = teamJoinRows
+            .map((r) => r.teams)
+            .filter((t): t is { id: string; name: string; format: Format; captain_id: string } => !!t)
+            .map((t) => ({
+                teamId: t.id,
+                name: t.name,
+                format: t.format,
+                captainId: t.captain_id,
+                captain: captainProfiles.get(t.captain_id) ?? null,
+                memberCount: memberCounts.get(t.id) ?? 0,
+            }));
+
+        // ---- Build viewer's captained teams (CaptainedTeamLite[]) -------
+        type ViewerTeamRow = { id: string; name: string; format: Format };
+        const viewerTeamRows = (viewerCaptainedTeamsRes.data as ViewerTeamRow[] | null) ?? [];
+        const viewerTeamIds = viewerTeamRows.map((t) => t.id);
+        let viewerTeamMemberCounts = new Map<string, number>();
+        if (viewerTeamIds.length) {
+            const { data: vtm } = await this.client
+                .from('team_members')
+                .select('team_id')
+                .in('team_id', viewerTeamIds);
+            for (const m of (vtm as { team_id: string }[] | null) ?? []) {
+                viewerTeamMemberCounts.set(
+                    m.team_id,
+                    (viewerTeamMemberCounts.get(m.team_id) ?? 0) + 1,
+                );
+            }
+        }
+        const registeredTeamIdSet = new Set(registeredTeamIds);
+        const viewerCaptainedTeams: CaptainedTeamLite[] = viewerTeamRows.map((t) => ({
+            id: t.id,
+            name: t.name,
+            format: t.format,
+            memberCount: viewerTeamMemberCounts.get(t.id) ?? 0,
+            isRegistered: registeredTeamIdSet.has(t.id),
+        }));
+
         const capacity = rowToCapacity(row);
         const spotsRemaining = !capacity
             ? null
@@ -451,10 +547,12 @@ export class SupabaseEventRepository implements EventRepository {
             coHostUsers,
             coHostGroups,
             attendees,
+            teams,
             isAttending,
             canManage,
             viewerFriendIds,
             viewerHostableGroups,
+            viewerCaptainedTeams,
         };
     }
 
