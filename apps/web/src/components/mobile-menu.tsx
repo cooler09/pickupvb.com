@@ -10,9 +10,11 @@ import { signOut } from './actions';
 type Props = {
     theme: Theme;
     user: { email: string | null; initials: string } | null;
+    /** Number of unanswered team invites for the signed-in user. */
+    pendingTeamInvites: number;
 };
 
-export function MobileMenu({ theme, user }: Props) {
+export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
     const [open, setOpen] = useState(false);
     const pathname = usePathname();
 
@@ -88,6 +90,24 @@ export function MobileMenu({ theme, user }: Props) {
                                     Players
                                 </Link>
                             </li>
+                            {user && (
+                                <li>
+                                    <Link
+                                        href="/teams"
+                                        className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-fg/5"
+                                    >
+                                        <span>Teams</span>
+                                        {pendingTeamInvites > 0 && (
+                                            <span
+                                                aria-label={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
+                                                className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                                            >
+                                                {pendingTeamInvites}
+                                            </span>
+                                        )}
+                                    </Link>
+                                </li>
+                            )}
                             <li>
                                 <Link href="/tools" className="block rounded-md px-3 py-2 hover:bg-fg/5">
                                     Host tools

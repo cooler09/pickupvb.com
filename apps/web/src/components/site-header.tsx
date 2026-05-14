@@ -27,6 +27,18 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
         ? { email: user.email ?? null, initials: initialsOf(user.email ?? '?') }
         : null;
 
+    // Count pending team invites so we can show a badge on the Teams link.
+    // Anonymous users can't be invited, so skip the query for them.
+    let pendingTeamInvites = 0;
+    if (isRealUser && user) {
+        const { count } = await supabase
+            .from('team_members')
+            .select('team_id', { head: true, count: 'exact' })
+            .eq('user_id', user.id)
+            .eq('status', 'pending');
+        pendingTeamInvites = count ?? 0;
+    }
+
     return (
         <header className="border-b border-border-base bg-surface">
             <nav className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
@@ -56,6 +68,24 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                             Players
                         </Link>
                     </li>
+                    {userInfo && (
+                        <li>
+                            <Link
+                                href="/teams"
+                                className="inline-flex items-center gap-1.5 hover:text-primary"
+                            >
+                                Teams
+                                {pendingTeamInvites > 0 && (
+                                    <span
+                                        aria-label={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
+                                        className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                                    >
+                                        {pendingTeamInvites}
+                                    </span>
+                                )}
+                            </Link>
+                        </li>
+                    )}
                     <li>
                         <Link href="/tools" className="hover:text-primary">
                             Host tools
@@ -119,7 +149,11 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                 </ul>
 
                 {/* Mobile nav */}
-                <MobileMenu theme={theme} user={userInfo} />
+                <MobileMenu
+                    theme={theme}
+                    user={userInfo}
+                    pendingTeamInvites={pendingTeamInvites}
+                />
             </nav>
         </header>
     );

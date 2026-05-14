@@ -108,6 +108,20 @@ export default async function ProfilePage() {
         role: r.role,
     }));
 
+    // Outstanding team invites — surfaces in a callout near the top so the
+    // user notices without having to navigate to /teams.
+    const { data: pendingRows } = await supabase
+        .from('team_members')
+        .select('teams:teams!inner(id, name, format)')
+        .eq('user_id', user.id)
+        .eq('status', 'pending');
+    type PendingRow = {
+        teams: { id: string; name: string; format: string } | null;
+    };
+    const pendingInvites = ((pendingRows as PendingRow[] | null) ?? [])
+        .map((r) => r.teams)
+        .filter((t): t is NonNullable<PendingRow['teams']> => t !== null);
+
     return (
         <div className="mx-auto max-w-xl space-y-10 py-4">
             <section className="space-y-6">
@@ -127,6 +141,29 @@ export default async function ProfilePage() {
                 </div>
                 <ProfileForm profile={profile} email={user.email ?? ''} />
             </section>
+
+            {pendingInvites.length > 0 && (
+                <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                        Pending team invites ({pendingInvites.length})
+                    </h2>
+                    <ul className="space-y-2">
+                        {pendingInvites.map((t) => (
+                            <li key={t.id}>
+                                <Link
+                                    href={`/teams/${t.id}`}
+                                    className="flex items-center justify-between gap-3 rounded-md border border-border-base bg-surface p-3 text-sm hover:border-primary/40"
+                                >
+                                    <span className="truncate font-medium">{t.name}</span>
+                                    <span className="shrink-0 text-xs text-primary">
+                                        Respond →
+                                    </span>
+                                </Link>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
 
             <section className="space-y-4">
                 <div className="flex items-baseline justify-between">
