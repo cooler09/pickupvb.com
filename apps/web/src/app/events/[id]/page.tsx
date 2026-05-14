@@ -5,8 +5,10 @@ import { GetEventByIdQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { AttendeeList } from '@/components/attendee-list';
+import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { addEventCoHost, removeEventCoHost } from '@/app/groups/actions';
 import GuestSignupForm from './guest-signup-form';
+import { joinEvent, leaveEvent } from './rsvp-actions';
 
 const EventMap = dynamicImport(() => import('@/components/event-map'), {
     ssr: false,
@@ -61,7 +63,13 @@ function formatDate(d: Date): string {
     });
 }
 
-export default async function EventDetailPage({ params }: { params: { id: string } }) {
+export default async function EventDetailPage({
+    params,
+    searchParams,
+}: {
+    params: { id: string };
+    searchParams?: Record<string, string | string[] | undefined>;
+}) {
     let event;
     try {
         event = await handlers.getEventById.execute(new GetEventByIdQuery(params.id));
@@ -478,45 +486,102 @@ export default async function EventDetailPage({ params }: { params: { id: string
                 </p>
             </section>
 
-            {event.type === 'open_play' && event.status === 'published' && (
-                <div className="space-y-4">
-                    <div className="flex justify-end">
-                        {isAttending ? (
-                            <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
-                                You&apos;re signed up
-                            </span>
-                        ) : isRealUser ? (
-                            <form action={`/api/events/${event.id}/join`} method="post">
-                                <button
-                                    type="submit"
-                                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
-                                >
-                                    Join this event
-                                </button>
-                            </form>
-                        ) : (
-                            <Link
-                                href={`/login?next=/events/${event.id}`}
-                                className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
+            {event.type === 'open_play' && event.status === 'published' && (() => {
+                const rsvp = (() => {
+                    const v = searchParams?.['rsvp'];
+                    return Array.isArray(v) ? v[0] : v;
+                })();
+                const rsvpMsg = (() => {
+                    const v = searchParams?.['rsvp_msg'];
+                    return Array.isArray(v) ? v[0] : v;
+                })();
+                const banner: { tone: 'success' | 'info' | 'error'; text: string } | null =
+                    rsvp === 'joined'
+                        ? { tone: 'success', text: "You're in! See you on the court." }
+                        : rsvp === 'already'
+                            ? { tone: 'info', text: "You're already signed up for this event." }
+                            : rsvp === 'left'
+                                ? { tone: 'info', text: "You've been removed from this event." }
+                                : rsvp === 'notin'
+                                    ? { tone: 'info', text: "You weren't signed up for this event." }
+                                    : rsvp === 'full'
+                                        ? { tone: 'error', text: 'Sorry — this event is full.' }
+                                        : rsvp === 'signin'
+                                            ? { tone: 'error', text: 'Please sign in to RSVP.' }
+                                            : rsvp === 'anon'
+                                                ? {
+                                                    tone: 'info',
+                                                    text: 'Finish creating your account to RSVP from any device.',
+                                                }
+                                                : rsvp === 'error'
+                                                    ? {
+                                                        tone: 'error',
+                                                        text: rsvpMsg ?? 'Something went wrong. Try again.',
+                                                    }
+                                                    : null;
+                return (
+                    <div className="space-y-4">
+                        {banner && (
+                            <div
+                                role="status"
+                                className={
+                                    banner.tone === 'success'
+                                        ? 'rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary'
+                                        : banner.tone === 'error'
+                                            ? 'rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700'
+                                            : 'rounded-md border border-border-base bg-highlight/30 px-4 py-2 text-sm text-fg/80'
+                                }
                             >
-                                Already have an account? Sign in
-                            </Link>
+                                {banner.text}
+                            </div>
+                        )}
+                        <div className="flex justify-end gap-2">
+                            {isAttending ? (
+                                <>
+                                    <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+                                        You&apos;re signed up
+                                    </span>
+                                    <form action={leaveEvent.bind(null, event.id)}>
+                                        <ConfirmSubmitButton
+                                            label="Leave event"
+                                            pendingLabel="Leaving…"
+                                            confirmMessage="Remove yourself from this event?"
+                                            className="rounded-md border border-border-base px-4 py-2 text-sm font-medium text-fg/80 hover:bg-fg/5 disabled:opacity-50"
+                                        />
+                                    </form>
+                                </>
+                            ) : isRealUser ? (
+                                <form action={joinEvent.bind(null, event.id)}>
+                                    <ConfirmSubmitButton
+                                        label="Join this event"
+                                        pendingLabel="Joining…"
+                                        confirmMessage={`Join "${event.title}"? You'll be added to the attendee list.`}
+                                    />
+                                </form>
+                            ) : (
+                                <Link
+                                    href={`/login?next=/events/${event.id}`}
+                                    className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
+                                >
+                                    Already have an account? Sign in
+                                </Link>
+                            )}
+                        </div>
+
+                        {!isRealUser && !isAttending && (
+                            <section className="rounded-lg border border-border-base p-4">
+                                <h2 className="text-sm font-semibold text-fg">
+                                    Sign up as a guest
+                                </h2>
+                                <p className="mb-3 text-xs text-muted">
+                                    No account needed — just your name.
+                                </p>
+                                <GuestSignupForm eventId={event.id} />
+                            </section>
                         )}
                     </div>
-
-                    {!isRealUser && !isAttending && (
-                        <section className="rounded-lg border border-border-base p-4">
-                            <h2 className="text-sm font-semibold text-fg">
-                                Sign up as a guest
-                            </h2>
-                            <p className="mb-3 text-xs text-muted">
-                                No account needed — just your name.
-                            </p>
-                            <GuestSignupForm eventId={event.id} />
-                        </section>
-                    )}
-                </div>
-            )}
+                );
+            })()}
         </article>
     );
 }
