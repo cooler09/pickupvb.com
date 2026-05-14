@@ -30,3 +30,23 @@ export async function removeEventCoHost(
     );
     if (returnPath) revalidatePath(returnPath);
 }
+
+/**
+ * Form-bound wrapper used by the "Add co-host" disclosure on the event
+ * detail page. Reads `kind` ("group" | "user") + the corresponding id field
+ * out of the FormData, then delegates to `addEventCoHost`.
+ */
+export async function addCoHostFromForm(
+    eventId: string,
+    returnPath: string,
+    formData: FormData,
+): Promise<void> {
+    const kind = String(formData.get('kind') ?? '');
+    if (kind === 'group') {
+        const groupId = String(formData.get('group_id') ?? '').trim();
+        if (groupId) await addEventCoHost(eventId, { groupId }, returnPath);
+    } else if (kind === 'user') {
+        const userId = String(formData.get('user_id') ?? '').trim();
+        if (userId) await addEventCoHost(eventId, { userId }, returnPath);
+    }
+}
