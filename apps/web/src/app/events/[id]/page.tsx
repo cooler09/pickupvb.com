@@ -156,20 +156,22 @@ export default async function EventDetailPage({
                 </section>
             )}
 
-            <section>
-                <h2 className="mb-3 text-lg font-semibold text-fg">
-                    Players signed up{' '}
-                    <span className="text-sm font-normal text-muted">
-                        ({event.attendees.length})
-                    </span>
-                </h2>
-                <AttendeeList
-                    attendees={attendeesForList}
-                    currentUserId={user?.id ?? null}
-                    friendIds={friendIds}
-                    returnPath={returnPath}
-                />
-            </section>
+            {event.type === 'open_play' && (
+                <section>
+                    <h2 className="mb-3 text-lg font-semibold text-fg">
+                        Players signed up{' '}
+                        <span className="text-sm font-normal text-muted">
+                            ({event.attendees.length})
+                        </span>
+                    </h2>
+                    <AttendeeList
+                        attendees={attendeesForList}
+                        currentUserId={user?.id ?? null}
+                        friendIds={friendIds}
+                        returnPath={returnPath}
+                    />
+                </section>
+            )}
 
             <section className="rounded-lg border border-border-base p-4">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
