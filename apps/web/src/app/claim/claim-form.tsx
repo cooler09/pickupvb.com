@@ -22,7 +22,7 @@ function SubmitBtn() {
             disabled={pending}
             className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
         >
-            {pending ? 'Saving…' : 'Create my account'}
+            {pending ? 'Sending…' : 'Send confirmation email'}
         </button>
     );
 }
@@ -59,27 +59,13 @@ export default function ClaimForm() {
                 />
                 <Err name="email" errors={state.fieldErrors} />
             </div>
-            <div>
-                <label htmlFor="password" className={labelClass}>Password</label>
-                <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                    minLength={8}
-                    autoComplete="new-password"
-                    className={inputClass}
-                />
-                <Err name="password" errors={state.fieldErrors} />
-                <p className="mt-1 text-xs text-muted">At least 8 characters.</p>
-            </div>
             <div className="flex justify-end">
                 <SubmitBtn />
             </div>
             <p className="text-xs text-muted">
-                Supabase will email you a confirmation link. Until you click it, you can
-                still sign in with email + password but other apps may not see the address as
-                verified.
+                We&apos;ll email you a confirmation link. After you click it you&apos;ll be
+                asked to choose a password — then you can sign in from any device with the
+                same RSVPs.
             </p>
         </form>
     );
