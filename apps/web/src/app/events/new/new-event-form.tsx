@@ -199,6 +199,20 @@ export default function NewEventForm({
                         </div>
                     )}
                     <FieldError name="capacity" errors={state.fieldErrors} />
+                    <label className="mt-2 flex items-start gap-2 border-t border-border-base pt-3 text-sm">
+                        <input
+                            type="checkbox"
+                            name="joinAsHost"
+                            defaultChecked
+                            className="mt-0.5"
+                        />
+                        <span>
+                            <span className="font-medium text-fg">Sign me up as a player too</span>
+                            <span className="block text-xs text-muted">
+                                Adds you to the attendee list. You can leave any time.
+                            </span>
+                        </span>
+                    </label>
                 </fieldset>
             )}
 

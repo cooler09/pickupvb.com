@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
 import { CreateEventSchema } from '@pickupvb/types';
-import { CreateEventCommand } from '@pickupvb/application';
+import { CreateEventCommand, JoinEventCommand } from '@pickupvb/application';
 import { EventType } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
@@ -106,6 +106,18 @@ export async function createEventAction(
             .eq('id', result.id);
         if (groupErr) {
             return { error: `Event created, but couldn't set group host: ${groupErr.message}` };
+        }
+    }
+
+    // Auto-add the host to the attendee list when they opted in (open-play
+    // only — tournaments use team signup). Best-effort: a failure here
+    // shouldn't block the redirect to the event the host just created;
+    // they can always click Join from the detail page.
+    if (dto.type === EventType.OpenPlay && field(formData, 'joinAsHost') === 'on') {
+        try {
+            await handlers.joinEvent.execute(new JoinEventCommand(result.id, user.id));
+        } catch {
+            // Swallow — the event exists; auto-join is a convenience.
         }
     }
 
