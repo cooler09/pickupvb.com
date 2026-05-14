@@ -3,6 +3,11 @@
 Find, host, and manage volleyball events — indoor, grass, and beach. Open play
 and tournaments. Real-time spot updates. Host tools (brackets, seeding, scoring).
 
+> **Working on this repo with an AI assistant?** Start with [AGENTS.md](AGENTS.md)
+> for conventions, then [docs/adr/](docs/adr/) for the "why" behind the
+> architecture and [packages/domain/README.md](packages/domain/README.md) for
+> the domain layer.
+
 ## Stack
 
 | Layer    | Tech                                                                  |
