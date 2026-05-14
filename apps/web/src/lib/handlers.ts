@@ -20,6 +20,7 @@ import {
     RemoveEventCoHostHandler,
     RemoveTeamMemberHandler,
     SearchEventsHandler,
+    SetTeamExtraMembersHandler,
     WithdrawTeamHandler,
 } from '@pickupvb/application';
 
@@ -41,6 +42,7 @@ export const handlers = {
     addTeamMember: new AddTeamMemberHandler(teamRepo),
     acceptTeamInvite: new AcceptTeamInviteHandler(teamRepo),
     removeTeamMember: new RemoveTeamMemberHandler(teamRepo),
+    setTeamExtraMembers: new SetTeamExtraMembersHandler(teamRepo),
     registerTeam: new RegisterTeamHandler(eventRepo, teamRepo),
     withdrawTeam: new WithdrawTeamHandler(eventRepo, teamRepo),
 };

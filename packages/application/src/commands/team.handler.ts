@@ -15,6 +15,7 @@ import {
     CreateTeamCommand,
     RegisterTeamCommand,
     RemoveTeamMemberCommand,
+    SetTeamExtraMembersCommand,
     WithdrawTeamCommand,
 } from '../messages';
 
@@ -83,6 +84,28 @@ export class RemoveTeamMemberHandler {
             throw new UnauthorizedError('Only the team captain can manage the roster.');
         }
         team.removeMember(userId as UserId);
+        await this.repo.save(team);
+    }
+}
+
+/**
+ * Captain updates the count of off-site players (people on the team but not
+ * on the site). Counts toward the roster cap.
+ */
+export class SetTeamExtraMembersHandler {
+    constructor(private readonly repo: TeamRepository) { }
+
+    async execute({
+        teamId,
+        extraMemberCount,
+        requesterId,
+    }: SetTeamExtraMembersCommand): Promise<void> {
+        const team = await this.repo.findById(teamId as TeamId);
+        if (!team) throw new NotFoundError('team', teamId);
+        if (String(team.captainId) !== requesterId) {
+            throw new UnauthorizedError('Only the team captain can manage the roster.');
+        }
+        team.setExtraMemberCount(extraMemberCount);
         await this.repo.save(team);
     }
 }

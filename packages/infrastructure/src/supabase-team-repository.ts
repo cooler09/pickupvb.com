@@ -16,6 +16,7 @@ type TeamRow = {
     captain_id: string;
     name: string;
     format: Format;
+    extra_member_count: number | null;
 };
 
 type MemberRow = { user_id: string; status: TeamMemberStatus | null };
@@ -36,7 +37,7 @@ export class SupabaseTeamRepository implements TeamRepository {
     async findById(id: TeamId): Promise<Team | null> {
         const { data, error } = await this.client
             .from('teams')
-            .select('id, captain_id, name, format')
+            .select('id, captain_id, name, format, extra_member_count')
             .eq('id', String(id))
             .maybeSingle();
         if (error) throw new Error(`Team.findById(${id}) failed: ${error.message}`);
@@ -59,6 +60,7 @@ export class SupabaseTeamRepository implements TeamRepository {
             name: row.name,
             format: row.format,
             members,
+            extraMemberCount: row.extra_member_count ?? 0,
         });
     }
 
@@ -68,6 +70,7 @@ export class SupabaseTeamRepository implements TeamRepository {
             captain_id: String(team.captainId),
             name: team.name,
             format: team.format,
+            extra_member_count: team.extraMemberCount,
         };
         const { error } = await this.client
             .from('teams')

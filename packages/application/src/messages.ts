@@ -78,6 +78,15 @@ export class RemoveTeamMemberCommand {
     ) { }
 }
 
+export class SetTeamExtraMembersCommand {
+    constructor(
+        public readonly teamId: string,
+        /** Off-site player count. Must be a non-negative integer. */
+        public readonly extraMemberCount: number,
+        public readonly requesterId: string,
+    ) { }
+}
+
 export class RegisterTeamCommand {
     constructor(
         public readonly eventId: string,

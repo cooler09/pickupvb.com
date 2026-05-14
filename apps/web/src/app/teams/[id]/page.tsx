@@ -5,6 +5,7 @@ import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { AddTeamMemberForm } from './_components/add-team-member-form';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
 import { InviteResponse } from './_components/invite-response';
+import { ExtraMembersForm } from './_components/extra-members-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,7 @@ type TeamRow = {
     name: string;
     format: string;
     captain_id: string;
+    extra_member_count: number | null;
 };
 
 type MemberRow = {
@@ -38,13 +40,14 @@ export default async function TeamDetailPage({
 
     const { data: teamData } = await supabase
         .from('teams')
-        .select('id, name, format, captain_id')
+        .select('id, name, format, captain_id, extra_member_count')
         .eq('id', params.id)
         .maybeSingle();
     const team = teamData as TeamRow | null;
     if (!team) notFound();
 
     const isCaptain = team.captain_id === user.id;
+    const extraMembers = team.extra_member_count ?? 0;
 
     const { data: memberRows } = await supabase
         .from('team_members')
@@ -91,6 +94,7 @@ export default async function TeamDetailPage({
                     {FORMAT_LABEL[team.format] ?? team.format} · {activeCount} player
                     {activeCount === 1 ? '' : 's'}
                     {pendingCount > 0 && ` · ${pendingCount} pending`}
+                    {extraMembers > 0 && ` · +${extraMembers} off-site`}
                 </p>
             </header>
 
@@ -103,6 +107,14 @@ export default async function TeamDetailPage({
                     teamId={team.id}
                     returnPath={returnPath}
                     existingMemberIds={members.map((m) => m.userId)}
+                />
+            )}
+
+            {isCaptain && (
+                <ExtraMembersForm
+                    teamId={team.id}
+                    returnPath={returnPath}
+                    value={extraMembers}
                 />
             )}
 

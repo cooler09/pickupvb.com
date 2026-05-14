@@ -27,6 +27,7 @@ export class Team extends AggregateRoot<TeamId> {
         private _name: string,
         public readonly format: Format,
         private _members: Map<UserId, TeamMemberStatus>,
+        private _extraMemberCount: number,
     ) {
         super(id);
     }
@@ -46,6 +47,7 @@ export class Team extends AggregateRoot<TeamId> {
             props.name.trim(),
             props.format,
             new Map([[props.captainId, 'active']]),
+            0,
         );
     }
 
@@ -60,11 +62,19 @@ export class Team extends AggregateRoot<TeamId> {
         name: string;
         format: Format;
         members: ReadonlyMap<UserId, TeamMemberStatus>;
+        extraMemberCount?: number;
     }): Team {
         const map = new Map(props.members);
         // Captain is always active and always present.
         map.set(props.captainId, 'active');
-        return new Team(props.id, props.captainId, props.name, props.format, map);
+        return new Team(
+            props.id,
+            props.captainId,
+            props.name,
+            props.format,
+            map,
+            Math.max(0, props.extraMemberCount ?? 0),
+        );
     }
 
     get name(): string { return this._name; }
@@ -92,6 +102,31 @@ export class Team extends AggregateRoot<TeamId> {
     }
 
     /**
+     * Number of additional players the captain has indicated are on the team
+     * but don't have site accounts. They count toward the roster cap but
+     * never appear in the members map.
+     */
+    get extraMemberCount(): number { return this._extraMemberCount; }
+
+    /** Total slots used: tracked members (active + pending) + extras. */
+    get rosterSize(): number {
+        return this._members.size + this._extraMemberCount;
+    }
+
+    /**
+     * Update the off-site player count. Captain-only at the application layer.
+     */
+    setExtraMemberCount(n: number): void {
+        if (!Number.isInteger(n) || n < 0) {
+            throw new InvariantViolation('Off-site player count must be a non-negative integer.');
+        }
+        if (this._members.size + n > this.maxRoster) {
+            throw new InvariantViolation('Roster cap exceeded for that count.');
+        }
+        this._extraMemberCount = n;
+    }
+
+    /**
      * Captain invites a player. If the invitee opted into auto-accept (their
      * profile preference) the slot is created as `active` immediately;
      * otherwise it's `pending` until they accept.
@@ -100,7 +135,7 @@ export class Team extends AggregateRoot<TeamId> {
         if (this._members.has(userId)) {
             throw new InvariantViolation('User is already on this team.');
         }
-        if (this._members.size >= this.maxRoster) {
+        if (this._members.size + this._extraMemberCount >= this.maxRoster) {
             throw new InvariantViolation('Team roster is full.');
         }
         this._members.set(userId, autoAccept ? 'active' : 'pending');

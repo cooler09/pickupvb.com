@@ -16,6 +16,7 @@ import {
     AddTeamMemberCommand,
     CreateTeamCommand,
     RemoveTeamMemberCommand,
+    SetTeamExtraMembersCommand,
 } from '@pickupvb/application';
 
 export type TeamFormState = {
@@ -150,6 +151,37 @@ export async function declineInviteAction(
             err instanceof NotFoundError ||
             err instanceof ValidationError ||
             err instanceof UnauthorizedError
+        ) {
+            return;
+        }
+        throw err;
+    }
+    revalidatePath(returnPath);
+}
+
+/**
+ * Captain sets the count of off-site players (people on the team but not on
+ * the site). Bound at the call site:
+ *   `setExtraMembersFromForm.bind(null, teamId, returnPath)`.
+ */
+export async function setExtraMembersFromForm(
+    teamId: string,
+    returnPath: string,
+    formData: FormData,
+): Promise<void> {
+    const raw = String(formData.get('extra_member_count') ?? '').trim();
+    const n = Number.parseInt(raw, 10);
+    if (!Number.isInteger(n) || n < 0) return;
+    const { user } = await requireSession(returnPath);
+    try {
+        await handlers.setTeamExtraMembers.execute(
+            new SetTeamExtraMembersCommand(teamId, n, user.id),
+        );
+    } catch (err) {
+        if (
+            err instanceof NotFoundError ||
+            err instanceof UnauthorizedError ||
+            err instanceof ValidationError
         ) {
             return;
         }
