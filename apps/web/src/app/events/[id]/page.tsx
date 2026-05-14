@@ -2,6 +2,7 @@ import Link from 'next/link';
 import dynamicImport from 'next/dynamic';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
+import { NotFoundError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import {
@@ -48,7 +49,7 @@ export default async function EventDetailPage({
             new GetEventDetailQuery(params.id, user?.id ?? null),
         );
     } catch (err) {
-        if (err instanceof Error && err.message === 'NOT_FOUND') notFound();
+        if (err instanceof NotFoundError) notFound();
         throw err;
     }
 

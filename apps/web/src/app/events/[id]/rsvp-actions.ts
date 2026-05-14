@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { JoinEventCommand, LeaveEventCommand } from '@pickupvb/application';
+import {
+    CapacityExceededError,
+    ConflictError,
+    NotFoundError,
+} from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 
@@ -43,12 +48,12 @@ export async function joinEvent(eventId: string): Promise<void> {
     try {
         await handlers.joinEvent.execute(new JoinEventCommand(eventId, userId));
     } catch (err) {
-        const m = err instanceof Error ? err.message : String(err);
-        if (/already.*joined/i.test(m)) {
+        if (err instanceof ConflictError) {
             revalidatePath(`/events/${eventId}`);
             back(eventId, 'already');
         }
-        if (/full/i.test(m)) back(eventId, 'full');
+        if (err instanceof CapacityExceededError) back(eventId, 'full');
+        const m = err instanceof Error ? err.message : String(err);
         back(eventId, 'error', m);
     }
     revalidatePath(`/events/${eventId}`);
@@ -60,11 +65,11 @@ export async function leaveEvent(eventId: string): Promise<void> {
     try {
         await handlers.leaveEvent.execute(new LeaveEventCommand(eventId, userId));
     } catch (err) {
-        const m = err instanceof Error ? err.message : String(err);
-        if (/not.*joined|not.*in|no attendee/i.test(m)) {
+        if (err instanceof NotFoundError) {
             revalidatePath(`/events/${eventId}`);
             back(eventId, 'notin');
         }
+        const m = err instanceof Error ? err.message : String(err);
         back(eventId, 'error', m);
     }
     revalidatePath(`/events/${eventId}`);

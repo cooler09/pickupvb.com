@@ -1,6 +1,11 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import type { Brand } from '../shared/brand.js';
-import { InvariantViolation } from '../shared/result.js';
+import {
+    CapacityExceededError,
+    ConflictError,
+    InvariantViolation,
+    NotFoundError,
+} from '../shared/result.js';
 import { Capacity } from './capacity.js';
 import {
     EventStatus,
@@ -217,10 +222,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
             throw new InvariantViolation('Event is not open for signups.');
         }
         if (this._attendees.has(userId)) {
-            throw new InvariantViolation('User has already joined this event.');
+            throw new ConflictError('User has already joined this event.', {
+                eventId: this.id,
+                userId,
+            });
         }
         if (this._capacity && !this._capacity.hasRoom(this._attendees.size)) {
-            throw new InvariantViolation('Event is full.');
+            throw new CapacityExceededError('Event is full.', { eventId: this.id });
         }
         this._attendees.add(userId);
         this.raise(new SpotFilled(this.id, userId, this.spotsRemaining));
@@ -228,7 +236,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
 
     leave(userId: UserId): void {
         if (!this._attendees.delete(userId)) {
-            throw new InvariantViolation('User is not signed up for this event.');
+            throw new NotFoundError('attendee', userId, 'User is not signed up for this event.');
         }
         this.raise(new SpotReleased(this.id, userId));
     }
@@ -242,7 +250,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
             throw new InvariantViolation('Event is not open for signups.');
         }
         if (this._teams.has(teamId)) {
-            throw new InvariantViolation('Team is already registered.');
+            throw new ConflictError('Team is already registered.', {
+                eventId: this.id,
+                teamId,
+            });
         }
         this._teams.add(teamId);
         this.raise(new TeamRegistered(this.id, teamId));

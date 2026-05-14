@@ -3,6 +3,7 @@ import type {
     EventSearchQuery,
     VolleyballEventSummary,
 } from '@pickupvb/domain';
+import { NotFoundError } from '@pickupvb/domain';
 import { GetEventByIdQuery, SearchEventsQuery } from '../messages';
 
 export class SearchEventsHandler {
@@ -23,7 +24,7 @@ export class GetEventByIdHandler {
 
     async execute({ id }: GetEventByIdQuery) {
         const event = await this.repo.findById(id);
-        if (!event) throw new Error('NOT_FOUND');
+        if (!event) throw new NotFoundError('event', id);
         const loc = event.location;
         return {
             id: String(event.id),

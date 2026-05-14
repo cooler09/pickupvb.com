@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
+import {
+    CapacityExceededError,
+    ConflictError,
+    DomainError,
+    InvariantViolation,
+    NotFoundError,
+    UnauthorizedError,
+    ValidationError,
+} from '@pickupvb/domain';
 import { getServerSupabase } from './supabase';
 
 export async function requireUser() {
@@ -21,19 +30,25 @@ export async function getViewer() {
     return user;
 }
 
+function domainErrorStatus(err: DomainError): number {
+    if (err instanceof NotFoundError) return 404;
+    if (err instanceof UnauthorizedError) return 401;
+    if (err instanceof ValidationError) return 400;
+    if (err instanceof CapacityExceededError) return 409;
+    if (err instanceof ConflictError) return 409;
+    if (err instanceof InvariantViolation) return 422;
+    return 422;
+}
+
 export function handleError(err: unknown): NextResponse {
     if (err instanceof ZodError) {
         return NextResponse.json({ error: 'VALIDATION', issues: err.issues }, { status: 400 });
     }
-    if (err instanceof Error) {
-        if (err.message === 'NOT_FOUND') {
-            return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
-        }
-        // Domain InvariantViolation has a `code` prop
-        const code = (err as { code?: string }).code;
-        if (code === 'INVARIANT_VIOLATION') {
-            return NextResponse.json({ error: code, message: err.message }, { status: 422 });
-        }
+    if (err instanceof DomainError) {
+        return NextResponse.json(
+            { error: err.code, message: err.message, details: err.details },
+            { status: domainErrorStatus(err) },
+        );
     }
     console.error(err);
     return NextResponse.json({ error: 'INTERNAL' }, { status: 500 });

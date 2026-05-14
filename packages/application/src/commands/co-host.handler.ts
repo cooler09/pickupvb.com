@@ -1,4 +1,5 @@
 import type { EventRepository } from '@pickupvb/domain';
+import { ValidationError } from '@pickupvb/domain';
 import { AddEventCoHostCommand, RemoveEventCoHostCommand } from '../messages.js';
 
 /**
@@ -16,7 +17,7 @@ export class AddEventCoHostHandler {
 
     async execute({ eventId, party, requesterId }: AddEventCoHostCommand): Promise<void> {
         if (!party.userId && !party.groupId) {
-            throw new Error('Co-host party must specify either userId or groupId.');
+            throw new ValidationError('Co-host party must specify either userId or groupId.');
         }
         await this.repo.addCoHost(eventId, party, requesterId);
     }

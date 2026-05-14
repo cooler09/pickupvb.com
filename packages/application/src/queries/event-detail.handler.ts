@@ -4,6 +4,7 @@ import type {
     FollowingFeedItem,
     FriendProfile,
 } from '@pickupvb/domain';
+import { NotFoundError } from '@pickupvb/domain';
 import {
     GetEventDetailQuery,
     GetFollowingFeedQuery,
@@ -15,7 +16,7 @@ export class GetEventDetailHandler {
 
     async execute({ id, viewerId }: GetEventDetailQuery): Promise<EventDetailReadModel> {
         const detail = await this.repo.getDetail(id, viewerId);
-        if (!detail) throw new Error('NOT_FOUND');
+        if (!detail) throw new NotFoundError('event', id);
         return detail;
     }
 }

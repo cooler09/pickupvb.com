@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { JoinEventCommand } from '@pickupvb/application';
+import { CapacityExceededError, ConflictError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
 import { getServerSupabase } from '@/lib/supabase';
@@ -96,13 +97,13 @@ export async function signupAsGuest(
     try {
         await handlers.joinEvent.execute(new JoinEventCommand(eventId, userId));
     } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (/full/i.test(msg)) return { error: 'This event is full.' };
-        if (/already/i.test(msg)) {
+        if (err instanceof CapacityExceededError) return { error: 'This event is full.' };
+        if (err instanceof ConflictError) {
             // Already RSVPed (e.g. resubmit after refresh) — treat as success.
             revalidatePath(`/events/${eventId}`);
             redirect(`/events/${eventId}`);
         }
+        const msg = err instanceof Error ? err.message : String(err);
         return { error: msg };
     }
 
