@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import type { Route } from 'next';
-import { SearchEventsQuery } from '@pickupvb/application';
+import {
+    GetFollowingFeedQuery,
+    GetViewerFriendsQuery,
+    SearchEventsQuery,
+} from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { SURFACE_LABEL, TYPE_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
@@ -45,34 +49,13 @@ export default async function EventsPage({
     const type = pick(get('type'), TYPES);
     const skillLevel = pick(get('skill'), SKILLS);
 
-    // Pre-fetch friend ids + names so we can (a) auto-default to the Following
-    // tab for users with an established network and (b) render the small
-    // "Hosted by X / Y is going" badge on Following cards.
-    let friendIds: string[] = [];
-    const friendNameById = new Map<string, string>();
-    if (user) {
-        const { data: fRows } = await supabase
-            .from('friendships')
-            .select('friend_id')
-            .eq('user_id', user.id);
-        friendIds = ((fRows ?? []) as { friend_id: string }[]).map((r) => r.friend_id);
-        if (friendIds.length > 0) {
-            const { data: pRows } = await supabase
-                .from('profiles')
-                .select('id, display_name, first_name, last_name')
-                .in('id', friendIds);
-            type ProfileRow = {
-                id: string;
-                display_name: string;
-                first_name: string | null;
-                last_name: string | null;
-            };
-            for (const p of (pRows ?? []) as ProfileRow[]) {
-                const full = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
-                friendNameById.set(p.id, full || p.display_name || 'Player');
-            }
-        }
-    }
+    // Pre-fetch the viewer's friends once. Used for both the Following-tab
+    // count badge (always) and the per-card "why" labels (Following tab only).
+    const friends = user
+        ? await handlers.getViewerFriends.execute(new GetViewerFriendsQuery(user.id))
+        : [];
+    const friendIds = friends.map((f) => f.id);
+    const friendNameById = new Map(friends.map((f) => [f.id, f.displayName]));
 
     // If the viewer follows enough people, default to the Following tab.
     const FOLLOWING_DEFAULT_THRESHOLD = 3;
@@ -115,69 +98,31 @@ export default async function EventsPage({
         } else if (friendIds.length === 0) {
             followingEmptyReason = 'no_follows';
         } else {
-            const { data: aRows } = await supabase
-                .from('event_attendees')
-                .select('event_id, user_id')
-                .in('user_id', friendIds);
-            type AttRow = { event_id: string; user_id: string };
-            const attRows = (aRows ?? []) as AttRow[];
-            const attendingByEvent = new Map<string, string[]>();
-            for (const r of attRows) {
-                const arr = attendingByEvent.get(r.event_id) ?? [];
-                arr.push(r.user_id);
-                attendingByEvent.set(r.event_id, arr);
-            }
-            const attendeeEventIds = Array.from(attendingByEvent.keys());
-
-            let q = supabase
-                .from('events')
-                .select(
-                    'id, title, surface, skill_level, type, starts_at, city, region, host_id',
-                )
-                .gte('starts_at', now.toISOString())
-                .order('starts_at', { ascending: true })
-                .limit(60);
-            if (surface) q = q.eq('surface', surface);
-            if (type) q = q.eq('type', type);
-            if (skillLevel) q = q.eq('skill_level', skillLevel);
-            const orParts = [`host_id.in.(${friendIds.join(',')})`];
-            if (attendeeEventIds.length > 0) {
-                orParts.push(`id.in.(${attendeeEventIds.join(',')})`);
-            }
-            q = q.or(orParts.join(','));
-            const { data: rows } = await q;
-            type EvRow = {
-                id: string;
-                title: string;
-                surface: string;
-                skill_level: string;
-                type: string;
-                starts_at: string;
-                city: string;
-                region: string;
-                host_id: string;
-            };
-            const friendIdSet = new Set(friendIds);
-            events = ((rows ?? []) as EvRow[]).map((r) => {
-                const hostFriendId = friendIdSet.has(r.host_id) ? r.host_id : undefined;
-                const attendingFriendIds = (attendingByEvent.get(r.id) ?? []).filter(
-                    (id) => id !== r.host_id,
-                );
-                return {
-                    id: r.id,
-                    title: r.title,
-                    surface: r.surface,
-                    skillLevel: r.skill_level,
-                    type: r.type,
-                    startsAt: new Date(r.starts_at),
-                    city: r.city,
-                    region: r.region,
-                    spotsRemaining: null,
-                    distanceKm: null,
-                    ...(hostFriendId ? { hostFriendId } : {}),
-                    ...(attendingFriendIds.length > 0 ? { attendingFriendIds } : {}),
-                };
-            });
+            const items = await handlers.getFollowingFeed.execute(
+                new GetFollowingFeedQuery(user.id, friendIds, {
+                    startsAfter: now,
+                    limit: 60,
+                    ...(surface ? { surface } : {}),
+                    ...(type ? { type } : {}),
+                    ...(skillLevel ? { skillLevel } : {}),
+                }),
+            );
+            events = items.map((it) => ({
+                id: it.id,
+                title: it.title,
+                surface: it.surface,
+                skillLevel: it.skillLevel,
+                type: it.type,
+                startsAt: it.startsAt,
+                city: it.city,
+                region: it.region,
+                spotsRemaining: null,
+                distanceKm: null,
+                ...(it.hostFriendId ? { hostFriendId: it.hostFriendId } : {}),
+                ...(it.attendingFriendIds.length > 0
+                    ? { attendingFriendIds: [...it.attendingFriendIds] }
+                    : {}),
+            }));
         }
     } else {
         const filters: Parameters<typeof handlers.searchEvents.execute>[0]['filters'] = {

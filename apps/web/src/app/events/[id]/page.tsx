@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import dynamicImport from 'next/dynamic';
 import { notFound } from 'next/navigation';
-import { GetEventByIdQuery } from '@pickupvb/application';
+import { GetEventDetailQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
-import { getServerSupabase } from '@/lib/supabase';
+import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import {
     SURFACE_LABEL,
     FORMAT_LABEL,
@@ -15,7 +15,7 @@ import {
 import { formatEventDateLong } from '@/lib/date-formats';
 import { AttendeeList } from '@/components/attendee-list';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
-import { addEventCoHost, removeEventCoHost } from '@/app/groups/actions';
+import { addEventCoHost, removeEventCoHost } from './co-host-actions';
 import GuestSignupForm from './guest-signup-form';
 import { joinEvent, leaveEvent } from './rsvp-actions';
 
@@ -35,151 +35,45 @@ export default async function EventDetailPage({
     params: { id: string };
     searchParams?: Record<string, string | string[] | undefined>;
 }) {
+    // Resolve the viewer first so the detail query can return viewer-specific
+    // bits (RSVP state, manage permission, friend ids, hostable groups).
+    const viewer = await getViewer();
+    const user = viewer?.user ?? null;
+    const isAnon = !!user && isAnonymousUser(user);
+    const isRealUser = !!user && !isAnon;
+
     let event;
     try {
-        event = await handlers.getEventById.execute(new GetEventByIdQuery(params.id));
+        event = await handlers.getEventDetail.execute(
+            new GetEventDetailQuery(params.id, user?.id ?? null),
+        );
     } catch (err) {
         if (err instanceof Error && err.message === 'NOT_FOUND') notFound();
         throw err;
     }
 
-    const supabase = getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const friendIds = new Set(event.viewerFriendIds);
 
-    const { data: attendeeRows } = await supabase
-        .from('event_attendees')
-        .select('user_id, joined_at, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)')
-        .eq('event_id', event.id)
-        .order('joined_at', { ascending: true });
-
-    type AttendeeRow = {
-        user_id: string;
-        joined_at: string;
+    // The AttendeeList component still expects the snake_case Supabase shape.
+    // Map the read model to it inline to keep the component unchanged.
+    const attendeesForList = event.attendees.map((a) => ({
+        user_id: a.userId,
+        joined_at: a.joinedAt.toISOString(),
         profiles: {
-            display_name: string;
-            first_name: string | null;
-            last_name: string | null;
-            avatar_url: string | null;
-        } | null;
-    };
-    const attendees: AttendeeRow[] = (attendeeRows as AttendeeRow[] | null) ?? [];
-    const isAttending = Boolean(user && attendees.some((a) => a.user_id === user.id));
+            display_name: a.profile.displayName,
+            first_name: a.profile.firstName,
+            last_name: a.profile.lastName,
+            avatar_url: a.profile.avatarUrl,
+        },
+    }));
 
-    // An anonymous (guest) session counts as "no real account" for UI gating:
-    // they get the guest signup form / claim CTA instead of the full app shell.
-    const isAnon = Boolean(user && (user as { is_anonymous?: boolean }).is_anonymous);
-    const isRealUser = Boolean(user) && !isAnon;
-
-    // Load the viewer's existing friend edges so we can mark "✓ Friend" inline.
-    let friendIds = new Set<string>();
-    if (isRealUser && user) {
-        const { data: friendRows } = await supabase
-            .from('friendships')
-            .select('friend_id')
-            .eq('user_id', user.id);
-        const rows = (friendRows as { friend_id: string }[] | null) ?? [];
-        friendIds = new Set(rows.map((r) => r.friend_id));
+    function profileName(p: { firstName: string | null; lastName: string | null; displayName: string }): string {
+        const full = [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
+        return full || p.displayName || 'Player';
     }
 
-    // ---- Hosts (primary user, primary group, co-hosts) ---------------------
-    const { data: eventRow } = await supabase
-        .from('events')
-        .select('host_id, host_group_id')
-        .eq('id', event.id)
-        .maybeSingle();
-    const hostRow = eventRow as { host_id: string; host_group_id: string | null } | null;
-
-    type ProfileLite = {
-        id: string;
-        display_name: string;
-        first_name: string | null;
-        last_name: string | null;
-        avatar_url: string | null;
-    };
-    type GroupLite = { id: string; name: string; avatar_url: string | null; slug: string };
-
-    let primaryHostUser: ProfileLite | null = null;
-    if (hostRow?.host_id) {
-        const { data } = await supabase
-            .from('profiles')
-            .select('id, display_name, first_name, last_name, avatar_url')
-            .eq('id', hostRow.host_id)
-            .maybeSingle();
-        primaryHostUser = (data as ProfileLite | null) ?? null;
-    }
-
-    let primaryHostGroup: GroupLite | null = null;
-    if (hostRow?.host_group_id) {
-        const { data } = await supabase
-            .from('groups')
-            .select('id, name, avatar_url, slug')
-            .eq('id', hostRow.host_group_id)
-            .maybeSingle();
-        primaryHostGroup = (data as GroupLite | null) ?? null;
-    }
-
-    const { data: coHostRows } = await supabase
-        .from('event_co_hosts')
-        .select('host_user_id, host_group_id')
-        .eq('event_id', event.id);
-    const coHosts = (coHostRows as { host_user_id: string | null; host_group_id: string | null }[] | null) ?? [];
-    const coUserIds = coHosts.map((c) => c.host_user_id).filter((v): v is string => !!v);
-    const coGroupIds = coHosts.map((c) => c.host_group_id).filter((v): v is string => !!v);
-
-    const coHostUsers: ProfileLite[] = coUserIds.length
-        ? (((await supabase
-            .from('profiles')
-            .select('id, display_name, first_name, last_name, avatar_url')
-            .in('id', coUserIds)).data) as ProfileLite[] | null) ?? []
-        : [];
-    const coHostGroups: GroupLite[] = coGroupIds.length
-        ? (((await supabase
-            .from('groups')
-            .select('id, name, avatar_url, slug')
-            .in('id', coGroupIds)).data) as GroupLite[] | null) ?? []
-        : [];
-
-    function profileName(p: ProfileLite): string {
-        const full = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
-        return full || p.display_name || 'Player';
-    }
-
-    // Can the viewer manage this event (add/remove co-hosts)?
-    let canManageEvent = false;
-    if (user) {
-        if (user.id === hostRow?.host_id) {
-            canManageEvent = true;
-        } else if (hostRow?.host_group_id) {
-            const { data: roleRow } = await supabase
-                .from('group_members')
-                .select('role')
-                .eq('group_id', hostRow.host_group_id)
-                .eq('user_id', user.id)
-                .maybeSingle();
-            const role = (roleRow as { role: string } | null)?.role;
-            canManageEvent = role === 'owner' || role === 'admin';
-        }
-    }
-
-    // Groups the viewer can pick as a co-host (owner/admin of).
-    let myHostableGroups: { id: string; name: string }[] = [];
-    if (canManageEvent && user) {
-        const { data } = await supabase
-            .from('group_members')
-            .select('groups:groups!inner(id, name)')
-            .eq('user_id', user.id)
-            .in('role', ['owner', 'admin']);
-        type Row = { groups: { id: string; name: string } | null };
-        myHostableGroups = ((data as Row[] | null) ?? [])
-            .map((r) => r.groups)
-            .filter((g): g is { id: string; name: string } => g !== null)
-            .filter((g) => g.id !== hostRow?.host_group_id && !coGroupIds.includes(g.id));
-    }
-
-    const startsAt = new Date(event.startsAt);
-    const endsAt = new Date(event.endsAt);
+    const startsAt = event.startsAt;
+    const endsAt = event.endsAt;
     const returnPath = `/events/${event.id}`;
 
     return (
@@ -223,40 +117,40 @@ export default async function EventDetailPage({
                     Hosted by
                 </h2>
                 <ul className="flex flex-wrap gap-2">
-                    {primaryHostGroup && (
+                    {event.primaryHostGroup && (
                         <li>
                             <Link
-                                href={`/groups/${primaryHostGroup.id}`}
+                                href={`/groups/${event.primaryHostGroup.id}`}
                                 className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary hover:bg-primary/20"
                             >
-                                {primaryHostGroup.avatar_url ? (
+                                {event.primaryHostGroup.avatarUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
-                                        src={primaryHostGroup.avatar_url}
+                                        src={event.primaryHostGroup.avatarUrl}
                                         alt=""
                                         className="h-5 w-5 rounded object-cover"
                                     />
                                 ) : (
                                     <span aria-hidden="true" className="text-xs">🏐</span>
                                 )}
-                                {primaryHostGroup.name}
+                                {event.primaryHostGroup.name}
                             </Link>
                         </li>
                     )}
-                    {primaryHostUser && (
+                    {event.primaryHostUser && (
                         <li>
                             <Link
-                                href={`/players/${primaryHostUser.id}`}
+                                href={`/players/${event.primaryHostUser.id}`}
                                 className="inline-flex items-center gap-2 rounded-full border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
                             >
-                                {profileName(primaryHostUser)}
-                                {primaryHostGroup && (
+                                {profileName(event.primaryHostUser)}
+                                {event.primaryHostGroup && (
                                     <span className="text-xs text-muted">(manager)</span>
                                 )}
                             </Link>
                         </li>
                     )}
-                    {coHostGroups.map((g) => (
+                    {event.coHostGroups.map((g) => (
                         <li key={`g-${g.id}`}>
                             <Link
                                 href={`/groups/${g.id}`}
@@ -265,7 +159,7 @@ export default async function EventDetailPage({
                                 {g.name}
                                 <span className="text-xs text-muted">(co-host)</span>
                             </Link>
-                            {canManageEvent && (
+                            {event.canManage && (
                                 <form
                                     action={removeEventCoHost.bind(null, event.id, { groupId: g.id }, returnPath)}
                                     className="ml-1 inline"
@@ -281,7 +175,7 @@ export default async function EventDetailPage({
                             )}
                         </li>
                     ))}
-                    {coHostUsers.map((p) => (
+                    {event.coHostUsers.map((p) => (
                         <li key={`u-${p.id}`}>
                             <Link
                                 href={`/players/${p.id}`}
@@ -290,7 +184,7 @@ export default async function EventDetailPage({
                                 {profileName(p)}
                                 <span className="text-xs text-muted">(co-host)</span>
                             </Link>
-                            {canManageEvent && (
+                            {event.canManage && (
                                 <form
                                     action={removeEventCoHost.bind(null, event.id, { userId: p.id }, returnPath)}
                                     className="ml-1 inline"
@@ -308,13 +202,13 @@ export default async function EventDetailPage({
                     ))}
                 </ul>
 
-                {canManageEvent && (
+                {event.canManage && (
                     <details className="mt-2">
                         <summary className="cursor-pointer text-xs font-medium text-primary hover:underline">
                             + Add co-host
                         </summary>
                         <div className="mt-3 space-y-3">
-                            {myHostableGroups.length > 0 && (
+                            {event.viewerHostableGroups.length > 0 && (
                                 <form
                                     action={addCoHostFromForm.bind(null, event.id, returnPath)}
                                     className="flex flex-wrap items-end gap-2"
@@ -328,7 +222,7 @@ export default async function EventDetailPage({
                                             className="mt-1 block rounded-md border border-border-base bg-surface px-2 py-1 text-sm"
                                         >
                                             <option value="">Pick a group…</option>
-                                            {myHostableGroups.map((g) => (
+                                            {event.viewerHostableGroups.map((g) => (
                                                 <option key={g.id} value={g.id}>
                                                     {g.name}
                                                 </option>
@@ -431,11 +325,11 @@ export default async function EventDetailPage({
                 <h2 className="mb-3 text-lg font-semibold text-fg">
                     Players signed up{' '}
                     <span className="text-sm font-normal text-muted">
-                        ({attendees.length})
+                        ({event.attendees.length})
                     </span>
                 </h2>
                 <AttendeeList
-                    attendees={attendees}
+                    attendees={attendeesForList}
                     currentUserId={user?.id ?? null}
                     friendIds={friendIds}
                     returnPath={`/events/${event.id}`}
@@ -501,7 +395,7 @@ export default async function EventDetailPage({
                             </div>
                         )}
                         <div className="flex justify-end gap-2">
-                            {isAttending ? (
+                            {event.isAttending ? (
                                 <>
                                     <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
                                         You&apos;re signed up
@@ -533,7 +427,7 @@ export default async function EventDetailPage({
                             )}
                         </div>
 
-                        {!isRealUser && !isAttending && (
+                        {!isRealUser && !event.isAttending && (
                             <section className="rounded-lg border border-border-base p-4">
                                 <h2 className="text-sm font-semibold text-fg">
                                     Sign up as a guest

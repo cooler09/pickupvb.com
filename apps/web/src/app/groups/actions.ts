@@ -157,33 +157,3 @@ export async function changeGroupMemberRole(
         .eq('user_id', userId);
     if (returnPath) revalidatePath(returnPath);
 }
-
-export async function addEventCoHost(
-    eventId: string,
-    party: { userId?: string; groupId?: string },
-    returnPath?: string,
-): Promise<void> {
-    if (!eventId || (!party.userId && !party.groupId)) return;
-    const { supabase, user } = await requireSession();
-    await supabase.from('event_co_hosts').insert({
-        event_id: eventId,
-        host_user_id: party.userId ?? null,
-        host_group_id: party.groupId ?? null,
-        added_by: user.id,
-    } as never);
-    if (returnPath) revalidatePath(returnPath);
-}
-
-export async function removeEventCoHost(
-    eventId: string,
-    party: { userId?: string; groupId?: string },
-    returnPath?: string,
-): Promise<void> {
-    if (!eventId) return;
-    const { supabase } = await requireSession();
-    let q = supabase.from('event_co_hosts').delete().eq('event_id', eventId);
-    if (party.userId) q = q.eq('host_user_id', party.userId);
-    if (party.groupId) q = q.eq('host_group_id', party.groupId);
-    await q;
-    if (returnPath) revalidatePath(returnPath);
-}

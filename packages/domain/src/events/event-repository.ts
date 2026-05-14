@@ -1,14 +1,139 @@
 import type { VolleyballEvent } from './volleyball-event.js';
-import type { Surface, Format, Gender, SkillLevel, EventType, Visibility } from './enums.js';
+import type {
+    Surface,
+    Format,
+    Gender,
+    SkillLevel,
+    EventType,
+    Visibility,
+    EventStatus,
+} from './enums.js';
 
 /**
  * Repository contract (DDD port).
  * Adapter lives in the API layer (e.g. SupabaseEventRepository).
+ *
+ * Note on CQRS: write-side methods (`findById`, `save`) return / accept the
+ * `VolleyballEvent` aggregate. Read-side methods return denormalized read
+ * models (`*Summary`, `*Detail`, `*Item`) shaped for the UI — they don't
+ * round-trip through the aggregate.
  */
 export interface EventRepository {
+    // ---- Write side (aggregate) ----
     findById(id: string): Promise<VolleyballEvent | null>;
     save(event: VolleyballEvent): Promise<void>;
+
+    // ---- Read side (denormalized read models) ----
     search(query: EventSearchQuery): Promise<VolleyballEventSummary[]>;
+    getDetail(id: string, viewerId: string | null): Promise<EventDetailReadModel | null>;
+    searchFollowingFeed(
+        viewerId: string,
+        friendIds: ReadonlyArray<string>,
+        filters: FollowingFeedFilters,
+    ): Promise<FollowingFeedItem[]>;
+    getViewerFriends(viewerId: string): Promise<FriendProfile[]>;
+
+    // ---- Co-host management (separate sub-resource) ----
+    addCoHost(eventId: string, party: CoHostParty, addedBy: string): Promise<void>;
+    removeCoHost(eventId: string, party: CoHostParty): Promise<void>;
+}
+
+// ---- Read-model shapes ----
+
+export interface ProfileLite {
+    id: string;
+    displayName: string;
+    firstName: string | null;
+    lastName: string | null;
+    avatarUrl: string | null;
+}
+
+export interface GroupLite {
+    id: string;
+    slug: string;
+    name: string;
+    avatarUrl: string | null;
+}
+
+export interface AttendeeLite {
+    userId: string;
+    joinedAt: Date;
+    profile: ProfileLite;
+}
+
+export interface EventDetailReadModel {
+    // Base event
+    id: string;
+    title: string;
+    description: string;
+    rules: string;
+    surface: Surface;
+    format: Format | null;
+    gender: Gender | null;
+    skillLevel: SkillLevel;
+    type: EventType;
+    visibility: Visibility;
+    status: EventStatus;
+    startsAt: Date;
+    endsAt: Date;
+    spotsRemaining: number | null;
+    attendeeCount: number;
+    location: {
+        addressLine: string;
+        city: string;
+        region: string;
+        postalCode: string;
+        country: string;
+        latitude: number;
+        longitude: number;
+    };
+    // Hosts
+    hostUserId: string | null;
+    hostGroupId: string | null;
+    primaryHostUser: ProfileLite | null;
+    primaryHostGroup: GroupLite | null;
+    coHostUsers: ProfileLite[];
+    coHostGroups: GroupLite[];
+    // Attendees
+    attendees: AttendeeLite[];
+    // Viewer-specific (null viewer => no session)
+    isAttending: boolean;
+    canManage: boolean;
+    viewerFriendIds: ReadonlyArray<string>;
+    viewerHostableGroups: ReadonlyArray<{ id: string; name: string }>;
+}
+
+export interface FollowingFeedFilters {
+    surface?: Surface;
+    type?: EventType;
+    skillLevel?: SkillLevel;
+    startsAfter: Date;
+    limit?: number;
+}
+
+export interface FollowingFeedItem {
+    id: string;
+    title: string;
+    surface: Surface;
+    skillLevel: SkillLevel;
+    type: EventType;
+    startsAt: Date;
+    city: string;
+    region: string;
+    /** Friend who is hosting this event (if any). */
+    hostFriendId: string | null;
+    /** Friend ids attending (excluding the host). */
+    attendingFriendIds: ReadonlyArray<string>;
+}
+
+export interface FriendProfile {
+    id: string;
+    displayName: string;
+}
+
+export interface CoHostParty {
+    userId?: string;
+    groupId?: string;
 }
 
 export interface EventSearchQuery {

@@ -1,0 +1,41 @@
+import type {
+    EventDetailReadModel,
+    EventRepository,
+    FollowingFeedItem,
+    FriendProfile,
+} from '@pickupvb/domain';
+import {
+    GetEventDetailQuery,
+    GetFollowingFeedQuery,
+    GetViewerFriendsQuery,
+} from '../messages.js';
+
+export class GetEventDetailHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    async execute({ id, viewerId }: GetEventDetailQuery): Promise<EventDetailReadModel> {
+        const detail = await this.repo.getDetail(id, viewerId);
+        if (!detail) throw new Error('NOT_FOUND');
+        return detail;
+    }
+}
+
+export class GetFollowingFeedHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    execute({
+        viewerId,
+        friendIds,
+        filters,
+    }: GetFollowingFeedQuery): Promise<FollowingFeedItem[]> {
+        return this.repo.searchFollowingFeed(viewerId, friendIds, filters);
+    }
+}
+
+export class GetViewerFriendsHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    execute({ viewerId }: GetViewerFriendsQuery): Promise<FriendProfile[]> {
+        return this.repo.getViewerFriends(viewerId);
+    }
+}

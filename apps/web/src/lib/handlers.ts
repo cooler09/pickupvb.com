@@ -5,10 +5,15 @@
  */
 import { SupabaseEventRepository } from '@pickupvb/infrastructure';
 import {
+    AddEventCoHostHandler,
     CreateEventHandler,
     GetEventByIdHandler,
+    GetEventDetailHandler,
+    GetFollowingFeedHandler,
+    GetViewerFriendsHandler,
     JoinEventHandler,
     LeaveEventHandler,
+    RemoveEventCoHostHandler,
     SearchEventsHandler,
 } from '@pickupvb/application';
 
@@ -20,4 +25,9 @@ export const handlers = {
     leaveEvent: new LeaveEventHandler(eventRepo),
     searchEvents: new SearchEventsHandler(eventRepo),
     getEventById: new GetEventByIdHandler(eventRepo),
+    getEventDetail: new GetEventDetailHandler(eventRepo),
+    getFollowingFeed: new GetFollowingFeedHandler(eventRepo),
+    getViewerFriends: new GetViewerFriendsHandler(eventRepo),
+    addEventCoHost: new AddEventCoHostHandler(eventRepo),
+    removeEventCoHost: new RemoveEventCoHostHandler(eventRepo),
 };
