@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { removeFriend } from '@/app/friends/actions';
 
 type FriendProfile = {
@@ -50,48 +51,53 @@ export function FriendsList({
                         key={p.id}
                         className="flex items-center gap-3 rounded-lg border border-border-base px-3 py-2"
                     >
-                        {p.avatar_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                                src={p.avatar_url}
-                                alt=""
-                                className="h-9 w-9 rounded-full object-cover"
-                            />
-                        ) : (
-                            <span
-                                aria-hidden="true"
-                                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
-                            >
-                                {initialsOf(p)}
-                            </span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                                <span className="truncate text-sm font-medium text-fg">
-                                    {nameOf(p)}
+                        <Link
+                            href={`/players/${p.id}`}
+                            className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
+                        >
+                            {p.avatar_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                    src={p.avatar_url}
+                                    alt=""
+                                    className="h-9 w-9 rounded-full object-cover"
+                                />
+                            ) : (
+                                <span
+                                    aria-hidden="true"
+                                    className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
+                                >
+                                    {initialsOf(p)}
                                 </span>
-                                {mutual ? (
-                                    <span
-                                        className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary"
-                                        title="You both follow each other"
-                                    >
-                                        Mutual
+                            )}
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="truncate text-sm font-medium text-fg hover:text-primary">
+                                        {nameOf(p)}
                                     </span>
-                                ) : (
-                                    <span
-                                        className="rounded-full bg-fg/5 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-fg/60"
-                                        title="They don't follow you back yet"
-                                    >
-                                        Following
+                                    {mutual ? (
+                                        <span
+                                            className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary"
+                                            title="You both follow each other"
+                                        >
+                                            Mutual
+                                        </span>
+                                    ) : (
+                                        <span
+                                            className="rounded-full bg-fg/5 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-fg/60"
+                                            title="They don't follow you back yet"
+                                        >
+                                            Following
+                                        </span>
+                                    )}
+                                </div>
+                                {p.home_city && (
+                                    <span className="block truncate text-xs text-muted">
+                                        {p.home_city}
                                     </span>
                                 )}
                             </div>
-                            {p.home_city && (
-                                <span className="block truncate text-xs text-muted">
-                                    {p.home_city}
-                                </span>
-                            )}
-                        </div>
+                        </Link>
                         <form action={removeFriend.bind(null, p.id, returnPath)}>
                             <button
                                 type="submit"

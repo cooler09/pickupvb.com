@@ -1,7 +1,12 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { ProfileForm } from './profile-form';
 import { FriendsList } from '@/components/friends-list';
+import {
+    HostedEventsList,
+    loadVisibleHostedEvents,
+} from '@/components/hosted-events-list';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Your profile — PickupVB' };
@@ -67,16 +72,50 @@ export default async function ProfilePage() {
         ((inRows as { user_id: string }[] | null) ?? []).map((r) => r.user_id),
     );
 
+    const hostedEvents = await loadVisibleHostedEvents(user.id);
+    const upcomingHosted = hostedEvents.filter(
+        (e) => new Date(e.starts_at).getTime() >= Date.now(),
+    );
+
     return (
         <div className="mx-auto max-w-xl space-y-10 py-4">
             <section className="space-y-6">
-                <div className="space-y-2">
-                    <h1 className="text-2xl font-bold">Your profile</h1>
-                    <p className="text-sm text-fg/70">
-                        This info shows up on events you join or host.
-                    </p>
+                <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                        <h1 className="text-2xl font-bold">Your profile</h1>
+                        <p className="text-sm text-fg/70">
+                            This info shows up on events you join or host.
+                        </p>
+                    </div>
+                    <Link
+                        href={`/players/${user.id}`}
+                        className="shrink-0 rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
+                    >
+                        View public profile
+                    </Link>
                 </div>
                 <ProfileForm profile={profile} email={user.email ?? ''} />
+            </section>
+
+            <section className="space-y-4">
+                <div className="flex items-baseline justify-between">
+                    <h2 className="text-xl font-bold">
+                        Hosting{' '}
+                        <span className="text-sm font-normal text-muted">
+                            ({upcomingHosted.length} upcoming)
+                        </span>
+                    </h2>
+                    <Link
+                        href="/events/new"
+                        className="text-sm font-medium text-primary hover:underline"
+                    >
+                        + New event
+                    </Link>
+                </div>
+                <HostedEventsList
+                    events={upcomingHosted}
+                    emptyState="You aren't hosting any upcoming events. Tap + New event to create one."
+                />
             </section>
 
             <section className="space-y-4">

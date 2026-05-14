@@ -60,27 +60,32 @@ export function AttendeeList({
                         key={a.user_id}
                         className="flex items-center gap-3 rounded-lg border border-border-base px-3 py-2"
                     >
-                        {a.profiles?.avatar_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                                src={a.profiles.avatar_url}
-                                alt=""
-                                className="h-9 w-9 rounded-full object-cover"
-                            />
-                        ) : (
-                            <span
-                                aria-hidden="true"
-                                className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
-                            >
-                                {initialsOf(a.profiles)}
-                            </span>
-                        )}
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
-                            {name}
-                            {isYou && (
-                                <span className="ml-1 text-xs font-normal text-muted">(you)</span>
+                        <Link
+                            href={`/players/${a.user_id}`}
+                            className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
+                        >
+                            {a.profiles?.avatar_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                    src={a.profiles.avatar_url}
+                                    alt=""
+                                    className="h-9 w-9 rounded-full object-cover"
+                                />
+                            ) : (
+                                <span
+                                    aria-hidden="true"
+                                    className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary"
+                                >
+                                    {initialsOf(a.profiles)}
+                                </span>
                             )}
-                        </span>
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg hover:text-primary">
+                                {name}
+                                {isYou && (
+                                    <span className="ml-1 text-xs font-normal text-muted">(you)</span>
+                                )}
+                            </span>
+                        </Link>
                         {currentUserId && !isYou && (
                             isFriend ? (
                                 <form action={removeFriend.bind(null, a.user_id, returnPath)}>
