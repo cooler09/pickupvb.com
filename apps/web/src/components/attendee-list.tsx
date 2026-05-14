@@ -1,3 +1,6 @@
+import Link from 'next/link';
+import { addFriend, removeFriend } from '@/app/friends/actions';
+
 type AttendeeProfile = {
     display_name: string;
     first_name: string | null;
@@ -30,9 +33,13 @@ function nameOf(p: AttendeeProfile | null): string {
 export function AttendeeList({
     attendees,
     currentUserId,
+    friendIds,
+    returnPath,
 }: {
     attendees: Attendee[];
     currentUserId: string | null;
+    friendIds: Set<string>;
+    returnPath: string;
 }) {
     if (attendees.length === 0) {
         return (
@@ -43,10 +50,11 @@ export function AttendeeList({
     }
 
     return (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {attendees.map((a) => {
                 const name = nameOf(a.profiles);
                 const isYou = a.user_id === currentUserId;
+                const isFriend = friendIds.has(a.user_id);
                 return (
                     <li
                         key={a.user_id}
@@ -73,6 +81,37 @@ export function AttendeeList({
                                 <span className="ml-1 text-xs font-normal text-muted">(you)</span>
                             )}
                         </span>
+                        {currentUserId && !isYou && (
+                            isFriend ? (
+                                <form action={removeFriend.bind(null, a.user_id, returnPath)}>
+                                    <button
+                                        type="submit"
+                                        className="rounded-md border border-border-base px-2 py-1 text-xs text-fg/70 hover:bg-fg/5"
+                                        title="Remove from your friends"
+                                    >
+                                        ✓ Friend
+                                    </button>
+                                </form>
+                            ) : (
+                                <form action={addFriend.bind(null, a.user_id, returnPath)}>
+                                    <button
+                                        type="submit"
+                                        className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/20"
+                                        title={`Add ${name} as a friend`}
+                                    >
+                                        + Add friend
+                                    </button>
+                                </form>
+                            )
+                        )}
+                        {!currentUserId && !isYou && (
+                            <Link
+                                href={`/login?next=${encodeURIComponent(returnPath)}`}
+                                className="rounded-md border border-border-base px-2 py-1 text-xs text-fg/70 hover:bg-fg/5"
+                            >
+                                Sign in to add
+                            </Link>
+                        )}
                     </li>
                 );
             })}

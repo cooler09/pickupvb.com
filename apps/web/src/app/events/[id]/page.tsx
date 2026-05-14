@@ -92,6 +92,17 @@ export default async function EventDetailPage({ params }: { params: { id: string
     const attendees: AttendeeRow[] = (attendeeRows as AttendeeRow[] | null) ?? [];
     const isAttending = Boolean(user && attendees.some((a) => a.user_id === user.id));
 
+    // Load the viewer's existing friend edges so we can mark "✓ Friend" inline.
+    let friendIds = new Set<string>();
+    if (user) {
+        const { data: friendRows } = await supabase
+            .from('friendships')
+            .select('friend_id')
+            .eq('user_id', user.id);
+        const rows = (friendRows as { friend_id: string }[] | null) ?? [];
+        friendIds = new Set(rows.map((r) => r.friend_id));
+    }
+
     const startsAt = new Date(event.startsAt);
     const endsAt = new Date(event.endsAt);
 
@@ -197,7 +208,12 @@ export default async function EventDetailPage({ params }: { params: { id: string
                         ({attendees.length})
                     </span>
                 </h2>
-                <AttendeeList attendees={attendees} currentUserId={user?.id ?? null} />
+                <AttendeeList
+                    attendees={attendees}
+                    currentUserId={user?.id ?? null}
+                    friendIds={friendIds}
+                    returnPath={`/events/${event.id}`}
+                />
             </section>
 
             <section className="rounded-lg border border-border-base p-4">
