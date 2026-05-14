@@ -84,7 +84,13 @@ export default async function TeamDetailPage({
                 </p>
             </header>
 
-            {isCaptain && <AddTeamMemberForm teamId={team.id} returnPath={returnPath} />}
+            {isCaptain && (
+                <AddTeamMemberForm
+                    teamId={team.id}
+                    returnPath={returnPath}
+                    existingMemberIds={members.map((m) => m.userId)}
+                />
+            )}
 
             <section className="space-y-2">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">

@@ -52,6 +52,11 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                         </Link>
                     </li>
                     <li>
+                        <Link href="/players" className="hover:text-primary">
+                            Players
+                        </Link>
+                    </li>
+                    <li>
                         <Link href="/tools" className="hover:text-primary">
                             Host tools
                         </Link>

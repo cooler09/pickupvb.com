@@ -78,6 +78,7 @@ export default async function GroupMembersPage({ params }: { params: { id: strin
                 groupId={group.id}
                 canPromoteToOwner={viewerIsOwner}
                 returnPath={returnPath}
+                existingMemberIds={members.map((m) => m.userId)}
             />
 
             <section className="space-y-2">

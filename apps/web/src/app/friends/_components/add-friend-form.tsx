@@ -1,39 +1,33 @@
 import { UserPicker } from '@/components/user-picker';
-import { addMemberFromForm } from '../../actions';
+import { addFriendFromForm } from '../actions';
 
 type Props = {
-    teamId: string;
     returnPath: string;
-    /** Members already on the roster — hidden from search results. */
-    existingMemberIds: ReadonlyArray<string>;
+    /** Viewer + already-followed ids \u2014 hidden from search results. */
+    excludeIds: ReadonlyArray<string>;
 };
 
-/**
- * Captain-only "Add a teammate" form. Uses the UserPicker typeahead so the
- * captain can search by name instead of needing a UUID. The handler enforces
- * the captain check + roster cap.
- */
-export function AddTeamMemberForm({ teamId, returnPath, existingMemberIds }: Props) {
+export function AddFriendForm({ returnPath, excludeIds }: Props) {
     return (
         <section className="rounded-lg border border-border-base p-4">
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
-                Add a teammate
+                Follow a player
             </h2>
-            <form action={addMemberFromForm.bind(null, teamId, returnPath)} className="space-y-3">
+            <form action={addFriendFromForm.bind(null, returnPath)} className="space-y-3">
                 <UserPicker
-                    name="user_id"
+                    name="friend_id"
                     label="Find a player"
                     placeholder="Search by name…"
                     required
                     helperText="Type at least 2 characters to search."
-                    excludeIds={existingMemberIds}
+                    excludeIds={excludeIds}
                 />
                 <div className="flex justify-end">
                     <button
                         type="submit"
                         className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90"
                     >
-                        Add teammate
+                        Follow
                     </button>
                 </div>
             </form>
