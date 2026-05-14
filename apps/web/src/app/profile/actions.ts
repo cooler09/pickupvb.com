@@ -19,6 +19,7 @@ export async function updateProfile(
     const lastName = fieldOrNull(formData, 'last_name', 60);
     const homeCity = fieldOrNull(formData, 'home_city', 120);
     const displayNameInput = fieldOrNull(formData, 'display_name', 80);
+    const autoAcceptTeamInvites = formData.get('auto_accept_team_invites') != null;
 
     const fallbackName =
         [firstName, lastName].filter(Boolean).join(' ').trim() ||
@@ -36,6 +37,7 @@ export async function updateProfile(
             last_name: lastName,
             home_city: homeCity,
             display_name: displayName,
+            auto_accept_team_invites: autoAcceptTeamInvites,
         } as never)
         .eq('id', user.id);
 

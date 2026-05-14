@@ -17,6 +17,7 @@ type ProfileRow = {
     last_name: string | null;
     display_name: string;
     home_city: string | null;
+    auto_accept_team_invites: boolean | null;
 };
 
 type FriendProfile = {
@@ -37,15 +38,17 @@ export default async function ProfilePage() {
 
     const { data } = await supabase
         .from('profiles')
-        .select('first_name, last_name, display_name, home_city')
+        .select('first_name, last_name, display_name, home_city, auto_accept_team_invites')
         .eq('id', user.id)
         .maybeSingle();
 
-    const profile: ProfileRow = (data as ProfileRow | null) ?? {
-        first_name: null,
-        last_name: null,
-        display_name: user.email?.split('@')[0] ?? 'Player',
-        home_city: null,
+    const row = data as ProfileRow | null;
+    const profile = {
+        first_name: row?.first_name ?? null,
+        last_name: row?.last_name ?? null,
+        display_name: row?.display_name ?? user.email?.split('@')[0] ?? 'Player',
+        home_city: row?.home_city ?? null,
+        auto_accept_team_invites: row?.auto_accept_team_invites ?? false,
     };
 
     // Outgoing friend edges (people you've added).

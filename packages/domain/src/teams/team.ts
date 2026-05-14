@@ -6,9 +6,19 @@ import type { TeamId, UserId } from '../events/volleyball-event.js';
 
 export type { TeamId, UserId };
 
+/** Roster slot state. Pending = invited but not yet accepted. */
+export type TeamMemberStatus = 'active' | 'pending';
+
 /**
  * Team aggregate used for tournament signup.
- * Roster size is bounded by the format the team is registering for.
+ *
+ * Members move through two states: `pending` (the captain has invited them
+ * but they haven't accepted yet) and `active` (they're really on the roster).
+ * The captain themselves is always `active`. Both states count toward the
+ * roster cap so a captain can't over-invite.
+ *
+ * Tournament eligibility, member counts, etc. should consider only
+ * `activeMembers`. Persistence and admin views can use `allMembers`.
  */
 export class Team extends AggregateRoot<TeamId> {
     private constructor(
@@ -16,7 +26,7 @@ export class Team extends AggregateRoot<TeamId> {
         public readonly captainId: UserId,
         private _name: string,
         public readonly format: Format,
-        private _members: Set<UserId>,
+        private _members: Map<UserId, TeamMemberStatus>,
     ) {
         super(id);
     }
@@ -35,27 +45,78 @@ export class Team extends AggregateRoot<TeamId> {
             props.captainId,
             props.name.trim(),
             props.format,
-            new Set([props.captainId]),
+            new Map([[props.captainId, 'active']]),
         );
     }
 
+    /**
+     * Rebuilds a `Team` from already-persisted state. Skips the invariants
+     * that the public factory enforces — callers (repositories) are trusted
+     * to only pass through what was previously saved.
+     */
+    static rehydrate(props: {
+        id: TeamId;
+        captainId: UserId;
+        name: string;
+        format: Format;
+        members: ReadonlyMap<UserId, TeamMemberStatus>;
+    }): Team {
+        const map = new Map(props.members);
+        // Captain is always active and always present.
+        map.set(props.captainId, 'active');
+        return new Team(props.id, props.captainId, props.name, props.format, map);
+    }
+
     get name(): string { return this._name; }
-    get members(): ReadonlySet<UserId> { return this._members; }
+
+    /** All slots regardless of status, keyed by user id. */
+    get allMembers(): ReadonlyMap<UserId, TeamMemberStatus> { return this._members; }
+
+    /** Confirmed players — the only ones eligible for tournament play. */
+    get activeMembers(): ReadonlySet<UserId> {
+        const out = new Set<UserId>();
+        for (const [id, s] of this._members) if (s === 'active') out.add(id);
+        return out;
+    }
+
+    /** Players the captain has invited who haven't accepted yet. */
+    get pendingMembers(): ReadonlySet<UserId> {
+        const out = new Set<UserId>();
+        for (const [id, s] of this._members) if (s === 'pending') out.add(id);
+        return out;
+    }
+
     get maxRoster(): number {
         // allow a couple of subs above the on-court count
         return playersPerSide(this.format) + 2;
     }
 
-    addMember(userId: UserId): void {
+    /**
+     * Captain invites a player. If the invitee opted into auto-accept (their
+     * profile preference) the slot is created as `active` immediately;
+     * otherwise it's `pending` until they accept.
+     */
+    inviteMember(userId: UserId, autoAccept: boolean): void {
         if (this._members.has(userId)) {
             throw new InvariantViolation('User is already on this team.');
         }
         if (this._members.size >= this.maxRoster) {
             throw new InvariantViolation('Team roster is full.');
         }
-        this._members.add(userId);
+        this._members.set(userId, autoAccept ? 'active' : 'pending');
     }
 
+    /** Invitee confirms a pending invite. No-op if already active. */
+    acceptInvite(userId: UserId): void {
+        const status = this._members.get(userId);
+        if (!status) {
+            throw new InvariantViolation('No invite found for this user.');
+        }
+        if (status === 'active') return;
+        this._members.set(userId, 'active');
+    }
+
+    /** Removes a member regardless of status (covers leave + decline + kick). */
     removeMember(userId: UserId): void {
         if (userId === this.captainId) {
             throw new InvariantViolation('Captain cannot leave the team.');

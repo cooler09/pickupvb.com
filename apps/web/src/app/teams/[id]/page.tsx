@@ -4,6 +4,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { AddTeamMemberForm } from './_components/add-team-member-form';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
+import { InviteResponse } from './_components/invite-response';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ type TeamRow = {
 
 type MemberRow = {
     user_id: string;
+    status: 'active' | 'pending' | null;
     profiles: {
         display_name: string;
         first_name: string | null;
@@ -47,12 +49,13 @@ export default async function TeamDetailPage({
     const { data: memberRows } = await supabase
         .from('team_members')
         .select(
-            'user_id, profiles:profiles!inner(display_name, first_name, last_name)',
+            'user_id, status, profiles:profiles!inner(display_name, first_name, last_name)',
         )
         .eq('team_id', team.id);
     const rows = (memberRows as MemberRow[] | null) ?? [];
     const members: TeamRosterMember[] = rows.map((m) => ({
         userId: m.user_id,
+        status: m.status ?? 'active',
         profile: m.profiles
             ? {
                 displayName: m.profiles.display_name,
@@ -62,12 +65,18 @@ export default async function TeamDetailPage({
             : null,
     }));
 
-    // Captain on top, then alpha by display name.
+    // Captain on top, then active alpha, then pending alpha at the bottom.
     members.sort((a, b) => {
         if (a.userId === team.captain_id) return -1;
         if (b.userId === team.captain_id) return 1;
+        if (a.status !== b.status) return a.status === 'pending' ? 1 : -1;
         return (a.profile?.displayName ?? '').localeCompare(b.profile?.displayName ?? '');
     });
+
+    const activeCount = members.filter((m) => m.status === 'active').length;
+    const pendingCount = members.length - activeCount;
+    const viewerMember = members.find((m) => m.userId === user.id);
+    const viewerHasPendingInvite = viewerMember?.status === 'pending';
 
     const returnPath = `/teams/${team.id}`;
 
@@ -79,10 +88,15 @@ export default async function TeamDetailPage({
                 </Link>
                 <h1 className="text-2xl font-bold">{team.name}</h1>
                 <p className="text-sm text-muted">
-                    {FORMAT_LABEL[team.format] ?? team.format} · {members.length} player
-                    {members.length === 1 ? '' : 's'}
+                    {FORMAT_LABEL[team.format] ?? team.format} · {activeCount} player
+                    {activeCount === 1 ? '' : 's'}
+                    {pendingCount > 0 && ` · ${pendingCount} pending`}
                 </p>
             </header>
+
+            {viewerHasPendingInvite && (
+                <InviteResponse teamId={team.id} returnPath={returnPath} teamName={team.name} />
+            )}
 
             {isCaptain && (
                 <AddTeamMemberForm

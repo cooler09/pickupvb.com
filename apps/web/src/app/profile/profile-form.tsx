@@ -8,6 +8,7 @@ type Profile = {
     last_name: string | null;
     display_name: string;
     home_city: string | null;
+    auto_accept_team_invites: boolean;
 };
 
 const initialState: ProfileFormState = { error: null, success: false };
@@ -85,6 +86,25 @@ export function ProfileForm({ profile, email }: { profile: Profile; email: strin
             <div className="block text-sm text-fg/70">
                 Email: <span className="font-medium text-fg">{email}</span>
             </div>
+
+            <fieldset className="space-y-2 rounded-md border border-border-base p-3">
+                <legend className="px-1 text-sm font-medium">Team invites</legend>
+                <label className="flex items-start gap-2 text-sm">
+                    <input
+                        name="auto_accept_team_invites"
+                        type="checkbox"
+                        defaultChecked={profile.auto_accept_team_invites}
+                        className="mt-1"
+                    />
+                    <span>
+                        <span className="font-medium">Auto-accept team invites</span>
+                        <span className="mt-0.5 block text-xs text-fg/60">
+                            Skip the confirmation step — captains can add you to their team
+                            roster directly.
+                        </span>
+                    </span>
+                </label>
+            </fieldset>
 
             {state.error && (
                 <div

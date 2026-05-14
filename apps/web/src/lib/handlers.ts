@@ -5,6 +5,7 @@
  */
 import { SupabaseEventRepository, SupabaseTeamRepository } from '@pickupvb/infrastructure';
 import {
+    AcceptTeamInviteHandler,
     AddEventCoHostHandler,
     AddTeamMemberHandler,
     CreateEventHandler,
@@ -38,6 +39,7 @@ export const handlers = {
     removeEventCoHost: new RemoveEventCoHostHandler(eventRepo),
     createTeam: new CreateTeamHandler(teamRepo),
     addTeamMember: new AddTeamMemberHandler(teamRepo),
+    acceptTeamInvite: new AcceptTeamInviteHandler(teamRepo),
     removeTeamMember: new RemoveTeamMemberHandler(teamRepo),
     registerTeam: new RegisterTeamHandler(eventRepo, teamRepo),
     withdrawTeam: new WithdrawTeamHandler(eventRepo, teamRepo),

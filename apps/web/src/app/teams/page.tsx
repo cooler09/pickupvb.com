@@ -40,15 +40,22 @@ export default async function TeamsIndexPage() {
         .order('name', { ascending: true });
     const captained = (captainedRows as TeamRow[] | null) ?? [];
 
-    // Teams the viewer is rostered on (excluding ones they captain).
+    // Teams the viewer is rostered on. Split by status so pending invites get
+    // their own "awaiting your response" section.
     const { data: memberRows } = await supabase
         .from('team_members')
-        .select('teams:teams!inner(id, name, format, captain_id)')
+        .select('status, teams:teams!inner(id, name, format, captain_id)')
         .eq('user_id', user.id);
-    type MemberRow = { teams: TeamRow | null };
-    const onTeams = ((memberRows as MemberRow[] | null) ?? [])
-        .map((r) => r.teams)
-        .filter((t): t is TeamRow => !!t && t.captain_id !== user.id);
+    type MemberRow = { status: 'active' | 'pending' | null; teams: TeamRow | null };
+    const allMemberships = ((memberRows as MemberRow[] | null) ?? []).filter(
+        (r): r is MemberRow & { teams: TeamRow } => !!r.teams && r.teams.captain_id !== user.id,
+    );
+    const onTeams = allMemberships
+        .filter((r) => (r.status ?? 'active') === 'active')
+        .map((r) => r.teams);
+    const pendingInvites = allMemberships
+        .filter((r) => r.status === 'pending')
+        .map((r) => r.teams);
 
     return (
         <div className="mx-auto max-w-3xl space-y-6 py-4">
@@ -66,6 +73,19 @@ export default async function TeamsIndexPage() {
                     + New team
                 </Link>
             </header>
+
+            {pendingInvites.length > 0 && (
+                <section className="space-y-2">
+                    <h2 className="text-sm font-semibold uppercase tracking-wide text-primary">
+                        Pending invites ({pendingInvites.length})
+                    </h2>
+                    <ul className="grid gap-3 sm:grid-cols-2">
+                        {pendingInvites.map((t) => (
+                            <TeamCard key={t.id} team={t} role="pending" />
+                        ))}
+                    </ul>
+                </section>
+            )}
 
             <section className="space-y-2">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">
@@ -105,8 +125,14 @@ function TeamCard({
     role,
 }: {
     team: TeamRow;
-    role: 'captain' | 'member';
+    role: 'captain' | 'member' | 'pending';
 }) {
+    const badge =
+        role === 'captain'
+            ? { label: 'Captain', className: 'bg-primary/15 text-primary' }
+            : role === 'pending'
+                ? { label: 'Pending', className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400' }
+                : { label: 'Member', className: 'bg-fg/10 text-fg/80' };
     return (
         <li>
             <Link
@@ -120,12 +146,9 @@ function TeamCard({
                     </p>
                 </div>
                 <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${role === 'captain'
-                            ? 'bg-primary/15 text-primary'
-                            : 'bg-fg/10 text-fg/80'
-                        }`}
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}
                 >
-                    {role === 'captain' ? 'Captain' : 'Member'}
+                    {badge.label}
                 </span>
             </Link>
         </li>

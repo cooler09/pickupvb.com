@@ -12,6 +12,7 @@ import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
 import { requireRealUser, requireSession } from '@/lib/server-auth';
 import {
+    AcceptTeamInviteCommand,
     AddTeamMemberCommand,
     CreateTeamCommand,
     RemoveTeamMemberCommand,
@@ -59,6 +60,9 @@ export async function createTeamAction(
 /**
  * Bound at the call site: `addMemberFromForm.bind(null, teamId, returnPath)`.
  * Captain-only; the handler enforces that.
+ *
+ * The new member is added as `pending` unless they've opted into auto-accept
+ * on their profile (`profiles.auto_accept_team_invites`).
  */
 export async function addMemberFromForm(
     teamId: string,
@@ -67,10 +71,23 @@ export async function addMemberFromForm(
 ): Promise<void> {
     const userId = field(formData, 'user_id');
     if (!userId) return;
-    const { user } = await requireSession(returnPath);
+    const { supabase, user } = await requireSession(returnPath);
+
+    // Look up the invitee's auto-accept preference. Default to false (the
+    // safer behavior) if the column or row is missing.
+    const { data: pref } = await supabase
+        .from('profiles')
+        .select('auto_accept_team_invites')
+        .eq('id', userId)
+        .maybeSingle();
+    const autoAccept = Boolean(
+        (pref as { auto_accept_team_invites: boolean | null } | null)
+            ?.auto_accept_team_invites,
+    );
+
     try {
         await handlers.addTeamMember.execute(
-            new AddTeamMemberCommand(teamId, userId, user.id),
+            new AddTeamMemberCommand(teamId, userId, user.id, autoAccept),
         );
     } catch (err) {
         if (
@@ -81,6 +98,59 @@ export async function addMemberFromForm(
         ) {
             // Swallow: the page re-renders without the member added.
             // (UI shows a generic toast in a future pass.)
+            return;
+        }
+        throw err;
+    }
+    revalidatePath(returnPath);
+}
+
+/**
+ * Invitee accepts a pending team invite. Bound at the call site:
+ * `acceptInviteAction.bind(null, teamId, returnPath)`.
+ */
+export async function acceptInviteAction(
+    teamId: string,
+    returnPath: string,
+): Promise<void> {
+    const { user } = await requireSession(returnPath);
+    try {
+        await handlers.acceptTeamInvite.execute(
+            new AcceptTeamInviteCommand(teamId, user.id),
+        );
+    } catch (err) {
+        if (
+            err instanceof NotFoundError ||
+            err instanceof ValidationError ||
+            err instanceof UnauthorizedError
+        ) {
+            return;
+        }
+        throw err;
+    }
+    revalidatePath(returnPath);
+}
+
+/**
+ * Invitee declines a pending team invite (or any member leaves the team).
+ * Implementation-wise this is just removeMember-as-self, so it shares the
+ * existing handler.
+ */
+export async function declineInviteAction(
+    teamId: string,
+    returnPath: string,
+): Promise<void> {
+    const { user } = await requireSession(returnPath);
+    try {
+        await handlers.removeTeamMember.execute(
+            new RemoveTeamMemberCommand(teamId, user.id, user.id),
+        );
+    } catch (err) {
+        if (
+            err instanceof NotFoundError ||
+            err instanceof ValidationError ||
+            err instanceof UnauthorizedError
+        ) {
             return;
         }
         throw err;

@@ -53,6 +53,20 @@ export class AddTeamMemberCommand {
         public readonly teamId: string,
         public readonly userId: string,
         public readonly requesterId: string,
+        /**
+         * When true the new member is added as `active` immediately
+         * (the invitee opted into auto-accept on their profile). When false
+         * the slot is created as `pending` and the invitee must accept.
+         */
+        public readonly autoAccept: boolean,
+    ) { }
+}
+
+export class AcceptTeamInviteCommand {
+    constructor(
+        public readonly teamId: string,
+        /** Must equal the authenticated viewer; the handler enforces this. */
+        public readonly userId: string,
     ) { }
 }
 

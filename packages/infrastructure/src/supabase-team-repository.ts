@@ -3,6 +3,7 @@ import {
     NotFoundError,
     Team,
     type TeamId,
+    type TeamMemberStatus,
     type TeamRepository,
     type UserId,
 } from '@pickupvb/domain';
@@ -17,7 +18,7 @@ type TeamRow = {
     format: Format;
 };
 
-type MemberRow = { user_id: string };
+type MemberRow = { user_id: string; status: TeamMemberStatus | null };
 
 /**
  * Adapter for the `Team` aggregate. Persists to `teams` + `team_members`.
@@ -44,23 +45,21 @@ export class SupabaseTeamRepository implements TeamRepository {
 
         const { data: memberRows, error: mErr } = await this.client
             .from('team_members')
-            .select('user_id')
+            .select('user_id, status')
             .eq('team_id', row.id);
         if (mErr) throw new Error(`Team.findById members failed: ${mErr.message}`);
 
-        const team = Team.create({
+        const members = new Map<UserId, TeamMemberStatus>();
+        for (const m of (memberRows as MemberRow[] | null) ?? []) {
+            members.set(m.user_id as UserId, m.status ?? 'active');
+        }
+        return Team.rehydrate({
             id: row.id as never as TeamId,
             captainId: row.captain_id as UserId,
             name: row.name,
             format: row.format,
+            members,
         });
-        // Replay roster (Team.create seeds the captain; add the rest).
-        for (const m of (memberRows as MemberRow[] | null) ?? []) {
-            if (m.user_id !== row.captain_id) {
-                team.addMember(m.user_id as UserId);
-            }
-        }
-        return team;
     }
 
     async save(team: Team): Promise<void> {
@@ -76,18 +75,20 @@ export class SupabaseTeamRepository implements TeamRepository {
         if (error) throw new Error(`Team.save(${team.id}) failed: ${error.message}`);
 
         // Reconcile roster.
-        const userIds = Array.from(team.members).map((u) => String(u));
+        const rows = Array.from(team.allMembers).map(([user_id, status]) => ({
+            team_id: String(team.id),
+            user_id: String(user_id),
+            status,
+        }));
         const { error: delErr } = await this.client
             .from('team_members')
             .delete()
             .eq('team_id', String(team.id));
         if (delErr) throw new Error(`Team.save members clear failed: ${delErr.message}`);
-        if (userIds.length > 0) {
+        if (rows.length > 0) {
             const { error: insErr } = await this.client
                 .from('team_members')
-                .insert(
-                    userIds.map((user_id) => ({ team_id: String(team.id), user_id })) as never,
-                );
+                .insert(rows as never);
             if (insErr) throw new Error(`Team.save members insert failed: ${insErr.message}`);
         }
     }

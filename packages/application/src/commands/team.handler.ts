@@ -10,6 +10,7 @@ import {
     type UserId,
 } from '@pickupvb/domain';
 import {
+    AcceptTeamInviteCommand,
     AddTeamMemberCommand,
     CreateTeamCommand,
     RegisterTeamCommand,
@@ -36,13 +37,34 @@ export class CreateTeamHandler {
 export class AddTeamMemberHandler {
     constructor(private readonly repo: TeamRepository) { }
 
-    async execute({ teamId, userId, requesterId }: AddTeamMemberCommand): Promise<void> {
+    async execute({
+        teamId,
+        userId,
+        requesterId,
+        autoAccept,
+    }: AddTeamMemberCommand): Promise<void> {
         const team = await this.repo.findById(teamId as TeamId);
         if (!team) throw new NotFoundError('team', teamId);
         if (String(team.captainId) !== requesterId) {
             throw new UnauthorizedError('Only the team captain can manage the roster.');
         }
-        team.addMember(userId as UserId);
+        team.inviteMember(userId as UserId, autoAccept);
+        await this.repo.save(team);
+    }
+}
+
+/**
+ * Invitee accepts a pending invite. Only the invitee themselves can accept
+ * (no captain-acts-on-behalf-of); the wrapping server action wires the
+ * authenticated viewer's id into `userId` so this is automatic.
+ */
+export class AcceptTeamInviteHandler {
+    constructor(private readonly repo: TeamRepository) { }
+
+    async execute({ teamId, userId }: AcceptTeamInviteCommand): Promise<void> {
+        const team = await this.repo.findById(teamId as TeamId);
+        if (!team) throw new NotFoundError('team', teamId);
+        team.acceptInvite(userId as UserId);
         await this.repo.save(team);
     }
 }
@@ -53,7 +75,11 @@ export class RemoveTeamMemberHandler {
     async execute({ teamId, userId, requesterId }: RemoveTeamMemberCommand): Promise<void> {
         const team = await this.repo.findById(teamId as TeamId);
         if (!team) throw new NotFoundError('team', teamId);
-        if (String(team.captainId) !== requesterId) {
+        const isCaptain = String(team.captainId) === requesterId;
+        const isSelf = userId === requesterId;
+        // Captains can remove anyone; players can always remove themselves
+        // (covers "leave team" and "decline invite").
+        if (!isCaptain && !isSelf) {
             throw new UnauthorizedError('Only the team captain can manage the roster.');
         }
         team.removeMember(userId as UserId);
