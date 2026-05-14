@@ -2,12 +2,19 @@
 
 import { revalidatePath } from 'next/cache';
 import { fieldOrNull } from '@/lib/form-data';
+import { isPosition, type Position } from '@/lib/enum-labels';
 import { requireSession } from '@/lib/server-auth';
 
 export type ProfileFormState = {
     error: string | null;
     success: boolean;
 };
+
+function readPosition(formData: FormData, key: string): Position | null {
+    const v = formData.get(key);
+    if (typeof v !== 'string' || v.length === 0) return null;
+    return isPosition(v) ? v : null;
+}
 
 export async function updateProfile(
     _prev: ProfileFormState,
@@ -20,6 +27,9 @@ export async function updateProfile(
     const homeCity = fieldOrNull(formData, 'home_city', 120);
     const displayNameInput = fieldOrNull(formData, 'display_name', 80);
     const autoAcceptTeamInvites = formData.get('auto_accept_team_invites') != null;
+    const primaryPosition = readPosition(formData, 'primary_position');
+    const secondaryPosition = readPosition(formData, 'secondary_position');
+    const tertiaryPosition = readPosition(formData, 'tertiary_position');
 
     const fallbackName =
         [firstName, lastName].filter(Boolean).join(' ').trim() ||
@@ -38,6 +48,9 @@ export async function updateProfile(
             home_city: homeCity,
             display_name: displayName,
             auto_accept_team_invites: autoAcceptTeamInvites,
+            primary_position: primaryPosition,
+            secondary_position: secondaryPosition,
+            tertiary_position: tertiaryPosition,
         } as never)
         .eq('id', user.id);
 

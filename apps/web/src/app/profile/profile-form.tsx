@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { POSITIONS, POSITION_LABEL } from '@/lib/enum-labels';
 import { updateProfile, type ProfileFormState } from './actions';
 
 type Profile = {
@@ -9,6 +10,9 @@ type Profile = {
     display_name: string;
     home_city: string | null;
     auto_accept_team_invites: boolean;
+    primary_position: string | null;
+    secondary_position: string | null;
+    tertiary_position: string | null;
 };
 
 const initialState: ProfileFormState = { error: null, success: false };
@@ -23,6 +27,36 @@ function SubmitButton() {
         >
             {pending ? 'Saving…' : 'Save changes'}
         </button>
+    );
+}
+
+function PositionSelect({
+    name,
+    label,
+    defaultValue,
+}: {
+    name: string;
+    label: string;
+    defaultValue: string | null;
+}) {
+    return (
+        <label className="block">
+            <span className="text-xs font-medium uppercase tracking-wide text-fg/70">
+                {label}
+            </span>
+            <select
+                name={name}
+                defaultValue={defaultValue ?? ''}
+                className="mt-1 w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm"
+            >
+                <option value="">— None —</option>
+                {POSITIONS.map((p) => (
+                    <option key={p} value={p}>
+                        {POSITION_LABEL[p]}
+                    </option>
+                ))}
+            </select>
+        </label>
     );
 }
 
@@ -82,6 +116,30 @@ export function ProfileForm({ profile, email }: { profile: Profile; email: strin
                     className="mt-1 w-full rounded-md border border-border-base px-3 py-2"
                 />
             </label>
+
+            <fieldset className="space-y-3 rounded-md border border-border-base p-3">
+                <legend className="px-1 text-sm font-medium">Positions</legend>
+                <p className="px-1 text-xs text-fg/60">
+                    Helps captains find you when picking up free agents.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                    <PositionSelect
+                        name="primary_position"
+                        label="Primary"
+                        defaultValue={profile.primary_position}
+                    />
+                    <PositionSelect
+                        name="secondary_position"
+                        label="Secondary"
+                        defaultValue={profile.secondary_position}
+                    />
+                    <PositionSelect
+                        name="tertiary_position"
+                        label="Third"
+                        defaultValue={profile.tertiary_position}
+                    />
+                </div>
+            </fieldset>
 
             <div className="block text-sm text-fg/70">
                 Email: <span className="font-medium text-fg">{email}</span>

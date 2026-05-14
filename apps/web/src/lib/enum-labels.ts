@@ -49,6 +49,33 @@ export const VISIBILITY_LABEL: Record<string, string> = {
     private: 'Private',
 };
 
+/**
+ * Volleyball positions used on player profiles. Order matters — this array
+ * drives the dropdowns in `<ProfileForm>`.
+ */
+export const POSITIONS = [
+    'setter',
+    'outside',
+    'opposite',
+    'middle',
+    'libero',
+    'defensive_specialist',
+] as const;
+export type Position = (typeof POSITIONS)[number];
+
+export const POSITION_LABEL: Record<string, string> = {
+    setter: 'Setter',
+    outside: 'Outside hitter',
+    opposite: 'Opposite',
+    middle: 'Middle blocker',
+    libero: 'Libero',
+    defensive_specialist: 'Defensive specialist',
+};
+
+export function isPosition(v: unknown): v is Position {
+    return typeof v === 'string' && (POSITIONS as readonly string[]).includes(v);
+}
+
 /** Lookup helpers that fall back to the raw value if the key isn't in the map. */
 export const labelFor =
     (map: Record<string, string>) =>

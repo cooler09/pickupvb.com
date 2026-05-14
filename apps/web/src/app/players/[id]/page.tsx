@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
+import { POSITION_LABEL } from '@/lib/enum-labels';
 import {
     HostedEventsList,
     loadVisibleHostedEvents,
@@ -16,6 +17,9 @@ type PlayerProfile = {
     last_name: string | null;
     avatar_url: string | null;
     home_city: string | null;
+    primary_position: string | null;
+    secondary_position: string | null;
+    tertiary_position: string | null;
 };
 
 function initialsOf(p: PlayerProfile): string {
@@ -40,7 +44,7 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
         .eq('id', params.id)
         .maybeSingle();
     const p = data as PlayerProfile | null;
-    const name = p ? nameOf({ ...p, id: params.id, avatar_url: null, home_city: null }) : 'Player';
+    const name = p ? nameOf({ ...p, id: params.id, avatar_url: null, home_city: null, primary_position: null, secondary_position: null, tertiary_position: null }) : 'Player';
     return { title: `${name} — PickupVB` };
 }
 
@@ -49,7 +53,7 @@ export default async function PlayerProfilePage({ params }: { params: { id: stri
 
     const { data: profileRow } = await supabase
         .from('profiles')
-        .select('id, display_name, first_name, last_name, avatar_url, home_city')
+        .select('id, display_name, first_name, last_name, avatar_url, home_city, primary_position, secondary_position, tertiary_position')
         .eq('id', params.id)
         .maybeSingle();
 
@@ -81,6 +85,14 @@ export default async function PlayerProfilePage({ params }: { params: { id: stri
     const returnPath = `/players/${profile.id}`;
     const name = nameOf(profile);
 
+    const positions = [
+        profile.primary_position,
+        profile.secondary_position,
+        profile.tertiary_position,
+    ]
+        .filter((p): p is string => !!p)
+        .map((p) => POSITION_LABEL[p] ?? p);
+
     return (
         <div className="mx-auto max-w-2xl space-y-8 py-4">
             <header className="flex items-center gap-4">
@@ -103,6 +115,12 @@ export default async function PlayerProfilePage({ params }: { params: { id: stri
                     <h1 className="text-2xl font-bold text-fg">{name}</h1>
                     {profile.home_city && (
                         <p className="text-sm text-muted">{profile.home_city}</p>
+                    )}
+                    {positions.length > 0 && (
+                        <p className="mt-1 text-sm text-muted">
+                            <span className="text-fg/70">Positions:</span>{' '}
+                            {positions.join(' · ')}
+                        </p>
                     )}
                 </div>
                 {!isSelf && (
