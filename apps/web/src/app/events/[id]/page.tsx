@@ -6,6 +6,7 @@ import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { AttendeeList } from '@/components/attendee-list';
 import { addEventCoHost, removeEventCoHost } from '@/app/groups/actions';
+import GuestSignupForm from './guest-signup-form';
 
 const EventMap = dynamicImport(() => import('@/components/event-map'), {
     ssr: false,
@@ -92,6 +93,14 @@ export default async function EventDetailPage({ params }: { params: { id: string
     };
     const attendees: AttendeeRow[] = (attendeeRows as AttendeeRow[] | null) ?? [];
     const isAttending = Boolean(user && attendees.some((a) => a.user_id === user.id));
+
+    // Anonymous guest signups (display_name only — fetched via SECURITY DEFINER
+    // RPC so anyone can read names without exposing PII columns).
+    type GuestRow = { id: string; display_name: string; created_at: string };
+    const { data: guestRows } = await supabase.rpc('list_event_guests', {
+        p_event_id: event.id,
+    } as never);
+    const guests: GuestRow[] = (guestRows as GuestRow[] | null) ?? [];
 
     // Load the viewer's existing friend edges so we can mark "✓ Friend" inline.
     let friendIds = new Set<string>();
@@ -452,7 +461,7 @@ export default async function EventDetailPage({ params }: { params: { id: string
                 <h2 className="mb-3 text-lg font-semibold text-fg">
                     Players signed up{' '}
                     <span className="text-sm font-normal text-muted">
-                        ({attendees.length})
+                        ({attendees.length + guests.length})
                     </span>
                 </h2>
                 <AttendeeList
@@ -461,6 +470,27 @@ export default async function EventDetailPage({ params }: { params: { id: string
                     friendIds={friendIds}
                     returnPath={`/events/${event.id}`}
                 />
+                {guests.length > 0 && (
+                    <ul className="mt-3 space-y-2">
+                        {guests.map((g) => (
+                            <li
+                                key={g.id}
+                                className="flex items-center gap-3 rounded-lg border border-border-base bg-surface px-3 py-2"
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    className="flex h-8 w-8 items-center justify-center rounded-full bg-fg/10 text-xs font-semibold text-fg/70"
+                                >
+                                    {g.display_name.slice(0, 2).toUpperCase()}
+                                </span>
+                                <span className="flex-1 truncate text-sm text-fg">{g.display_name}</span>
+                                <span className="rounded-full bg-fg/5 px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+                                    Guest
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </section>
 
             <section className="rounded-lg border border-border-base p-4">
@@ -473,27 +503,41 @@ export default async function EventDetailPage({ params }: { params: { id: string
             </section>
 
             {event.type === 'open_play' && event.status === 'published' && (
-                <div className="flex justify-end">
-                    {!user ? (
-                        <Link
-                            href={`/login?next=/events/${event.id}`}
-                            className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
-                        >
-                            Sign in to join
-                        </Link>
-                    ) : isAttending ? (
-                        <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
-                            You&apos;re signed up
-                        </span>
-                    ) : (
-                        <form action={`/api/events/${event.id}/join`} method="post">
-                            <button
-                                type="submit"
-                                className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+                <div className="space-y-4">
+                    <div className="flex justify-end">
+                        {!user ? (
+                            <Link
+                                href={`/login?next=/events/${event.id}`}
+                                className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
                             >
-                                Join this event
-                            </button>
-                        </form>
+                                Sign in to join
+                            </Link>
+                        ) : isAttending ? (
+                            <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+                                You&apos;re signed up
+                            </span>
+                        ) : (
+                            <form action={`/api/events/${event.id}/join`} method="post">
+                                <button
+                                    type="submit"
+                                    className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+                                >
+                                    Join this event
+                                </button>
+                            </form>
+                        )}
+                    </div>
+
+                    {!user && (
+                        <section className="rounded-lg border border-border-base p-4">
+                            <h2 className="text-sm font-semibold text-fg">
+                                Sign up as a guest
+                            </h2>
+                            <p className="mb-3 text-xs text-muted">
+                                No account needed — just your name.
+                            </p>
+                            <GuestSignupForm eventId={event.id} />
+                        </section>
                     )}
                 </div>
             )}
