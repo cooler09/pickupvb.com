@@ -13,6 +13,26 @@ export type ClaimState = {
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /**
+ * Read a field from FormData. Server actions invoked via `useFormState` in
+ * Next 14 / React 18 encode form fields with a numeric prefix (e.g.
+ * `1_email`) because slot `0` holds the previous-state reference. We accept
+ * both the bare name and any numeric-prefixed variant so the action keeps
+ * working whether it's wired with `useFormState`, `.bind()`, or a plain
+ * `<form action={fn}>`.
+ */
+function field(formData: FormData, name: string): string {
+    const direct = formData.get(name);
+    if (typeof direct === 'string' && direct.length > 0) return direct;
+    for (const [k, v] of formData.entries()) {
+        if (typeof v !== 'string') continue;
+        if (k === name) return v;
+        // Match `<digits>_email` etc.
+        if (k.endsWith(`_${name}`) && /^\d+_/.test(k)) return v;
+    }
+    return '';
+}
+
+/**
  * Convert the current anonymous session into a permanent account.
  *
  * GoTrue requires that an anon user gets an email (or phone) BEFORE a
@@ -32,9 +52,9 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  * don't depend on email confirmation.
  */
 export async function claimAccount(_prev: ClaimState, formData: FormData): Promise<ClaimState> {
-    const email = String(formData.get('email') ?? '').trim();
-    const firstName = String(formData.get('first_name') ?? '').trim();
-    const lastName = String(formData.get('last_name') ?? '').trim();
+    const email = field(formData, 'email').trim();
+    const firstName = field(formData, 'first_name').trim();
+    const lastName = field(formData, 'last_name').trim();
 
     const fieldErrors: Record<string, string> = {};
     if (!EMAIL_RE.test(email)) fieldErrors.email = 'Enter a valid email address.';
