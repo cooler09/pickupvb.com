@@ -9,7 +9,7 @@ import { signOut } from './actions';
 
 type Props = {
     theme: Theme;
-    user: { email: string | null; initials: string } | null;
+    user: { displayName: string; initials: string } | null;
     /** Number of unanswered team invites for the signed-in user. */
     pendingTeamInvites: number;
 };
@@ -133,7 +133,7 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                                         >
                                             {user.initials}
                                         </span>
-                                        <span className="flex-1 truncate text-sm text-fg/80">{user.email}</span>
+                                        <span className="flex-1 truncate text-sm text-fg/80">{user.displayName}</span>
                                         <span className="text-xs text-fg/60">Profile →</span>
                                     </Link>
                                     <form action={signOut}>

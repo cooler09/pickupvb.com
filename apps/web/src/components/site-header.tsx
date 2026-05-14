@@ -7,11 +7,12 @@ import { signOut } from './actions';
 
 export const dynamic = 'force-dynamic';
 
-function initialsOf(email: string): string {
-    const local = email.split('@')[0] ?? '';
-    const parts = local.split(/[._-]/).filter(Boolean);
-    const letters = (parts.length >= 2 ? parts[0]![0]! + parts[1]![0]! : local.slice(0, 2)) || '?';
-    return letters.toUpperCase();
+function initialsOf(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+        return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+    }
+    return (parts[0]?.slice(0, 2) ?? '?').toUpperCase();
 }
 
 export default async function SiteHeader({ theme }: { theme: Theme }) {
@@ -23,8 +24,24 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
     const isAnon = Boolean(user && (user as { is_anonymous?: boolean }).is_anonymous);
     const isRealUser = Boolean(user) && !isAnon;
 
-    const userInfo = isRealUser && user
-        ? { email: user.email ?? null, initials: initialsOf(user.email ?? '?') }
+    // Pull the display name to label the avatar / nav link. Falls back to the
+    // email local-part (or 'Player') if the profile row is missing.
+    let displayName: string | null = null;
+    if (isRealUser && user) {
+        const { data: row } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', user.id)
+            .maybeSingle();
+        const fromProfile = (row as { display_name: string | null } | null)?.display_name;
+        displayName =
+            fromProfile?.trim() ||
+            user.email?.split('@')[0] ||
+            'Player';
+    }
+
+    const userInfo = isRealUser && user && displayName
+        ? { displayName, initials: initialsOf(displayName) }
         : null;
 
     // Count pending team invites so we can show a badge on the Teams link.
@@ -99,8 +116,8 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                             <Link
                                 href="/profile"
                                 className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary hover:bg-primary/25"
-                                title={userInfo.email ?? 'Your profile'}
-                                aria-label={`Your profile (${userInfo.email ?? 'signed in'})`}
+                                title={userInfo.displayName}
+                                aria-label={`Your profile (${userInfo.displayName})`}
                             >
                                 {userInfo.initials}
                             </Link>
@@ -108,7 +125,7 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                                 href="/profile"
                                 className="hidden max-w-[12rem] truncate text-fg/70 hover:text-primary lg:inline"
                             >
-                                {userInfo.email}
+                                {userInfo.displayName}
                             </Link>
                             <form action={signOut}>
                                 <button
