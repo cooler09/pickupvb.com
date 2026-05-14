@@ -29,3 +29,7 @@ drop policy if exists event_guests_insert on public.event_guests;
 
 create policy event_guests_insert on public.event_guests for insert
   with check (public.event_is_published(event_id));
+
+-- Required: without table-level INSERT privilege, anon/authenticated calls
+-- are rejected and reported as an RLS violation.
+grant insert on public.event_guests to anon, authenticated;
