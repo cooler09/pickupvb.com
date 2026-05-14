@@ -1,35 +1,24 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { getServerSupabase } from '@/lib/supabase';
+import { fieldOrNull } from '@/lib/form-data';
+import { requireSession } from '@/lib/server-auth';
 
 export type ProfileFormState = {
     error: string | null;
     success: boolean;
 };
 
-function clean(value: FormDataEntryValue | null, max: number): string | null {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    return trimmed.slice(0, max);
-}
-
 export async function updateProfile(
     _prev: ProfileFormState,
     formData: FormData,
 ): Promise<ProfileFormState> {
-    const supabase = getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect('/login');
+    const { supabase, user } = await requireSession();
 
-    const firstName = clean(formData.get('first_name'), 60);
-    const lastName = clean(formData.get('last_name'), 60);
-    const homeCity = clean(formData.get('home_city'), 120);
-    const displayNameInput = clean(formData.get('display_name'), 80);
+    const firstName = fieldOrNull(formData, 'first_name', 60);
+    const lastName = fieldOrNull(formData, 'last_name', 60);
+    const homeCity = fieldOrNull(formData, 'home_city', 120);
+    const displayNameInput = fieldOrNull(formData, 'display_name', 80);
 
     const fallbackName =
         [firstName, lastName].filter(Boolean).join(' ').trim() ||

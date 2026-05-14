@@ -7,7 +7,8 @@ import { CreateEventSchema } from '@pickupvb/types';
 import { CreateEventCommand } from '@pickupvb/application';
 import { EventType } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
-import { getServerSupabase } from '@/lib/supabase';
+import { field, fieldOrUndefined } from '@/lib/form-data';
+import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
 
 export type CreateEventState = {
@@ -15,31 +16,25 @@ export type CreateEventState = {
     fieldErrors?: Record<string, string>;
 };
 
-function emptyToUndefined(v: FormDataEntryValue | null): string | undefined {
-    if (v === null) return undefined;
-    const s = String(v).trim();
-    return s.length === 0 ? undefined : s;
-}
-
 export async function createEventAction(
     _prev: CreateEventState,
     formData: FormData,
 ): Promise<CreateEventState> {
-    const supabase = getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return { error: 'You must be signed in to host an event.' };
+    const viewer = await getViewer();
+    if (!viewer) return { error: 'You must be signed in to host an event.' };
+    if (viewer.isAnonymous)
+        return { error: 'Finish claiming your account before hosting an event.' };
+    const { supabase, user } = viewer;
 
-    const type = String(formData.get('type') ?? '');
-    const capacityKind = String(formData.get('capacityKind') ?? 'unlimited');
-    const maxSpotsRaw = emptyToUndefined(formData.get('maxSpots'));
+    const type = field(formData, 'type');
+    const capacityKind = field(formData, 'capacityKind') || 'unlimited';
+    const maxSpotsRaw = fieldOrUndefined(formData, 'maxSpots');
 
-    const addressLine = emptyToUndefined(formData.get('addressLine')) ?? '';
-    const city = emptyToUndefined(formData.get('city')) ?? '';
-    const region = emptyToUndefined(formData.get('region')) ?? '';
-    const postalCode = emptyToUndefined(formData.get('postalCode')) ?? '';
-    const country = emptyToUndefined(formData.get('country')) ?? '';
+    const addressLine = field(formData, 'addressLine');
+    const city = field(formData, 'city');
+    const region = field(formData, 'region');
+    const postalCode = field(formData, 'postalCode');
+    const country = field(formData, 'country');
 
     let coords: { latitude: number; longitude: number };
     try {
@@ -50,15 +45,15 @@ export async function createEventAction(
     }
 
     const raw = {
-        title: emptyToUndefined(formData.get('title')) ?? '',
-        description: emptyToUndefined(formData.get('description')) ?? '',
-        rules: emptyToUndefined(formData.get('rules')) ?? '',
-        surface: String(formData.get('surface') ?? ''),
-        format: emptyToUndefined(formData.get('format')),
-        gender: emptyToUndefined(formData.get('gender')),
-        skillLevel: String(formData.get('skillLevel') ?? ''),
+        title: field(formData, 'title'),
+        description: field(formData, 'description'),
+        rules: field(formData, 'rules'),
+        surface: field(formData, 'surface'),
+        format: fieldOrUndefined(formData, 'format'),
+        gender: fieldOrUndefined(formData, 'gender'),
+        skillLevel: field(formData, 'skillLevel'),
         type,
-        visibility: String(formData.get('visibility') ?? ''),
+        visibility: field(formData, 'visibility'),
         location: {
             addressLine,
             city,
@@ -68,8 +63,8 @@ export async function createEventAction(
             latitude: coords.latitude,
             longitude: coords.longitude,
         },
-        startsAt: emptyToUndefined(formData.get('startsAt')) ?? '',
-        endsAt: emptyToUndefined(formData.get('endsAt')) ?? '',
+        startsAt: field(formData, 'startsAt'),
+        endsAt: field(formData, 'endsAt'),
         capacity:
             type === EventType.OpenPlay
                 ? capacityKind === 'fixed' && maxSpotsRaw
@@ -103,7 +98,7 @@ export async function createEventAction(
 
     // If the user chose to host on behalf of a group, attach it to the row.
     // RLS on events_update enforces they're owner/admin of that group.
-    const hostGroupId = emptyToUndefined(formData.get('hostGroupId'));
+    const hostGroupId = fieldOrUndefined(formData, 'hostGroupId');
     if (hostGroupId) {
         const { error: groupErr } = await supabase
             .from('events')

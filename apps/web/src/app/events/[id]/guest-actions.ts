@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { JoinEventCommand } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
+import { field } from '@/lib/form-data';
 import { getServerSupabase } from '@/lib/supabase';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 
@@ -11,10 +12,6 @@ export type GuestSignupState = {
     error?: string;
     fieldErrors?: Record<string, string>;
 };
-
-function s(v: FormDataEntryValue | null): string {
-    return (v == null ? '' : String(v)).trim();
-}
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -38,9 +35,9 @@ export async function signupAsGuest(
     _prev: GuestSignupState,
     formData: FormData,
 ): Promise<GuestSignupState> {
-    const displayName = s(formData.get('display_name'));
-    const email = s(formData.get('email'));
-    const turnstileToken = s(formData.get('cf-turnstile-response'));
+    const displayName = field(formData, 'display_name');
+    const email = field(formData, 'email');
+    const turnstileToken = field(formData, 'cf-turnstile-response');
 
     const fieldErrors: Record<string, string> = {};
     if (displayName.length < 1 || displayName.length > 80) {

@@ -3,6 +3,8 @@ import type { Route } from 'next';
 import { SearchEventsQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { SURFACE_LABEL, TYPE_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
+import { formatEventStart } from '@/lib/date-formats';
 import { NearMeButton } from './near-me-button';
 
 export const dynamic = 'force-dynamic';
@@ -10,15 +12,6 @@ export const dynamic = 'force-dynamic';
 const SURFACES = ['indoor', 'grass', 'sand'] as const;
 const TYPES = ['open_play', 'tournament'] as const;
 const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
-
-const SURFACE_LABEL: Record<string, string> = { indoor: 'Indoor', grass: 'Grass', sand: 'Sand' };
-const TYPE_LABEL: Record<string, string> = { open_play: 'Open play', tournament: 'Tournament' };
-const SKILL_LABEL: Record<string, string> = {
-    beginner: 'Beginner',
-    intermediate: 'Intermediate',
-    advanced: 'Advanced',
-    competitive: 'Competitive',
-};
 
 function pick<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
     return allowed.includes(value as T) ? (value as T) : undefined;
@@ -28,16 +21,6 @@ function parseFloatOrNull(value: string | undefined): number | null {
     if (!value) return null;
     const n = Number.parseFloat(value);
     return Number.isFinite(n) ? n : null;
-}
-
-function formatStart(d: Date): string {
-    return d.toLocaleString(undefined, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
 }
 
 export default async function EventsPage({
@@ -440,7 +423,7 @@ export default async function EventsPage({
                                 {e.title}
                             </Link>
                             <p className="mt-1 text-xs text-muted">
-                                {formatStart(new Date(e.startsAt))}
+                                {formatEventStart(new Date(e.startsAt))}
                             </p>
                             <p className="mt-1 text-sm text-fg/80">
                                 {e.city}, {e.region}

@@ -1,21 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { getServerSupabase } from '@/lib/supabase';
-
-async function requireUser() {
-    const supabase = getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect('/login');
-    return { supabase, user };
-}
+import { requireSession } from '@/lib/server-auth';
 
 export async function addFriend(friendId: string, returnPath?: string): Promise<void> {
     if (!friendId) return;
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireSession();
     if (friendId === user.id) return;
 
     await supabase
@@ -27,7 +17,7 @@ export async function addFriend(friendId: string, returnPath?: string): Promise<
 
 export async function removeFriend(friendId: string, returnPath?: string): Promise<void> {
     if (!friendId) return;
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireSession();
 
     await supabase
         .from('friendships')

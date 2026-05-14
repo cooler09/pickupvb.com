@@ -1,15 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { getServerSupabase } from '@/lib/supabase';
-
-const TYPE_LABEL: Record<string, string> = { open_play: 'Open play', tournament: 'Tournament' };
-const SURFACE_LABEL: Record<string, string> = { indoor: 'Indoor', grass: 'Grass', sand: 'Sand' };
-const SKILL_LABEL: Record<string, string> = {
-    beginner: 'Beginner',
-    intermediate: 'Intermediate',
-    advanced: 'Advanced',
-    competitive: 'Competitive',
-};
+import { SURFACE_LABEL, TYPE_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
+import { formatEventStart } from '@/lib/date-formats';
 
 export type HostedEventRow = {
     id: string;
@@ -25,16 +18,6 @@ export type HostedEventRow = {
     max_spots: number | null;
     attendee_count: number;
 };
-
-function formatStart(d: Date): string {
-    return d.toLocaleString(undefined, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
-}
 
 /**
  * Loads events hosted by `hostId` (as primary user host or as a co-host) that
@@ -112,7 +95,7 @@ export function HostedEventsList({
                             {e.title}
                         </Link>
                         <p className="mt-0.5 text-xs text-muted">
-                            {formatStart(new Date(e.starts_at))}
+                            {formatEventStart(new Date(e.starts_at))}
                         </p>
                         <p className="mt-0.5 text-xs text-fg/80">
                             {e.city}, {e.region}

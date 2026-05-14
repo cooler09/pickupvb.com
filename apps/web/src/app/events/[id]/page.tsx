@@ -4,6 +4,15 @@ import { notFound } from 'next/navigation';
 import { GetEventByIdQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import {
+    SURFACE_LABEL,
+    FORMAT_LABEL,
+    GENDER_LABEL,
+    SKILL_LABEL,
+    TYPE_LABEL,
+    STATUS_LABEL,
+} from '@/lib/enum-labels';
+import { formatEventDateLong } from '@/lib/date-formats';
 import { AttendeeList } from '@/components/attendee-list';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { addEventCoHost, removeEventCoHost } from '@/app/groups/actions';
@@ -18,50 +27,6 @@ const EventMap = dynamicImport(() => import('@/components/event-map'), {
 });
 
 export const dynamic = 'force-dynamic';
-
-const SURFACE_LABEL: Record<string, string> = {
-    indoor: 'Indoor',
-    grass: 'Grass',
-    sand: 'Sand',
-};
-const FORMAT_LABEL: Record<string, string> = {
-    sixes: 'Sixes',
-    quads: 'Quads',
-    triples: 'Triples',
-    doubles: 'Doubles',
-};
-const GENDER_LABEL: Record<string, string> = {
-    coed: 'Coed',
-    mens: "Men's",
-    womens: "Women's",
-};
-const SKILL_LABEL: Record<string, string> = {
-    beginner: 'Beginner',
-    intermediate: 'Intermediate',
-    advanced: 'Advanced',
-    competitive: 'Competitive',
-};
-const TYPE_LABEL: Record<string, string> = {
-    open_play: 'Open play',
-    tournament: 'Tournament',
-};
-const STATUS_LABEL: Record<string, string> = {
-    draft: 'Draft',
-    published: 'Published',
-    cancelled: 'Cancelled',
-    completed: 'Completed',
-};
-
-function formatDate(d: Date): string {
-    return d.toLocaleString(undefined, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    });
-}
 
 export default async function EventDetailPage({
     params,
@@ -408,8 +373,8 @@ export default async function EventDetailPage({
                     <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
                         When
                     </h2>
-                    <p className="mt-1 font-medium text-fg">{formatDate(startsAt)}</p>
-                    <p className="text-sm text-muted">to {formatDate(endsAt)}</p>
+                    <p className="mt-1 font-medium text-fg">{formatEventDateLong(startsAt)}</p>
+                    <p className="text-sm text-muted">to {formatEventDateLong(endsAt)}</p>
                 </div>
                 <div className="rounded-lg border border-border-base p-4">
                     <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">

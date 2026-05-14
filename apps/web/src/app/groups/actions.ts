@@ -2,40 +2,28 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { getServerSupabase } from '@/lib/supabase';
+import { field } from '@/lib/form-data';
+import { requireSession } from '@/lib/server-auth';
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
-
-async function requireUser() {
-    const supabase = getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect('/login');
-    return { supabase, user };
-}
 
 export type GroupFormState = {
     error?: string;
     fieldErrors?: Record<string, string>;
 };
 
-function s(v: FormDataEntryValue | null): string {
-    return (v == null ? '' : String(v)).trim();
-}
-
 export async function createGroupAction(
     _prev: GroupFormState,
     formData: FormData,
 ): Promise<GroupFormState> {
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireSession();
 
-    const name = s(formData.get('name'));
-    const slug = s(formData.get('slug')).toLowerCase();
-    const description = s(formData.get('description'));
-    const homeCity = s(formData.get('home_city'));
-    const region = s(formData.get('region'));
-    const avatarUrl = s(formData.get('avatar_url'));
+    const name = field(formData, 'name');
+    const slug = field(formData, 'slug').toLowerCase();
+    const description = field(formData, 'description');
+    const homeCity = field(formData, 'home_city');
+    const region = field(formData, 'region');
+    const avatarUrl = field(formData, 'avatar_url');
 
     const fieldErrors: Record<string, string> = {};
     if (name.length < 1 || name.length > 80) fieldErrors.name = 'Name is required (1–80 chars).';
@@ -74,13 +62,13 @@ export async function updateGroupAction(
     _prev: GroupFormState,
     formData: FormData,
 ): Promise<GroupFormState> {
-    const { supabase } = await requireUser();
+    const { supabase } = await requireSession();
 
-    const name = s(formData.get('name'));
-    const description = s(formData.get('description'));
-    const homeCity = s(formData.get('home_city'));
-    const region = s(formData.get('region'));
-    const avatarUrl = s(formData.get('avatar_url'));
+    const name = field(formData, 'name');
+    const description = field(formData, 'description');
+    const homeCity = field(formData, 'home_city');
+    const region = field(formData, 'region');
+    const avatarUrl = field(formData, 'avatar_url');
 
     const fieldErrors: Record<string, string> = {};
     if (name.length < 1 || name.length > 80) fieldErrors.name = 'Name is required (1–80 chars).';
@@ -107,7 +95,7 @@ export async function updateGroupAction(
 
 export async function followGroup(groupId: string, returnPath?: string): Promise<void> {
     if (!groupId) return;
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireSession();
     await supabase
         .from('group_followers')
         .insert({ group_id: groupId, user_id: user.id } as never);
@@ -116,7 +104,7 @@ export async function followGroup(groupId: string, returnPath?: string): Promise
 
 export async function unfollowGroup(groupId: string, returnPath?: string): Promise<void> {
     if (!groupId) return;
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireSession();
     await supabase
         .from('group_followers')
         .delete()
@@ -132,7 +120,7 @@ export async function addGroupMember(
     returnPath?: string,
 ): Promise<void> {
     if (!groupId || !userId) return;
-    const { supabase } = await requireUser();
+    const { supabase } = await requireSession();
     await supabase
         .from('group_members')
         .insert({ group_id: groupId, user_id: userId, role } as never);
@@ -145,7 +133,7 @@ export async function removeGroupMember(
     returnPath?: string,
 ): Promise<void> {
     if (!groupId || !userId) return;
-    const { supabase } = await requireUser();
+    const { supabase } = await requireSession();
     await supabase
         .from('group_members')
         .delete()
@@ -161,7 +149,7 @@ export async function changeGroupMemberRole(
     returnPath?: string,
 ): Promise<void> {
     if (!groupId || !userId) return;
-    const { supabase } = await requireUser();
+    const { supabase } = await requireSession();
     await supabase
         .from('group_members')
         .update({ role } as never)
@@ -176,7 +164,7 @@ export async function addEventCoHost(
     returnPath?: string,
 ): Promise<void> {
     if (!eventId || (!party.userId && !party.groupId)) return;
-    const { supabase, user } = await requireUser();
+    const { supabase, user } = await requireSession();
     await supabase.from('event_co_hosts').insert({
         event_id: eventId,
         host_user_id: party.userId ?? null,
@@ -192,7 +180,7 @@ export async function removeEventCoHost(
     returnPath?: string,
 ): Promise<void> {
     if (!eventId) return;
-    const { supabase } = await requireUser();
+    const { supabase } = await requireSession();
     let q = supabase.from('event_co_hosts').delete().eq('event_id', eventId);
     if (party.userId) q = q.eq('host_user_id', party.userId);
     if (party.groupId) q = q.eq('host_group_id', party.groupId);
