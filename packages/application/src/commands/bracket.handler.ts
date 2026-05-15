@@ -38,6 +38,13 @@ export class GenerateBracketCommand {
     ) { }
 }
 
+export class GeneratePlayoffCommand {
+    constructor(
+        public readonly eventId: string,
+        public readonly requesterId: string,
+    ) { }
+}
+
 export class ResetBracketCommand {
     constructor(
         public readonly eventId: string,
@@ -133,6 +140,22 @@ export class GenerateBracketHandler {
         const bracket = await this.brackets.findByEventId(evt.id);
         if (!bracket) throw new NotFoundError('bracket', cmd.eventId);
         bracket.generate(() => this.brackets.nextMatchId());
+        await this.brackets.save(bracket);
+    }
+}
+
+export class GeneratePlayoffHandler {
+    constructor(
+        private readonly events: EventRepository,
+        private readonly brackets: BracketRepository,
+    ) { }
+
+    async execute(cmd: GeneratePlayoffCommand): Promise<void> {
+        const evt = await loadEventOrThrow(this.events, cmd.eventId);
+        assertHost(evt.hostId, cmd.requesterId);
+        const bracket = await this.brackets.findByEventId(evt.id);
+        if (!bracket) throw new NotFoundError('bracket', cmd.eventId);
+        bracket.generatePlayoff(() => this.brackets.nextMatchId());
         await this.brackets.save(bracket);
     }
 }

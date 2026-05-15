@@ -21,6 +21,8 @@ import type {
 } from './enums.js';
 import {
     generateNotImplemented,
+    generatePlayoffFromStandings,
+    generatePoolPlay,
     generateRoundRobin,
     generateSingleElimination,
 } from './generators.js';
@@ -32,15 +34,22 @@ import type {
     Seed,
 } from './match.js';
 import { determineWinner } from './match.js';
+import { computePoolStandings, distinctPools } from './standings.js';
 
 export interface BracketConfig {
     bestOf: number;
     byeStrategy: ByeStrategy;
+    /** Pool play only: number of pools (default 2). */
+    poolCount: number;
+    /** Pool play only: how many top teams from each pool advance (default 2). */
+    advancePerPool: number;
 }
 
 export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
     bestOf: 3,
     byeStrategy: 'top_seeds',
+    poolCount: 2,
+    advancePerPool: 2,
 };
 
 export interface RecordResultInput {
@@ -148,12 +157,66 @@ export class Bracket extends AggregateRoot<BracketId> {
             case 'round_robin':
                 matches = generateRoundRobin(this._seeds, idFactory);
                 break;
+            case 'pool_play_playoff':
+                matches = generatePoolPlay(
+                    this._seeds,
+                    this._config.poolCount,
+                    idFactory,
+                );
+                break;
             default:
                 generateNotImplemented(this._format);
         }
         this._matches = matches;
         this._status = 'active';
         this.raise(new BracketGenerated(this.id, matches.length));
+    }
+
+    /**
+     * For pool_play_playoff: once every pool match is completed, append
+     * the single-elim playoff bracket built from pool standings. Idempotent
+     * — a second call is rejected if playoff matches already exist.
+     */
+    generatePlayoff(idFactory: () => MatchId): void {
+        if (this._format !== 'pool_play_playoff') {
+            throw new InvariantViolation(
+                'Playoff generation is only supported for pool play → playoff format.',
+            );
+        }
+        if (this._status !== 'active') {
+            throw new InvariantViolation('Bracket is not active.');
+        }
+        if (this._matches.some((m) => m.bracketSide === 'final')) {
+            throw new ConflictError('Playoff bracket has already been generated.');
+        }
+        const poolMatches = this._matches.filter((m) => m.pool !== null);
+        if (poolMatches.length === 0) {
+            throw new InvariantViolation('No pool play matches found.');
+        }
+        const allDone = poolMatches.every(
+            (m) => m.status === 'completed' || m.status === 'bye',
+        );
+        if (!allDone) {
+            throw new InvariantViolation(
+                'All pool play matches must be completed before generating the playoff.',
+            );
+        }
+        const pools = distinctPools(poolMatches);
+        const standingsByPool = pools.map((p) =>
+            computePoolStandings(this._matches, p).map((s) => s.teamId),
+        );
+        const maxPoolRound = poolMatches.reduce(
+            (acc, m) => Math.max(acc, m.round),
+            0,
+        );
+        const playoff = generatePlayoffFromStandings(
+            standingsByPool,
+            this._config.advancePerPool,
+            idFactory,
+            maxPoolRound,
+        );
+        this._matches = [...this._matches, ...playoff];
+        this.raise(new BracketGenerated(this.id, playoff.length));
     }
 
     /**
@@ -280,9 +343,17 @@ export class Bracket extends AggregateRoot<BracketId> {
         const allDone = this._matches.every(
             (m) => m.status === 'completed' || m.status === 'bye',
         );
-        if (allDone && this._status === 'active') {
-            this._status = 'completed';
-            this.raise(new BracketCompleted(this.id));
+        if (!allDone || this._status !== 'active') return;
+        // For pool_play_playoff, only complete once the playoff has been
+        // generated; otherwise we'd flip to 'completed' the moment the last
+        // pool match wraps up, before the host can build the playoff.
+        if (
+            this._format === 'pool_play_playoff' &&
+            !this._matches.some((m) => m.bracketSide === 'final')
+        ) {
+            return;
         }
+        this._status = 'completed';
+        this.raise(new BracketCompleted(this.id));
     }
 }

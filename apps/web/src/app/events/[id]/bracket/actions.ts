@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import {
     CreateBracketCommand,
     GenerateBracketCommand,
+    GeneratePlayoffCommand,
     RecordMatchResultCommand,
     ResetBracketCommand,
     ResetMatchCommand,
@@ -16,6 +17,7 @@ import {
     NotFoundError,
     UnauthorizedError,
     ValidationError,
+    type BracketConfig,
     type BracketFormat,
     type MatchSet,
 } from '@pickupvb/domain';
@@ -52,11 +54,12 @@ function classify(err: unknown): { code: string; msg: string } {
 export async function createBracket(
     eventId: string,
     format: BracketFormat,
+    config?: Partial<BracketConfig>,
 ): Promise<void> {
     const { user } = await requireRealUser();
     try {
         await handlers.createBracket.execute(
-            new CreateBracketCommand(eventId, user.id, format),
+            new CreateBracketCommand(eventId, user.id, format, config),
         );
     } catch (err) {
         const { code, msg } = classify(err);
@@ -73,7 +76,14 @@ export async function createBracketFromForm(
     formData: FormData,
 ): Promise<void> {
     const format = String(formData.get('format') ?? 'single_elimination') as BracketFormat;
-    await createBracket(eventId, format);
+    const config: Partial<BracketConfig> = {};
+    if (format === 'pool_play_playoff') {
+        const poolCount = Number(formData.get('pool_count') ?? '');
+        const advance = Number(formData.get('advance_per_pool') ?? '');
+        if (Number.isFinite(poolCount) && poolCount >= 2) config.poolCount = poolCount;
+        if (Number.isFinite(advance) && advance >= 1) config.advancePerPool = advance;
+    }
+    await createBracket(eventId, format, Object.keys(config).length > 0 ? config : undefined);
 }
 
 /**
@@ -135,6 +145,21 @@ export async function generateBracket(eventId: string): Promise<void> {
     }
     revalidatePath(path(eventId));
     back(eventId, 'generated');
+}
+
+export async function generatePlayoff(eventId: string): Promise<void> {
+    const { user } = await requireRealUser();
+    try {
+        await handlers.generatePlayoff.execute(
+            new GeneratePlayoffCommand(eventId, user.id),
+        );
+    } catch (err) {
+        const { code, msg } = classify(err);
+        revalidatePath(path(eventId));
+        back(eventId, code, msg);
+    }
+    revalidatePath(path(eventId));
+    back(eventId, 'playoff_generated');
 }
 
 export async function resetBracket(eventId: string): Promise<void> {

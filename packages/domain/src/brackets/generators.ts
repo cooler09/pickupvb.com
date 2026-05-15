@@ -206,3 +206,109 @@ export function generateNotImplemented(format: string): never {
         `v1 supports single_elimination and round_robin.`,
     );
 }
+
+// ---- Pool play -----------------------------------------------------------
+
+/** Pool labels A, B, C, ... up to 26 pools (more than enough for v1). */
+function poolLabel(idx: number): string {
+    return String.fromCharCode(65 + idx);
+}
+
+/**
+ * Snake-distribute seeds into `poolCount` pools. Top seed goes to pool A,
+ * second to B, ..., then snakes back so strong/weak teams are balanced.
+ *
+ * Returns one Seed[] per pool (in pool index order), each sorted by the
+ * team's *within-pool* seed (1 = strongest in that pool).
+ */
+export function distributeIntoPools(
+    seeds: ReadonlyArray<Seed>,
+    poolCount: number,
+): Seed[][] {
+    if (poolCount < 1) throw new Error('Pool count must be >= 1.');
+    if (seeds.length < poolCount * 2) {
+        throw new Error(
+            `Need at least ${poolCount * 2} teams to fill ${poolCount} pools.`,
+        );
+    }
+    const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
+    const pools: Seed[][] = Array.from({ length: poolCount }, () => []);
+    for (let i = 0; i < sorted.length; i++) {
+        const round = Math.floor(i / poolCount);
+        const within = i % poolCount;
+        const poolIdx = round % 2 === 0 ? within : poolCount - 1 - within;
+        const team = sorted[i]!;
+        pools[poolIdx]!.push({
+            teamId: team.teamId,
+            seed: pools[poolIdx]!.length + 1,
+            pool: poolLabel(poolIdx),
+        });
+    }
+    return pools;
+}
+
+/**
+ * Generate pool-play matches: each pool plays an internal round-robin.
+ * `match.pool` is set to 'A', 'B', ... so the UI can group by pool, and
+ * `match.round` follows the per-pool round-robin round number.
+ */
+export function generatePoolPlay(
+    seeds: ReadonlyArray<Seed>,
+    poolCount: number,
+    mkId: IdFactory,
+): Match[] {
+    const pools = distributeIntoPools(seeds, poolCount);
+    const out: Match[] = [];
+    for (let i = 0; i < pools.length; i++) {
+        const label = poolLabel(i);
+        const poolMatches = generateRoundRobin(pools[i]!, mkId);
+        for (const m of poolMatches) {
+            out.push({ ...m, pool: label });
+        }
+    }
+    return out;
+}
+
+/**
+ * Build the playoff (single-elim) matches that follow pool play.
+ * `advancingPerPool` teams from each pool advance, ordered by their
+ * within-pool standings (1st across all pools first, then 2nds, etc.).
+ *
+ * `roundOffset` shifts the bracket round numbers so they sort *after*
+ * pool-play rounds in the UI.
+ */
+export function generatePlayoffFromStandings(
+    poolStandings: ReadonlyArray<ReadonlyArray<TeamId>>,
+    advancingPerPool: number,
+    mkId: IdFactory,
+    roundOffset: number,
+): Match[] {
+    if (advancingPerPool < 1) throw new Error('Must advance at least 1 per pool.');
+    const advancing: TeamId[] = [];
+    for (let pos = 0; pos < advancingPerPool; pos++) {
+        for (const standings of poolStandings) {
+            const t = standings[pos];
+            if (!t) {
+                throw new Error(
+                    `Pool standings missing position ${pos + 1}; ` +
+                    `each pool must have at least ${advancingPerPool} teams.`,
+                );
+            }
+            advancing.push(t);
+        }
+    }
+    const seeds: Seed[] = advancing.map((teamId, i) => ({
+        teamId,
+        seed: i + 1,
+        pool: null,
+    }));
+    const matches = generateSingleElimination(seeds, mkId);
+    // Re-stamp wiring with the offset round numbers and final-side label.
+    // Returning fresh objects so we don't mutate readonly fields.
+    return matches.map((m) => ({
+        ...m,
+        bracketSide: 'final',
+        round: m.round + roundOffset,
+    }));
+}
+

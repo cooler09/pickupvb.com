@@ -1,13 +1,20 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
-import { NotFoundError, type BracketFormat } from '@pickupvb/domain';
+import {
+    BRACKET_FORMATS,
+    NotFoundError,
+    computePoolStandings,
+    distinctPools,
+    type BracketFormat,
+    type PoolStanding,
+} from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
-import { BRACKET_FORMATS } from '@pickupvb/domain';
 import {
     createBracketFromForm,
     generateBracket,
+    generatePlayoff,
     randomizeSeedFromForm,
     recordMatchResultFromForm,
     resetBracket,
@@ -21,7 +28,7 @@ const FORMAT_LABEL: Record<BracketFormat, string> = {
     single_elimination: 'Single elimination',
     double_elimination: 'Double elimination (coming soon)',
     round_robin: 'Round robin',
-    pool_play_playoff: 'Pool play → playoff (coming soon)',
+    pool_play_playoff: 'Pool play → playoff',
     swiss: 'Swiss (coming soon)',
 };
 
@@ -29,6 +36,7 @@ const NOTICE_LABEL: Record<string, { tone: 'success' | 'error'; text: string }> 
     created: { tone: 'success', text: 'Bracket created.' },
     seeded: { tone: 'success', text: 'Seeding saved.' },
     generated: { tone: 'success', text: 'Bracket generated.' },
+    playoff_generated: { tone: 'success', text: 'Playoff bracket generated.' },
     reset: { tone: 'success', text: 'Bracket reset to setup.' },
     result_saved: { tone: 'success', text: 'Result recorded.' },
     match_reset: { tone: 'success', text: 'Match cleared.' },
@@ -108,8 +116,8 @@ export default async function BracketPage({
             {notice && (
                 <div
                     className={`rounded border px-3 py-2 text-sm ${notice.tone === 'success'
-                            ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300'
-                            : 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
+                        ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300'
+                        : 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
                         }`}
                 >
                     {notice.text}
@@ -144,6 +152,7 @@ export default async function BracketPage({
                     isHost={!!isHost && isRealUser}
                     viewerId={viewerId}
                     status={bracket.status}
+                    format={bracket.format}
                 />
             )}
         </article>
@@ -186,6 +195,30 @@ function NoBracketView(props: {
                             <option key={f} value={f}>
                                 {FORMAT_LABEL[f]}
                             </option>
+                        ))}
+                    </select>
+                </label>
+                <label className="flex flex-col text-sm">
+                    <span className="text-fg/80">Pools (pool play only)</span>
+                    <select
+                        name="pool_count"
+                        className="rounded border border-border-base bg-bg px-2 py-1"
+                        defaultValue="2"
+                    >
+                        {[2, 3, 4].map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                        ))}
+                    </select>
+                </label>
+                <label className="flex flex-col text-sm">
+                    <span className="text-fg/80">Advance per pool</span>
+                    <select
+                        name="advance_per_pool"
+                        className="rounded border border-border-base bg-bg px-2 py-1"
+                        defaultValue="2"
+                    >
+                        {[1, 2, 3, 4].map((n) => (
+                            <option key={n} value={n}>{n}</option>
                         ))}
                     </select>
                 </label>
@@ -347,19 +380,37 @@ function BoardView(props: {
     isHost: boolean;
     viewerId: string | null;
     status: 'active' | 'completed';
+    format: BracketFormat;
 }) {
-    // Group by round.
     type M = (typeof props.matches)[number];
-    const byRound = new Map<number, M[]>();
-    for (const m of props.matches) {
-        const list = byRound.get(m.round) ?? [];
-        list.push(m);
-        byRound.set(m.round, list);
-    }
-    const rounds = Array.from(byRound.keys()).sort((a, b) => a - b);
+    const isPoolPlay = props.format === 'pool_play_playoff';
+    const poolMatches = props.matches.filter((m) => m.pool !== null);
+    const playoffMatches = props.matches.filter((m) => m.bracketSide === 'final');
+    const otherMatches = props.matches.filter(
+        (m) => m.pool === null && m.bracketSide !== 'final',
+    );
+
+    // For pool play, "pool play complete" gates the playoff CTA.
+    const poolPlayComplete =
+        isPoolPlay &&
+        poolMatches.length > 0 &&
+        poolMatches.every((m) => m.status === 'completed' || m.status === 'bye');
+    const playoffExists = playoffMatches.length > 0;
+
+    const groupByRound = (list: ReadonlyArray<M>) => {
+        const byRound = new Map<number, M[]>();
+        for (const m of list) {
+            const arr = byRound.get(m.round) ?? [];
+            arr.push(m);
+            byRound.set(m.round, arr);
+        }
+        return Array.from(byRound.keys())
+            .sort((a, b) => a - b)
+            .map((r) => ({ round: r, matches: byRound.get(r)! }));
+    };
 
     return (
-        <section className="space-y-4">
+        <section className="space-y-6">
             <div className="flex items-center justify-between">
                 <p className="text-sm text-muted">
                     Best of {props.bestOf} •{' '}
@@ -377,35 +428,168 @@ function BoardView(props: {
                 )}
             </div>
 
-            <div className="flex gap-4 overflow-x-auto pb-2">
-                {rounds.map((round) => {
-                    const list = byRound.get(round)!;
-                    return (
-                        <div key={round} className="min-w-[260px] space-y-2">
-                            <h3 className="text-sm font-semibold text-fg/80">
-                                Round {round}
-                            </h3>
-                            {list
-                                .slice()
-                                .sort((a, b) => a.matchNumber - b.matchNumber)
-                                .map((m) => (
-                                    <MatchCard
-                                        key={m.id}
-                                        eventId={props.eventId}
-                                        match={m}
-                                        teamById={props.teamById}
-                                        bestOf={props.bestOf}
-                                        isHost={props.isHost}
-                                        viewerId={props.viewerId}
-                                    />
-                                ))}
-                        </div>
-                    );
-                })}
-            </div>
+            {isPoolPlay && poolMatches.length > 0 && (
+                <PoolsView
+                    eventId={props.eventId}
+                    matches={poolMatches}
+                    teamById={props.teamById}
+                    bestOf={props.bestOf}
+                    isHost={props.isHost}
+                    viewerId={props.viewerId}
+                />
+            )}
+
+            {isPoolPlay && poolPlayComplete && !playoffExists && (
+                <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+                    {props.isHost ? (
+                        <form
+                            action={generatePlayoff.bind(null, props.eventId)}
+                            className="flex items-center justify-between gap-2"
+                        >
+                            <span>
+                                Pool play is complete. Generate the playoff bracket?
+                            </span>
+                            <button
+                                type="submit"
+                                className="rounded bg-primary px-3 py-1 text-xs text-primary-fg"
+                            >
+                                Generate playoff
+                            </button>
+                        </form>
+                    ) : (
+                        <span className="text-muted">
+                            Pool play is complete. Waiting for the host to generate the playoff.
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {(otherMatches.length > 0 || playoffMatches.length > 0) && (
+                <div className="space-y-2">
+                    {isPoolPlay && playoffMatches.length > 0 && (
+                        <h2 className="text-base font-semibold text-fg">Playoff</h2>
+                    )}
+                    <div className="flex gap-4 overflow-x-auto pb-2">
+                        {groupByRound([...otherMatches, ...playoffMatches]).map(
+                            ({ round, matches }) => (
+                                <div key={round} className="min-w-[260px] space-y-2">
+                                    <h3 className="text-sm font-semibold text-fg/80">
+                                        Round {round}
+                                    </h3>
+                                    {matches
+                                        .slice()
+                                        .sort((a, b) => a.matchNumber - b.matchNumber)
+                                        .map((m) => (
+                                            <MatchCard
+                                                key={m.id}
+                                                eventId={props.eventId}
+                                                match={m}
+                                                teamById={props.teamById}
+                                                bestOf={props.bestOf}
+                                                isHost={props.isHost}
+                                                viewerId={props.viewerId}
+                                            />
+                                        ))}
+                                </div>
+                            ),
+                        )}
+                    </div>
+                </div>
+            )}
         </section>
     );
 }
+
+function PoolsView(props: {
+    eventId: string;
+    matches: ReadonlyArray<import('@pickupvb/domain').Match>;
+    teamById: ReadonlyMap<string, { teamId: string; name: string; captainId: string }>;
+    bestOf: number;
+    isHost: boolean;
+    viewerId: string | null;
+}) {
+    const pools = distinctPools(props.matches);
+    return (
+        <div className="space-y-6">
+            {pools.map((pool) => {
+                const poolMatches = props.matches.filter((m) => m.pool === pool);
+                const standings = computePoolStandings(props.matches, pool);
+                return (
+                    <div key={pool} className="space-y-2">
+                        <h2 className="text-base font-semibold text-fg">Pool {pool}</h2>
+                        <PoolStandingsTable
+                            standings={standings}
+                            teamById={props.teamById}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                            {poolMatches
+                                .slice()
+                                .sort(
+                                    (a, b) =>
+                                        a.round - b.round || a.matchNumber - b.matchNumber,
+                                )
+                                .map((m) => (
+                                    <div key={m.id} className="min-w-[220px]">
+                                        <MatchCard
+                                            eventId={props.eventId}
+                                            match={m}
+                                            teamById={props.teamById}
+                                            bestOf={props.bestOf}
+                                            isHost={props.isHost}
+                                            viewerId={props.viewerId}
+                                        />
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function PoolStandingsTable(props: {
+    standings: ReadonlyArray<PoolStanding>;
+    teamById: ReadonlyMap<string, { teamId: string; name: string; captainId: string }>;
+}) {
+    if (props.standings.length === 0) {
+        return <p className="text-xs text-muted">No standings yet.</p>;
+    }
+    return (
+        <table className="w-full text-xs">
+            <thead className="text-muted">
+                <tr className="border-b border-border-base">
+                    <th className="px-2 py-1 text-left">#</th>
+                    <th className="px-2 py-1 text-left">Team</th>
+                    <th className="px-2 py-1 text-right">W</th>
+                    <th className="px-2 py-1 text-right">L</th>
+                    <th className="px-2 py-1 text-right">Set diff</th>
+                    <th className="px-2 py-1 text-right">Pt diff</th>
+                </tr>
+            </thead>
+            <tbody>
+                {props.standings.map((s, i) => {
+                    const team = props.teamById.get(String(s.teamId));
+                    return (
+                        <tr key={String(s.teamId)} className="border-b border-border-base/40">
+                            <td className="px-2 py-1 tabular-nums text-muted">{i + 1}</td>
+                            <td className="px-2 py-1 text-fg">{team?.name ?? '—'}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{s.wins}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">{s.losses}</td>
+                            <td className="px-2 py-1 text-right tabular-nums">
+                                {s.setDiff > 0 ? `+${s.setDiff}` : s.setDiff}
+                            </td>
+                            <td className="px-2 py-1 text-right tabular-nums">
+                                {s.pointDiff > 0 ? `+${s.pointDiff}` : s.pointDiff}
+                            </td>
+                        </tr>
+                    );
+                })}
+            </tbody>
+        </table>
+    );
+}
+
 
 function MatchCard(props: {
     eventId: string;
@@ -433,8 +617,8 @@ function MatchCard(props: {
     return (
         <div
             className={`rounded-lg border p-3 text-sm ${m.status === 'completed'
-                    ? 'border-green-500/30 bg-green-500/5'
-                    : 'border-border-base bg-bg'
+                ? 'border-green-500/30 bg-green-500/5'
+                : 'border-border-base bg-bg'
                 }`}
         >
             <div className="mb-2 flex items-center justify-between text-xs text-muted">
