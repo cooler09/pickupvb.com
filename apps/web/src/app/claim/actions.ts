@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { field } from '@/lib/form-data';
+import { log } from '@/lib/log';
 import { getViewer } from '@/lib/server-auth';
 
 export type ClaimState = {
@@ -62,7 +63,7 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
             },
         });
         if (metaErr) {
-            console.error('[claim] updateUser(metadata) failed:', metaErr);
+            await log.error('[claim] updateUser(metadata) failed', metaErr);
         }
 
         const updates: Record<string, string> = {
@@ -90,7 +91,7 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
         { emailRedirectTo },
     );
     if (emailErr) {
-        console.error('[claim] updateUser(email) failed:', emailErr, 'email=', JSON.stringify(email));
+        await log.error('[claim] updateUser(email) failed', emailErr, { email });
         return { error: emailErr.message };
     }
 

@@ -12,6 +12,8 @@
  * If the secret is missing we log a warning and accept the token — keeps
  * local dev from blocking. Production deploys MUST set both keys.
  */
+import { log } from './log';
+
 const VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
 export async function verifyTurnstileToken(token: string | null | undefined): Promise<{
@@ -20,7 +22,7 @@ export async function verifyTurnstileToken(token: string | null | undefined): Pr
 }> {
     const secret = process.env['TURNSTILE_SECRET_KEY'];
     if (!secret) {
-        console.warn('[turnstile] TURNSTILE_SECRET_KEY not set — skipping verification.');
+        log.warn('[turnstile] TURNSTILE_SECRET_KEY not set — skipping verification.');
         return { ok: true };
     }
     if (!token) {
@@ -41,7 +43,7 @@ export async function verifyTurnstileToken(token: string | null | undefined): Pr
                 }.`,
         };
     } catch (err) {
-        console.error('[turnstile] verify error', err);
+        await log.error('[turnstile] verify error', err);
         return { ok: false, error: 'Verification service unavailable. Try again.' };
     }
 }

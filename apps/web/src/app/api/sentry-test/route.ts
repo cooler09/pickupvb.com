@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import * as Sentry from '@sentry/nextjs';
+import { log } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +15,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const kind = searchParams.get('kind') ?? 'exception';
 
-    const Sentry = await import('@sentry/nextjs');
-
     if (kind === 'message') {
         Sentry.captureMessage('sentry-test: manual message capture', 'info');
         await Sentry.flush(2000);
@@ -22,12 +22,13 @@ export async function GET(request: Request) {
     }
 
     if (kind === 'unhandled') {
-        // Fire-and-forget rejected promise — exercises the global handler.
-        void Promise.reject(
-            new Error('sentry-test: unhandled promise rejection'),
-        );
+        const err = new Error('sentry-test: unhandled promise rejection');
+        await log.error('sentry-test: unhandled', err);
+        void Promise.reject(err);
         return NextResponse.json({ ok: true, captured: 'unhandled' });
     }
 
-    throw new Error('sentry-test: intentional server error');
+    const err = new Error('sentry-test: intentional server error');
+    await log.error('sentry-test: thrown', err);
+    throw err;
 }

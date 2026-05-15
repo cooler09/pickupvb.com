@@ -6,6 +6,7 @@ import { JoinEventCommand } from '@pickupvb/application';
 import { CapacityExceededError, ConflictError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
+import { log } from '@/lib/log';
 import { getServerSupabase } from '@/lib/supabase';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 
@@ -89,7 +90,7 @@ export async function signupAsGuest(
         // We don't fail the signup if this errors — the attendee row matters.
         const { error: updErr } = await supabase.auth.updateUser({ email });
         if (updErr && !/already.*registered/i.test(updErr.message)) {
-            console.warn('[guest-signup] updateUser email failed:', updErr.message);
+            log.warn('[guest-signup] updateUser email failed', { error: updErr.message });
         }
     }
 

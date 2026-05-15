@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/nextjs';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import {
@@ -10,6 +9,7 @@ import {
     UnauthorizedError,
     ValidationError,
 } from '@pickupvb/domain';
+import { log } from './log';
 import { getServerSupabase } from './supabase';
 
 export async function requireUser() {
@@ -52,8 +52,8 @@ export function handleError(err: unknown): NextResponse {
         );
     }
     // Unexpected error — capture full context for Sentry and return a generic
-    // 500 to the client.
-    console.error(err);
-    Sentry.captureException(err);
+    // 500 to the client. We don't await the flush here because handleError is
+    // sync; the response is sent immediately and the event is best-effort.
+    void log.error('[api] unhandled error', err);
     return NextResponse.json({ error: 'INTERNAL' }, { status: 500 });
 }
