@@ -1,47 +1,100 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/* Treat the project source as the content scan root. */
+@source './**/*.{ts,tsx,mdx}';
+
+/* Use a `data-theme` attribute (set on <html> by next.js layout) instead of
+ * the default `prefers-color-scheme` for the `dark:` variant. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
 /*
- * Theme tokens. RGB triples (no alpha) so Tailwind's `<alpha-value>` works,
- * e.g. `bg-surface/50` or `text-fg/70`.
- *
- * Light:  Background #F9EBD9 / Surface #EBD6D7 / Primary #439093 / Secondary
- *         #F09B93 / Highlight #E9DD8A / Fg #183334 / Muted #555F60 / Border #EBD6D7
- * Dark:   Background #183334 / Surface #234B4D / Primary #439093 / Secondary
- *         #F09B93 / Highlight #E9DD8A / Fg #F9EBD9 / Muted #B8D0CF / Border #2E5A5C
+ * Theme tokens. Stored as `R G B` triples so Tailwind 4's modern color
+ * features (e.g. `bg-surface/50`) work via `rgb(var(--c) / <alpha-value>)`.
  */
 :root,
 :root[data-theme='light'] {
-  color-scheme: light;
-  --color-background:    249 235 217; /* #F9EBD9 */
-  --color-surface:       235 214 215; /* #EBD6D7 */
-  --color-primary:        67 144 147; /* #439093 */
-  --color-primary-fg:    249 235 217;
-  --color-secondary:     240 155 147; /* #F09B93 */
-  --color-secondary-fg:   24  51  52;
-  --color-highlight:     233 221 138; /* #E9DD8A */
-  --color-highlight-fg:   24  51  52;
-  --color-fg:             24  51  52; /* #183334 */
-  --color-muted:          85  95  96; /* #555F60 */
-  --color-border:        235 214 215; /* #EBD6D7 */
+    color-scheme: light;
+    --tw-color-background: 249 235 217; /* #F9EBD9 */
+    --tw-color-surface: 235 214 215; /* #EBD6D7 */
+    --tw-color-primary: 67 144 147; /* #439093 */
+    --tw-color-primary-fg: 249 235 217;
+    --tw-color-secondary: 240 155 147; /* #F09B93 */
+    --tw-color-secondary-fg: 24 51 52;
+    --tw-color-highlight: 233 221 138; /* #E9DD8A */
+    --tw-color-highlight-fg: 24 51 52;
+    --tw-color-fg: 24 51 52; /* #183334 */
+    --tw-color-muted: 85 95 96; /* #555F60 */
+    --tw-color-border-base: 235 214 215; /* #EBD6D7 */
 }
 
 :root[data-theme='dark'] {
-  color-scheme: dark;
-  --color-background:     14  42  44; /* #0E2A2C */
-  --color-surface:        27  63  66; /* #1B3F42 */
-  --color-primary:        91 176 179; /* #5BB0B3 */
-  --color-primary-fg:    249 235 217;
-  --color-secondary:     240 155 147; /* #F09B93 */
-  --color-secondary-fg:   14  42  44;
-  --color-highlight:     233 221 138; /* #E9DD8A */
-  --color-highlight-fg:   14  42  44;
-  --color-fg:            249 235 217; /* #F9EBD9 */
-  --color-muted:         159 191 190; /* #9FBFBE */
-  --color-border:         42  85  87; /* #2A5557 */
+    color-scheme: dark;
+    --tw-color-background: 14 42 44; /* #0E2A2C */
+    --tw-color-surface: 27 63 66; /* #1B3F42 */
+    --tw-color-primary: 91 176 179; /* #5BB0B3 */
+    --tw-color-primary-fg: 249 235 217;
+    --tw-color-secondary: 240 155 147; /* #F09B93 */
+    --tw-color-secondary-fg: 14 42 44;
+    --tw-color-highlight: 233 221 138; /* #E9DD8A */
+    --tw-color-highlight-fg: 14 42 44;
+    --tw-color-fg: 249 235 217; /* #F9EBD9 */
+    --tw-color-muted: 159 191 190; /* #9FBFBE */
+    --tw-color-border-base: 42 85 87; /* #2A5557 */
 }
 
-html, body {
-  @apply bg-background text-fg antialiased;
+/*
+ * `@theme inline` registers each CSS variable as a Tailwind color token
+ * without inlining the value, so the variable is resolved at use time and
+ * the dark-theme override above takes effect.
+ */
+@theme inline {
+    --color-background: rgb(var(--tw-color-background) / <alpha-value>);
+    --color-surface: rgb(var(--tw-color-surface) / <alpha-value>);
+    --color-primary: rgb(var(--tw-color-primary) / <alpha-value>);
+    --color-primary-fg: rgb(var(--tw-color-primary-fg) / <alpha-value>);
+    --color-secondary: rgb(var(--tw-color-secondary) / <alpha-value>);
+    --color-secondary-fg: rgb(var(--tw-color-secondary-fg) / <alpha-value>);
+    --color-highlight: rgb(var(--tw-color-highlight) / <alpha-value>);
+    --color-highlight-fg: rgb(var(--tw-color-highlight-fg) / <alpha-value>);
+    --color-fg: rgb(var(--tw-color-fg) / <alpha-value>);
+    --color-muted: rgb(var(--tw-color-muted) / <alpha-value>);
+    --color-border-base: rgb(var(--tw-color-border-base) / <alpha-value>);
+
+    /* Legacy palette (kept so existing utility classes keep working). */
+    --color-court-50: #fff7ed;
+    --color-court-100: #ffedd5;
+    --color-court-200: #fed7aa;
+    --color-court-300: #fdba74;
+    --color-court-500: #f97316;
+    --color-court-600: #ea580c;
+    --color-court-700: #c2410c;
+    --color-court-800: #9a3412;
+    --color-sand-50: #fefce8;
+    --color-sand-100: #fef9c3;
+    --color-sand-500: #eab308;
+    --color-net-900: #0f172a;
+    --color-net-800: #1e293b;
+
+    --font-sans:
+        ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/*
+ * Tailwind 4 changed default border-color from `gray-200` to `currentColor`.
+ * Restore the previous behavior so existing `border` (no color) classes don't
+ * suddenly inherit text color.
+ */
+@layer base {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: rgb(var(--tw-color-border-base));
+    }
+}
+
+html,
+body {
+    @apply bg-background text-fg antialiased;
 }

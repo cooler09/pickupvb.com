@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./tailwind": "./tailwind/preset.js",
     "./tsconfig/base": "./tsconfig/base.json",
     "./tsconfig/next": "./tsconfig/next.json",
     "./tsconfig/node": "./tsconfig/node.json"
