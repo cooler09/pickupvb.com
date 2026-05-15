@@ -38,7 +38,11 @@ export function NearMeButton() {
             >
                 {pending ? 'Locating…' : '📍 Near me'}
             </button>
-            {error && <span className="text-sm text-red-600">{error}</span>}
+            {error && (
+                <span role="alert" className="text-sm text-red-600">
+                    {error}
+                </span>
+            )}
         </div>
     );
 }

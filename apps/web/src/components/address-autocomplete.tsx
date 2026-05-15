@@ -98,6 +98,7 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
                 id="addressSearch"
                 type="text"
                 placeholder="Start typing an address or venue…"
+                aria-label="Search for an address or venue"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => suggestions.length > 0 && setOpen(true)}

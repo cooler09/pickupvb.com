@@ -240,12 +240,12 @@ function PoolStandingsTable(props: {
         <table className="w-full text-xs">
             <thead className="text-muted">
                 <tr className="border-b border-border-base">
-                    <th className="px-2 py-1 text-left">#</th>
-                    <th className="px-2 py-1 text-left">Team</th>
-                    <th className="px-2 py-1 text-right">W</th>
-                    <th className="px-2 py-1 text-right">L</th>
-                    <th className="px-2 py-1 text-right">Set diff</th>
-                    <th className="px-2 py-1 text-right">Pt diff</th>
+                    <th scope="col" className="px-2 py-1 text-left">#</th>
+                    <th scope="col" className="px-2 py-1 text-left">Team</th>
+                    <th scope="col" className="px-2 py-1 text-right">W</th>
+                    <th scope="col" className="px-2 py-1 text-right">L</th>
+                    <th scope="col" className="px-2 py-1 text-right">Set diff</th>
+                    <th scope="col" className="px-2 py-1 text-right">Pt diff</th>
                 </tr>
             </thead>
             <tbody>

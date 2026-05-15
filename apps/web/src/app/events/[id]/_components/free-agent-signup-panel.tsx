@@ -60,6 +60,7 @@ export function FreeAgentSignupPanel({
 
             {result && (
                 <div
+                    role={result.tone === 'success' ? 'status' : 'alert'}
                     className={`rounded-md border p-3 text-sm ${result.tone === 'success'
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                         : 'border-red-200 bg-red-50 text-red-700'

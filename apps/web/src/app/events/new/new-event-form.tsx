@@ -61,7 +61,10 @@ export default function NewEventForm({
     return (
         <form action={formAction} className="space-y-8">
             {state.error && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <div
+                    role="alert"
+                    className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                >
                     {state.error}
                 </div>
             )}

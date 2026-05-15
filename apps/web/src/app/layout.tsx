@@ -48,8 +48,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     return (
         <html lang="en" data-theme={theme}>
             <body className="min-h-dvh flex flex-col">
+                <a
+                    href="#main"
+                    className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:text-primary-fg focus:shadow-lg"
+                >
+                    Skip to main content
+                </a>
                 <SiteHeader theme={theme} />
-                <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+                <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
                 <footer className="border-t border-border-base py-6 text-center text-sm text-muted">
                     © {new Date().getFullYear()}{' '}
                     <Link href="/" className="hover:underline">

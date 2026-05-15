@@ -162,6 +162,7 @@ export function UserPicker({
                                     setSelected(r);
                                     setOpen(false);
                                 }}
+                                aria-label={`Select ${r.fullName}${r.homeCity ? ` from ${r.homeCity}` : ''}`}
                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-fg/5"
                             >
                                 {r.avatarUrl ? (

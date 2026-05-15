@@ -86,6 +86,7 @@ export default async function BracketPage({
 
             {notice && (
                 <div
+                    role={notice.tone === 'success' ? 'status' : 'alert'}
                     className={`rounded border px-3 py-2 text-sm ${notice.tone === 'success'
                         ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300'
                         : 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
