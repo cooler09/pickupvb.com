@@ -16,6 +16,14 @@ export class JoinEventCommand {
     ) { }
 }
 
+export class JoinEventWithPositionCommand {
+    constructor(
+        public readonly eventId: string,
+        public readonly userId: string,
+        public readonly position: string,
+    ) { }
+}
+
 export class LeaveEventCommand {
     constructor(
         public readonly eventId: string,

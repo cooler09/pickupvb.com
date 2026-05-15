@@ -59,3 +59,32 @@ export const EventStatus = {
     Completed: 'completed',
 } as const;
 export type EventStatus = (typeof EventStatus)[keyof typeof EventStatus];
+
+/**
+ * Volleyball positions used when an open-play host enables positional sign-up.
+ * Values match `profiles.{primary,secondary,tertiary}_position` (see
+ * supabase/migrations/20260514000300_profile_positions.sql) and the
+ * `event_attendees.position` check constraint.
+ */
+export const EventPosition = {
+    Setter: 'setter',
+    Outside: 'outside',
+    Opposite: 'opposite',
+    Middle: 'middle',
+    Libero: 'libero',
+    DefensiveSpecialist: 'defensive_specialist',
+} as const;
+export type EventPosition = (typeof EventPosition)[keyof typeof EventPosition];
+
+export const EVENT_POSITIONS: ReadonlyArray<EventPosition> = [
+    EventPosition.Setter,
+    EventPosition.Outside,
+    EventPosition.Opposite,
+    EventPosition.Middle,
+    EventPosition.Libero,
+    EventPosition.DefensiveSpecialist,
+];
+
+export function isEventPosition(v: unknown): v is EventPosition {
+    return typeof v === 'string' && (EVENT_POSITIONS as ReadonlyArray<string>).includes(v);
+}

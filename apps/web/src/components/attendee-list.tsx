@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { addFriend, removeFriend } from '@/app/friends/actions';
+import { POSITION_LABEL } from '@/lib/enum-labels';
 
 type AttendeeProfile = {
     display_name: string;
@@ -11,6 +12,10 @@ type AttendeeProfile = {
 type Attendee = {
     user_id: string;
     joined_at: string;
+    /** Position chosen for events with positional sign-up. */
+    position?: string | null;
+    /** True when the attendee pushed their position past its configured count. */
+    waitlist?: boolean;
     profiles: AttendeeProfile | null;
 };
 
@@ -83,6 +88,16 @@ export function AttendeeList({
                                 {name}
                                 {isYou && (
                                     <span className="ml-1 text-xs font-normal text-muted">(you)</span>
+                                )}
+                                {a.position && (
+                                    <span className="ml-1 text-xs font-normal text-muted">
+                                        · {POSITION_LABEL[a.position] ?? a.position}
+                                    </span>
+                                )}
+                                {a.waitlist && (
+                                    <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                        Waitlist
+                                    </span>
                                 )}
                             </span>
                         </Link>

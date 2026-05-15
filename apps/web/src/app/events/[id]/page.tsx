@@ -11,6 +11,7 @@ import { AttendeeList } from '@/components/attendee-list';
 import { EventTags } from './_components/event-tags';
 import { EventShareLink } from './_components/event-share-link';
 import { HostsSection } from './_components/hosts-section';
+import { PositionRsvpPanel } from './_components/position-rsvp-panel';
 import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
 import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
@@ -65,6 +66,8 @@ export default async function EventDetailPage({
     const attendeesForList = event.attendees.map((a) => ({
         user_id: a.userId,
         joined_at: a.joinedAt.toISOString(),
+        position: a.position,
+        waitlist: a.waitlist,
         profiles: {
             display_name: a.profile.displayName,
             first_name: a.profile.firstName,
@@ -72,6 +75,16 @@ export default async function EventDetailPage({
             avatar_url: a.profile.avatarUrl,
         },
     }));
+
+    // Per-position fill counts for the positional RSVP panel.
+    const filledByPosition: Partial<Record<string, number>> = {};
+    for (const a of event.attendees) {
+        if (!a.position) continue;
+        filledByPosition[a.position] = (filledByPosition[a.position] ?? 0) + 1;
+    }
+    const viewerPosition = user
+        ? event.attendees.find((a) => a.userId === user.id)?.position ?? null
+        : null;
 
     return (
         <article className="mx-auto max-w-3xl space-y-8">
@@ -195,14 +208,28 @@ export default async function EventDetailPage({
             </section>
 
             {event.type === 'open_play' && signupsOpen && (
-                <RsvpPanel
-                    eventId={event.id}
-                    eventTitle={event.title}
-                    isAttending={event.isAttending}
-                    isRealUser={isRealUser}
-                    rsvp={pickQuery(searchParams, 'rsvp')}
-                    rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
-                />
+                event.positionRoster ? (
+                    <PositionRsvpPanel
+                        eventId={event.id}
+                        eventTitle={event.title}
+                        isAttending={event.isAttending}
+                        isRealUser={isRealUser}
+                        positionRoster={event.positionRoster}
+                        filledByPosition={filledByPosition}
+                        viewerPosition={viewerPosition}
+                        rsvp={pickQuery(searchParams, 'rsvp')}
+                        rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
+                    />
+                ) : (
+                    <RsvpPanel
+                        eventId={event.id}
+                        eventTitle={event.title}
+                        isAttending={event.isAttending}
+                        isRealUser={isRealUser}
+                        rsvp={pickQuery(searchParams, 'rsvp')}
+                        rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
+                    />
+                )
             )}
 
             {event.type === 'tournament' && signupsOpen && (

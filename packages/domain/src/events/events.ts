@@ -27,6 +27,10 @@ export class SpotFilled extends BaseEvent {
         aggregateId: string,
         public readonly userId: string,
         public readonly remainingSpots: number | null,
+        /** Position picked when the event uses positional sign-up; null otherwise. */
+        public readonly position: string | null = null,
+        /** True when this signup pushed the position past its configured count. */
+        public readonly waitlist: boolean = false,
     ) {
         super(aggregateId);
     }

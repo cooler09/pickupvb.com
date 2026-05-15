@@ -3,12 +3,23 @@
 import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
-import { EventType } from '@pickupvb/domain';
+import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
+import { POSITION_LABEL } from '@/lib/enum-labels';
 import { createEventAction, type CreateEventState } from './actions';
 
 const initialState: CreateEventState = {};
+
+/** Sensible defaults for indoor 6's: 1 setter, 2 outsides, 1 opposite, 2 middles, 1 libero. */
+const DEFAULT_POSITION_ROSTER: Record<EventPosition, number> = {
+    [EventPosition.Setter]: 1,
+    [EventPosition.Outside]: 2,
+    [EventPosition.Opposite]: 1,
+    [EventPosition.Middle]: 2,
+    [EventPosition.Libero]: 1,
+    [EventPosition.DefensiveSpecialist]: 0,
+};
 
 const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
@@ -42,6 +53,10 @@ export default function NewEventForm({
     const [state, formAction] = useFormState(createEventAction, initialState);
     const [type, setType] = useState<string>(EventType.OpenPlay);
     const [capacityKind, setCapacityKind] = useState<'unlimited' | 'fixed'>('unlimited');
+    const [byPosition, setByPosition] = useState(false);
+    const [positionCounts, setPositionCounts] =
+        useState<Record<EventPosition, number>>(DEFAULT_POSITION_ROSTER);
+    const positionTotal = Object.values(positionCounts).reduce((a, b) => a + b, 0);
     const [addressLine, setAddressLine] = useState('');
     const [city, setCity] = useState('');
     const [region, setRegion] = useState('');
@@ -173,35 +188,93 @@ export default function NewEventForm({
             {type === EventType.OpenPlay && (
                 <fieldset className="space-y-3 rounded-md border border-border-base p-4">
                     <legend className="px-1 text-sm font-semibold text-fg">Capacity</legend>
-                    <div className="flex gap-4 text-sm">
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="radio"
-                                name="capacityKind"
-                                value="unlimited"
-                                checked={capacityKind === 'unlimited'}
-                                onChange={() => setCapacityKind('unlimited')}
-                            />
-                            Unlimited
-                        </label>
-                        <label className="flex items-center gap-2">
-                            <input
-                                type="radio"
-                                name="capacityKind"
-                                value="fixed"
-                                checked={capacityKind === 'fixed'}
-                                onChange={() => setCapacityKind('fixed')}
-                            />
-                            Fixed spots
-                        </label>
-                    </div>
-                    {capacityKind === 'fixed' && (
-                        <div>
-                            <label htmlFor="maxSpots" className={labelClass}>Max spots</label>
-                            <input id="maxSpots" name="maxSpots" type="number" min={1} className={inputClass} />
+                    <label className="flex items-start gap-2 text-sm">
+                        <input
+                            type="checkbox"
+                            name="byPosition"
+                            checked={byPosition}
+                            onChange={(e) => setByPosition(e.target.checked)}
+                            className="mt-0.5"
+                        />
+                        <span>
+                            <span className="font-medium text-fg">Sign up by position</span>
+                            <span className="block text-xs text-muted">
+                                For indoor 6&apos;s — set a target count per position
+                                (Setter, Outside, etc.). Players pick a position when
+                                they join.
+                            </span>
+                        </span>
+                    </label>
+
+                    {byPosition ? (
+                        <div className="space-y-2 border-t border-border-base pt-3">
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                {EVENT_POSITIONS.map((pos) => (
+                                    <div key={pos}>
+                                        <label
+                                            htmlFor={`pos-${pos}`}
+                                            className="block text-xs font-medium text-fg"
+                                        >
+                                            {POSITION_LABEL[pos] ?? pos}
+                                        </label>
+                                        <input
+                                            id={`pos-${pos}`}
+                                            name={`position_${pos}`}
+                                            type="number"
+                                            min={0}
+                                            max={50}
+                                            value={positionCounts[pos]}
+                                            onChange={(e) =>
+                                                setPositionCounts((c) => ({
+                                                    ...c,
+                                                    [pos]: Math.max(0, Number(e.target.value) || 0),
+                                                }))
+                                            }
+                                            className={inputClass}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-muted">
+                                Total: <span className="font-semibold text-fg">{positionTotal}</span>{' '}
+                                spots. Players over a position&apos;s count get a
+                                <span className="ml-1 italic">waitlist</span> badge.
+                            </p>
+                            <FieldError name="positionRoster" errors={state.fieldErrors} />
                         </div>
+                    ) : (
+                        <>
+                            <div className="flex gap-4 border-t border-border-base pt-3 text-sm">
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        name="capacityKind"
+                                        value="unlimited"
+                                        checked={capacityKind === 'unlimited'}
+                                        onChange={() => setCapacityKind('unlimited')}
+                                    />
+                                    Unlimited
+                                </label>
+                                <label className="flex items-center gap-2">
+                                    <input
+                                        type="radio"
+                                        name="capacityKind"
+                                        value="fixed"
+                                        checked={capacityKind === 'fixed'}
+                                        onChange={() => setCapacityKind('fixed')}
+                                    />
+                                    Fixed spots
+                                </label>
+                            </div>
+                            {capacityKind === 'fixed' && (
+                                <div>
+                                    <label htmlFor="maxSpots" className={labelClass}>Max spots</label>
+                                    <input id="maxSpots" name="maxSpots" type="number" min={1} className={inputClass} />
+                                </div>
+                            )}
+                            <FieldError name="capacity" errors={state.fieldErrors} />
+                        </>
                     )}
-                    <FieldError name="capacity" errors={state.fieldErrors} />
                     <label className="mt-2 flex items-start gap-2 border-t border-border-base pt-3 text-sm">
                         <input
                             type="checkbox"
@@ -213,6 +286,7 @@ export default function NewEventForm({
                             <span className="font-medium text-fg">Sign me up as a player too</span>
                             <span className="block text-xs text-muted">
                                 Adds you to the attendee list. You can leave any time.
+                                {byPosition && ' (You\'ll pick a position from the event page.)'}
                             </span>
                         </span>
                     </label>

@@ -4,8 +4,8 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
 import { CreateEventSchema } from '@pickupvb/types';
-import { CreateEventCommand, JoinEventCommand } from '@pickupvb/application';
-import { EventType } from '@pickupvb/domain';
+import { CreateEventCommand, JoinEventCommand, JoinEventWithPositionCommand } from '@pickupvb/application';
+import { EVENT_POSITIONS, EventType } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
@@ -29,6 +29,15 @@ export async function createEventAction(
     const type = field(formData, 'type');
     const capacityKind = field(formData, 'capacityKind') || 'unlimited';
     const maxSpotsRaw = fieldOrUndefined(formData, 'maxSpots');
+    const byPosition = field(formData, 'byPosition') === 'on';
+    const positionRoster: Record<string, number> = {};
+    if (byPosition) {
+        for (const pos of EVENT_POSITIONS) {
+            const raw = fieldOrUndefined(formData, `position_${pos}`);
+            const n = raw ? Math.max(0, Math.floor(Number(raw))) : 0;
+            if (Number.isFinite(n) && n > 0) positionRoster[pos] = n;
+        }
+    }
 
     const addressLine = field(formData, 'addressLine');
     const city = field(formData, 'city');
@@ -67,10 +76,15 @@ export async function createEventAction(
         endsAt: field(formData, 'endsAt'),
         capacity:
             type === EventType.OpenPlay
-                ? capacityKind === 'fixed' && maxSpotsRaw
-                    ? { kind: 'fixed' as const, maxSpots: Number(maxSpotsRaw) }
-                    : { kind: 'unlimited' as const }
+                ? byPosition
+                    ? { kind: 'unlimited' as const }
+                    : capacityKind === 'fixed' && maxSpotsRaw
+                        ? { kind: 'fixed' as const, maxSpots: Number(maxSpotsRaw) }
+                        : { kind: 'unlimited' as const }
                 : undefined,
+        ...(byPosition && Object.keys(positionRoster).length > 0
+            ? { positionRoster }
+            : {}),
     };
 
     let dto;
@@ -115,7 +129,18 @@ export async function createEventAction(
     // they can always click Join from the detail page.
     if (dto.type === EventType.OpenPlay && field(formData, 'joinAsHost') === 'on') {
         try {
-            await handlers.joinEvent.execute(new JoinEventCommand(result.id, user.id));
+            if (byPosition && Object.keys(positionRoster).length > 0) {
+                // Pick the first configured position with the smallest count
+                // > 0; the host can swap from the event page.
+                const firstPos = EVENT_POSITIONS.find((p) => (positionRoster[p] ?? 0) > 0);
+                if (firstPos) {
+                    await handlers.joinEventWithPosition.execute(
+                        new JoinEventWithPositionCommand(result.id, user.id, firstPos),
+                    );
+                }
+            } else {
+                await handlers.joinEvent.execute(new JoinEventCommand(result.id, user.id));
+            }
         } catch {
             // Swallow — the event exists; auto-join is a convenience.
         }

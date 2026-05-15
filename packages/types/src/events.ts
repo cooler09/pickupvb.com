@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+    EVENT_POSITIONS,
     EventType,
     Format,
     Gender,
@@ -41,14 +42,26 @@ export const CreateEventSchema = z
                 z.object({ kind: z.literal('fixed'), maxSpots: z.number().int().positive() }),
             ])
             .optional(),
+        /**
+         * Optional positional sign-up roster (open-play only). Map of position
+         * → spot count. Total capacity is the sum of values; positions with
+         * `0` aren't selectable. When provided, `capacity` is ignored.
+         */
+        positionRoster: z
+            .record(z.enum(EVENT_POSITIONS as readonly [string, ...string[]]), z.number().int().min(0))
+            .optional(),
     })
     .refine((d): boolean => (d.endsAt as Date) > (d.startsAt as Date), {
         message: 'endsAt must be after startsAt',
         path: ['endsAt'],
     })
     .refine(
-        (d) => d.type !== EventType.OpenPlay || d.capacity !== undefined,
-        { message: 'Open-play events require a capacity', path: ['capacity'] },
+        (d) => {
+            if (d.type !== EventType.OpenPlay) return true;
+            if (d.positionRoster && Object.values(d.positionRoster).some((n) => n > 0)) return true;
+            return d.capacity !== undefined;
+        },
+        { message: 'Open-play events require a capacity or position roster', path: ['capacity'] },
     )
     .refine(
         (d) => d.type !== EventType.Tournament || (d.format !== undefined && d.gender !== undefined),

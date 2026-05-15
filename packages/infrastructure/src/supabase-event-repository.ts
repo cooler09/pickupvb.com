@@ -9,10 +9,12 @@ import {
     Surface,
     Visibility,
     VolleyballEvent,
+    isEventPosition,
     type AttendeeLite,
     type CaptainedTeamLite,
     type CoHostParty,
     type EventDetailReadModel,
+    type EventPosition,
     type EventRepository,
     type EventSearchQuery,
     type FollowingFeedFilters,
@@ -51,6 +53,7 @@ type EventRow = {
     ends_at: string;
     capacity_kind: 'fixed' | 'unlimited' | null;
     max_spots: number | null;
+    position_roster: Record<string, number> | null;
     latitude: number;
     longitude: number;
     attendee_count: number;
@@ -61,6 +64,26 @@ function rowToCapacity(row: EventRow): Capacity | null {
     if (row.capacity_kind === 'unlimited') return Capacity.unlimited();
     if (row.capacity_kind === 'fixed' && row.max_spots !== null) return Capacity.fixed(row.max_spots);
     return null;
+}
+
+function rowToPositionRoster(row: EventRow): Map<EventPosition, number> | null {
+    const raw = row.position_roster;
+    if (!raw || typeof raw !== 'object') return null;
+    const out = new Map<EventPosition, number>();
+    for (const [key, value] of Object.entries(raw)) {
+        if (!isEventPosition(key)) continue;
+        if (typeof value === 'number' && value > 0) out.set(key, value);
+    }
+    return out.size > 0 ? out : null;
+}
+
+function rosterToJson(
+    roster: ReadonlyMap<EventPosition, number> | null,
+): Record<string, number> | null {
+    if (!roster) return null;
+    const obj: Record<string, number> = {};
+    for (const [k, v] of roster) obj[k] = v;
+    return obj;
 }
 
 export class SupabaseEventRepository implements EventRepository {
@@ -82,7 +105,7 @@ export class SupabaseEventRepository implements EventRepository {
         const row = data as unknown as EventRow;
 
         const [{ data: attendees, error: aErr }, { data: teams, error: tErr }, { data: freeAgents, error: fErr }] = await Promise.all([
-            this.client.from('event_attendees').select('user_id').eq('event_id', id),
+            this.client.from('event_attendees').select('user_id, position').eq('event_id', id),
             this.client.from('event_teams').select('team_id').eq('event_id', id),
             this.client.from('event_free_agents').select('user_id, notes').eq('event_id', id),
         ]);
@@ -115,13 +138,14 @@ export class SupabaseEventRepository implements EventRepository {
             endsAt: new Date(row.ends_at),
             capacity: rowToCapacity(row),
             status: row.status,
-            attendees: ((attendees ?? []) as Array<{ user_id: string }>).map(
-                (a) => a.user_id as never,
+            attendees: ((attendees ?? []) as Array<{ user_id: string; position: string | null }>).map(
+                (a) => [a.user_id as never, isEventPosition(a.position) ? a.position : null] as const,
             ),
             teams: ((teams ?? []) as Array<{ team_id: string }>).map((t) => t.team_id as never),
             freeAgents: (
                 (freeAgents ?? []) as Array<{ user_id: string; notes: string | null }>
             ).map((f) => [f.user_id as never, f.notes] as const),
+            positionRoster: rowToPositionRoster(row),
         });
     }
 
@@ -153,6 +177,7 @@ export class SupabaseEventRepository implements EventRepository {
             ends_at: event.endsAt.toISOString(),
             capacity_kind: capacity?.kind ?? null,
             max_spots: capacity?.kind === 'fixed' ? capacity.maxSpots : null,
+            position_roster: rosterToJson(event.positionRoster),
             updated_at: new Date().toISOString(),
         };
 
@@ -160,18 +185,20 @@ export class SupabaseEventRepository implements EventRepository {
         if (error) throw new Error(`save(${event.id}) failed: ${error.message}`);
 
         // Reconcile attendees: clear then re-insert (sets are small enough).
-        const userIds = Array.from(event.attendees).map((u) => String(u));
+        const attendeeRows = Array.from(event.attendees.entries()).map(([u, position]) => ({
+            event_id: String(event.id),
+            user_id: String(u),
+            position,
+        }));
         const { error: delErr } = await this.client
             .from('event_attendees')
             .delete()
             .eq('event_id', String(event.id));
         if (delErr) throw new Error(`save attendees clear failed: ${delErr.message}`);
-        if (userIds.length > 0) {
+        if (attendeeRows.length > 0) {
             const { error: insErr } = await this.client
                 .from('event_attendees')
-                .insert(
-                    userIds.map((user_id) => ({ event_id: String(event.id), user_id })) as never,
-                );
+                .insert(attendeeRows as never);
             if (insErr) throw new Error(`save attendees insert failed: ${insErr.message}`);
         }
 
@@ -298,7 +325,7 @@ export class SupabaseEventRepository implements EventRepository {
             this.client
                 .from('event_attendees')
                 .select(
-                    'user_id, joined_at, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)',
+                    'user_id, joined_at, position, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)',
                 )
                 .eq('event_id', id)
                 .order('joined_at', { ascending: true }),
@@ -339,6 +366,7 @@ export class SupabaseEventRepository implements EventRepository {
         type AttendeeRow = {
             user_id: string;
             joined_at: string;
+            position: string | null;
             profiles: {
                 display_name: string;
                 first_name: string | null;
@@ -347,17 +375,34 @@ export class SupabaseEventRepository implements EventRepository {
             } | null;
         };
         const attRows = (attendeeRowsRes.data as AttendeeRow[] | null) ?? [];
-        const attendees: AttendeeLite[] = attRows.map((a) => ({
-            userId: a.user_id,
-            joinedAt: new Date(a.joined_at),
-            profile: {
-                id: a.user_id,
-                displayName: a.profiles?.display_name ?? 'Player',
-                firstName: a.profiles?.first_name ?? null,
-                lastName: a.profiles?.last_name ?? null,
-                avatarUrl: a.profiles?.avatar_url ?? null,
-            },
-        }));
+        const positionRoster = rowToPositionRoster(row);
+        // Attendees arrive ordered by joined_at; mark waitlist when, in
+        // chronological order, the per-position count exceeds the configured
+        // roster value. Earliest signups keep their seat.
+        const filledByPosition = new Map<EventPosition, number>();
+        const attendees: AttendeeLite[] = attRows.map((a) => {
+            const pos = isEventPosition(a.position) ? a.position : null;
+            let waitlist = false;
+            if (pos && positionRoster) {
+                const target = positionRoster.get(pos) ?? 0;
+                const next = (filledByPosition.get(pos) ?? 0) + 1;
+                filledByPosition.set(pos, next);
+                waitlist = next > target;
+            }
+            return {
+                userId: a.user_id,
+                joinedAt: new Date(a.joined_at),
+                position: pos,
+                waitlist,
+                profile: {
+                    id: a.user_id,
+                    displayName: a.profiles?.display_name ?? 'Player',
+                    firstName: a.profiles?.first_name ?? null,
+                    lastName: a.profiles?.last_name ?? null,
+                    avatarUrl: a.profiles?.avatar_url ?? null,
+                },
+            };
+        });
 
         const coHostRows =
             (coHostRowsRes.data as { host_user_id: string | null; host_group_id: string | null }[] | null) ?? [];
@@ -570,11 +615,20 @@ export class SupabaseEventRepository implements EventRepository {
         }));
 
         const capacity = rowToCapacity(row);
-        const spotsRemaining = !capacity
-            ? null
-            : capacity.kind === 'unlimited'
+        const spotsRemaining = positionRoster
+            ? Math.max(
+                0,
+                Array.from(positionRoster.values()).reduce((a, b) => a + b, 0) - row.attendee_count,
+            )
+            : !capacity
                 ? null
-                : Math.max(0, (capacity.maxSpots ?? 0) - row.attendee_count);
+                : capacity.kind === 'unlimited'
+                    ? null
+                    : Math.max(0, (capacity.maxSpots ?? 0) - row.attendee_count);
+
+        const positionRosterOut: Partial<Record<EventPosition, number>> | null = positionRoster
+            ? Object.fromEntries(positionRoster.entries()) as Partial<Record<EventPosition, number>>
+            : null;
 
         return {
             id: row.id,
@@ -593,6 +647,7 @@ export class SupabaseEventRepository implements EventRepository {
             endsAt: new Date(row.ends_at),
             spotsRemaining,
             attendeeCount: row.attendee_count,
+            positionRoster: positionRosterOut,
             location: {
                 addressLine: row.address_line,
                 city: row.city,

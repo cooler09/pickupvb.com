@@ -7,6 +7,7 @@ import type {
     EventType,
     Visibility,
     EventStatus,
+    EventPosition,
 } from './enums.js';
 
 /**
@@ -64,6 +65,10 @@ export interface GroupLite {
 export interface AttendeeLite {
     userId: string;
     joinedAt: Date;
+    /** Position the attendee picked when the event uses positional sign-up. */
+    position: EventPosition | null;
+    /** True when over the configured count for that position (waitlist). */
+    waitlist: boolean;
     profile: ProfileLite;
 }
 
@@ -117,6 +122,11 @@ export interface EventDetailReadModel {
     endsAt: Date;
     spotsRemaining: number | null;
     attendeeCount: number;
+    /**
+     * Per-position spot configuration for open-play events that use
+     * positional sign-up. `null` when the host hasn't configured one.
+     */
+    positionRoster: Partial<Record<EventPosition, number>> | null;
     location: {
         addressLine: string;
         city: string;

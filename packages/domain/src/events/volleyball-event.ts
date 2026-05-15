@@ -8,6 +8,7 @@ import {
 } from '../shared/result.js';
 import { Capacity } from './capacity.js';
 import {
+    EventPosition,
     EventStatus,
     EventType,
     Format,
@@ -15,6 +16,7 @@ import {
     SkillLevel,
     Surface,
     Visibility,
+    isEventPosition,
 } from './enums.js';
 import {
     EventCancelled,
@@ -34,6 +36,33 @@ export type EventId = Brand<string, 'EventId'>;
 export type UserId = Brand<string, 'UserId'>;
 export type TeamId = Brand<string, 'TeamId'>;
 
+/**
+ * Validate and copy a position roster: integers ≥ 0, at least one position
+ * with a positive count, and unknown keys rejected.
+ */
+function normalizePositionRoster(
+    raw: ReadonlyMap<EventPosition, number>,
+): Map<EventPosition, number> {
+    const out = new Map<EventPosition, number>();
+    let total = 0;
+    for (const [pos, count] of raw) {
+        if (!isEventPosition(pos)) {
+            throw new InvariantViolation(`Unknown volleyball position: ${String(pos)}`);
+        }
+        if (!Number.isInteger(count) || count < 0) {
+            throw new InvariantViolation(`Position count for "${pos}" must be a non-negative integer.`);
+        }
+        if (count > 0) {
+            out.set(pos, count);
+            total += count;
+        }
+    }
+    if (total <= 0) {
+        throw new InvariantViolation('Position roster must include at least one open spot.');
+    }
+    return out;
+}
+
 export interface CreateEventProps {
     id: EventId;
     hostId: UserId;
@@ -51,6 +80,12 @@ export interface CreateEventProps {
     endsAt: Date;
     /** Required for OpenPlay; ignored for Tournament. */
     capacity?: Capacity;
+    /**
+     * Optional positional sign-up roster (open-play only). When provided,
+     * players choose a position when they join (`joinAsPlayerWithPosition`).
+     * Total spots = sum of values; positions with `0` are not selectable.
+     */
+    positionRoster?: ReadonlyMap<EventPosition, number> | null;
 }
 
 /**
@@ -82,9 +117,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         private _endsAt: Date,
         private _capacity: Capacity | null,
         private _status: EventStatus,
-        private _attendees: Set<UserId>,
+        private _attendees: Map<UserId, EventPosition | null>,
         private _teams: Set<TeamId>,
         private _freeAgents: Map<UserId, string | null>,
+        private _positionRoster: Map<EventPosition, number> | null,
     ) {
         super(id);
     }
@@ -103,11 +139,19 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         }
 
         let capacity: Capacity | null = null;
+        let positionRoster: Map<EventPosition, number> | null = null;
         if (props.type === EventType.OpenPlay) {
-            if (!props.capacity) {
-                throw new InvariantViolation('Open-play events require a capacity.');
+            if (props.positionRoster && props.positionRoster.size > 0) {
+                positionRoster = normalizePositionRoster(props.positionRoster);
+                // Capacity is derived from the roster; persist as unlimited so
+                // the DB capacity trigger doesn't reject waitlist over-fill.
+                capacity = Capacity.unlimited();
+            } else {
+                if (!props.capacity) {
+                    throw new InvariantViolation('Open-play events require a capacity.');
+                }
+                capacity = props.capacity;
             }
-            capacity = props.capacity;
         }
 
         const evt = new VolleyballEvent(
@@ -127,9 +171,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
             props.endsAt,
             capacity,
             EventStatus.Draft,
-            new Set(),
+            new Map(),
             new Set(),
             new Map(),
+            positionRoster,
         );
         evt.raise(new EventCreated(evt.id));
         return evt;
@@ -156,11 +201,19 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         endsAt: Date;
         capacity: Capacity | null;
         status: EventStatus;
-        attendees: ReadonlyArray<UserId>;
+        attendees: ReadonlyArray<UserId> | ReadonlyArray<readonly [UserId, EventPosition | null]>;
         teams: ReadonlyArray<TeamId>;
         /** Tuples of `[userId, notes]`. Notes default to `null` when absent. */
         freeAgents?: ReadonlyArray<readonly [UserId, string | null]>;
+        positionRoster?: ReadonlyMap<EventPosition, number> | null;
     }): VolleyballEvent {
+        const attendeeEntries: Array<readonly [UserId, EventPosition | null]> = props.attendees.map(
+            (a): readonly [UserId, EventPosition | null] =>
+                Array.isArray(a) ? (a as readonly [UserId, EventPosition | null]) : ([a as UserId, null] as const),
+        );
+        const roster = props.positionRoster && props.positionRoster.size > 0
+            ? new Map(props.positionRoster)
+            : null;
         return new VolleyballEvent(
             props.id,
             props.hostId,
@@ -178,9 +231,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
             props.endsAt,
             props.capacity,
             props.status,
-            new Set(props.attendees),
+            new Map(attendeeEntries),
             new Set(props.teams),
             new Map(props.freeAgents ?? []),
+            roster,
         );
     }
 
@@ -195,15 +249,41 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     get endsAt(): Date { return this._endsAt; }
     get status(): EventStatus { return this._status; }
     get capacity(): Capacity | null { return this._capacity; }
-    get attendees(): ReadonlySet<UserId> { return this._attendees; }
+    /** Map of attendee → chosen position (null when the event isn't positional). */
+    get attendees(): ReadonlyMap<UserId, EventPosition | null> { return this._attendees; }
+    /** Configured per-position counts for open-play. `null` when not positional. */
+    get positionRoster(): ReadonlyMap<EventPosition, number> | null { return this._positionRoster; }
     get teams(): ReadonlySet<TeamId> { return this._teams; }
     /** Free-agent signups, mapped to their optional notes blurb. */
     get freeAgents(): ReadonlyMap<UserId, string | null> { return this._freeAgents; }
 
+    /** Total spots — derived from positionRoster when set, else from capacity. */
+    get totalSpots(): number | null {
+        if (this._positionRoster) {
+            let sum = 0;
+            for (const n of this._positionRoster.values()) sum += n;
+            return sum;
+        }
+        if (!this._capacity) return null;
+        if (this._capacity.kind === 'unlimited') return null;
+        return this._capacity.maxSpots;
+    }
+
     get spotsRemaining(): number | null {
+        if (this._positionRoster) {
+            const total = this.totalSpots ?? 0;
+            return Math.max(0, total - this._attendees.size);
+        }
         if (!this._capacity) return null;
         if (this._capacity.kind === 'unlimited') return null;
         return Math.max(0, (this._capacity.maxSpots ?? 0) - this._attendees.size);
+    }
+
+    /** Number of attendees currently signed up for a given position. */
+    attendeesAtPosition(position: EventPosition): number {
+        let n = 0;
+        for (const p of this._attendees.values()) if (p === position) n += 1;
+        return n;
     }
 
     /** True once the event's start time is in the past. Used to close signups. */
@@ -233,6 +313,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         if (this.type !== EventType.OpenPlay) {
             throw new InvariantViolation('Tournaments require team signup.');
         }
+        if (this._positionRoster) {
+            throw new InvariantViolation(
+                'This event uses positional sign-up — pick a position.',
+            );
+        }
         if (this._status !== EventStatus.Published) {
             throw new InvariantViolation('Event is not open for signups.');
         }
@@ -248,8 +333,42 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         if (this._capacity && !this._capacity.hasRoom(this._attendees.size)) {
             throw new CapacityExceededError('Event is full.', { eventId: this.id });
         }
-        this._attendees.add(userId);
+        this._attendees.set(userId, null);
         this.raise(new SpotFilled(this.id, userId, this.spotsRemaining));
+    }
+
+    /**
+     * Open-play signup at a specific position. Available only when the host
+     * configured a `positionRoster`. Over-fill is allowed (waitlist style):
+     * we don't reject when the position is full, we just flag the event.
+     */
+    joinAsPlayerWithPosition(userId: UserId, position: EventPosition): void {
+        if (this.type !== EventType.OpenPlay) {
+            throw new InvariantViolation('Tournaments require team signup.');
+        }
+        if (!this._positionRoster) {
+            throw new InvariantViolation('This event does not use positional sign-up.');
+        }
+        if (this._status !== EventStatus.Published) {
+            throw new InvariantViolation('Event is not open for signups.');
+        }
+        if (this.hasStarted()) {
+            throw new InvariantViolation('Event has already started; signups are closed.');
+        }
+        const target = this._positionRoster.get(position) ?? 0;
+        if (target <= 0) {
+            throw new InvariantViolation('That position is not part of this event.');
+        }
+        if (this._attendees.has(userId)) {
+            throw new ConflictError('User has already joined this event.', {
+                eventId: this.id,
+                userId,
+            });
+        }
+        const filled = this.attendeesAtPosition(position);
+        const waitlist = filled >= target;
+        this._attendees.set(userId, position);
+        this.raise(new SpotFilled(this.id, userId, this.spotsRemaining, position, waitlist));
     }
 
     leave(userId: UserId): void {

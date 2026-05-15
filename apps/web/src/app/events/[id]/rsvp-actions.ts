@@ -2,11 +2,17 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { JoinEventCommand, LeaveEventCommand } from '@pickupvb/application';
+import {
+    JoinEventCommand,
+    JoinEventWithPositionCommand,
+    LeaveEventCommand,
+} from '@pickupvb/application';
 import {
     CapacityExceededError,
     ConflictError,
+    InvariantViolation,
     NotFoundError,
+    ValidationError,
 } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
@@ -74,4 +80,37 @@ export async function leaveEvent(eventId: string): Promise<void> {
     }
     revalidatePath(`/events/${eventId}`);
     back(eventId, 'left');
+}
+
+/**
+ * Sign up at a specific volleyball position. Used for open-play events
+ * whose host configured a position roster. Over-fill is allowed (waitlist
+ * style) so this only errors on capacity_exceeded as a safety net.
+ *
+ * Bound from the JSX as `joinEventAtPosition.bind(null, eventId, position)`.
+ */
+export async function joinEventAtPosition(
+    eventId: string,
+    position: string,
+): Promise<void> {
+    const userId = await authedUserIdOrFlash(eventId);
+    try {
+        await handlers.joinEventWithPosition.execute(
+            new JoinEventWithPositionCommand(eventId, userId, position),
+        );
+    } catch (err) {
+        if (err instanceof ConflictError) {
+            revalidatePath(`/events/${eventId}`);
+            back(eventId, 'already');
+        }
+        if (err instanceof CapacityExceededError) back(eventId, 'full');
+        if (err instanceof ValidationError || err instanceof InvariantViolation) {
+            back(eventId, 'error', err.message);
+        }
+        if (err instanceof NotFoundError) back(eventId, 'error', err.message);
+        const m = err instanceof Error ? err.message : String(err);
+        back(eventId, 'error', m);
+    }
+    revalidatePath(`/events/${eventId}`);
+    back(eventId, 'joined');
 }

@@ -1,8 +1,9 @@
 import type { EventRepository } from '@pickupvb/domain';
-import { NotFoundError } from '@pickupvb/domain';
+import { NotFoundError, isEventPosition, ValidationError } from '@pickupvb/domain';
 import {
     JoinEventAsFreeAgentCommand,
     JoinEventCommand,
+    JoinEventWithPositionCommand,
     LeaveEventAsFreeAgentCommand,
     LeaveEventCommand,
 } from '../messages';
@@ -14,6 +15,20 @@ export class JoinEventHandler {
         const event = await this.repo.findById(eventId);
         if (!event) throw new NotFoundError('event', eventId);
         event.joinAsPlayer(userId as never);
+        await this.repo.save(event);
+    }
+}
+
+export class JoinEventWithPositionHandler {
+    constructor(private readonly repo: EventRepository) { }
+
+    async execute({ eventId, userId, position }: JoinEventWithPositionCommand): Promise<void> {
+        if (!isEventPosition(position)) {
+            throw new ValidationError(`Unknown position: ${position}`);
+        }
+        const event = await this.repo.findById(eventId);
+        if (!event) throw new NotFoundError('event', eventId);
+        event.joinAsPlayerWithPosition(userId as never, position);
         await this.repo.save(event);
     }
 }

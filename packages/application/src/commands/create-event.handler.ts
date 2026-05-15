@@ -4,6 +4,8 @@ import {
     EventType,
     Location,
     VolleyballEvent,
+    isEventPosition,
+    type EventPosition,
     type EventRepository,
 } from '@pickupvb/domain';
 import { CreateEventCommand } from '../messages';
@@ -18,8 +20,21 @@ export class CreateEventHandler {
     async execute({ hostId, dto }: CreateEventCommand): Promise<{ id: string }> {
         const id = randomUUID() as never;
 
+        let positionRoster: Map<EventPosition, number> | null = null;
+        if (
+            dto.type === EventType.OpenPlay
+            && dto.positionRoster
+            && Object.values(dto.positionRoster).some((n) => (n ?? 0) > 0)
+        ) {
+            positionRoster = new Map();
+            for (const [pos, count] of Object.entries(dto.positionRoster)) {
+                if (!isEventPosition(pos)) continue;
+                if (typeof count === 'number' && count > 0) positionRoster.set(pos, count);
+            }
+        }
+
         let capacity: Capacity | undefined;
-        if (dto.type === EventType.OpenPlay && dto.capacity) {
+        if (dto.type === EventType.OpenPlay && !positionRoster && dto.capacity) {
             capacity =
                 dto.capacity.kind === 'unlimited'
                     ? Capacity.unlimited()
@@ -42,6 +57,7 @@ export class CreateEventHandler {
             startsAt: dto.startsAt,
             endsAt: dto.endsAt,
             ...(capacity ? { capacity } : {}),
+            ...(positionRoster ? { positionRoster } : {}),
         });
         event.publish();
 

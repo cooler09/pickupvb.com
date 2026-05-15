@@ -1,0 +1,163 @@
+import Link from 'next/link';
+import { EVENT_POSITIONS, type EventPosition } from '@pickupvb/domain';
+import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { POSITION_LABEL } from '@/lib/enum-labels';
+import GuestSignupForm from '../guest-signup-form';
+import { joinEventAtPosition, leaveEvent } from '../rsvp-actions';
+
+type Banner = { tone: 'success' | 'info' | 'error'; text: string };
+
+function bannerFor(rsvp: string | undefined, rsvpMsg: string | undefined): Banner | null {
+    switch (rsvp) {
+        case 'joined':
+            return { tone: 'success', text: "You're in! See you on the court." };
+        case 'already':
+            return { tone: 'info', text: "You're already signed up for this event." };
+        case 'left':
+            return { tone: 'info', text: "You've been removed from this event." };
+        case 'notin':
+            return { tone: 'info', text: "You weren't signed up for this event." };
+        case 'full':
+            return { tone: 'error', text: 'Sorry — that position is full.' };
+        case 'signin':
+            return { tone: 'error', text: 'Please sign in to RSVP.' };
+        case 'anon':
+            return { tone: 'info', text: 'Finish creating your account to RSVP from any device.' };
+        case 'error':
+            return { tone: 'error', text: rsvpMsg ?? 'Something went wrong. Try again.' };
+        default:
+            return null;
+    }
+}
+
+const BANNER_CLASS: Record<Banner['tone'], string> = {
+    success: 'rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary',
+    error: 'rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700',
+    info: 'rounded-md border border-border-base bg-highlight/30 px-4 py-2 text-sm text-fg/80',
+};
+
+type Props = {
+    eventId: string;
+    eventTitle: string;
+    isAttending: boolean;
+    isRealUser: boolean;
+    /** `{ setter: 1, outside: 2, ... }` (only positions with count > 0). */
+    positionRoster: Partial<Record<EventPosition, number>>;
+    /** Per-position counts of who has already signed up (waitlisted included). */
+    filledByPosition: Partial<Record<EventPosition, number>>;
+    /** Position the viewer chose, if they're attending. */
+    viewerPosition: EventPosition | null;
+    rsvp: string | undefined;
+    rsvpMsg: string | undefined;
+};
+
+/**
+ * RSVP panel for open-play events that use positional sign-up. Shows one
+ * "Sign up as <Position> (filled / target)" button per configured position.
+ * Over-fill is allowed: when filled ≥ target, the next signup is flagged
+ * "waitlist" but still goes through.
+ */
+export function PositionRsvpPanel({
+    eventId,
+    eventTitle,
+    isAttending,
+    isRealUser,
+    positionRoster,
+    filledByPosition,
+    viewerPosition,
+    rsvp,
+    rsvpMsg,
+}: Props) {
+    const banner = bannerFor(rsvp, rsvpMsg);
+    const positions = EVENT_POSITIONS.filter((p) => (positionRoster[p] ?? 0) > 0);
+    return (
+        <div className="space-y-4">
+            {banner && (
+                <div role="status" className={BANNER_CLASS[banner.tone]}>
+                    {banner.text}
+                </div>
+            )}
+
+            {isAttending ? (
+                <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary">
+                    <span className="font-medium">
+                        You&apos;re signed up
+                        {viewerPosition && (
+                            <> as {POSITION_LABEL[viewerPosition] ?? viewerPosition}</>
+                        )}
+                    </span>
+                    <form action={leaveEvent.bind(null, eventId)}>
+                        <ConfirmSubmitButton
+                            label="Leave event"
+                            pendingLabel="Leaving…"
+                            confirmMessage="Remove yourself from this event?"
+                            className="rounded-md border border-border-base px-3 py-1.5 text-xs font-medium text-fg/80 hover:bg-fg/5 disabled:opacity-50"
+                        />
+                    </form>
+                </div>
+            ) : isRealUser ? (
+                <div className="space-y-2">
+                    <p className="text-sm text-muted">Pick a position to sign up:</p>
+                    <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {positions.map((pos) => {
+                            const target = positionRoster[pos] ?? 0;
+                            const filled = filledByPosition[pos] ?? 0;
+                            const overFull = filled >= target;
+                            return (
+                                <li
+                                    key={pos}
+                                    className="flex items-center justify-between gap-2 rounded-md border border-border-base px-3 py-2"
+                                >
+                                    <span className="min-w-0 flex-1 truncate text-sm">
+                                        <span className="font-medium text-fg">
+                                            {POSITION_LABEL[pos] ?? pos}
+                                        </span>{' '}
+                                        <span className="text-muted">
+                                            ({filled}/{target})
+                                        </span>
+                                        {overFull && (
+                                            <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                                                Waitlist
+                                            </span>
+                                        )}
+                                    </span>
+                                    <form action={joinEventAtPosition.bind(null, eventId, pos)}>
+                                        <ConfirmSubmitButton
+                                            label={overFull ? 'Join waitlist' : 'Sign up'}
+                                            pendingLabel="Joining…"
+                                            confirmMessage={
+                                                overFull
+                                                    ? `"${POSITION_LABEL[pos] ?? pos}" is full. Join the waitlist for "${eventTitle}"?`
+                                                    : `Sign up for "${eventTitle}" as ${POSITION_LABEL[pos] ?? pos}?`
+                                            }
+                                            className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-50"
+                                        />
+                                    </form>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            ) : (
+                <div className="flex justify-end">
+                    <Link
+                        href={`/login?next=/events/${eventId}`}
+                        className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
+                    >
+                        Already have an account? Sign in
+                    </Link>
+                </div>
+            )}
+
+            {!isRealUser && !isAttending && (
+                <section className="rounded-lg border border-border-base p-4">
+                    <h2 className="text-sm font-semibold text-fg">Sign up as a guest</h2>
+                    <p className="mb-3 text-xs text-muted">
+                        No account needed — just your name. (A host will pick your position.)
+                    </p>
+                    <GuestSignupForm eventId={eventId} />
+                </section>
+            )}
+        </div>
+    );
+}

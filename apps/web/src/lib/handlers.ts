@@ -19,6 +19,7 @@ import {
     GetViewerFriendsHandler,
     JoinEventAsFreeAgentHandler,
     JoinEventHandler,
+    JoinEventWithPositionHandler,
     LeaveEventAsFreeAgentHandler,
     LeaveEventHandler,
     RecordMatchResultHandler,
@@ -40,6 +41,7 @@ const bracketRepo = new SupabaseBracketRepository();
 export const handlers = {
     createEvent: new CreateEventHandler(eventRepo),
     joinEvent: new JoinEventHandler(eventRepo),
+    joinEventWithPosition: new JoinEventWithPositionHandler(eventRepo),
     leaveEvent: new LeaveEventHandler(eventRepo),
     joinEventAsFreeAgent: new JoinEventAsFreeAgentHandler(eventRepo),
     leaveEventAsFreeAgent: new LeaveEventAsFreeAgentHandler(eventRepo),
