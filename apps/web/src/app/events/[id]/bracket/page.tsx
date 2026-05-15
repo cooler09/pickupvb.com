@@ -29,7 +29,6 @@ const FORMAT_LABEL: Record<BracketFormat, string> = {
     double_elimination: 'Double elimination',
     round_robin: 'Round robin',
     pool_play_playoff: 'Pool play → playoff',
-    swiss: 'Swiss (coming soon)',
 };
 
 const NOTICE_LABEL: Record<string, { tone: 'success' | 'error'; text: string }> = {

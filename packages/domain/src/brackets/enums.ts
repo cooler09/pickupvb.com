@@ -2,15 +2,13 @@ export type BracketFormat =
     | 'single_elimination'
     | 'double_elimination'
     | 'round_robin'
-    | 'pool_play_playoff'
-    | 'swiss';
+    | 'pool_play_playoff';
 
 export const BRACKET_FORMATS: readonly BracketFormat[] = [
     'single_elimination',
     'double_elimination',
     'round_robin',
     'pool_play_playoff',
-    'swiss',
 ] as const;
 
 export type BracketStatus = 'setup' | 'active' | 'completed';
