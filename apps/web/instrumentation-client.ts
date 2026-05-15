@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 
-// Browser runtime — Next.js 14 auto-loads `sentry.client.config.ts` at the
-// project root via the Sentry webpack plugin (`withSentryConfig`).
+// Browser runtime — Next.js auto-loads `instrumentation-client.ts` from the
+// project root (Next 14.2+/15+; works with both webpack and Turbopack).
 Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
