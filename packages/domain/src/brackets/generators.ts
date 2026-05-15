@@ -202,9 +202,186 @@ export function generateRoundRobin(
 /** Stub for formats not yet implemented. */
 export function generateNotImplemented(format: string): never {
     throw new Error(
-        `Bracket format "${format}" is not implemented yet. ` +
-        `v1 supports single_elimination and round_robin.`,
+        `Bracket format "${format}" is not implemented yet.`,
     );
+}
+
+// ---- Double elimination --------------------------------------------------
+
+type MutableMatch = { -readonly [K in keyof Match]: Match[K] };
+
+function emptyMatch(
+    id: MatchId,
+    round: number,
+    matchNumber: number,
+    side: 'winners' | 'losers' | 'final',
+): MutableMatch {
+    return {
+        id,
+        round,
+        matchNumber,
+        pool: null,
+        bracketSide: side,
+        teamAId: null,
+        teamBId: null,
+        winnerTeamId: null,
+        status: 'pending',
+        sets: [],
+        advancesToMatchId: null,
+        advancesToSlot: null,
+        loserAdvancesToMatchId: null,
+        loserAdvancesToSlot: null,
+        scheduledAt: null,
+    };
+}
+
+/**
+ * Generate a double-elimination bracket. v1 requires a power-of-two team
+ * count (4, 8, 16, 32) so the losers bracket pairing stays clean. The
+ * grand final is a single match (no bracket reset in v1) — the WB winner
+ * faces the LB winner once.
+ *
+ * Match layout:
+ *   - Winners bracket: `bracketSide='winners'`, rounds 1..W (W = log2(P)).
+ *   - Losers bracket:  `bracketSide='losers'`,  rounds 1..2(W-1) alternating
+ *                      minor (odd) and major (even) rounds.
+ *   - Grand final:     `bracketSide='final'`, round 1.
+ *
+ * Wiring:
+ *   - WB winner → next WB round (or grand final from WB final).
+ *   - WB loser  → corresponding LB match.
+ *   - LB winner → next LB round (or grand final from LB final).
+ */
+export function generateDoubleElimination(
+    seeds: ReadonlyArray<Seed>,
+    mkId: IdFactory,
+): Match[] {
+    const N = seeds.length;
+    if (N < 4) {
+        throw new Error('Double elimination requires at least 4 teams.');
+    }
+    const P = nextPow2(N);
+    if (P !== N) {
+        throw new Error(
+            'Double elimination v1 requires a power-of-two team count (4, 8, 16, 32).',
+        );
+    }
+    const W = Math.log2(P);
+
+    // ---- Build skeletons (no wiring yet) --------------------------------
+    const wb: MutableMatch[][] = [];
+    for (let r = 1; r <= W; r++) {
+        const count = P / Math.pow(2, r);
+        const arr: MutableMatch[] = [];
+        for (let m = 0; m < count; m++) {
+            arr.push(emptyMatch(mkId(), r, m + 1, 'winners'));
+        }
+        wb.push(arr);
+    }
+
+    const lbRoundsCount = 2 * (W - 1);
+    const lb: MutableMatch[][] = [];
+    for (let r = 1; r <= lbRoundsCount; r++) {
+        const k = Math.ceil(r / 2);
+        const count = P / Math.pow(2, k + 1);
+        const arr: MutableMatch[] = [];
+        for (let m = 0; m < count; m++) {
+            arr.push(emptyMatch(mkId(), r, m + 1, 'losers'));
+        }
+        lb.push(arr);
+    }
+
+    const grandFinal = emptyMatch(mkId(), 1, 1, 'final');
+
+    // ---- Wire WB winners -------------------------------------------------
+    for (let r = 0; r < W - 1; r++) {
+        const cur = wb[r]!;
+        const next = wb[r + 1]!;
+        for (let i = 0; i < cur.length; i++) {
+            const m = cur[i]!;
+            const dest = next[Math.floor(i / 2)];
+            if (!dest) continue;
+            m.advancesToMatchId = dest.id;
+            m.advancesToSlot = i % 2 === 0 ? 'a' : 'b';
+        }
+    }
+    const wbFinal = wb[W - 1]?.[0];
+    if (wbFinal) {
+        wbFinal.advancesToMatchId = grandFinal.id;
+        wbFinal.advancesToSlot = 'a';
+    }
+
+    // ---- Wire WB losers → LB --------------------------------------------
+    // WB R1 losers fill LB R1 (minor) by adjacent pairing.
+    const lbR1 = lb[0];
+    if (lbR1) {
+        const wbR1 = wb[0]!;
+        for (let i = 0; i < wbR1.length; i++) {
+            const m = wbR1[i]!;
+            const dest = lbR1[Math.floor(i / 2)];
+            if (!dest) continue;
+            m.loserAdvancesToMatchId = dest.id;
+            m.loserAdvancesToSlot = i % 2 === 0 ? 'a' : 'b';
+        }
+    }
+    // WB R(k>=2) losers feed LB major round 2(k-1), one per match in slot 'b'.
+    for (let k = 2; k <= W; k++) {
+        const wbRk = wb[k - 1]!;
+        const lbMajor = lb[2 * (k - 1) - 1];
+        if (!lbMajor) continue;
+        for (let i = 0; i < wbRk.length; i++) {
+            const m = wbRk[i]!;
+            const dest = lbMajor[i];
+            if (!dest) continue;
+            m.loserAdvancesToMatchId = dest.id;
+            m.loserAdvancesToSlot = 'b';
+        }
+    }
+
+    // ---- Wire LB winners -------------------------------------------------
+    for (let r = 1; r < lbRoundsCount; r++) {
+        const cur = lb[r - 1]!;
+        const next = lb[r]!;
+        const curIsMinor = r % 2 === 1;
+        for (let i = 0; i < cur.length; i++) {
+            const m = cur[i]!;
+            if (curIsMinor) {
+                // Next is a major round: each minor i feeds major i (slot a).
+                const dest = next[i];
+                if (!dest) continue;
+                m.advancesToMatchId = dest.id;
+                m.advancesToSlot = 'a';
+            } else {
+                // Next is a minor round: pair adjacent winners.
+                const dest = next[Math.floor(i / 2)];
+                if (!dest) continue;
+                m.advancesToMatchId = dest.id;
+                m.advancesToSlot = i % 2 === 0 ? 'a' : 'b';
+            }
+        }
+    }
+    const lbFinal = lb[lbRoundsCount - 1]?.[0];
+    if (lbFinal) {
+        lbFinal.advancesToMatchId = grandFinal.id;
+        lbFinal.advancesToSlot = 'b';
+    }
+
+    // ---- Place WB R1 teams in canonical bracket order -------------------
+    const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
+    const slots = bracketSlots(P);
+    const teamForSlot = new Map<number, TeamId>();
+    for (const s of sorted) teamForSlot.set(s.seed, s.teamId);
+    const wbR1 = wb[0]!;
+    for (let i = 0; i < wbR1.length; i++) {
+        const slotA = slots[i * 2];
+        const slotB = slots[i * 2 + 1];
+        if (slotA === undefined || slotB === undefined) continue;
+        const m = wbR1[i]!;
+        m.teamAId = teamForSlot.get(slotA) ?? null;
+        m.teamBId = teamForSlot.get(slotB) ?? null;
+    }
+
+    return [...wb.flat(), ...lb.flat(), grandFinal];
 }
 
 // ---- Pool play -----------------------------------------------------------

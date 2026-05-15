@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
 
 const FORMAT_LABEL: Record<BracketFormat, string> = {
     single_elimination: 'Single elimination',
-    double_elimination: 'Double elimination (coming soon)',
+    double_elimination: 'Double elimination',
     round_robin: 'Round robin',
     pool_play_playoff: 'Pool play → playoff',
     swiss: 'Swiss (coming soon)',
@@ -384,10 +384,17 @@ function BoardView(props: {
 }) {
     type M = (typeof props.matches)[number];
     const isPoolPlay = props.format === 'pool_play_playoff';
+    const isDoubleElim = props.format === 'double_elimination';
     const poolMatches = props.matches.filter((m) => m.pool !== null);
     const playoffMatches = props.matches.filter((m) => m.bracketSide === 'final');
+    const winnersMatches = props.matches.filter((m) => m.bracketSide === 'winners');
+    const losersMatches = props.matches.filter((m) => m.bracketSide === 'losers');
     const otherMatches = props.matches.filter(
-        (m) => m.pool === null && m.bracketSide !== 'final',
+        (m) =>
+            m.pool === null &&
+            m.bracketSide !== 'final' &&
+            m.bracketSide !== 'winners' &&
+            m.bracketSide !== 'losers',
     );
 
     // For pool play, "pool play complete" gates the playoff CTA.
@@ -408,6 +415,35 @@ function BoardView(props: {
             .sort((a, b) => a - b)
             .map((r) => ({ round: r, matches: byRound.get(r)! }));
     };
+
+    const renderRoundColumns = (
+        list: ReadonlyArray<M>,
+        roundLabel: (r: number) => string = (r) => `Round ${r}`,
+    ) => (
+        <div className="flex gap-4 overflow-x-auto pb-2">
+            {groupByRound(list).map(({ round, matches }) => (
+                <div key={round} className="min-w-[260px] space-y-2">
+                    <h3 className="text-sm font-semibold text-fg/80">
+                        {roundLabel(round)}
+                    </h3>
+                    {matches
+                        .slice()
+                        .sort((a, b) => a.matchNumber - b.matchNumber)
+                        .map((m) => (
+                            <MatchCard
+                                key={m.id}
+                                eventId={props.eventId}
+                                match={m}
+                                teamById={props.teamById}
+                                bestOf={props.bestOf}
+                                isHost={props.isHost}
+                                viewerId={props.viewerId}
+                            />
+                        ))}
+                </div>
+            ))}
+        </div>
+    );
 
     return (
         <section className="space-y-6">
@@ -464,38 +500,36 @@ function BoardView(props: {
                 </div>
             )}
 
-            {(otherMatches.length > 0 || playoffMatches.length > 0) && (
+            {isDoubleElim && winnersMatches.length > 0 && (
                 <div className="space-y-2">
-                    {isPoolPlay && playoffMatches.length > 0 && (
-                        <h2 className="text-base font-semibold text-fg">Playoff</h2>
-                    )}
-                    <div className="flex gap-4 overflow-x-auto pb-2">
-                        {groupByRound([...otherMatches, ...playoffMatches]).map(
-                            ({ round, matches }) => (
-                                <div key={round} className="min-w-[260px] space-y-2">
-                                    <h3 className="text-sm font-semibold text-fg/80">
-                                        Round {round}
-                                    </h3>
-                                    {matches
-                                        .slice()
-                                        .sort((a, b) => a.matchNumber - b.matchNumber)
-                                        .map((m) => (
-                                            <MatchCard
-                                                key={m.id}
-                                                eventId={props.eventId}
-                                                match={m}
-                                                teamById={props.teamById}
-                                                bestOf={props.bestOf}
-                                                isHost={props.isHost}
-                                                viewerId={props.viewerId}
-                                            />
-                                        ))}
-                                </div>
-                            ),
-                        )}
-                    </div>
+                    <h2 className="text-base font-semibold text-fg">Winners bracket</h2>
+                    {renderRoundColumns(winnersMatches, (r) => `WB R${r}`)}
                 </div>
             )}
+
+            {isDoubleElim && losersMatches.length > 0 && (
+                <div className="space-y-2">
+                    <h2 className="text-base font-semibold text-fg">Losers bracket</h2>
+                    {renderRoundColumns(losersMatches, (r) => `LB R${r}`)}
+                </div>
+            )}
+
+            {isDoubleElim && playoffMatches.length > 0 && (
+                <div className="space-y-2">
+                    <h2 className="text-base font-semibold text-fg">Grand final</h2>
+                    {renderRoundColumns(playoffMatches, () => 'Final')}
+                </div>
+            )}
+
+            {!isDoubleElim &&
+                (otherMatches.length > 0 || playoffMatches.length > 0) && (
+                    <div className="space-y-2">
+                        {isPoolPlay && playoffMatches.length > 0 && (
+                            <h2 className="text-base font-semibold text-fg">Playoff</h2>
+                        )}
+                        {renderRoundColumns([...otherMatches, ...playoffMatches])}
+                    </div>
+                )}
         </section>
     );
 }

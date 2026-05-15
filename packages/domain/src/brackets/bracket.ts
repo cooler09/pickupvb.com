@@ -20,6 +20,7 @@ import type {
     ByeStrategy,
 } from './enums.js';
 import {
+    generateDoubleElimination,
     generateNotImplemented,
     generatePlayoffFromStandings,
     generatePoolPlay,
@@ -153,6 +154,9 @@ export class Bracket extends AggregateRoot<BracketId> {
         switch (this._format) {
             case 'single_elimination':
                 matches = generateSingleElimination(this._seeds, idFactory);
+                break;
+            case 'double_elimination':
+                matches = generateDoubleElimination(this._seeds, idFactory);
                 break;
             case 'round_robin':
                 matches = generateRoundRobin(this._seeds, idFactory);
