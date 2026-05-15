@@ -9,9 +9,8 @@ import type { Match, MatchId, Seed } from './match.js';
  * (typically the repository when persisting a freshly generated bracket)
  * controls ID assignment.
  *
- * v1 supports single elimination and round robin. Pool play, double elim,
- * and Swiss are scaffolded with TODO stubs and validated at the aggregate
- * boundary so the UI can surface "format not implemented yet".
+ * Supported formats: single elimination, round robin, pool play → playoff,
+ * and double elimination.
  */
 
 type IdFactory = () => MatchId;
