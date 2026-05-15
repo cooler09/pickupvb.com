@@ -3,13 +3,15 @@
  * Wires concrete adapters (infrastructure) into application handlers.
  * One place to swap implementations (e.g. for tests).
  */
-import { SupabaseEventRepository, SupabaseTeamRepository } from '@pickupvb/infrastructure';
+import { SupabaseBracketRepository, SupabaseEventRepository, SupabaseTeamRepository } from '@pickupvb/infrastructure';
 import {
     AcceptTeamInviteHandler,
     AddEventCoHostHandler,
     AddTeamMemberHandler,
+    CreateBracketHandler,
     CreateEventHandler,
     CreateTeamHandler,
+    GenerateBracketHandler,
     GetEventByIdHandler,
     GetEventDetailHandler,
     GetFollowingFeedHandler,
@@ -18,16 +20,21 @@ import {
     JoinEventHandler,
     LeaveEventAsFreeAgentHandler,
     LeaveEventHandler,
+    RecordMatchResultHandler,
     RegisterTeamHandler,
     RemoveEventCoHostHandler,
     RemoveTeamMemberHandler,
+    ResetBracketHandler,
+    ResetMatchHandler,
     SearchEventsHandler,
+    SeedBracketHandler,
     SetTeamExtraMembersHandler,
     WithdrawTeamHandler,
 } from '@pickupvb/application';
 
 const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
+const bracketRepo = new SupabaseBracketRepository();
 
 export const handlers = {
     createEvent: new CreateEventHandler(eventRepo),
@@ -49,4 +56,14 @@ export const handlers = {
     setTeamExtraMembers: new SetTeamExtraMembersHandler(teamRepo),
     registerTeam: new RegisterTeamHandler(eventRepo, teamRepo),
     withdrawTeam: new WithdrawTeamHandler(eventRepo, teamRepo),
+    createBracket: new CreateBracketHandler(eventRepo, bracketRepo),
+    seedBracket: new SeedBracketHandler(eventRepo, bracketRepo),
+    generateBracket: new GenerateBracketHandler(eventRepo, bracketRepo),
+    resetBracket: new ResetBracketHandler(eventRepo, bracketRepo),
+    recordMatchResult: new RecordMatchResultHandler(bracketRepo),
+    resetMatch: new ResetMatchHandler(bracketRepo),
+};
+
+export const repositories = {
+    bracketRepo,
 };

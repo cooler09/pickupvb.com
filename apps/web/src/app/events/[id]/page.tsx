@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 import dynamicImport from 'next/dynamic';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
@@ -228,6 +229,26 @@ export default async function EventDetailPage({
                         ? { resultCode: pickQuery(searchParams, 'fa') }
                         : {})}
                 />
+            )}
+
+            {event.type === 'tournament' && (
+                <section className="rounded-lg border border-border-base bg-fg/5 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                        <div>
+                            <h2 className="text-base font-semibold text-fg">Bracket</h2>
+                            <p className="text-xs text-muted">
+                                Set up the tournament bracket and report match
+                                results.
+                            </p>
+                        </div>
+                        <Link
+                            href={`/events/${event.id}/bracket` as Route}
+                            className="rounded bg-primary px-3 py-1 text-sm text-primary-fg"
+                        >
+                            Open bracket
+                        </Link>
+                    </div>
+                </section>
             )}
         </article>
     );
