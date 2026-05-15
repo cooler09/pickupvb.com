@@ -16,6 +16,9 @@ import {
 } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { getAdminSupabase } from '@/lib/supabase-admin';
+import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { log } from '@/lib/log';
 
 /**
  * Server action wrappers around JoinEventCommand / LeaveEventCommand that
@@ -49,6 +52,16 @@ async function authedUserIdOrFlash(eventId: string): Promise<string> {
     return user.id;
 }
 
+/** Allows anonymous-auth users (e.g. guest paid-ticket buyers) to leave. */
+async function userIdOrFlash(eventId: string): Promise<string> {
+    const supabase = await getServerSupabase();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) back(eventId, 'signin');
+    return user.id;
+}
+
 export async function joinEvent(eventId: string): Promise<void> {
     const userId = await authedUserIdOrFlash(eventId);
     try {
@@ -67,7 +80,60 @@ export async function joinEvent(eventId: string): Promise<void> {
 }
 
 export async function leaveEvent(eventId: string): Promise<void> {
-    const userId = await authedUserIdOrFlash(eventId);
+    const userId = await userIdOrFlash(eventId);
+
+    // If this is a paid attendee, refund through Stripe BEFORE removing the
+    // row. The `charge.refunded` webhook will delete the row + free capacity
+    // and write the audit log entry, so we just need to make the refund call
+    // and bounce the user back to the event page. Outside the refund window
+    // (now > starts_at - refund_window_hours), we still let them leave but
+    // do not refund — they should reach out to the host.
+    const admin = getAdminSupabase();
+    const { data: row } = await admin
+        .from('event_attendees')
+        .select('payment_status, payment_intent_id')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .maybeSingle();
+    type AttRow = { payment_status: string; payment_intent_id: string | null };
+    const att = row as unknown as AttRow | null;
+
+    if (att?.payment_status === 'paid' && att.payment_intent_id && isStripeConfigured()) {
+        const { data: ev } = await admin
+            .from('events')
+            .select('starts_at, refund_window_hours')
+            .eq('id', eventId)
+            .maybeSingle();
+        type EvRow = { starts_at: string; refund_window_hours: number };
+        const e = ev as unknown as EvRow | null;
+        const startsAt = e ? new Date(e.starts_at).getTime() : 0;
+        const windowMs = (e?.refund_window_hours ?? 0) * 60 * 60 * 1000;
+        const cutoff = startsAt - windowMs;
+        if (Date.now() > cutoff) {
+            back(
+                eventId,
+                'error',
+                'Refund window has closed. Contact the host to cancel.',
+            );
+        }
+        try {
+            const stripe = getStripe();
+            await stripe.refunds.create({
+                payment_intent: att.payment_intent_id,
+                reason: 'requested_by_customer',
+                refund_application_fee: true,
+                reverse_transfer: true,
+            });
+        } catch (err) {
+            await log.error('[leave] refund failed', err, { eventId, userId });
+            const m = err instanceof Error ? err.message : 'Refund failed.';
+            back(eventId, 'error', m);
+        }
+        // Webhook handles row deletion + audit; bounce optimistically.
+        revalidatePath(`/events/${eventId}`);
+        back(eventId, 'left');
+    }
+
     try {
         await handlers.leaveEvent.execute(new LeaveEventCommand(eventId, userId));
     } catch (err) {

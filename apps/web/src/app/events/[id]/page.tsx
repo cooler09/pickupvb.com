@@ -103,6 +103,14 @@ export default async function EventDetailPage(
                     status={event.status}
                 />
                 <h1 className="text-3xl font-bold text-fg">{event.title}</h1>
+                {event.canManage && (
+                    <Link
+                        href={`/events/${event.id}/edit` as Route}
+                        className="inline-block text-sm text-primary hover:underline"
+                    >
+                        Edit event
+                    </Link>
+                )}
             </header>
 
             <section className="rounded-lg border border-border-base bg-fg/5 p-3">
@@ -217,6 +225,7 @@ export default async function EventDetailPage(
                         isRealUser={isRealUser}
                         ticketCents={breakdown.ticketCents}
                         platformFeeCents={breakdown.platformFeeCents}
+                        refundWindowHours={pricing!.refundWindowHours}
                     />
                 ) : event.positionRoster ? (
                     <PositionRsvpPanel

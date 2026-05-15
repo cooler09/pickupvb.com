@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
+import { leaveEvent } from '../rsvp-actions';
 
 type Props = {
     eventId: string;
@@ -9,6 +10,7 @@ type Props = {
     isRealUser: boolean;
     ticketCents: number;
     platformFeeCents: number;
+    refundWindowHours: number;
 };
 
 function formatUsd(cents: number): string {
@@ -29,6 +31,7 @@ export function PaidTicketPanel({
     isRealUser,
     ticketCents,
     platformFeeCents,
+    refundWindowHours,
 }: Props) {
     const total = ticketCents + platformFeeCents;
     return (
@@ -50,10 +53,21 @@ export function PaidTicketPanel({
             </div>
 
             {isAttending ? (
-                <div className="flex justify-end">
+                <div className="flex flex-col items-end gap-2">
                     <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
                         You&apos;re signed up
                     </span>
+                    <form action={leaveEvent.bind(null, eventId)}>
+                        <ConfirmSubmitButton
+                            label="Cancel ticket & refund"
+                            pendingLabel="Refunding…"
+                            confirmMessage={`Cancel your ticket to "${eventTitle}" and request a refund of ${formatUsd(total)}?`}
+                        />
+                    </form>
+                    <p className="text-xs text-muted">
+                        Refunds available up to {refundWindowHours} hour
+                        {refundWindowHours === 1 ? '' : 's'} before the event starts.
+                    </p>
                 </div>
             ) : isRealUser ? (
                 <div className="flex justify-end">
