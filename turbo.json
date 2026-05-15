@@ -3,10 +3,19 @@
   "globalDependencies": ["**/.env.*local", ".env"],
   "globalEnv": [
     "NODE_ENV",
+    "VERCEL_ENV",
+    "CI",
     "NEXT_PUBLIC_SUPABASE_URL",
     "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     "SUPABASE_URL",
-    "SUPABASE_SECRET_KEY"
+    "SUPABASE_SECRET_KEY",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+    "TURNSTILE_SECRET_KEY",
+    "NEXT_PUBLIC_SENTRY_DSN",
+    "NEXT_PUBLIC_VERCEL_ENV",
+    "SENTRY_ORG",
+    "SENTRY_PROJECT",
+    "SENTRY_AUTH_TOKEN"
   ],
   "tasks": {
     "build": {

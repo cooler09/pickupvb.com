@@ -20,3 +20,6 @@ Sentry.init({
         }),
     ],
 });
+
+// Required by the Sentry SDK to instrument client-side route transitions.
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
