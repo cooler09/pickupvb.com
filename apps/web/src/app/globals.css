@@ -46,19 +46,24 @@
  * `@theme inline` registers each CSS variable as a Tailwind color token
  * without inlining the value, so the variable is resolved at use time and
  * the dark-theme override above takes effect.
+ *
+ * Tailwind 4 no longer substitutes the `<alpha-value>` placeholder — alpha
+ * modifiers (`bg-primary/50`) are computed via `color-mix()` from whatever
+ * color the token resolves to. So we just emit a complete `rgb(...)` value
+ * built from the R/G/B triple variable.
  */
 @theme inline {
-    --color-background: rgb(var(--tw-color-background) / <alpha-value>);
-    --color-surface: rgb(var(--tw-color-surface) / <alpha-value>);
-    --color-primary: rgb(var(--tw-color-primary) / <alpha-value>);
-    --color-primary-fg: rgb(var(--tw-color-primary-fg) / <alpha-value>);
-    --color-secondary: rgb(var(--tw-color-secondary) / <alpha-value>);
-    --color-secondary-fg: rgb(var(--tw-color-secondary-fg) / <alpha-value>);
-    --color-highlight: rgb(var(--tw-color-highlight) / <alpha-value>);
-    --color-highlight-fg: rgb(var(--tw-color-highlight-fg) / <alpha-value>);
-    --color-fg: rgb(var(--tw-color-fg) / <alpha-value>);
-    --color-muted: rgb(var(--tw-color-muted) / <alpha-value>);
-    --color-border-base: rgb(var(--tw-color-border-base) / <alpha-value>);
+    --color-background: rgb(var(--tw-color-background));
+    --color-surface: rgb(var(--tw-color-surface));
+    --color-primary: rgb(var(--tw-color-primary));
+    --color-primary-fg: rgb(var(--tw-color-primary-fg));
+    --color-secondary: rgb(var(--tw-color-secondary));
+    --color-secondary-fg: rgb(var(--tw-color-secondary-fg));
+    --color-highlight: rgb(var(--tw-color-highlight));
+    --color-highlight-fg: rgb(var(--tw-color-highlight-fg));
+    --color-fg: rgb(var(--tw-color-fg));
+    --color-muted: rgb(var(--tw-color-muted));
+    --color-border-base: rgb(var(--tw-color-border-base));
 
     /* Legacy palette (kept so existing utility classes keep working). */
     --color-court-50: #fff7ed;
