@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 import {
@@ -50,6 +51,9 @@ export function handleError(err: unknown): NextResponse {
             { status: domainErrorStatus(err) },
         );
     }
+    // Unexpected error — capture full context for Sentry and return a generic
+    // 500 to the client.
     console.error(err);
+    Sentry.captureException(err);
     return NextResponse.json({ error: 'INTERNAL' }, { status: 500 });
 }

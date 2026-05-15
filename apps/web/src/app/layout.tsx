@@ -1,3 +1,5 @@
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
@@ -62,6 +64,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                         PickupVB
                     </Link>
                 </footer>
+                <Analytics />
+                <SpeedInsights />
             </body>
         </html>
     );
