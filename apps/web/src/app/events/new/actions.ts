@@ -10,6 +10,7 @@ import { handlers } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 
 export type CreateEventState = {
     error?: string;
@@ -131,7 +132,10 @@ export async function createEventAction(
         ? Math.max(0, Math.round(Number(priceUsdRaw) * 100))
         : 0;
     if (priceCents > 0) {
-        const { data: stripeRow } = await supabase
+        // host_stripe_accounts is service-role only (no RLS policies), so we
+        // must use the admin client to read the connect status.
+        const admin = getAdminSupabase();
+        const { data: stripeRow } = await admin
             .from('host_stripe_accounts')
             .select('charges_enabled')
             .eq('user_id', user.id)
