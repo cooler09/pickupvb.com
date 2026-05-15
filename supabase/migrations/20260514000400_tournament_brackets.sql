@@ -66,9 +66,17 @@ create table if not exists public.bracket_matches (
     loser_advances_to_slot     text check (loser_advances_to_slot is null or loser_advances_to_slot in ('a', 'b')),
     scheduled_at    timestamptz,
     created_at      timestamptz not null default now(),
-    updated_at      timestamptz not null default now(),
-    unique (bracket_id, round, match_number, coalesce(pool, ''), coalesce(bracket_side, ''))
+    updated_at      timestamptz not null default now()
 );
+
+create unique index if not exists bracket_matches_unique_position
+    on public.bracket_matches (
+        bracket_id,
+        round,
+        match_number,
+        coalesce(pool, ''),
+        coalesce(bracket_side, '')
+    );
 
 create index if not exists bracket_matches_bracket_idx
     on public.bracket_matches (bracket_id);
