@@ -103,11 +103,23 @@ as $$
     select exists (
         select 1 from public.events e
          where e.id = p_event_id
-           and (e.host_id = auth.uid()
-                or exists (
+           and (
+                e.host_id = auth.uid()
+             or exists (
                     select 1 from public.event_co_hosts ch
-                     where ch.event_id = e.id and ch.user_id = auth.uid()
-                ))
+                     where ch.event_id = e.id
+                       and ch.host_user_id = auth.uid()
+                )
+             or exists (
+                    select 1 from public.event_co_hosts ch
+                       join public.group_members gm
+                            on gm.group_id = ch.host_group_id
+                     where ch.event_id = e.id
+                       and ch.host_group_id is not null
+                       and gm.user_id = auth.uid()
+                       and gm.role in ('owner', 'admin')
+                )
+           )
     );
 $$;
 
