@@ -5,16 +5,19 @@
   <circle cx="32" cy="24" r="10" fill="none" stroke="#439093" stroke-width="3"/>
   <!-- Net -->
   <line x1="8"  y1="44" x2="56" y2="44" stroke="#183334" stroke-width="3" stroke-linecap="round"/>
-  <line x1="32" y1="44" x2="32" y2="58" stroke="#183334" stroke-width="3" stroke-linecap="round"/>
+  <!-- Net posts on each end (flush with top net line, extend below the mesh) -->
+  <line x1="8"  y1="44" x2="8"  y2="58" stroke="#183334" stroke-width="3" stroke-linecap="round"/>
+  <line x1="56" y1="44" x2="56" y2="58" stroke="#183334" stroke-width="3" stroke-linecap="round"/>
   <!-- Net mesh hint -->
   <g stroke="#183334" stroke-width="1.5" stroke-linecap="round" opacity="0.55">
-    <line x1="14" y1="44" x2="14" y2="52"/>
-    <line x1="20" y1="44" x2="20" y2="52"/>
-    <line x1="26" y1="44" x2="26" y2="52"/>
-    <line x1="38" y1="44" x2="38" y2="52"/>
-    <line x1="44" y1="44" x2="44" y2="52"/>
-    <line x1="50" y1="44" x2="50" y2="52"/>
-    <line x1="8"  y1="48" x2="56" y2="48"/>
-    <line x1="8"  y1="52" x2="56" y2="52"/>
+    <line x1="14" y1="44" x2="14" y2="53"/>
+    <line x1="20" y1="44" x2="20" y2="53"/>
+    <line x1="26" y1="44" x2="26" y2="53"/>
+    <line x1="32" y1="44" x2="32" y2="53"/>
+    <line x1="38" y1="44" x2="38" y2="53"/>
+    <line x1="44" y1="44" x2="44" y2="53"/>
+    <line x1="50" y1="44" x2="50" y2="53"/>
+    <line x1="8"  y1="49" x2="56" y2="49"/>
+    <line x1="8"  y1="53" x2="56" y2="53"/>
   </g>
 </svg>
