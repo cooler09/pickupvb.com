@@ -16,7 +16,7 @@ function initialsOf(name: string): string {
 }
 
 export default async function SiteHeader({ theme }: { theme: Theme }) {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

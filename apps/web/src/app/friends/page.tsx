@@ -16,7 +16,7 @@ type FriendProfile = {
 };
 
 export default async function FriendsPage() {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     const start = Date.now();
     try {
-        const supabase = getServerSupabase();
+        const supabase = await getServerSupabase();
         const { error } = await supabase.from('profiles').select('id').limit(1);
         if (error) {
             return NextResponse.json(

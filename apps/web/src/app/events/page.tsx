@@ -53,12 +53,13 @@ function emptyMessage(when: Timeframe, reason: FollowingEmptyReason): string {
     return 'No upcoming events match your filters yet.';
 }
 
-export default async function EventsPage({
-    searchParams,
-}: {
-    searchParams: Record<string, string | string[] | undefined>;
-}) {
-    const supabase = getServerSupabase();
+export default async function EventsPage(
+    props: {
+        searchParams: Promise<Record<string, string | string[] | undefined>>;
+    }
+) {
+    const searchParams = await props.searchParams;
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

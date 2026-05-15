@@ -3,11 +3,12 @@ import Link from 'next/link';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Check your email — PickupVB' };
 
-export default function ClaimCheckEmailPage({
-    searchParams,
-}: {
-    searchParams: { to?: string };
-}) {
+export default async function ClaimCheckEmailPage(
+    props: {
+        searchParams: Promise<{ to?: string }>;
+    }
+) {
+    const searchParams = await props.searchParams;
     const to = (searchParams.to ?? '').trim();
     return (
         <div className="mx-auto max-w-md space-y-6 py-10 text-center">

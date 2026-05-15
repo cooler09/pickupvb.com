@@ -13,8 +13,9 @@ type GroupRow = {
     region: string | null;
 };
 
-export default async function EditGroupPage({ params }: { params: { id: string } }) {
-    const supabase = getServerSupabase();
+export default async function EditGroupPage(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

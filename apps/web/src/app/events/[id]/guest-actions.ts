@@ -56,7 +56,7 @@ export async function signupAsGuest(
         return { error: turnstile.error ?? 'Verification failed.' };
     }
 
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
 
     // (1) Reuse an existing session if any; otherwise mint a new anon user.
     const {

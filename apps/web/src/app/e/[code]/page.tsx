@@ -12,11 +12,12 @@ export const dynamic = 'force-dynamic';
  * Codes are normalized server-side: trimmed and uppercased before lookup,
  * matching how `gen_event_short_code()` mints them.
  */
-export default async function ShortCodeRedirectPage({
-    params,
-}: {
-    params: { code: string };
-}) {
+export default async function ShortCodeRedirectPage(
+    props: {
+        params: Promise<{ code: string }>;
+    }
+) {
+    const params = await props.params;
     const id = await repositories.eventRepo.findIdByShortCode(params.code);
     if (!id) notFound();
     redirect(`/events/${id}` as Route);

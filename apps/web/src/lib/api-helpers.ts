@@ -13,7 +13,7 @@ import {
 import { getServerSupabase } from './supabase';
 
 export async function requireUser() {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();
@@ -24,7 +24,7 @@ export async function requireUser() {
 }
 
 export async function getViewer() {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

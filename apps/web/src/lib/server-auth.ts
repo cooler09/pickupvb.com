@@ -9,7 +9,7 @@ import { redirect } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { getServerSupabase } from './supabase';
 
-type SupabaseClient = ReturnType<typeof getServerSupabase>;
+type SupabaseClient = Awaited<ReturnType<typeof getServerSupabase>>;
 
 /** Returns true for Supabase anonymous-auth users (`is_anonymous` claim). */
 export function isAnonymousUser(user: Pick<User, 'id'> | null | undefined): boolean {
@@ -24,7 +24,7 @@ export interface ViewerSession {
 
 /** Get the current viewer or `null` if no session exists. Never throws. */
 export async function getViewer(): Promise<ViewerSession | null> {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

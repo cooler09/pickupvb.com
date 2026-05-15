@@ -5,7 +5,8 @@ import { handleError, requireUser } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
     try {
         const auth = await requireUser();
         if (auth.response) return auth.response;

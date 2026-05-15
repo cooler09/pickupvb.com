@@ -10,7 +10,7 @@ export function isTheme(value: unknown): value is Theme {
 }
 
 /** Read the active theme for this request (cookie wins; falls back to default). */
-export function readThemeFromCookies(): Theme {
-    const value = cookies().get(THEME_COOKIE)?.value;
+export async function readThemeFromCookies(): Promise<Theme> {
+    const value = (await cookies()).get(THEME_COOKIE)?.value;
     return isTheme(value) ? value : DEFAULT_THEME;
 }

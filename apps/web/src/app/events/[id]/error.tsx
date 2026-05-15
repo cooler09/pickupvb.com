@@ -1,6 +1,7 @@
 'use client';
 
 import * as Sentry from '@sentry/nextjs';
+import Link from 'next/link';
 import { useEffect } from 'react';
 
 /**
@@ -31,12 +32,12 @@ export default function EventDetailError({
                 >
                     Try again
                 </button>
-                <a
+                <Link
                     href="/events"
                     className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
                 >
                     Back to events
-                </a>
+                </Link>
             </div>
         </div>
     );

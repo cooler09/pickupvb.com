@@ -1,6 +1,6 @@
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
-import type { Metadata } from 'next';
+import type { Metadata } from 'next/types';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
@@ -21,12 +21,12 @@ export const metadata: Metadata = {
 };
 
 async function resolveTheme(): Promise<Theme> {
-    const cookieValue = cookies().get(THEME_COOKIE)?.value;
+    const cookieValue = (await cookies()).get(THEME_COOKIE)?.value;
     if (isTheme(cookieValue)) return cookieValue;
 
     // No cookie yet — fall back to the signed-in user's saved preference.
     try {
-        const supabase = getServerSupabase();
+        const supabase = await getServerSupabase();
         const {
             data: { user },
         } = await supabase.auth.getUser();

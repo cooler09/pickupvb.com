@@ -12,7 +12,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   `getUser()` here forces a refresh and writes the new cookies back so
  *   downstream handlers see the authenticated user immediately.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     let response = NextResponse.next({ request });
 
     const supabase = createServerClient(

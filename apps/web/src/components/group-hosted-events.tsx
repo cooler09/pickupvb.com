@@ -9,7 +9,7 @@ import { HostedEventsList } from './hosted-events-list';
  * **current viewer** is allowed to see. RLS on `events` filters automatically.
  */
 export async function loadVisibleGroupHostedEvents(groupId: string): Promise<HostedEventRow[]> {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
 
     // Primary group host
     const { data: primary } = await supabase

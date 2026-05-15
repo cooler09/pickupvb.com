@@ -13,7 +13,7 @@ type TeamRow = {
 };
 
 export default async function TeamsIndexPage() {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

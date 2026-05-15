@@ -36,7 +36,7 @@ export async function searchPeople(
 ): Promise<PeopleSearchResult[]> {
     const q = query.trim();
     if (q.length < 2) return [];
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
 
     const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
     // PostgREST has no native NOT IN over arrays in the JS client; fall back

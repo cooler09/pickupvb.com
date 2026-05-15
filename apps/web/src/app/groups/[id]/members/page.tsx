@@ -18,8 +18,9 @@ type MemberRow = {
     } | null;
 };
 
-export default async function GroupMembersPage({ params }: { params: { id: string } }) {
-    const supabase = getServerSupabase();
+export default async function GroupMembersPage(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

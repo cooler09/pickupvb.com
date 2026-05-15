@@ -27,12 +27,13 @@ function initialsOf(p: Row): string {
     return (p.display_name ?? '?').slice(0, 2).toUpperCase();
 }
 
-export default async function PlayersIndexPage({
-    searchParams,
-}: {
-    searchParams: { q?: string; city?: string };
-}) {
-    const supabase = getServerSupabase();
+export default async function PlayersIndexPage(
+    props: {
+        searchParams: Promise<{ q?: string; city?: string }>;
+    }
+) {
+    const searchParams = await props.searchParams;
+    const supabase = await getServerSupabase();
     const q = (searchParams.q ?? '').trim();
     const city = (searchParams.city ?? '').trim();
 
@@ -64,7 +65,6 @@ export default async function PlayersIndexPage({
                     Find people to follow, add to your team, or invite to a group.
                 </p>
             </header>
-
             <form className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                 <input
                     type="search"
@@ -87,7 +87,6 @@ export default async function PlayersIndexPage({
                     Search
                 </button>
             </form>
-
             {players.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border-base p-6 text-center text-sm text-muted">
                     {hasFilter
@@ -104,11 +103,11 @@ export default async function PlayersIndexPage({
                             >
                                 {p.avatar_url ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img
+                                    (<img
                                         src={p.avatar_url}
                                         alt=""
                                         className="h-10 w-10 rounded-full object-cover"
-                                    />
+                                    />)
                                 ) : (
                                     <span
                                         aria-hidden="true"

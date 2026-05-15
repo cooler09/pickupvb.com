@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import type { Route } from 'next';
 import {
     RegisterTeamCommand,
     WithdrawTeamCommand,
@@ -30,7 +31,7 @@ export async function registerTeamFromForm(
     formData: FormData,
 ): Promise<void> {
     const teamId = field(formData, 'team_id');
-    if (!teamId) redirect(`${returnPath}?team=missing`);
+    if (!teamId) redirect(`${returnPath}?team=missing` as Route);
 
     const { user } = await requireRealUser(returnPath);
 
@@ -40,24 +41,24 @@ export async function registerTeamFromForm(
         );
     } catch (err) {
         if (err instanceof ConflictError) {
-            redirect(`${returnPath}?team=already`);
+            redirect(`${returnPath}?team=already` as Route);
         }
         if (err instanceof UnauthorizedError) {
-            redirect(`${returnPath}?team=forbidden`);
+            redirect(`${returnPath}?team=forbidden` as Route);
         }
         if (err instanceof InvariantViolation) {
-            redirect(`${returnPath}?team=closed`);
+            redirect(`${returnPath}?team=closed` as Route);
         }
         if (err instanceof NotFoundError) {
-            redirect(`${returnPath}?team=missing`);
+            redirect(`${returnPath}?team=missing` as Route);
         }
         if (err instanceof ValidationError) {
-            redirect(`${returnPath}?team=invalid`);
+            redirect(`${returnPath}?team=invalid` as Route);
         }
         throw err;
     }
     revalidatePath(returnPath);
-    redirect(`${returnPath}?team=registered`);
+    redirect(`${returnPath}?team=registered` as Route);
 }
 
 export async function withdrawTeamFromForm(
@@ -72,13 +73,13 @@ export async function withdrawTeamFromForm(
         );
     } catch (err) {
         if (err instanceof UnauthorizedError) {
-            redirect(`${returnPath}?team=forbidden`);
+            redirect(`${returnPath}?team=forbidden` as Route);
         }
         if (err instanceof NotFoundError) {
-            redirect(`${returnPath}?team=missing`);
+            redirect(`${returnPath}?team=missing` as Route);
         }
         throw err;
     }
     revalidatePath(returnPath);
-    redirect(`${returnPath}?team=withdrawn`);
+    redirect(`${returnPath}?team=withdrawn` as Route);
 }

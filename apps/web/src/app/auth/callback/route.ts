@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const next = searchParams.get('next') ?? '/events';
 
     if (code) {
-        const supabase = createSupabaseServerClient(cookies());
+        const supabase = createSupabaseServerClient(await cookies());
         await supabase.auth.exchangeCodeForSession(code);
     }
     return NextResponse.redirect(`${origin}${next}`);

@@ -25,7 +25,7 @@ export type HostedEventRow = {
  * `events` via the `events_view` read model — we don't filter manually.
  */
 export async function loadVisibleHostedEvents(hostId: string): Promise<HostedEventRow[]> {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
 
     const { data: primary } = await supabase
         .from('events_view')

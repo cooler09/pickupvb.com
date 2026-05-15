@@ -27,12 +27,13 @@ type MemberRow = {
     } | null;
 };
 
-export default async function TeamDetailPage({
-    params,
-}: {
-    params: { id: string };
-}) {
-    const supabase = getServerSupabase();
+export default async function TeamDetailPage(
+    props: {
+        params: Promise<{ id: string }>;
+    }
+) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

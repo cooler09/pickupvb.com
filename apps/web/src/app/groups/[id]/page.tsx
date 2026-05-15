@@ -29,15 +29,17 @@ type MemberRow = {
     } | null;
 };
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
-    const supabase = getServerSupabase();
+export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
     const { data } = await supabase.from('groups').select('name').eq('id', params.id).maybeSingle();
     const name = (data as { name: string } | null)?.name;
     return { title: name ? `${name} — PickupVB` : 'Group — PickupVB' };
 }
 
-export default async function GroupProfilePage({ params }: { params: { id: string } }) {
-    const supabase = getServerSupabase();
+export default async function GroupProfilePage(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
 
     const { data: groupData } = await supabase
         .from('groups')

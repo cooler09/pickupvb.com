@@ -36,8 +36,9 @@ function nameOf(p: PlayerProfile): string {
     return full || p.display_name || 'Player';
 }
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
-    const supabase = getServerSupabase();
+export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
     const { data } = await supabase
         .from('profiles')
         .select('display_name, first_name, last_name')
@@ -48,8 +49,9 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
     return { title: `${name} — PickupVB` };
 }
 
-export default async function PlayerProfilePage({ params }: { params: { id: string } }) {
-    const supabase = getServerSupabase();
+export default async function PlayerProfilePage(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
 
     const { data: profileRow } = await supabase
         .from('profiles')
@@ -98,11 +100,11 @@ export default async function PlayerProfilePage({ params }: { params: { id: stri
             <header className="flex items-center gap-4">
                 {profile.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    (<img
                         src={profile.avatar_url}
                         alt=""
                         className="h-16 w-16 rounded-full object-cover"
-                    />
+                    />)
                 ) : (
                     <span
                         aria-hidden="true"
@@ -162,7 +164,6 @@ export default async function PlayerProfilePage({ params }: { params: { id: stri
                     </Link>
                 )}
             </header>
-
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold text-fg">
                     Upcoming events{' '}
@@ -177,7 +178,6 @@ export default async function PlayerProfilePage({ params }: { params: { id: stri
                     }
                 />
             </section>
-
             {past.length > 0 && (
                 <section className="space-y-3">
                     <h2 className="text-lg font-semibold text-fg">

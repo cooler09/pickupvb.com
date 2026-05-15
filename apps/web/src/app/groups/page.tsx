@@ -14,12 +14,13 @@ type GroupRow = {
     region: string | null;
 };
 
-export default async function GroupsIndexPage({
-    searchParams,
-}: {
-    searchParams: { q?: string };
-}) {
-    const supabase = getServerSupabase();
+export default async function GroupsIndexPage(
+    props: {
+        searchParams: Promise<{ q?: string }>;
+    }
+) {
+    const searchParams = await props.searchParams;
+    const supabase = await getServerSupabase();
     const q = (searchParams.q ?? '').trim();
 
     let query = supabase
@@ -52,7 +53,6 @@ export default async function GroupsIndexPage({
                     </Link>
                 )}
             </header>
-
             <form className="flex gap-2">
                 <input
                     type="search"
@@ -68,7 +68,6 @@ export default async function GroupsIndexPage({
                     Search
                 </button>
             </form>
-
             {groups.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border-base p-6 text-center text-sm text-muted">
                     {q ? 'No groups match your search.' : 'No groups yet — be the first to create one.'}
@@ -83,7 +82,7 @@ export default async function GroupsIndexPage({
                             >
                                 {g.avatar_url ? (
                                     // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={g.avatar_url} alt="" className="h-12 w-12 rounded-md object-cover" />
+                                    (<img src={g.avatar_url} alt="" className="h-12 w-12 rounded-md object-cover" />)
                                 ) : (
                                     <span
                                         aria-hidden="true"

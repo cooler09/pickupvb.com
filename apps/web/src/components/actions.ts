@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getServerSupabase } from '@/lib/supabase';
 
 export async function signOut() {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     await supabase.auth.signOut();
     revalidatePath('/', 'layout');
     redirect('/');

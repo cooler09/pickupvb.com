@@ -36,7 +36,7 @@ function back(eventId: string, code: string, msg?: string): never {
 }
 
 async function authedUserIdOrFlash(eventId: string): Promise<string> {
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

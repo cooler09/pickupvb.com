@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { createSupabaseServerClient } from '@pickupvb/supabase/server';
 
-export function getServerSupabase(): ReturnType<typeof createSupabaseServerClient> {
-    return createSupabaseServerClient(cookies());
+export async function getServerSupabase(): Promise<ReturnType<typeof createSupabaseServerClient>> {
+    return createSupabaseServerClient(await cookies());
 }

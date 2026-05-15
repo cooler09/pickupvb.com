@@ -15,13 +15,13 @@ const ONE_YEAR = 60 * 60 * 24 * 365;
 export async function setTheme(theme: Theme): Promise<void> {
     if (!isTheme(theme)) return;
 
-    cookies().set(THEME_COOKIE, theme, {
+    (await cookies()).set(THEME_COOKIE, theme, {
         path: '/',
         maxAge: ONE_YEAR,
         sameSite: 'lax',
     });
 
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();

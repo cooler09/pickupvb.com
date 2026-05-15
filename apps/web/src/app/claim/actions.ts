@@ -77,7 +77,7 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
     // user clicks it the email stays in `email_change` and `is_anonymous`
     // stays true. The user CANNOT set a password until after confirmation —
     // emailRedirectTo sends them through /auth/callback to /reset-password.
-    const h = headers();
+    const h = await headers();
     const origin =
         h.get('origin') ??
         (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');

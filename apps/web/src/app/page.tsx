@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-export default function HomePage({
-    searchParams,
-}: {
-    searchParams?: { code?: string; type?: string };
-}) {
+export default async function HomePage(
+    props: {
+        searchParams?: Promise<{ code?: string; type?: string }>;
+    }
+) {
+    const searchParams = await props.searchParams;
     // Supabase sometimes lands recovery/OAuth codes here when its allow-list falls back to Site URL.
     // Forward to the appropriate callback so the user doesn't get stranded.
     if (searchParams?.code) {

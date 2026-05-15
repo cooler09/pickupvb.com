@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Route } from 'next';
-import dynamicImport from 'next/dynamic';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
@@ -15,13 +14,7 @@ import { PositionRsvpPanel } from './_components/position-rsvp-panel';
 import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
 import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
-
-const EventMap = dynamicImport(() => import('@/components/event-map'), {
-    ssr: false,
-    loading: () => (
-        <div className="h-[320px] w-full animate-pulse rounded-lg bg-fg/5" />
-    ),
-});
+import EventMap from './_components/event-map-lazy';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,13 +26,14 @@ function pickQuery(
     return Array.isArray(v) ? v[0] : v;
 }
 
-export default async function EventDetailPage({
-    params,
-    searchParams,
-}: {
-    params: { id: string };
-    searchParams?: Record<string, string | string[] | undefined>;
-}) {
+export default async function EventDetailPage(
+    props: {
+        params: Promise<{ id: string }>;
+        searchParams?: Promise<Record<string, string | string[] | undefined>>;
+    }
+) {
+    const searchParams = await props.searchParams;
+    const params = await props.params;
     // Resolve the viewer first so the detail query can return viewer-specific
     // bits (RSVP state, manage permission, friend ids, hostable groups).
     const viewer = await getViewer();
