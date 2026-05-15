@@ -64,9 +64,8 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
         data: { user },
     } = await supabase.auth.getUser();
     if (!user) backWithError(eventId, 'signin');
-    if ((user as { is_anonymous?: boolean }).is_anonymous) {
-        backWithError(eventId, 'anon');
-    }
+    // Anonymous auth users CAN buy tickets; we just need them to have an
+    // auth session. The guest form (→ startGuestTicketCheckout) mints one.
 
     const pricing = await getEventPricing(eventId);
     if (!pricing) backWithError(eventId, 'error', 'Event not found.');
@@ -188,12 +187,13 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
 }
 
 /**
- * Anonymous (guest) buys a ticket. Requires display name + email up front
- * (we collect them with a small form, like the existing free-guest flow).
+ * Anonymous (guest) buys a ticket.
  *
- * Implementation mirrors `startTicketCheckout` but inserts into
- * `event_guests` instead of `event_attendees`. The webhook routes by the
- * `kind` metadata.
+ * Anonymous purchasers go through Supabase anonymous auth (per the
+ * 20260513001100_anon_auth_pivot migration). We collect a display name +
+ * email, mint an anon auth user (or reuse an existing one from cookies),
+ * sync the profile, then fall through to the same attendee-based checkout
+ * flow as authenticated users.
  */
 export async function startGuestTicketCheckout(
     eventId: string,
@@ -208,95 +208,36 @@ export async function startGuestTicketCheckout(
         backWithError(eventId, 'error', 'A valid email is required for paid signups.');
     }
 
-    const pricing = await getEventPricing(eventId);
-    if (!pricing) backWithError(eventId, 'error', 'Event not found.');
-    if (pricing.priceCents <= 0) backWithError(eventId, 'error', 'This is a free event.');
+    const supabase = await getServerSupabase();
+    const {
+        data: { user: existing },
+    } = await supabase.auth.getUser();
 
-    const hostAccountId = await getHostStripeAccount(pricing.hostId);
-    if (!hostAccountId) backWithError(eventId, 'error', 'Host has not finished payment setup.');
-
-    const breakdown = attendeeChargeBreakdown(pricing);
-
-    const admin = getAdminSupabase();
-    const { data: insertData, error: insertErr } = await admin
-        .from('event_guests')
-        .insert({
-            event_id: eventId,
-            display_name: displayName,
-            email,
-            payment_status: 'pending',
-            amount_paid_cents: 0,
-        } as never)
-        .select('id')
-        .single();
-    if (insertErr || !insertData) {
-        if (insertErr?.code === '23505') {
-            backWithError(eventId, 'error', 'A guest with that name is already signed up.');
-        }
-        if (insertErr?.message?.toLowerCase().includes('full')) {
-            backWithError(eventId, 'full');
-        }
-        await log.error('[checkout/guest] reserve guest failed', insertErr, { eventId });
-        backWithError(eventId, 'error', insertErr?.message ?? 'Could not start checkout.');
-    }
-    const guestId = (insertData as unknown as { id: string }).id;
-
-    const origin = await buildOrigin();
-    const stripe = getStripe();
-
-    let session: Stripe.Checkout.Session;
-    try {
-        session = await stripe.checkout.sessions.create({
-            mode: 'payment',
-            payment_method_types: ['card'],
-            customer_email: email,
-            line_items: [
-                {
-                    quantity: 1,
-                    price_data: {
-                        currency: 'usd',
-                        unit_amount: breakdown.ticketCents,
-                        product_data: { name: 'Event ticket' },
-                    },
-                },
-                ...(breakdown.platformFeeCents > 0
-                    ? [
-                        {
-                            quantity: 1,
-                            price_data: {
-                                currency: 'usd' as const,
-                                unit_amount: breakdown.platformFeeCents,
-                                product_data: { name: 'Service fee' },
-                            },
-                        },
-                    ]
-                    : []),
-            ],
-            payment_intent_data: {
-                application_fee_amount: platformFeeCents(pricing.priceCents),
-                transfer_data: { destination: hostAccountId! },
-            },
-            success_url: `${origin}/events/${eventId}?rsvp=joined`,
-            cancel_url: `${origin}/events/${eventId}?rsvp=cancel`,
-            expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-            metadata: {
-                event_id: eventId,
-                guest_id: guestId,
-                kind: 'guest',
-            },
+    if (!existing) {
+        const { error: anonErr } = await supabase.auth.signInAnonymously({
+            options: { data: { display_name: displayName } },
         });
-    } catch (err) {
-        await admin.from('event_guests').delete().eq('id', guestId);
-        await log.error('[checkout/guest] session create failed', err, { eventId });
-        const m = err instanceof Error ? err.message : 'Could not start checkout.';
-        backWithError(eventId, 'error', m);
+        if (anonErr) {
+            await log.error('[checkout/guest] anon sign-in failed', anonErr, { eventId });
+            backWithError(eventId, 'error', 'Could not start a guest session.');
+        }
     }
 
-    await admin
-        .from('event_guests')
-        .update({ checkout_session_id: session.id } as never)
-        .eq('id', guestId);
+    // Sync display name onto profile (best-effort).
+    const { data: { user: signedInUser } } = await supabase.auth.getUser();
+    if (signedInUser) {
+        await supabase
+            .from('profiles')
+            .update({ display_name: displayName } as never)
+            .eq('id', signedInUser.id);
+        // Attach email so the receipt + future claim flow have it. Don't fail
+        // if Supabase rejects it (e.g. address already belongs to another user).
+        const { error: emailErr } = await supabase.auth.updateUser({ email });
+        if (emailErr && !/already.*registered/i.test(emailErr.message)) {
+            log.warn('[checkout/guest] email update failed', { error: emailErr.message });
+        }
+    }
 
-    if (!session.url) backWithError(eventId, 'error', 'Stripe did not return a URL.');
-    redirect(session.url as Route);
+    // Hand off to the unified attendee checkout. Anon users are allowed.
+    await startTicketCheckout(eventId);
 }

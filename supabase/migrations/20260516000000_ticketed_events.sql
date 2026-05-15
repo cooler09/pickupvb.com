@@ -1,9 +1,13 @@
 -- ============================================================================
 -- Ticketed events (Phase 2 of monetization)
 -- ----------------------------------------------------------------------------
--- Adds price + payment-status columns to events / event_attendees /
--- event_guests so a host can charge for entry. A `price_cents` of 0 keeps the
--- event free with no Stripe involvement (status stays 'none').
+-- Adds price + payment-status columns to events / event_attendees so a host
+-- can charge for entry. A `price_cents` of 0 keeps the event free with no
+-- Stripe involvement (status stays 'none').
+--
+-- Anonymous purchasers go through Supabase anonymous auth (see
+-- 20260513001100_anon_auth_pivot.sql) and end up in event_attendees just
+-- like authenticated users — there is no separate guests table.
 --
 -- Capacity model: a "pending" attendee row is inserted BEFORE the user is
 -- redirected to Stripe Checkout. That reserves the spot via the existing
@@ -52,23 +56,6 @@ create index event_attendees_session_idx
   on public.event_attendees (checkout_session_id)
   where checkout_session_id is not null;
 
--- ---- event_guests: anonymous paid signups ---------------------------------
-alter table public.event_guests
-  add column payment_status        text not null default 'none'
-    check (payment_status in ('none', 'pending', 'paid', 'refunded')),
-  add column checkout_session_id   text,
-  add column payment_intent_id     text,
-  add column amount_paid_cents     integer not null default 0
-    check (amount_paid_cents >= 0),
-  add column paid_at               timestamptz;
-
-create index event_guests_payment_intent_idx
-  on public.event_guests (payment_intent_id)
-  where payment_intent_id is not null;
-create index event_guests_session_idx
-  on public.event_guests (checkout_session_id)
-  where checkout_session_id is not null;
-
 -- ---- Helper: count paid attendees on an event ------------------------------
 -- Used by application layer to decide whether price/fee/refund-window can
 -- still be edited (locks once first payment is captured).
@@ -79,12 +66,9 @@ stable
 security definer
 set search_path = public
 as $$
-  select
-    (select count(*) from public.event_attendees
-       where event_id = p_event_id and payment_status = 'paid')::int
-    +
-    (select count(*) from public.event_guests
-       where event_id = p_event_id and payment_status = 'paid')::int
+  select count(*)::int
+    from public.event_attendees
+   where event_id = p_event_id and payment_status = 'paid'
 $$;
 grant execute on function public.event_paid_attendee_count(uuid) to anon, authenticated;
 
@@ -92,16 +76,11 @@ grant execute on function public.event_paid_attendee_count(uuid) to anon, authen
 create table public.event_payment_audit (
   id              uuid primary key default uuid_generate_v4(),
   event_id        uuid not null references public.events(id) on delete cascade,
-  -- Either user_id or guest_id is set, never both. (Validated by check.)
   user_id         uuid references public.profiles(id) on delete set null,
-  guest_id        uuid references public.event_guests(id) on delete set null,
   action          text not null check (action in ('paid', 'refunded', 'failed')),
   amount_cents    integer not null check (amount_cents >= 0),
   payment_intent_id text,
-  occurred_at     timestamptz not null default now(),
-  constraint event_payment_audit_owner check (
-    (user_id is not null)::int + (guest_id is not null)::int <= 1
-  )
+  occurred_at     timestamptz not null default now()
 );
 
 create index event_payment_audit_event_idx

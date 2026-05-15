@@ -177,8 +177,7 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
 type CheckoutMetadata = {
     event_id?: string;
     user_id?: string;
-    guest_id?: string;
-    kind?: 'attendee' | 'guest';
+    kind?: 'attendee';
 };
 
 /**
@@ -219,25 +218,6 @@ async function handleCheckoutCompleted(
             amount_cents: amountTotal,
             payment_intent_id: piId,
         } as never);
-    } else if (meta.kind === 'guest' && meta.guest_id) {
-        const { error } = await admin
-            .from('event_guests')
-            .update({
-                payment_status: 'paid',
-                payment_intent_id: piId,
-                amount_paid_cents: amountTotal,
-                paid_at: paidAt,
-            } as never)
-            .eq('id', meta.guest_id);
-        if (error) throw new Error(`mark guest paid failed: ${error.message}`);
-
-        await admin.from('event_payment_audit').insert({
-            event_id: meta.event_id,
-            guest_id: meta.guest_id,
-            action: 'paid',
-            amount_cents: amountTotal,
-            payment_intent_id: piId,
-        } as never);
     }
 }
 
@@ -259,12 +239,6 @@ async function handleCheckoutExpired(
             .eq('event_id', meta.event_id)
             .eq('user_id', meta.user_id)
             .eq('payment_status', 'pending');
-    } else if (meta.kind === 'guest' && meta.guest_id) {
-        await admin
-            .from('event_guests')
-            .delete()
-            .eq('id', meta.guest_id)
-            .eq('payment_status', 'pending');
     }
 }
 
@@ -275,15 +249,8 @@ async function handleCheckoutExpired(
  */
 async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
     const admin = getAdminSupabase();
-    // Match by checkout_session_id-less rows that have this payment_intent.
-    // In practice, expired-handler covers most cases first.
     await admin
         .from('event_attendees')
-        .delete()
-        .eq('payment_intent_id', pi.id)
-        .eq('payment_status', 'pending');
-    await admin
-        .from('event_guests')
         .delete()
         .eq('payment_intent_id', pi.id)
         .eq('payment_status', 'pending');
@@ -303,7 +270,6 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
 
     const admin = getAdminSupabase();
 
-    // Try attendee first, then guest.
     const { data: attendeeRow } = await admin
         .from('event_attendees')
         .select('event_id, user_id, amount_paid_cents')
@@ -322,25 +288,6 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
             user_id: att.user_id,
             action: 'refunded',
             amount_cents: charge.amount_refunded ?? att.amount_paid_cents,
-            payment_intent_id: piId,
-        } as never);
-        return;
-    }
-
-    const { data: guestRow } = await admin
-        .from('event_guests')
-        .select('id, event_id, amount_paid_cents')
-        .eq('payment_intent_id', piId)
-        .maybeSingle();
-    type GRow = { id: string; event_id: string; amount_paid_cents: number };
-    const g = guestRow as unknown as GRow | null;
-    if (g) {
-        await admin.from('event_guests').delete().eq('id', g.id);
-        await admin.from('event_payment_audit').insert({
-            event_id: g.event_id,
-            guest_id: g.id,
-            action: 'refunded',
-            amount_cents: charge.amount_refunded ?? g.amount_paid_cents,
             payment_intent_id: piId,
         } as never);
     }
