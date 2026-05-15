@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs';
 
-// Browser runtime — Next.js loads this automatically when the file is named
-// `instrumentation-client.ts` (Sentry SDK v10+ on Next 14).
+// Browser runtime — Next.js 14 auto-loads `sentry.client.config.ts` at the
+// project root via the Sentry webpack plugin (`withSentryConfig`).
 Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
@@ -20,5 +20,3 @@ Sentry.init({
         }),
     ],
 });
-
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
