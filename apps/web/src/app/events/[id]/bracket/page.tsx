@@ -252,15 +252,32 @@ function SetupView(props: {
             </p>
         );
     }
-    // Default ordering when no seeds yet: registration order.
-    const orderedTeams =
-        props.seeds.length > 0
-            ? props.seeds
-                .slice()
-                .sort((a, b) => a.seed - b.seed)
-                .map((s) => props.registeredTeams.find((t) => t.teamId === s.teamId))
-                .filter((t): t is { teamId: string; name: string; captainId: string } => !!t)
-            : props.registeredTeams;
+
+    type T = { teamId: string; name: string; captainId: string };
+    // Reconcile current seeds with the latest registration list:
+    //  - Drop seeds for teams that have unregistered.
+    //  - Append newly-registered teams to the end so the host can re-save
+    //    seeding to include them.
+    let orderedTeams: T[];
+    let newlyAdded: T[] = [];
+    if (props.seeds.length === 0) {
+        orderedTeams = [...props.registeredTeams];
+    } else {
+        const seededInOrder = props.seeds
+            .slice()
+            .sort((a, b) => a.seed - b.seed)
+            .map((s) => props.registeredTeams.find((t) => t.teamId === s.teamId))
+            .filter((t): t is T => !!t);
+        const seededIds = new Set(seededInOrder.map((t) => t.teamId));
+        newlyAdded = props.registeredTeams.filter((t) => !seededIds.has(t.teamId));
+        orderedTeams = [...seededInOrder, ...newlyAdded];
+    }
+
+    const droppedSeedCount =
+        props.seeds.length -
+        props.seeds.filter((s) =>
+            props.registeredTeams.some((t) => t.teamId === s.teamId),
+        ).length;
 
     const canGenerate = orderedTeams.length >= 2;
 
@@ -271,6 +288,21 @@ function SetupView(props: {
                     Format: <span className="font-medium text-fg">{FORMAT_LABEL[props.bracketFormat]}</span>
                 </p>
             </div>
+
+            {(newlyAdded.length > 0 || droppedSeedCount > 0) && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+                    {newlyAdded.length > 0 && (
+                        <p>
+                            {newlyAdded.length} newly registered team{newlyAdded.length === 1 ? '' : 's'} {newlyAdded.length === 1 ? 'has' : 'have'} been appended to the seeding list. Reorder if needed and click <em>Save seeding</em> to include {newlyAdded.length === 1 ? 'it' : 'them'}.
+                        </p>
+                    )}
+                    {droppedSeedCount > 0 && (
+                        <p className={newlyAdded.length > 0 ? 'mt-1' : undefined}>
+                            {droppedSeedCount} previously seeded team{droppedSeedCount === 1 ? '' : 's'} {droppedSeedCount === 1 ? 'is' : 'are'} no longer registered and {droppedSeedCount === 1 ? 'was' : 'were'} removed from the list.
+                        </p>
+                    )}
+                </div>
+            )}
 
             <SeedingForm
                 eventId={props.eventId}
@@ -452,14 +484,24 @@ function BoardView(props: {
                     {props.status === 'completed' ? 'Final results' : 'In progress'}
                 </p>
                 {props.isHost && props.status === 'active' && (
-                    <form action={resetBracket.bind(null, props.eventId)}>
-                        <button
-                            type="submit"
-                            className="rounded border border-red-500/40 px-2 py-1 text-xs text-red-600 hover:bg-red-500/10"
-                        >
+                    <details className="text-xs">
+                        <summary className="cursor-pointer rounded border border-red-500/40 px-2 py-1 text-red-600 hover:bg-red-500/10">
                             Reset bracket
-                        </button>
-                    </form>
+                        </summary>
+                        <div className="mt-2 space-y-2 rounded border border-red-500/30 bg-red-500/5 p-2">
+                            <p className="text-red-700 dark:text-red-300">
+                                Returns the bracket to seeding so you can swap teams in or out, then re-generate. Any entered match results will be discarded.
+                            </p>
+                            <form action={resetBracket.bind(null, props.eventId)}>
+                                <button
+                                    type="submit"
+                                    className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                                >
+                                    Reset and re-seed
+                                </button>
+                            </form>
+                        </div>
+                    </details>
                 )}
             </div>
 
