@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { EventDetailReadModel } from '@pickupvb/domain';
+import { UserPicker } from '@/components/user-picker';
 import {
     addCoHostFromForm,
     removeEventCoHost,
@@ -172,17 +173,19 @@ export function HostsSection({
                         )}
                         <form
                             action={addCoHostFromForm.bind(null, eventId, returnPath)}
-                            className="flex flex-wrap items-end gap-2"
+                            className="space-y-2"
                         >
                             <input type="hidden" name="kind" value="user" />
-                            <label className="text-xs text-muted">
-                                User ID
-                                <input
-                                    name="user_id"
-                                    placeholder="UUID from /players/[id]"
-                                    className="mt-1 block w-72 rounded-md border border-border-base bg-surface px-2 py-1 text-sm"
-                                />
-                            </label>
+                            <UserPicker
+                                name="user_id"
+                                label="Add a player as co-host"
+                                placeholder="Search by name…"
+                                helperText="Type at least 2 letters to search."
+                                excludeIds={[
+                                    ...(primaryHostUser ? [primaryHostUser.id] : []),
+                                    ...coHostUsers.map((p) => p.id),
+                                ]}
+                            />
                             <button
                                 type="submit"
                                 className="rounded-md border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
