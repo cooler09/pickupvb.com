@@ -68,4 +68,5 @@ export const handlers = {
 
 export const repositories = {
     bracketRepo,
+    eventRepo,
 };

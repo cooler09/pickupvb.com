@@ -30,6 +30,7 @@ type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type EventRow = {
     id: string;
+    short_code: string;
     host_id: string;
     title: string;
     description: string;
@@ -577,6 +578,7 @@ export class SupabaseEventRepository implements EventRepository {
 
         return {
             id: row.id,
+            shortCode: row.short_code,
             title: row.title,
             description: row.description,
             rules: row.rules,
@@ -616,6 +618,20 @@ export class SupabaseEventRepository implements EventRepository {
             viewerHostableGroups,
             viewerCaptainedTeams,
         };
+    }
+
+    async findIdByShortCode(shortCode: string): Promise<string | null> {
+        const normalized = shortCode.trim().toUpperCase();
+        if (normalized.length === 0) return null;
+        const { data, error } = await this.client
+            .from('events')
+            .select('id')
+            .eq('short_code', normalized)
+            .maybeSingle();
+        if (error) {
+            throw new Error(`findIdByShortCode failed: ${error.message}`);
+        }
+        return (data as { id: string } | null)?.id ?? null;
     }
 
     // ----- Read-side: following feed --------------------------------------

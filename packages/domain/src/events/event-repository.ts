@@ -26,6 +26,12 @@ export interface EventRepository {
     // ---- Read side (denormalized read models) ----
     search(query: EventSearchQuery): Promise<VolleyballEventSummary[]>;
     getDetail(id: string, viewerId: string | null): Promise<EventDetailReadModel | null>;
+
+    /**
+     * Resolve a shareable short code (e.g. `ABC23XYZ`) to the underlying
+     * event UUID. Returns null when no event matches.
+     */
+    findIdByShortCode(shortCode: string): Promise<string | null>;
     searchFollowingFeed(
         viewerId: string,
         friendIds: ReadonlyArray<string>,
@@ -96,6 +102,7 @@ export interface CaptainedTeamLite {
 export interface EventDetailReadModel {
     // Base event
     id: string;
+    shortCode: string;
     title: string;
     description: string;
     rules: string;

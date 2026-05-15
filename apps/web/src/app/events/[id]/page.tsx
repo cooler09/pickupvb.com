@@ -9,6 +9,7 @@ import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { AttendeeList } from '@/components/attendee-list';
 import { EventTags } from './_components/event-tags';
+import { EventShareLink } from './_components/event-share-link';
 import { HostsSection } from './_components/hosts-section';
 import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
@@ -87,6 +88,13 @@ export default async function EventDetailPage({
                 />
                 <h1 className="text-3xl font-bold text-fg">{event.title}</h1>
             </header>
+
+            <section className="rounded-lg border border-border-base bg-fg/5 p-3">
+                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                    Share
+                </h2>
+                <EventShareLink shortCode={event.shortCode} />
+            </section>
 
             <HostsSection
                 eventId={event.id}
