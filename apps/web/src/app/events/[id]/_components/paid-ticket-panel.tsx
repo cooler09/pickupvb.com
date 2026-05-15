@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
-import { leaveEvent } from '../rsvp-actions';
+import { joinEvent, leaveEvent } from '../rsvp-actions';
 
 type Props = {
     eventId: string;
@@ -70,13 +70,25 @@ export function PaidTicketPanel({
                     </p>
                 </div>
             ) : isRealUser ? (
-                <div className="flex justify-end">
+                <div className="flex flex-col items-end gap-2">
                     <form action={startTicketCheckout.bind(null, eventId)}>
                         <ConfirmSubmitButton
                             label={`Buy ticket — ${formatUsd(total)}`}
                             pendingLabel="Redirecting to Stripe…"
                             confirmMessage={`Buy a ticket to "${eventTitle}" for ${formatUsd(total)}?`}
                         />
+                    </form>
+                    <form action={joinEvent.bind(null, eventId)}>
+                        <button
+                            type="submit"
+                            className="rounded-md border border-border-base px-3 py-1.5 text-xs text-fg/70 hover:bg-fg/5"
+                            title="Sign up now and arrange payment with the host directly (cash, Venmo, etc.)"
+                        >
+                            Sign up &amp; pay another way
+                        </button>
+                        <p className="mt-1 max-w-[18rem] text-right text-[10px] text-muted">
+                            The host will mark you as paid once they receive payment.
+                        </p>
                     </form>
                 </div>
             ) : (

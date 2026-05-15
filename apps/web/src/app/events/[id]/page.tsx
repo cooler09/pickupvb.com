@@ -62,6 +62,31 @@ export default async function EventDetailPage(
     const paid = isPaidEvent(pricing);
     const breakdown = pricing && paid ? attendeeChargeBreakdown(pricing) : null;
 
+    // For paid events, side-load per-attendee payment status (admin client —
+    // visibility is host-only, the rest of the page just renders badges via
+    // the map). Free events get an empty map.
+    let payments: Map<string, { status: string; viaStripe: boolean }> | undefined;
+    if (paid && event.canManage) {
+        const { getAdminSupabase } = await import('@/lib/supabase-admin');
+        const admin = getAdminSupabase();
+        const { data: payRows } = await admin
+            .from('event_attendees')
+            .select('user_id, payment_status, payment_intent_id')
+            .eq('event_id', event.id);
+        type PayRow = {
+            user_id: string;
+            payment_status: string;
+            payment_intent_id: string | null;
+        };
+        payments = new Map();
+        for (const r of (payRows as PayRow[] | null) ?? []) {
+            payments.set(r.user_id, {
+                status: r.payment_status,
+                viaStripe: !!r.payment_intent_id,
+            });
+        }
+    }
+
     // The AttendeeList component still expects the snake_case Supabase shape.
     // Map the read model to it inline to keep the component unchanged.
     const attendeesForList = event.attendees.map((a) => ({
@@ -203,6 +228,9 @@ export default async function EventDetailPage(
                         currentUserId={user?.id ?? null}
                         friendIds={friendIds}
                         returnPath={returnPath}
+                        eventId={event.id}
+                        {...(payments ? { payments } : {})}
+                        canManagePayments={paid && event.canManage}
                     />
                 </section>
             )}
