@@ -146,6 +146,14 @@ export default async function ProfilePage() {
                     </Link>
                 </div>
                 <ProfileForm profile={profile} email={user.email ?? ''} />
+                <div className="flex flex-wrap gap-2 pt-2 text-sm">
+                    <Link
+                        href={'/profile/billing' as never}
+                        className="rounded-md border border-border-base px-3 py-1.5 hover:bg-fg/5"
+                    >
+                        Payouts &amp; Stripe →
+                    </Link>
+                </div>
             </section>
 
             {pendingInvites.length > 0 && (
