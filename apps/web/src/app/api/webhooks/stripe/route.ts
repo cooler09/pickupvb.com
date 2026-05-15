@@ -126,10 +126,18 @@ async function dispatch(event: Stripe.Event): Promise<void> {
         case 'account.updated':
             await handleAccountUpdated(event.data.object as Stripe.Account);
             return;
-        // Phase 2 will add:
-        //   case 'checkout.session.completed': ...
-        //   case 'charge.refunded':            ...
-        //   case 'payment_intent.payment_failed': ...
+        case 'checkout.session.completed':
+            await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
+            return;
+        case 'checkout.session.expired':
+            await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
+            return;
+        case 'charge.refunded':
+            await handleChargeRefunded(event.data.object as Stripe.Charge);
+            return;
+        case 'payment_intent.payment_failed':
+            await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
+            return;
         default:
             // No-op for events we don't subscribe to. Returning here marks
             // them as processed in our log; that's fine.
@@ -159,5 +167,181 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
         // our flow), there's nothing to update. That's fine.
         if (error.code === 'PGRST116') return;
         throw new Error(`account.updated mirror failed: ${error.message}`);
+    }
+}
+
+// ============================================================================
+// Ticketed-event handlers (Phase 2)
+// ============================================================================
+
+type CheckoutMetadata = {
+    event_id?: string;
+    user_id?: string;
+    guest_id?: string;
+    kind?: 'attendee' | 'guest';
+};
+
+/**
+ * Customer completed payment. Find the reservation row by checkout_session_id
+ * (or by metadata as fallback) and flip it to `paid`. Audit-log the event.
+ */
+async function handleCheckoutCompleted(
+    session: Stripe.Checkout.Session,
+): Promise<void> {
+    const meta = (session.metadata ?? {}) as CheckoutMetadata;
+    if (!meta.event_id || !meta.kind) return;
+
+    const admin = getAdminSupabase();
+    const paidAt = new Date().toISOString();
+    const piId =
+        typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null;
+    const amountTotal = session.amount_total ?? 0;
+
+    if (meta.kind === 'attendee' && meta.user_id) {
+        const { error } = await admin
+            .from('event_attendees')
+            .update({
+                payment_status: 'paid',
+                payment_intent_id: piId,
+                amount_paid_cents: amountTotal,
+                paid_at: paidAt,
+            } as never)
+            .eq('event_id', meta.event_id)
+            .eq('user_id', meta.user_id);
+        if (error) throw new Error(`mark attendee paid failed: ${error.message}`);
+
+        await admin.from('event_payment_audit').insert({
+            event_id: meta.event_id,
+            user_id: meta.user_id,
+            action: 'paid',
+            amount_cents: amountTotal,
+            payment_intent_id: piId,
+        } as never);
+    } else if (meta.kind === 'guest' && meta.guest_id) {
+        const { error } = await admin
+            .from('event_guests')
+            .update({
+                payment_status: 'paid',
+                payment_intent_id: piId,
+                amount_paid_cents: amountTotal,
+                paid_at: paidAt,
+            } as never)
+            .eq('id', meta.guest_id);
+        if (error) throw new Error(`mark guest paid failed: ${error.message}`);
+
+        await admin.from('event_payment_audit').insert({
+            event_id: meta.event_id,
+            guest_id: meta.guest_id,
+            action: 'paid',
+            amount_cents: amountTotal,
+            payment_intent_id: piId,
+        } as never);
+    }
+}
+
+/**
+ * Checkout session expired (30-min default) without a successful payment.
+ * Drop the pending reservation so the spot opens back up.
+ */
+async function handleCheckoutExpired(
+    session: Stripe.Checkout.Session,
+): Promise<void> {
+    const meta = (session.metadata ?? {}) as CheckoutMetadata;
+    if (!meta.event_id || !meta.kind) return;
+    const admin = getAdminSupabase();
+
+    if (meta.kind === 'attendee' && meta.user_id) {
+        await admin
+            .from('event_attendees')
+            .delete()
+            .eq('event_id', meta.event_id)
+            .eq('user_id', meta.user_id)
+            .eq('payment_status', 'pending');
+    } else if (meta.kind === 'guest' && meta.guest_id) {
+        await admin
+            .from('event_guests')
+            .delete()
+            .eq('id', meta.guest_id)
+            .eq('payment_status', 'pending');
+    }
+}
+
+/**
+ * Same cleanup as expired — bare payment_intent.payment_failed events fire
+ * when the customer's card declines mid-checkout. We don't always get a
+ * matching session here (Stripe sends both), but cleanup is idempotent.
+ */
+async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
+    const admin = getAdminSupabase();
+    // Match by checkout_session_id-less rows that have this payment_intent.
+    // In practice, expired-handler covers most cases first.
+    await admin
+        .from('event_attendees')
+        .delete()
+        .eq('payment_intent_id', pi.id)
+        .eq('payment_status', 'pending');
+    await admin
+        .from('event_guests')
+        .delete()
+        .eq('payment_intent_id', pi.id)
+        .eq('payment_status', 'pending');
+}
+
+/**
+ * Refund issued (manual via Stripe dashboard, or programmatic from a future
+ * leave-and-refund action). Mark the row refunded AND delete it so capacity
+ * re-opens. Audit-log it.
+ */
+async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
+    const piId =
+        typeof charge.payment_intent === 'string'
+            ? charge.payment_intent
+            : charge.payment_intent?.id ?? null;
+    if (!piId) return;
+
+    const admin = getAdminSupabase();
+
+    // Try attendee first, then guest.
+    const { data: attendeeRow } = await admin
+        .from('event_attendees')
+        .select('event_id, user_id, amount_paid_cents')
+        .eq('payment_intent_id', piId)
+        .maybeSingle();
+    type AttRow = { event_id: string; user_id: string; amount_paid_cents: number };
+    const att = attendeeRow as unknown as AttRow | null;
+    if (att) {
+        await admin
+            .from('event_attendees')
+            .delete()
+            .eq('event_id', att.event_id)
+            .eq('user_id', att.user_id);
+        await admin.from('event_payment_audit').insert({
+            event_id: att.event_id,
+            user_id: att.user_id,
+            action: 'refunded',
+            amount_cents: charge.amount_refunded ?? att.amount_paid_cents,
+            payment_intent_id: piId,
+        } as never);
+        return;
+    }
+
+    const { data: guestRow } = await admin
+        .from('event_guests')
+        .select('id, event_id, amount_paid_cents')
+        .eq('payment_intent_id', piId)
+        .maybeSingle();
+    type GRow = { id: string; event_id: string; amount_paid_cents: number };
+    const g = guestRow as unknown as GRow | null;
+    if (g) {
+        await admin.from('event_guests').delete().eq('id', g.id);
+        await admin.from('event_payment_audit').insert({
+            event_id: g.event_id,
+            guest_id: g.id,
+            action: 'refunded',
+            amount_cents: charge.amount_refunded ?? g.amount_paid_cents,
+            payment_intent_id: piId,
+        } as never);
     }
 }

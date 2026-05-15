@@ -123,11 +123,57 @@ export async function createEventAction(
         }
     }
 
+    // Pricing: if the host set a non-zero price, gate it behind a connected
+    // Stripe account that's actually able to receive charges. Free events
+    // (price = 0) skip Stripe entirely.
+    const priceUsdRaw = fieldOrUndefined(formData, 'priceUsd');
+    const priceCents = priceUsdRaw
+        ? Math.max(0, Math.round(Number(priceUsdRaw) * 100))
+        : 0;
+    if (priceCents > 0) {
+        const { data: stripeRow } = await supabase
+            .from('host_stripe_accounts')
+            .select('charges_enabled')
+            .eq('user_id', user.id)
+            .maybeSingle();
+        const enabled = (stripeRow as { charges_enabled: boolean } | null)?.charges_enabled;
+        if (!enabled) {
+            // Roll back the event so the host doesn't end up with a free
+            // event they thought was paid.
+            await supabase.from('events').delete().eq('id', result.id);
+            return {
+                error:
+                    'You need to finish Stripe setup at /profile/billing before charging for events.',
+            };
+        }
+        const refundWindowRaw = fieldOrUndefined(formData, 'refundWindowHours');
+        const refundWindowHours = refundWindowRaw
+            ? Math.max(0, Math.min(720, Math.round(Number(refundWindowRaw))))
+            : 24;
+        const hostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
+        const { error: priceErr } = await supabase
+            .from('events')
+            .update({
+                price_cents: priceCents,
+                host_absorbs_fee: hostAbsorbsFee,
+                refund_window_hours: refundWindowHours,
+            } as never)
+            .eq('id', result.id);
+        if (priceErr) {
+            return { error: `Event created, but pricing failed: ${priceErr.message}` };
+        }
+    }
+
     // Auto-add the host to the attendee list when they opted in (open-play
     // only — tournaments use team signup). Best-effort: a failure here
     // shouldn't block the redirect to the event the host just created;
-    // they can always click Join from the detail page.
-    if (dto.type === EventType.OpenPlay && field(formData, 'joinAsHost') === 'on') {
+    // they can always click Join from the detail page. Skipped for paid
+    // events (host shouldn't have to buy a ticket to their own event).
+    if (
+        priceCents === 0 &&
+        dto.type === EventType.OpenPlay &&
+        field(formData, 'joinAsHost') === 'on'
+    ) {
         try {
             if (byPosition && Object.keys(positionRoster).length > 0) {
                 // Pick the first configured position with the smallest count

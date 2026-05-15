@@ -6,10 +6,12 @@ import { NotFoundError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
+import { getEventPricing, attendeeChargeBreakdown, isPaidEvent } from '@/lib/event-pricing';
 import { AttendeeList } from '@/components/attendee-list';
 import { EventTags } from './_components/event-tags';
 import { EventShareLink } from './_components/event-share-link';
 import { HostsSection } from './_components/hosts-section';
+import { PaidTicketPanel } from './_components/paid-ticket-panel';
 import { PositionRsvpPanel } from './_components/position-rsvp-panel';
 import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
@@ -54,6 +56,11 @@ export default async function EventDetailPage(
     const returnPath = `/events/${event.id}`;
     const hasStarted = event.startsAt.getTime() <= Date.now();
     const signupsOpen = event.status === 'published' && !hasStarted;
+
+    // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
+    const pricing = await getEventPricing(event.id);
+    const paid = isPaidEvent(pricing);
+    const breakdown = pricing && paid ? attendeeChargeBreakdown(pricing) : null;
 
     // The AttendeeList component still expects the snake_case Supabase shape.
     // Map the read model to it inline to keep the component unchanged.
@@ -202,7 +209,16 @@ export default async function EventDetailPage(
             </section>
 
             {event.type === 'open_play' && signupsOpen && (
-                event.positionRoster ? (
+                paid && breakdown ? (
+                    <PaidTicketPanel
+                        eventId={event.id}
+                        eventTitle={event.title}
+                        isAttending={event.isAttending}
+                        isRealUser={isRealUser}
+                        ticketCents={breakdown.ticketCents}
+                        platformFeeCents={breakdown.platformFeeCents}
+                    />
+                ) : event.positionRoster ? (
                     <PositionRsvpPanel
                         eventId={event.id}
                         eventTitle={event.title}

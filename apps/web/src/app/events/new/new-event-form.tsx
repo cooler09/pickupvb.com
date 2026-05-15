@@ -293,6 +293,69 @@ export default function NewEventForm({
                 </fieldset>
             )}
 
+            <fieldset className="space-y-3 rounded-md border border-border-base p-4">
+                <legend className="px-1 text-sm font-semibold text-fg">
+                    Pricing (optional)
+                </legend>
+                <p className="text-xs text-muted">
+                    Leave at $0 for a free event. To charge, you must first
+                    finish Stripe payout setup at{' '}
+                    <Link href="/profile/billing" className="text-primary hover:underline">
+                        Payouts &amp; Stripe
+                    </Link>
+                    .
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div>
+                        <label htmlFor="priceUsd" className={labelClass}>
+                            Price (USD)
+                        </label>
+                        <input
+                            id="priceUsd"
+                            name="priceUsd"
+                            type="number"
+                            min="0"
+                            max="10000"
+                            step="0.01"
+                            defaultValue="0"
+                            className={inputClass}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="refundWindowHours" className={labelClass}>
+                            Refund window (hours)
+                        </label>
+                        <input
+                            id="refundWindowHours"
+                            name="refundWindowHours"
+                            type="number"
+                            min="0"
+                            max="720"
+                            step="1"
+                            defaultValue="24"
+                            className={inputClass}
+                        />
+                    </div>
+                    <div className="flex items-end">
+                        <label className="flex items-start gap-2 text-xs">
+                            <input
+                                type="checkbox"
+                                name="hostAbsorbsFee"
+                                className="mt-0.5"
+                            />
+                            <span>
+                                <span className="font-medium text-fg">
+                                    I&apos;ll absorb the 5% service fee
+                                </span>
+                                <span className="block text-muted">
+                                    Otherwise added on top of ticket price.
+                                </span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </fieldset>
+
             <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <legend className="col-span-full text-lg font-semibold text-fg">When</legend>
                 <div>
