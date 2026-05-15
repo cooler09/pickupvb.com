@@ -20,16 +20,19 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.5.1",
+    "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "@types/node": "25",
+    "typescript": "^6.0.3"
   },
   "peerDependencies": {
     "next": ">=14.0.0"
   },
   "peerDependenciesMeta": {
-    "next": { "optional": true }
+    "next": {
+      "optional": true
+    }
   }
 }

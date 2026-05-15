@@ -15,5 +15,8 @@
     "test": "echo 'no-op' && exit 0",
     "build": "echo 'no-op' && exit 0",
     "clean": "rm -rf .turbo"
+  },
+  "devDependencies": {
+    "typescript": "6"
   }
 }

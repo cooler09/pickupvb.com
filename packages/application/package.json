@@ -17,6 +17,7 @@
         "@pickupvb/types": "workspace:*"
     },
     "devDependencies": {
-        "typescript": "^5.5.4"
+        "@types/node": "25",
+        "typescript": "^6.0.3"
     }
 }

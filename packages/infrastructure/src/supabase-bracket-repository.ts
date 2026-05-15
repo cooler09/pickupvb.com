@@ -69,11 +69,11 @@ export class SupabaseBracketRepository implements BracketRepository {
     }
 
     nextMatchId(): MatchId {
-        return crypto.randomUUID() as MatchId;
+        return globalThis.crypto.randomUUID() as MatchId;
     }
 
     nextBracketId(): BracketId {
-        return crypto.randomUUID() as BracketId;
+        return globalThis.crypto.randomUUID() as BracketId;
     }
 
     async findById(id: BracketId): Promise<Bracket | null> {

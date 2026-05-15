@@ -14,9 +14,9 @@
   },
   "dependencies": {
     "@pickupvb/domain": "workspace:*",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "typescript": "^6.0.3"
   }
 }
