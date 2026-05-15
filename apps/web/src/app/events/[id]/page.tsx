@@ -57,6 +57,8 @@ export default async function EventDetailPage({
 
     const friendIds = new Set(event.viewerFriendIds);
     const returnPath = `/events/${event.id}`;
+    const hasStarted = event.startsAt.getTime() <= Date.now();
+    const signupsOpen = event.status === 'published' && !hasStarted;
 
     // The AttendeeList component still expects the snake_case Supabase shape.
     // Map the read model to it inline to keep the component unchanged.
@@ -192,7 +194,7 @@ export default async function EventDetailPage({
                 </p>
             </section>
 
-            {event.type === 'open_play' && event.status === 'published' && (
+            {event.type === 'open_play' && signupsOpen && (
                 <RsvpPanel
                     eventId={event.id}
                     eventTitle={event.title}
@@ -203,7 +205,7 @@ export default async function EventDetailPage({
                 />
             )}
 
-            {event.type === 'tournament' && event.status === 'published' && (
+            {event.type === 'tournament' && signupsOpen && (
                 <TournamentSignupPanel
                     eventId={event.id}
                     eventFormat={event.format}
@@ -218,7 +220,7 @@ export default async function EventDetailPage({
                 />
             )}
 
-            {event.type === 'tournament' && event.status === 'published' && (
+            {event.type === 'tournament' && signupsOpen && (
                 <FreeAgentSignupPanel
                     eventId={event.id}
                     freeAgents={event.freeAgents.map((f) => ({
@@ -237,6 +239,12 @@ export default async function EventDetailPage({
                         ? { resultCode: pickQuery(searchParams, 'fa') }
                         : {})}
                 />
+            )}
+
+            {event.status === 'published' && hasStarted && (
+                <p className="rounded-lg border border-border-base bg-fg/5 p-3 text-sm text-muted">
+                    Signups for this event are closed because it has already started.
+                </p>
             )}
 
             {event.type === 'tournament' && (

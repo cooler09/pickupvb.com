@@ -206,6 +206,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         return Math.max(0, (this._capacity.maxSpots ?? 0) - this._attendees.size);
     }
 
+    /** True once the event's start time is in the past. Used to close signups. */
+    hasStarted(now: Date = new Date()): boolean {
+        return this._startsAt.getTime() <= now.getTime();
+    }
+
     // ---- Behaviors -------------------------------------------------------
     publish(): void {
         if (this._status !== EventStatus.Draft) {
@@ -230,6 +235,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         }
         if (this._status !== EventStatus.Published) {
             throw new InvariantViolation('Event is not open for signups.');
+        }
+        if (this.hasStarted()) {
+            throw new InvariantViolation('Event has already started; signups are closed.');
         }
         if (this._attendees.has(userId)) {
             throw new ConflictError('User has already joined this event.', {
@@ -258,6 +266,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         }
         if (this._status !== EventStatus.Published) {
             throw new InvariantViolation('Event is not open for signups.');
+        }
+        if (this.hasStarted()) {
+            throw new InvariantViolation('Event has already started; team registration is closed.');
         }
         if (this._teams.has(teamId)) {
             throw new ConflictError('Team is already registered.', {
@@ -292,6 +303,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         }
         if (this._status !== EventStatus.Published) {
             throw new InvariantViolation('Event is not open for signups.');
+        }
+        if (this.hasStarted()) {
+            throw new InvariantViolation('Event has already started; free-agent signup is closed.');
         }
         if (this._freeAgents.has(userId)) {
             throw new ConflictError('User is already signed up as a free agent.', {
