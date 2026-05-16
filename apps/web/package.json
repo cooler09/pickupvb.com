@@ -15,6 +15,7 @@
     "@pickupvb/application": "workspace:*",
     "@pickupvb/domain": "workspace:*",
     "@pickupvb/infrastructure": "workspace:*",
+    "@pickupvb/notifications": "workspace:*",
     "@pickupvb/supabase": "workspace:*",
     "@pickupvb/types": "workspace:*",
     "@sentry/nextjs": "^10.53.1",

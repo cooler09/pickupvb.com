@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/server-auth';
 import type { Theme } from '@/lib/theme';
 import { ThemeToggle } from './theme-toggle';
 import { MobileMenu } from './mobile-menu';
+import { NotificationBell } from './notification-bell';
 import { signOut } from './actions';
 
 function initialsOf(name: string): string {
@@ -42,13 +43,38 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
     // Count pending team invites so we can show a badge on the Teams link.
     // Anonymous users can't be invited, so skip the query for them.
     let pendingTeamInvites = 0;
+    let notifUnread = 0;
+    let notifItems: Array<{
+        id: string;
+        kind: string;
+        title: string;
+        body: string | null;
+        href: string | null;
+        read_at: string | null;
+        created_at: string;
+    }> = [];
     if (isRealUser && user) {
-        const { count } = await supabase
-            .from('team_members')
-            .select('team_id', { head: true, count: 'exact' })
-            .eq('user_id', user.id)
-            .eq('status', 'pending');
+        const [{ count }, unreadCount, recent] = await Promise.all([
+            supabase
+                .from('team_members')
+                .select('team_id', { head: true, count: 'exact' })
+                .eq('user_id', user.id)
+                .eq('status', 'pending'),
+            supabase
+                .from('notifications')
+                .select('id', { head: true, count: 'exact' })
+                .eq('user_id', user.id)
+                .is('read_at', null),
+            supabase
+                .from('notifications')
+                .select('id, kind, title, body, href, read_at, created_at')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(10),
+        ]);
         pendingTeamInvites = count ?? 0;
+        notifUnread = unreadCount.count ?? 0;
+        notifItems = (recent.data as typeof notifItems | null) ?? [];
     }
 
     return (
@@ -113,6 +139,13 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                     </li>
                     {userInfo ? (
                         <li className="flex items-center gap-3">
+                            {user && (
+                                <NotificationBell
+                                    userId={user.id}
+                                    initialUnreadCount={notifUnread}
+                                    initialItems={notifItems}
+                                />
+                            )}
                             <Link
                                 href="/profile"
                                 className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary hover:bg-primary/25"

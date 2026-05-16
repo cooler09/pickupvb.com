@@ -18,6 +18,7 @@ import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { redirectEventNotice } from '@/lib/server-redirects';
 import { refundAttendeeTicket } from '@/lib/refund-ticket';
+import { notify } from '@/lib/notify';
 
 /**
  * Server action wrappers around JoinEventCommand / LeaveEventCommand that
@@ -72,6 +73,38 @@ export async function joinEvent(eventId: string): Promise<void> {
         const m = err instanceof Error ? err.message : String(err);
         back(eventId, 'error', m);
     }
+
+    // Fire-and-forget notification dispatch. Failures are swallowed.
+    try {
+        const supabase = await getServerSupabase();
+        const { data: ev } = await supabase
+            .from('events')
+            .select('title, starts_at, location_city, location_region')
+            .eq('id', eventId)
+            .maybeSingle();
+        const e = ev as {
+            title: string;
+            starts_at: string;
+            location_city: string | null;
+            location_region: string | null;
+        } | null;
+        if (e) {
+            await notify(
+                'event.signup.confirmed',
+                userId,
+                {
+                    eventId,
+                    eventTitle: e.title,
+                    startsAt: e.starts_at,
+                    location: [e.location_city, e.location_region].filter(Boolean).join(', '),
+                },
+                { idempotencyKey: `${eventId}:${userId}` },
+            );
+        }
+    } catch {
+        // best-effort
+    }
+
     revalidatePath(`/events/${eventId}`);
     back(eventId, 'joined');
 }

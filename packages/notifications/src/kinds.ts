@@ -1,0 +1,147 @@
+/**
+ * Notification kind registry.
+ *
+ * Each kind is a string in the form `<category>.<event>[.<state>]`.
+ * The category prefix maps to user-facing preference categories so users
+ * can opt in/out at a coarser grain than per-kind.
+ *
+ * To add a new kind:
+ *   1. Add the literal to `NotificationKind` below.
+ *   2. Add a `NotificationPayloadMap` entry with the data the template needs.
+ *   3. Add a template render in `templates.ts`.
+ *   4. Optionally extend `KIND_CATEGORY` if a new category is needed.
+ *   5. Set the default channels in `KIND_DEFAULT_CHANNELS`.
+ */
+
+export type NotificationKind =
+    | 'event.signup.confirmed'
+    | 'event.waitlist.promoted'
+    | 'event.cancelled'
+    | 'event.updated'
+    | 'event.reminder.24h'
+    | 'event.reminder.2h'
+    | 'payment.refunded'
+    | 'host.payout.paid'
+    | 'host.stripe.action_required'
+    | 'social.follow.new'
+    | 'group.invite'
+    | 'broadcast.host_message';
+
+export type NotificationCategory =
+    | 'transactional' // never disable-able
+    | 'event_reminders'
+    | 'waitlist'
+    | 'group_activity'
+    | 'social'
+    | 'host_payouts'
+    | 'broadcasts'
+    | 'marketing';
+
+export type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
+
+export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
+    'event.signup.confirmed': 'transactional',
+    'event.waitlist.promoted': 'waitlist',
+    'event.cancelled': 'transactional',
+    'event.updated': 'event_reminders',
+    'event.reminder.24h': 'event_reminders',
+    'event.reminder.2h': 'event_reminders',
+    'payment.refunded': 'transactional',
+    'host.payout.paid': 'host_payouts',
+    'host.stripe.action_required': 'transactional',
+    'social.follow.new': 'social',
+    'group.invite': 'group_activity',
+    'broadcast.host_message': 'broadcasts',
+};
+
+/** Default channels for each kind. Per-user prefs further filter this set. */
+export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel[]> = {
+    'event.signup.confirmed': ['email', 'in_app'],
+    'event.waitlist.promoted': ['email', 'sms', 'in_app'],
+    'event.cancelled': ['email', 'sms', 'in_app'],
+    'event.updated': ['email', 'in_app'],
+    'event.reminder.24h': ['email', 'in_app'],
+    'event.reminder.2h': ['sms', 'push', 'in_app'],
+    'payment.refunded': ['email', 'in_app'],
+    'host.payout.paid': ['email', 'in_app'],
+    'host.stripe.action_required': ['email', 'in_app'],
+    'social.follow.new': ['in_app'],
+    'group.invite': ['email', 'in_app'],
+    'broadcast.host_message': ['email', 'in_app'],
+};
+
+/** Categories that cannot be disabled by user preference. */
+export const TRANSACTIONAL_CATEGORIES: ReadonlySet<NotificationCategory> = new Set([
+    'transactional',
+]);
+
+// ─── Payload contracts ─────────────────────────────────────────────────
+// One entry per kind. The dispatch function is generic over `K` so callers
+// get a type-safe payload at every trigger site.
+
+export type NotificationPayloadMap = {
+    'event.signup.confirmed': {
+        eventId: string;
+        eventTitle: string;
+        startsAt: string; // ISO
+        location: string;
+    };
+    'event.waitlist.promoted': {
+        eventId: string;
+        eventTitle: string;
+        startsAt: string;
+    };
+    'event.cancelled': {
+        eventId: string;
+        eventTitle: string;
+        startsAt: string;
+        reason: string | null;
+    };
+    'event.updated': {
+        eventId: string;
+        eventTitle: string;
+        changeSummary: string;
+    };
+    'event.reminder.24h': {
+        eventId: string;
+        eventTitle: string;
+        startsAt: string;
+        location: string;
+    };
+    'event.reminder.2h': {
+        eventId: string;
+        eventTitle: string;
+        startsAt: string;
+        location: string;
+    };
+    'payment.refunded': {
+        eventId: string;
+        eventTitle: string;
+        amountCents: number;
+    };
+    'host.payout.paid': {
+        amountCents: number;
+        arrivalDate: string;
+    };
+    'host.stripe.action_required': {
+        message: string;
+    };
+    'social.follow.new': {
+        followerId: string;
+        followerName: string;
+    };
+    'group.invite': {
+        groupId: string;
+        groupName: string;
+        inviterName: string;
+    };
+    'broadcast.host_message': {
+        eventId?: string;
+        groupId?: string;
+        subject: string;
+        body: string;
+        senderName: string;
+    };
+};
+
+export type NotificationPayload<K extends NotificationKind> = NotificationPayloadMap[K];

@@ -38,6 +38,9 @@ importers:
       '@pickupvb/infrastructure':
         specifier: workspace:*
         version: link:../../packages/infrastructure
+      '@pickupvb/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@pickupvb/supabase':
         specifier: workspace:*
         version: link:../../packages/supabase
@@ -157,6 +160,15 @@ importers:
       '@pickupvb/supabase':
         specifier: workspace:*
         version: link:../supabase
+    devDependencies:
+      '@types/node':
+        specifier: '25'
+        version: 25.8.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  packages/notifications:
     devDependencies:
       '@types/node':
         specifier: '25'
