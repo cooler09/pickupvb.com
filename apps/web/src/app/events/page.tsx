@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Route } from 'next';
+import type { Metadata } from 'next/types';
 import {
     GetFollowingFeedQuery,
     GetViewerFriendsQuery,
@@ -24,6 +25,20 @@ import {
 } from './_components/event-timeframe-tabs';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+    title: 'Volleyball events',
+    description:
+        'Browse upcoming pickup volleyball events near you — indoor, grass, and beach. Filter by surface, format, and skill level. Sign up in seconds.',
+    alternates: { canonical: '/events' },
+    openGraph: {
+        title: 'Volleyball events · PickupVB',
+        description:
+            'Find pickup volleyball events near you. Indoor, grass, and beach. Open play and tournaments.',
+        url: '/events',
+        type: 'website',
+    },
+};
 
 function pick<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
     return allowed.includes(value as T) ? (value as T) : undefined;

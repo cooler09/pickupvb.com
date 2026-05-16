@@ -3,7 +3,12 @@ import { getServerSupabase } from '@/lib/supabase';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Teams — PickupVB' };
+export const metadata = {
+    title: 'Tournament teams',
+    description:
+        'Manage and discover tournament volleyball teams on PickupVB. Build a roster, recruit players, and sign up for tournaments.',
+    alternates: { canonical: '/teams' },
+};
 
 type TeamRow = {
     id: string;

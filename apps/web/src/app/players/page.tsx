@@ -2,7 +2,12 @@ import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Players — PickupVB' };
+export const metadata = {
+    title: 'Players',
+    description:
+        'Discover volleyball players on PickupVB. Find people in your area, see who is signed up for events, and connect with teammates.',
+    alternates: { canonical: '/players' },
+};
 
 type Row = {
     id: string;

@@ -32,9 +32,33 @@ type MemberRow = {
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
     const supabase = await getServerSupabase();
-    const { data } = await supabase.from('groups').select('name').eq('id', params.id).maybeSingle();
-    const name = (data as { name: string } | null)?.name;
-    return { title: name ? `${name} — PickupVB` : 'Group — PickupVB' };
+    const { data } = await supabase
+        .from('groups')
+        .select('name, description, home_city, region')
+        .eq('id', params.id)
+        .maybeSingle();
+    const row = data as {
+        name: string;
+        description: string | null;
+        home_city: string | null;
+        region: string | null;
+    } | null;
+    if (!row) return { title: 'Group' };
+    const place = [row.home_city, row.region].filter(Boolean).join(', ');
+    const description = row.description
+        ? row.description.slice(0, 200)
+        : `${row.name}${place ? ` — ${place}` : ''}. A volleyball group on PickupVB.`;
+    return {
+        title: row.name,
+        description,
+        alternates: { canonical: `/groups/${params.id}` },
+        openGraph: {
+            title: `${row.name} · PickupVB`,
+            description,
+            url: `/groups/${params.id}`,
+            type: 'website',
+        },
+    };
 }
 
 export default async function GroupProfilePage(props: { params: Promise<{ id: string }> }) {

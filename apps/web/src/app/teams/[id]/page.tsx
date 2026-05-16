@@ -9,6 +9,31 @@ import { ExtraMembersForm } from './_components/extra-members-form';
 
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
+    const { data } = await supabase
+        .from('teams')
+        .select('name, format')
+        .eq('id', params.id)
+        .maybeSingle();
+    const row = data as { name: string; format: string } | null;
+    if (!row) return { title: 'Team' };
+    const label = FORMAT_LABEL[row.format as keyof typeof FORMAT_LABEL] ?? row.format;
+    const description = `${row.name} — ${label} volleyball team on PickupVB.`;
+    return {
+        title: row.name,
+        description,
+        alternates: { canonical: `/teams/${params.id}` },
+        openGraph: {
+            title: `${row.name} · PickupVB`,
+            description,
+            url: `/teams/${params.id}`,
+            type: 'website',
+        },
+    };
+}
+
 type TeamRow = {
     id: string;
     name: string;

@@ -12,9 +12,17 @@ import { startProCheckout, openBillingPortal } from '@/app/profile/billing/pro/a
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-    title: 'Pricing — PickupVB',
+    title: 'Pricing',
     description:
         'PickupVB is free for hosts who run free pickup events. Upgrade to Pro for unlimited paid events, a lower platform fee, and host tools.',
+    alternates: { canonical: '/pricing' },
+    openGraph: {
+        title: 'Pricing · PickupVB',
+        description:
+            'Free for free events. Pro for unlimited paid events and a lower platform fee.',
+        url: '/pricing',
+        type: 'website',
+    },
 };
 
 const FREE_TIER_FEATURES = [

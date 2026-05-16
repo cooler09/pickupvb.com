@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Route } from 'next';
+import type { Metadata } from 'next/types';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
@@ -11,6 +12,7 @@ import { AttendeeList } from '@/components/attendee-list';
 import { Alert } from '@/components/alert';
 import { EventTags } from './_components/event-tags';
 import { EventShareLink } from './_components/event-share-link';
+import { EventJsonLd } from './_components/event-jsonld';
 import { HostsSection } from './_components/hosts-section';
 import { PaidTicketPanel } from './_components/paid-ticket-panel';
 import { PositionRsvpPanel } from './_components/position-rsvp-panel';
@@ -21,6 +23,47 @@ import EventMap from './_components/event-map-lazy';
 import { TipJar } from './_components/tip-jar';
 
 export const dynamic = 'force-dynamic';
+
+export async function generateMetadata(
+    props: { params: Promise<{ id: string }> },
+): Promise<Metadata> {
+    const { id } = await props.params;
+    let event;
+    try {
+        event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, null));
+    } catch {
+        return { title: 'Event — PickupVB' };
+    }
+    // Don't expose non-public events to crawlers.
+    const isPublic = event.visibility === 'public';
+    const dateLabel = formatEventDateLong(event.startsAt);
+    const placeLabel = `${event.location.city}, ${event.location.region}`;
+    const summary = event.description
+        ? event.description.slice(0, 200)
+        : `${event.title} — ${dateLabel} · ${placeLabel}. Sign up on PickupVB.`;
+    const title = `${event.title} — ${dateLabel} · ${placeLabel}`;
+    const canonical = `/events/${event.id}`;
+    return {
+        title,
+        description: summary,
+        alternates: { canonical },
+        ...(isPublic
+            ? {}
+            : { robots: { index: false, follow: false } }),
+        openGraph: {
+            title,
+            description: summary,
+            url: canonical,
+            type: 'website',
+            siteName: 'PickupVB',
+        },
+        twitter: {
+            card: 'summary_large_image',
+            title,
+            description: summary,
+        },
+    };
+}
 
 function pickQuery(
     searchParams: Record<string, string | string[] | undefined> | undefined,
@@ -150,6 +193,26 @@ export default async function EventDetailPage(
 
     return (
         <article className="mx-auto max-w-3xl space-y-8">
+            {event.visibility === 'public' && (
+                <EventJsonLd
+                    id={event.id}
+                    title={event.title}
+                    description={event.description}
+                    startsAt={event.startsAt}
+                    endsAt={event.endsAt}
+                    visibility={event.visibility}
+                    status={event.status}
+                    spotsRemaining={event.spotsRemaining}
+                    attendeeCount={event.attendeeCount}
+                    location={event.location}
+                    organizerName={
+                        event.primaryHostGroup?.name
+                        ?? event.primaryHostUser?.displayName
+                        ?? null
+                    }
+                    ticketCents={breakdown?.ticketCents ?? null}
+                />
+            )}
             <Link href="/events" className="text-sm text-primary hover:underline">
                 ← Back to events
             </Link>

@@ -10,6 +10,39 @@ import { addFriend, removeFriend } from '@/app/friends/actions';
 
 export const dynamic = 'force-dynamic';
 
+export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
+    const params = await props.params;
+    const supabase = await getServerSupabase();
+    const { data } = await supabase
+        .from('profiles')
+        .select('display_name, first_name, last_name, home_city')
+        .eq('id', params.id)
+        .maybeSingle();
+    const row = data as {
+        display_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        home_city: string | null;
+    } | null;
+    if (!row) return { title: 'Player' };
+    const name =
+        [row.first_name, row.last_name].filter(Boolean).join(' ').trim()
+        || row.display_name
+        || 'Player';
+    const description = `${name}${row.home_city ? ` of ${row.home_city}` : ''} — volleyball player on PickupVB.`;
+    return {
+        title: name,
+        description,
+        alternates: { canonical: `/players/${params.id}` },
+        openGraph: {
+            title: `${name} · PickupVB`,
+            description,
+            url: `/players/${params.id}`,
+            type: 'profile',
+        },
+    };
+}
+
 type PlayerProfile = {
     id: string;
     display_name: string;
@@ -34,19 +67,6 @@ function initialsOf(p: PlayerProfile): string {
 function nameOf(p: PlayerProfile): string {
     const full = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
     return full || p.display_name || 'Player';
-}
-
-export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
-    const params = await props.params;
-    const supabase = await getServerSupabase();
-    const { data } = await supabase
-        .from('profiles')
-        .select('display_name, first_name, last_name')
-        .eq('id', params.id)
-        .maybeSingle();
-    const p = data as PlayerProfile | null;
-    const name = p ? nameOf({ ...p, id: params.id, avatar_url: null, home_city: null, primary_position: null, secondary_position: null, tertiary_position: null }) : 'Player';
-    return { title: `${name} — PickupVB` };
 }
 
 export default async function PlayerProfilePage(props: { params: Promise<{ id: string }> }) {
