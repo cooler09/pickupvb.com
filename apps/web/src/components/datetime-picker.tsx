@@ -61,6 +61,10 @@ export default function DateTimePicker({
     }
 
     const display = value ? format(value, 'EEE, MMM d, yyyy · h:mm a') : '';
+    const timeZone =
+        typeof Intl !== 'undefined'
+            ? Intl.DateTimeFormat().resolvedOptions().timeZone
+            : null;
 
     return (
         <div ref={containerRef} className="relative">
@@ -74,6 +78,12 @@ export default function DateTimePicker({
                 {display || <span className="text-fg/40">{placeholder}</span>}
             </button>
             <input type="hidden" name={name} value={value ? value.toISOString() : ''} />
+            {timeZone && (
+                <p className="mt-1 text-xs text-muted">
+                    Your timezone:{' '}
+                    <span className="font-medium text-fg/80">{timeZone}</span>
+                </p>
+            )}
             {open && (
                 <div
                     role="dialog"

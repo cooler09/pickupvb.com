@@ -2,39 +2,9 @@ import Link from 'next/link';
 import { EVENT_POSITIONS, type EventPosition } from '@pickupvb/domain';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { POSITION_LABEL } from '@/lib/enum-labels';
+import { rsvpBannerFor, RSVP_BANNER_CLASS } from '@/lib/event-rsvp-flash';
 import GuestSignupForm from '../guest-signup-form';
 import { joinEventAtPosition, leaveEvent } from '../rsvp-actions';
-
-type Banner = { tone: 'success' | 'info' | 'error'; text: string };
-
-function bannerFor(rsvp: string | undefined, rsvpMsg: string | undefined): Banner | null {
-    switch (rsvp) {
-        case 'joined':
-            return { tone: 'success', text: "You're in! See you on the court." };
-        case 'already':
-            return { tone: 'info', text: "You're already signed up for this event." };
-        case 'left':
-            return { tone: 'info', text: "You've been removed from this event." };
-        case 'notin':
-            return { tone: 'info', text: "You weren't signed up for this event." };
-        case 'full':
-            return { tone: 'error', text: 'Sorry — that position is full.' };
-        case 'signin':
-            return { tone: 'error', text: 'Please sign in to RSVP.' };
-        case 'anon':
-            return { tone: 'info', text: 'Finish creating your account to RSVP from any device.' };
-        case 'error':
-            return { tone: 'error', text: rsvpMsg ?? 'Something went wrong. Try again.' };
-        default:
-            return null;
-    }
-}
-
-const BANNER_CLASS: Record<Banner['tone'], string> = {
-    success: 'rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary',
-    error: 'rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700',
-    info: 'rounded-md border border-border-base bg-highlight/30 px-4 py-2 text-sm text-fg/80',
-};
 
 type Props = {
     eventId: string;
@@ -68,13 +38,26 @@ export function PositionRsvpPanel({
     rsvp,
     rsvpMsg,
 }: Props) {
-    const banner = bannerFor(rsvp, rsvpMsg);
+    const banner = rsvpBannerFor(rsvp, rsvpMsg, {
+        full: { tone: 'error', text: 'Sorry — that position is full.' },
+    });
     const positions = EVENT_POSITIONS.filter((p) => (positionRoster[p] ?? 0) > 0);
     return (
         <div className="space-y-4">
             {banner && (
-                <div role="status" className={BANNER_CLASS[banner.tone]}>
+                <div role="status" className={RSVP_BANNER_CLASS[banner.tone]}>
                     {banner.text}
+                    {rsvp === 'guest_joined' && (
+                        <>
+                            {' '}
+                            <Link
+                                href={`/claim?next=/events/${eventId}`}
+                                className="font-semibold underline"
+                            >
+                                Finish creating your account →
+                            </Link>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -91,6 +74,7 @@ export function PositionRsvpPanel({
                             label="Leave event"
                             pendingLabel="Leaving…"
                             confirmMessage="Remove yourself from this event?"
+                            destructive
                             className="rounded-md border border-border-base px-3 py-1.5 text-xs font-medium text-fg/80 hover:bg-fg/5 disabled:opacity-50"
                         />
                     </form>

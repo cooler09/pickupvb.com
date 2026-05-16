@@ -196,7 +196,17 @@ export default async function ProfilePage() {
                 </div>
                 <HostedEventsList
                     events={upcomingHosted}
-                    emptyState="You aren't hosting any upcoming events. Tap + New event to create one."
+                    emptyState={
+                        <>
+                            No upcoming events yet.{' '}
+                            <Link
+                                href="/events/new"
+                                className="font-medium text-primary hover:underline"
+                            >
+                                Create your first event →
+                            </Link>
+                        </>
+                    }
                 />
             </section>
 

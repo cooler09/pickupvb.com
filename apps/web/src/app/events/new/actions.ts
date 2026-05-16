@@ -193,5 +193,5 @@ export async function createEventAction(
     }
 
     revalidatePath('/events');
-    redirect(`/events/${result.id}`);
+    redirect(`/events/${result.id}?created=1`);
 }

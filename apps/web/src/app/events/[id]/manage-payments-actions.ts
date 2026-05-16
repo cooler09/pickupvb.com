@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getViewer } from '@/lib/server-auth';
@@ -71,4 +72,9 @@ export async function setAttendeePaymentStatus(
     } as never);
 
     revalidatePath(`/events/${eventId}`);
+    const flash =
+        status === 'paid' ? 'Attendee marked as paid.' : 'Attendee marked as unpaid.';
+    redirect(
+        `/events/${eventId}?flash=${encodeURIComponent(flash)}&flashType=success` as never,
+    );
 }

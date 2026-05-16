@@ -95,6 +95,7 @@ export function ConfirmSubmitButton({
                             type="button"
                             onClick={handleCancel}
                             className="rounded-md border border-border-base bg-surface px-4 py-2 text-sm font-medium hover:bg-fg/5"
+                            {...(destructive ? { autoFocus: true } : {})}
                         >
                             {cancelLabel ?? 'Cancel'}
                         </button>
@@ -102,7 +103,7 @@ export function ConfirmSubmitButton({
                             type="button"
                             onClick={handleConfirm}
                             className={confirmBtnClass}
-                            autoFocus
+                            {...(destructive ? {} : { autoFocus: true })}
                         >
                             {confirmLabel ?? label}
                         </button>

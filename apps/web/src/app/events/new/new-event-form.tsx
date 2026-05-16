@@ -335,6 +335,11 @@ export default function NewEventForm({
                             defaultValue="24"
                             className={inputClass}
                         />
+                        <p className="mt-1 text-xs text-muted">
+                            How many hours before the event attendees can cancel and
+                            get an automatic refund. 24 lets them back out up to the
+                            day before; 0 disables self-cancel refunds.
+                        </p>
                     </div>
                     <div className="flex items-end">
                         <label className="flex items-start gap-2 text-xs">

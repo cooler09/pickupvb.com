@@ -35,7 +35,7 @@ function backWithError(eventId: string, code: string, msg?: string): never {
  * deletes it on `checkout.session.expired` / payment_failed.
  */
 export async function startTicketCheckout(eventId: string): Promise<void> {
-    if (!isStripeConfigured()) backWithError(eventId, 'error', 'Payments are not configured.');
+    if (!isStripeConfigured()) backWithError(eventId, 'payments_off');
 
     const supabase = await getServerSupabase();
     const {
@@ -46,15 +46,15 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
     // auth session. The guest form (→ startGuestTicketCheckout) mints one.
 
     const pricing = await getEventPricing(eventId);
-    if (!pricing) backWithError(eventId, 'error', 'Event not found.');
+    if (!pricing) backWithError(eventId, 'event_not_found');
     if (pricing.priceCents <= 0) {
         // Free event — caller should have used joinEvent. Just bounce them.
-        backWithError(eventId, 'error', 'This is a free event.');
+        backWithError(eventId, 'not_paid_event');
     }
 
     const hostAccountId = await getHostStripeAccount(pricing.hostId);
     if (!hostAccountId) {
-        backWithError(eventId, 'error', 'Host has not finished payment setup.');
+        backWithError(eventId, 'host_not_ready');
     }
 
     const breakdown = await attendeeChargeBreakdownAsync(pricing);
@@ -172,13 +172,13 @@ export async function startGuestTicketCheckout(
     eventId: string,
     formData: FormData,
 ): Promise<void> {
-    if (!isStripeConfigured()) backWithError(eventId, 'error', 'Payments are not configured.');
+    if (!isStripeConfigured()) backWithError(eventId, 'payments_off');
 
     const displayName = field(formData, 'display_name');
     const email = field(formData, 'email').toLowerCase();
-    if (!displayName) backWithError(eventId, 'error', 'Please enter your name.');
+    if (!displayName) backWithError(eventId, 'bad_name');
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-        backWithError(eventId, 'error', 'A valid email is required for paid signups.');
+        backWithError(eventId, 'bad_email');
     }
 
     const supabase = await getServerSupabase();
@@ -192,7 +192,7 @@ export async function startGuestTicketCheckout(
         });
         if (anonErr) {
             await log.error('[checkout/guest] anon sign-in failed', anonErr, { eventId });
-            backWithError(eventId, 'error', 'Could not start a guest session.');
+            backWithError(eventId, 'session_failed');
         }
     }
 

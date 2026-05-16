@@ -36,8 +36,12 @@ export function FriendsList({
     if (friends.length === 0) {
         return (
             <p className="rounded-lg border border-dashed border-border-base p-4 text-sm text-muted">
-                You aren&apos;t following anyone yet. Find players on event pages and tap{' '}
-                <span className="font-medium text-fg">+ Follow</span>.
+                You aren&apos;t following any players yet. Open any{' '}
+                <Link href="/events" className="font-medium text-primary hover:underline">
+                    event
+                </Link>{' '}
+                and tap <span className="font-medium text-fg">+ Follow</span> next to
+                a player&apos;s name to see their upcoming events here.
             </p>
         );
     }

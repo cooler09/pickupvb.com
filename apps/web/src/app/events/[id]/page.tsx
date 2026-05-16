@@ -8,6 +8,7 @@ import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { getEventPricing, attendeeChargeBreakdownAsync, isPaidEvent } from '@/lib/event-pricing';
 import { AttendeeList } from '@/components/attendee-list';
+import { Alert } from '@/components/alert';
 import { EventTags } from './_components/event-tags';
 import { EventShareLink } from './_components/event-share-link';
 import { HostsSection } from './_components/hosts-section';
@@ -104,6 +105,24 @@ export default async function EventDetailPage(
         }
     }
 
+    // For paid events, also look up the viewer's own payment status so the
+    // RSVP panel can show "paid / pending / due" badges. Cheap lookup that
+    // only runs when the viewer is actually attending a paid event.
+    let viewerPaymentStatus: 'paid' | 'pending' | 'none' | undefined;
+    if (paid && user && event.isAttending) {
+        const supabaseForViewer = await (await import('@/lib/supabase')).getServerSupabase();
+        const { data: row } = await supabaseForViewer
+            .from('event_attendees')
+            .select('payment_status')
+            .eq('event_id', event.id)
+            .eq('user_id', user.id)
+            .maybeSingle();
+        const raw = (row as { payment_status?: string } | null)?.payment_status;
+        if (raw === 'paid' || raw === 'pending' || raw === 'none') {
+            viewerPaymentStatus = raw;
+        }
+    }
+
     // The AttendeeList component still expects the snake_case Supabase shape.
     // Map the read model to it inline to keep the component unchanged.
     const attendeesForList = event.attendees.map((a) => ({
@@ -134,6 +153,12 @@ export default async function EventDetailPage(
             <Link href="/events" className="text-sm text-primary hover:underline">
                 ← Back to events
             </Link>
+
+            {pickQuery(searchParams, 'created') === '1' && (
+                <Alert variant="success" title="Event created!">
+                    Share the link above or invite co-hosts so players can find your event.
+                </Alert>
+            )}
 
             {pickQuery(searchParams, 'tip') === 'thanks' && (
                 <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
@@ -319,6 +344,7 @@ export default async function EventDetailPage(
                         ticketCents={breakdown.ticketCents}
                         platformFeeCents={breakdown.platformFeeCents}
                         refundWindowHours={pricing!.refundWindowHours}
+                        {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
                     />
                 ) : event.positionRoster ? (
                     <PositionRsvpPanel

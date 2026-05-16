@@ -11,11 +11,34 @@ type Props = {
     ticketCents: number;
     platformFeeCents: number;
     refundWindowHours: number;
+    /** Viewer's own payment status, used to colour the "you're in" pill. */
+    viewerPaymentStatus?: 'paid' | 'pending' | 'none';
 };
 
 function formatUsd(cents: number): string {
     return `$${(cents / 100).toFixed(2)}`;
 }
+
+const PAYMENT_PILL: Record<
+    'paid' | 'pending' | 'none',
+    { label: string; className: string }
+> = {
+    paid: {
+        label: "You're in — paid",
+        className:
+            'rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800',
+    },
+    pending: {
+        label: "You're in — payment pending",
+        className:
+            'rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900',
+    },
+    none: {
+        label: "You're in — payment due",
+        className:
+            'rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-800',
+    },
+};
 
 /**
  * Replaces RsvpPanel for paid open-play events. Authenticated users get a
@@ -32,8 +55,16 @@ export function PaidTicketPanel({
     ticketCents,
     platformFeeCents,
     refundWindowHours,
+    viewerPaymentStatus,
 }: Props) {
     const total = ticketCents + platformFeeCents;
+    const pill = viewerPaymentStatus
+        ? PAYMENT_PILL[viewerPaymentStatus]
+        : {
+            label: "You're signed up",
+            className:
+                'rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary',
+        };
     return (
         <div className="space-y-4">
             <div className="rounded-lg border border-border-base bg-fg/5 p-4">
@@ -54,14 +85,13 @@ export function PaidTicketPanel({
 
             {isAttending ? (
                 <div className="flex flex-col items-end gap-2">
-                    <span className="rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
-                        You&apos;re signed up
-                    </span>
+                    <span className={pill.className}>{pill.label}</span>
                     <form action={leaveEvent.bind(null, eventId)}>
                         <ConfirmSubmitButton
                             label="Cancel ticket & refund"
                             pendingLabel="Refunding…"
                             confirmMessage={`Cancel your ticket to "${eventTitle}" and request a refund of ${formatUsd(total)}?`}
+                            destructive
                         />
                     </form>
                     <p className="text-xs text-muted">

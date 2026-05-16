@@ -102,12 +102,12 @@ export async function signupAsGuest(
         if (err instanceof ConflictError) {
             // Already RSVPed (e.g. resubmit after refresh) — treat as success.
             revalidatePath(`/events/${eventId}`);
-            redirect(`/events/${eventId}`);
+            redirect(`/events/${eventId}?rsvp=already`);
         }
         const msg = err instanceof Error ? err.message : String(err);
         return { error: msg };
     }
 
     revalidatePath(`/events/${eventId}`);
-    redirect(`/events/${eventId}`);
+    redirect(`/events/${eventId}?rsvp=guest_joined`);
 }
