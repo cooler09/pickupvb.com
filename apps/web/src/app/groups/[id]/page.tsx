@@ -90,8 +90,9 @@ export default async function GroupProfilePage(props: {
     const group = groupData as GroupRow | null;
     if (!group) notFound();
 
-    // Members, follow-edge, and hosted events are all independent of each other.
-    const [{ data: memberRows }, followRowResult, events] = await Promise.all([
+    // Members, follow-edge, and hosted events (upcoming + past split at SQL) are independent.
+    const now = new Date();
+    const [{ data: memberRows }, followRowResult, upcoming, past] = await Promise.all([
         supabase
             .from('group_members')
             .select('user_id, role, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)')
@@ -105,7 +106,8 @@ export default async function GroupProfilePage(props: {
                 .eq('user_id', user.id)
                 .maybeSingle()
             : Promise.resolve({ data: null }),
-        loadVisibleGroupHostedEvents(group.id),
+        loadVisibleGroupHostedEvents(group.id, { startsAfter: now }),
+        loadVisibleGroupHostedEvents(group.id, { startsBefore: now }),
     ]);
     const memberRowsTyped = (memberRows as MemberRow[] | null) ?? [];
 
@@ -113,9 +115,6 @@ export default async function GroupProfilePage(props: {
     const canManage = myMembership?.role === 'owner' || myMembership?.role === 'admin';
 
     const isFollowing = Boolean(followRowResult.data);
-
-    const upcoming = events.filter((e) => new Date(e.starts_at).getTime() >= Date.now());
-    const past = events.filter((e) => new Date(e.starts_at).getTime() < Date.now());
 
     const returnPath = `/groups/${group.id}`;
 
