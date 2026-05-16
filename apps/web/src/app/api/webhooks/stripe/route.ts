@@ -138,6 +138,11 @@ async function dispatch(event: Stripe.Event): Promise<void> {
         case 'payment_intent.payment_failed':
             await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
             return;
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated':
+        case 'customer.subscription.deleted':
+            await handleSubscriptionChange(event.data.object as Stripe.Subscription);
+            return;
         default:
             // No-op for events we don't subscribe to. Returning here marks
             // them as processed in our log; that's fine.
@@ -290,5 +295,79 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
             amount_cents: charge.amount_refunded ?? att.amount_paid_cents,
             payment_intent_id: piId,
         } as never);
+    }
+}
+
+// ============================================================================
+// Pro Host subscription handlers (Phase 3)
+// ============================================================================
+
+/**
+ * Keep host_subscriptions in sync with Stripe. Fires on create/update/delete
+ * so a single handler covers trial start, payment success, cancellation,
+ * past_due, and end-of-period cancel.
+ */
+async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void> {
+    const admin = getAdminSupabase();
+
+    const customerId =
+        typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+
+    // Resolve user_id: prefer subscription metadata, then customer metadata,
+    // then fall back to our existing row keyed by customer id.
+    let userId =
+        (sub.metadata?.['user_id'] as string | undefined) ?? undefined;
+    if (!userId && typeof sub.customer !== 'string') {
+        userId = (sub.customer.metadata?.['user_id'] as string | undefined) ?? undefined;
+    }
+    if (!userId) {
+        type Row = { user_id: string };
+        const { data } = await admin
+            .from('host_subscriptions')
+            .select('user_id')
+            .eq('stripe_customer_id', customerId)
+            .maybeSingle();
+        userId = (data as Row | null)?.user_id;
+    }
+    if (!userId) {
+        await log.error('[stripe-webhook] subscription change: no user_id resolvable', null, {
+            subscriptionId: sub.id,
+            customerId,
+        });
+        return;
+    }
+
+    // Derive plan from the first item's price id.
+    const priceId = sub.items.data[0]?.price.id ?? null;
+    const plan =
+        priceId === process.env['STRIPE_PRO_YEARLY_PRICE_ID']
+            ? 'yearly'
+            : priceId === process.env['STRIPE_PRO_MONTHLY_PRICE_ID']
+                ? 'monthly'
+                : null;
+
+    const periodEnd = (sub as unknown as { current_period_end?: number }).current_period_end;
+    const trialEnd = sub.trial_end;
+
+    const { error } = await admin
+        .from('host_subscriptions')
+        .upsert(
+            {
+                user_id: userId,
+                stripe_customer_id: customerId,
+                stripe_subscription_id: sub.id,
+                status: sub.status,
+                plan,
+                current_period_end: periodEnd
+                    ? new Date(periodEnd * 1000).toISOString()
+                    : null,
+                trial_end: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+                cancel_at_period_end: sub.cancel_at_period_end ?? false,
+                updated_at: new Date().toISOString(),
+            } as never,
+            { onConflict: 'user_id' },
+        );
+    if (error) {
+        throw new Error(`subscription upsert failed: ${error.message}`);
     }
 }

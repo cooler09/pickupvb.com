@@ -7,8 +7,20 @@ import type { Route } from 'next';
 import { getStripe, isStripeConfigured, platformFeeCents } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
-import { getEventPricing, attendeeChargeBreakdown } from '@/lib/event-pricing';
+import {
+    getEventPricing,
+    attendeeChargeBreakdownAsync,
+} from '@/lib/event-pricing';
+import { isPro, PRO_PLATFORM_FEE_BPS } from '@/lib/pro';
 import { log } from '@/lib/log';
+
+/** Pro-aware platform cut on a ticket price, in cents. */
+async function platformCutCents(hostId: string, priceCents: number): Promise<number> {
+    if (await isPro(hostId)) {
+        return Math.round((priceCents * PRO_PLATFORM_FEE_BPS) / 10_000);
+    }
+    return platformFeeCents(priceCents);
+}
 
 /**
  * Resolve the host's Stripe Connect account id. Returns null if the host
@@ -79,7 +91,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
         backWithError(eventId, 'error', 'Host has not finished payment setup.');
     }
 
-    const breakdown = attendeeChargeBreakdown(pricing);
+    const breakdown = await attendeeChargeBreakdownAsync(pricing);
 
     // Reserve the spot atomically. The capacity trigger raises if full.
     // 23505 (unique violation on PK) means the user already has a row;
@@ -149,7 +161,13 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
                         : []),
                 ],
                 payment_intent_data: {
-                    application_fee_amount: platformFeeCents(pricing.priceCents),
+                    // The platform's actual take (Pro hosts get 2.5%, others
+                    // 5%). Stripe pulls this out of the host's payout
+                    // regardless of who pays the fee at checkout.
+                    application_fee_amount: await platformCutCents(
+                        pricing.hostId,
+                        pricing.priceCents,
+                    ),
                     transfer_data: { destination: hostAccountId! },
                 },
                 success_url: `${origin}/events/${eventId}?rsvp=joined`,

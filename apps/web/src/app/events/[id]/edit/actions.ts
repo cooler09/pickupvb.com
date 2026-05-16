@@ -164,6 +164,22 @@ export async function editEventAction(
         }
         // If switching to paid, the host needs Stripe set up.
         if (newPriceCents > 0) {
+            // Free-tier cap also applies when an event flips from free→paid.
+            if ((c?.price_cents ?? 0) === 0) {
+                const { isPro, hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } = await import(
+                    '@/lib/pro'
+                );
+                if (!(await isPro(c?.host_id ?? user.id))) {
+                    const count = await hostPaidEventCount30d(c?.host_id ?? user.id);
+                    if (count >= FREE_PAID_EVENT_CAP_30D) {
+                        return {
+                            error:
+                                `Free hosts can run ${FREE_PAID_EVENT_CAP_30D} paid event per 30 days. ` +
+                                `Upgrade to Pro at /profile/billing/pro for unlimited paid events.`,
+                        };
+                    }
+                }
+            }
             const { data: stripeRow } = await admin
                 .from('host_stripe_accounts')
                 .select('charges_enabled')

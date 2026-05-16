@@ -6,7 +6,7 @@ import { NotFoundError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
-import { getEventPricing, attendeeChargeBreakdown, isPaidEvent } from '@/lib/event-pricing';
+import { getEventPricing, attendeeChargeBreakdownAsync, isPaidEvent } from '@/lib/event-pricing';
 import { AttendeeList } from '@/components/attendee-list';
 import { EventTags } from './_components/event-tags';
 import { EventShareLink } from './_components/event-share-link';
@@ -60,7 +60,10 @@ export default async function EventDetailPage(
     // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
     const pricing = await getEventPricing(event.id);
     const paid = isPaidEvent(pricing);
-    const breakdown = pricing && paid ? attendeeChargeBreakdown(pricing) : null;
+    const breakdown = pricing && paid ? await attendeeChargeBreakdownAsync(pricing) : null;
+    const viewerIsPro = event.canManage && user
+        ? await (await import('@/lib/pro')).isPro(user.id)
+        : false;
 
     // For paid events, side-load per-attendee payment status (admin client —
     // visibility is host-only, the rest of the page just renders badges via
@@ -232,6 +235,29 @@ export default async function EventDetailPage(
                         {...(payments ? { payments } : {})}
                         canManagePayments={paid && event.canManage}
                     />
+                    {event.canManage && (
+                        <p className="mt-3 text-xs text-muted">
+                            {viewerIsPro ? (
+                                <a
+                                    href={`/api/events/${event.id}/attendees.csv`}
+                                    className="text-primary hover:underline"
+                                >
+                                    Export attendees as CSV
+                                </a>
+                            ) : (
+                                <>
+                                    CSV attendee export is a{' '}
+                                    <Link
+                                        href={'/profile/billing/pro' as Route}
+                                        className="text-primary hover:underline"
+                                    >
+                                        Pro
+                                    </Link>{' '}
+                                    feature.
+                                </>
+                            )}
+                        </p>
+                    )}
                 </section>
             )}
 

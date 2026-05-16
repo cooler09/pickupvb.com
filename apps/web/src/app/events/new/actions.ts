@@ -132,6 +132,24 @@ export async function createEventAction(
         ? Math.max(0, Math.round(Number(priceUsdRaw) * 100))
         : 0;
     if (priceCents > 0) {
+        // Free hosts are capped at 1 paid event per 30 days. Pro hosts have
+        // no cap. Check BEFORE creating Stripe Checkout, so we can roll back
+        // the event row cleanly.
+        const { isPro, hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } = await import(
+            '@/lib/pro'
+        );
+        if (!(await isPro(user.id))) {
+            const count = await hostPaidEventCount30d(user.id);
+            // Count includes the event we just created; cap is N total.
+            if (count > FREE_PAID_EVENT_CAP_30D) {
+                await supabase.from('events').delete().eq('id', result.id);
+                return {
+                    error:
+                        `Free hosts can run ${FREE_PAID_EVENT_CAP_30D} paid event per 30 days. ` +
+                        `Upgrade to Pro at /profile/billing/pro for unlimited paid events.`,
+                };
+            }
+        }
         // host_stripe_accounts is service-role only (no RLS policies), so we
         // must use the admin client to read the connect status.
         const admin = getAdminSupabase();

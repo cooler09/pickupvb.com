@@ -54,6 +54,34 @@ export function isPaidEvent(p: EventPricing | null): boolean {
  * ultimately bore the cost. Documented to hosts in the billing UI.
  */
 import { platformFeeCents } from './stripe';
+import { isPro, PRO_PLATFORM_FEE_BPS } from './pro';
+
+/** Same as `platformFeeCents` but Pro hosts get 2.5% instead of 5%. */
+async function platformFeeCentsFor(
+    hostId: string,
+    amountCents: number,
+): Promise<number> {
+    if (await isPro(hostId)) {
+        return Math.round((amountCents * PRO_PLATFORM_FEE_BPS) / 10_000);
+    }
+    return platformFeeCents(amountCents);
+}
+
+export async function attendeeChargeBreakdownAsync(p: EventPricing): Promise<{
+    ticketCents: number;
+    platformFeeCents: number;
+    totalCents: number;
+}> {
+    const fee = await platformFeeCentsFor(p.hostId, p.priceCents);
+    if (p.hostAbsorbsFee) {
+        return { ticketCents: p.priceCents, platformFeeCents: 0, totalCents: p.priceCents };
+    }
+    return {
+        ticketCents: p.priceCents,
+        platformFeeCents: fee,
+        totalCents: p.priceCents + fee,
+    };
+}
 
 export function attendeeChargeBreakdown(p: EventPricing): {
     ticketCents: number;

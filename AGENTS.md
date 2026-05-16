@@ -172,6 +172,11 @@ pnpm db:migrate                        # apply locally
 pnpm --filter @pickupvb/supabase gen:types  # regenerate DB types
 ```
 
+**Production migrations are applied automatically by CI/CD** — any new file
+in `supabase/migrations/` is picked up and applied on deploy. Don't run
+production migrations by hand. Locally, you still need to `pnpm db:migrate`
+and regenerate types so typecheck passes against the new schema.
+
 Never edit an applied migration. Add a follow-up migration instead.
 
 ## Testing
