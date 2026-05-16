@@ -165,6 +165,37 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                     </div>
                 </div>
             )}
+
+            {ready && (
+                <div className="space-y-3 rounded-lg border border-border-base p-6">
+                    <h2 className="text-xl font-semibold">Tax forms (1099-K)</h2>
+                    <p className="text-sm text-muted">
+                        Stripe is the payment processor and issues your 1099-K
+                        directly — PickupVB does not file tax forms for you.
+                        Forms are typically posted to your Stripe dashboard in
+                        late January for the prior calendar year.
+                    </p>
+                    <p className="text-sm text-muted">
+                        US federal threshold for tax year 2026 is{' '}
+                        <strong className="text-fg">$2,500</strong> in gross
+                        payments. State thresholds may be lower (e.g. MA, VT,
+                        VA at $600). Stripe applies the appropriate threshold
+                        automatically based on your address.
+                    </p>
+                    <form action={openStripeDashboard}>
+                        <button
+                            type="submit"
+                            className="rounded-md border border-border-base px-4 py-2 text-sm hover:bg-surface"
+                        >
+                            Open tax forms in Stripe →
+                        </button>
+                    </form>
+                    <p className="text-xs text-muted">
+                        Lands on your Stripe Express dashboard — click{' '}
+                        <em>Tax forms</em> in the left nav.
+                    </p>
+                </div>
+            )}
         </section>
     );
 }
