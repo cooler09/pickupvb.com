@@ -7,6 +7,7 @@ import { getEventPricing } from '@/lib/event-pricing';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import EditEventForm from './edit-event-form';
 import { isPricingLocked } from '@/lib/pricing-lock';
+import { CancelEventPanel } from './cancel-event-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,17 @@ export default async function EditEventPage(props: { params: Promise<{ id: strin
     const pricing = await getEventPricing(id);
     const pricingLocked = await isPricingLocked(id);
 
+    // For the cancel panel: how many paid attendees would be refunded.
+    let paidAttendeeCount = 0;
+    if (event.status !== 'cancelled') {
+        const { count } = await admin
+            .from('event_attendees')
+            .select('user_id', { head: true, count: 'exact' })
+            .eq('event_id', id)
+            .eq('payment_status', 'paid');
+        paidAttendeeCount = count ?? 0;
+    }
+
     return (
         <section className="mx-auto max-w-2xl space-y-6">
             <header className="space-y-1">
@@ -72,6 +84,14 @@ export default async function EditEventPage(props: { params: Promise<{ id: strin
                     hostAbsorbsFee: pricing?.hostAbsorbsFee ?? false,
                 }}
             />
+
+            {event.status !== 'cancelled' && (
+                <CancelEventPanel
+                    eventId={id}
+                    attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
+                    paidAttendeeCount={paidAttendeeCount}
+                />
+            )}
         </section>
     );
 }

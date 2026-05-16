@@ -6,6 +6,7 @@ import { AddTeamMemberForm } from './_components/add-team-member-form';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
 import { InviteResponse } from './_components/invite-response';
 import { ExtraMembersForm } from './_components/extra-members-form';
+import { CaptainBroadcastPanel } from './_components/captain-broadcast-panel';
 import { ShareLink } from '@/components/share-link';
 
 export const dynamic = 'force-dynamic';
@@ -145,6 +146,13 @@ export default async function TeamDetailPage(
                     teamId={team.id}
                     returnPath={returnPath}
                     value={extraMembers}
+                />
+            )}
+
+            {isCaptain && (
+                <CaptainBroadcastPanel
+                    teamId={team.id}
+                    memberCount={activeCount}
                 />
             )}
 
