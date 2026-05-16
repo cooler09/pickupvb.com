@@ -5,6 +5,7 @@
  * `requireUser` from `./api-helpers` instead.
  */
 
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { getServerSupabase } from './supabase';
@@ -22,14 +23,32 @@ export interface ViewerSession {
     isAnonymous: boolean;
 }
 
-/** Get the current viewer or `null` if no session exists. Never throws. */
-export async function getViewer(): Promise<ViewerSession | null> {
+/**
+ * Get the current viewer or `null` if no session exists. Never throws.
+ * Wrapped in React `cache()` so repeated calls within the same request reuse
+ * the result of a single `supabase.auth.getUser()` round-trip.
+ */
+export const getViewer = cache(async (): Promise<ViewerSession | null> => {
     const supabase = await getServerSupabase();
     const {
         data: { user },
     } = await supabase.auth.getUser();
     if (!user) return null;
     return { supabase, user, isAnonymous: isAnonymousUser(user) };
+});
+
+/**
+ * Returns `{ supabase, user }` where `user` may be `null`. Convenience for
+ * call sites that just need the (possibly missing) user without the viewer
+ * envelope. Same cache as `getViewer()`.
+ */
+export async function getCurrentUser(): Promise<{
+    supabase: SupabaseClient;
+    user: User | null;
+}> {
+    const viewer = await getViewer();
+    if (viewer) return { supabase: viewer.supabase, user: viewer.user };
+    return { supabase: await getServerSupabase(), user: null };
 }
 
 /**

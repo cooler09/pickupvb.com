@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { Pagination } from '@/components/pagination';
 
@@ -30,10 +31,7 @@ export default async function TeamsIndexPage(props: {
     searchParams: Promise<{ q?: string; format?: string; page?: string }>;
 }) {
     const searchParams = await props.searchParams;
-    const supabase = await getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await getCurrentUser();
 
     // Parse discover filters (apply to public browse below).
     const q = (searchParams.q ?? '').trim();

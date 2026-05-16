@@ -8,6 +8,7 @@ import {
 } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import { NearMeButton } from './near-me-button';
 import { EventCard, type EventCardData } from './_components/event-card';
 import {
@@ -74,10 +75,7 @@ export default async function EventsPage(
     }
 ) {
     const searchParams = await props.searchParams;
-    const supabase = await getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await getCurrentUser();
 
     const get = (k: string): string | undefined => {
         const v = searchParams[k];

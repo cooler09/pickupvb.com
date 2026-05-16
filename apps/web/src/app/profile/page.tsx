@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import { ProfileForm } from './profile-form';
 import { FriendsList } from '@/components/friends-list';
 import {
@@ -33,10 +34,7 @@ type FriendProfile = {
 };
 
 export default async function ProfilePage() {
-    const supabase = await getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await getCurrentUser();
     if (!user) redirect('/login?next=/profile');
 
     const { data } = await supabase

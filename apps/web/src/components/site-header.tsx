@@ -1,11 +1,9 @@
 import Link from 'next/link';
-import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import type { Theme } from '@/lib/theme';
 import { ThemeToggle } from './theme-toggle';
 import { MobileMenu } from './mobile-menu';
 import { signOut } from './actions';
-
-export const dynamic = 'force-dynamic';
 
 function initialsOf(name: string): string {
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -16,10 +14,7 @@ function initialsOf(name: string): string {
 }
 
 export default async function SiteHeader({ theme }: { theme: Theme }) {
-    const supabase = await getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await getCurrentUser();
 
     const isAnon = Boolean(user && (user as { is_anonymous?: boolean }).is_anonymous);
     const isRealUser = Boolean(user) && !isAnon;

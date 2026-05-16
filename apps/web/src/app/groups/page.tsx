@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import { Pagination } from '@/components/pagination';
 
 export const dynamic = 'force-dynamic';
@@ -42,9 +43,7 @@ export default async function GroupsIndexPage(
     const groups = (data as GroupRow[] | null) ?? [];
     const total = count ?? groups.length;
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { user } = await getCurrentUser();
 
     return (
         <div className="mx-auto max-w-3xl space-y-6 py-4">

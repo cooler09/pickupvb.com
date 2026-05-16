@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
 import { Pagination } from '@/components/pagination';
@@ -85,9 +86,7 @@ export default async function GroupProfilePage(props: {
     const group = groupData as GroupRow | null;
     if (!group) notFound();
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { user } = await getCurrentUser();
 
     const { data: memberRows } = await supabase
         .from('group_members')

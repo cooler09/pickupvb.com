@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
 import { ToastProvider } from '@/components/toast';
-import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import {
     DEFAULT_THEME,
     isTheme,
@@ -100,10 +100,7 @@ async function resolveTheme(): Promise<Theme> {
 
     // No cookie yet — fall back to the signed-in user's saved preference.
     try {
-        const supabase = await getServerSupabase();
-        const {
-            data: { user },
-        } = await supabase.auth.getUser();
+        const { supabase, user } = await getCurrentUser();
         if (user) {
             const { data } = await supabase
                 .from('profiles')

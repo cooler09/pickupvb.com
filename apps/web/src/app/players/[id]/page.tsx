@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
+import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import {
     HostedEventsList,
@@ -94,9 +95,7 @@ export default async function PlayerProfilePage(props: {
     const profile = profileRow as PlayerProfile | null;
     if (!profile) notFound();
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { user } = await getCurrentUser();
 
     const isSelf = user?.id === profile.id;
 
