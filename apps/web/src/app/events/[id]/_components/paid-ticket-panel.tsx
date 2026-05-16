@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
+import GuestSignupForm from '../guest-signup-form';
 import { joinEvent, leaveEvent } from '../rsvp-actions';
 
 type Props = {
@@ -152,23 +153,25 @@ export function PaidTicketPanel({
                     </div>
                 </div>
             ) : (
-                <>
-                    <div className="flex justify-end">
-                        <Link
-                            href={`/login?next=/events/${eventId}`}
-                            className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
-                        >
-                            Sign in to sign up
-                        </Link>
-                    </div>
+                <div className="space-y-4">
                     <section className="rounded-lg border border-border-base p-4">
                         <h2 className="text-sm font-semibold text-fg">
-                            Or pay online as a guest
+                            Sign up & pay the host {formatUsd(ticketCents)} in person
                         </h2>
                         <p className="mb-3 text-xs text-muted">
-                            Prefer to pay the host in person? Sign in instead — most
-                            players settle up at the event. We need an email to send
-                            your receipt + cancellation link.
+                            No account needed — just your name. You&apos;ll settle up
+                            with the host at the event (cash, Venmo, etc.).
+                        </p>
+                        <GuestSignupForm eventId={eventId} />
+                    </section>
+
+                    <section className="rounded-lg border border-border-base p-4">
+                        <h2 className="text-sm font-semibold text-fg">
+                            Or pay online now — {formatUsd(total)}
+                        </h2>
+                        <p className="mb-3 text-xs text-muted">
+                            Includes {formatUsd(platformFeeCents)} service fee. We need
+                            an email to send your receipt + cancellation link.
                         </p>
                         <form
                             action={startGuestTicketCheckout.bind(null, eventId)}
@@ -213,7 +216,17 @@ export function PaidTicketPanel({
                             </div>
                         </form>
                     </section>
-                </>
+
+                    <p className="text-center text-xs text-muted">
+                        Already have an account?{' '}
+                        <Link
+                            href={`/login?next=/events/${eventId}`}
+                            className="text-primary hover:underline"
+                        >
+                            Sign in
+                        </Link>
+                    </p>
+                </div>
             )}
         </div>
     );
