@@ -138,6 +138,12 @@ async function dispatch(event: Stripe.Event): Promise<void> {
         case 'charge.refunded':
             await handleChargeRefunded(event.data.object as Stripe.Charge);
             return;
+        case 'payout.paid':
+            await handlePayoutPaid(
+                event.data.object as Stripe.Payout,
+                event.account ?? null,
+            );
+            return;
         case 'payment_intent.payment_failed':
             await handlePaymentFailed(event.data.object as Stripe.PaymentIntent);
             return;
@@ -360,6 +366,41 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
 // ============================================================================
 // Pro Host subscription handlers (Phase 3)
 // ============================================================================
+
+/**
+ * Connect payout settled to the host's bank. Notify them with the amount
+ * and expected arrival date so they don't have to babysit their dashboard.
+ *
+ * `event.account` is the connected account id (acct_...) — Stripe sends
+ * Connect events with this top-level field populated.
+ */
+async function handlePayoutPaid(
+    payout: Stripe.Payout,
+    accountId: string | null,
+): Promise<void> {
+    if (!accountId) return;
+    const admin = getAdminSupabase();
+    const { data: row } = await admin
+        .from('host_stripe_accounts')
+        .select('user_id')
+        .eq('stripe_account_id', accountId)
+        .maybeSingle();
+    const userId = (row as { user_id: string } | null)?.user_id;
+    if (!userId) return;
+    const arrivalDate = payout.arrival_date
+        ? new Date(payout.arrival_date * 1000).toISOString().slice(0, 10)
+        : 'soon';
+    try {
+        await notify(
+            'host.payout.paid',
+            userId,
+            { amountCents: payout.amount, arrivalDate },
+            { idempotencyKey: `payout:${payout.id}` },
+        );
+    } catch {
+        // best-effort
+    }
+}
 
 /**
  * Keep host_subscriptions in sync with Stripe. Fires on create/update/delete

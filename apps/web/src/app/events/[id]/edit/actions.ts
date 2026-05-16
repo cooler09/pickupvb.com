@@ -13,6 +13,7 @@ import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
+import { notify } from '@/lib/notify';
 
 export type EditEventState = {
     error?: string;
@@ -115,7 +116,7 @@ export async function editEventAction(
     const admin = getAdminSupabase();
     const { data: cur } = await admin
         .from('events')
-        .select('price_cents, host_absorbs_fee, refund_window_hours, host_id')
+        .select('price_cents, host_absorbs_fee, refund_window_hours, host_id, title, starts_at, address_line, city')
         .eq('id', eventId)
         .maybeSingle();
     type CurRow = {
@@ -123,6 +124,10 @@ export async function editEventAction(
         host_absorbs_fee: boolean;
         refund_window_hours: number;
         host_id: string;
+        title: string;
+        starts_at: string;
+        address_line: string;
+        city: string;
     };
     const c = cur as unknown as CurRow | null;
     const pricingChanged = !c
@@ -199,5 +204,36 @@ export async function editEventAction(
     revalidatePath(`/events/${eventId}`);
     revalidatePath(`/events/${eventId}/edit`);
     revalidatePath('/events');
+
+    // Notify attendees if user-visible fields changed. Best-effort.
+    if (c) {
+        const changes: string[] = [];
+        if (c.title !== title) changes.push('title');
+        if (new Date(c.starts_at).getTime() !== startsDate.getTime()) changes.push('time');
+        if (c.address_line !== addressLine || c.city !== city) changes.push('location');
+        if (pricingChanged) changes.push('price');
+        if (changes.length > 0) {
+            try {
+                const { data: attRows } = await admin
+                    .from('event_attendees')
+                    .select('user_id')
+                    .eq('event_id', eventId);
+                const attendees = (attRows as { user_id: string }[] | null) ?? [];
+                const summary = `Updated: ${changes.join(', ')}`;
+                const stamp = Date.now(); // distinct idem per edit
+                for (const a of attendees) {
+                    await notify(
+                        'event.updated',
+                        a.user_id,
+                        { eventId, eventTitle: title, changeSummary: summary },
+                        { idempotencyKey: `${eventId}:${a.user_id}:${stamp}` },
+                    );
+                }
+            } catch {
+                // best-effort
+            }
+        }
+    }
+
     redirect(`/events/${eventId}`);
 }

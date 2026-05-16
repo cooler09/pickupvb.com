@@ -21,6 +21,7 @@ import { TournamentSignupPanel } from './_components/tournament-signup-panel';
 import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
 import EventMap from './_components/event-map-lazy';
 import { TipJar } from './_components/tip-jar';
+import { HostBroadcastPanel } from './_components/host-broadcast-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -397,6 +398,13 @@ export default async function EventDetailPage(
                 viewerHostableGroups={event.viewerHostableGroups}
                 returnPath={returnPath}
             />
+
+            {event.canManage && (
+                <HostBroadcastPanel
+                    eventId={event.id}
+                    attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
+                />
+            )}
 
             {event.type === 'open_play' && (
                 <section>
