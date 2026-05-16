@@ -223,15 +223,15 @@ export default async function EventDetailPage(
                 />
             )}
 
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-lg border border-border-base p-4">
+            <section className="overflow-hidden rounded-lg border border-border-base sm:grid sm:grid-cols-2">
+                <div className="p-4 sm:border-r sm:border-border-base">
                     <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
                         When
                     </h2>
                     <p className="mt-1 font-medium text-fg">{formatEventDateLong(event.startsAt)}</p>
                     <p className="text-sm text-muted">to {formatEventDateLong(event.endsAt)}</p>
                 </div>
-                <div className="rounded-lg border border-border-base p-4">
+                <div className="border-t border-border-base p-4 sm:border-l-0 sm:border-t-0">
                     <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
                         Spots
                     </h2>

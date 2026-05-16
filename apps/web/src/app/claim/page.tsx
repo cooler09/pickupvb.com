@@ -22,7 +22,7 @@ export default async function ClaimPage() {
             <div>
                 <h1 className="text-2xl font-bold text-fg">Finish creating your account</h1>
                 <p className="mt-1 text-sm text-muted">
-                    Add an email and password to keep your RSVPs and access them from any device.
+                    Add an email and password to keep your signups and access them from any device.
                     All your existing signups will carry over.
                 </p>
             </div>
@@ -34,7 +34,7 @@ export default async function ClaimPage() {
                 <Link href="/login" className="text-primary hover:underline">
                     Sign in instead
                 </Link>{' '}
-                — your guest RSVPs won&apos;t merge automatically.
+                — your guest signups won&apos;t merge automatically.
             </p>
         </div>
     );

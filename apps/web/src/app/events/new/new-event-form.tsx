@@ -102,21 +102,43 @@ export default function NewEventForm({
                 </div>
                 <div>
                     <label htmlFor="title" className={labelClass}>Title</label>
-                    <input id="title" name="title" required minLength={3} maxLength={120} className={inputClass} />
+                    <input
+                        id="title"
+                        name="title"
+                        required
+                        minLength={3}
+                        maxLength={120}
+                        placeholder="Tuesday night open gym"
+                        className={inputClass}
+                    />
                     <FieldError name="title" errors={state.fieldErrors} />
                 </div>
                 <div>
                     <label htmlFor="description" className={labelClass}>
                         Description <span className="text-fg/50">(optional)</span>
                     </label>
-                    <textarea id="description" name="description" rows={3} maxLength={4000} className={inputClass} />
+                    <textarea
+                        id="description"
+                        name="description"
+                        rows={3}
+                        maxLength={4000}
+                        placeholder="Indoor 6's, all levels welcome. Bring kneepads — we'll rotate teams every set."
+                        className={inputClass}
+                    />
                     <FieldError name="description" errors={state.fieldErrors} />
                 </div>
                 <div>
                     <label htmlFor="rules" className={labelClass}>
                         Rules <span className="text-fg/50">(optional)</span>
                     </label>
-                    <textarea id="rules" name="rules" rows={2} maxLength={4000} className={inputClass} />
+                    <textarea
+                        id="rules"
+                        name="rules"
+                        rows={2}
+                        maxLength={4000}
+                        placeholder="Rally scoring to 25, win by 2. Captain's choice on lets."
+                        className={inputClass}
+                    />
                     <FieldError name="rules" errors={state.fieldErrors} />
                 </div>
             </fieldset>
@@ -188,6 +210,21 @@ export default function NewEventForm({
             {type === EventType.OpenPlay && (
                 <fieldset className="space-y-3 rounded-md border border-border-base p-4">
                     <legend className="px-1 text-sm font-semibold text-fg">Capacity</legend>
+                    <label className="flex items-start gap-2 rounded-md bg-highlight/40 p-2 text-sm">
+                        <input
+                            type="checkbox"
+                            name="joinAsHost"
+                            defaultChecked
+                            className="mt-0.5"
+                        />
+                        <span>
+                            <span className="font-medium text-fg">Sign me up as a player too</span>
+                            <span className="block text-xs text-muted">
+                                Adds you to the attendee list. You can leave any time.
+                                {byPosition && ' (You\'ll pick a position from the event page.)'}
+                            </span>
+                        </span>
+                    </label>
                     <label className="flex items-start gap-2 text-sm">
                         <input
                             type="checkbox"
@@ -275,21 +312,6 @@ export default function NewEventForm({
                             <FieldError name="capacity" errors={state.fieldErrors} />
                         </>
                     )}
-                    <label className="mt-2 flex items-start gap-2 border-t border-border-base pt-3 text-sm">
-                        <input
-                            type="checkbox"
-                            name="joinAsHost"
-                            defaultChecked
-                            className="mt-0.5"
-                        />
-                        <span>
-                            <span className="font-medium text-fg">Sign me up as a player too</span>
-                            <span className="block text-xs text-muted">
-                                Adds you to the attendee list. You can leave any time.
-                                {byPosition && ' (You\'ll pick a position from the event page.)'}
-                            </span>
-                        </span>
-                    </label>
                 </fieldset>
             )}
 

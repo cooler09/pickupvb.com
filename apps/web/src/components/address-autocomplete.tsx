@@ -54,7 +54,7 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
             } finally {
                 setLoading(false);
             }
-        }, 250);
+        }, 400);
 
         return () => clearTimeout(handle);
     }, [query]);

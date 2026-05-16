@@ -49,7 +49,7 @@ export default function GuestSignupForm({ eventId }: { eventId: string }) {
             </div>
             <div>
                 <label htmlFor="email" className={labelClass}>
-                    Email <span className="text-fg/50">(optional — lets you claim this RSVP later)</span>
+                    Email <span className="text-fg/50">(optional — lets you claim this signup later)</span>
                 </label>
                 <input
                     id="email"
@@ -66,7 +66,7 @@ export default function GuestSignupForm({ eventId }: { eventId: string }) {
 
             <p className="text-xs text-muted">
                 No password required. We&apos;ll create a temporary guest session so you can
-                manage or cancel your RSVP from any device this browser is signed in on.
+                manage or cancel your signup from any device this browser is signed in on.
             </p>
             <div className="flex justify-end">
                 <SubmitBtn />

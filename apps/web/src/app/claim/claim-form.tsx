@@ -62,7 +62,7 @@ export default function ClaimForm() {
             <p className="text-xs text-muted">
                 We&apos;ll email you a confirmation link. After you click it you&apos;ll be
                 asked to choose a password — then you can sign in from any device with the
-                same RSVPs.
+                same signups.
             </p>
         </form>
     );

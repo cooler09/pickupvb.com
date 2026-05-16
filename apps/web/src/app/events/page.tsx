@@ -188,7 +188,7 @@ export default async function EventsPage(
                     <Link href="/login" className="font-semibold text-primary hover:underline">
                         Sign in
                     </Link>{' '}
-                    to RSVP and host events.
+                    to join and host events.
                 </p>
             )}
 

@@ -25,7 +25,7 @@ export default async function ClaimCheckEmailPage(
             </p>
             <p className="text-xs text-muted">
                 After confirming you&apos;ll be asked to set a password. Until then, your guest
-                RSVPs are still attached to this browser session.
+                signups are still attached to this browser session.
             </p>
             <div className="flex justify-center gap-3">
                 <Link

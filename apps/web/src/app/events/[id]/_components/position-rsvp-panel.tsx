@@ -81,7 +81,7 @@ export function PositionRsvpPanel({
                 </div>
             ) : isRealUser ? (
                 <div className="space-y-2">
-                    <p className="text-sm text-muted">Pick a position to sign up:</p>
+                    <p className="text-sm text-muted">Pick a position to join:</p>
                     <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {positions.map((pos) => {
                             const target = positionRoster[pos] ?? 0;
@@ -107,12 +107,12 @@ export function PositionRsvpPanel({
                                     </span>
                                     <form action={joinEventAtPosition.bind(null, eventId, pos)}>
                                         <ConfirmSubmitButton
-                                            label={overFull ? 'Join waitlist' : 'Sign up'}
+                                            label={overFull ? 'Join waitlist' : 'Join'}
                                             pendingLabel="Joining…"
                                             confirmMessage={
                                                 overFull
                                                     ? `"${POSITION_LABEL[pos] ?? pos}" is full. Join the waitlist for "${eventTitle}"?`
-                                                    : `Sign up for "${eventTitle}" as ${POSITION_LABEL[pos] ?? pos}?`
+                                                    : `Join "${eventTitle}" as ${POSITION_LABEL[pos] ?? pos}?`
                                             }
                                             className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 disabled:opacity-50"
                                         />

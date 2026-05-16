@@ -121,7 +121,10 @@ export function ProfileForm({ profile, email }: { profile: Profile; email: strin
             <fieldset className="space-y-3 rounded-md border border-border-base p-3">
                 <legend className="px-1 text-sm font-medium">Positions</legend>
                 <p className="px-1 text-xs text-fg/60">
-                    Helps captains find you when picking up free agents.
+                    Tell hosts and captains where you like to play. Used when
+                    position-based events fill spots and when tournament
+                    captains pick up free agents. Leave any of these blank if
+                    you don&apos;t have a preference.
                 </p>
                 <div className="grid gap-3 sm:grid-cols-3">
                     <PositionSelect

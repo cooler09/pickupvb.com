@@ -25,7 +25,7 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
     joined: { tone: 'success', text: "You're in! See you on the court." },
     guest_joined: {
         tone: 'success',
-        text: "You're in! Save your RSVPs across devices — finish creating your account.",
+        text: "You're in! Save your signups across devices — finish creating your account.",
     },
     already: { tone: 'info', text: "You're already signed up for this event." },
     left: { tone: 'info', text: "You've been removed from this event." },
@@ -34,10 +34,10 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
     cancel: { tone: 'info', text: 'Checkout cancelled. You can try again any time.' },
 
     // Auth states
-    signin: { tone: 'error', text: 'Please sign in to RSVP.' },
+    signin: { tone: 'error', text: 'Please sign in to join.' },
     anon: {
         tone: 'info',
-        text: 'Finish creating your account to RSVP from any device.',
+        text: 'Finish creating your account to join from any device.',
     },
 
     // Payment-specific

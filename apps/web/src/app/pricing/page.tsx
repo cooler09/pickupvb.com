@@ -19,7 +19,7 @@ export const metadata = {
 
 const FREE_TIER_FEATURES = [
     'Unlimited free events',
-    `${FREE_PAID_EVENT_CAP_30D} paid event per rolling 30 days`,
+    `${FREE_PAID_EVENT_CAP_30D} paid event every 30 days (rolling)`,
     '5% platform fee on paid tickets',
     'Tip jar (5% platform fee)',
     'Group pages, co-hosts, free-agent signups',
@@ -203,7 +203,7 @@ export default async function PricingPage() {
                             <Row label="Free events" free="Unlimited" pro="Unlimited" />
                             <Row
                                 label="Paid events / 30 days"
-                                free={`${FREE_PAID_EVENT_CAP_30D}`}
+                                free={`${FREE_PAID_EVENT_CAP_30D} (rolling window)`}
                                 pro="Unlimited"
                             />
                             <Row label="Platform fee — ticket sales" free="5%" pro="2.5%" />
@@ -228,6 +228,10 @@ export default async function PricingPage() {
                 <Faq
                     q="Do I need to pay to host free events?"
                     a="No. Free events have no platform fee and no subscription required."
+                />
+                <Faq
+                    q={`What does "${FREE_PAID_EVENT_CAP_30D} paid event every 30 days" actually mean?`}
+                    a={`Free hosts can have ${FREE_PAID_EVENT_CAP_30D} paid event in any rolling 30-day window. If you create a paid event today, you'll be able to create another one 30 days from today — not at the start of the next calendar month. Cancelling a paid event before it runs doesn't free up the slot. Upgrade to Pro for unlimited paid events.`}
                 />
                 <Faq
                     q="How does the platform fee work?"
