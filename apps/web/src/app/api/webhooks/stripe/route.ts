@@ -317,7 +317,7 @@ async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void>
     // then fall back to our existing row keyed by customer id.
     let userId =
         (sub.metadata?.['user_id'] as string | undefined) ?? undefined;
-    if (!userId && typeof sub.customer !== 'string') {
+    if (!userId && typeof sub.customer !== 'string' && !sub.customer.deleted) {
         userId = (sub.customer.metadata?.['user_id'] as string | undefined) ?? undefined;
     }
     if (!userId) {
