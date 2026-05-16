@@ -3,7 +3,13 @@
  * Wires concrete adapters (infrastructure) into application handlers.
  * One place to swap implementations (e.g. for tests).
  */
-import { SupabaseBracketRepository, SupabaseEventRepository, SupabaseTeamRepository } from '@pickupvb/infrastructure';
+import {
+    SupabaseBracketRepository,
+    SupabaseEventRepository,
+    SupabaseHostStripeAccountRepository,
+    SupabaseHostSubscriptionRepository,
+    SupabaseTeamRepository,
+} from '@pickupvb/infrastructure';
 import {
     AcceptTeamInviteHandler,
     AddEventCoHostHandler,
@@ -37,6 +43,8 @@ import {
 const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
 const bracketRepo = new SupabaseBracketRepository();
+const hostStripeAccountRepo = new SupabaseHostStripeAccountRepository();
+const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
 
 export const handlers = {
     createEvent: new CreateEventHandler(eventRepo),
@@ -71,4 +79,6 @@ export const handlers = {
 export const repositories = {
     bracketRepo,
     eventRepo,
+    hostStripeAccountRepo,
+    hostSubscriptionRepo,
 };
