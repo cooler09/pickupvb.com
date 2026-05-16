@@ -11,7 +11,10 @@ import {
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Your profile — PickupVB' };
+export const metadata = {
+    title: 'Your profile — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 type ProfileRow = {
     first_name: string | null;

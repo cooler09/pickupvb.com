@@ -5,7 +5,10 @@ import { getServerSupabase } from '@/lib/supabase';
 import { PrintButton } from './print-button';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Receipt — PickupVB' };
+export const metadata = {
+    title: 'Receipt — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 type AuditRow = {
     id: string;

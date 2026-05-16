@@ -4,7 +4,10 @@ import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Receipts — PickupVB' };
+export const metadata = {
+    title: 'Receipts — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 type AuditRow = {
     id: string;
@@ -110,6 +113,11 @@ export default async function ReceiptsPage() {
         .filter((t) => new Date(t.paidAt).getFullYear() === currentYear)
         .reduce((s, t) => s + t.netCents, 0);
 
+    // Distinct years with activity, newest first, for the per-year CSV downloads.
+    const yearsWithActivity = Array.from(
+        new Set(transactions.map((t) => new Date(t.paidAt).getFullYear())),
+    ).sort((a, b) => b - a);
+
     return (
         <section className="space-y-6">
             <header className="space-y-2">
@@ -212,6 +220,29 @@ export default async function ReceiptsPage() {
                         the time of purchase. Need an older record or a corrected
                         receipt? Contact the event host directly.
                     </p>
+
+                    {yearsWithActivity.length > 0 && (
+                        <section className="rounded-lg border border-border-base bg-surface p-4">
+                            <h2 className="text-sm font-semibold text-fg">
+                                Annual statements
+                            </h2>
+                            <p className="mt-1 text-xs text-muted">
+                                Download a CSV of every paid signup in a calendar
+                                year. Good for expense reports and tax filing.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {yearsWithActivity.map((y) => (
+                                    <a
+                                        key={y}
+                                        href={`/api/receipts/${y}/statement.csv`}
+                                        className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
+                                    >
+                                        {y} CSV ↓
+                                    </a>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                 </>
             )}
         </section>

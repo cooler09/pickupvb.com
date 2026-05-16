@@ -10,7 +10,10 @@ import {
 } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Payouts — PickupVB' };
+export const metadata = {
+    title: 'Payouts — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 type SearchParams = Promise<{ onboarding?: string; error?: string }>;
 

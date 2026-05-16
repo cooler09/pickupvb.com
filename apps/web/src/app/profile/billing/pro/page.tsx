@@ -11,7 +11,10 @@ import {
 import { startProCheckout, openBillingPortal } from './actions';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Pro Host — PickupVB' };
+export const metadata = {
+    title: 'Pro Host — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 type SearchParams = Promise<{ status?: string; error?: string }>;
 
