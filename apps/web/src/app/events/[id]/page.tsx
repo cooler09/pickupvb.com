@@ -17,6 +17,7 @@ import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
 import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
 import EventMap from './_components/event-map-lazy';
+import { TipJar } from './_components/tip-jar';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,19 @@ export default async function EventDetailPage(
     const viewerIsPro = event.canManage && user
         ? await (await import('@/lib/pro')).isPro(user.id)
         : false;
+
+    // Tip-jar totals (cheap RPC). Hidden from the host themselves.
+    const isHostOfEvent = !!user && event.canManage;
+    let tipTotalCents = 0;
+    if (!isHostOfEvent) {
+        const { getAdminSupabase: getAdminForTips } = await import('@/lib/supabase-admin');
+        const adminForTips = getAdminForTips();
+        const { data: tipTotal } = await adminForTips.rpc(
+            'event_tip_total_cents',
+            { p_event_id: event.id } as never,
+        );
+        tipTotalCents = Number(tipTotal ?? 0);
+    }
 
     // For paid events, side-load per-attendee payment status (admin client —
     // visibility is host-only, the rest of the page just renders badges via
@@ -121,6 +135,22 @@ export default async function EventDetailPage(
                 ← Back to events
             </Link>
 
+            {pickQuery(searchParams, 'tip') === 'thanks' && (
+                <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+                    Thanks for tipping the host!
+                </div>
+            )}
+            {pickQuery(searchParams, 'tip') === 'cancel' && (
+                <div className="rounded-lg border border-border-base bg-surface p-3 text-sm">
+                    Tip cancelled.
+                </div>
+            )}
+            {pickQuery(searchParams, 'tip') === 'error' && (
+                <div className="rounded-lg border border-secondary bg-secondary/10 p-3 text-sm">
+                    {pickQuery(searchParams, 'tip_msg') ?? 'Could not process tip.'}
+                </div>
+            )}
+
             <header className="space-y-2">
                 <EventTags
                     type={event.type}
@@ -158,6 +188,15 @@ export default async function EventDetailPage(
                 viewerHostableGroups={event.viewerHostableGroups}
                 returnPath={returnPath}
             />
+
+            {!isHostOfEvent && (
+                <TipJar
+                    eventId={event.id}
+                    viewerIsRealUser={isRealUser}
+                    viewerHasSession={!!user}
+                    totalCents={tipTotalCents}
+                />
+            )}
 
             <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="rounded-lg border border-border-base p-4">

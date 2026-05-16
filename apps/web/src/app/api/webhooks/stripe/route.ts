@@ -182,7 +182,9 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
 type CheckoutMetadata = {
     event_id?: string;
     user_id?: string;
-    kind?: 'attendee';
+    host_id?: string;
+    tip_id?: string;
+    kind?: 'attendee' | 'tip';
 };
 
 /**
@@ -224,6 +226,18 @@ async function handleCheckoutCompleted(
             payment_intent_id: piId,
         } as never);
     }
+
+    if (meta.kind === 'tip' && meta.tip_id) {
+        const { error } = await admin
+            .from('event_tips')
+            .update({
+                status: 'paid',
+                stripe_payment_intent_id: piId,
+                paid_at: paidAt,
+            } as never)
+            .eq('id', meta.tip_id);
+        if (error) throw new Error(`mark tip paid failed: ${error.message}`);
+    }
 }
 
 /**
@@ -245,6 +259,16 @@ async function handleCheckoutExpired(
             .eq('user_id', meta.user_id)
             .eq('payment_status', 'pending');
     }
+
+    if (meta.kind === 'tip' && meta.tip_id) {
+        // Drop pending tip rows on expiry; failed payments hit payment_failed
+        // separately.
+        await admin
+            .from('event_tips')
+            .delete()
+            .eq('id', meta.tip_id)
+            .eq('status', 'pending');
+    }
 }
 
 /**
@@ -259,6 +283,12 @@ async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
         .delete()
         .eq('payment_intent_id', pi.id)
         .eq('payment_status', 'pending');
+    // Tips: mark failed rather than delete so the host can see attempted tips.
+    await admin
+        .from('event_tips')
+        .update({ status: 'failed' } as never)
+        .eq('stripe_payment_intent_id', pi.id)
+        .eq('status', 'pending');
 }
 
 /**
@@ -274,6 +304,15 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
     if (!piId) return;
 
     const admin = getAdminSupabase();
+
+    // Refund could be on a tip or an attendee charge. Try tip first (cheap).
+    await admin
+        .from('event_tips')
+        .update({
+            status: 'refunded',
+            refunded_at: new Date().toISOString(),
+        } as never)
+        .eq('stripe_payment_intent_id', piId);
 
     const { data: attendeeRow } = await admin
         .from('event_attendees')
