@@ -8,8 +8,11 @@ import {
 } from '@/components/hosted-events-list';
 import { addFriend, removeFriend } from '@/app/friends/actions';
 import { ShareLink } from '@/components/share-link';
+import { Pagination } from '@/components/pagination';
 
 export const dynamic = 'force-dynamic';
+
+const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
     const params = await props.params;
@@ -70,8 +73,16 @@ function nameOf(p: PlayerProfile): string {
     return full || p.display_name || 'Player';
 }
 
-export default async function PlayerProfilePage(props: { params: Promise<{ id: string }> }) {
+export default async function PlayerProfilePage(props: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
     const params = await props.params;
+    const rawSearchParams = await props.searchParams;
+    const searchParams: Record<string, string | undefined> = Object.fromEntries(
+        Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+    );
+    const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
     const supabase = await getServerSupabase();
 
     const { data: profileRow } = await supabase
@@ -203,12 +214,27 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
                 />
             </section>
             {past.length > 0 && (
-                <section className="space-y-3">
+                <section id="past-events" className="space-y-3">
                     <h2 className="text-lg font-semibold text-fg">
                         Past events{' '}
                         <span className="text-sm font-normal text-muted">({past.length})</span>
                     </h2>
-                    <HostedEventsList events={past} emptyState="" />
+                    <HostedEventsList
+                        events={past.slice(
+                            (ppage - 1) * PAST_EVENTS_PER_PAGE,
+                            ppage * PAST_EVENTS_PER_PAGE,
+                        )}
+                        emptyState=""
+                    />
+                    <Pagination
+                        basePath={`/players/${profile.id}`}
+                        page={ppage}
+                        pageSize={PAST_EVENTS_PER_PAGE}
+                        total={past.length}
+                        searchParams={searchParams}
+                        pageParam="ppage"
+                        scrollToId="past-events"
+                    />
                 </section>
             )}
         </div>

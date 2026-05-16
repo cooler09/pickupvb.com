@@ -5,11 +5,14 @@ import type { Route } from 'next';
  * Server-rendered pagination bar.
  *
  * Renders Prev/Next links and a small "Page X of Y · N total" indicator.
- * Builds hrefs by cloning the current `searchParams` and overriding `page`,
- * so it preserves any active filters (`q`, `city`, etc.) on navigation.
+ * Builds hrefs by cloning the current `searchParams` and overriding the
+ * page key, so it preserves any active filters (`q`, `city`, etc.) on
+ * navigation.
  *
  * `basePath` is the route this control links back to (e.g. `/groups`).
  * `pageSize` is the per-page count used to compute total pages.
+ * `pageParam` lets a page host multiple independent paginators (e.g.
+ *   `mpage` for members + `ppage` for past events). Defaults to `page`.
  * Page numbers are 1-indexed in the URL; clamp on the page itself.
  */
 export function Pagination({
@@ -18,12 +21,17 @@ export function Pagination({
     pageSize,
     total,
     searchParams,
+    pageParam = 'page',
+    scrollToId,
 }: {
     basePath: string;
     page: number;
     pageSize: number;
     total: number;
     searchParams: Record<string, string | undefined>;
+    pageParam?: string;
+    /** Optional element id to anchor-scroll to on navigation (per-section). */
+    scrollToId?: string;
 }) {
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     if (totalPages <= 1) return null;
@@ -31,12 +39,14 @@ export function Pagination({
     const hrefFor = (target: number): Route => {
         const params = new URLSearchParams();
         for (const [k, v] of Object.entries(searchParams)) {
-            if (k === 'page' || v === undefined || v === '') continue;
+            if (k === pageParam || v === undefined || v === '') continue;
             params.set(k, v);
         }
-        if (target > 1) params.set('page', String(target));
+        if (target > 1) params.set(pageParam, String(target));
         const qs = params.toString();
-        return (qs ? `${basePath}?${qs}` : basePath) as Route;
+        const hash = scrollToId ? `#${scrollToId}` : '';
+        const path = qs ? `${basePath}?${qs}${hash}` : `${basePath}${hash}`;
+        return path as Route;
     };
 
     const prevDisabled = page <= 1;

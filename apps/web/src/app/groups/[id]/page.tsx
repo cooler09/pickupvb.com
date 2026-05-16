@@ -2,10 +2,13 @@ import { notFound } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
+import { Pagination } from '@/components/pagination';
 import { GroupHeader } from './_components/group-header';
 import { MembersSection, type GroupMember } from './_components/members-section';
 
 export const dynamic = 'force-dynamic';
+
+const PAST_EVENTS_PER_PAGE = 10;
 
 type GroupRow = {
     id: string;
@@ -61,8 +64,17 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     };
 }
 
-export default async function GroupProfilePage(props: { params: Promise<{ id: string }> }) {
+export default async function GroupProfilePage(props: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
     const params = await props.params;
+    const rawSearchParams = await props.searchParams;
+    const searchParams: Record<string, string | undefined> = Object.fromEntries(
+        Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+    );
+    const mpage = Math.max(1, Number.parseInt(searchParams.mpage ?? '1', 10) || 1);
+    const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
     const supabase = await getServerSupabase();
 
     const { data: groupData } = await supabase
@@ -136,7 +148,13 @@ export default async function GroupProfilePage(props: { params: Promise<{ id: st
                 returnPath={returnPath}
             />
 
-            <MembersSection groupId={group.id} members={members} canManage={canManage} />
+            <MembersSection
+                groupId={group.id}
+                members={members}
+                canManage={canManage}
+                page={mpage}
+                searchParams={searchParams}
+            />
 
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold text-fg">
@@ -150,12 +168,27 @@ export default async function GroupProfilePage(props: { params: Promise<{ id: st
             </section>
 
             {past.length > 0 && (
-                <section className="space-y-3">
+                <section id="past-events" className="space-y-3">
                     <h2 className="text-lg font-semibold text-fg">
                         Past events{' '}
                         <span className="text-sm font-normal text-muted">({past.length})</span>
                     </h2>
-                    <HostedEventsList events={past} emptyState="" />
+                    <HostedEventsList
+                        events={past.slice(
+                            (ppage - 1) * PAST_EVENTS_PER_PAGE,
+                            ppage * PAST_EVENTS_PER_PAGE,
+                        )}
+                        emptyState=""
+                    />
+                    <Pagination
+                        basePath={`/groups/${group.id}`}
+                        page={ppage}
+                        pageSize={PAST_EVENTS_PER_PAGE}
+                        total={past.length}
+                        searchParams={searchParams}
+                        pageParam="ppage"
+                        scrollToId="past-events"
+                    />
                 </section>
             )}
         </div>

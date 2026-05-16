@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Pagination } from '@/components/pagination';
 
 export type GroupMember = {
     userId: string;
@@ -10,6 +11,8 @@ export type GroupMember = {
         avatarUrl: string | null;
     } | null;
 };
+
+const MEMBERS_PER_PAGE = 12;
 
 function memberName(p: GroupMember['profile']): string {
     if (!p) return 'Member';
@@ -28,20 +31,28 @@ type Props = {
     members: GroupMember[];
     /** Owner/admin: shows the "Manage members" link. */
     canManage: boolean;
+    /** 1-indexed current page for the `mpage` paginator. */
+    page: number;
+    /** Caller's full searchParams so pagination can preserve other params. */
+    searchParams: Record<string, string | undefined>;
 };
 
 /**
  * Member roster grid for a group profile. Each tile links to the player
  * profile and shows the member's role badge. Owners/admins see a link to
- * the dedicated `/members` management page.
+ * the dedicated `/members` management page. Pages of 12 members at a
+ * time via the `mpage` query param.
  */
-export function MembersSection({ groupId, members, canManage }: Props) {
+export function MembersSection({ groupId, members, canManage, page, searchParams }: Props) {
+    const total = members.length;
+    const start = (page - 1) * MEMBERS_PER_PAGE;
+    const visible = members.slice(start, start + MEMBERS_PER_PAGE);
     return (
-        <section className="space-y-3">
+        <section id="members" className="space-y-3">
             <div className="flex items-baseline justify-between">
                 <h2 className="text-lg font-semibold text-fg">
                     Members{' '}
-                    <span className="text-sm font-normal text-muted">({members.length})</span>
+                    <span className="text-sm font-normal text-muted">({total})</span>
                 </h2>
                 {canManage && (
                     <Link
@@ -53,7 +64,7 @@ export function MembersSection({ groupId, members, canManage }: Props) {
                 )}
             </div>
             <ul className="grid gap-2 sm:grid-cols-2">
-                {members.map((m) => {
+                {visible.map((m) => {
                     const name = memberName(m.profile);
                     return (
                         <li key={m.userId}>
@@ -87,6 +98,15 @@ export function MembersSection({ groupId, members, canManage }: Props) {
                     );
                 })}
             </ul>
+            <Pagination
+                basePath={`/groups/${groupId}`}
+                page={page}
+                pageSize={MEMBERS_PER_PAGE}
+                total={total}
+                searchParams={searchParams}
+                pageParam="mpage"
+                scrollToId="members"
+            />
         </section>
     );
 }
