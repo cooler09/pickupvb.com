@@ -127,19 +127,21 @@ export default async function ReceiptsPage() {
     ).sort((a, b) => b - a);
 
     return (
-        <section className="space-y-6">
-            <header className="space-y-2">
-                <div className="flex items-center gap-3 text-sm">
-                    <Link href="/profile" className="text-primary hover:underline">
-                        ← Profile
-                    </Link>
-                </div>
+        <div className="mx-auto max-w-3xl space-y-6 py-4">
+            {/* ── Header ──────────────────────────────────────────────── */}
+            <div className="space-y-2">
+                <Link
+                    href={'/profile' as Route}
+                    className="text-sm text-primary hover:underline"
+                >
+                    ← Profile
+                </Link>
                 <h1 className="text-3xl font-bold">Receipts</h1>
-                <p className="text-muted">
+                <p className="text-sm text-muted">
                     Every online payment you&apos;ve made for an event signup.
                     Keep these for expense reports and tax records.
                 </p>
-            </header>
+            </div>
 
             {transactions.length === 0 ? (
                 <div className="rounded-lg border border-border-base bg-surface p-6 text-sm text-muted">
@@ -148,8 +150,9 @@ export default async function ReceiptsPage() {
                 </div>
             ) : (
                 <>
+                    {/* ── Totals ──────────────────────────────────────── */}
                     <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-lg border border-border-base bg-fg/5 p-4">
+                        <div className="rounded-lg border border-border-base bg-surface p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                                 {currentYear} total
                             </p>
@@ -157,7 +160,7 @@ export default async function ReceiptsPage() {
                                 {formatUsd(ytdNet)}
                             </p>
                         </div>
-                        <div className="rounded-lg border border-border-base bg-fg/5 p-4">
+                        <div className="rounded-lg border border-border-base bg-surface p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                                 All-time total
                             </p>
@@ -167,14 +170,15 @@ export default async function ReceiptsPage() {
                         </div>
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-border-base">
+                    {/* ── Transactions table ──────────────────────────── */}
+                    <div className="overflow-hidden rounded-lg border border-border-base bg-surface">
                         <table className="w-full text-sm">
                             <thead className="bg-fg/5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                                 <tr>
                                     <th className="px-3 py-2">Date</th>
                                     <th className="px-3 py-2">Event</th>
                                     <th className="px-3 py-2 text-right">Paid</th>
-                                    <th className="px-3 py-2 text-right">Refund</th>
+                                    <th className="hidden px-3 py-2 text-right sm:table-cell">Refund</th>
                                     <th className="px-3 py-2 text-right">Net</th>
                                     <th className="px-3 py-2"></th>
                                 </tr>
@@ -199,7 +203,7 @@ export default async function ReceiptsPage() {
                                         <td className="whitespace-nowrap px-3 py-2 text-right">
                                             {formatUsd(t.paidCents)}
                                         </td>
-                                        <td className="whitespace-nowrap px-3 py-2 text-right text-muted">
+                                        <td className="hidden whitespace-nowrap px-3 py-2 text-right text-muted sm:table-cell">
                                             {t.refundedCents > 0
                                                 ? `−${formatUsd(t.refundedCents)}`
                                                 : '—'}
@@ -224,53 +228,66 @@ export default async function ReceiptsPage() {
                     </div>
 
                     <p className="text-xs text-muted">
-                        Stripe also emails an itemized receipt for each payment at
-                        the time of purchase. Need an older record or a corrected
-                        receipt? Contact the event host directly.
+                        Stripe also emails an itemized receipt for each payment
+                        at the time of purchase. Need an older record or a
+                        corrected receipt? Contact the event host directly.
                     </p>
 
-                    <section className="rounded-lg border border-border-base bg-surface p-4">
-                        <h2 className="text-sm font-semibold text-fg">
-                            Business / receipt info
-                        </h2>
-                        <p className="mt-1 text-xs text-muted">
-                            Optional. When set, this appears as “Billed to” on
-                            your printable receipts so they can be used for
-                            expense reports or filed as business records.
-                        </p>
-                        <div className="mt-3">
-                            <BusinessInfoForm
-                                businessName={profile?.business_name ?? null}
-                                businessAddress={profile?.business_address ?? null}
-                                taxId={profile?.tax_id ?? null}
-                            />
-                        </div>
-                    </section>
+                    {/* ── Annual statements + business info ───────────── */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                        {yearsWithActivity.length > 0 && (
+                            <section className="rounded-lg border border-border-base bg-surface p-4">
+                                <h2 className="text-sm font-semibold text-fg">
+                                    Annual statements
+                                </h2>
+                                <p className="mt-1 text-xs text-muted">
+                                    CSV of every paid signup in a calendar
+                                    year. Good for expense reports and taxes.
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {yearsWithActivity.map((y) => (
+                                        <a
+                                            key={y}
+                                            href={`/api/receipts/${y}/statement.csv`}
+                                            className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
+                                        >
+                                            {y} CSV ↓
+                                        </a>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
-                    {yearsWithActivity.length > 0 && (
-                        <section className="rounded-lg border border-border-base bg-surface p-4">
-                            <h2 className="text-sm font-semibold text-fg">
-                                Annual statements
-                            </h2>
-                            <p className="mt-1 text-xs text-muted">
-                                Download a CSV of every paid signup in a calendar
-                                year. Good for expense reports and tax filing.
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                                {yearsWithActivity.map((y) => (
-                                    <a
-                                        key={y}
-                                        href={`/api/receipts/${y}/statement.csv`}
-                                        className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
-                                    >
-                                        {y} CSV ↓
-                                    </a>
-                                ))}
+                        <details className="group rounded-lg border border-border-base bg-surface">
+                            <summary className="flex cursor-pointer items-center justify-between gap-2 p-4 hover:bg-fg/5">
+                                <div>
+                                    <h2 className="text-sm font-semibold text-fg">
+                                        Business / receipt info
+                                    </h2>
+                                    <p className="mt-0.5 text-xs text-muted">
+                                        {profile?.business_name
+                                            ? `Set: ${profile.business_name}`
+                                            : 'Optional — appears as “Billed to” on receipts'}
+                                    </p>
+                                </div>
+                                <span className="text-xs text-muted group-open:hidden">
+                                    Edit
+                                </span>
+                                <span className="hidden text-xs text-muted group-open:inline">
+                                    Collapse
+                                </span>
+                            </summary>
+                            <div className="border-t border-border-base p-4">
+                                <BusinessInfoForm
+                                    businessName={profile?.business_name ?? null}
+                                    businessAddress={profile?.business_address ?? null}
+                                    taxId={profile?.tax_id ?? null}
+                                />
                             </div>
-                        </section>
-                    )}
+                        </details>
+                    </div>
                 </>
             )}
-        </section>
+        </div>
     );
 }
