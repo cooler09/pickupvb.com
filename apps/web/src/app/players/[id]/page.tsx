@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
@@ -132,77 +133,83 @@ export default async function PlayerProfilePage(props: {
 
     return (
         <div className="mx-auto max-w-2xl space-y-8 py-4">
-            <header className="flex items-center gap-4">
-                {profile.avatar_url ? (
-                    <Image
-                        src={profile.avatar_url}
-                        alt=""
-                        width={64}
-                        height={64}
-                        className="h-16 w-16 rounded-full object-cover"
-                    />
-                ) : (
-                    <span
-                        aria-hidden="true"
-                        className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15 text-lg font-semibold text-primary"
-                    >
-                        {initialsOf(profile)}
-                    </span>
-                )}
-                <div className="flex-1 min-w-0">
-                    <h1 className="text-2xl font-bold text-fg">{name}</h1>
-                    {profile.home_city && (
-                        <p className="text-sm text-muted">{profile.home_city}</p>
+            {/* ── Identity card ─────────────────────────────────────── */}
+            <header className="rounded-lg border border-border-base bg-surface p-5">
+                <div className="flex items-start gap-4">
+                    {profile.avatar_url ? (
+                        <Image
+                            src={profile.avatar_url}
+                            alt=""
+                            width={72}
+                            height={72}
+                            className="h-20 w-20 shrink-0 rounded-full object-cover"
+                        />
+                    ) : (
+                        <span
+                            aria-hidden="true"
+                            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xl font-semibold text-primary"
+                        >
+                            {initialsOf(profile)}
+                        </span>
                     )}
-                    {positions.length > 0 && (
-                        <p className="mt-1 text-sm text-muted">
-                            <span className="text-fg/70">Positions:</span>{' '}
-                            {positions.join(' · ')}
+                    <div className="min-w-0 flex-1">
+                        <h1 className="truncate text-2xl font-bold text-fg">
+                            {name}
+                        </h1>
+                        <p className="text-sm text-muted">
+                            {profile.home_city ?? 'No home city set'}
                         </p>
-                    )}
-                    <div className="mt-2">
-                        <ShareLink path={`/players/${profile.id}`} title={name} />
+                        {positions.length > 0 && (
+                            <p className="mt-1 text-xs text-muted">
+                                {positions.join(' · ')}
+                            </p>
+                        )}
                     </div>
                 </div>
-                {!isSelf && (
-                    user ? (
-                        isFollowing ? (
-                            <form action={removeFriend.bind(null, profile.id, returnPath)}>
-                                <button
-                                    type="submit"
-                                    className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
-                                >
-                                    ✓ Following
-                                </button>
-                            </form>
+
+                {/* Primary CTA + share row */}
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {!isSelf &&
+                        (user ? (
+                            isFollowing ? (
+                                <form action={removeFriend.bind(null, profile.id, returnPath)}>
+                                    <button
+                                        type="submit"
+                                        className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
+                                    >
+                                        ✓ Following
+                                    </button>
+                                </form>
+                            ) : (
+                                <form action={addFriend.bind(null, profile.id, returnPath)}>
+                                    <button
+                                        type="submit"
+                                        className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
+                                    >
+                                        + Follow
+                                    </button>
+                                </form>
+                            )
                         ) : (
-                            <form action={addFriend.bind(null, profile.id, returnPath)}>
-                                <button
-                                    type="submit"
-                                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90"
-                                >
-                                    + Follow
-                                </button>
-                            </form>
-                        )
-                    ) : (
+                            <Link
+                                href={`/login?next=${encodeURIComponent(returnPath)}` as Route}
+                                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
+                            >
+                                Sign in to follow
+                            </Link>
+                        ))}
+                    {isSelf && (
                         <Link
-                            href={`/login?next=${encodeURIComponent(returnPath)}`}
-                            className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
+                            href={'/profile' as Route}
+                            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-fg hover:opacity-90"
                         >
-                            Sign in to follow
+                            Edit profile →
                         </Link>
-                    )
-                )}
-                {isSelf && (
-                    <Link
-                        href="/profile"
-                        className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
-                    >
-                        Edit profile
-                    </Link>
-                )}
+                    )}
+                    <ShareLink path={`/players/${profile.id}`} title={name} />
+                </div>
             </header>
+
             <section className="space-y-3">
                 <h2 className="text-lg font-semibold text-fg">
                     Upcoming events{' '}
