@@ -52,8 +52,14 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
     // Realtime subscription — new notifications stream in.
     useEffect(() => {
         const supabase = createSupabaseBrowserClient();
+        // Unique topic per mount: under React strict mode the effect runs
+        // twice and `removeChannel` is async, so reusing a fixed topic
+        // (`notifications:<userId>`) returns the already-subscribed instance
+        // on the second mount and `.on(...)` throws
+        // "cannot add `postgres_changes` callbacks ... after `subscribe()`".
+        const topic = `notifications:${userId}:${Math.random().toString(36).slice(2, 10)}`;
         const channel = supabase
-            .channel(`notifications:${userId}`)
+            .channel(topic)
             .on(
                 'postgres_changes',
                 {
