@@ -6,6 +6,7 @@ import { getAdminSupabase } from '@/lib/supabase-admin';
 import { mirrorStripeAccountUpdate } from '@/lib/host-stripe-account';
 import { findHostByStripeCustomerId, upsertHostSubscriptionFromStripe } from '@/lib/pro';
 import { log } from '@/lib/log';
+import { notify } from '@/lib/notify';
 
 /**
  * Stripe webhook receiver.
@@ -331,6 +332,28 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
             amount_cents: charge.amount_refunded ?? att.amount_paid_cents,
             payment_intent_id: piId,
         } as never);
+
+        // Notify the attendee. Best-effort; failures don't fail the webhook.
+        try {
+            const { data: evRow } = await admin
+                .from('events')
+                .select('title')
+                .eq('id', att.event_id)
+                .maybeSingle();
+            const title = (evRow as { title: string } | null)?.title ?? 'event';
+            await notify(
+                'payment.refunded',
+                att.user_id,
+                {
+                    eventId: att.event_id,
+                    eventTitle: title,
+                    amountCents: charge.amount_refunded ?? att.amount_paid_cents,
+                },
+                { idempotencyKey: `refund:${piId}` },
+            );
+        } catch {
+            // best-effort
+        }
     }
 }
 

@@ -24,7 +24,7 @@ export type NotificationKind =
     | 'host.payout.paid'
     | 'host.stripe.action_required'
     | 'social.follow.new'
-    | 'group.invite'
+    | 'team.invite'
     | 'broadcast.host_message';
 
 export type NotificationCategory =
@@ -50,7 +50,7 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
     'host.payout.paid': 'host_payouts',
     'host.stripe.action_required': 'transactional',
     'social.follow.new': 'social',
-    'group.invite': 'group_activity',
+    'team.invite': 'group_activity',
     'broadcast.host_message': 'broadcasts',
 };
 
@@ -66,7 +66,7 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
     'host.payout.paid': ['email', 'in_app'],
     'host.stripe.action_required': ['email', 'in_app'],
     'social.follow.new': ['in_app'],
-    'group.invite': ['email', 'in_app'],
+    'team.invite': ['email', 'in_app'],
     'broadcast.host_message': ['email', 'in_app'],
 };
 
@@ -130,7 +130,7 @@ export type NotificationPayloadMap = {
         followerId: string;
         followerName: string;
     };
-    'group.invite': {
+    'team.invite': {
         groupId: string;
         groupName: string;
         inviterName: string;

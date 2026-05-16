@@ -194,14 +194,14 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
             'View profile',
         ),
     }),
-    'group.invite': (p) => ({
+    'team.invite': (p) => ({
         subject: `${p.inviterName} invited you to ${p.groupName}`,
         text: `${p.inviterName} invited you to join ${p.groupName} on PickupVB.`,
         html: layout(
             `<h2 style="margin:0 0 12px">You're invited to ${escapeHtml(p.groupName)}</h2>
              <p><strong>${escapeHtml(p.inviterName)}</strong> invited you to join.</p>`,
-            `${APP_URL}/groups/${p.groupId}`,
-            'View group',
+            `${APP_URL}/teams/${p.groupId}`,
+            'View team',
         ),
     }),
     'broadcast.host_message': (p) => ({
@@ -258,8 +258,8 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
     'social.follow.new': (p) => ({
         body: `PickupVB: ${p.followerName} started following you.`,
     }),
-    'group.invite': (p) => ({
-        body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/groups/${p.groupId}`,
+    'team.invite': (p) => ({
+        body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/teams/${p.groupId}`,
     }),
     'broadcast.host_message': (p) => ({
         body: `PickupVB · ${p.senderName}: ${p.body.slice(0, 240)}`,
@@ -321,10 +321,10 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
         body: null,
         href: `/players/${p.followerId}`,
     }),
-    'group.invite': (p) => ({
+    'team.invite': (p) => ({
         title: `Invited to ${p.groupName}`,
         body: `from ${p.inviterName}`,
-        href: `/groups/${p.groupId}`,
+        href: `/teams/${p.groupId}`,
     }),
     'broadcast.host_message': (p) => ({
         title: p.subject,

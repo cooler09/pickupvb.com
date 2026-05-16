@@ -11,6 +11,7 @@ import {
 import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
 import { requireRealUser, requireSession } from '@/lib/server-auth';
+import { notify } from '@/lib/notify';
 import {
     AcceptTeamInviteCommand,
     AddTeamMemberCommand,
@@ -103,6 +104,30 @@ export async function addMemberFromForm(
         }
         throw err;
     }
+
+    // Notify the invitee unless they auto-accepted (then it's not really an
+    // invite). Best-effort; failures don't block.
+    if (!autoAccept) {
+        try {
+            const [{ data: teamRow }, { data: inviterRow }] = await Promise.all([
+                supabase.from('teams').select('name').eq('id', teamId).maybeSingle(),
+                supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
+            ]);
+            const teamName = (teamRow as { name: string } | null)?.name ?? 'a team';
+            const inviterName =
+                (inviterRow as { display_name: string | null } | null)?.display_name ??
+                'A captain';
+            await notify(
+                'team.invite',
+                userId,
+                { groupId: teamId, groupName: teamName, inviterName },
+                { idempotencyKey: `${teamId}:${userId}` },
+            );
+        } catch {
+            // best-effort
+        }
+    }
+
     revalidatePath(returnPath);
 }
 
