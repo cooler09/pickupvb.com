@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
@@ -89,8 +90,13 @@ export default async function GroupsIndexPage(
                                 className="flex items-start gap-3 rounded-lg border border-border-base bg-surface p-3 hover:border-primary/40"
                             >
                                 {g.avatar_url ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    (<img src={g.avatar_url} alt="" className="h-12 w-12 rounded-md object-cover" />)
+                                    <Image
+                                        src={g.avatar_url}
+                                        alt=""
+                                        width={48}
+                                        height={48}
+                                        className="h-12 w-12 rounded-md object-cover"
+                                    />
                                 ) : (
                                     <span
                                         aria-hidden="true"

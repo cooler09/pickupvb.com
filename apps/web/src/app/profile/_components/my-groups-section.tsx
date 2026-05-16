@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 
 export type MyGroup = {
@@ -50,10 +51,11 @@ export function MyGroupsSection({ groups }: Props) {
                                 className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-2 hover:border-primary/40"
                             >
                                 {g.avatarUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
+                                    <Image
                                         src={g.avatarUrl}
                                         alt=""
+                                        width={36}
+                                        height={36}
                                         className="h-9 w-9 rounded-md object-cover"
                                     />
                                 ) : (

@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { Pagination } from '@/components/pagination';
 
@@ -73,10 +74,11 @@ export function MembersSection({ groupId, members, canManage, page, searchParams
                                 className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-2 hover:border-primary/40"
                             >
                                 {m.profile?.avatarUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
+                                    <Image
                                         src={m.profile.avatarUrl}
                                         alt=""
+                                        width={36}
+                                        height={36}
                                         className="h-9 w-9 rounded-full object-cover"
                                     />
                                 ) : (

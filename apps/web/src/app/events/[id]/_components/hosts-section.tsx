@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import type { EventDetailReadModel } from '@pickupvb/domain';
 import { UserPicker } from '@/components/user-picker';
@@ -58,10 +59,11 @@ export function HostsSection({
                             className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary hover:bg-primary/20"
                         >
                             {primaryHostGroup.avatarUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
+                                <Image
                                     src={primaryHostGroup.avatarUrl}
                                     alt=""
+                                    width={20}
+                                    height={20}
                                     className="h-5 w-5 rounded object-cover"
                                 />
                             ) : (

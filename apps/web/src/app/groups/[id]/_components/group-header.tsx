@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { followGroup, unfollowGroup } from '@/app/groups/actions';
 import { ShareLink } from '@/components/share-link';
@@ -35,10 +36,11 @@ export function GroupHeader({
     return (
         <header className="flex items-start gap-4">
             {group.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                     src={group.avatarUrl}
                     alt=""
+                    width={80}
+                    height={80}
                     className="h-20 w-20 rounded-lg object-cover"
                 />
             ) : (

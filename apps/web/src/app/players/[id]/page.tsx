@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
@@ -134,12 +135,13 @@ export default async function PlayerProfilePage(props: {
         <div className="mx-auto max-w-2xl space-y-8 py-4">
             <header className="flex items-center gap-4">
                 {profile.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    (<img
+                    <Image
                         src={profile.avatar_url}
                         alt=""
+                        width={64}
+                        height={64}
                         className="h-16 w-16 rounded-full object-cover"
-                    />)
+                    />
                 ) : (
                     <span
                         aria-hidden="true"

@@ -11,6 +11,14 @@ const nextConfig = {
     experimental: {
         typedRoutes: true,
     },
+    images: {
+        // Supabase Storage public buckets. Wildcard covers both project URLs
+        // (`<ref>.supabase.co`) and any custom domain mapped to Supabase.
+        remotePatterns: [
+            { protocol: 'https', hostname: '**.supabase.co' },
+            { protocol: 'https', hostname: '**.supabase.in' },
+        ],
+    },
     webpack(config) {
         // Resolve `.js` / `.mjs` / `.cjs` import specifiers to TS sources
         // inside our ESM workspace packages (NodeNext-style imports).

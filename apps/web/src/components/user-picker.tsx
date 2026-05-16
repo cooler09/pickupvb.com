@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useId, useRef, useState } from 'react';
 import { searchPeople, type PeopleSearchResult } from '@/app/people-actions';
 
@@ -74,10 +75,11 @@ export function UserPicker({
                 <div className="flex items-center justify-between gap-2 rounded-md border border-border-base bg-surface px-3 py-2">
                     <span className="flex min-w-0 items-center gap-2">
                         {selected.avatarUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
+                            <Image
                                 src={selected.avatarUrl}
                                 alt=""
+                                width={28}
+                                height={28}
                                 className="h-7 w-7 rounded-full object-cover"
                             />
                         ) : (
@@ -166,10 +168,11 @@ export function UserPicker({
                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-fg/5"
                             >
                                 {r.avatarUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
+                                    <Image
                                         src={r.avatarUrl}
                                         alt=""
+                                        width={28}
+                                        height={28}
                                         className="h-7 w-7 rounded-full object-cover"
                                     />
                                 ) : (

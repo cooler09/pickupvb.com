@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { addFriend, removeFriend } from '@/app/friends/actions';
 import { setAttendeePaymentStatus } from '@/app/events/[id]/manage-payments-actions';
@@ -88,10 +89,11 @@ export function AttendeeList({
                             className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
                         >
                             {a.profiles?.avatar_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
+                                <Image
                                     src={a.profiles.avatar_url}
                                     alt=""
+                                    width={36}
+                                    height={36}
                                     className="h-9 w-9 rounded-full object-cover"
                                 />
                             ) : (

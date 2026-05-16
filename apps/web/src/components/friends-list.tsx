@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { removeFriend } from '@/app/friends/actions';
 
@@ -60,10 +61,11 @@ export function FriendsList({
                             className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
                         >
                             {p.avatar_url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
+                                <Image
                                     src={p.avatar_url}
                                     alt=""
+                                    width={36}
+                                    height={36}
                                     className="h-9 w-9 rounded-full object-cover"
                                 />
                             ) : (

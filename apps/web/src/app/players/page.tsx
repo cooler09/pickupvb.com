@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { Pagination } from '@/components/pagination';
@@ -116,12 +117,13 @@ export default async function PlayersIndexPage(
                                 className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-3 hover:border-primary/40"
                             >
                                 {p.avatar_url ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    (<img
+                                    <Image
                                         src={p.avatar_url}
                                         alt=""
+                                        width={40}
+                                        height={40}
                                         className="h-10 w-10 rounded-full object-cover"
-                                    />)
+                                    />
                                 ) : (
                                     <span
                                         aria-hidden="true"
