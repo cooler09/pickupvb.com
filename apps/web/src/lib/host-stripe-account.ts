@@ -1,4 +1,5 @@
 import 'server-only';
+import type { HostStripeAccount, HostStripeAccountStatus } from '@pickupvb/domain';
 import { repositories } from './handlers';
 
 /**
@@ -13,6 +14,40 @@ export async function getHostStripeAccount(hostId: string): Promise<string | nul
     const account = await repositories.hostStripeAccountRepo.findByHostId(hostId);
     if (!account || !account.chargesEnabled) return null;
     return account.accountId;
+}
+
+/**
+ * Full mirrored Stripe account state for the host — used by the billing
+ * page to render onboarding progress (charges_enabled, payouts_enabled,
+ * details_submitted).
+ */
+export async function getHostStripeAccountStatus(
+    hostId: string,
+): Promise<HostStripeAccount | null> {
+    return repositories.hostStripeAccountRepo.findByHostId(hostId);
+}
+
+export async function createHostStripeAccount(account: HostStripeAccount): Promise<void> {
+    await repositories.hostStripeAccountRepo.create(account);
+}
+
+export async function updateHostStripeAccountStatus(
+    hostId: string,
+    status: HostStripeAccountStatus,
+): Promise<void> {
+    await repositories.hostStripeAccountRepo.updateStatusByHostId(hostId, status);
+}
+
+export async function mirrorStripeAccountUpdate(
+    accountId: string,
+    status: HostStripeAccountStatus,
+    lastEventPayload?: Record<string, unknown>,
+): Promise<boolean> {
+    return repositories.hostStripeAccountRepo.updateStatusByAccountId(
+        accountId,
+        status,
+        lastEventPayload,
+    );
 }
 
 /**

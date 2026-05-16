@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import type { Route } from 'next';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
-import { getAdminSupabase } from '@/lib/supabase-admin';
+import { getHostStripeCustomerId, seedHostStripeCustomer } from '@/lib/pro';
 import { buildOrigin } from '@/lib/server-redirects';
 import { log } from '@/lib/log';
 
@@ -35,15 +35,8 @@ async function getOrCreateCustomerId(
     userId: string,
     email: string | null,
 ): Promise<string> {
-    const admin = getAdminSupabase();
     const stripe = getStripe();
-    type Row = { stripe_customer_id: string };
-    const { data: existing } = await admin
-        .from('host_subscriptions')
-        .select('stripe_customer_id')
-        .eq('user_id', userId)
-        .maybeSingle();
-    const existingId = (existing as Row | null)?.stripe_customer_id;
+    const existingId = await getHostStripeCustomerId(userId);
     if (existingId) return existingId;
 
     const customer = await stripe.customers.create({
@@ -52,14 +45,9 @@ async function getOrCreateCustomerId(
     });
     // Pre-seed the row with status='incomplete' so the webhook upsert path
     // is simpler; it'll get overwritten on subscription.created.
-    const { error } = await admin
-        .from('host_subscriptions')
-        .insert({
-            user_id: userId,
-            stripe_customer_id: customer.id,
-            status: 'incomplete',
-        } as never);
-    if (error && error.code !== '23505') {
+    try {
+        await seedHostStripeCustomer(userId, customer.id);
+    } catch (error) {
         await log.error('[pro] seed host_subscriptions failed', error);
     }
     return customer.id;
@@ -120,14 +108,7 @@ export async function openBillingPortal(): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) redirect('/login?next=/profile/billing/pro');
 
-    const admin = getAdminSupabase();
-    type Row = { stripe_customer_id: string };
-    const { data } = await admin
-        .from('host_subscriptions')
-        .select('stripe_customer_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-    const customerId = (data as Row | null)?.stripe_customer_id;
+    const customerId = await getHostStripeCustomerId(user.id);
     if (!customerId) {
         redirect('/profile/billing/pro?error=no_customer' as Route);
     }

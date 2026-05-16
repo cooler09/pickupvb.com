@@ -1,6 +1,7 @@
 import {
     type HostSubscription,
     type HostSubscriptionRepository,
+    type HostSubscriptionUpsert,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 
@@ -21,6 +22,10 @@ type Row = {
  * (service-role only) and calls the Postgres functions `is_pro_host` and
  * `host_paid_event_count_30d` for derived quotas — those are the source of
  * truth so the platform fee and free-tier cap agree across SQL and TS.
+ *
+ * Writes cover the two paths that mutate the row: pre-checkout customer
+ * seeding (insert with status='incomplete') and the
+ * `customer.subscription.*` webhook upsert keyed on `user_id`.
  */
 export class SupabaseHostSubscriptionRepository implements HostSubscriptionRepository {
     private _client: SupabaseClient | null = null;
@@ -71,5 +76,76 @@ export class SupabaseHostSubscriptionRepository implements HostSubscriptionRepos
         } as never);
         if (error) return 0;
         return Number(data ?? 0);
+    }
+
+    async findCustomerIdByHostId(hostId: string): Promise<string | null> {
+        const { data, error } = await this.client
+            .from('host_subscriptions')
+            .select('stripe_customer_id')
+            .eq('user_id', hostId)
+            .maybeSingle();
+        if (error) {
+            throw new Error(
+                `HostSubscription.findCustomerIdByHostId(${hostId}) failed: ${error.message}`,
+            );
+        }
+        const row = data as unknown as { stripe_customer_id: string } | null;
+        return row?.stripe_customer_id ?? null;
+    }
+
+    async findHostIdByCustomerId(customerId: string): Promise<string | null> {
+        const { data, error } = await this.client
+            .from('host_subscriptions')
+            .select('user_id')
+            .eq('stripe_customer_id', customerId)
+            .maybeSingle();
+        if (error) {
+            throw new Error(
+                `HostSubscription.findHostIdByCustomerId(${customerId}) failed: ${error.message}`,
+            );
+        }
+        const row = data as unknown as { user_id: string } | null;
+        return row?.user_id ?? null;
+    }
+
+    async seedCustomer(hostId: string, stripeCustomerId: string): Promise<void> {
+        const { error } = await this.client
+            .from('host_subscriptions')
+            .insert({
+                user_id: hostId,
+                stripe_customer_id: stripeCustomerId,
+                status: 'incomplete',
+            } as never);
+        // 23505 = unique violation. The webhook may have already inserted
+        // a row; that's fine.
+        if (error && error.code !== '23505') {
+            throw new Error(
+                `HostSubscription.seedCustomer(${hostId}) failed: ${error.message}`,
+            );
+        }
+    }
+
+    async upsertFromStripe(input: HostSubscriptionUpsert): Promise<void> {
+        const { error } = await this.client
+            .from('host_subscriptions')
+            .upsert(
+                {
+                    user_id: input.hostId,
+                    stripe_customer_id: input.stripeCustomerId,
+                    stripe_subscription_id: input.stripeSubscriptionId,
+                    status: input.status,
+                    plan: input.plan,
+                    current_period_end: input.currentPeriodEnd,
+                    trial_end: input.trialEnd,
+                    cancel_at_period_end: input.cancelAtPeriodEnd,
+                    updated_at: new Date().toISOString(),
+                } as never,
+                { onConflict: 'user_id' },
+            );
+        if (error) {
+            throw new Error(
+                `HostSubscription.upsertFromStripe(${input.hostId}) failed: ${error.message}`,
+            );
+        }
     }
 }

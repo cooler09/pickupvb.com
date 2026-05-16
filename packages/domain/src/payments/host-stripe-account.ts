@@ -12,14 +12,35 @@ export type HostStripeAccount = {
     detailsSubmitted: boolean;
 };
 
+/** Mutable subset of the account state mirrored from Stripe. */
+export type HostStripeAccountStatus = {
+    chargesEnabled: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+};
+
 /**
  * Repository contract (DDD port) for host Stripe Connect account state.
  * Adapter lives in @pickupvb/infrastructure.
  *
- * Read-only from the domain's perspective today — writes happen through
- * Stripe webhooks in the API layer. Add `upsert` here if/when a use case
- * needs to mutate it through application services.
+ * Writes are split by the natural key the caller has on hand:
+ *   - `create` for new onboarding rows (we know hostId + accountId).
+ *   - `updateStatusByHostId` for our own refresh-from-Stripe action.
+ *   - `updateStatusByAccountId` for the `account.updated` webhook, which
+ *     receives a Stripe account id but not our user id. Returns `false`
+ *     when no row matches (host hasn't onboarded yet) so the webhook can
+ *     no-op gracefully.
  */
 export interface HostStripeAccountRepository {
     findByHostId(hostId: string): Promise<HostStripeAccount | null>;
+    create(account: HostStripeAccount): Promise<void>;
+    updateStatusByHostId(
+        hostId: string,
+        status: HostStripeAccountStatus,
+    ): Promise<void>;
+    updateStatusByAccountId(
+        accountId: string,
+        status: HostStripeAccountStatus,
+        lastEventPayload?: Record<string, unknown>,
+    ): Promise<boolean>;
 }

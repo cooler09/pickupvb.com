@@ -3,6 +3,8 @@ import { headers } from 'next/headers';
 import type Stripe from 'stripe';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getAdminSupabase } from '@/lib/supabase-admin';
+import { mirrorStripeAccountUpdate } from '@/lib/host-stripe-account';
+import { findHostByStripeCustomerId, upsertHostSubscriptionFromStripe } from '@/lib/pro';
 import { log } from '@/lib/log';
 
 /**
@@ -157,22 +159,17 @@ async function dispatch(event: Stripe.Event): Promise<void> {
  * gate the "publish a paid event" UI.
  */
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
-    const admin = getAdminSupabase();
-    const { error } = await admin
-        .from('host_stripe_accounts')
-        .update({
-            charges_enabled: account.charges_enabled,
-            payouts_enabled: account.payouts_enabled,
-            details_submitted: account.details_submitted,
-            last_event_payload: account as unknown as Record<string, unknown>,
-        } as never)
-        .eq('stripe_account_id', account.id);
-    if (error) {
-        // If the row doesn't exist yet (host hasn't started onboarding via
-        // our flow), there's nothing to update. That's fine.
-        if (error.code === 'PGRST116') return;
-        throw new Error(`account.updated mirror failed: ${error.message}`);
-    }
+    await mirrorStripeAccountUpdate(
+        account.id,
+        {
+            chargesEnabled: account.charges_enabled,
+            payoutsEnabled: account.payouts_enabled,
+            detailsSubmitted: account.details_submitted,
+        },
+        account as unknown as Record<string, unknown>,
+    );
+    // Repo returns false (no row) silently — host hasn't onboarded through
+    // our flow yet, so there's nothing to mirror.
 }
 
 // ============================================================================
@@ -347,8 +344,6 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
  * past_due, and end-of-period cancel.
  */
 async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void> {
-    const admin = getAdminSupabase();
-
     const customerId =
         typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
@@ -360,13 +355,7 @@ async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void>
         userId = (sub.customer.metadata?.['user_id'] as string | undefined) ?? undefined;
     }
     if (!userId) {
-        type Row = { user_id: string };
-        const { data } = await admin
-            .from('host_subscriptions')
-            .select('user_id')
-            .eq('stripe_customer_id', customerId)
-            .maybeSingle();
-        userId = (data as Row | null)?.user_id;
+        userId = (await findHostByStripeCustomerId(customerId)) ?? undefined;
     }
     if (!userId) {
         await log.error('[stripe-webhook] subscription change: no user_id resolvable', null, {
@@ -388,25 +377,14 @@ async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void>
     const periodEnd = (sub as unknown as { current_period_end?: number }).current_period_end;
     const trialEnd = sub.trial_end;
 
-    const { error } = await admin
-        .from('host_subscriptions')
-        .upsert(
-            {
-                user_id: userId,
-                stripe_customer_id: customerId,
-                stripe_subscription_id: sub.id,
-                status: sub.status,
-                plan,
-                current_period_end: periodEnd
-                    ? new Date(periodEnd * 1000).toISOString()
-                    : null,
-                trial_end: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
-                cancel_at_period_end: sub.cancel_at_period_end ?? false,
-                updated_at: new Date().toISOString(),
-            } as never,
-            { onConflict: 'user_id' },
-        );
-    if (error) {
-        throw new Error(`subscription upsert failed: ${error.message}`);
-    }
+    await upsertHostSubscriptionFromStripe({
+        hostId: userId,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: sub.id,
+        status: sub.status,
+        plan,
+        currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+        trialEnd: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+        cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+    });
 }

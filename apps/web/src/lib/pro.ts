@@ -1,4 +1,5 @@
 import 'server-only';
+import type { HostSubscriptionUpsert } from '@pickupvb/domain';
 import { repositories } from './handlers';
 
 /**
@@ -55,4 +56,25 @@ export async function getHostSubscription(userId: string): Promise<SubscriptionR
         stripe_customer_id: sub.stripeCustomerId,
         stripe_subscription_id: sub.stripeSubscriptionId,
     };
+}
+
+export async function getHostStripeCustomerId(userId: string): Promise<string | null> {
+    return repositories.hostSubscriptionRepo.findCustomerIdByHostId(userId);
+}
+
+export async function findHostByStripeCustomerId(customerId: string): Promise<string | null> {
+    return repositories.hostSubscriptionRepo.findHostIdByCustomerId(customerId);
+}
+
+export async function seedHostStripeCustomer(
+    userId: string,
+    stripeCustomerId: string,
+): Promise<void> {
+    await repositories.hostSubscriptionRepo.seedCustomer(userId, stripeCustomerId);
+}
+
+export async function upsertHostSubscriptionFromStripe(
+    input: HostSubscriptionUpsert,
+): Promise<void> {
+    await repositories.hostSubscriptionRepo.upsertFromStripe(input);
 }

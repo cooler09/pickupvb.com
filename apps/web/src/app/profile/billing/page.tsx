@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
-import { getAdminSupabase } from '@/lib/supabase-admin';
+import { getHostStripeAccountStatus } from '@/lib/host-stripe-account';
 import { isStripeConfigured } from '@/lib/stripe';
 import {
     startStripeOnboarding,
@@ -11,13 +11,6 @@ import {
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Payouts — PickupVB' };
-
-type AccountRow = {
-    stripe_account_id: string;
-    charges_enabled: boolean;
-    payouts_enabled: boolean;
-    details_submitted: boolean;
-};
 
 type SearchParams = Promise<{ onboarding?: string; error?: string }>;
 
@@ -35,20 +28,12 @@ export default async function BillingPage(props: { searchParams: SearchParams })
         await refreshStripeAccountStatus();
     }
 
-    let account: AccountRow | null = null;
+    let account: Awaited<ReturnType<typeof getHostStripeAccountStatus>> = null;
     if (isStripeConfigured()) {
-        const admin = getAdminSupabase();
-        const { data } = await admin
-            .from('host_stripe_accounts')
-            .select(
-                'stripe_account_id, charges_enabled, payouts_enabled, details_submitted',
-            )
-            .eq('user_id', user.id)
-            .maybeSingle();
-        account = (data as AccountRow | null) ?? null;
+        account = await getHostStripeAccountStatus(user.id);
     }
 
-    const ready = account?.charges_enabled && account.payouts_enabled;
+    const ready = account?.chargesEnabled && account.payoutsEnabled;
     const inProgress = account && !ready;
 
     return (
@@ -120,15 +105,15 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                     <ul className="ml-4 list-disc text-sm text-highlight-fg">
                         <li>
                             Charges enabled:{' '}
-                            <strong>{account.charges_enabled ? 'yes' : 'no'}</strong>
+                            <strong>{account.chargesEnabled ? 'yes' : 'no'}</strong>
                         </li>
                         <li>
                             Payouts enabled:{' '}
-                            <strong>{account.payouts_enabled ? 'yes' : 'no'}</strong>
+                            <strong>{account.payoutsEnabled ? 'yes' : 'no'}</strong>
                         </li>
                         <li>
                             Details submitted:{' '}
-                            <strong>{account.details_submitted ? 'yes' : 'no'}</strong>
+                            <strong>{account.detailsSubmitted ? 'yes' : 'no'}</strong>
                         </li>
                     </ul>
                     <form action={startStripeOnboarding}>

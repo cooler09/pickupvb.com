@@ -5,8 +5,12 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import type { Route } from 'next';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
-import { getAdminSupabase } from '@/lib/supabase-admin';
 import { getServerSupabase } from '@/lib/supabase';
+import {
+    createHostStripeAccount,
+    getHostStripeAccountStatus,
+    updateHostStripeAccountStatus,
+} from '@/lib/host-stripe-account';
 import { log } from '@/lib/log';
 
 /**
@@ -33,18 +37,11 @@ export async function startStripeOnboarding(): Promise<void> {
         redirect('/profile/billing?error=anonymous' as Route);
     }
 
-    const admin = getAdminSupabase();
     const stripe = getStripe();
 
     // 1. Find or create the connected account.
-    type Row = { stripe_account_id: string };
-    const { data: existing } = await admin
-        .from('host_stripe_accounts')
-        .select('stripe_account_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-    let accountId = (existing as Row | null)?.stripe_account_id ?? null;
+    const existing = await getHostStripeAccountStatus(user.id);
+    let accountId = existing?.accountId ?? null;
 
     if (!accountId) {
         const account = await stripe.accounts.create({
@@ -60,16 +57,15 @@ export async function startStripeOnboarding(): Promise<void> {
         });
         accountId = account.id;
 
-        const { error: insertErr } = await admin
-            .from('host_stripe_accounts')
-            .insert({
-                user_id: user.id,
-                stripe_account_id: accountId,
-                charges_enabled: account.charges_enabled,
-                payouts_enabled: account.payouts_enabled,
-                details_submitted: account.details_submitted,
-            } as never);
-        if (insertErr) {
+        try {
+            await createHostStripeAccount({
+                hostId: user.id,
+                accountId,
+                chargesEnabled: account.charges_enabled,
+                payoutsEnabled: account.payouts_enabled,
+                detailsSubmitted: account.details_submitted,
+            });
+        } catch (insertErr) {
             await log.error('[stripe-onboarding] insert account row failed', insertErr);
             throw new Error('Failed to record Stripe account.');
         }
@@ -109,15 +105,8 @@ export async function openStripeDashboard(): Promise<void> {
     } = await supabase.auth.getUser();
     if (!user) redirect('/login?next=/profile/billing');
 
-    const admin = getAdminSupabase();
-    type Row = { stripe_account_id: string };
-    const { data: row } = await admin
-        .from('host_stripe_accounts')
-        .select('stripe_account_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-    const accountId = (row as Row | null)?.stripe_account_id;
+    const existing = await getHostStripeAccountStatus(user.id);
+    const accountId = existing?.accountId;
     if (!accountId) redirect('/profile/billing' as Route);
 
     const link = await getStripe().accounts.createLoginLink(accountId);
@@ -139,27 +128,17 @@ export async function refreshStripeAccountStatus(): Promise<void> {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const admin = getAdminSupabase();
-    type Row = { stripe_account_id: string };
-    const { data: row } = await admin
-        .from('host_stripe_accounts')
-        .select('stripe_account_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-    const accountId = (row as Row | null)?.stripe_account_id;
+    const existing = await getHostStripeAccountStatus(user.id);
+    const accountId = existing?.accountId;
     if (!accountId) return;
 
     try {
         const account = await getStripe().accounts.retrieve(accountId);
-        await admin
-            .from('host_stripe_accounts')
-            .update({
-                charges_enabled: account.charges_enabled,
-                payouts_enabled: account.payouts_enabled,
-                details_submitted: account.details_submitted,
-            } as never)
-            .eq('user_id', user.id);
+        await updateHostStripeAccountStatus(user.id, {
+            chargesEnabled: account.charges_enabled,
+            payoutsEnabled: account.payouts_enabled,
+            detailsSubmitted: account.details_submitted,
+        });
         revalidatePath('/profile/billing');
     } catch (err) {
         await log.error('[stripe-onboarding] refresh status failed', err);
