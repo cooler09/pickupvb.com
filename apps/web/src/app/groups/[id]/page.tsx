@@ -78,38 +78,42 @@ export default async function GroupProfilePage(props: {
     const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
     const supabase = await getServerSupabase();
 
-    const { data: groupData } = await supabase
-        .from('groups')
-        .select('id, slug, name, description, avatar_url, home_city, region, created_by')
-        .eq('id', params.id)
-        .maybeSingle();
+    // Group lookup and viewer resolution are independent.
+    const [{ data: groupData }, { user }] = await Promise.all([
+        supabase
+            .from('groups')
+            .select('id, slug, name, description, avatar_url, home_city, region, created_by')
+            .eq('id', params.id)
+            .maybeSingle(),
+        getCurrentUser(),
+    ]);
     const group = groupData as GroupRow | null;
     if (!group) notFound();
 
-    const { user } = await getCurrentUser();
-
-    const { data: memberRows } = await supabase
-        .from('group_members')
-        .select('user_id, role, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)')
-        .eq('group_id', group.id)
-        .order('joined_at', { ascending: true });
+    // Members, follow-edge, and hosted events are all independent of each other.
+    const [{ data: memberRows }, followRowResult, events] = await Promise.all([
+        supabase
+            .from('group_members')
+            .select('user_id, role, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)')
+            .eq('group_id', group.id)
+            .order('joined_at', { ascending: true }),
+        user
+            ? supabase
+                .from('group_followers')
+                .select('group_id')
+                .eq('group_id', group.id)
+                .eq('user_id', user.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        loadVisibleGroupHostedEvents(group.id),
+    ]);
     const memberRowsTyped = (memberRows as MemberRow[] | null) ?? [];
 
     const myMembership = user ? memberRowsTyped.find((m) => m.user_id === user.id) ?? null : null;
     const canManage = myMembership?.role === 'owner' || myMembership?.role === 'admin';
 
-    let isFollowing = false;
-    if (user) {
-        const { data: followRow } = await supabase
-            .from('group_followers')
-            .select('group_id')
-            .eq('group_id', group.id)
-            .eq('user_id', user.id)
-            .maybeSingle();
-        isFollowing = Boolean(followRow);
-    }
+    const isFollowing = Boolean(followRowResult.data);
 
-    const events = await loadVisibleGroupHostedEvents(group.id);
     const upcoming = events.filter((e) => new Date(e.starts_at).getTime() >= Date.now());
     const past = events.filter((e) => new Date(e.starts_at).getTime() < Date.now());
 

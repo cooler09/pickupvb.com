@@ -86,32 +86,36 @@ export default async function PlayerProfilePage(props: {
     const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
     const supabase = await getServerSupabase();
 
-    const { data: profileRow } = await supabase
-        .from('profiles')
-        .select('id, display_name, first_name, last_name, avatar_url, home_city, primary_position, secondary_position, tertiary_position')
-        .eq('id', params.id)
-        .maybeSingle();
+    // Profile + viewer are independent.
+    const [{ data: profileRow }, { user }] = await Promise.all([
+        supabase
+            .from('profiles')
+            .select('id, display_name, first_name, last_name, avatar_url, home_city, primary_position, secondary_position, tertiary_position')
+            .eq('id', params.id)
+            .maybeSingle(),
+        getCurrentUser(),
+    ]);
 
     const profile = profileRow as PlayerProfile | null;
     if (!profile) notFound();
 
-    const { user } = await getCurrentUser();
-
     const isSelf = user?.id === profile.id;
 
-    let isFollowing = false;
-    if (user && !isSelf) {
-        const { data: edge } = await supabase
-            .from('friendships')
-            .select('friend_id')
-            .eq('user_id', user.id)
-            .eq('friend_id', profile.id)
-            .maybeSingle();
-        isFollowing = Boolean(edge);
-    }
+    // Friendship edge + hosted events are independent.
+    const [edgeResult, events] = await Promise.all([
+        user && !isSelf
+            ? supabase
+                .from('friendships')
+                .select('friend_id')
+                .eq('user_id', user.id)
+                .eq('friend_id', profile.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        // RLS handles visibility — viewer only sees events they're allowed to.
+        loadVisibleHostedEvents(profile.id),
+    ]);
+    const isFollowing = Boolean(edgeResult.data);
 
-    // RLS handles visibility — viewer only sees events they're allowed to.
-    const events = await loadVisibleHostedEvents(profile.id);
     const upcoming = events.filter((e) => new Date(e.starts_at).getTime() >= Date.now());
     const past = events.filter((e) => new Date(e.starts_at).getTime() < Date.now());
 

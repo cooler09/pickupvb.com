@@ -105,66 +105,68 @@ export default async function EventDetailPage(
     // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
     const pricing = await getEventPricing(event.id);
     const paid = isPaidEvent(pricing);
-    const breakdown = pricing && paid ? await attendeeChargeBreakdownAsync(pricing) : null;
-    const viewerIsPro = event.canManage && user
-        ? await (await import('@/lib/pro')).isPro(user.id)
-        : false;
 
-    // Tip-jar totals (cheap RPC). Hidden from the host themselves.
+    // Side-loads below are all independent of each other. Run in parallel.
     const isHostOfEvent = !!user && event.canManage;
-    let tipTotalCents = 0;
-    if (!isHostOfEvent) {
-        const { getAdminSupabase: getAdminForTips } = await import('@/lib/supabase-admin');
-        const adminForTips = getAdminForTips();
-        const { data: tipTotal } = await adminForTips.rpc(
-            'event_tip_total_cents',
-            { p_event_id: event.id } as never,
-        );
-        tipTotalCents = Number(tipTotal ?? 0);
-    }
+    const needsViewerPayment = paid && !!user && event.isAttending;
+    const needsManagePayments = paid && event.canManage;
 
-    // For paid events, side-load per-attendee payment status (admin client —
-    // visibility is host-only, the rest of the page just renders badges via
-    // the map). Free events get an empty map.
-    let payments: Map<string, { status: string; viaStripe: boolean }> | undefined;
-    if (paid && event.canManage) {
-        const { getAdminSupabase } = await import('@/lib/supabase-admin');
-        const admin = getAdminSupabase();
-        const { data: payRows } = await admin
-            .from('event_attendees')
-            .select('user_id, payment_status, payment_intent_id')
-            .eq('event_id', event.id);
-        type PayRow = {
-            user_id: string;
-            payment_status: string;
-            payment_intent_id: string | null;
-        };
-        payments = new Map();
-        for (const r of (payRows as PayRow[] | null) ?? []) {
-            payments.set(r.user_id, {
-                status: r.payment_status,
-                viaStripe: !!r.payment_intent_id,
-            });
-        }
-    }
-
-    // For paid events, also look up the viewer's own payment status so the
-    // RSVP panel can show "paid / pending / due" badges. Cheap lookup that
-    // only runs when the viewer is actually attending a paid event.
-    let viewerPaymentStatus: 'paid' | 'pending' | 'none' | undefined;
-    if (paid && user && event.isAttending) {
-        const supabaseForViewer = await (await import('@/lib/supabase')).getServerSupabase();
-        const { data: row } = await supabaseForViewer
-            .from('event_attendees')
-            .select('payment_status')
-            .eq('event_id', event.id)
-            .eq('user_id', user.id)
-            .maybeSingle();
-        const raw = (row as { payment_status?: string } | null)?.payment_status;
-        if (raw === 'paid' || raw === 'pending' || raw === 'none') {
-            viewerPaymentStatus = raw;
-        }
-    }
+    const [breakdown, viewerIsPro, tipTotalCents, payments, viewerPaymentStatus] = await Promise.all([
+        pricing && paid ? attendeeChargeBreakdownAsync(pricing) : Promise.resolve(null),
+        event.canManage && user
+            ? (await import('@/lib/pro')).isPro(user.id)
+            : Promise.resolve(false),
+        // Tip-jar totals (cheap RPC). Hidden from the host themselves.
+        isHostOfEvent
+            ? Promise.resolve(0)
+            : (async () => {
+                const { getAdminSupabase } = await import('@/lib/supabase-admin');
+                const { data: tipTotal } = await getAdminSupabase().rpc(
+                    'event_tip_total_cents',
+                    { p_event_id: event.id } as never,
+                );
+                return Number(tipTotal ?? 0);
+            })(),
+        // For paid events, side-load per-attendee payment status (admin client —
+        // visibility is host-only). Free events get undefined.
+        needsManagePayments
+            ? (async () => {
+                const { getAdminSupabase } = await import('@/lib/supabase-admin');
+                const { data: payRows } = await getAdminSupabase()
+                    .from('event_attendees')
+                    .select('user_id, payment_status, payment_intent_id')
+                    .eq('event_id', event.id);
+                type PayRow = {
+                    user_id: string;
+                    payment_status: string;
+                    payment_intent_id: string | null;
+                };
+                const map = new Map<string, { status: string; viaStripe: boolean }>();
+                for (const r of (payRows as PayRow[] | null) ?? []) {
+                    map.set(r.user_id, {
+                        status: r.payment_status,
+                        viaStripe: !!r.payment_intent_id,
+                    });
+                }
+                return map;
+            })()
+            : Promise.resolve(undefined),
+        // For paid events, also look up the viewer's own payment status so the
+        // RSVP panel can show "paid / pending / due" badges.
+        needsViewerPayment
+            ? (async () => {
+                const supabaseForViewer = await (await import('@/lib/supabase')).getServerSupabase();
+                const { data: row } = await supabaseForViewer
+                    .from('event_attendees')
+                    .select('payment_status')
+                    .eq('event_id', event.id)
+                    .eq('user_id', user!.id)
+                    .maybeSingle();
+                const raw = (row as { payment_status?: string } | null)?.payment_status;
+                return raw === 'paid' || raw === 'pending' || raw === 'none' ? raw : undefined;
+            })()
+            : Promise.resolve(undefined),
+    ]);
 
     // The AttendeeList component still expects the snake_case Supabase shape.
     // Map the read model to it inline to keep the component unchanged.
