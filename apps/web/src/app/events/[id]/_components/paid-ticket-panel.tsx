@@ -34,9 +34,9 @@ const PAYMENT_PILL: Record<
             'rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900',
     },
     none: {
-        label: "You're in — payment due",
+        label: "You're in — pay the host",
         className:
-            'rounded-md border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-800',
+            'rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900',
     },
 };
 
@@ -69,57 +69,73 @@ export function PaidTicketPanel({
         <div className="space-y-4">
             <div className="rounded-lg border border-border-base bg-fg/5 p-4">
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
-                    Ticket
+                    Sign-up cost
                 </h2>
                 <p className="mt-1 text-2xl font-bold text-fg">{formatUsd(total)}</p>
                 {platformFeeCents > 0 && (
                     <p className="text-xs text-muted">
-                        Includes {formatUsd(ticketCents)} ticket +{' '}
-                        {formatUsd(platformFeeCents)} service fee
+                        {formatUsd(ticketCents)} to the host +{' '}
+                        {formatUsd(platformFeeCents)} service fee (only charged if you pay online)
                     </p>
                 )}
                 {platformFeeCents === 0 && (
-                    <p className="text-xs text-muted">Service fee absorbed by host</p>
+                    <p className="text-xs text-muted">
+                        Service fee absorbed by host
+                    </p>
                 )}
             </div>
 
             {isAttending ? (
                 <div className="flex flex-col items-end gap-2">
                     <span className={pill.className}>{pill.label}</span>
-                    <form action={leaveEvent.bind(null, eventId)}>
-                        <ConfirmSubmitButton
-                            label="Cancel ticket & refund"
-                            pendingLabel="Refunding…"
-                            confirmMessage={`Cancel your ticket to "${eventTitle}" and request a refund of ${formatUsd(total)}?`}
-                            destructive
-                        />
-                    </form>
-                    <p className="text-xs text-muted">
-                        Refunds available up to {refundWindowHours} hour
-                        {refundWindowHours === 1 ? '' : 's'} before the event starts.
-                    </p>
+                    {viewerPaymentStatus === 'paid' ? (
+                        <>
+                            <form action={leaveEvent.bind(null, eventId)}>
+                                <ConfirmSubmitButton
+                                    label="Cancel sign-up & refund"
+                                    pendingLabel="Refunding…"
+                                    confirmMessage={`Cancel your sign-up for "${eventTitle}" and request a refund of ${formatUsd(total)}?`}
+                                    destructive
+                                />
+                            </form>
+                            <p className="text-xs text-muted">
+                                Refunds available up to {refundWindowHours} hour
+                                {refundWindowHours === 1 ? '' : 's'} before the event starts.
+                            </p>
+                        </>
+                    ) : (
+                        <form action={leaveEvent.bind(null, eventId)}>
+                            <ConfirmSubmitButton
+                                label="Cancel sign-up"
+                                pendingLabel="Cancelling…"
+                                confirmMessage={`Cancel your sign-up for "${eventTitle}"?`}
+                                destructive
+                            />
+                        </form>
+                    )}
                 </div>
             ) : isRealUser ? (
-                <div className="flex flex-col items-end gap-2">
-                    <form action={startTicketCheckout.bind(null, eventId)}>
+                <div className="space-y-3">
+                    <form action={joinEvent.bind(null, eventId)} className="flex justify-end">
                         <ConfirmSubmitButton
-                            label={`Buy ticket — ${formatUsd(total)}`}
-                            pendingLabel="Redirecting to Stripe…"
-                            confirmMessage={`Buy a ticket to "${eventTitle}" for ${formatUsd(total)}?`}
+                            label={`Sign up — pay the host ${formatUsd(ticketCents)}`}
+                            pendingLabel="Signing up…"
+                            confirmMessage={`Sign up for "${eventTitle}" and pay the host ${formatUsd(ticketCents)} in person (cash, Venmo, etc.)?`}
                         />
                     </form>
-                    <form action={joinEvent.bind(null, eventId)}>
-                        <button
-                            type="submit"
-                            className="rounded-md border border-border-base px-3 py-1.5 text-xs text-fg/70 hover:bg-fg/5"
-                            title="Sign up now and arrange payment with the host directly (cash, Venmo, etc.)"
-                        >
-                            Sign up &amp; pay another way
-                        </button>
-                        <p className="mt-1 max-w-[18rem] text-right text-[10px] text-muted">
-                            The host will mark you as paid once they receive payment.
+                    <div className="flex flex-col items-end gap-1">
+                        <form action={startTicketCheckout.bind(null, eventId)}>
+                            <button
+                                type="submit"
+                                className="rounded-md border border-border-base px-3 py-1.5 text-xs text-fg/70 hover:bg-fg/5"
+                            >
+                                Or pay online now — {formatUsd(total)}
+                            </button>
+                        </form>
+                        <p className="max-w-[18rem] text-right text-[10px] text-muted">
+                            Includes {formatUsd(platformFeeCents)} service fee. Paying in person? Skip this.
                         </p>
-                    </form>
+                    </div>
                 </div>
             ) : (
                 <>
@@ -128,15 +144,17 @@ export function PaidTicketPanel({
                             href={`/login?next=/events/${eventId}`}
                             className="rounded-md border border-border-base px-4 py-2 text-sm font-medium hover:bg-fg/5"
                         >
-                            Sign in to buy
+                            Sign in to sign up
                         </Link>
                     </div>
                     <section className="rounded-lg border border-border-base p-4">
                         <h2 className="text-sm font-semibold text-fg">
-                            Or buy as a guest
+                            Or pay online as a guest
                         </h2>
                         <p className="mb-3 text-xs text-muted">
-                            We need an email to send your receipt + cancellation link.
+                            Prefer to pay the host in person? Sign in instead — most
+                            players settle up at the event. We need an email to send
+                            your receipt + cancellation link.
                         </p>
                         <form
                             action={startGuestTicketCheckout.bind(null, eventId)}
@@ -174,7 +192,7 @@ export function PaidTicketPanel({
                             </div>
                             <div className="flex justify-end">
                                 <ConfirmSubmitButton
-                                    label={`Continue — ${formatUsd(total)}`}
+                                    label={`Pay online — ${formatUsd(total)}`}
                                     pendingLabel="Redirecting…"
                                     confirmMessage={`Continue to Stripe to pay ${formatUsd(total)}?`}
                                 />
