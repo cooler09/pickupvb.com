@@ -83,16 +83,27 @@ export default async function ReceiptDetailPage({
     if (!event) notFound();
 
     let hostName = 'Event host';
+    let hostBusinessName: string | null = null;
+    let hostBusinessAddress: string | null = null;
     if (event.host_id) {
         const { data: hostRow } = await supabase
             .from('profiles')
-            .select('display_name')
+            .select('display_name, business_name, business_address')
             .eq('id', event.host_id)
             .maybeSingle();
-        hostName =
-            (hostRow as { display_name: string | null } | null)?.display_name ??
-            'Event host';
+        const h = hostRow as { display_name: string | null; business_name: string | null; business_address: string | null } | null;
+        hostName = h?.display_name ?? 'Event host';
+        hostBusinessName = h?.business_name ?? null;
+        hostBusinessAddress = h?.business_address ?? null;
     }
+
+    // Buyer’s own business fields for “Billed to”.
+    const { data: buyerRow } = await supabase
+        .from('profiles')
+        .select('display_name, business_name, business_address, tax_id')
+        .eq('id', user.id)
+        .maybeSingle();
+    const buyer = (buyerRow as { display_name: string | null; business_name: string | null; business_address: string | null; tax_id: string | null } | null) ?? null;
 
     const paidCents = rows
         .filter((r) => r.action === 'paid')
@@ -145,16 +156,54 @@ export default async function ReceiptDetailPage({
                         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
                             Billed to
                         </h2>
-                        <p className="mt-1 font-medium">
-                            {user.user_metadata?.['display_name'] ?? user.email ?? 'You'}
-                        </p>
-                        {user.email && <p className="text-muted">{user.email}</p>}
+                        {buyer?.business_name ? (
+                            <>
+                                <p className="mt-1 font-medium">{buyer.business_name}</p>
+                                {buyer.business_address && (
+                                    <p className="whitespace-pre-line text-muted">
+                                        {buyer.business_address}
+                                    </p>
+                                )}
+                                {buyer.tax_id && (
+                                    <p className="text-muted">
+                                        Tax ID: <span className="font-mono">{buyer.tax_id}</span>
+                                    </p>
+                                )}
+                                <p className="mt-1 text-xs text-muted">
+                                    Attn:{' '}
+                                    {buyer.display_name ??
+                                        user.email ??
+                                        'Account holder'}
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <p className="mt-1 font-medium">
+                                    {buyer?.display_name ??
+                                        user.email ??
+                                        'You'}
+                                </p>
+                                {user.email && (
+                                    <p className="text-muted">{user.email}</p>
+                                )}
+                            </>
+                        )}
                     </div>
                     <div>
                         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
                             Sold by
                         </h2>
-                        <p className="mt-1 font-medium">{hostName}</p>
+                        <p className="mt-1 font-medium">
+                            {hostBusinessName ?? hostName}
+                        </p>
+                        {hostBusinessName && hostBusinessName !== hostName && (
+                            <p className="text-xs text-muted">d/b/a {hostName}</p>
+                        )}
+                        {hostBusinessAddress && (
+                            <p className="whitespace-pre-line text-muted">
+                                {hostBusinessAddress}
+                            </p>
+                        )}
                         <p className="text-muted">
                             via PickupVB (processor: Stripe)
                         </p>
@@ -229,8 +278,16 @@ export default async function ReceiptDetailPage({
                         the buyer and seller — consult your accountant.
                     </p>
                     <p className="mt-2">
-                        For corrections or business-name receipts, contact the
-                        host. For platform questions, contact PickupVB support.
+                        Need a corrected receipt? Update your business name,
+                        address, or tax ID under{' '}
+                        <Link
+                            href={'/profile/receipts' as Route}
+                            className="text-primary hover:underline"
+                        >
+                            Receipts → Business info
+                        </Link>
+                        , then reprint. For host details, contact the host
+                        directly.
                     </p>
                 </footer>
             </article>

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
+import { BusinessInfoForm } from './business-info-form';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -60,6 +61,13 @@ export default async function ReceiptsPage() {
         data: { user },
     } = await supabase.auth.getUser();
     if (!user) redirect('/login?next=/profile/receipts');
+
+    const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('business_name, business_address, tax_id')
+        .eq('id', user.id)
+        .maybeSingle();
+    const profile = (profileRow as { business_name: string | null; business_address: string | null; tax_id: string | null } | null) ?? null;
 
     const { data: rawRows } = await supabase
         .from('event_payment_audit')
@@ -220,6 +228,24 @@ export default async function ReceiptsPage() {
                         the time of purchase. Need an older record or a corrected
                         receipt? Contact the event host directly.
                     </p>
+
+                    <section className="rounded-lg border border-border-base bg-surface p-4">
+                        <h2 className="text-sm font-semibold text-fg">
+                            Business / receipt info
+                        </h2>
+                        <p className="mt-1 text-xs text-muted">
+                            Optional. When set, this appears as “Billed to” on
+                            your printable receipts so they can be used for
+                            expense reports or filed as business records.
+                        </p>
+                        <div className="mt-3">
+                            <BusinessInfoForm
+                                businessName={profile?.business_name ?? null}
+                                businessAddress={profile?.business_address ?? null}
+                                taxId={profile?.tax_id ?? null}
+                            />
+                        </div>
+                    </section>
 
                     {yearsWithActivity.length > 0 && (
                         <section className="rounded-lg border border-border-base bg-surface p-4">
