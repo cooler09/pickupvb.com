@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
+import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
 import { FriendsList } from '@/components/friends-list';
 import {
@@ -128,39 +130,68 @@ export default async function ProfilePage() {
         .filter((t): t is NonNullable<PendingRow['teams']> => t !== null);
 
     return (
-        <div className="mx-auto max-w-xl space-y-10 py-4">
-            <section className="space-y-6">
+        <div className="mx-auto max-w-xl space-y-8 py-4">
+            {/* ── Identity header: who you are at a glance ────────────── */}
+            <section className="space-y-4 rounded-lg border border-border-base bg-surface p-5">
                 <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2">
-                        <h1 className="text-2xl font-bold">Your profile</h1>
-                        <p className="text-sm text-fg/70">
-                            This info shows up on events you join or host.
+                    <div className="min-w-0 space-y-1">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                            Your profile
                         </p>
+                        <h1 className="truncate text-2xl font-bold">
+                            {profile.display_name}
+                        </h1>
+                        <p className="text-sm text-muted">
+                            {profile.home_city ?? 'No home city set'}
+                            {user.email ? ` · ${user.email}` : ''}
+                        </p>
+                        {(profile.primary_position ||
+                            profile.secondary_position ||
+                            profile.tertiary_position) && (
+                                <p className="text-xs text-muted">
+                                    {[
+                                        profile.primary_position,
+                                        profile.secondary_position,
+                                        profile.tertiary_position,
+                                    ]
+                                        .filter((p): p is string => Boolean(p))
+                                        .map((p) => POSITION_LABEL[p] ?? p)
+                                        .join(' · ')}
+                                </p>
+                            )}
                     </div>
                     <Link
-                        href={`/players/${user.id}`}
+                        href={`/players/${user.id}` as Route}
                         className="shrink-0 rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
                     >
-                        View public profile
+                        Public view ↗
                     </Link>
                 </div>
-                <ProfileForm profile={profile} email={user.email ?? ''} />
-                <div className="flex flex-wrap gap-2 pt-2 text-sm">
+
+                {/* Primary CTAs — visible without scrolling */}
+                <div className="grid gap-2 sm:grid-cols-3">
                     <Link
-                        href={'/profile/billing' as never}
-                        className="rounded-md border border-border-base px-3 py-1.5 hover:bg-fg/5"
+                        href={'/events/new' as Route}
+                        className="rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-primary-fg hover:opacity-90"
+                    >
+                        + New event
+                    </Link>
+                    <Link
+                        href={'/profile/billing' as Route}
+                        className="rounded-md border border-border-base px-3 py-2 text-center text-sm hover:bg-fg/5"
                     >
                         Payouts &amp; Stripe →
                     </Link>
                     <Link
-                        href={'/profile/receipts' as never}
-                        className="rounded-md border border-border-base px-3 py-1.5 hover:bg-fg/5"
+                        href={'/profile/receipts' as Route}
+                        className="rounded-md border border-border-base px-3 py-2 text-center text-sm hover:bg-fg/5"
                     >
                         Receipts →
                     </Link>
                 </div>
             </section>
 
+            {/* ── Anything that needs you to act ──────────────────────── */}
             {pendingInvites.length > 0 && (
                 <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
                     <h2 className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
@@ -170,7 +201,7 @@ export default async function ProfilePage() {
                         {pendingInvites.map((t) => (
                             <li key={t.id}>
                                 <Link
-                                    href={`/teams/${t.id}`}
+                                    href={`/teams/${t.id}` as Route}
                                     className="flex items-center justify-between gap-3 rounded-md border border-border-base bg-surface p-3 text-sm hover:border-primary/40"
                                 >
                                     <span className="truncate font-medium">{t.name}</span>
@@ -184,6 +215,7 @@ export default async function ProfilePage() {
                 </section>
             )}
 
+            {/* ── Your stuff ──────────────────────────────────────────── */}
             <section className="space-y-4">
                 <div className="flex items-baseline justify-between">
                     <h2 className="text-xl font-bold">
@@ -193,7 +225,7 @@ export default async function ProfilePage() {
                         </span>
                     </h2>
                     <Link
-                        href="/events/new"
+                        href={'/events/new' as Route}
                         className="text-sm font-medium text-primary hover:underline"
                     >
                         + New event
@@ -205,7 +237,7 @@ export default async function ProfilePage() {
                         <>
                             No upcoming events yet.{' '}
                             <Link
-                                href="/events/new"
+                                href={'/events/new' as Route}
                                 className="font-medium text-primary hover:underline"
                             >
                                 Create your first event →
@@ -232,6 +264,22 @@ export default async function ProfilePage() {
                     returnPath="/profile"
                 />
             </section>
+
+            {/* ── Edit (rare; collapsed by default) ───────────────────── */}
+            <details className="group rounded-lg border border-border-base bg-surface">
+                <summary className="flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium hover:bg-fg/5">
+                    <span>Edit profile</span>
+                    <span className="text-xs text-muted group-open:hidden">
+                        Name, city, positions…
+                    </span>
+                    <span className="text-xs text-muted hidden group-open:inline">
+                        Collapse
+                    </span>
+                </summary>
+                <div className="border-t border-border-base p-4">
+                    <ProfileForm profile={profile} email={user.email ?? ''} />
+                </div>
+            </details>
         </div>
     );
 }
