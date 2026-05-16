@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint: no rules yet' && exit 0",
     "test": "echo 'no tests' && exit 0",
-    "gen:types": "supabase gen types typescript --local > src/database.types.ts",
+    "gen:types": "supabase gen types typescript --local > src/database.types.ts.tmp && mv src/database.types.ts.tmp src/database.types.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
