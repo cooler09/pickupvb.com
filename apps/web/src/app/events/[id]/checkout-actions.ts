@@ -127,7 +127,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
                     ]
                     : []),
             ],
-            successUrl: `${origin}/events/${eventId}?rsvp=joined`,
+            successUrl: `${origin}/events/${eventId}/checkout/success?session={CHECKOUT_SESSION_ID}`,
             cancelUrl: `${origin}/events/${eventId}/checkout/cancel?session={CHECKOUT_SESSION_ID}`,
             metadata: {
                 event_id: eventId,
