@@ -196,23 +196,29 @@ export default async function EarningsPage() {
     ).sort((a, b) => b - a);
 
     return (
-        <section className="space-y-6">
-            <header className="space-y-2">
-                <div className="flex items-center gap-3 text-sm">
-                    <Link
-                        href={'/profile/billing' as Route}
-                        className="text-primary hover:underline"
-                    >
-                        ← Payouts
-                    </Link>
+        <div className="mx-auto max-w-3xl space-y-6 py-4">
+            {/* ── Header ──────────────────────────────────────────────── */}
+            <div className="space-y-2">
+                <Link
+                    href={'/profile/billing' as Route}
+                    className="text-sm text-primary hover:underline"
+                >
+                    ← Payouts
+                </Link>
+                <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-3xl font-bold">Earnings</h1>
+                    {pro && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-primary">
+                            Pro · {(feeRate * 100).toFixed(1)}% fee
+                        </span>
+                    )}
                 </div>
-                <h1 className="text-3xl font-bold">Earnings</h1>
-                <p className="text-muted">
+                <p className="text-sm text-muted">
                     Summary of your online ticket sales on PickupVB. For
                     authoritative payout amounts and Stripe&apos;s processing
                     fees, see your Stripe Express dashboard.
                 </p>
-            </header>
+            </div>
 
             {transactions.length === 0 ? (
                 <div className="rounded-lg border border-border-base bg-surface p-6 text-sm text-muted">
@@ -221,8 +227,9 @@ export default async function EarningsPage() {
                 </div>
             ) : (
                 <>
+                    {/* ── Totals ──────────────────────────────────────── */}
                     <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-lg border border-border-base bg-fg/5 p-4">
+                        <div className="rounded-lg border border-border-base bg-surface p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                                 {currentYear} estimated payout
                             </p>
@@ -244,7 +251,7 @@ export default async function EarningsPage() {
                                 </div>
                             </dl>
                         </div>
-                        <div className="rounded-lg border border-border-base bg-fg/5 p-4">
+                        <div className="rounded-lg border border-border-base bg-surface p-4">
                             <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                                 All-time estimated payout
                             </p>
@@ -275,60 +282,25 @@ export default async function EarningsPage() {
                         not shown here.
                     </p>
 
-                    {months.length > 0 && (
-                        <div>
-                            <h2 className="mb-2 text-lg font-semibold">
-                                {currentYear} by month
+                    {/* ── By event (primary breakdown) ────────────────── */}
+                    <section className="overflow-hidden rounded-lg border border-border-base bg-surface">
+                        <div className="border-b border-border-base p-4">
+                            <h2 className="text-sm font-semibold text-fg">
+                                By event
                             </h2>
-                            <div className="overflow-hidden rounded-lg border border-border-base">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-fg/5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                                        <tr>
-                                            <th className="px-3 py-2">Month</th>
-                                            <th className="px-3 py-2 text-right">Gross</th>
-                                            <th className="px-3 py-2 text-right">Refunds</th>
-                                            <th className="px-3 py-2 text-right">Net</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {months.map((m) => (
-                                            <tr
-                                                key={m.key}
-                                                className="border-t border-border-base"
-                                            >
-                                                <td className="px-3 py-2 text-muted">
-                                                    {m.label}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-2 text-right">
-                                                    {formatUsd(m.gross)}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-2 text-right text-muted">
-                                                    {m.refunded > 0
-                                                        ? `−${formatUsd(m.refunded)}`
-                                                        : '—'}
-                                                </td>
-                                                <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
-                                                    {formatUsd(m.net)}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <p className="mt-0.5 text-xs text-muted">
+                                All-time totals per event you&apos;ve hosted.
+                            </p>
                         </div>
-                    )}
-
-                    <div>
-                        <h2 className="mb-2 text-lg font-semibold">By event</h2>
-                        <div className="overflow-hidden rounded-lg border border-border-base">
+                        <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-fg/5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                                     <tr>
                                         <th className="px-3 py-2">Event</th>
-                                        <th className="px-3 py-2">Date</th>
-                                        <th className="px-3 py-2 text-right">Sales</th>
+                                        <th className="hidden px-3 py-2 sm:table-cell">Date</th>
+                                        <th className="hidden px-3 py-2 text-right md:table-cell">Sales</th>
                                         <th className="px-3 py-2 text-right">Gross</th>
-                                        <th className="px-3 py-2 text-right">Refunds</th>
+                                        <th className="hidden px-3 py-2 text-right sm:table-cell">Refunds</th>
                                         <th className="px-3 py-2 text-right">Net</th>
                                     </tr>
                                 </thead>
@@ -346,16 +318,16 @@ export default async function EarningsPage() {
                                                     {e.eventTitle}
                                                 </Link>
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-2 text-muted">
+                                            <td className="hidden whitespace-nowrap px-3 py-2 text-muted sm:table-cell">
                                                 {formatDate(e.eventStartsAt)}
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-2 text-right text-muted">
+                                            <td className="hidden whitespace-nowrap px-3 py-2 text-right text-muted md:table-cell">
                                                 {e.txnCount}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-2 text-right">
                                                 {formatUsd(e.gross)}
                                             </td>
-                                            <td className="whitespace-nowrap px-3 py-2 text-right text-muted">
+                                            <td className="hidden whitespace-nowrap px-3 py-2 text-right text-muted sm:table-cell">
                                                 {e.refunded > 0
                                                     ? `−${formatUsd(e.refunded)}`
                                                     : '—'}
@@ -368,32 +340,87 @@ export default async function EarningsPage() {
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </section>
 
-                    {yearsWithActivity.length > 0 && (
-                        <div className="space-y-2">
-                            <h2 className="text-lg font-semibold">
-                                Annual statements
-                            </h2>
-                            <p className="text-sm text-muted">
-                                Download a per-year CSV of every paid signup
-                                for tax filing / bookkeeping.
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                                {yearsWithActivity.map((y) => (
-                                    <a
-                                        key={y}
-                                        href={`/api/earnings/${y}/statement.csv`}
-                                        className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-surface"
-                                    >
-                                        {y} CSV
-                                    </a>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    {/* ── Monthly + statements ────────────────────────── */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                        {months.length > 0 && (
+                            <details className="group rounded-lg border border-border-base bg-surface" open>
+                                <summary className="flex cursor-pointer items-center justify-between gap-2 p-4 hover:bg-fg/5">
+                                    <div>
+                                        <h2 className="text-sm font-semibold text-fg">
+                                            {currentYear} by month
+                                        </h2>
+                                        <p className="mt-0.5 text-xs text-muted">
+                                            Monthly net for the current year.
+                                        </p>
+                                    </div>
+                                    <span className="text-xs text-muted group-open:hidden">Show</span>
+                                    <span className="hidden text-xs text-muted group-open:inline">Hide</span>
+                                </summary>
+                                <div className="overflow-x-auto border-t border-border-base">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-fg/5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                                            <tr>
+                                                <th className="px-3 py-2">Month</th>
+                                                <th className="px-3 py-2 text-right">Gross</th>
+                                                <th className="hidden px-3 py-2 text-right sm:table-cell">Refunds</th>
+                                                <th className="px-3 py-2 text-right">Net</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {months.map((m) => (
+                                                <tr
+                                                    key={m.key}
+                                                    className="border-t border-border-base"
+                                                >
+                                                    <td className="px-3 py-2 text-muted">
+                                                        {m.label}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                                                        {formatUsd(m.gross)}
+                                                    </td>
+                                                    <td className="hidden whitespace-nowrap px-3 py-2 text-right text-muted sm:table-cell">
+                                                        {m.refunded > 0
+                                                            ? `−${formatUsd(m.refunded)}`
+                                                            : '—'}
+                                                    </td>
+                                                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
+                                                        {formatUsd(m.net)}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </details>
+                        )}
+
+                        {yearsWithActivity.length > 0 && (
+                            <section className="rounded-lg border border-border-base bg-surface p-4">
+                                <h2 className="text-sm font-semibold text-fg">
+                                    Annual statements
+                                </h2>
+                                <p className="mt-1 text-xs text-muted">
+                                    Per-year CSV of every paid signup. Good
+                                    for taxes and bookkeeping.
+                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {yearsWithActivity.map((y) => (
+                                        <a
+                                            key={y}
+                                            href={`/api/earnings/${y}/statement.csv`}
+                                            className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
+                                        >
+                                            {y} CSV ↓
+                                        </a>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+                    </div>
                 </>
             )}
-        </section>
+        </div>
     );
 }
