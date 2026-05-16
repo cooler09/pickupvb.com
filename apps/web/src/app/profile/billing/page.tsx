@@ -3,7 +3,8 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { getHostStripeAccountStatus } from '@/lib/host-stripe-account';
-import { isStripeConfigured } from '@/lib/stripe';
+import { isStripeConfigured, PLATFORM_FEE_BPS } from '@/lib/stripe';
+import { isPro, PRO_PLATFORM_FEE_BPS, PRO_MONTHLY_PRICE_USD } from '@/lib/pro';
 import {
     startStripeOnboarding,
     openStripeDashboard,
@@ -27,7 +28,6 @@ export default async function BillingPage(props: { searchParams: SearchParams })
     } = await supabase.auth.getUser();
     if (!user) redirect('/login?next=/profile/billing');
 
-    // If they just returned from Stripe, sync the latest state before render.
     if (sp.onboarding === 'complete') {
         await refreshStripeAccountStatus();
     }
@@ -37,55 +37,74 @@ export default async function BillingPage(props: { searchParams: SearchParams })
         account = await getHostStripeAccountStatus(user.id);
     }
 
-    const ready = account?.chargesEnabled && account.payoutsEnabled;
-    const inProgress = account && !ready;
+    const ready = Boolean(account?.chargesEnabled && account.payoutsEnabled);
+    const inProgress = Boolean(account && !ready);
+    const pro = ready ? await isPro(user.id) : false;
+    const feePct = ((pro ? PRO_PLATFORM_FEE_BPS : PLATFORM_FEE_BPS) / 100).toFixed(1);
+
+    // Status pill content
+    const statusPill = ready
+        ? { label: '✓ Connected', cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' }
+        : inProgress
+            ? { label: '⚠ Onboarding incomplete', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' }
+            : isStripeConfigured()
+                ? { label: 'Not connected', cls: 'bg-fg/10 text-muted' }
+                : { label: 'Payments not configured', cls: 'bg-fg/10 text-muted' };
 
     return (
-        <section className="space-y-6">
-            <header className="space-y-2">
-                <div className="flex items-center gap-3 text-sm">
-                    <Link href="/profile" className="text-primary hover:underline">
-                        ← Profile
-                    </Link>
+        <div className="mx-auto max-w-2xl space-y-6 py-4">
+            {/* ── Header ──────────────────────────────────────────────── */}
+            <div className="space-y-2">
+                <Link
+                    href={'/profile' as Route}
+                    className="text-sm text-primary hover:underline"
+                >
+                    ← Profile
+                </Link>
+                <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-3xl font-bold">Payouts</h1>
+                    <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${statusPill.cls}`}
+                    >
+                        {statusPill.label}
+                    </span>
                 </div>
-                <h1 className="text-3xl font-bold">Payouts</h1>
-                <p className="text-muted">
-                    Connect a Stripe account to charge for events. PickupVB stays
-                    free for hosts who only run free pickups — you only need this
-                    if you want to sell tickets.
+                <p className="text-sm text-muted">
+                    Connect a Stripe account to sell tickets or accept tips on
+                    your events. Free pickups don&apos;t need this.
                 </p>
-            </header>
+            </div>
 
+            {/* ── Error / config banners ──────────────────────────────── */}
             {!isStripeConfigured() && (
                 <div className="rounded-lg border border-border-base bg-surface p-4 text-sm">
-                    Payments are not configured on this server yet. Set
-                    <code className="mx-1 rounded bg-background px-1 py-0.5">
+                    Payments are not configured on this server. Set{' '}
+                    <code className="rounded bg-fg/10 px-1 py-0.5">
                         STRIPE_SECRET_KEY
-                    </code>
+                    </code>{' '}
                     in your environment to enable.
                 </div>
             )}
 
             {sp.error === 'anonymous' && (
-                <div className="rounded-lg border border-secondary bg-secondary/10 p-4 text-sm">
-                    You need a permanent account (with email) to receive payouts.
-                    Finish claiming your account first.
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-800 dark:text-amber-200">
+                    You need a permanent account (with email) to receive
+                    payouts. Finish claiming your account first.
                 </div>
             )}
 
+            {/* ── PRIMARY STATE CARD ─────────────────────────────────── */}
             {isStripeConfigured() && !account && (
-                <div className="space-y-4 rounded-lg border border-border-base p-6">
-                    <h2 className="text-xl font-semibold">Connect Stripe</h2>
+                <section className="space-y-3 rounded-lg border border-border-base bg-surface p-5">
+                    <h2 className="text-lg font-semibold">Connect Stripe</h2>
                     <p className="text-sm text-muted">
-                        We use Stripe Connect to pay you out directly. You&apos;ll
-                        complete a quick KYC form on Stripe&apos;s site (takes ~5
-                        minutes) and funds will arrive in your bank within 2
-                        business days of each ticket sale.
+                        Quick KYC on Stripe (~5 min). Funds arrive in your bank
+                        within 2 business days of each ticket sale.
                     </p>
-                    <p className="text-sm text-muted">
-                        Platform fee: <strong className="text-fg">5%</strong> per
-                        ticket. Stripe also charges ~2.9% + 30¢ per transaction.
-                    </p>
+                    <ul className="ml-4 list-disc text-sm text-muted">
+                        <li>Platform fee: <strong className="text-fg">5%</strong> per ticket (2.5% on Pro).</li>
+                        <li>Stripe processing: ~2.9% + 30¢ per transaction.</li>
+                    </ul>
                     <form action={startStripeOnboarding}>
                         <button
                             type="submit"
@@ -94,108 +113,150 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                             Connect with Stripe →
                         </button>
                     </form>
-                </div>
+                </section>
             )}
 
             {inProgress && account && (
-                <div className="space-y-4 rounded-lg border border-highlight bg-highlight/20 p-6">
-                    <h2 className="text-xl font-semibold text-highlight-fg">
-                        Onboarding incomplete
-                    </h2>
-                    <p className="text-sm text-highlight-fg">
-                        Stripe still needs a few more details before you can
-                        accept payments. Pick up where you left off:
+                <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-5">
+                    <h2 className="text-lg font-semibold">Finish onboarding</h2>
+                    <p className="text-sm">
+                        Stripe still needs a few details before you can accept
+                        payments.
                     </p>
-                    <ul className="ml-4 list-disc text-sm text-highlight-fg">
+                    <ul className="grid gap-1 text-sm sm:grid-cols-3">
                         <li>
-                            Charges enabled:{' '}
+                            <span className="text-muted">Charges:</span>{' '}
                             <strong>{account.chargesEnabled ? 'yes' : 'no'}</strong>
                         </li>
                         <li>
-                            Payouts enabled:{' '}
+                            <span className="text-muted">Payouts:</span>{' '}
                             <strong>{account.payoutsEnabled ? 'yes' : 'no'}</strong>
                         </li>
                         <li>
-                            Details submitted:{' '}
+                            <span className="text-muted">Details:</span>{' '}
                             <strong>{account.detailsSubmitted ? 'yes' : 'no'}</strong>
                         </li>
                     </ul>
                     <form action={startStripeOnboarding}>
                         <button
                             type="submit"
-                            className="rounded-md bg-primary px-4 py-2 font-medium text-primary-fg hover:opacity-90"
+                            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-fg hover:opacity-90"
                         >
                             Continue onboarding →
                         </button>
                     </form>
-                </div>
+                </section>
             )}
 
             {ready && (
-                <div className="space-y-4 rounded-lg border border-primary bg-primary/10 p-6">
-                    <h2 className="text-xl font-semibold">Stripe connected</h2>
-                    <p className="text-sm text-muted">
-                        You&apos;re all set. Set a price on any event you create to
-                        start selling tickets. Your Stripe Express dashboard
-                        shows balance, payouts, and tax forms.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        <form action={openStripeDashboard}>
-                            <button
-                                type="submit"
-                                className="rounded-md bg-primary px-4 py-2 font-medium text-primary-fg hover:opacity-90"
+                <>
+                    {/* ── Quick actions: above-the-fold CTAs ──────────── */}
+                    <section className="rounded-lg border border-border-base bg-surface p-5">
+                        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                            Quick actions
+                        </h2>
+                        <div className="grid gap-2 sm:grid-cols-3">
+                            <Link
+                                href={'/profile/billing/earnings' as Route}
+                                className="rounded-md bg-primary px-3 py-2 text-center text-sm font-medium text-primary-fg hover:opacity-90"
                             >
-                                Open Stripe dashboard →
-                            </button>
-                        </form>
-                        <Link
-                            href={'/profile/billing/earnings' as Route}
-                            className="rounded-md border border-border-base px-4 py-2 hover:bg-surface"
-                        >
-                            View earnings →
-                        </Link>
-                        <form action={refreshStripeAccountStatus}>
-                            <button
-                                type="submit"
-                                className="rounded-md border border-border-base px-4 py-2 hover:bg-surface"
-                            >
-                                Refresh status
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
+                                View earnings →
+                            </Link>
+                            <form action={openStripeDashboard}>
+                                <button
+                                    type="submit"
+                                    className="w-full rounded-md border border-border-base px-3 py-2 text-sm hover:bg-fg/5"
+                                >
+                                    Stripe dashboard ↗
+                                </button>
+                            </form>
+                            <form action={refreshStripeAccountStatus}>
+                                <button
+                                    type="submit"
+                                    className="w-full rounded-md border border-border-base px-3 py-2 text-sm hover:bg-fg/5"
+                                >
+                                    Refresh status
+                                </button>
+                            </form>
+                        </div>
+                    </section>
 
-            {ready && (
-                <div className="space-y-3 rounded-lg border border-border-base p-6">
-                    <h2 className="text-xl font-semibold">Tax forms (1099-K)</h2>
-                    <p className="text-sm text-muted">
-                        Stripe is the payment processor and issues your 1099-K
-                        directly — PickupVB does not file tax forms for you.
-                        Forms are typically posted to your Stripe dashboard in
-                        late January for the prior calendar year.
-                    </p>
-                    <p className="text-sm text-muted">
-                        US federal threshold for tax year 2026 is{' '}
-                        <strong className="text-fg">$2,500</strong> in gross
-                        payments. State thresholds may be lower (e.g. MA, VT,
-                        VA at $600). Stripe applies the appropriate threshold
-                        automatically based on your address.
-                    </p>
-                    <form action={openStripeDashboard}>
-                        <button
-                            type="submit"
-                            className="rounded-md border border-border-base px-4 py-2 text-sm hover:bg-surface"
-                        >
-                            Open tax forms in Stripe →
-                        </button>
-                    </form>
-                    <p className="text-xs text-muted">
-                        Lands on your Stripe Express dashboard — click{' '}
-                        <em>Tax forms</em> in the left nav.
-                    </p>
-                </div>
+                    {/* ── Plan & fees ─────────────────────────────────── */}
+                    <section className="rounded-lg border border-border-base bg-surface p-5">
+                        <div className="flex items-baseline justify-between gap-3">
+                            <h2 className="text-lg font-semibold">
+                                Plan{' '}
+                                <span className="ml-1 rounded-full bg-fg/10 px-2 py-0.5 text-xs font-medium text-muted">
+                                    {pro ? 'Pro' : 'Standard'}
+                                </span>
+                            </h2>
+                            {pro ? (
+                                <Link
+                                    href={'/profile/billing/pro' as Route}
+                                    className="text-sm text-primary hover:underline"
+                                >
+                                    Manage subscription →
+                                </Link>
+                            ) : (
+                                <Link
+                                    href={'/profile/billing/pro' as Route}
+                                    className="text-sm font-medium text-primary hover:underline"
+                                >
+                                    Upgrade to Pro →
+                                </Link>
+                            )}
+                        </div>
+                        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                            <div>
+                                <dt className="text-xs uppercase tracking-wide text-muted">
+                                    Platform fee
+                                </dt>
+                                <dd className="font-medium">{feePct}% per ticket</dd>
+                            </div>
+                            <div>
+                                <dt className="text-xs uppercase tracking-wide text-muted">
+                                    Stripe processing
+                                </dt>
+                                <dd className="font-medium">~2.9% + 30¢ per txn</dd>
+                            </div>
+                        </dl>
+                        {!pro && (
+                            <p className="mt-3 text-xs text-muted">
+                                Pro is ${PRO_MONTHLY_PRICE_USD}/mo and cuts the
+                                platform fee in half (5% → 2.5%).
+                            </p>
+                        )}
+                    </section>
+
+                    {/* ── Tax forms ───────────────────────────────────── */}
+                    <section className="rounded-lg border border-border-base bg-surface p-5">
+                        <h2 className="text-lg font-semibold">Tax forms (1099-K)</h2>
+                        <p className="mt-2 text-sm text-muted">
+                            Stripe (not PickupVB) issues your 1099-K. Forms post
+                            to your Stripe dashboard in late January for the
+                            prior calendar year.
+                        </p>
+                        <p className="mt-2 text-sm text-muted">
+                            US federal threshold for tax year 2026:{' '}
+                            <strong className="text-fg">$2,500</strong>. Some
+                            states are lower (MA / VT / VA: $600). Stripe picks
+                            the right one based on your address.
+                        </p>
+                        <form action={openStripeDashboard} className="mt-3">
+                            <button
+                                type="submit"
+                                className="rounded-md border border-border-base px-4 py-2 text-sm hover:bg-fg/5"
+                            >
+                                Open tax forms in Stripe ↗
+                            </button>
+                        </form>
+                        <p className="mt-2 text-xs text-muted">
+                            Lands on your Express dashboard — click{' '}
+                            <em>Tax forms</em> in the left nav.
+                        </p>
+                    </section>
+                </>
             )}
-        </section>
+        </div>
     );
 }
