@@ -18,6 +18,7 @@ import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { redirectEventNotice } from '@/lib/server-redirects';
 import { log } from '@/lib/log';
 
 /**
@@ -37,9 +38,7 @@ import { log } from '@/lib/log';
  *   error    — anything else (last_error string also set)
  */
 function back(eventId: string, code: string, msg?: string): never {
-    const params = new URLSearchParams({ rsvp: code });
-    if (msg) params.set('rsvp_msg', msg);
-    redirect(`/events/${eventId}?${params.toString()}`);
+    redirectEventNotice(eventId, 'rsvp', code, msg);
 }
 
 async function authedUserIdOrFlash(eventId: string): Promise<string> {

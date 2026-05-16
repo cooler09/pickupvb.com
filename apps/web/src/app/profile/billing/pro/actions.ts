@@ -1,11 +1,11 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import type { Route } from 'next';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
+import { buildOrigin } from '@/lib/server-redirects';
 import { log } from '@/lib/log';
 
 /**
@@ -86,10 +86,7 @@ export async function startProCheckout(plan: 'monthly' | 'yearly'): Promise<void
 
     const customerId = await getOrCreateCustomerId(user.id, user.email ?? null);
 
-    const h = await headers();
-    const origin =
-        h.get('origin') ??
-        (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
+    const origin = await buildOrigin();
 
     const session = await getStripe().checkout.sessions.create({
         mode: 'subscription',
@@ -135,10 +132,7 @@ export async function openBillingPortal(): Promise<void> {
         redirect('/profile/billing/pro?error=no_customer' as Route);
     }
 
-    const h = await headers();
-    const origin =
-        h.get('origin') ??
-        (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
+    const origin = await buildOrigin();
 
     const portal = await getStripe().billingPortal.sessions.create({
         customer: customerId,

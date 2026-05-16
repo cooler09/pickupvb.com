@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import {
     JoinEventAsFreeAgentCommand,
     LeaveEventAsFreeAgentCommand,
@@ -13,6 +12,7 @@ import {
 } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { redirectEventNotice } from '@/lib/server-redirects';
 
 /**
  * Free-agent signup actions for tournaments. Mirrors the rsvp-actions
@@ -30,9 +30,7 @@ import { getServerSupabase } from '@/lib/supabase';
  *   error    — anything else (last_error in `fa_msg`)
  */
 function back(eventId: string, code: string, msg?: string): never {
-    const params = new URLSearchParams({ fa: code });
-    if (msg) params.set('fa_msg', msg);
-    redirect(`/events/${eventId}?${params.toString()}`);
+    redirectEventNotice(eventId, 'fa', code, msg);
 }
 
 async function authedUserIdOrFlash(eventId: string): Promise<string> {

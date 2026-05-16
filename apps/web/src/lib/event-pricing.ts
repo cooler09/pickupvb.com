@@ -57,7 +57,7 @@ import { platformFeeCents } from './stripe';
 import { isPro, PRO_PLATFORM_FEE_BPS } from './pro';
 
 /** Same as `platformFeeCents` but Pro hosts get 2.5% instead of 5%. */
-async function platformFeeCentsFor(
+export async function platformFeeCentsFor(
     hostId: string,
     amountCents: number,
 ): Promise<number> {
@@ -74,23 +74,6 @@ export async function attendeeChargeBreakdownAsync(p: EventPricing): Promise<{
 }> {
     const fee = await platformFeeCentsFor(p.hostId, p.priceCents);
     if (p.hostAbsorbsFee) {
-        return { ticketCents: p.priceCents, platformFeeCents: 0, totalCents: p.priceCents };
-    }
-    return {
-        ticketCents: p.priceCents,
-        platformFeeCents: fee,
-        totalCents: p.priceCents + fee,
-    };
-}
-
-export function attendeeChargeBreakdown(p: EventPricing): {
-    ticketCents: number;
-    platformFeeCents: number;
-    totalCents: number;
-} {
-    const fee = platformFeeCents(p.priceCents);
-    if (p.hostAbsorbsFee) {
-        // Host eats the fee; attendee just pays ticket price.
         return { ticketCents: p.priceCents, platformFeeCents: 0, totalCents: p.priceCents };
     }
     return {

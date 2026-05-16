@@ -1,38 +1,21 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import type Stripe from 'stripe';
 import type { Route } from 'next';
-import { getStripe, isStripeConfigured, platformFeeCents } from '@/lib/stripe';
-import { isPro, PRO_PLATFORM_FEE_BPS } from '@/lib/pro';
+import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { platformFeeCentsFor } from '@/lib/event-pricing';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
+import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { MIN_TIP_CENTS, MAX_TIP_CENTS } from './tip-constants';
 
-/** Pro-aware platform cut on a tip, in cents. */
-async function platformCutCents(hostId: string, amountCents: number): Promise<number> {
-    if (await isPro(hostId)) {
-        return Math.round((amountCents * PRO_PLATFORM_FEE_BPS) / 10_000);
-    }
-    return platformFeeCents(amountCents);
-}
-
 function backWithError(eventId: string, code: string, msg?: string): never {
-    const params = new URLSearchParams({ tip: code });
-    if (msg) params.set('tip_msg', msg);
-    redirect(`/events/${eventId}?${params.toString()}`);
-}
-
-async function buildOrigin(): Promise<string> {
-    const h = await headers();
-    return (
-        h.get('origin') ??
-        (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000')
-    );
+    redirectEventNotice(eventId, 'tip', code, msg);
 }
 
 function parseAmountCents(raw: string): number | null {
@@ -57,19 +40,6 @@ async function loadEvent(eventId: string): Promise<EventLite | null> {
         .eq('id', eventId)
         .maybeSingle();
     return (data as EventLite | null) ?? null;
-}
-
-async function getHostStripeAccount(hostId: string): Promise<string | null> {
-    const admin = getAdminSupabase();
-    const { data } = await admin
-        .from('host_stripe_accounts')
-        .select('stripe_account_id, charges_enabled')
-        .eq('user_id', hostId)
-        .maybeSingle();
-    type Row = { stripe_account_id: string; charges_enabled: boolean };
-    const row = data as unknown as Row | null;
-    if (!row || !row.charges_enabled) return null;
-    return row.stripe_account_id;
 }
 
 /**
@@ -112,7 +82,7 @@ export async function startTipCheckout(
         .maybeSingle();
     const displayName = (profile as { display_name: string | null } | null)?.display_name ?? null;
 
-    const platformCut = await platformCutCents(event.host_id, amountCents!);
+    const platformCut = await platformFeeCentsFor(event.host_id, amountCents!);
 
     // Insert pending tip row up front so the webhook can match by session id.
     const admin = getAdminSupabase();

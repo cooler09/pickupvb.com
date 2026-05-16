@@ -27,7 +27,6 @@ function formatUsd(cents: number): string {
 export function TipJar({ eventId, viewerIsRealUser, viewerHasSession, totalCents }: Props) {
     const [open, setOpen] = useState(false);
     const [amount, setAmount] = useState<string>('5');
-    const [showGuest, setShowGuest] = useState(false);
 
     const cents = Math.round(Number(amount) * 100);
     const validAmount =
@@ -91,7 +90,7 @@ export function TipJar({ eventId, viewerIsRealUser, viewerHasSession, totalCents
                         </p>
                     )}
 
-                    {viewerHasSession && !showGuest ? (
+                    {viewerHasSession ? (
                         <form action={startTipCheckout.bind(null, eventId)} className="space-y-2">
                             <input type="hidden" name="amount" value={amount} />
                             <textarea
@@ -158,16 +157,6 @@ export function TipJar({ eventId, viewerIsRealUser, viewerHasSession, totalCents
                                 </button>
                             </div>
                         </form>
-                    )}
-
-                    {viewerHasSession && !showGuest && false && (
-                        <button
-                            type="button"
-                            onClick={() => setShowGuest(true)}
-                            className="text-xs text-muted hover:underline"
-                        >
-                            Tip without an account
-                        </button>
                     )}
                 </div>
             )}

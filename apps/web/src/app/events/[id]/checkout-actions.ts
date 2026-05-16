@@ -1,58 +1,23 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import type Stripe from 'stripe';
 import type { Route } from 'next';
-import { getStripe, isStripeConfigured, platformFeeCents } from '@/lib/stripe';
+import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import {
     getEventPricing,
     attendeeChargeBreakdownAsync,
+    platformFeeCentsFor,
 } from '@/lib/event-pricing';
-import { isPro, PRO_PLATFORM_FEE_BPS } from '@/lib/pro';
+import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
+import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 
-/** Pro-aware platform cut on a ticket price, in cents. */
-async function platformCutCents(hostId: string, priceCents: number): Promise<number> {
-    if (await isPro(hostId)) {
-        return Math.round((priceCents * PRO_PLATFORM_FEE_BPS) / 10_000);
-    }
-    return platformFeeCents(priceCents);
-}
-
-/**
- * Resolve the host's Stripe Connect account id. Returns null if the host
- * isn't set up to receive payments yet (in which case the calling action
- * should error out — paid events shouldn't have been publishable in the
- * first place; this is defense in depth).
- */
-async function getHostStripeAccount(hostId: string): Promise<string | null> {
-    const admin = getAdminSupabase();
-    const { data } = await admin
-        .from('host_stripe_accounts')
-        .select('stripe_account_id, charges_enabled')
-        .eq('user_id', hostId)
-        .maybeSingle();
-    type Row = { stripe_account_id: string; charges_enabled: boolean };
-    const row = data as unknown as Row | null;
-    if (!row || !row.charges_enabled) return null;
-    return row.stripe_account_id;
-}
-
 function backWithError(eventId: string, code: string, msg?: string): never {
-    const params = new URLSearchParams({ rsvp: code });
-    if (msg) params.set('rsvp_msg', msg);
-    redirect(`/events/${eventId}?${params.toString()}`);
-}
-
-async function buildOrigin(): Promise<string> {
-    const h = await headers();
-    return (
-        h.get('origin') ??
-        (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000')
-    );
+    redirectEventNotice(eventId, 'rsvp', code, msg);
 }
 
 /**
@@ -164,7 +129,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
                     // The platform's actual take (Pro hosts get 2.5%, others
                     // 5%). Stripe pulls this out of the host's payout
                     // regardless of who pays the fee at checkout.
-                    application_fee_amount: await platformCutCents(
+                    application_fee_amount: await platformFeeCentsFor(
                         pricing.hostId,
                         pricing.priceCents,
                     ),
@@ -219,8 +184,8 @@ export async function startGuestTicketCheckout(
 ): Promise<void> {
     if (!isStripeConfigured()) backWithError(eventId, 'error', 'Payments are not configured.');
 
-    const displayName = String(formData.get('display_name') ?? '').trim();
-    const email = String(formData.get('email') ?? '').trim().toLowerCase();
+    const displayName = field(formData, 'display_name');
+    const email = field(formData, 'email').toLowerCase();
     if (!displayName) backWithError(eventId, 'error', 'Please enter your name.');
     if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
         backWithError(eventId, 'error', 'A valid email is required for paid signups.');
