@@ -149,6 +149,12 @@ export default async function ProfilePage() {
                     >
                         Payouts &amp; Stripe →
                     </Link>
+                    <Link
+                        href={'/profile/receipts' as never}
+                        className="rounded-md border border-border-base px-3 py-1.5 hover:bg-fg/5"
+                    >
+                        Receipts →
+                    </Link>
                 </div>
             </section>
 
