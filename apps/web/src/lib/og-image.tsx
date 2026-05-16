@@ -21,10 +21,13 @@ export function brandOgImage({
     eyebrow,
     title,
     meta,
+    cta = 'Join free at pickupvb.com',
 }: {
     eyebrow?: string;
     title: string;
     meta?: string;
+    /** Call-to-action pill rendered above the footer. Pass `null` to hide. */
+    cta?: string | null;
 }): ImageResponse {
     return new ImageResponse(
         (
@@ -72,6 +75,30 @@ export function brandOgImage({
                     {title}
                 </div>
                 <div style={{ flex: 1 }} />
+                {cta ? (
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignSelf: 'flex-start',
+                            alignItems: 'center',
+                            gap: 12,
+                            marginBottom: 24,
+                            paddingTop: 14,
+                            paddingBottom: 14,
+                            paddingLeft: 26,
+                            paddingRight: 26,
+                            borderRadius: 999,
+                            backgroundColor: TEAL,
+                            color: CREAM,
+                            fontSize: 28,
+                            fontWeight: 700,
+                            letterSpacing: 0.3,
+                        }}
+                    >
+                        <span>{cta}</span>
+                        <span aria-hidden style={{ fontSize: 30 }}>→</span>
+                    </div>
+                ) : null}
                 <div
                     style={{
                         display: 'flex',

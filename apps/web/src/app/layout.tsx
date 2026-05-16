@@ -16,11 +16,11 @@ import './globals.css';
 
 export const metadata: Metadata = {
     title: {
-        default: 'PickupVB — Find and host volleyball events',
+        default: 'PickupVB — Find, host, and join pickup volleyball events',
         template: '%s · PickupVB',
     },
     description:
-        'Discover, create, and manage pickup volleyball events. Indoor, grass, and beach. Open play and tournaments. Free to use.',
+        'Discover, create, and join pickup volleyball events near you — indoor, grass, and beach. Open play, leagues, and tournaments. Free to use.',
     metadataBase: new URL('https://pickupvb.com'),
     applicationName: 'PickupVB',
     keywords: [
@@ -43,16 +43,16 @@ export const metadata: Metadata = {
         type: 'website',
         siteName: 'PickupVB',
         url: 'https://pickupvb.com',
-        title: 'PickupVB — Find and host volleyball events',
+        title: 'PickupVB — Find, host, and join pickup volleyball events',
         description:
-            'Discover, create, and manage pickup volleyball events. Indoor, grass, and beach. Open play and tournaments.',
+            'Discover, create, and join pickup volleyball events near you — indoor, grass, and beach. Open play, leagues, and tournaments. Free to use.',
         locale: 'en_US',
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'PickupVB — Find and host volleyball events',
+        title: 'PickupVB — Find, host, and join pickup volleyball events',
         description:
-            'Discover, create, and manage pickup volleyball events. Indoor, grass, and beach. Open play and tournaments.',
+            'Discover, create, and join pickup volleyball events near you — indoor, grass, and beach. Open play, leagues, and tournaments. Free to use.',
     },
     robots: {
         index: true,
