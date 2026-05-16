@@ -109,6 +109,11 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                         </Link>
                     </li>
                     <li>
+                        <Link href="/pricing" className="hover:text-primary">
+                            Pricing
+                        </Link>
+                    </li>
+                    <li>
                         <ThemeToggle current={theme} />
                     </li>
                     {userInfo ? (

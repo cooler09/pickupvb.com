@@ -113,6 +113,11 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                                     Host tools
                                 </Link>
                             </li>
+                            <li>
+                                <Link href="/pricing" className="block rounded-md px-3 py-2 hover:bg-fg/5">
+                                    Pricing
+                                </Link>
+                            </li>
                         </ul>
 
                         <div className="mt-4 border-t border-border-base pt-4">
