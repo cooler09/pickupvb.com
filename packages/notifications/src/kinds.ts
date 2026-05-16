@@ -61,7 +61,7 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
     'event.cancelled': ['email', 'in_app'],
     'event.updated': ['email', 'in_app'],
     'event.reminder.24h': ['email', 'in_app'],
-    'event.reminder.2h': ['push', 'in_app'],
+    'event.reminder.2h': ['email', 'in_app'],
     'payment.refunded': ['email', 'in_app'],
     'host.payout.paid': ['email', 'in_app'],
     'host.stripe.action_required': ['email', 'in_app'],

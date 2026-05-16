@@ -199,11 +199,20 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                 </ul>
 
                 {/* Mobile nav */}
-                <MobileMenu
-                    theme={theme}
-                    user={userInfo}
-                    pendingTeamInvites={pendingTeamInvites}
-                />
+                <div className="flex items-center gap-2 md:hidden">
+                    {user && (
+                        <NotificationBell
+                            userId={user.id}
+                            initialUnreadCount={notifUnread}
+                            initialItems={notifItems}
+                        />
+                    )}
+                    <MobileMenu
+                        theme={theme}
+                        user={userInfo}
+                        pendingTeamInvites={pendingTeamInvites}
+                    />
+                </div>
             </nav>
         </header>
     );
