@@ -78,20 +78,9 @@ export default async function NotificationsPrefsPage() {
                         defaultChecked={prefs.email_enabled}
                     />
                     <Toggle
-                        name="sms_enabled"
-                        label="SMS (text message)"
-                        description={
-                            prefs.sms_phone
-                                ? `To ${prefs.sms_phone}. Reply STOP at any time.`
-                                : 'Add a phone number to enable. Coming soon.'
-                        }
-                        defaultChecked={prefs.sms_enabled}
-                        disabled={!prefs.sms_phone}
-                    />
-                    <Toggle
                         name="push_enabled"
                         label="Browser push"
-                        description="Coming soon — free alternative to SMS."
+                        description="Coming soon — instant alerts on your phone or laptop."
                         defaultChecked={prefs.push_enabled}
                         disabled
                     />
