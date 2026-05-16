@@ -3,54 +3,71 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Compact share widget for the canonical short URL of an event. Renders
- * the absolute URL on the client (using `window.location.origin`) so it
- * works correctly across local dev, preview deploys, and production
- * without baking the host name into the server build.
- *
- * SSR shows a path-only fallback (`/e/ABC23XYZ`) so the link is still
- * useful before hydration and for crawlers without JS.
+ * Compact share control: a single button that uses the Web Share API on
+ * supported devices (mobile sheet) and falls back to copy-to-clipboard on
+ * desktop. The full URL is also exposed via `title` for hover/long-press
+ * preview, and a tiny muted hint underneath shows the short code so users
+ * can read it back over the phone.
  */
-export function EventShareLink({ shortCode }: { shortCode: string }) {
+export function EventShareLink({
+    shortCode,
+    title,
+}: {
+    shortCode: string;
+    title?: string;
+}) {
     const [origin, setOrigin] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
+    const [status, setStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
+    const [canShare, setCanShare] = useState(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
             setOrigin(window.location.origin);
+            setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
         }
     }, []);
 
     const path = `/e/${shortCode}`;
-    const display = origin ? `${origin}${path}` : path;
+    const url = origin ? `${origin}${path}` : path;
 
-    async function copy() {
+    async function onClick() {
+        if (canShare) {
+            try {
+                await navigator.share({
+                    url,
+                    ...(title ? { title, text: title } : {}),
+                });
+                setStatus('shared');
+                setTimeout(() => setStatus('idle'), 1500);
+                return;
+            } catch {
+                // User dismissed or share failed — fall through to clipboard.
+            }
+        }
         try {
-            await navigator.clipboard.writeText(display);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
+            await navigator.clipboard.writeText(url);
+            setStatus('copied');
+            setTimeout(() => setStatus('idle'), 1500);
         } catch {
-            // Clipboard API can fail (e.g. insecure origin); silently ignore —
-            // the URL is still selectable in the input.
+            // Clipboard unavailable (insecure origin); leave status idle.
         }
     }
 
+    const label =
+        status === 'copied' ? 'Link copied' : status === 'shared' ? 'Shared' : 'Share';
+
     return (
-        <div className="flex items-center gap-2">
-            <input
-                readOnly
-                value={display}
-                onFocus={(e) => e.currentTarget.select()}
-                className="flex-1 truncate rounded border border-border-base bg-bg px-2 py-1 font-mono text-xs text-fg/80"
-                aria-label="Shareable event link"
-            />
-            <button
-                type="button"
-                onClick={copy}
-                className="rounded border border-border-base bg-bg px-2 py-1 text-xs text-fg/80 hover:bg-fg/5"
-            >
-                {copied ? 'Copied' : 'Copy'}
-            </button>
-        </div>
+        <button
+            type="button"
+            onClick={onClick}
+            title={url}
+            aria-label={`${label} — ${url}`}
+            className="inline-flex items-center gap-1.5 rounded border border-border-base bg-bg px-2 py-1 text-xs text-fg/80 hover:bg-fg/5"
+        >
+            <span aria-hidden>↗</span>
+            {label}
+            <span className="text-muted">·</span>
+            <span className="font-mono text-muted">{shortCode}</span>
+        </button>
     );
 }

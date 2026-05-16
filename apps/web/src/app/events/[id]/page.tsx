@@ -186,22 +186,18 @@ export default async function EventDetailPage(
                     status={event.status}
                 />
                 <h1 className="text-3xl font-bold text-fg">{event.title}</h1>
-                {event.canManage && (
-                    <Link
-                        href={`/events/${event.id}/edit` as Route}
-                        className="inline-block text-sm text-primary hover:underline"
-                    >
-                        Edit event
-                    </Link>
-                )}
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                    <EventShareLink shortCode={event.shortCode} title={event.title} />
+                    {event.canManage && (
+                        <Link
+                            href={`/events/${event.id}/edit` as Route}
+                            className="text-primary hover:underline"
+                        >
+                            Edit event
+                        </Link>
+                    )}
+                </div>
             </header>
-
-            <section className="rounded-lg border border-border-base bg-fg/5 p-3">
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-                    Share
-                </h2>
-                <EventShareLink shortCode={event.shortCode} />
-            </section>
 
             <HostsSection
                 eventId={event.id}
@@ -324,15 +320,6 @@ export default async function EventDetailPage(
                     )}
                 </section>
             )}
-
-            <section className="rounded-lg border border-border-base p-4">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
-                    Hosted on PickupVB
-                </h2>
-                <p className="mt-2 text-sm text-muted">
-                    Event ID: <code className="rounded bg-fg/5 px-1 text-xs">{event.id}</code>
-                </p>
-            </section>
 
             {event.type === 'open_play' && signupsOpen && (
                 paid && breakdown ? (
