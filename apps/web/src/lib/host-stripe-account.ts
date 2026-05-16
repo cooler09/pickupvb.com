@@ -20,3 +20,20 @@ export async function getHostStripeAccount(hostId: string): Promise<string | nul
     if (!row || !row.charges_enabled) return null;
     return row.stripe_account_id;
 }
+
+/**
+ * "Can this host accept charges right now?" — pre-flight check used by
+ * event create/edit flows before flipping an event into paid mode. Returns
+ * a user-facing message when the host isn't ready.
+ */
+export async function requireHostChargesEnabled(
+    hostId: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+    const accountId = await getHostStripeAccount(hostId);
+    if (accountId) return { ok: true };
+    return {
+        ok: false,
+        reason:
+            'You need to finish Stripe setup at /profile/billing before charging for events.',
+    };
+}

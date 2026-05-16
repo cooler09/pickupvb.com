@@ -10,7 +10,9 @@ import { handlers } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
-import { getAdminSupabase } from '@/lib/supabase-admin';
+import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
+import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
+import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 
 export type CreateEventState = {
     error?: string;
@@ -127,51 +129,27 @@ export async function createEventAction(
     // Pricing: if the host set a non-zero price, gate it behind a connected
     // Stripe account that's actually able to receive charges. Free events
     // (price = 0) skip Stripe entirely.
-    const priceUsdRaw = fieldOrUndefined(formData, 'priceUsd');
-    const priceCents = priceUsdRaw
-        ? Math.max(0, Math.round(Number(priceUsdRaw) * 100))
-        : 0;
+    const priceCents = parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
     if (priceCents > 0) {
         // Free hosts are capped at 1 paid event per 30 days. Pro hosts have
         // no cap. Check BEFORE creating Stripe Checkout, so we can roll back
-        // the event row cleanly.
-        const { isPro, hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } = await import(
-            '@/lib/pro'
-        );
-        if (!(await isPro(user.id))) {
-            const count = await hostPaidEventCount30d(user.id);
-            // Count includes the event we just created; cap is N total.
-            if (count > FREE_PAID_EVENT_CAP_30D) {
-                await supabase.from('events').delete().eq('id', result.id);
-                return {
-                    error:
-                        `Free hosts can run ${FREE_PAID_EVENT_CAP_30D} paid event per 30 days. ` +
-                        `Upgrade to Pro at /profile/billing/pro for unlimited paid events.`,
-                };
-            }
+        // the event row cleanly. Count already includes the row we just
+        // inserted.
+        const cap = await validateHostPaidEventCap(user.id, { includesCurrentEvent: true });
+        if (!cap.ok) {
+            await supabase.from('events').delete().eq('id', result.id);
+            return { error: cap.reason };
         }
-        // host_stripe_accounts is service-role only (no RLS policies), so we
-        // must use the admin client to read the connect status.
-        const admin = getAdminSupabase();
-        const { data: stripeRow } = await admin
-            .from('host_stripe_accounts')
-            .select('charges_enabled')
-            .eq('user_id', user.id)
-            .maybeSingle();
-        const enabled = (stripeRow as { charges_enabled: boolean } | null)?.charges_enabled;
-        if (!enabled) {
+        const stripe = await requireHostChargesEnabled(user.id);
+        if (!stripe.ok) {
             // Roll back the event so the host doesn't end up with a free
             // event they thought was paid.
             await supabase.from('events').delete().eq('id', result.id);
-            return {
-                error:
-                    'You need to finish Stripe setup at /profile/billing before charging for events.',
-            };
+            return { error: stripe.reason };
         }
-        const refundWindowRaw = fieldOrUndefined(formData, 'refundWindowHours');
-        const refundWindowHours = refundWindowRaw
-            ? Math.max(0, Math.min(720, Math.round(Number(refundWindowRaw))))
-            : 24;
+        const refundWindowHours = parseRefundWindowHours(
+            fieldOrUndefined(formData, 'refundWindowHours'),
+        );
         const hostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
         const { error: priceErr } = await supabase
             .from('events')

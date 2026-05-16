@@ -7,6 +7,10 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { geocodeAddress } from '@/lib/geocode';
 import { field, fieldOrUndefined } from '@/lib/form-data';
+import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
+import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
+import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
+import { isPricingLocked } from '@/lib/pricing-lock';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 
@@ -15,30 +19,6 @@ export type EditEventState = {
     fieldErrors?: Record<string, string>;
     ok?: boolean;
 };
-
-/**
- * Loads pricing-lock state — pricing fields are immutable once a paid
- * attendee exists for an event.
- */
-export async function isPricingLocked(eventId: string): Promise<boolean> {
-    const admin = getAdminSupabase();
-    const { data, error } = await admin
-        .from('event_attendees')
-        .select('user_id', { count: 'exact', head: true })
-        .eq('event_id', eventId)
-        .eq('payment_status', 'paid');
-    if (error) return false;
-    // PostgREST returns count via the response when head:true + count:'exact';
-    // the supabase-js client surfaces it as `count` on the response object.
-    // We re-query for safety since the typed shape doesn't include it.
-    const { count } = await admin
-        .from('event_attendees')
-        .select('user_id', { count: 'exact', head: true })
-        .eq('event_id', eventId)
-        .eq('payment_status', 'paid');
-    void data;
-    return (count ?? 0) > 0;
-}
 
 export async function editEventAction(
     _prev: EditEventState,
@@ -125,12 +105,10 @@ export async function editEventAction(
     const wkt = `SRID=4326;POINT(${coords.longitude} ${coords.latitude})`;
 
     // ---- Pricing ----
-    const priceUsdRaw = fieldOrUndefined(formData, 'priceUsd');
-    const newPriceCents = priceUsdRaw ? Math.max(0, Math.round(Number(priceUsdRaw) * 100)) : 0;
-    const refundWindowRaw = fieldOrUndefined(formData, 'refundWindowHours');
-    const newRefundWindowHours = refundWindowRaw
-        ? Math.max(0, Math.min(720, Math.round(Number(refundWindowRaw))))
-        : 24;
+    const newPriceCents = parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
+    const newRefundWindowHours = parseRefundWindowHours(
+        fieldOrUndefined(formData, 'refundWindowHours'),
+    );
     const newHostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
 
     // Read current pricing to detect changes (and for the price-lock check).
@@ -164,34 +142,16 @@ export async function editEventAction(
         }
         // If switching to paid, the host needs Stripe set up.
         if (newPriceCents > 0) {
+            const hostIdToCheck = c?.host_id ?? user.id;
             // Free-tier cap also applies when an event flips from free→paid.
             if ((c?.price_cents ?? 0) === 0) {
-                const { isPro, hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } = await import(
-                    '@/lib/pro'
-                );
-                if (!(await isPro(c?.host_id ?? user.id))) {
-                    const count = await hostPaidEventCount30d(c?.host_id ?? user.id);
-                    if (count >= FREE_PAID_EVENT_CAP_30D) {
-                        return {
-                            error:
-                                `Free hosts can run ${FREE_PAID_EVENT_CAP_30D} paid event per 30 days. ` +
-                                `Upgrade to Pro at /profile/billing/pro for unlimited paid events.`,
-                        };
-                    }
-                }
+                const cap = await validateHostPaidEventCap(hostIdToCheck, {
+                    includesCurrentEvent: false,
+                });
+                if (!cap.ok) return { error: cap.reason };
             }
-            const { data: stripeRow } = await admin
-                .from('host_stripe_accounts')
-                .select('charges_enabled')
-                .eq('user_id', c?.host_id ?? user.id)
-                .maybeSingle();
-            const enabled = (stripeRow as { charges_enabled: boolean } | null)?.charges_enabled;
-            if (!enabled) {
-                return {
-                    error:
-                        'You need to finish Stripe setup at /profile/billing before charging for events.',
-                };
-            }
+            const stripe = await requireHostChargesEnabled(hostIdToCheck);
+            if (!stripe.ok) return { error: stripe.reason };
         }
     }
 

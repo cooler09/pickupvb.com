@@ -19,6 +19,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { redirectEventNotice } from '@/lib/server-redirects';
+import { assertWithinRefundWindow } from '@/lib/refund-window';
 import { log } from '@/lib/log';
 
 /**
@@ -98,22 +99,9 @@ export async function leaveEvent(eventId: string): Promise<void> {
     const att = row as unknown as AttRow | null;
 
     if (att?.payment_status === 'paid' && att.payment_intent_id && isStripeConfigured()) {
-        const { data: ev } = await admin
-            .from('events')
-            .select('starts_at, refund_window_hours')
-            .eq('id', eventId)
-            .maybeSingle();
-        type EvRow = { starts_at: string; refund_window_hours: number };
-        const e = ev as unknown as EvRow | null;
-        const startsAt = e ? new Date(e.starts_at).getTime() : 0;
-        const windowMs = (e?.refund_window_hours ?? 0) * 60 * 60 * 1000;
-        const cutoff = startsAt - windowMs;
-        if (Date.now() > cutoff) {
-            back(
-                eventId,
-                'error',
-                'Refund window has closed. Contact the host to cancel.',
-            );
+        const window = await assertWithinRefundWindow(eventId);
+        if (!window.ok) {
+            back(eventId, 'error', window.reason);
         }
         try {
             const stripe = getStripe();

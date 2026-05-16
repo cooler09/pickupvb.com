@@ -6,7 +6,7 @@ import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { getEventPricing } from '@/lib/event-pricing';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import EditEventForm from './edit-event-form';
-import { isPricingLocked } from './actions';
+import { isPricingLocked } from '@/lib/pricing-lock';
 
 export const dynamic = 'force-dynamic';
 
