@@ -67,22 +67,36 @@ export function PaidTicketPanel({
         };
     return (
         <div className="space-y-4">
-            <div className="rounded-lg border border-border-base bg-fg/5 p-4">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
-                    Sign-up cost
-                </h2>
-                <p className="mt-1 text-2xl font-bold text-fg">{formatUsd(total)}</p>
-                {platformFeeCents > 0 && (
-                    <p className="text-xs text-muted">
-                        {formatUsd(ticketCents)} to the host +{' '}
-                        {formatUsd(platformFeeCents)} service fee (only charged if you pay online)
+            <div className="overflow-hidden rounded-lg border border-border-base sm:grid sm:grid-cols-2">
+                <div className="bg-fg/5 p-4 sm:border-r sm:border-border-base">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                        Pay in person
+                    </h2>
+                    <p className="mt-1 text-2xl font-bold text-fg">
+                        {formatUsd(ticketCents)}
                     </p>
-                )}
-                {platformFeeCents === 0 && (
                     <p className="text-xs text-muted">
-                        Service fee absorbed by host
+                        Cash, Venmo, etc. — settle up with the host at the event.
                     </p>
-                )}
+                </div>
+                <div className="border-t border-border-base bg-fg/5 p-4 sm:border-l-0 sm:border-t-0">
+                    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                        Pay online
+                    </h2>
+                    <p className="mt-1 text-2xl font-bold text-fg">
+                        {formatUsd(total)}
+                    </p>
+                    {platformFeeCents > 0 ? (
+                        <p className="text-xs text-muted">
+                            {formatUsd(ticketCents)} to the host +{' '}
+                            {formatUsd(platformFeeCents)} service fee
+                        </p>
+                    ) : (
+                        <p className="text-xs text-muted">
+                            Service fee absorbed by host
+                        </p>
+                    )}
+                </div>
             </div>
 
             {isAttending ? (
