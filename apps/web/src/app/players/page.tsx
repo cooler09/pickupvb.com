@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
+import { Pagination } from '@/components/pagination';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -8,6 +9,8 @@ export const metadata = {
         'Discover volleyball players on PickupVB. Find people in your area, see who is signed up for events, and connect with teammates.',
     alternates: { canonical: '/players' },
 };
+
+const PAGE_SIZE = 24;
 
 type Row = {
     id: string;
@@ -34,19 +37,24 @@ function initialsOf(p: Row): string {
 
 export default async function PlayersIndexPage(
     props: {
-        searchParams: Promise<{ q?: string; city?: string }>;
+        searchParams: Promise<{ q?: string; city?: string; page?: string }>;
     }
 ) {
     const searchParams = await props.searchParams;
     const supabase = await getServerSupabase();
     const q = (searchParams.q ?? '').trim();
     const city = (searchParams.city ?? '').trim();
+    const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
+    const from = (pageNum - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let query = supabase
         .from('profiles')
-        .select('id, display_name, first_name, last_name, home_city, avatar_url')
+        .select('id, display_name, first_name, last_name, home_city, avatar_url', {
+            count: 'exact',
+        })
         .order('display_name', { ascending: true })
-        .limit(60);
+        .range(from, to);
 
     if (q) {
         const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
@@ -58,8 +66,9 @@ export default async function PlayersIndexPage(
         query = query.ilike('home_city', `%${city.replace(/[%_]/g, (m) => `\\${m}`)}%`);
     }
 
-    const { data } = await query;
+    const { data, count } = await query;
     const players = (data as Row[] | null) ?? [];
+    const total = count ?? players.length;
     const hasFilter = q.length > 0 || city.length > 0;
 
     return (
@@ -132,6 +141,13 @@ export default async function PlayersIndexPage(
                     ))}
                 </ul>
             )}
+            <Pagination
+                basePath="/players"
+                page={pageNum}
+                pageSize={PAGE_SIZE}
+                total={total}
+                searchParams={searchParams}
+            />
         </div>
     );
 }

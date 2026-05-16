@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
+import { Pagination } from '@/components/pagination';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Groups — PickupVB' };
+
+const PAGE_SIZE = 24;
 
 type GroupRow = {
     id: string;
@@ -16,22 +19,28 @@ type GroupRow = {
 
 export default async function GroupsIndexPage(
     props: {
-        searchParams: Promise<{ q?: string }>;
+        searchParams: Promise<{ q?: string; page?: string }>;
     }
 ) {
     const searchParams = await props.searchParams;
     const supabase = await getServerSupabase();
     const q = (searchParams.q ?? '').trim();
+    const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
+    const from = (pageNum - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let query = supabase
         .from('groups')
-        .select('id, slug, name, description, avatar_url, home_city, region')
+        .select('id, slug, name, description, avatar_url, home_city, region', {
+            count: 'exact',
+        })
         .order('name', { ascending: true })
-        .limit(60);
+        .range(from, to);
     if (q) query = query.or(`name.ilike.%${q}%,slug.ilike.%${q}%,home_city.ilike.%${q}%`);
 
-    const { data } = await query;
+    const { data, count } = await query;
     const groups = (data as GroupRow[] | null) ?? [];
+    const total = count ?? groups.length;
 
     const {
         data: { user },
@@ -108,6 +117,13 @@ export default async function GroupsIndexPage(
                     ))}
                 </ul>
             )}
+            <Pagination
+                basePath="/groups"
+                page={pageNum}
+                pageSize={PAGE_SIZE}
+                total={total}
+                searchParams={searchParams}
+            />
         </div>
     );
 }
