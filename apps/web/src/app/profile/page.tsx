@@ -80,10 +80,8 @@ export default async function ProfilePage() {
         ((inRows as { user_id: string }[] | null) ?? []).map((r) => r.user_id),
     );
 
-    const hostedEvents = await loadVisibleHostedEvents(user.id);
-    const upcomingHosted = hostedEvents.filter(
-        (e) => new Date(e.starts_at).getTime() >= Date.now(),
-    );
+    const hostedEvents = await loadVisibleHostedEvents(user.id, { startsAfter: new Date() });
+    const upcomingHosted = hostedEvents;
 
     // Groups the user is a member of (with role).
     const { data: myGroupRows } = await supabase

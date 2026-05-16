@@ -102,8 +102,9 @@ export default async function PlayerProfilePage(props: {
 
     const isSelf = user?.id === profile.id;
 
-    // Friendship edge + hosted events are independent.
-    const [edgeResult, events] = await Promise.all([
+    // Friendship edge + hosted events (upcoming + past split at SQL) are independent.
+    const now = new Date();
+    const [edgeResult, upcoming, past] = await Promise.all([
         user && !isSelf
             ? supabase
                 .from('friendships')
@@ -113,12 +114,10 @@ export default async function PlayerProfilePage(props: {
                 .maybeSingle()
             : Promise.resolve({ data: null }),
         // RLS handles visibility — viewer only sees events they're allowed to.
-        loadVisibleHostedEvents(profile.id),
+        loadVisibleHostedEvents(profile.id, { startsAfter: now }),
+        loadVisibleHostedEvents(profile.id, { startsBefore: now }),
     ]);
     const isFollowing = Boolean(edgeResult.data);
-
-    const upcoming = events.filter((e) => new Date(e.starts_at).getTime() >= Date.now());
-    const past = events.filter((e) => new Date(e.starts_at).getTime() < Date.now());
 
     const returnPath = `/players/${profile.id}`;
     const name = nameOf(profile);
