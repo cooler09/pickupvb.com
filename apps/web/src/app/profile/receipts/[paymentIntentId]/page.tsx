@@ -66,14 +66,23 @@ export default async function ReceiptDetailPage({
     } = await supabase.auth.getUser();
     if (!user) redirect(`/login?next=/profile/receipts/${rawId}`);
 
-    const { data: rawRows } = await supabase
+    // The list page uses `audit:<row-id>` as a synthetic key when the audit
+    // row has no `payment_intent_id` (rare: legacy rows or non-Stripe paths).
+    // Detect and look up by row id in that case.
+    const isAuditFallback = paymentIntentId.startsWith('audit:');
+    const auditRowId = isAuditFallback ? paymentIntentId.slice('audit:'.length) : null;
+
+    const baseSelect =
+        'id, event_id, user_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(id, title, starts_at, location_address, location_city, location_region, host_id)';
+
+    const query = supabase
         .from('event_payment_audit')
-        .select(
-            'id, event_id, user_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(id, title, starts_at, location_address, location_city, location_region, host_id)',
-        )
-        .eq('user_id', user.id)
-        .eq('payment_intent_id', paymentIntentId)
-        .order('occurred_at', { ascending: true });
+        .select(baseSelect)
+        .eq('user_id', user.id);
+
+    const { data: rawRows } = isAuditFallback
+        ? await query.eq('id', auditRowId!).order('occurred_at', { ascending: true })
+        : await query.eq('payment_intent_id', paymentIntentId).order('occurred_at', { ascending: true });
 
     const rows = (rawRows as unknown as AuditRow[] | null) ?? [];
     if (rows.length === 0) notFound();
