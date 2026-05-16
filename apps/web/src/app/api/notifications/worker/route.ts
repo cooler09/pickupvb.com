@@ -16,6 +16,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { sendEmail } from '@/lib/email-resend';
+import { sendWebPush, type WebPushPayload } from '@/lib/web-push';
 import { log } from '@/lib/log';
 
 export const dynamic = 'force-dynamic';
@@ -77,14 +78,68 @@ async function processRow(
         return;
     }
 
-    // push: same story
-    await admin
-        .from('notification_outbox')
-        .update({
-            status: 'skipped',
-            last_error: 'push-adapter-not-implemented',
-        } as never)
-        .eq('id', row.id);
+    // push: fan out to every subscription this user has. We deliver each one
+    // and prune endpoints that 404/410 (subscription gone). Row marked sent
+    // as long as ANY delivery succeeded; if all fail with non-gone errors,
+    // we throw to trigger the outer retry/backoff. `to_address` is the
+    // user_id for push rows (set in lib/notify.ts).
+    type Sub = { endpoint: string; p256dh: string; auth: string };
+    const { data: subRows } = await admin
+        .from('push_subscriptions')
+        .select('endpoint, p256dh, auth')
+        .eq('user_id', row.to_address);
+    const list = (subRows as Sub[] | null) ?? [];
+    const payload = row.payload as unknown as WebPushPayload;
+
+    if (list.length === 0) {
+        await admin
+            .from('notification_outbox')
+            .update({
+                status: 'skipped',
+                last_error: 'no-push-subscriptions',
+            } as never)
+            .eq('id', row.id);
+        return;
+    }
+
+    let anyOk = false;
+    const gone: string[] = [];
+    const errors: string[] = [];
+    for (const sub of list) {
+        const result = await sendWebPush(sub, payload);
+        if (result.ok) {
+            anyOk = true;
+        } else if (result.gone) {
+            gone.push(sub.endpoint);
+        } else {
+            errors.push(`${result.statusCode}:${result.message}`);
+        }
+    }
+    if (gone.length > 0) {
+        await admin.from('push_subscriptions').delete().in('endpoint', gone);
+    }
+    if (anyOk) {
+        await admin
+            .from('notification_outbox')
+            .update({
+                status: 'sent',
+                sent_at: new Date().toISOString(),
+            } as never)
+            .eq('id', row.id);
+        return;
+    }
+    if (errors.length === 0) {
+        // Every subscription was gone — nothing to retry.
+        await admin
+            .from('notification_outbox')
+            .update({
+                status: 'skipped',
+                last_error: 'all-subscriptions-gone',
+            } as never)
+            .eq('id', row.id);
+        return;
+    }
+    throw new Error(`web-push-failed: ${errors.join('; ').slice(0, 400)}`);
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -114,7 +169,7 @@ export async function GET(req: Request): Promise<Response> {
     for (const row of rows) {
         try {
             await processRow(admin, row);
-            if (row.channel === 'email') sent += 1;
+            if (row.channel === 'email' || row.channel === 'push') sent += 1;
             else skipped += 1;
         } catch (err) {
             failed += 1;

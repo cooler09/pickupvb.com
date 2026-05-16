@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { updateNotificationPreferences } from './actions';
+import { PushSubscribeButton } from '@/components/push-subscribe-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -80,10 +81,14 @@ export default async function NotificationsPrefsPage() {
                     <Toggle
                         name="push_enabled"
                         label="Browser push"
-                        description="Coming soon — instant alerts on your phone or laptop."
+                        description="Instant alerts on this device. Enable on each device you want notifications on."
                         defaultChecked={prefs.push_enabled}
-                        disabled
                     />
+                    <div className="pl-3">
+                        <PushSubscribeButton
+                            vapidPublicKey={process.env['NEXT_PUBLIC_VAPID_PUBLIC_KEY'] ?? null}
+                        />
+                    </div>
                 </section>
 
                 <button

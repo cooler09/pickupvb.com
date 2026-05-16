@@ -147,7 +147,22 @@ export async function notify<K extends NotificationKind>(
                     break;
                 }
                 case 'push': {
-                    // Web push not wired yet. Skip silently.
+                    const r = renderInApp(kind, payload);
+                    await admin.from('notification_outbox').insert({
+                        user_id: userId,
+                        channel: 'push',
+                        kind,
+                        to_address: userId,
+                        payload: {
+                            title: r.title,
+                            body: r.body,
+                            href: r.href,
+                            tag: kind,
+                        },
+                        ...(opts.idempotencyKey
+                            ? { idempotency_key: `push:${kind}:${opts.idempotencyKey}` }
+                            : {}),
+                    } as never);
                     break;
                 }
             }
