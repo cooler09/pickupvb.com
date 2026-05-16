@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { followGroup, unfollowGroup } from '@/app/groups/actions';
+import { ShareLink } from '@/components/share-link';
 
 type Props = {
     group: {
@@ -61,6 +62,7 @@ export function GroupHeader({
                 )}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
+                <ShareLink path={`/groups/${group.id}`} title={group.name} />
                 {canManage && (
                     <Link
                         href={`/groups/${group.id}/edit`}

@@ -6,6 +6,7 @@ import { AddTeamMemberForm } from './_components/add-team-member-form';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
 import { InviteResponse } from './_components/invite-response';
 import { ExtraMembersForm } from './_components/extra-members-form';
+import { ShareLink } from '@/components/share-link';
 
 export const dynamic = 'force-dynamic';
 
@@ -115,7 +116,10 @@ export default async function TeamDetailPage(
                 <Link href="/teams" className="text-sm text-primary hover:underline">
                     ← Back to teams
                 </Link>
-                <h1 className="text-2xl font-bold">{team.name}</h1>
+                <div className="flex items-start justify-between gap-3">
+                    <h1 className="text-2xl font-bold">{team.name}</h1>
+                    <ShareLink path={`/teams/${team.id}`} title={team.name} />
+                </div>
                 <p className="text-sm text-muted">
                     {FORMAT_LABEL[team.format] ?? team.format} · {activeCount} player
                     {activeCount === 1 ? '' : 's'}

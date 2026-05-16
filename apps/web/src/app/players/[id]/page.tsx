@@ -7,6 +7,7 @@ import {
     loadVisibleHostedEvents,
 } from '@/components/hosted-events-list';
 import { addFriend, removeFriend } from '@/app/friends/actions';
+import { ShareLink } from '@/components/share-link';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,6 +145,9 @@ export default async function PlayerProfilePage(props: { params: Promise<{ id: s
                             {positions.join(' · ')}
                         </p>
                     )}
+                    <div className="mt-2">
+                        <ShareLink path={`/players/${profile.id}`} title={name} />
+                    </div>
                 </div>
                 {!isSelf && (
                     user ? (
