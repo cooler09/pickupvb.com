@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
+import { Alert } from '@/components/alert';
 
 /**
  * Self-contained "Continue with Google" button. Initiates the OAuth flow
@@ -30,11 +31,7 @@ export function GoogleButton() {
             >
                 Continue with Google
             </button>
-            {error && (
-                <p role="alert" className="text-sm text-red-700">
-                    {error}
-                </p>
-            )}
+            {error && <Alert variant="error">{error}</Alert>}
         </div>
     );
 }

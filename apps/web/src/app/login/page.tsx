@@ -7,6 +7,7 @@ import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { AuthModeTabs } from './_components/auth-mode-tabs';
 import { GoogleButton } from './_components/google-button';
 import { friendlyAuthError, type AuthMode } from './_lib/friendly-error';
+import { Alert } from '@/components/alert';
 
 function LoginForm() {
     const router = useRouter();
@@ -118,22 +119,8 @@ function LoginForm() {
                     )}
                 </label>
 
-                {error && (
-                    <div
-                        role="alert"
-                        className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-                    >
-                        {error}
-                    </div>
-                )}
-                {info && (
-                    <div
-                        role="status"
-                        className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary"
-                    >
-                        {info}
-                    </div>
-                )}
+                {error && <Alert variant="error">{error}</Alert>}
+                {info && <Alert variant="info">{info}</Alert>}
 
                 <button
                     type="submit"

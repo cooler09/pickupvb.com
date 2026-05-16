@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
+import { Alert } from '@/components/alert';
 
 export default function ResetPasswordPage() {
     const router = useRouter();
@@ -113,14 +114,7 @@ export default function ResetPasswordPage() {
                         />
                     </label>
 
-                    {error && (
-                        <div
-                            role="alert"
-                            className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-                        >
-                            {error}
-                        </div>
-                    )}
+                    {error && <Alert variant="error">{error}</Alert>}
 
                     <button
                         type="submit"

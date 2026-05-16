@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { Alert } from '@/components/alert';
 import { updateGroupAction, type GroupFormState } from '@/app/groups/actions';
 
 const initial: GroupFormState = {};
@@ -35,14 +36,7 @@ export default function EditGroupForm({ group }: { group: Group }) {
     const [state, formAction] = useFormState(action, initial);
     return (
         <form action={formAction} className="space-y-4">
-            {state.error && (
-                <div
-                    role="alert"
-                    className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-                >
-                    {state.error}
-                </div>
-            )}
+            {state.error && <Alert variant="error">{state.error}</Alert>}
             <div>
                 <label htmlFor="name" className={labelClass}>Name</label>
                 <input id="name" name="name" required maxLength={80} defaultValue={group.name} className={inputClass} />

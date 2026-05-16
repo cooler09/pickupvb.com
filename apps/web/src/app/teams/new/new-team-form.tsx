@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { Alert } from '@/components/alert';
 import { createTeamAction, type TeamFormState } from '../actions';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 
@@ -32,14 +33,7 @@ export default function NewTeamForm() {
     const [state, formAction] = useFormState(createTeamAction, initial);
     return (
         <form action={formAction} className="space-y-4">
-            {state.error && (
-                <div
-                    role="alert"
-                    className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-                >
-                    {state.error}
-                </div>
-            )}
+            {state.error && <Alert variant="error">{state.error}</Alert>}
             <div>
                 <label htmlFor="name" className={labelClass}>Team name</label>
                 <input id="name" name="name" required maxLength={80} className={inputClass} />

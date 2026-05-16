@@ -4,6 +4,7 @@ import type { Metadata } from 'next/types';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
+import { ToastProvider } from '@/components/toast';
 import { getServerSupabase } from '@/lib/supabase';
 import {
     DEFAULT_THEME,
@@ -57,7 +58,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     Skip to main content
                 </a>
                 <SiteHeader theme={theme} />
-                <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+                <ToastProvider>
+                    <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+                </ToastProvider>
                 <footer className="border-t border-border-base py-6 text-center text-sm text-muted">
                     © {new Date().getFullYear()}{' '}
                     <Link href="/" className="hover:underline">

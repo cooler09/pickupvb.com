@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { Alert } from '@/components/alert';
 import { claimAccount, type ClaimState } from './actions';
 
 const initial: ClaimState = {};
@@ -31,14 +32,7 @@ export default function ClaimForm() {
     const [state, formAction] = useFormState(claimAccount, initial);
     return (
         <form action={formAction} className="space-y-3">
-            {state.error && (
-                <div
-                    role="alert"
-                    className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-                >
-                    {state.error}
-                </div>
-            )}
+            {state.error && <Alert variant="error">{state.error}</Alert>}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                     <label htmlFor="first_name" className={labelClass}>First name</label>

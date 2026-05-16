@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
+import { Alert } from '@/components/alert';
 import { editEventAction, type EditEventState } from './actions';
 
 const initialState: EditEventState = {};
@@ -88,11 +89,7 @@ export default function EditEventForm({
         <form action={formAction} className="space-y-8">
             <input type="hidden" name="eventId" value={eventId} />
 
-            {state.error && (
-                <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {state.error}
-                </div>
-            )}
+            {state.error && <Alert variant="error">{state.error}</Alert>}
 
             <fieldset className="space-y-4">
                 <legend className="text-lg font-semibold text-fg">Basics</legend>

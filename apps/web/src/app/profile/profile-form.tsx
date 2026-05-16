@@ -2,6 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { POSITIONS, POSITION_LABEL } from '@/lib/enum-labels';
+import { Alert } from '@/components/alert';
 import { updateProfile, type ProfileFormState } from './actions';
 
 type Profile = {
@@ -164,21 +165,9 @@ export function ProfileForm({ profile, email }: { profile: Profile; email: strin
                 </label>
             </fieldset>
 
-            {state.error && (
-                <div
-                    role="alert"
-                    className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-                >
-                    {state.error}
-                </div>
-            )}
+            {state.error && <Alert variant="error">{state.error}</Alert>}
             {state.success && !state.error && (
-                <div
-                    role="status"
-                    className="rounded-md border border-primary/30 bg-primary/10 p-3 text-sm text-primary"
-                >
-                    Profile updated.
-                </div>
+                <Alert variant="success">Profile updated.</Alert>
             )}
 
             <SubmitButton />
