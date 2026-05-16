@@ -101,9 +101,10 @@ export function HostsSection({
                                 <button
                                     type="submit"
                                     title="Remove co-host"
+                                    aria-label={`Remove co-host ${g.name}`}
                                     className="text-xs text-muted hover:text-red-600"
                                 >
-                                    ✕
+                                    <span aria-hidden>✕</span>
                                 </button>
                             </form>
                         )}
@@ -126,9 +127,10 @@ export function HostsSection({
                                 <button
                                     type="submit"
                                     title="Remove co-host"
+                                    aria-label={`Remove co-host ${profileName(p)}`}
                                     className="text-xs text-muted hover:text-red-600"
                                 >
-                                    ✕
+                                    <span aria-hidden>✕</span>
                                 </button>
                             </form>
                         )}

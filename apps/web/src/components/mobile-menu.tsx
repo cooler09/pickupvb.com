@@ -96,11 +96,20 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                                         href="/teams"
                                         className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-fg/5"
                                     >
-                                        <span>Teams</span>
+                                        <span className="flex items-center gap-2">
+                                            Teams
+                                            {pendingTeamInvites > 0 && (
+                                                <span className="text-xs font-normal text-amber-700">
+                                                    {pendingTeamInvites === 1
+                                                        ? '1 invite'
+                                                        : `${pendingTeamInvites} invites`}
+                                                </span>
+                                            )}
+                                        </span>
                                         {pendingTeamInvites > 0 && (
                                             <span
                                                 aria-label={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
-                                                className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                                                className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white ring-2 ring-amber-200"
                                             >
                                                 {pendingTeamInvites}
                                             </span>

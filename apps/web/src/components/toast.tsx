@@ -118,38 +118,54 @@ const VARIANT_CLASSES: Record<ToastVariant, string> = {
 };
 
 function ToastViewport({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: string) => void }) {
+    const assertive = toasts.filter((t) => t.variant === 'error' || t.variant === 'warning');
+    const polite = toasts.filter((t) => t.variant !== 'error' && t.variant !== 'warning');
     return (
-        <div
-            aria-live="polite"
-            aria-atomic="false"
-            className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:right-6 sm:left-auto sm:items-end"
-        >
-            {toasts.map((t) => (
-                <div
-                    key={t.id}
-                    role={t.variant === 'error' || t.variant === 'warning' ? 'alert' : 'status'}
-                    className={[
-                        'pointer-events-auto w-full max-w-sm rounded-md border p-3 text-sm shadow-lg',
-                        VARIANT_CLASSES[t.variant],
-                    ].join(' ')}
-                >
-                    <div className="flex items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                            {t.title && <p className="font-semibold leading-tight">{t.title}</p>}
-                            <p className={t.title ? 'mt-0.5' : undefined}>{t.message}</p>
-                        </div>
-                        <button
-                            type="button"
-                            aria-label="Dismiss notification"
-                            onClick={() => dismiss(t.id)}
-                            className="-mr-1 -mt-1 rounded-md px-1.5 text-lg leading-none opacity-70 hover:opacity-100"
-                        >
-                            ×
-                        </button>
-                    </div>
-                </div>
-            ))}
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:right-6 sm:left-auto sm:items-end">
+            {/* Errors and warnings are assertive so screen readers interrupt
+                whatever they're reading. Successes / info stay polite. */}
+            <ol aria-live="assertive" aria-atomic="false" className="contents">
+                {assertive.map((t) => (
+                    <ToastItem key={t.id} toast={t} dismiss={dismiss} />
+                ))}
+            </ol>
+            <ol aria-live="polite" aria-atomic="false" className="contents">
+                {polite.map((t) => (
+                    <ToastItem key={t.id} toast={t} dismiss={dismiss} />
+                ))}
+            </ol>
         </div>
+    );
+}
+
+function ToastItem({ toast: t, dismiss }: { toast: Toast; dismiss: (id: string) => void }) {
+    return (
+        <li
+            role={t.variant === 'error' || t.variant === 'warning' ? 'alert' : 'status'}
+            className={[
+                'pointer-events-auto w-full max-w-sm rounded-md border p-3 text-sm shadow-lg',
+                VARIANT_CLASSES[t.variant],
+            ].join(' ')}
+        >
+            <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                    {t.title && <p className="font-semibold leading-tight">{t.title}</p>}
+                    <p className={t.title ? 'mt-0.5' : undefined}>{t.message}</p>
+                </div>
+                <button
+                    type="button"
+                    aria-label={
+                        t.title
+                            ? `Dismiss notification: ${t.title}`
+                            : `Dismiss notification: ${t.message}`
+                    }
+                    onClick={() => dismiss(t.id)}
+                    className="-mr-1 -mt-1 rounded-md px-1.5 text-lg leading-none opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-current focus:ring-offset-1 focus:ring-offset-transparent"
+                >
+                    <span aria-hidden>×</span>
+                </button>
+            </div>
+        </li>
     );
 }
 

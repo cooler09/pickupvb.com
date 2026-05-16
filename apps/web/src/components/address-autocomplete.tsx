@@ -119,7 +119,7 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
                 <ul
                     id="address-suggestions"
                     role="listbox"
-                    className="absolute left-0 right-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-md border border-border-base bg-surface py-1 text-sm shadow-lg"
+                    className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto overscroll-contain rounded-md border border-border-base bg-surface py-1 text-sm shadow-lg"
                 >
                     {suggestions.map((s, idx) => (
                         <li
