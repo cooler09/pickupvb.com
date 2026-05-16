@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { getHostStripeAccountStatus } from '@/lib/host-stripe-account';
 import { isStripeConfigured } from '@/lib/stripe';
@@ -147,6 +148,12 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                                 Open Stripe dashboard →
                             </button>
                         </form>
+                        <Link
+                            href={'/profile/billing/earnings' as Route}
+                            className="rounded-md border border-border-base px-4 py-2 hover:bg-surface"
+                        >
+                            View earnings →
+                        </Link>
                         <form action={refreshStripeAccountStatus}>
                             <button
                                 type="submit"
