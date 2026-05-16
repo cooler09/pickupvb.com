@@ -16,11 +16,8 @@ import {
 } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
-import { getAdminSupabase } from '@/lib/supabase-admin';
-import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { redirectEventNotice } from '@/lib/server-redirects';
-import { assertWithinRefundWindow } from '@/lib/refund-window';
-import { log } from '@/lib/log';
+import { refundAttendeeTicket } from '@/lib/refund-ticket';
 
 /**
  * Server action wrappers around JoinEventCommand / LeaveEventCommand that
@@ -88,38 +85,16 @@ export async function leaveEvent(eventId: string): Promise<void> {
     // and bounce the user back to the event page. Outside the refund window
     // (now > starts_at - refund_window_hours), we still let them leave but
     // do not refund — they should reach out to the host.
-    const admin = getAdminSupabase();
-    const { data: row } = await admin
-        .from('event_attendees')
-        .select('payment_status, payment_intent_id')
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-        .maybeSingle();
-    type AttRow = { payment_status: string; payment_intent_id: string | null };
-    const att = row as unknown as AttRow | null;
-
-    if (att?.payment_status === 'paid' && att.payment_intent_id && isStripeConfigured()) {
-        const window = await assertWithinRefundWindow(eventId);
-        if (!window.ok) {
-            back(eventId, 'error', window.reason);
-        }
-        try {
-            const stripe = getStripe();
-            await stripe.refunds.create({
-                payment_intent: att.payment_intent_id,
-                reason: 'requested_by_customer',
-                refund_application_fee: true,
-                reverse_transfer: true,
-            });
-        } catch (err) {
-            await log.error('[leave] refund failed', err, { eventId, userId });
-            const m = err instanceof Error ? err.message : 'Refund failed.';
-            back(eventId, 'error', m);
-        }
+    const outcome = await refundAttendeeTicket(eventId, userId);
+    if (outcome.kind === 'refunded') {
         // Webhook handles row deletion + audit; bounce optimistically.
         revalidatePath(`/events/${eventId}`);
         back(eventId, 'left');
     }
+    if (outcome.kind === 'window_closed' || outcome.kind === 'failed') {
+        back(eventId, 'error', outcome.reason);
+    }
+    // outcome.kind === 'not_paid' → fall through to LeaveEventCommand.
 
     try {
         await handlers.leaveEvent.execute(new LeaveEventCommand(eventId, userId));

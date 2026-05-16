@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import type Stripe from 'stripe';
 import type { Route } from 'next';
-import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/lib/event-pricing';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
+import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 
@@ -94,57 +95,46 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
     }
 
     const origin = await buildOrigin();
-    const stripe = getStripe();
 
     let session: Stripe.Checkout.Session;
     try {
-        session = await stripe.checkout.sessions.create(
-            {
-                mode: 'payment',
-                payment_method_types: ['card'],
-                ...(user.email ? { customer_email: user.email } : {}),
-                line_items: [
-                    {
-                        quantity: 1,
-                        price_data: {
-                            currency: 'usd',
-                            unit_amount: breakdown.ticketCents,
-                            product_data: { name: 'Event ticket' },
-                        },
+        session = await createDestinationCheckoutSession({
+            destinationAccountId: hostAccountId!,
+            applicationFeeAmount: await platformFeeCentsFor(
+                pricing.hostId,
+                pricing.priceCents,
+            ),
+            customerEmail: user.email ?? null,
+            lineItems: [
+                {
+                    quantity: 1,
+                    price_data: {
+                        currency: 'usd',
+                        unit_amount: breakdown.ticketCents,
+                        product_data: { name: 'Event ticket' },
                     },
-                    ...(breakdown.platformFeeCents > 0
-                        ? [
-                            {
-                                quantity: 1,
-                                price_data: {
-                                    currency: 'usd' as const,
-                                    unit_amount: breakdown.platformFeeCents,
-                                    product_data: { name: 'Service fee' },
-                                },
+                },
+                ...(breakdown.platformFeeCents > 0
+                    ? [
+                        {
+                            quantity: 1,
+                            price_data: {
+                                currency: 'usd' as const,
+                                unit_amount: breakdown.platformFeeCents,
+                                product_data: { name: 'Service fee' },
                             },
-                        ]
-                        : []),
-                ],
-                payment_intent_data: {
-                    // The platform's actual take (Pro hosts get 2.5%, others
-                    // 5%). Stripe pulls this out of the host's payout
-                    // regardless of who pays the fee at checkout.
-                    application_fee_amount: await platformFeeCentsFor(
-                        pricing.hostId,
-                        pricing.priceCents,
-                    ),
-                    transfer_data: { destination: hostAccountId! },
-                },
-                success_url: `${origin}/events/${eventId}?rsvp=joined`,
-                cancel_url: `${origin}/events/${eventId}?rsvp=cancel`,
-                expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-                metadata: {
-                    event_id: eventId,
-                    user_id: user.id,
-                    kind: 'attendee',
-                },
+                        },
+                    ]
+                    : []),
+            ],
+            successUrl: `${origin}/events/${eventId}?rsvp=joined`,
+            cancelUrl: `${origin}/events/${eventId}?rsvp=cancel`,
+            metadata: {
+                event_id: eventId,
+                user_id: user.id,
+                kind: 'attendee',
             },
-        );
+        });
     } catch (err) {
         // Roll back the pending row so we don't leak capacity.
         await admin

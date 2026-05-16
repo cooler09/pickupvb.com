@@ -3,12 +3,13 @@
 import { redirect } from 'next/navigation';
 import type Stripe from 'stripe';
 import type { Route } from 'next';
-import { getStripe, isStripeConfigured } from '@/lib/stripe';
+import { isStripeConfigured } from '@/lib/stripe';
 import { platformFeeCentsFor } from '@/lib/event-pricing';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
+import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
@@ -107,15 +108,14 @@ export async function startTipCheckout(
     const tipId = (inserted as { id: string }).id;
 
     const origin = await buildOrigin();
-    const stripe = getStripe();
 
     let session: Stripe.Checkout.Session;
     try {
-        session = await stripe.checkout.sessions.create({
-            mode: 'payment',
-            payment_method_types: ['card'],
-            ...(user.email ? { customer_email: user.email } : {}),
-            line_items: [
+        session = await createDestinationCheckoutSession({
+            destinationAccountId: hostAccountId!,
+            applicationFeeAmount: platformCut,
+            customerEmail: user.email ?? null,
+            lineItems: [
                 {
                     quantity: 1,
                     price_data: {
@@ -128,13 +128,8 @@ export async function startTipCheckout(
                     },
                 },
             ],
-            payment_intent_data: {
-                application_fee_amount: platformCut,
-                transfer_data: { destination: hostAccountId! },
-            },
-            success_url: `${origin}/events/${eventId}?tip=thanks`,
-            cancel_url: `${origin}/events/${eventId}?tip=cancel`,
-            expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+            successUrl: `${origin}/events/${eventId}?tip=thanks`,
+            cancelUrl: `${origin}/events/${eventId}?tip=cancel`,
             metadata: {
                 kind: 'tip',
                 event_id: eventId,
