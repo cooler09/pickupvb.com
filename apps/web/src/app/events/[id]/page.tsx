@@ -264,26 +264,6 @@ export default async function EventDetailPage(
                 </div>
             </header>
 
-            <HostsSection
-                eventId={event.id}
-                primaryHostUser={event.primaryHostUser}
-                primaryHostGroup={event.primaryHostGroup}
-                coHostUsers={event.coHostUsers}
-                coHostGroups={event.coHostGroups}
-                canManage={event.canManage}
-                viewerHostableGroups={event.viewerHostableGroups}
-                returnPath={returnPath}
-            />
-
-            {!isHostOfEvent && (
-                <TipJar
-                    eventId={event.id}
-                    viewerIsRealUser={isRealUser}
-                    viewerHasSession={!!user}
-                    totalCents={tipTotalCents}
-                />
-            )}
-
             <section className="overflow-hidden rounded-lg border border-border-base sm:grid sm:grid-cols-2">
                 <div className="p-4 sm:border-r sm:border-border-base">
                     <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -306,85 +286,6 @@ export default async function EventDetailPage(
                     )}
                 </div>
             </section>
-
-            <section className="space-y-2">
-                <h2 className="text-lg font-semibold text-fg">Where</h2>
-                <p className="text-fg/90">{event.location.addressLine}</p>
-                <p className="text-sm text-muted">
-                    {event.location.city}, {event.location.region} {event.location.postalCode}
-                </p>
-                <EventMap
-                    latitude={event.location.latitude}
-                    longitude={event.location.longitude}
-                    title={event.title}
-                    addressLine={event.location.addressLine}
-                />
-                <a
-                    href={`https://www.openstreetmap.org/?mlat=${event.location.latitude}&mlon=${event.location.longitude}#map=16/${event.location.latitude}/${event.location.longitude}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-primary hover:underline"
-                >
-                    Open in map ↗
-                </a>
-            </section>
-
-            {event.description && (
-                <section>
-                    <h2 className="mb-2 text-lg font-semibold text-fg">Description</h2>
-                    <p className="whitespace-pre-wrap text-fg/90">{event.description}</p>
-                </section>
-            )}
-
-            {event.rules && (
-                <section>
-                    <h2 className="mb-2 text-lg font-semibold text-fg">Rules</h2>
-                    <p className="whitespace-pre-wrap text-fg/90">{event.rules}</p>
-                </section>
-            )}
-
-            {event.type === 'open_play' && (
-                <section>
-                    <h2 className="mb-3 text-lg font-semibold text-fg">
-                        Players signed up{' '}
-                        <span className="text-sm font-normal text-muted">
-                            ({event.attendees.length})
-                        </span>
-                    </h2>
-                    <AttendeeList
-                        attendees={attendeesForList}
-                        currentUserId={user?.id ?? null}
-                        friendIds={friendIds}
-                        returnPath={returnPath}
-                        eventId={event.id}
-                        {...(payments ? { payments } : {})}
-                        canManagePayments={paid && event.canManage}
-                    />
-                    {event.canManage && (
-                        <p className="mt-3 text-xs text-muted">
-                            {viewerIsPro ? (
-                                <a
-                                    href={`/api/events/${event.id}/attendees.csv`}
-                                    className="text-primary hover:underline"
-                                >
-                                    Export attendees as CSV
-                                </a>
-                            ) : (
-                                <>
-                                    CSV attendee export is a{' '}
-                                    <Link
-                                        href={'/profile/billing/pro' as Route}
-                                        className="text-primary hover:underline"
-                                    >
-                                        Pro
-                                    </Link>{' '}
-                                    feature.
-                                </>
-                            )}
-                        </p>
-                    )}
-                </section>
-            )}
 
             {event.type === 'open_play' && signupsOpen && (
                 paid && breakdown ? (
@@ -464,6 +365,96 @@ export default async function EventDetailPage(
                 </p>
             )}
 
+            <section className="space-y-2">
+                <h2 className="text-lg font-semibold text-fg">Where</h2>
+                <p className="text-fg/90">{event.location.addressLine}</p>
+                <p className="text-sm text-muted">
+                    {event.location.city}, {event.location.region} {event.location.postalCode}
+                </p>
+                <EventMap
+                    latitude={event.location.latitude}
+                    longitude={event.location.longitude}
+                    title={event.title}
+                    addressLine={event.location.addressLine}
+                />
+                <a
+                    href={`https://www.openstreetmap.org/?mlat=${event.location.latitude}&mlon=${event.location.longitude}#map=16/${event.location.latitude}/${event.location.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-primary hover:underline"
+                >
+                    Open in map ↗
+                </a>
+            </section>
+
+            <HostsSection
+                eventId={event.id}
+                primaryHostUser={event.primaryHostUser}
+                primaryHostGroup={event.primaryHostGroup}
+                coHostUsers={event.coHostUsers}
+                coHostGroups={event.coHostGroups}
+                canManage={event.canManage}
+                viewerHostableGroups={event.viewerHostableGroups}
+                returnPath={returnPath}
+            />
+
+            {event.type === 'open_play' && (
+                <section>
+                    <h2 className="mb-3 text-lg font-semibold text-fg">
+                        Players signed up{' '}
+                        <span className="text-sm font-normal text-muted">
+                            ({event.attendees.length})
+                        </span>
+                    </h2>
+                    <AttendeeList
+                        attendees={attendeesForList}
+                        currentUserId={user?.id ?? null}
+                        friendIds={friendIds}
+                        returnPath={returnPath}
+                        eventId={event.id}
+                        {...(payments ? { payments } : {})}
+                        canManagePayments={paid && event.canManage}
+                    />
+                    {event.canManage && (
+                        <p className="mt-3 text-xs text-muted">
+                            {viewerIsPro ? (
+                                <a
+                                    href={`/api/events/${event.id}/attendees.csv`}
+                                    className="text-primary hover:underline"
+                                >
+                                    Export attendees as CSV
+                                </a>
+                            ) : (
+                                <>
+                                    CSV attendee export is a{' '}
+                                    <Link
+                                        href={'/profile/billing/pro' as Route}
+                                        className="text-primary hover:underline"
+                                    >
+                                        Pro
+                                    </Link>{' '}
+                                    feature.
+                                </>
+                            )}
+                        </p>
+                    )}
+                </section>
+            )}
+
+            {event.description && (
+                <section>
+                    <h2 className="mb-2 text-lg font-semibold text-fg">Description</h2>
+                    <p className="whitespace-pre-wrap text-fg/90">{event.description}</p>
+                </section>
+            )}
+
+            {event.rules && (
+                <section>
+                    <h2 className="mb-2 text-lg font-semibold text-fg">Rules</h2>
+                    <p className="whitespace-pre-wrap text-fg/90">{event.rules}</p>
+                </section>
+            )}
+
             {event.type === 'tournament' && (
                 <section className="rounded-lg border border-border-base bg-fg/5 p-4">
                     <div className="flex items-center justify-between gap-2">
@@ -482,6 +473,15 @@ export default async function EventDetailPage(
                         </Link>
                     </div>
                 </section>
+            )}
+
+            {!isHostOfEvent && (
+                <TipJar
+                    eventId={event.id}
+                    viewerIsRealUser={isRealUser}
+                    viewerHasSession={!!user}
+                    totalCents={tipTotalCents}
+                />
             )}
         </article>
     );
