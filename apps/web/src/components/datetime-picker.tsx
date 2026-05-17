@@ -70,6 +70,7 @@ export default function DateTimePicker({
         <div ref={containerRef} className="relative">
             <button
                 type="button"
+                id={name}
                 onClick={() => setOpen((o) => !o)}
                 className={`${inputClass} text-left`}
                 aria-haspopup="dialog"
