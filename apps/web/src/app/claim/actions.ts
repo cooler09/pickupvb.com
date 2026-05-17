@@ -91,7 +91,7 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
         { emailRedirectTo },
     );
     if (emailErr) {
-        await log.error('[claim] updateUser(email) failed', emailErr, { email });
+        await log.error('[claim] updateUser(email) failed', emailErr);
         return { error: emailErr.message };
     }
 

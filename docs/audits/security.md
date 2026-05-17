@@ -6,11 +6,17 @@
 **Method:** read-only static review. Server actions, API routes, auth flows,
 RLS policies, third-party integrations, secrets handling, logging.
 
+**Status update (2026-05-17):** Quick-win bundle shipped — see
+[Remediation log](#remediation-log) at the bottom.
+
 ---
 
 ## P1 — fix before next deploy
 
 ### 1. Open redirect in `auth/callback`
+
+**Status:** ✅ _Resolved 2026-05-17_ — `next` is now validated against the
+`/^\/(?![/\\])/` regex; non-matching values fall back to `/events`.
 
 **File:** [apps/web/src/app/auth/callback/route.ts](../../apps/web/src/app/auth/callback/route.ts#L11-L20)
 **Category:** Open redirect
@@ -54,6 +60,13 @@ exploit, no commit-history scrub needed.
 
 ### 3. Missing security headers
 
+**Status:** 🟡 _Partially resolved 2026-05-17_ — baseline headers (HSTS,
+`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`,
+`Permissions-Policy`) added via `async headers()` in
+[apps/web/next.config.mjs](../../apps/web/next.config.mjs). CSP still open
+— needs an allowlist for Stripe.js, Supabase, Sentry, OSM tiles, fonts, and
+images, rolled out behind `Content-Security-Policy-Report-Only` first.
+
 **Files:** [apps/web/next.config.mjs](../../apps/web/next.config.mjs), [apps/web/vercel.json](../../apps/web/vercel.json)
 **Category:** Security headers / CSP
 
@@ -93,6 +106,12 @@ re-checks authorization inside the helper, not in the caller.
 
 ### 5. PII (emails) logged
 
+**Status:** 🟡 _Partially resolved 2026-05-17_ — `{ email }` removed from
+the `claim/actions.ts` log call. The `checkout-actions.ts:210` call cited
+in the original finding logs `{ error: emailErr.message }` and does not
+directly include the email field; left as-is, but worth a follow-up to
+truncate Supabase error messages in case they echo the address.
+
 **Files:**
 - [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts#L94) — `log.error('[claim] updateUser(email) failed', emailErr, { email })`
 - [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts#L210)
@@ -124,6 +143,11 @@ state; in-memory `Map` with TTL is an acceptable interim if all traffic
 hits a single region.
 
 ### 7. Stripe webhook handlers don't cross-check metadata
+
+**Status:** ✅ _Resolved 2026-05-17_ — `handleCheckoutCompleted` and
+`handleSubscriptionChange` now assert that when both session/subscription
+metadata and (expanded) customer metadata carry `user_id`, the values
+match; mismatches throw + log + trigger Stripe retry.
 
 **File:** [apps/web/src/app/api/webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts)
 **Category:** Webhook integrity
@@ -221,6 +245,32 @@ The bigger items deserve their own PR each:
 - **(P2)** CSP rollout (report-only first).
 - **(P2)** Admin-client refactor across server actions.
 - **(P2)** Rate limiting on email paths (pick a KV backend first).
+
+---
+
+## Remediation log
+
+### 2026-05-17 — Quick-win bundle landed
+
+| Item | Status | Notes |
+|---|---|---|
+| P1 #1 open redirect in `auth/callback` | ✅ Done | `next` validated; falls back to `/events`. |
+| P2 #3 missing security headers | 🟡 Partial | Baseline 5 headers added via `next.config.mjs`. CSP still open. |
+| P2 #5 PII in logs | 🟡 Partial | Removed `{ email }` from `claim/actions.ts`. `checkout-actions.ts:210` already logs only `emailErr.message`; flagged for follow-up review. |
+| P2 #7 Stripe metadata cross-check | ✅ Done | Mismatch detection added to both checkout and subscription handlers. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
+
+**Still open** (not in quick-win scope):
+
+- **P2 #3** — CSP rollout (report-only first), once an allowlist is
+  inventoried.
+- **P2 #4** — admin-Supabase-client refactor across user-driven write
+  paths.
+- **P2 #6** — rate limiting on email-sending paths (needs a KV backend
+  decision first).
+- All **P3** items (audit-log coverage, FormData global cap, Turnstile
+  freshness, upload hardening).
 
 ---
 

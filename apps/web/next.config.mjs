@@ -19,6 +19,33 @@ const nextConfig = {
             { protocol: 'https', hostname: '**.supabase.in' },
         ],
     },
+    // Baseline security headers. CSP is intentionally not set here yet — it
+    // needs an allowlist for Stripe.js, Supabase, Sentry, OSM tiles, fonts,
+    // images, and should roll out behind Content-Security-Policy-Report-Only
+    // first. See docs/audits/security.md P2 #3.
+    async headers() {
+        return [
+            {
+                source: '/:path*',
+                headers: [
+                    {
+                        key: 'Strict-Transport-Security',
+                        value: 'max-age=63072000; includeSubDomains; preload',
+                    },
+                    { key: 'X-Content-Type-Options', value: 'nosniff' },
+                    {
+                        key: 'Referrer-Policy',
+                        value: 'strict-origin-when-cross-origin',
+                    },
+                    { key: 'X-Frame-Options', value: 'DENY' },
+                    {
+                        key: 'Permissions-Policy',
+                        value: 'geolocation=(self), microphone=(), camera=(), payment=(self)',
+                    },
+                ],
+            },
+        ];
+    },
     webpack(config) {
         // Resolve `.js` / `.mjs` / `.cjs` import specifiers to TS sources
         // inside our ESM workspace packages (NodeNext-style imports).

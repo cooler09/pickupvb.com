@@ -201,6 +201,31 @@ async function handleCheckoutCompleted(
     const meta = (session.metadata ?? {}) as CheckoutMetadata;
     if (!meta.event_id || !meta.kind) return;
 
+    // Defense-in-depth: if `session.customer` is expanded and carries its own
+    // user_id metadata, reject when it disagrees with the session metadata.
+    // Guards against a misconfigured Stripe Dashboard rule mass-rewriting
+    // customer metadata. See docs/audits/security.md P2 #7.
+    if (
+        meta.user_id
+        && session.customer
+        && typeof session.customer !== 'string'
+        && !session.customer.deleted
+    ) {
+        const customerUserId = session.customer.metadata?.['user_id'];
+        if (customerUserId && customerUserId !== meta.user_id) {
+            await log.error(
+                '[stripe-webhook] metadata user_id mismatch (session vs customer)',
+                null,
+                {
+                    sessionId: session.id,
+                    sessionUserId: meta.user_id,
+                    customerUserId,
+                },
+            );
+            throw new Error('metadata user_id mismatch');
+        }
+    }
+
     const admin = getAdminSupabase();
     const paidAt = new Date().toISOString();
     const piId =
@@ -412,12 +437,23 @@ async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void>
         typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
     // Resolve user_id: prefer subscription metadata, then customer metadata,
-    // then fall back to our existing row keyed by customer id.
-    let userId =
-        (sub.metadata?.['user_id'] as string | undefined) ?? undefined;
-    if (!userId && typeof sub.customer !== 'string' && !sub.customer.deleted) {
-        userId = (sub.customer.metadata?.['user_id'] as string | undefined) ?? undefined;
+    // then fall back to our existing row keyed by customer id. When both
+    // subscription and (expanded) customer metadata carry a user_id, reject
+    // mismatches — see docs/audits/security.md P2 #7.
+    const subUserId = (sub.metadata?.['user_id'] as string | undefined) ?? undefined;
+    const customerUserId =
+        typeof sub.customer !== 'string' && !sub.customer.deleted
+            ? ((sub.customer.metadata?.['user_id'] as string | undefined) ?? undefined)
+            : undefined;
+    if (subUserId && customerUserId && subUserId !== customerUserId) {
+        await log.error(
+            '[stripe-webhook] metadata user_id mismatch (subscription vs customer)',
+            null,
+            { subscriptionId: sub.id, subUserId, customerUserId },
+        );
+        throw new Error('metadata user_id mismatch');
     }
+    let userId = subUserId ?? customerUserId;
     if (!userId) {
         userId = (await findHostByStripeCustomerId(customerId)) ?? undefined;
     }

@@ -10,7 +10,11 @@ import { createSupabaseServerClient } from '@pickupvb/supabase/server';
 export async function GET(request: NextRequest) {
     const { searchParams, origin } = new URL(request.url);
     const code = searchParams.get('code');
-    const next = searchParams.get('next') ?? '/events';
+    // Only accept same-origin relative paths. Reject protocol-relative URLs
+    // (`//evil.com`) and backslash-prefixed paths (`/\evil.com`) that some
+    // user agents will follow off-origin. See docs/audits/security.md P1 #1.
+    const rawNext = searchParams.get('next') ?? '/events';
+    const next = /^\/(?![/\\])/.test(rawNext) ? rawNext : '/events';
 
     if (code) {
         const supabase = createSupabaseServerClient(await cookies());
