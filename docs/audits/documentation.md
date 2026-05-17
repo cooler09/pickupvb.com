@@ -1,5 +1,7 @@
 # Documentation audit — 2026-05-17
 
+> **Status (2026-05-17):** Quick-win bundle landed — primary-docs version refresh (P1), `LICENSE` (P1, MIT), [packages/supabase/README.md](../../packages/supabase/README.md) (P1), and [docs/runbook.md](../runbook.md) (P1). ADR 0006 (canonical-domain-apex), the four other missing package READMEs, and `CONTRIBUTING.md` are still open — see the Remediation log at the bottom.
+
 ## Scope
 
 Read-only audit of all documentation in the pickupvb.com monorepo: top-level docs (README, AGENTS, copilot-instructions), package READMEs, ADRs in `docs/adr/`, operational docs in `docs/`, env-var docs, inline JSDoc, migration preambles, and cross-doc consistency. Skipped `copilot-skills`.
@@ -63,25 +65,25 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 
 ## P1 findings
 
-### Outdated Next.js version in primary docs
+### Outdated Next.js version in primary docs ✅ Fixed 2026-05-17
 
 - **Where:** [README.md](README.md), [AGENTS.md](AGENTS.md).
 - **Issue:** See Stale section above. P1 because these are the first docs both humans and AI agents read.
 - **Fix:** Update both, plus verify [.github/copilot-instructions.md](.github/copilot-instructions.md) doesn't repeat the same claim.
 
-### No deployment / rollback runbook
+### No deployment / rollback runbook ✅ Fixed 2026-05-17
 
 - **Where:** `docs/` (missing).
 - **Issue:** AGENTS says "Production migrations are applied automatically by CI/CD" and integrations.md says "Every push to `main` triggers a production build", but nothing documents: rollback procedure, who approves a deploy, what to do if a migration fails partway, how to bypass auto-deploy in an emergency. The Stripe-webhook incident earlier in this session is exactly the class of failure where a runbook would have saved time.
 - **Fix:** Add `docs/runbook.md` (or `docs/deployment.md`) covering: environments, deploy flow (PR → main → Vercel build → migration apply), rollback via Vercel UI + `git revert`, migration failure recovery, common alerts and triage steps.
 
-### Missing package READMEs
+### Missing package READMEs 🟡 Partial 2026-05-17
 
 - **Where:** [packages/application/](packages/application/), [packages/infrastructure/](packages/infrastructure/), [packages/types/](packages/types/), [packages/supabase/](packages/supabase/), [apps/web/](apps/web/).
 - **Issue:** Only [packages/domain/README.md](packages/domain/README.md) exists (and is excellent). Everything else expects the reader to infer purpose from AGENTS.md or source. Critical for `packages/supabase` because the `gen:types` command lives only in AGENTS.md prose.
 - **Fix:** One short README per package (~80–100 LOC each). Application: CQRS handler pattern + example. Infrastructure: adapter pattern + one example. Types: shared DTOs / Zod schemas. Supabase: how to regenerate types after a migration, where they live. apps/web: route-tree overview + page composition conventions.
 
-### Missing CONTRIBUTING and LICENSE
+### Missing CONTRIBUTING and LICENSE 🟡 Partial 2026-05-17
 
 - **Where:** Repo root (missing).
 - **Issue:** No `LICENSE` = legal ambiguity for anyone forking or contributing. No `CONTRIBUTING.md` = no documented contribution flow (PR conventions, branch naming, verification checklist `pnpm typecheck && pnpm lint && pnpm build`).
@@ -206,3 +208,23 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 - **Who is on-call?** If solo, the runbook can say so. If a small team, the doc needs a rotation/contact section.
 - **Should the bracket-generator JSDoc + reclassification of throws (architecture audit) and the JSDoc P2 here be combined into one cleanup pass?** They touch the same files.
 - **Should ADRs 0006–0008 (domain flip, OpenInNewTab pattern, Stripe dedupe) be authored as part of this audit's remediation, or held for a separate "ADR backfill" task?**
+
+---
+
+## Remediation log
+
+| Date | Finding | Status | Notes |
+|---|---|---|---|
+| 2026-05-17 | P1: outdated Next.js version | ✅ Fixed | [README.md](../../README.md) updated `Next.js 14 (App Router) + React 18` → `Next.js 16 (App Router) + React 19` (the React bump was also stale). [AGENTS.md](../../AGENTS.md) `Next.js 14 App Router` → `Next.js 16 App Router`. [.github/copilot-instructions.md](../../.github/copilot-instructions.md) had no version mention to update. |
+| 2026-05-17 | P1: deployment / rollback runbook | ✅ Fixed | New [docs/runbook.md](../runbook.md) covering environments, standard deploy flow, code rollback, bad-migration recovery (forward fix + schema rollback paths), partway-migration failure recovery, emergency deploy bypass, common-incident playbooks (Stripe storm, push worker, Supabase outage), and a "where to look" dashboard map. |
+| 2026-05-17 | P1: LICENSE | ✅ Fixed | MIT, copyright Zachary Lockhart. Defaulted to MIT because the project is a personal-account web app with no patent surface; permissive license keeps options open if it ever opens to contributions. |
+| 2026-05-17 | P1: package READMEs (5 missing) | 🟡 Partial | [packages/supabase/README.md](../../packages/supabase/README.md) created — covers exports, `gen:types` regeneration flow with troubleshooting, conventions (nested joins, snake/camel boundary, anonymous-auth guard), and env vars. The four other missing READMEs (application, infrastructure, types, apps/web) are still open. |
+
+### Still open
+
+- **P1: CONTRIBUTING.md.** Not added — depends on the open-vs-closed question. If this stays a personal project, a one-line "this is a personal project, PRs welcome but ad-hoc" note is enough.
+- **P1: Missing package READMEs** for `application`, `infrastructure`, `types`, `apps/web`. Use [packages/domain/README.md](../../packages/domain/README.md) as the template.
+- **P2: API / route-handler reference, server-action pattern doc, JSDoc coverage on domain exports, monitoring doc, testing strategy doc, database operations guide.**
+- **P3: Migration preamble standard, onboarding guide, CHANGELOG, flow diagrams, code-of-conduct.**
+- **ADR backfill:** 0006 (canonical-domain-apex), 0007 (server actions + new-tab pattern), 0008 (Stripe webhook dedupe). Deferred — author needs to capture decisions/context.
+- **TODO/FIXME scan** noted in the audit body — still pending.

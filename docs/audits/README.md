@@ -12,7 +12,7 @@ land its fixes.
 | [Architecture (CQRS/DRY/SOLID)](architecture.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open |
 | [508 / Accessibility](accessibility.md) | 2026-05-17 | Findings logged |
 | [SEO](seo.md) | 2026-05-17 | Findings logged |
-| [Documentation](documentation.md) | 2026-05-17 | Findings logged |
+| [Documentation](documentation.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open |
 | [Developer project organization](organization.md) | 2026-05-17 | Findings logged |
 
 ## How findings are graded

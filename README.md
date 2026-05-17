@@ -13,7 +13,7 @@ and tournaments. Real-time spot updates. Host tools (brackets, seeding, scoring)
 | Layer    | Tech                                                                  |
 | -------- | --------------------------------------------------------------------- |
 | Monorepo | pnpm workspaces + Turborepo                                           |
-| Frontend | Next.js 14 (App Router) + React 18 + Tailwind                         |
+| Frontend | Next.js 16 (App Router) + React 19 + Tailwind                         |
 | API      | Next.js Route Handlers (`app/api/*`) calling pure CQRS handlers       |
 | Domain   | Hand-rolled DDD/CQRS in `packages/{domain,application,infrastructure}` |
 | Database | Supabase (Postgres 15 + PostGIS + Realtime)                           |

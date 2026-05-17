@@ -36,7 +36,7 @@ apps/web ──► @pickupvb/application ──► @pickupvb/domain
   typed `DomainError` subclasses.
 - **`packages/infrastructure`** — adapters that implement domain ports
   (e.g. `SupabaseEventRepository`).
-- **`apps/web`** — Next.js 14 App Router. Composition root for handlers lives
+- **`apps/web`** — Next.js 16 App Router. Composition root for handlers lives
   in [apps/web/src/lib/handlers.ts](apps/web/src/lib/handlers.ts).
 
 Never have `domain` or `application` import from `apps/web`, Next.js, or
