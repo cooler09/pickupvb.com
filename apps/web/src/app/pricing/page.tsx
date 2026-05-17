@@ -153,7 +153,7 @@ export default async function PricingPage() {
                             </Link>
                         ) : active ? (
                             <>
-                                <form action={openBillingPortal}>
+                                <form action={openBillingPortal} target="_blank">
                                     <button
                                         type="submit"
                                         className="w-full rounded-md border border-border-base bg-surface px-4 py-2 text-sm font-medium hover:bg-fg/5"

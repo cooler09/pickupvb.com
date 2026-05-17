@@ -113,7 +113,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
                             <strong>{formatDate(sub.current_period_end)}</strong>.
                         </p>
                     )}
-                    <form action={openBillingPortal}>
+                    <form action={openBillingPortal} target="_blank">
                         <button
                             type="submit"
                             className="rounded-md border border-border-base bg-surface px-4 py-2 text-sm font-medium hover:bg-fg/5"
