@@ -201,9 +201,9 @@ export default async function PricingPage() {
                     <table className="w-full text-sm">
                         <thead className="bg-fg/5 text-left">
                             <tr>
-                                <th className="px-4 py-2 font-medium">Feature</th>
-                                <th className="px-4 py-2 font-medium">Free</th>
-                                <th className="px-4 py-2 font-medium">Pro</th>
+                                <th scope="col" className="px-4 py-2 font-medium">Feature</th>
+                                <th scope="col" className="px-4 py-2 font-medium">Free</th>
+                                <th scope="col" className="px-4 py-2 font-medium">Pro</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border-base">

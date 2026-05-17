@@ -118,7 +118,7 @@ export default function DateTimePicker({
                             type="time"
                             value={time}
                             onChange={(e) => handleTime(e.target.value)}
-                            className="rounded-md border border-border-base px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="rounded-md border border-border-base px-2 py-1 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
                         />
                         <button
                             type="button"

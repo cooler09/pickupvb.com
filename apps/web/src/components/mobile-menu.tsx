@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Theme } from '@/lib/theme';
@@ -17,6 +17,7 @@ type Props = {
 export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
     const [open, setOpen] = useState(false);
     const pathname = usePathname();
+    const triggerRef = useRef<HTMLButtonElement | null>(null);
 
     // Close drawer on route change.
     useEffect(() => {
@@ -33,15 +34,29 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
         };
     }, [open]);
 
+    // Escape closes the drawer and returns focus to the trigger.
+    useEffect(() => {
+        if (!open) return;
+        function onKey(e: KeyboardEvent) {
+            if (e.key === 'Escape') {
+                setOpen(false);
+                triggerRef.current?.focus();
+            }
+        }
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [open]);
+
     return (
         <div className="md:hidden">
             <button
+                ref={triggerRef}
                 type="button"
                 aria-label={open ? 'Close menu' : 'Open menu'}
                 aria-expanded={open}
                 aria-controls="mobile-nav"
                 onClick={() => setOpen((v) => !v)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border-base text-fg hover:bg-fg/5"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border-base text-fg hover:bg-fg/5"
             >
                 {open ? (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

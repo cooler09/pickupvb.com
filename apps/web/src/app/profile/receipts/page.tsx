@@ -175,12 +175,12 @@ export default async function ReceiptsPage() {
                         <table className="w-full text-sm">
                             <thead className="bg-fg/5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                                 <tr>
-                                    <th className="px-3 py-2">Date</th>
-                                    <th className="px-3 py-2">Event</th>
-                                    <th className="px-3 py-2 text-right">Paid</th>
-                                    <th className="hidden px-3 py-2 text-right sm:table-cell">Refund</th>
-                                    <th className="px-3 py-2 text-right">Net</th>
-                                    <th className="px-3 py-2"></th>
+                                    <th scope="col" className="px-3 py-2">Date</th>
+                                    <th scope="col" className="px-3 py-2">Event</th>
+                                    <th scope="col" className="px-3 py-2 text-right">Paid</th>
+                                    <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">Refund</th>
+                                    <th scope="col" className="px-3 py-2 text-right">Net</th>
+                                    <th scope="col" className="px-3 py-2"></th>
                                 </tr>
                             </thead>
                             <tbody>

@@ -31,6 +31,7 @@ export default function EventMap({ latitude, longitude, title, addressLine }: Ev
             zoom={14}
             scrollWheelZoom={false}
             style={{ height: '320px', width: '100%', borderRadius: '0.5rem' }}
+            aria-label={`Map showing ${title} at ${addressLine}`}
         >
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

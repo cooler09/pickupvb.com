@@ -296,12 +296,12 @@ export default async function EarningsPage() {
                             <table className="w-full text-sm">
                                 <thead className="bg-fg/5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                                     <tr>
-                                        <th className="px-3 py-2">Event</th>
-                                        <th className="hidden px-3 py-2 sm:table-cell">Date</th>
-                                        <th className="hidden px-3 py-2 text-right md:table-cell">Sales</th>
-                                        <th className="px-3 py-2 text-right">Gross</th>
-                                        <th className="hidden px-3 py-2 text-right sm:table-cell">Refunds</th>
-                                        <th className="px-3 py-2 text-right">Net</th>
+                                        <th scope="col" className="px-3 py-2">Event</th>
+                                        <th scope="col" className="hidden px-3 py-2 sm:table-cell">Date</th>
+                                        <th scope="col" className="hidden px-3 py-2 text-right md:table-cell">Sales</th>
+                                        <th scope="col" className="px-3 py-2 text-right">Gross</th>
+                                        <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">Refunds</th>
+                                        <th scope="col" className="px-3 py-2 text-right">Net</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -362,10 +362,10 @@ export default async function EarningsPage() {
                                     <table className="w-full text-sm">
                                         <thead className="bg-fg/5 text-left text-xs font-semibold uppercase tracking-wide text-muted">
                                             <tr>
-                                                <th className="px-3 py-2">Month</th>
-                                                <th className="px-3 py-2 text-right">Gross</th>
-                                                <th className="hidden px-3 py-2 text-right sm:table-cell">Refunds</th>
-                                                <th className="px-3 py-2 text-right">Net</th>
+                                                <th scope="col" className="px-3 py-2">Month</th>
+                                                <th scope="col" className="px-3 py-2 text-right">Gross</th>
+                                                <th scope="col" className="hidden px-3 py-2 text-right sm:table-cell">Refunds</th>
+                                                <th scope="col" className="px-3 py-2 text-right">Net</th>
                                             </tr>
                                         </thead>
                                         <tbody>

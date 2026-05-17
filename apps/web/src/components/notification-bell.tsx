@@ -125,7 +125,7 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
                 type="button"
                 onClick={() => setOpen((o) => !o)}
                 aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
-                className="relative flex h-9 w-9 items-center justify-center rounded-md text-fg/70 transition-colors hover:bg-fg/5 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="relative flex h-11 w-11 items-center justify-center rounded-md text-fg/70 transition-colors hover:bg-fg/5 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
                 <svg
                     width="20"

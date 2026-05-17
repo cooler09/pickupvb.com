@@ -383,7 +383,8 @@ export default async function EventDetailPage(
                     rel="noreferrer"
                     className="text-sm text-primary hover:underline"
                 >
-                    Open in map ↗
+                    Open in map <span aria-hidden="true">↗</span>
+                    <span className="sr-only"> (opens in new tab)</span>
                 </a>
             </section>
 

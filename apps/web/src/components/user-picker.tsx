@@ -133,7 +133,7 @@ export function UserPicker({
                     // Delay so click on a result registers first.
                     setTimeout(() => setOpen(false), 120);
                 }}
-                className="block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary"
             />
             {/* Hidden field carries the value the form submits. Empty until a
              *  selection is made; the server action no-ops on empty input.
