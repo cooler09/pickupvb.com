@@ -8,8 +8,10 @@ import { isPro, PRO_PLATFORM_FEE_BPS, PRO_MONTHLY_PRICE_USD } from '@/lib/pro';
 import {
     startStripeOnboarding,
     openStripeDashboard,
+    getStripeDashboardUrl,
     refreshStripeAccountStatus,
 } from './actions';
+import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -162,14 +164,13 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                             >
                                 View earnings →
                             </Link>
-                            <form action={openStripeDashboard} target="_blank">
-                                <button
-                                    type="submit"
-                                    className="w-full rounded-md border border-border-base px-3 py-2 text-sm hover:bg-fg/5"
-                                >
-                                    Stripe dashboard ↗
-                                </button>
-                            </form>
+                            <OpenInNewTabButton
+                                getUrl={getStripeDashboardUrl}
+                                className="w-full rounded-md border border-border-base px-3 py-2 text-sm hover:bg-fg/5"
+                                nullMessage="Finish Stripe onboarding first."
+                            >
+                                Stripe dashboard ↗
+                            </OpenInNewTabButton>
                             <form action={refreshStripeAccountStatus}>
                                 <button
                                     type="submit"
@@ -242,14 +243,15 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                             states are lower (MA / VT / VA: $600). Stripe picks
                             the right one based on your address.
                         </p>
-                        <form action={openStripeDashboard} target="_blank" className="mt-3">
-                            <button
-                                type="submit"
+                        <div className="mt-3">
+                            <OpenInNewTabButton
+                                getUrl={getStripeDashboardUrl}
                                 className="rounded-md border border-border-base px-4 py-2 text-sm hover:bg-fg/5"
+                                nullMessage="Finish Stripe onboarding first."
                             >
                                 Open tax forms in Stripe ↗
-                            </button>
-                        </form>
+                            </OpenInNewTabButton>
+                        </div>
                         <p className="mt-2 text-xs text-muted">
                             Lands on your Express dashboard — click{' '}
                             <em>Tax forms</em> in the left nav.

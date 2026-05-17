@@ -8,7 +8,8 @@ import {
     PRO_YEARLY_PRICE_USD,
     FREE_PAID_EVENT_CAP_30D,
 } from '@/lib/pro';
-import { startProCheckout, openBillingPortal } from '@/app/profile/billing/pro/actions';
+import { startProCheckout, getBillingPortalUrl } from '@/app/profile/billing/pro/actions';
+import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -153,14 +154,12 @@ export default async function PricingPage() {
                             </Link>
                         ) : active ? (
                             <>
-                                <form action={openBillingPortal} target="_blank">
-                                    <button
-                                        type="submit"
-                                        className="w-full rounded-md border border-border-base bg-surface px-4 py-2 text-sm font-medium hover:bg-fg/5"
-                                    >
-                                        Manage subscription
-                                    </button>
-                                </form>
+                                <OpenInNewTabButton
+                                    getUrl={getBillingPortalUrl}
+                                    className="w-full rounded-md border border-border-base bg-surface px-4 py-2 text-sm font-medium hover:bg-fg/5"
+                                >
+                                    Manage subscription ↗
+                                </OpenInNewTabButton>
                                 <p className="text-center text-xs text-emerald-700">
                                     You&apos;re on Pro — thanks for supporting PickupVB.
                                 </p>

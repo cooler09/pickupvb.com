@@ -122,3 +122,30 @@ export async function openBillingPortal(): Promise<void> {
 
     redirect(portal.url as Route);
 }
+
+/**
+ * Same as {@link openBillingPortal} but returns the URL instead of
+ * redirecting. Lets a client component open the portal in a new tab
+ * (Server Actions can't honor `target="_blank"`).
+ */
+export async function getBillingPortalUrl(): Promise<string> {
+    if (!isStripeConfigured()) {
+        throw new Error('Stripe is not configured on the server.');
+    }
+
+    const supabase = await getServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not signed in.');
+
+    const customerId = await getHostStripeCustomerId(user.id);
+    if (!customerId) throw new Error('No Stripe customer for this account.');
+
+    const origin = await buildOrigin();
+
+    const portal = await getStripe().billingPortal.sessions.create({
+        customer: customerId,
+        return_url: `${origin}/profile/billing/pro`,
+    });
+
+    return portal.url;
+}

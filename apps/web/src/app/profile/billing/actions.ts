@@ -114,6 +114,33 @@ export async function openStripeDashboard(): Promise<void> {
 }
 
 /**
+ * Same as {@link openStripeDashboard} but returns the URL instead of
+ * redirecting. Lets a client component open the dashboard in a new tab
+ * (Server Actions can't honor `target="_blank"`).
+ *
+ * Returns `null` when the user has no Stripe account yet — the caller
+ * should show "finish onboarding" UI instead.
+ */
+export async function getStripeDashboardUrl(): Promise<string | null> {
+    if (!isStripeConfigured()) {
+        throw new Error('Stripe is not configured on the server.');
+    }
+
+    const supabase = await getServerSupabase();
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not signed in.');
+
+    const existing = await getHostStripeAccountStatus(user.id);
+    const accountId = existing?.accountId;
+    if (!accountId) return null;
+
+    const link = await getStripe().accounts.createLoginLink(accountId);
+    return link.url;
+}
+
+/**
  * Pull the latest account state from Stripe and write it into our table.
  * Useful after the user returns from onboarding — the `account.updated`
  * webhook may not have fired yet, so the page would show stale "incomplete"
