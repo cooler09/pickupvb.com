@@ -125,13 +125,24 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
                 type="button"
                 onClick={() => setOpen((o) => !o)}
                 aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
-                className="relative flex h-8 w-8 items-center justify-center rounded-full text-fg/70 hover:bg-fg/5 hover:text-primary"
+                className="relative flex h-9 w-9 items-center justify-center rounded-md text-fg/70 transition-colors hover:bg-fg/5 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-                <span aria-hidden className="text-lg">
-                    🔔
-                </span>
+                <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                >
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                </svg>
                 {unread > 0 && (
-                    <span className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white">
+                    <span className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-surface">
                         {badge}
                     </span>
                 )}
