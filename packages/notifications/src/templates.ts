@@ -200,7 +200,7 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
         html: layout(
             `<h2 style="margin:0 0 12px">You're invited to ${escapeHtml(p.groupName)}</h2>
              <p><strong>${escapeHtml(p.inviterName)}</strong> invited you to join.</p>`,
-            `${APP_URL}/teams/${p.groupId}`,
+            `${APP_URL}/teams/${p.teamSlug}`,
             'View team',
         ),
     }),
@@ -259,7 +259,7 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
         body: `PickupVB: ${p.followerName} started following you.`,
     }),
     'team.invite': (p) => ({
-        body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/teams/${p.groupId}`,
+        body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/teams/${p.teamSlug}`,
     }),
     'broadcast.host_message': (p) => ({
         body: `PickupVB · ${p.senderName}: ${p.body.slice(0, 240)}`,
@@ -324,7 +324,7 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     'team.invite': (p) => ({
         title: `Invited to ${p.groupName}`,
         body: `from ${p.inviterName}`,
-        href: `/teams/${p.groupId}`,
+        href: `/teams/${p.teamSlug}`,
     }),
     'broadcast.host_message': (p) => ({
         title: p.subject,

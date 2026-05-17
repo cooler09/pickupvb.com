@@ -11,6 +11,7 @@ import {
     loadVisibleHostedEvents,
 } from '@/components/hosted-events-list';
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
+import { HandleEditor } from './_components/handle-editor';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -170,6 +171,8 @@ export default async function ProfilePage() {
                         Public view ↗
                     </Link>
                 </div>
+
+                <HandleEditor currentHandle={profile.handle} />
 
                 {/* Primary CTAs — visible without scrolling */}
                 <div className="grid gap-2 sm:grid-cols-3">

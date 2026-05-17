@@ -62,3 +62,51 @@ export async function updateProfile(
     revalidatePath('/', 'layout');
     return { error: null, success: true };
 }
+
+export type HandleFormState = {
+    error: string | null;
+    success: boolean;
+};
+
+const HANDLE_RE = /^[a-z0-9][a-z0-9-]{1,63}[a-z0-9]$/;
+
+export async function updateHandle(
+    _prev: HandleFormState,
+    formData: FormData,
+): Promise<HandleFormState> {
+    const { supabase, user } = await requireSession();
+
+    const raw = String(formData.get('handle') ?? '').trim().toLowerCase();
+    if (!raw) return { error: 'Pick a handle.', success: false };
+    if (!HANDLE_RE.test(raw)) {
+        return {
+            error: 'Use 3–65 lowercase letters, numbers, or dashes (no leading/trailing dash).',
+            success: false,
+        };
+    }
+
+    // Look up old handle so we can revalidate its public URL too.
+    const { data: oldRow } = await supabase
+        .from('profiles')
+        .select('handle')
+        .eq('id', user.id)
+        .maybeSingle();
+    const oldHandle = (oldRow as { handle: string } | null)?.handle ?? null;
+
+    const { error } = await supabase
+        .from('profiles')
+        .update({ handle: raw } as never)
+        .eq('id', user.id);
+
+    if (error) {
+        if (error.code === '23505') {
+            return { error: 'That handle is already taken — try another.', success: false };
+        }
+        return { error: error.message, success: false };
+    }
+
+    revalidatePath('/profile');
+    revalidatePath(`/players/${raw}`);
+    if (oldHandle && oldHandle !== raw) revalidatePath(`/players/${oldHandle}`);
+    return { error: null, success: true };
+}

@@ -131,7 +131,7 @@ export type NotificationPayloadMap = {
         followerName: string;
     };
     'team.invite': {
-        groupId: string;
+        teamSlug: string;
         groupName: string;
         inviterName: string;
     };

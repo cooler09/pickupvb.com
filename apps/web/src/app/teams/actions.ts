@@ -130,7 +130,7 @@ export async function addMemberFromForm(
             await notify(
                 'team.invite',
                 userId,
-                { groupId: teamSlug, groupName: teamName, inviterName },
+                { teamSlug, groupName: teamName, inviterName },
                 { idempotencyKey: `${teamId}:${userId}` },
             );
         } catch {
