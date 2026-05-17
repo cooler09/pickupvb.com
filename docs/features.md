@@ -1,0 +1,318 @@
+# Business features
+
+What PickupVB actually does for hosts and players, with pointers to where
+each feature is implemented. Companion to
+[integrations.md](integrations.md) (external services) and
+[adr/](adr/) (architecture decisions). For domain invariants in code see
+[packages/domain/README.md](../packages/domain/README.md).
+
+---
+
+## 1. Event hosting
+
+The core surface. A host creates an event; players RSVP; the host runs
+it on game day.
+
+**Domain enums** ([packages/domain/src/events/enums.ts](../packages/domain/src/events/enums.ts)):
+
+- **Surface** — `indoor` / `grass` / `sand`.
+- **Format** — `sixes` / `quads` / `triples` / `doubles`.
+- **Gender** — `mens` / `womens` / `coed`.
+- **SkillLevel** — `beginner` / `intermediate` / `advanced` / `competitive`.
+- **EventType** — `open_play` / `tournament`.
+- **EventStatus** — `draft` / `published` / `cancelled` / `completed`.
+
+**Surface × format rule** ([packages/domain/src/events/rules.ts](../packages/domain/src/events/rules.ts)):
+indoor allows only sixes or quads. Grass/sand allow sixes, quads,
+triples, or doubles. Enforced in the domain aggregate, the form
+validator, and a Postgres `CHECK` constraint — same predicate in three
+places.
+
+**Open play vs tournament.**
+
+- *Open play* — capacity is by player count (or unlimited). RSVPs and
+  the waitlist live in `event_attendees`.
+- *Tournament* — capacity is by team count. Teams sign up via
+  `event_teams` and players who don't have a team can register as
+  **free agents** so captains can pick them up.
+
+**Lifecycle.** Draft → Published → (Cancelled | Completed). Publish/
+cancel/complete go through the aggregate so invariants stay enforced
+(see `volleyball-event.ts`).
+
+---
+
+## 2. RSVP & capacity
+
+- **Spot counts are live.** `event_attendees` and `event_teams` are in
+  the `supabase_realtime` publication; the event page subscribes via
+  `useEventAttendees` so every viewer sees the same number.
+- **Waitlist.** When capacity is hit, new RSVPs land on the waitlist
+  (`event_attendees.waitlist = true`) instead of being rejected. Spots
+  promote off the waitlist automatically when someone leaves.
+- **Positional sign-up** (open play). Hosts can enable a positional
+  roster (setter/outside/opposite/middle/libero/DS) — see
+  `EventPosition` in
+  [packages/domain/src/events/enums.ts](../packages/domain/src/events/enums.ts).
+  Player position defaults come from
+  `profiles.{primary,secondary,tertiary}_position`. Over-fill is
+  allowed; surplus signups go to the waitlist.
+- **Guest (anonymous) RSVP.** Players without an account can sign up
+  via Supabase anonymous auth, gated by Cloudflare Turnstile to keep
+  bots out (see [integrations.md](integrations.md#cloudflare-turnstile)).
+  They can later "claim" the account via [claim/](../apps/web/src/app/claim/)
+  to upgrade to a real login.
+- **Co-hosts.** A host can add other users or whole groups as co-hosts
+  (`event_co_hosts`) — they share edit, broadcast, and attendee
+  management permissions. Implemented at
+  [apps/web/src/app/events/[id]/co-host-actions.ts](../apps/web/src/app/events/%5Bid%5D/co-host-actions.ts).
+
+---
+
+## 3. Visibility & discovery
+
+`Visibility` enum gates who can see/find an event:
+
+| Value | Meaning |
+|---|---|
+| `public` | Discoverable by anyone; anyone can sign up |
+| `invite_only` | Only via direct link |
+| `friends_of_host` | Discoverable by the host's friends |
+| `friends_of_attendees` | Discoverable by friends of anyone currently attending |
+
+Enforced both in Postgres RLS (source of truth) and replicated to the
+domain layer for in-process checks. Friend graph is owned by
+`UserProfile` ([packages/domain/src/users/user-profile.ts](../packages/domain/src/users/user-profile.ts)).
+
+**Discovery surfaces.**
+
+- Home feed at `/` — geo-sorted public events.
+- "Near me" button uses browser geolocation
+  ([apps/web/src/app/events/near-me-button.tsx](../apps/web/src/app/events/near-me-button.tsx)).
+- Geocoding for city/venue search uses Photon → Nominatim fallback
+  (see [integrations.md](integrations.md#photon-komoot)).
+
+---
+
+## 4. Payments — paid events
+
+Money flows host ← Stripe ← buyer via Stripe Connect. The platform
+never holds funds.
+
+**Pricing model** ([apps/web/src/lib/event-pricing.ts](../apps/web/src/lib/event-pricing.ts)):
+
+- `price_cents = 0` → free event; Stripe is not invoked at all.
+- `price_cents > 0` → paid event. Host picks `host_absorbs_fee`:
+  - **Buyer-paid fee** (default): buyer is charged ticket price + platform fee as line items.
+  - **Host-absorbs**: buyer pays only the ticket price; the platform fee comes out of the host's payout.
+- **Refund window** (`refund_window_hours`, default 24, max 720). Inside the window, leaving the event auto-refunds via Stripe; outside the window the host has to refund manually. Logic at [apps/web/src/lib/refund-window.ts](../apps/web/src/lib/refund-window.ts).
+
+**Platform fee** (charged by PickupVB, separate from Stripe processing fee):
+
+| Tier | Fee on tickets | Fee on tips |
+|---|---|---|
+| Free | 5% | 5% |
+| Pro Host | 2.5% (`PRO_PLATFORM_FEE_BPS = 250`) | 2.5% |
+
+Constants in [apps/web/src/lib/pro.ts](../apps/web/src/lib/pro.ts).
+
+**Connect onboarding.** Hosts complete a Stripe Express account link
+before they can publish a paid event. Account state is mirrored to
+`host_stripe_accounts` via the `account.updated` webhook (see
+[docs/stripe-webhooks.md](stripe-webhooks.md)). The new-event form
+links to onboarding if charges aren't enabled yet.
+
+**Checkout & fulfillment.**
+
+- Buyer clicks "Reserve" → server creates a Stripe Checkout Session via
+  [apps/web/src/lib/checkout-session.ts](../apps/web/src/lib/checkout-session.ts).
+- Session expires after a fixed window (seat is reserved during the
+  hold).
+- `checkout.session.completed` writes the attendee row and a ticket
+  purchase row.
+- `checkout.session.expired` releases the reserved seat back to the
+  pool.
+- `charge.refunded` removes the attendee and notifies them.
+
+---
+
+## 5. Pro Host subscription
+
+Recurring subscription for serious organizers.
+[apps/web/src/app/pricing/page.tsx](../apps/web/src/app/pricing/page.tsx)
+is the public-facing surface; [/profile/billing/pro](../apps/web/src/app/profile/billing/pro/)
+runs checkout.
+
+**Pricing.**
+
+- $10/mo or $100/yr (save $20).
+- 14-day free trial.
+- Cancel anytime; you keep Pro through the period you've paid for.
+
+**What Pro unlocks.**
+
+| Capability | Free | Pro |
+|---|---|---|
+| Free events | Unlimited | Unlimited |
+| Paid events / 30 days | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited |
+| Platform fee on tickets | 5% | **2.5%** |
+| Platform fee on tips | 5% | **2.5%** |
+| CSV attendee export | — | ✓ |
+| Pro badge on profile | — | ✓ (opt-out via `show_pro_badge`) |
+
+**Implementation.**
+
+- Domain port: [packages/domain/src/payments/host-subscription.ts](../packages/domain/src/payments/host-subscription.ts).
+- Active check: `isPro(userId)` reads the Postgres `is_pro_host` RPC,
+  which treats `active` and `trialing` as Pro and grace-periods
+  `past_due`.
+- Free-tier cap is enforced by `host_paid_event_count_30d` RPC — a
+  rolling 30-day window from "now", *not* a calendar month. Cancelling
+  a paid event does **not** free up the slot (prevents abuse).
+- Subscription state is mirrored from Stripe via
+  `customer.subscription.{created,updated,deleted}` webhooks into
+  `host_subscriptions`.
+- Billing portal access goes through `openBillingPortal` server action.
+
+---
+
+## 6. Tip jar
+
+Optional gratuity flow on every event. Attendees tip the host; the
+platform takes the standard fee.
+
+- Constants: [apps/web/src/app/events/[id]/tip-constants.ts](../apps/web/src/app/events/%5Bid%5D/tip-constants.ts) — min $1, max $500.
+- Implemented as a separate Stripe Checkout Session (`mode: 'payment'`,
+  metadata flags it as a tip). Routed via Connect like ticket sales.
+- Totals are aggregated by a cheap RPC and shown to attendees; hidden
+  from the host themselves to keep gratuity decisions independent.
+
+---
+
+## 7. Host broadcasts
+
+Hosts (and co-hosts) can send a one-to-many announcement to every
+attendee — fans out to email, push, and in-app notifications.
+
+- Server action: [apps/web/src/app/events/[id]/broadcast-actions.ts](../apps/web/src/app/events/%5Bid%5D/broadcast-actions.ts).
+- UI panel: `HostBroadcastPanel` under
+  [apps/web/src/app/events/[id]/_components/](../apps/web/src/app/events/%5Bid%5D/_components/).
+- Teams have their own broadcast: [apps/web/src/app/teams/[id]/broadcast-actions.ts](../apps/web/src/app/teams/%5Bid%5D/broadcast-actions.ts).
+- Notification delivery happens through the worker — see [integrations.md § Resend](integrations.md#resend) and [§ Web Push (VAPID)](integrations.md#web-push-vapid).
+
+---
+
+## 8. Tournaments & brackets
+
+For tournament-type events the host runs a bracket post-signup.
+
+**Formats** ([packages/domain/src/brackets/enums.ts](../packages/domain/src/brackets/enums.ts)):
+
+- `single_elimination` — bye distribution uses `top_seeds` (highest seeds get round-1 byes vs phantom slots).
+- `double_elimination` — winners/losers/final sides.
+- `round_robin`.
+- `pool_play_playoff`.
+
+**State machine.** `setup` → `active` → `completed`. Matches transition through `pending` / `in_progress` / `completed` / `bye`. Generators live at [packages/domain/src/brackets/generators.ts](../packages/domain/src/brackets/generators.ts).
+
+**Where it lives.**
+
+- Domain: [packages/domain/src/brackets/](../packages/domain/src/brackets/).
+- UI: [apps/web/src/app/events/[id]/bracket/](../apps/web/src/app/events/%5Bid%5D/bracket/).
+- Standings, match reporting, and advancement happen via the bracket aggregate so invariants (can't report a `pending` match, can't skip rounds, etc.) are guarded in one place.
+
+---
+
+## 9. Teams
+
+Persistent player groups that can sign up for tournaments together and
+host their own events.
+
+- Domain aggregate: [packages/domain/src/teams/team.ts](../packages/domain/src/teams/team.ts).
+- Public team page with vanity slug: [apps/web/src/app/teams/[id]/](../apps/web/src/app/teams/%5Bid%5D/).
+- Members, captain, broadcasts.
+
+---
+
+## 10. Groups (host orgs)
+
+Vanity-handle pages for clubs, leagues, and venues that host events
+under a shared identity. A group can have multiple owners/admins/
+members and can be added as a co-host on events.
+
+- UI: [apps/web/src/app/groups/](../apps/web/src/app/groups/).
+- Membership roles: `owner` / `admin` / `member`.
+- Group-hosted events surface on the group page via [apps/web/src/components/group-hosted-events.tsx](../apps/web/src/components/group-hosted-events.tsx).
+
+---
+
+## 11. Player profiles
+
+Public player pages with vanity handles.
+
+- Domain: [packages/domain/src/users/user-profile.ts](../packages/domain/src/users/user-profile.ts).
+- UI: [apps/web/src/app/players/[id]/](../apps/web/src/app/players/%5Bid%5D/) (handles `/players/:handle` and `/players/:uuid`).
+- Profile fields: display name, home city, primary/secondary/tertiary positions, Pro badge (toggleable via `profiles.show_pro_badge`).
+- Friend graph drives `friends_of_host` and `friends_of_attendees` visibility.
+
+---
+
+## 12. Friends
+
+Symmetric friendship for visibility scoping and "people you may know" surfacing.
+
+- UI: [apps/web/src/app/friends/](../apps/web/src/app/friends/).
+- Adds/removes go through `UserProfile.addFriend` / `removeFriend` (with self-friend invariant).
+
+---
+
+## 13. Notifications
+
+Single worker, multiple channels.
+
+- **Channels:** email (Resend), push (Web Push/VAPID), in-app.
+- **Kinds:** RSVP confirmations, capacity changes, broadcasts, team invites, payment/refund receipts, host payout paid, 24h + 2h reminders.
+- **Templates:** [packages/notifications/src/templates.ts](../packages/notifications/src/templates.ts).
+- **Worker:** [apps/web/src/app/api/notifications/worker/route.ts](../apps/web/src/app/api/notifications/worker/route.ts) — runs every minute via Vercel Cron.
+- **Reminder generator:** [apps/web/src/app/api/notifications/reminders/route.ts](../apps/web/src/app/api/notifications/reminders/route.ts) — runs every 15 minutes.
+- **Per-user preferences** under [apps/web/src/app/profile/notifications/](../apps/web/src/app/profile/notifications/).
+
+---
+
+## 14. Receipts & earnings
+
+- **Buyer receipts:** [apps/web/src/app/profile/receipts/](../apps/web/src/app/profile/receipts/) and `/api/receipts/...` for printable PDFs.
+- **Host earnings dashboard:** [apps/web/src/app/profile/billing/earnings/](../apps/web/src/app/profile/billing/earnings/) — totals, payouts, refunds, by event.
+- **Payout notifications:** `payout.paid` Stripe Connect webhook fires `host.payout.paid` notification.
+
+---
+
+## 15. Anonymous → claimed accounts
+
+Players can RSVP without signing up (Supabase anonymous auth). Later,
+they can "claim" the account to upgrade to a permanent login keeping
+their RSVP history.
+
+- Flow: [apps/web/src/app/claim/](../apps/web/src/app/claim/).
+- The Turnstile gate prevents bot signups (see [integrations.md](integrations.md#cloudflare-turnstile)).
+- Routes that require a "real" user (Pro checkout, billing portal,
+  etc.) check `is_anonymous` on the JWT, not just `user != null`.
+
+---
+
+## Adding a new business feature
+
+1. If it has invariants, model it in `packages/domain/` first. Pure
+   TypeScript — no Next.js or Supabase imports. See
+   [packages/domain/README.md](../packages/domain/README.md).
+2. Add a command/query handler in `packages/application/` that
+   orchestrates ports.
+3. Add the infrastructure adapter (Supabase repo) in
+   `packages/infrastructure/`.
+4. Wire it into [apps/web/src/lib/handlers.ts](../apps/web/src/lib/handlers.ts).
+5. Build the route under `apps/web/src/app/` — page as thin
+   orchestrator, sub-components under `_components/`, server actions
+   co-located. See [AGENTS.md](../AGENTS.md) for the page-composition
+   conventions.
+6. Throw typed `DomainError` subclasses, not strings.
+7. Add a section to this file.
