@@ -162,7 +162,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                             >
                                 View earnings →
                             </Link>
-                            <form action={openStripeDashboard}>
+                            <form action={openStripeDashboard} target="_blank">
                                 <button
                                     type="submit"
                                     className="w-full rounded-md border border-border-base px-3 py-2 text-sm hover:bg-fg/5"
@@ -242,7 +242,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                             states are lower (MA / VT / VA: $600). Stripe picks
                             the right one based on your address.
                         </p>
-                        <form action={openStripeDashboard} className="mt-3">
+                        <form action={openStripeDashboard} target="_blank" className="mt-3">
                             <button
                                 type="submit"
                                 className="rounded-md border border-border-base px-4 py-2 text-sm hover:bg-fg/5"
