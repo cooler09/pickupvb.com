@@ -1,0 +1,129 @@
+# SEO audit — 2026-05-17
+
+## Scope
+
+Read-only SEO review of the Next.js 16 App Router app at `apps/web`. Special focus on the recent canonical domain flip from `www.pickupvb.com` to `pickupvb.com` (apex) — verifying every `metadataBase`, JSON-LD URL, sitemap entry, robots.txt host, OG image URL, and absolute link reflects apex. Covered metadata coverage, canonical tags, structured data, sitemap/robots, OG/Twitter cards, indexability flags, URL structure, internal linking, 404/error pages, and stale-www references. Skipped `copilot-skills`.
+
+---
+
+## Stale `www.pickupvb.com` references
+
+**None found** in `apps/web/src/**`, `packages/**`, `next.config.mjs`, `vercel.json`, or `apps/web/public/`. The only `www.*` hit is an external link to OpenStreetMap. Domain flip is clean from a code perspective.
+
+(Open question below: does `vercel.json` issue a 301 from `www` host → apex? Worth verifying separately.)
+
+---
+
+## P1 findings
+
+### Missing `noindex` on auth-only / private pages
+
+- **Where:** [apps/web/src/app/friends/page.tsx](apps/web/src/app/friends/page.tsx), [apps/web/src/app/claim/page.tsx](apps/web/src/app/claim/page.tsx), [apps/web/src/app/teams/new/page.tsx](apps/web/src/app/teams/new/page.tsx), [apps/web/src/app/groups/[id]/members/page.tsx](apps/web/src/app/groups/[id]/members/page.tsx), [apps/web/src/app/events/new/page.tsx](apps/web/src/app/events/new/page.tsx).
+- **Issue:** These pages redirect unauthenticated visitors but their `metadata` exports omit `robots`. Bots may receive the pre-redirect HTML (or simply index the URL by reference) before the redirect kicks in, polluting the index with login-walled URLs. Only [apps/web/src/app/profile/page.tsx](apps/web/src/app/profile/page.tsx) sets `noindex` correctly.
+- **Fix:** Add `robots: { index: false, follow: false }` to each `metadata` export. `events/new` needs a full metadata export added.
+
+### Sitemap omits `/teams/[id]` and `/players/[id]`
+
+- **Where:** [apps/web/src/app/sitemap.ts](apps/web/src/app/sitemap.ts) (~L30–L60).
+- **Issue:** Only events and groups dynamic routes are emitted. Public team and player pages exist and are crawlable, but discovery relies entirely on internal linking.
+- **Fix:** Query the team + profile tables (public/non-private only) and append entries following the existing events/groups pattern with `lastmod` from `updated_at`.
+
+### `groups` listing page metadata is bare
+
+- **Where:** [apps/web/src/app/groups/page.tsx](apps/web/src/app/groups/page.tsx) (~L8).
+- **Issue:** Only `{ title: 'Groups — PickupVB' }`. No description, no `openGraph`, no canonical. SERP snippet falls back to body text; social shares get no preview card.
+- **Fix:** Add a ~140-char description, `alternates.canonical: '/groups'`, and an `openGraph` block (title, description, url, type:'website', siteName, images).
+
+---
+
+## P2 findings
+
+### `force-dynamic` on public listings hurts CWV / LCP, which Google ranks
+
+- **Where:** [apps/web/src/app/page.tsx](apps/web/src/app/page.tsx), [apps/web/src/app/events/page.tsx](apps/web/src/app/events/page.tsx), [apps/web/src/app/players/page.tsx](apps/web/src/app/players/page.tsx), [apps/web/src/app/teams/page.tsx](apps/web/src/app/teams/page.tsx), [apps/web/src/app/groups/page.tsx](apps/web/src/app/groups/page.tsx), [apps/web/src/app/pricing/page.tsx](apps/web/src/app/pricing/page.tsx), [apps/web/src/app/events/[id]/page.tsx](apps/web/src/app/events/[id]/page.tsx).
+- **Issue:** `export const dynamic = 'force-dynamic'` defeats the edge cache → every Googlebot fetch hits origin → measurably worse LCP/TTFB → Core Web Vitals demotion. Already P1 in the [performance audit](performance.md); restated here because it has a direct ranking impact.
+- **Fix:** Drop `force-dynamic` on public pages. If personalization is required (signed-in nav), move per-user content into a small client island and let the shell ISR/SSG. ISR `revalidate: 60` is a reasonable default for listings.
+
+### No root `not-found.tsx`
+
+- **Where:** [apps/web/src/app/](apps/web/src/app/) — only `global-error.tsx` exists.
+- **Issue:** Unmatched routes serve Next's bare default. No internal links to crawl, no branded recovery path, and (worse) Vercel may return 200 + framework HTML in some edge cases producing soft-404s.
+- **Fix:** Add `apps/web/src/app/not-found.tsx` with a branded message and links into events, groups, players, teams. Confirm a 404 status is returned (Next does this when `notFound()` triggers).
+
+### Listing pages missing `openGraph` block
+
+- **Where:** [apps/web/src/app/teams/page.tsx](apps/web/src/app/teams/page.tsx) (~L8), [apps/web/src/app/players/page.tsx](apps/web/src/app/players/page.tsx) (~L10), [apps/web/src/app/groups/page.tsx](apps/web/src/app/groups/page.tsx) (~L8 — already called out in P1 for description).
+- **Issue:** Title + description present (teams/players), but no `openGraph` object → social shares show no preview card. The infrastructure for per-route OG image generation already exists, so this is wiring.
+- **Fix:** Add an `openGraph: { title, description, url, type: 'website', siteName: 'PickupVB', images: [...] }` block; reuse the existing OG image route for each entity type.
+
+### `events/new` exports no metadata at all
+
+- **Where:** [apps/web/src/app/events/new/page.tsx](apps/web/src/app/events/new/page.tsx).
+- **Issue:** Falls through to the root template title; no `noindex`. Already covered in P1 for the noindex requirement; the metadata export is the same fix.
+- **Fix:** `export const metadata = { title: 'Create event — PickupVB', robots: { index: false, follow: false } };`
+
+---
+
+## P3 findings
+
+### Event `og:type` is `'website'` not `'event'`
+
+- **Where:** [apps/web/src/app/events/[id]/page.tsx](apps/web/src/app/events/[id]/page.tsx) (~L53).
+- **Issue:** `'event'` is non-standard in OG; `'website'` is the correct fallback. The authoritative signal for rich event results is the existing JSON-LD SportsEvent block.
+- **Fix:** Leave as-is. (Documenting so it doesn't keep getting re-flagged.)
+
+### No `BreadcrumbList` JSON-LD on detail pages
+
+- **Where:** `events/[id]`, `groups/[id]`, `players/[id]`, `teams/[id]`.
+- **Issue:** Eligible for breadcrumb rich result in SERPs; minor.
+- **Fix:** Add a small `BreadcrumbList` JSON-LD next to the existing structured-data blocks.
+
+### Event URLs are UUIDs, not slugs
+
+- **Where:** `/events/[uuid]` (e.g. `/events/550e8400-…`).
+- **Issue:** Not a ranking factor on its own, but human-readable slugs improve CTR from share previews and direct-link sharing. Groups, teams (slug) and players (handle) already do this.
+- **Fix:** Discussion-level. If desired, add a `slug` column to `events`, accept both `/events/[id-or-slug]` in the route, and 301 the UUID form to the slug form. Non-trivial migration.
+
+### No `SportsTeam` / `SportsOrganization` JSON-LD on teams/groups pages
+
+- **Where:** [apps/web/src/app/teams/[id]/page.tsx](apps/web/src/app/teams/[id]/page.tsx), [apps/web/src/app/groups/[id]/page.tsx](apps/web/src/app/groups/[id]/page.tsx).
+- **Issue:** Optional schema types; would feed Knowledge Graph entries.
+- **Fix:** Pattern off [event-jsonld.tsx](apps/web/src/app/events/[id]/_components/event-jsonld.tsx).
+
+---
+
+## Verified good
+
+- `metadataBase: new URL('https://pickupvb.com')` in [apps/web/src/app/layout.tsx](apps/web/src/app/layout.tsx) (~L23).
+- Title template `'%s · PickupVB'` in root layout.
+- Root layout emits `Organization` + `WebSite` JSON-LD with `SearchAction` (sitelinks search box) — all URLs apex.
+- All shareable entity pages use `generateMetadata` ([events/[id]](apps/web/src/app/events/[id]/page.tsx), groups, players, teams).
+- Descriptions across audited pages are within the 50–160 char sweet spot.
+- Canonicals are relative (`'/events'`), so they always resolve against apex `metadataBase`.
+- [apps/web/src/app/robots.ts](apps/web/src/app/robots.ts) disallows `/api/`, `/auth/`, `/profile/`, new/edit pages; sitemap URL + Host both point at apex.
+- OG image generation routes produce 1200×630 PNGs ([apps/web/src/lib/og-image.tsx](apps/web/src/lib/og-image.tsx)) for root + entity detail pages.
+- `<html lang="en">` set ([apps/web/src/app/layout.tsx](apps/web/src/app/layout.tsx) ~L121).
+- Twitter cards (`summary_large_image`) on shareable routes.
+- Comprehensive `SportsEvent` JSON-LD on event pages ([event-jsonld.tsx](apps/web/src/app/events/[id]/_components/event-jsonld.tsx)): name, startDate/endDate, eventStatus, location (`PostalAddress` + `GeoCoordinates`), organizer, offers, attendeeCapacity — all URLs apex.
+- Sitemap reads fresh data on each crawl and excludes draft/cancelled events.
+- Profile page correctly `noindex`.
+
+---
+
+## Quick-win bundle
+
+1. **Add `noindex` to the 5 auth-walled pages** (and add a full metadata export for `events/new`). ~10 min.
+2. **Add description + canonical + `openGraph` to `groups/page.tsx`** — and the matching `openGraph` to `teams/page.tsx` and `players/page.tsx`. ~20 min.
+3. **Extend `sitemap.ts` with teams and players.** ~20 min, duplicates the events/groups query pattern.
+4. **Add `apps/web/src/app/not-found.tsx`** with branded nav. ~15 min.
+5. **(Cross-listed with performance audit)** Drop `force-dynamic` on public listings. Biggest SEO-leverage fix in the bundle.
+
+---
+
+## Open questions
+
+- Does the **Vercel project's `www` → apex redirect** return 301 (link-equity preserving) or 307/302? The performance audit confirmed `www` → apex resolves; the status code matters for SEO. Worth a `curl -I https://www.pickupvb.com/events` and `vercel.json` check.
+- Should **draft/cancelled events** that were previously indexed get `noindex` on their detail pages (not just be omitted from sitemap)? Once Google has the URL, sitemap removal alone won't deindex it.
+- Are there any **paid-event JSON-LD `offers.priceCurrency`** edge cases we should validate (multi-currency events, free events with `price: 0`)?
+- Is there interest in **slug-based event URLs**? Note the migration cost vs. CTR upside before committing.
+- Should we add a **`<link rel="alternate" hreflang="en">`** even though the site is monolingual? Cheap signal of intentional language scope; safe to skip if no i18n plans.
