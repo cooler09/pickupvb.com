@@ -4,6 +4,7 @@ import { removeFriend } from '@/app/friends/actions';
 
 type FriendProfile = {
     id: string;
+    handle: string;
     display_name: string;
     first_name: string | null;
     last_name: string | null;
@@ -57,7 +58,7 @@ export function FriendsList({
                         className="flex items-center gap-3 rounded-lg border border-border-base px-3 py-2"
                     >
                         <Link
-                            href={`/players/${p.id}`}
+                            href={`/players/${p.handle}`}
                             className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
                         >
                             {p.avatar_url ? (

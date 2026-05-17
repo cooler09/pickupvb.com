@@ -7,6 +7,7 @@ import {
 
 export type RegisteredTeam = {
     teamId: string;
+    slug: string;
     name: string;
     format: string;
     captainId: string;
@@ -106,7 +107,7 @@ export function TournamentSignupPanel({
                                 >
                                     <div className="min-w-0">
                                         <Link
-                                            href={`/teams/${t.teamId}`}
+                                            href={`/teams/${t.slug}`}
                                             className="truncate text-sm font-semibold hover:underline"
                                         >
                                             {t.name}

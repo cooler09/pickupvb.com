@@ -54,7 +54,7 @@ export async function createGroupAction(
     const created = data as { id: string; slug: string };
     revalidatePath('/groups');
     revalidatePath('/profile');
-    redirect(`/groups/${created.id}`);
+    redirect(`/groups/${created.slug}`);
 }
 
 export async function updateGroupAction(
@@ -89,7 +89,14 @@ export async function updateGroupAction(
 
     if (error) return { error: error.message };
 
-    revalidatePath(`/groups/${groupId}`);
+    // Look up the slug to revalidate the public URL.
+    const { data: slugRow } = await supabase
+        .from('groups')
+        .select('slug')
+        .eq('id', groupId)
+        .maybeSingle();
+    const slug = (slugRow as { slug: string } | null)?.slug;
+    if (slug) revalidatePath(`/groups/${slug}`);
     return {};
 }
 

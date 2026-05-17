@@ -9,6 +9,7 @@ import {
 
 type ProfileLite = {
     id: string;
+    handle: string;
     displayName: string;
     firstName: string | null;
     lastName: string | null;
@@ -55,7 +56,7 @@ export function HostsSection({
                 {primaryHostGroup && (
                     <li>
                         <Link
-                            href={`/groups/${primaryHostGroup.id}`}
+                            href={`/groups/${primaryHostGroup.slug}`}
                             className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-sm font-medium text-primary hover:bg-primary/20"
                         >
                             {primaryHostGroup.avatarUrl ? (
@@ -76,7 +77,7 @@ export function HostsSection({
                 {primaryHostUser && (
                     <li>
                         <Link
-                            href={`/players/${primaryHostUser.id}`}
+                            href={`/players/${primaryHostUser.handle}`}
                             className="inline-flex items-center gap-2 rounded-full border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
                         >
                             {profileName(primaryHostUser)}
@@ -89,7 +90,7 @@ export function HostsSection({
                 {coHostGroups.map((g) => (
                     <li key={`g-${g.id}`}>
                         <Link
-                            href={`/groups/${g.id}`}
+                            href={`/groups/${g.slug}`}
                             className="inline-flex items-center gap-2 rounded-full border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
                         >
                             {g.name}
@@ -115,7 +116,7 @@ export function HostsSection({
                 {coHostUsers.map((p) => (
                     <li key={`u-${p.id}`}>
                         <Link
-                            href={`/players/${p.id}`}
+                            href={`/players/${p.handle}`}
                             className="inline-flex items-center gap-2 rounded-full border border-border-base px-3 py-1 text-sm hover:bg-fg/5"
                         >
                             {profileName(p)}

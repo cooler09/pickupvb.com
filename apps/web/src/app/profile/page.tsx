@@ -19,6 +19,7 @@ export const metadata = {
 };
 
 type ProfileRow = {
+    handle: string;
     first_name: string | null;
     last_name: string | null;
     display_name: string;
@@ -31,6 +32,7 @@ type ProfileRow = {
 
 type FriendProfile = {
     id: string;
+    handle: string;
     display_name: string;
     first_name: string | null;
     last_name: string | null;
@@ -44,12 +46,13 @@ export default async function ProfilePage() {
 
     const { data } = await supabase
         .from('profiles')
-        .select('first_name, last_name, display_name, home_city, auto_accept_team_invites, primary_position, secondary_position, tertiary_position')
+        .select('handle, first_name, last_name, display_name, home_city, auto_accept_team_invites, primary_position, secondary_position, tertiary_position')
         .eq('id', user.id)
         .maybeSingle();
 
     const row = data as ProfileRow | null;
     const profile = {
+        handle: row?.handle ?? user.id,
         first_name: row?.first_name ?? null,
         last_name: row?.last_name ?? null,
         display_name: row?.display_name ?? user.email?.split('@')[0] ?? 'Player',
@@ -63,7 +66,7 @@ export default async function ProfilePage() {
     // Outgoing friend edges (people you've added).
     const { data: outRows } = await supabase
         .from('friendships')
-        .select('friend_id, profiles:profiles!friendships_friend_id_fkey(id, display_name, first_name, last_name, avatar_url, home_city)')
+        .select('friend_id, profiles:profiles!friendships_friend_id_fkey(id, handle, display_name, first_name, last_name, avatar_url, home_city)')
         .eq('user_id', user.id);
 
     type OutRow = { friend_id: string; profiles: FriendProfile | null };
@@ -119,11 +122,11 @@ export default async function ProfilePage() {
     // user notices without having to navigate to /teams.
     const { data: pendingRows } = await supabase
         .from('team_members')
-        .select('teams:teams!inner(id, name, format)')
+        .select('teams:teams!inner(id, slug, name, format)')
         .eq('user_id', user.id)
         .eq('status', 'pending');
     type PendingRow = {
-        teams: { id: string; name: string; format: string } | null;
+        teams: { id: string; slug: string; name: string; format: string } | null;
     };
     const pendingInvites = ((pendingRows as PendingRow[] | null) ?? [])
         .map((r) => r.teams)
@@ -161,7 +164,7 @@ export default async function ProfilePage() {
                             )}
                     </div>
                     <Link
-                        href={`/players/${user.id}` as Route}
+                        href={`/players/${profile.handle}` as Route}
                         className="shrink-0 rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
                     >
                         Public view ↗
@@ -201,7 +204,7 @@ export default async function ProfilePage() {
                         {pendingInvites.map((t) => (
                             <li key={t.id}>
                                 <Link
-                                    href={`/teams/${t.id}` as Route}
+                                    href={`/teams/${t.slug}` as Route}
                                     className="flex items-center justify-between gap-3 rounded-md border border-border-base bg-surface p-3 text-sm hover:border-primary/40"
                                 >
                                     <span className="truncate font-medium">{t.name}</span>

@@ -49,6 +49,8 @@ export interface EventRepository {
 
 export interface ProfileLite {
     id: string;
+    /** Vanity URL token (unique, slug-shape). */
+    handle: string;
     displayName: string;
     firstName: string | null;
     lastName: string | null;
@@ -85,6 +87,8 @@ export interface FreeAgentLite {
 
 export interface TeamLite {
     teamId: string;
+    /** Vanity URL token (unique, slug-shape). */
+    slug: string;
     name: string;
     format: Format;
     captainId: string;

@@ -49,11 +49,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
         const { data: groupRows } = await supabase
             .from('groups')
-            .select('id, updated_at');
-        type GroupRow = { id: string; updated_at: string | null };
+            .select('slug, updated_at');
+        type GroupRow = { slug: string; updated_at: string | null };
         const groups = (groupRows as GroupRow[] | null) ?? [];
         const groupEntries: MetadataRoute.Sitemap = groups.map((g) => ({
-            url: `${BASE}/groups/${g.id}`,
+            url: `${BASE}/groups/${g.slug}`,
             lastModified: g.updated_at ? new Date(g.updated_at) : now,
             changeFrequency: 'weekly',
             priority: 0.5,

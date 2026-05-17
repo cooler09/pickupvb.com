@@ -18,6 +18,7 @@ type FormatOption = (typeof FORMAT_OPTIONS)[number];
 
 type TeamRow = {
     id: string;
+    slug: string;
     name: string;
     format: string;
     captain_id: string;
@@ -48,7 +49,7 @@ export default async function TeamsIndexPage(props: {
     let discoverQuery = supabase
         .from('teams')
         .select(
-            'id, name, format, captain_id, captain:profiles!teams_captain_id_fkey(display_name)',
+            'id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(display_name)',
             { count: 'exact' },
         )
         .order('name', { ascending: true })
@@ -72,14 +73,14 @@ export default async function TeamsIndexPage(props: {
     if (user) {
         const { data: captainedRows } = await supabase
             .from('teams')
-            .select('id, name, format, captain_id')
+            .select('id, slug, name, format, captain_id')
             .eq('captain_id', user.id)
             .order('name', { ascending: true });
         captained = (captainedRows as TeamRow[] | null) ?? [];
 
         const { data: memberRows } = await supabase
             .from('team_members')
-            .select('status, teams:teams!inner(id, name, format, captain_id)')
+            .select('status, teams:teams!inner(id, slug, name, format, captain_id)')
             .eq('user_id', user.id);
         type MemberRow = {
             status: 'active' | 'pending' | null;
@@ -258,7 +259,7 @@ function TeamCard({
     return (
         <li>
             <Link
-                href={`/teams/${team.id}`}
+                href={`/teams/${team.slug}`}
                 className="flex items-start justify-between gap-3 rounded-lg border border-border-base bg-surface p-3 hover:border-primary/40"
             >
                 <div className="min-w-0">

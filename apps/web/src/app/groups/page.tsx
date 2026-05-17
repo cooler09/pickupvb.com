@@ -86,7 +86,7 @@ export default async function GroupsIndexPage(
                     {groups.map((g) => (
                         <li key={g.id}>
                             <Link
-                                href={`/groups/${g.id}`}
+                                href={`/groups/${g.slug}`}
                                 className="flex items-start gap-3 rounded-lg border border-border-base bg-surface p-3 hover:border-primary/40"
                             >
                                 {g.avatar_url ? (

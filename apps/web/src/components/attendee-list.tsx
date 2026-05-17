@@ -18,6 +18,8 @@ type Attendee = {
     position?: string | null;
     /** True when the attendee pushed their position past its configured count. */
     waitlist?: boolean;
+    /** Vanity handle for the player profile URL. Falls back to user_id. */
+    handle?: string | null;
     profiles: AttendeeProfile | null;
 };
 
@@ -85,7 +87,7 @@ export function AttendeeList({
                         className="flex items-center gap-3 rounded-lg border border-border-base px-3 py-2"
                     >
                         <Link
-                            href={`/players/${a.user_id}`}
+                            href={`/players/${a.handle ?? a.user_id}`}
                             className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
                         >
                             {a.profiles?.avatar_url ? (

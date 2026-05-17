@@ -15,6 +15,7 @@ const PAGE_SIZE = 24;
 
 type Row = {
     id: string;
+    handle: string;
     display_name: string;
     first_name: string | null;
     last_name: string | null;
@@ -51,7 +52,7 @@ export default async function PlayersIndexPage(
 
     let query = supabase
         .from('profiles')
-        .select('id, display_name, first_name, last_name, home_city, avatar_url', {
+        .select('id, handle, display_name, first_name, last_name, home_city, avatar_url', {
             count: 'exact',
         })
         .order('display_name', { ascending: true })
@@ -113,7 +114,7 @@ export default async function PlayersIndexPage(
                     {players.map((p) => (
                         <li key={p.id}>
                             <Link
-                                href={`/players/${p.id}`}
+                                href={`/players/${p.handle}`}
                                 className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-3 hover:border-primary/40"
                             >
                                 {p.avatar_url ? (

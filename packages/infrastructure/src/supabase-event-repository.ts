@@ -325,7 +325,7 @@ export class SupabaseEventRepository implements EventRepository {
             this.client
                 .from('event_attendees')
                 .select(
-                    'user_id, joined_at, position, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)',
+                    'user_id, joined_at, position, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)',
                 )
                 .eq('event_id', id)
                 .order('joined_at', { ascending: true }),
@@ -336,7 +336,7 @@ export class SupabaseEventRepository implements EventRepository {
             row.host_id
                 ? this.client
                     .from('profiles')
-                    .select('id, display_name, first_name, last_name, avatar_url')
+                    .select('id, handle, display_name, first_name, last_name, avatar_url')
                     .eq('id', row.host_id)
                     .maybeSingle()
                 : Promise.resolve({ data: null, error: null }),
@@ -350,14 +350,14 @@ export class SupabaseEventRepository implements EventRepository {
             this.client
                 .from('event_teams')
                 .select(
-                    'team_id, registered_at, teams:teams!inner(id, name, format, captain_id)',
+                    'team_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id)',
                 )
                 .eq('event_id', id)
                 .order('registered_at', { ascending: true }),
             this.client
                 .from('event_free_agents')
                 .select(
-                    'user_id, notes, joined_at, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)',
+                    'user_id, notes, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)',
                 )
                 .eq('event_id', id)
                 .order('joined_at', { ascending: true }),
@@ -368,6 +368,7 @@ export class SupabaseEventRepository implements EventRepository {
             joined_at: string;
             position: string | null;
             profiles: {
+                handle: string;
                 display_name: string;
                 first_name: string | null;
                 last_name: string | null;
@@ -396,6 +397,7 @@ export class SupabaseEventRepository implements EventRepository {
                 waitlist,
                 profile: {
                     id: a.user_id,
+                    handle: a.profiles?.handle ?? a.user_id,
                     displayName: a.profiles?.display_name ?? 'Player',
                     firstName: a.profiles?.first_name ?? null,
                     lastName: a.profiles?.last_name ?? null,
@@ -413,7 +415,7 @@ export class SupabaseEventRepository implements EventRepository {
         // captain profiles + roster sizes in the next parallel block.
         type TeamJoinRow = {
             team_id: string;
-            teams: { id: string; name: string; format: Format; captain_id: string } | null;
+            teams: { id: string; slug: string; name: string; format: Format; captain_id: string } | null;
         };
         const teamJoinRows = (teamRowsRes.data as TeamJoinRow[] | null) ?? [];
         const registeredTeamIds = teamJoinRows
@@ -437,7 +439,7 @@ export class SupabaseEventRepository implements EventRepository {
             coUserIds.length
                 ? this.client
                     .from('profiles')
-                    .select('id, display_name, first_name, last_name, avatar_url')
+                    .select('id, handle, display_name, first_name, last_name, avatar_url')
                     .in('id', coUserIds)
                 : Promise.resolve({ data: [], error: null }),
             coGroupIds.length
@@ -467,7 +469,7 @@ export class SupabaseEventRepository implements EventRepository {
             registeredCaptainIds.length
                 ? this.client
                     .from('profiles')
-                    .select('id, display_name, first_name, last_name, avatar_url')
+                    .select('id, handle, display_name, first_name, last_name, avatar_url')
                     .in('id', registeredCaptainIds)
                 : Promise.resolve({ data: [], error: null }),
             registeredTeamIds.length
@@ -490,6 +492,7 @@ export class SupabaseEventRepository implements EventRepository {
 
         type ProfileRow = {
             id: string;
+            handle: string;
             display_name: string;
             first_name: string | null;
             last_name: string | null;
@@ -498,6 +501,7 @@ export class SupabaseEventRepository implements EventRepository {
         type GroupRow = { id: string; slug: string; name: string; avatar_url: string | null };
         const toProfile = (p: ProfileRow): ProfileLite => ({
             id: p.id,
+            handle: p.handle,
             displayName: p.display_name,
             firstName: p.first_name,
             lastName: p.last_name,
@@ -531,6 +535,7 @@ export class SupabaseEventRepository implements EventRepository {
             notes: string | null;
             joined_at: string;
             profiles: {
+                handle: string;
                 display_name: string;
                 first_name: string | null;
                 last_name: string | null;
@@ -544,6 +549,7 @@ export class SupabaseEventRepository implements EventRepository {
             joinedAt: new Date(f.joined_at),
             profile: {
                 id: f.user_id,
+                handle: f.profiles?.handle ?? f.user_id,
                 displayName: f.profiles?.display_name ?? 'Player',
                 firstName: f.profiles?.first_name ?? null,
                 lastName: f.profiles?.last_name ?? null,
@@ -578,9 +584,10 @@ export class SupabaseEventRepository implements EventRepository {
         }
         const teams: TeamLite[] = teamJoinRows
             .map((r) => r.teams)
-            .filter((t): t is { id: string; name: string; format: Format; captain_id: string } => !!t)
+            .filter((t): t is { id: string; slug: string; name: string; format: Format; captain_id: string } => !!t)
             .map((t) => ({
                 teamId: t.id,
+                slug: t.slug,
                 name: t.name,
                 format: t.format,
                 captainId: t.captain_id,

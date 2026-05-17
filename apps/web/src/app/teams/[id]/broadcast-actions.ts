@@ -53,11 +53,13 @@ export async function sendTeamBroadcast(
             .select('user_id')
             .eq('team_id', teamId)
             .eq('status', 'active'),
-        admin.from('teams').select('name').eq('id', teamId).maybeSingle(),
+        admin.from('teams').select('slug, name').eq('id', teamId).maybeSingle(),
         admin.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
     ]);
     const members = (memRows as { user_id: string }[] | null) ?? [];
-    const teamName = (teamRow as { name: string } | null)?.name ?? 'your team';
+    const teamRowTyped = teamRow as { slug: string; name: string } | null;
+    const teamName = teamRowTyped?.name ?? 'your team';
+    const teamSlug = teamRowTyped?.slug ?? teamId;
     const senderName =
         (senderRow as { display_name: string | null } | null)?.display_name ?? 'Your captain';
 
@@ -80,6 +82,6 @@ export async function sendTeamBroadcast(
         .update({ sent_at: new Date().toISOString() } as never)
         .eq('id', broadcastId);
 
-    revalidatePath(`/teams/${teamId}`);
-    redirect(`/teams/${teamId}?broadcast=sent`);
+    revalidatePath(`/teams/${teamSlug}`);
+    redirect(`/teams/${teamSlug}?broadcast=sent`);
 }

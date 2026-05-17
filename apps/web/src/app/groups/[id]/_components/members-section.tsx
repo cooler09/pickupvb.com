@@ -10,6 +10,7 @@ export type GroupMember = {
         firstName: string | null;
         lastName: string | null;
         avatarUrl: string | null;
+        handle: string;
     } | null;
 };
 
@@ -28,7 +29,7 @@ function initials(name: string): string {
 }
 
 type Props = {
-    groupId: string;
+    groupSlug: string;
     members: GroupMember[];
     /** Owner/admin: shows the "Manage members" link. */
     canManage: boolean;
@@ -44,7 +45,7 @@ type Props = {
  * the dedicated `/members` management page. Pages of 12 members at a
  * time via the `mpage` query param.
  */
-export function MembersSection({ groupId, members, canManage, page, searchParams }: Props) {
+export function MembersSection({ groupSlug, members, canManage, page, searchParams }: Props) {
     const total = members.length;
     const start = (page - 1) * MEMBERS_PER_PAGE;
     const visible = members.slice(start, start + MEMBERS_PER_PAGE);
@@ -57,7 +58,7 @@ export function MembersSection({ groupId, members, canManage, page, searchParams
                 </h2>
                 {canManage && (
                     <Link
-                        href={`/groups/${groupId}/members`}
+                        href={`/groups/${groupSlug}/members`}
                         className="text-sm font-medium text-primary hover:underline"
                     >
                         Manage members
@@ -70,7 +71,7 @@ export function MembersSection({ groupId, members, canManage, page, searchParams
                     return (
                         <li key={m.userId}>
                             <Link
-                                href={`/players/${m.userId}`}
+                                href={`/players/${m.profile?.handle ?? m.userId}`}
                                 className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-2 hover:border-primary/40"
                             >
                                 {m.profile?.avatarUrl ? (
@@ -101,7 +102,7 @@ export function MembersSection({ groupId, members, canManage, page, searchParams
                 })}
             </ul>
             <Pagination
-                basePath={`/groups/${groupId}`}
+                basePath={`/groups/${groupSlug}`}
                 page={page}
                 pageSize={MEMBERS_PER_PAGE}
                 total={total}

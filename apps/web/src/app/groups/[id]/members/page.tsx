@@ -6,7 +6,7 @@ import { MemberRowItem, type MemberListItem } from './_components/member-row-ite
 
 export const dynamic = 'force-dynamic';
 
-type GroupRow = { id: string; name: string };
+type GroupRow = { id: string; slug: string; name: string };
 type MemberRow = {
     user_id: string;
     role: 'owner' | 'admin' | 'member';
@@ -15,6 +15,7 @@ type MemberRow = {
         display_name: string;
         first_name: string | null;
         last_name: string | null;
+        handle: string;
     } | null;
 };
 
@@ -28,8 +29,8 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
 
     const { data: groupData } = await supabase
         .from('groups')
-        .select('id, name')
-        .eq('id', params.id)
+        .select('id, slug, name')
+        .eq('slug', params.id)
         .maybeSingle();
     const group = groupData as GroupRow | null;
     if (!group) notFound();
@@ -42,12 +43,12 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
         .maybeSingle();
     const myRole = (meRow as { role: string } | null)?.role;
     if (myRole !== 'owner' && myRole !== 'admin') {
-        redirect(`/groups/${group.id}`);
+        redirect(`/groups/${group.slug}`);
     }
 
     const { data: memberRows } = await supabase
         .from('group_members')
-        .select('user_id, role, joined_at, profiles:profiles!inner(display_name, first_name, last_name)')
+        .select('user_id, role, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name)')
         .eq('group_id', group.id)
         .order('joined_at', { ascending: true });
     const rows = (memberRows as MemberRow[] | null) ?? [];
@@ -59,17 +60,18 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
                 displayName: m.profiles.display_name,
                 firstName: m.profiles.first_name,
                 lastName: m.profiles.last_name,
+                handle: m.profiles.handle,
             }
             : null,
     }));
 
-    const returnPath = `/groups/${group.id}/members`;
+    const returnPath = `/groups/${group.slug}/members`;
     const viewerIsOwner = myRole === 'owner';
 
     return (
         <div className="mx-auto max-w-2xl space-y-6 py-4">
             <header className="space-y-1">
-                <Link href={`/groups/${group.id}`} className="text-sm text-primary hover:underline">
+                <Link href={`/groups/${group.slug}`} className="text-sm text-primary hover:underline">
                     ← Back to {group.name}
                 </Link>
                 <h1 className="text-2xl font-bold">Manage members</h1>

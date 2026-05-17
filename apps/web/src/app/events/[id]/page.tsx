@@ -176,6 +176,7 @@ export default async function EventDetailPage(
         joined_at: a.joinedAt.toISOString(),
         position: a.position,
         waitlist: a.waitlist,
+        handle: a.profile.handle,
         profiles: {
             display_name: a.profile.displayName,
             first_name: a.profile.firstName,

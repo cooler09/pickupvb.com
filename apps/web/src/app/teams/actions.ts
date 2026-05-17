@@ -29,7 +29,7 @@ export async function createTeamAction(
     _prev: TeamFormState,
     formData: FormData,
 ): Promise<TeamFormState> {
-    const { user } = await requireRealUser('/teams/new');
+    const { user, supabase } = await requireRealUser('/teams/new');
 
     const name = field(formData, 'name');
     const format = field(formData, 'format');
@@ -55,8 +55,16 @@ export async function createTeamAction(
         throw err;
     }
 
+    // Look up the auto-assigned slug for the redirect.
+    const { data: row } = await supabase
+        .from('teams')
+        .select('slug')
+        .eq('id', id)
+        .maybeSingle();
+    const slug = (row as { slug: string } | null)?.slug ?? id;
+
     revalidatePath('/teams');
-    redirect(`/teams/${id}`);
+    redirect(`/teams/${slug}`);
 }
 
 /**
@@ -110,17 +118,19 @@ export async function addMemberFromForm(
     if (!autoAccept) {
         try {
             const [{ data: teamRow }, { data: inviterRow }] = await Promise.all([
-                supabase.from('teams').select('name').eq('id', teamId).maybeSingle(),
+                supabase.from('teams').select('slug, name').eq('id', teamId).maybeSingle(),
                 supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
             ]);
-            const teamName = (teamRow as { name: string } | null)?.name ?? 'a team';
+            const teamRowTyped = teamRow as { slug: string; name: string } | null;
+            const teamName = teamRowTyped?.name ?? 'a team';
+            const teamSlug = teamRowTyped?.slug ?? teamId;
             const inviterName =
                 (inviterRow as { display_name: string | null } | null)?.display_name ??
                 'A captain';
             await notify(
                 'team.invite',
                 userId,
-                { groupId: teamId, groupName: teamName, inviterName },
+                { groupId: teamSlug, groupName: teamName, inviterName },
                 { idempotencyKey: `${teamId}:${userId}` },
             );
         } catch {

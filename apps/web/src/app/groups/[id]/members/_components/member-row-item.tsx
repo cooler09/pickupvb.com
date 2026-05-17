@@ -8,6 +8,7 @@ export type MemberListItem = {
         displayName: string;
         firstName: string | null;
         lastName: string | null;
+        handle: string;
     } | null;
 };
 
@@ -36,7 +37,7 @@ export function MemberRowItem({ groupId, member, isSelf, viewerIsOwner, returnPa
     return (
         <li className="flex items-center gap-3 rounded-lg border border-border-base bg-surface p-3">
             <Link
-                href={`/players/${member.userId}`}
+                href={`/players/${member.profile?.handle ?? member.userId}`}
                 className="flex-1 text-sm font-medium hover:text-primary"
             >
                 {memberName(member.profile)}

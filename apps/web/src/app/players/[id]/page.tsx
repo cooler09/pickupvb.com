@@ -22,10 +22,11 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     const supabase = await getServerSupabase();
     const { data } = await supabase
         .from('profiles')
-        .select('display_name, first_name, last_name, home_city')
-        .eq('id', params.id)
+        .select('handle, display_name, first_name, last_name, home_city')
+        .eq('handle', params.id)
         .maybeSingle();
     const row = data as {
+        handle: string;
         display_name: string | null;
         first_name: string | null;
         last_name: string | null;
@@ -40,11 +41,11 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     return {
         title: name,
         description,
-        alternates: { canonical: `/players/${params.id}` },
+        alternates: { canonical: `/players/${row.handle}` },
         openGraph: {
             title: `${name} · PickupVB`,
             description,
-            url: `/players/${params.id}`,
+            url: `/players/${row.handle}`,
             type: 'profile',
         },
     };
@@ -52,6 +53,7 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
 
 type PlayerProfile = {
     id: string;
+    handle: string;
     display_name: string;
     first_name: string | null;
     last_name: string | null;
@@ -92,8 +94,8 @@ export default async function PlayerProfilePage(props: {
     const [{ data: profileRow }, { user }] = await Promise.all([
         supabase
             .from('profiles')
-            .select('id, display_name, first_name, last_name, avatar_url, home_city, primary_position, secondary_position, tertiary_position')
-            .eq('id', params.id)
+            .select('id, handle, display_name, first_name, last_name, avatar_url, home_city, primary_position, secondary_position, tertiary_position')
+            .eq('handle', params.id)
             .maybeSingle(),
         getCurrentUser(),
     ]);
@@ -120,7 +122,7 @@ export default async function PlayerProfilePage(props: {
     ]);
     const isFollowing = Boolean(edgeResult.data);
 
-    const returnPath = `/players/${profile.id}`;
+    const returnPath = `/players/${profile.handle}`;
     const name = nameOf(profile);
 
     const positions = [
@@ -206,7 +208,7 @@ export default async function PlayerProfilePage(props: {
                             Edit profile →
                         </Link>
                     )}
-                    <ShareLink path={`/players/${profile.id}`} title={name} />
+                    <ShareLink path={`/players/${profile.handle}`} title={name} />
                 </div>
             </header>
 
@@ -238,7 +240,7 @@ export default async function PlayerProfilePage(props: {
                         emptyState=""
                     />
                     <Pagination
-                        basePath={`/players/${profile.id}`}
+                        basePath={`/players/${profile.handle}`}
                         page={ppage}
                         pageSize={PAST_EVENTS_PER_PAGE}
                         total={past.length}

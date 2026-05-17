@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 
 type GroupRow = {
     id: string;
+    slug: string;
     name: string;
     description: string;
     avatar_url: string | null;
@@ -23,8 +24,8 @@ export default async function EditGroupPage(props: { params: Promise<{ id: strin
 
     const { data: groupData } = await supabase
         .from('groups')
-        .select('id, name, description, avatar_url, home_city, region')
-        .eq('id', params.id)
+        .select('id, slug, name, description, avatar_url, home_city, region')
+        .eq('slug', params.id)
         .maybeSingle();
     const group = groupData as GroupRow | null;
     if (!group) notFound();
@@ -37,7 +38,7 @@ export default async function EditGroupPage(props: { params: Promise<{ id: strin
         .maybeSingle();
     const role = (roleRow as { role: string } | null)?.role;
     if (role !== 'owner' && role !== 'admin') {
-        redirect(`/groups/${group.id}`);
+        redirect(`/groups/${group.slug}`);
     }
 
     return (

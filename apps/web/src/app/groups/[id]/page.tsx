@@ -30,6 +30,7 @@ type MemberRow = {
         first_name: string | null;
         last_name: string | null;
         avatar_url: string | null;
+        handle: string;
     } | null;
 };
 
@@ -38,10 +39,11 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     const supabase = await getServerSupabase();
     const { data } = await supabase
         .from('groups')
-        .select('name, description, home_city, region')
-        .eq('id', params.id)
+        .select('slug, name, description, home_city, region')
+        .eq('slug', params.id)
         .maybeSingle();
     const row = data as {
+        slug: string;
         name: string;
         description: string | null;
         home_city: string | null;
@@ -55,11 +57,11 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     return {
         title: row.name,
         description,
-        alternates: { canonical: `/groups/${params.id}` },
+        alternates: { canonical: `/groups/${row.slug}` },
         openGraph: {
             title: `${row.name} · PickupVB`,
             description,
-            url: `/groups/${params.id}`,
+            url: `/groups/${row.slug}`,
             type: 'website',
         },
     };
@@ -83,7 +85,7 @@ export default async function GroupProfilePage(props: {
         supabase
             .from('groups')
             .select('id, slug, name, description, avatar_url, home_city, region, created_by')
-            .eq('id', params.id)
+            .eq('slug', params.id)
             .maybeSingle(),
         getCurrentUser(),
     ]);
@@ -95,7 +97,7 @@ export default async function GroupProfilePage(props: {
     const [{ data: memberRows }, followRowResult, upcoming, past] = await Promise.all([
         supabase
             .from('group_members')
-            .select('user_id, role, profiles:profiles!inner(display_name, first_name, last_name, avatar_url)')
+            .select('user_id, role, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)')
             .eq('group_id', group.id)
             .order('joined_at', { ascending: true }),
         user
@@ -116,7 +118,7 @@ export default async function GroupProfilePage(props: {
 
     const isFollowing = Boolean(followRowResult.data);
 
-    const returnPath = `/groups/${group.id}`;
+    const returnPath = `/groups/${group.slug}`;
 
     // Map row shape to the component's camelCase prop shape.
     const members: GroupMember[] = memberRowsTyped.map((m) => ({
@@ -128,6 +130,7 @@ export default async function GroupProfilePage(props: {
                 firstName: m.profiles.first_name,
                 lastName: m.profiles.last_name,
                 avatarUrl: m.profiles.avatar_url,
+                handle: m.profiles.handle,
             }
             : null,
     }));
@@ -151,7 +154,7 @@ export default async function GroupProfilePage(props: {
             />
 
             <MembersSection
-                groupId={group.id}
+                groupSlug={group.slug}
                 members={members}
                 canManage={canManage}
                 page={mpage}
@@ -183,7 +186,7 @@ export default async function GroupProfilePage(props: {
                         emptyState=""
                     />
                     <Pagination
-                        basePath={`/groups/${group.id}`}
+                        basePath={`/groups/${group.slug}`}
                         page={ppage}
                         pageSize={PAST_EVENTS_PER_PAGE}
                         total={past.length}

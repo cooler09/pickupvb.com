@@ -64,10 +64,10 @@ export function GroupHeader({
                 )}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2">
-                <ShareLink path={`/groups/${group.id}`} title={group.name} />
+                <ShareLink path={`/groups/${group.slug}`} title={group.name} />
                 {canManage && (
                     <Link
-                        href={`/groups/${group.id}/edit`}
+                        href={`/groups/${group.slug}/edit`}
                         className="rounded-md border border-border-base px-3 py-1.5 text-sm hover:bg-fg/5"
                     >
                         Edit

@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
 
 type GroupRow = {
     id: string;
+    slug: string;
     name: string;
     avatar_url: string | null;
     home_city: string | null;
@@ -53,7 +54,7 @@ export default async function HomePage(
             .catch(() => []),
         supabase
             .from('groups')
-            .select('id, name, avatar_url, home_city, region')
+            .select('id, slug, name, avatar_url, home_city, region')
             .order('name', { ascending: true })
             .limit(6)
             .then((res) => (res.data as GroupRow[] | null) ?? []),
@@ -215,7 +216,7 @@ export default async function HomePage(
                         {groupRows.map((g) => (
                             <li key={g.id}>
                                 <Link
-                                    href={`/groups/${g.id}` as Route}
+                                    href={`/groups/${g.slug}` as Route}
                                     className="flex items-start gap-3 rounded-lg border border-border-base bg-surface p-3 hover:border-primary/40"
                                 >
                                     {g.avatar_url ? (

@@ -8,6 +8,7 @@ export const metadata = { title: 'Following — PickupVB' };
 
 type FriendProfile = {
     id: string;
+    handle: string;
     display_name: string;
     first_name: string | null;
     last_name: string | null;
@@ -25,7 +26,7 @@ export default async function FriendsPage() {
     const { data: outRows } = await supabase
         .from('friendships')
         .select(
-            'friend_id, profiles:profiles!friendships_friend_id_fkey(id, display_name, first_name, last_name, avatar_url, home_city)',
+            'friend_id, profiles:profiles!friendships_friend_id_fkey(id, handle, display_name, first_name, last_name, avatar_url, home_city)',
         )
         .eq('user_id', user.id);
     type OutRow = { friend_id: string; profiles: FriendProfile | null };

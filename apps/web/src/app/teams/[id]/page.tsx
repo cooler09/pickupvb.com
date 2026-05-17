@@ -16,21 +16,21 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     const supabase = await getServerSupabase();
     const { data } = await supabase
         .from('teams')
-        .select('name, format')
-        .eq('id', params.id)
+        .select('slug, name, format')
+        .eq('slug', params.id)
         .maybeSingle();
-    const row = data as { name: string; format: string } | null;
+    const row = data as { slug: string; name: string; format: string } | null;
     if (!row) return { title: 'Team' };
     const label = FORMAT_LABEL[row.format as keyof typeof FORMAT_LABEL] ?? row.format;
     const description = `${row.name} — ${label} volleyball team on PickupVB.`;
     return {
         title: row.name,
         description,
-        alternates: { canonical: `/teams/${params.id}` },
+        alternates: { canonical: `/teams/${row.slug}` },
         openGraph: {
             title: `${row.name} · PickupVB`,
             description,
-            url: `/teams/${params.id}`,
+            url: `/teams/${row.slug}`,
             type: 'website',
         },
     };
@@ -38,6 +38,7 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
 
 type TeamRow = {
     id: string;
+    slug: string;
     name: string;
     format: string;
     captain_id: string;
@@ -69,7 +70,7 @@ export default async function TeamDetailPage(
     const { data: teamData } = await supabase
         .from('teams')
         .select('id, name, format, captain_id, extra_member_count')
-        .eq('id', params.id)
+        .eq('slug', params.id)
         .maybeSingle();
     const team = teamData as TeamRow | null;
     if (!team) notFound();
@@ -109,7 +110,7 @@ export default async function TeamDetailPage(
     const viewerMember = members.find((m) => m.userId === user.id);
     const viewerHasPendingInvite = viewerMember?.status === 'pending';
 
-    const returnPath = `/teams/${team.id}`;
+    const returnPath = `/teams/${team.slug}`;
 
     return (
         <div className="mx-auto max-w-2xl space-y-6 py-4">
@@ -119,7 +120,7 @@ export default async function TeamDetailPage(
                 </Link>
                 <div className="flex items-start justify-between gap-3">
                     <h1 className="text-2xl font-bold">{team.name}</h1>
-                    <ShareLink path={`/teams/${team.id}`} title={team.name} />
+                    <ShareLink path={`/teams/${team.slug}`} title={team.name} />
                 </div>
                 <p className="text-sm text-muted">
                     {FORMAT_LABEL[team.format] ?? team.format} · {activeCount} player
