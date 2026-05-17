@@ -1,0 +1,35 @@
+# Auto-detect text files and normalize to LF in the repo.
+* text=auto eol=lf
+
+# Explicit text files.
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.sql       text eol=lf
+*.sh        text eol=lf
+*.css       text eol=lf
+*.html      text eol=lf
+
+# Lockfile — text, but don't diff in PRs.
+pnpm-lock.yaml text eol=lf -diff linguist-generated=true
+
+# Generated DB types.
+packages/supabase/src/database.types.ts linguist-generated=true
+
+# Binary assets.
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.webp      binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.pdf       binary
