@@ -2,21 +2,35 @@ name: Supabase Migrations
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'supabase/migrations/**'
       - 'supabase/config.toml'
       - '.github/workflows/supabase-migrations.yml'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Which environment to push migrations to'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - development
 
 concurrency:
-  group: supabase-migrations
+  # Serialize per-branch so prod and dev pushes don't queue behind each other.
+  group: supabase-migrations-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Selects per-environment secrets (SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD)
+    # from the matching GitHub Environment. Create `production` and `development`
+    # environments under repo Settings → Environments before pushing to `develop`.
+    environment: ${{ (github.ref_name == 'develop' || github.event.inputs.environment == 'development') && 'development' || 'production' }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
