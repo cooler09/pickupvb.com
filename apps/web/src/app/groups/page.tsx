@@ -4,7 +4,20 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { Pagination } from '@/components/pagination';
 
-export const metadata = { title: 'Groups — PickupVB' };
+export const metadata = {
+    title: 'Groups',
+    description:
+        'Discover volleyball groups and clubs on PickupVB. Find a regular crew, join a club, or start your own group.',
+    alternates: { canonical: '/groups' },
+    openGraph: {
+        title: 'Volleyball groups · PickupVB',
+        description:
+            'Discover volleyball groups and clubs on PickupVB. Find a regular crew, join a club, or start your own.',
+        url: '/groups',
+        type: 'website',
+        siteName: 'PickupVB',
+    },
+};
 
 const PAGE_SIZE = 24;
 

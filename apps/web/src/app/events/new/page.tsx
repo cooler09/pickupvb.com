@@ -3,6 +3,10 @@ import { getServerSupabase } from '@/lib/supabase';
 import NewEventForm from './new-event-form';
 
 export const dynamic = 'force-dynamic';
+export const metadata = {
+    title: 'Create event — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 export default async function NewEventPage() {
     const supabase = await getServerSupabase();

@@ -4,7 +4,10 @@ import { FriendsList } from '@/components/friends-list';
 import { AddFriendForm } from './_components/add-friend-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Following — PickupVB' };
+export const metadata = {
+    title: 'Following — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 type FriendProfile = {
     id: string;

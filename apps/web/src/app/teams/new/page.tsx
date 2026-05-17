@@ -4,7 +4,10 @@ import { isAnonymousUser } from '@/lib/server-auth';
 import NewTeamForm from './new-team-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'New team — PickupVB' };
+export const metadata = {
+    title: 'New team — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 export default async function NewTeamPage() {
     const supabase = await getServerSupabase();

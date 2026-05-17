@@ -59,7 +59,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             priority: 0.5,
         }));
 
-        dynamicRoutes = [...eventEntries, ...groupEntries];
+        const { data: teamRows } = await supabase
+            .from('teams')
+            .select('slug, updated_at');
+        type TeamRow = { slug: string; updated_at: string | null };
+        const teams = (teamRows as TeamRow[] | null) ?? [];
+        const teamEntries: MetadataRoute.Sitemap = teams.map((t) => ({
+            url: `${BASE}/teams/${t.slug}`,
+            lastModified: t.updated_at ? new Date(t.updated_at) : now,
+            changeFrequency: 'weekly',
+            priority: 0.5,
+        }));
+
+        const { data: playerRows } = await supabase
+            .from('profiles')
+            .select('handle, updated_at');
+        type PlayerRow = { handle: string; updated_at: string | null };
+        const players = (playerRows as PlayerRow[] | null) ?? [];
+        const playerEntries: MetadataRoute.Sitemap = players.map((p) => ({
+            url: `${BASE}/players/${p.handle}`,
+            lastModified: p.updated_at ? new Date(p.updated_at) : now,
+            changeFrequency: 'weekly',
+            priority: 0.4,
+        }));
+
+        dynamicRoutes = [...eventEntries, ...groupEntries, ...teamEntries, ...playerEntries];
     } catch {
         // If Supabase is unreachable at build/crawl time, still serve the
         // static portion of the sitemap.

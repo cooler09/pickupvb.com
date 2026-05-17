@@ -8,6 +8,14 @@ export const metadata = {
     description:
         'Discover volleyball players on PickupVB. Find people in your area, see who is signed up for events, and connect with teammates.',
     alternates: { canonical: '/players' },
+    openGraph: {
+        title: 'Volleyball players · PickupVB',
+        description:
+            'Discover volleyball players on PickupVB. Find people in your area and connect with teammates.',
+        url: '/players',
+        type: 'website',
+        siteName: 'PickupVB',
+    },
 };
 
 const PAGE_SIZE = 24;

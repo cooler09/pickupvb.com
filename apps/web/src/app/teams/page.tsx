@@ -9,6 +9,14 @@ export const metadata = {
     description:
         'Browse, manage, and discover tournament volleyball teams on PickupVB. Build a roster, recruit players, and sign up for tournaments together.',
     alternates: { canonical: '/teams' },
+    openGraph: {
+        title: 'Tournament teams · PickupVB',
+        description:
+            'Browse, manage, and discover tournament volleyball teams on PickupVB.',
+        url: '/teams',
+        type: 'website',
+        siteName: 'PickupVB',
+    },
 };
 
 const PAGE_SIZE = 24;

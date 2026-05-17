@@ -5,6 +5,10 @@ import { AddMemberForm } from './_components/add-member-form';
 import { MemberRowItem, type MemberListItem } from './_components/member-row-item';
 
 export const dynamic = 'force-dynamic';
+export const metadata = {
+    title: 'Group members — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 type GroupRow = { id: string; slug: string; name: string };
 type MemberRow = {

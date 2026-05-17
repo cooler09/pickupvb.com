@@ -1,5 +1,7 @@
 # SEO audit — 2026-05-17
 
+> **Status (2026-05-17):** Quick-win bundle landed. P1 #1 (noindex on auth-walled pages), #2 (sitemap teams + players), #3 (groups listing metadata) all ✅. P2 #2 (root not-found) and #3 (listing openGraph), #4 (events/new metadata) ✅. P2 #1 (force-dynamic) cross-listed and 🟡 partially shipped in the performance audit. See **Remediation log** and **Still open** below.
+
 ## Scope
 
 Read-only SEO review of the Next.js 16 App Router app at `apps/web`. Special focus on the recent canonical domain flip from `www.pickupvb.com` to `pickupvb.com` (apex) — verifying every `metadataBase`, JSON-LD URL, sitemap entry, robots.txt host, OG image URL, and absolute link reflects apex. Covered metadata coverage, canonical tags, structured data, sitemap/robots, OG/Twitter cards, indexability flags, URL structure, internal linking, 404/error pages, and stale-www references. Skipped `copilot-skills`.
@@ -16,19 +18,19 @@ Read-only SEO review of the Next.js 16 App Router app at `apps/web`. Special foc
 
 ## P1 findings
 
-### Missing `noindex` on auth-only / private pages
+### Missing `noindex` on auth-only / private pages ✅ (2026-05-17)
 
 - **Where:** [apps/web/src/app/friends/page.tsx](apps/web/src/app/friends/page.tsx), [apps/web/src/app/claim/page.tsx](apps/web/src/app/claim/page.tsx), [apps/web/src/app/teams/new/page.tsx](apps/web/src/app/teams/new/page.tsx), [apps/web/src/app/groups/[id]/members/page.tsx](apps/web/src/app/groups/[id]/members/page.tsx), [apps/web/src/app/events/new/page.tsx](apps/web/src/app/events/new/page.tsx).
 - **Issue:** These pages redirect unauthenticated visitors but their `metadata` exports omit `robots`. Bots may receive the pre-redirect HTML (or simply index the URL by reference) before the redirect kicks in, polluting the index with login-walled URLs. Only [apps/web/src/app/profile/page.tsx](apps/web/src/app/profile/page.tsx) sets `noindex` correctly.
 - **Fix:** Add `robots: { index: false, follow: false }` to each `metadata` export. `events/new` needs a full metadata export added.
 
-### Sitemap omits `/teams/[id]` and `/players/[id]`
+### Sitemap omits `/teams/[id]` and `/players/[id]` ✅ (2026-05-17)
 
 - **Where:** [apps/web/src/app/sitemap.ts](apps/web/src/app/sitemap.ts) (~L30–L60).
 - **Issue:** Only events and groups dynamic routes are emitted. Public team and player pages exist and are crawlable, but discovery relies entirely on internal linking.
 - **Fix:** Query the team + profile tables (public/non-private only) and append entries following the existing events/groups pattern with `lastmod` from `updated_at`.
 
-### `groups` listing page metadata is bare
+### `groups` listing page metadata is bare ✅ (2026-05-17)
 
 - **Where:** [apps/web/src/app/groups/page.tsx](apps/web/src/app/groups/page.tsx) (~L8).
 - **Issue:** Only `{ title: 'Groups — PickupVB' }`. No description, no `openGraph`, no canonical. SERP snippet falls back to body text; social shares get no preview card.
@@ -38,25 +40,25 @@ Read-only SEO review of the Next.js 16 App Router app at `apps/web`. Special foc
 
 ## P2 findings
 
-### `force-dynamic` on public listings hurts CWV / LCP, which Google ranks
+### `force-dynamic` on public listings hurts CWV / LCP, which Google ranks 🟡 Partial (cross-listed; see performance audit)
 
 - **Where:** [apps/web/src/app/page.tsx](apps/web/src/app/page.tsx), [apps/web/src/app/events/page.tsx](apps/web/src/app/events/page.tsx), [apps/web/src/app/players/page.tsx](apps/web/src/app/players/page.tsx), [apps/web/src/app/teams/page.tsx](apps/web/src/app/teams/page.tsx), [apps/web/src/app/groups/page.tsx](apps/web/src/app/groups/page.tsx), [apps/web/src/app/pricing/page.tsx](apps/web/src/app/pricing/page.tsx), [apps/web/src/app/events/[id]/page.tsx](apps/web/src/app/events/[id]/page.tsx).
 - **Issue:** `export const dynamic = 'force-dynamic'` defeats the edge cache → every Googlebot fetch hits origin → measurably worse LCP/TTFB → Core Web Vitals demotion. Already P1 in the [performance audit](performance.md); restated here because it has a direct ranking impact.
 - **Fix:** Drop `force-dynamic` on public pages. If personalization is required (signed-in nav), move per-user content into a small client island and let the shell ISR/SSG. ISR `revalidate: 60` is a reasonable default for listings.
 
-### No root `not-found.tsx`
+### No root `not-found.tsx` ✅ (2026-05-17)
 
 - **Where:** [apps/web/src/app/](apps/web/src/app/) — only `global-error.tsx` exists.
 - **Issue:** Unmatched routes serve Next's bare default. No internal links to crawl, no branded recovery path, and (worse) Vercel may return 200 + framework HTML in some edge cases producing soft-404s.
 - **Fix:** Add `apps/web/src/app/not-found.tsx` with a branded message and links into events, groups, players, teams. Confirm a 404 status is returned (Next does this when `notFound()` triggers).
 
-### Listing pages missing `openGraph` block
+### Listing pages missing `openGraph` block ✅ (2026-05-17)
 
 - **Where:** [apps/web/src/app/teams/page.tsx](apps/web/src/app/teams/page.tsx) (~L8), [apps/web/src/app/players/page.tsx](apps/web/src/app/players/page.tsx) (~L10), [apps/web/src/app/groups/page.tsx](apps/web/src/app/groups/page.tsx) (~L8 — already called out in P1 for description).
 - **Issue:** Title + description present (teams/players), but no `openGraph` object → social shares show no preview card. The infrastructure for per-route OG image generation already exists, so this is wiring.
 - **Fix:** Add an `openGraph: { title, description, url, type: 'website', siteName: 'PickupVB', images: [...] }` block; reuse the existing OG image route for each entity type.
 
-### `events/new` exports no metadata at all
+### `events/new` exports no metadata at all ✅ (2026-05-17)
 
 - **Where:** [apps/web/src/app/events/new/page.tsx](apps/web/src/app/events/new/page.tsx).
 - **Issue:** Falls through to the root template title; no `noindex`. Already covered in P1 for the noindex requirement; the metadata export is the same fix.
@@ -127,3 +129,26 @@ Read-only SEO review of the Next.js 16 App Router app at `apps/web`. Special foc
 - Are there any **paid-event JSON-LD `offers.priceCurrency`** edge cases we should validate (multi-currency events, free events with `price: 0`)?
 - Is there interest in **slug-based event URLs**? Note the migration cost vs. CTR upside before committing.
 - Should we add a **`<link rel="alternate" hreflang="en">`** even though the site is monolingual? Cheap signal of intentional language scope; safe to skip if no i18n plans.
+
+---
+
+## Remediation log
+
+| Date | Finding | Change | Files |
+|---|---|---|---|
+| 2026-05-17 | P1: `noindex` on auth-walled pages | Added `robots: { index: false, follow: false }` to friends, claim, teams/new, groups/[id]/members; added full metadata export (title + noindex) to events/new and groups/[id]/members. | [friends/page.tsx](../../apps/web/src/app/friends/page.tsx), [claim/page.tsx](../../apps/web/src/app/claim/page.tsx), [teams/new/page.tsx](../../apps/web/src/app/teams/new/page.tsx), [groups/[id]/members/page.tsx](../../apps/web/src/app/groups/[id]/members/page.tsx), [events/new/page.tsx](../../apps/web/src/app/events/new/page.tsx) |
+| 2026-05-17 | P1: Sitemap omits teams + players | Added `teams` (slug) and `profiles` (handle) queries mirroring the groups pattern; both included in `dynamicRoutes`. | [sitemap.ts](../../apps/web/src/app/sitemap.ts) |
+| 2026-05-17 | P1: Groups listing bare metadata | Added description, `alternates.canonical: '/groups'`, and full `openGraph` block. | [groups/page.tsx](../../apps/web/src/app/groups/page.tsx) |
+| 2026-05-17 | P2: Listing pages missing `openGraph` | Added `openGraph` to teams + players listings (groups covered above). | [teams/page.tsx](../../apps/web/src/app/teams/page.tsx), [players/page.tsx](../../apps/web/src/app/players/page.tsx) |
+| 2026-05-17 | P2: No root `not-found.tsx` | Added branded 404 page with `noindex` + recovery links to events/groups/players/teams/home. | [app/not-found.tsx](../../apps/web/src/app/not-found.tsx) |
+| 2026-05-17 | P2: `force-dynamic` on public listings (cross-listed) | Already addressed in the [performance audit](performance.md) — 🟡 Partial: flag dropped from 7 listed pages; the per-viewer Suspense refactor for the full CDN win is deferred. | n/a |
+
+Verification: `pnpm typecheck && pnpm lint && pnpm build` — all green.
+
+## Still open
+
+- **P2 partial:** `force-dynamic` per-viewer Suspense refactor (deferred in performance audit) — the real CDN win.
+- **P3:** Add `BreadcrumbList` JSON-LD on detail pages (events, groups, players, teams).
+- **P3:** Slug-based event URLs (non-trivial migration; discussion-level).
+- **P3:** `SportsTeam` / `SportsOrganization` JSON-LD on teams + groups pages.
+- **Open questions** above — `www` → apex redirect status code verification, deindex for previously-indexed draft/cancelled events, multi-currency offer JSON-LD edge cases, optional `hreflang` tag.

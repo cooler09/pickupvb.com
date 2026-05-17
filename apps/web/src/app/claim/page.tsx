@@ -4,7 +4,10 @@ import { getServerSupabase } from '@/lib/supabase';
 import ClaimForm from './claim-form';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Claim your account — PickupVB' };
+export const metadata = {
+    title: 'Claim your account — PickupVB',
+    robots: { index: false, follow: false },
+};
 
 export default async function ClaimPage() {
     const supabase = await getServerSupabase();
