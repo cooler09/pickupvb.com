@@ -7,6 +7,7 @@ import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { EventCard } from './events/_components/event-card';
+import { Icon } from '@/components/icon';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,11 +101,26 @@ export default async function HomePage(
                 </div>
                 <div className="rounded-2xl bg-gradient-to-br from-primary/15 to-highlight/30 p-8">
                     <ul className="space-y-3 text-fg">
-                        <li>🏐 6s, quads, triples, doubles</li>
-                        <li>🏖️ Sand, grass, and indoor</li>
-                        <li>🧑‍🤝‍🧑 Men&apos;s, women&apos;s, coed</li>
-                        <li>⚡ Real-time spot updates</li>
-                        <li>🏆 Tournament tools for hosts</li>
+                        <li className="flex items-center gap-3">
+                            <Icon name="volleyball" className="shrink-0 text-primary" />
+                            6s, quads, triples, doubles
+                        </li>
+                        <li className="flex items-center gap-3">
+                            <Icon name="beach" className="shrink-0 text-primary" />
+                            Sand, grass, and indoor
+                        </li>
+                        <li className="flex items-center gap-3">
+                            <Icon name="users" className="shrink-0 text-primary" />
+                            Men&apos;s, women&apos;s, coed
+                        </li>
+                        <li className="flex items-center gap-3">
+                            <Icon name="lightning" className="shrink-0 text-primary" />
+                            Real-time spot updates
+                        </li>
+                        <li className="flex items-center gap-3">
+                            <Icon name="trophy" className="shrink-0 text-primary" />
+                            Tournament tools for hosts
+                        </li>
                     </ul>
                 </div>
             </section>
@@ -153,21 +169,21 @@ export default async function HomePage(
                 <h2 className="text-2xl font-bold">What you can do here</h2>
                 <div className="grid gap-3 md:grid-cols-3">
                     <ValueCard
-                        icon="🏐"
+                        icon="volleyball"
                         title="Play"
                         body="Search pickup, open play, leagues, and tournaments. Filter by surface, format, and skill. RSVP in one tap."
                         cta="Find events"
                         href={'/events' as Route}
                     />
                     <ValueCard
-                        icon="🧑‍🤝‍🧑"
+                        icon="users"
                         title="Connect"
                         body="Follow players, join groups, and see what your crew is signed up for next."
                         cta="Browse groups"
                         href={'/groups' as Route}
                     />
                     <ValueCard
-                        icon="🏆"
+                        icon="trophy"
                         title="Host"
                         body="Spin up an event in minutes. Collect signups, run waitlists, take payment, and broadcast updates."
                         cta="Host an event"
@@ -245,12 +261,30 @@ export default async function HomePage(
                             players.
                         </p>
                         <ul className="grid gap-1.5 text-sm text-fg/80 sm:grid-cols-2">
-                            <li>✓ Stripe payouts &amp; refunds</li>
-                            <li>✓ Co-hosts &amp; group permissions</li>
-                            <li>✓ Waitlists &amp; capacity rules</li>
-                            <li>✓ Broadcast announcements</li>
-                            <li>✓ Tax forms &amp; annual statements</li>
-                            <li>✓ Pro tier: 2.5% platform fee</li>
+                            <li className="flex items-center gap-2">
+                                <Icon name="check" size={16} className="shrink-0 text-primary" />
+                                Stripe payouts &amp; refunds
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Icon name="check" size={16} className="shrink-0 text-primary" />
+                                Co-hosts &amp; group permissions
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Icon name="check" size={16} className="shrink-0 text-primary" />
+                                Waitlists &amp; capacity rules
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Icon name="check" size={16} className="shrink-0 text-primary" />
+                                Broadcast announcements
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Icon name="check" size={16} className="shrink-0 text-primary" />
+                                Tax forms &amp; annual statements
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <Icon name="check" size={16} className="shrink-0 text-primary" />
+                                Pro tier: 2.5% platform fee
+                            </li>
                         </ul>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -305,7 +339,7 @@ function ValueCard({
     cta,
     href,
 }: {
-    icon: string;
+    icon: 'volleyball' | 'users' | 'trophy';
     title: string;
     body: string;
     cta: string;
@@ -316,8 +350,8 @@ function ValueCard({
             href={href}
             className="group flex flex-col gap-2 rounded-lg border border-border-base bg-surface p-4 hover:border-primary/40"
         >
-            <div className="text-2xl" aria-hidden>
-                {icon}
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Icon name={icon} size={22} />
             </div>
             <h3 className="text-lg font-semibold">{title}</h3>
             <p className="text-sm text-fg/80">{body}</p>
