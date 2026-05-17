@@ -30,7 +30,12 @@ export default function DateTimePicker({
 }: Props) {
     const [open, setOpen] = useState(false);
     const [time, setTime] = useState<string>(value ? format(value, 'HH:mm') : '18:00');
+    const [mounted, setMounted] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         function onClickOutside(e: MouseEvent) {
@@ -76,10 +81,17 @@ export default function DateTimePicker({
                 aria-haspopup="dialog"
                 aria-expanded={open}
             >
-                {display || <span className="text-fg/40">{placeholder}</span>}
+                {mounted ? (
+                    display || <span className="text-fg/40">{placeholder}</span>
+                ) : (
+                    // Render a stable placeholder on the server to avoid
+                    // hydration mismatches — the formatted date uses the
+                    // local TZ which differs between server and client.
+                    <span className="text-fg/40">{placeholder}</span>
+                )}
             </button>
             <input type="hidden" name={name} value={value ? value.toISOString() : ''} />
-            {timeZone && (
+            {mounted && timeZone && (
                 <p className="mt-1 text-xs text-muted">
                     Your timezone:{' '}
                     <span className="font-medium text-fg/80">{timeZone}</span>
