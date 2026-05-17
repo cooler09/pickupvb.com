@@ -7,11 +7,18 @@ traces. Latency estimates are educated guesses; treat them as relative,
 not absolute. Confirm with Vercel Analytics + Supabase slow-query log
 before/after each fix.
 
+**Status update (2026-05-17):** Quick-win bundle shipped — see
+[Remediation log](#remediation-log) at the bottom.
+
 ---
 
 ## P1 — biggest impact
 
 ### 1. `dynamic = 'force-dynamic'` on public pages disables CDN caching
+
+**Status:** 🟡 _Partially resolved 2026-05-17_ — `force-dynamic` removed
+from the 7 listed pages, but most still implicitly dynamic via `cookies()`.
+Full CDN caching needs the Suspense refactor described below (still open).
 
 **Files:**
 - [apps/web/src/app/events/page.tsx](../../apps/web/src/app/events/page.tsx#L25)
@@ -40,6 +47,10 @@ smaller than it looks. The big win is anonymous visitor pageviews
 
 ### 2. `dynamic = 'force-dynamic'` on private pages
 
+**Status:** ✅ _Resolved 2026-05-17_ — flag removed from `profile/page.tsx`
+and `profile/notifications/page.tsx`. No behavior change; pages remain
+dynamic via `cookies()`.
+
 **Files:** [apps/web/src/app/profile/page.tsx](../../apps/web/src/app/profile/page.tsx#L16), [apps/web/src/app/profile/notifications/page.tsx](../../apps/web/src/app/profile/notifications/page.tsx#L7)
 **Category:** Caching / revalidation
 
@@ -49,6 +60,9 @@ no behavioral change expected but it makes the codebase's caching story
 honest.
 
 ### 3. Web-push fanout is sequential
+
+**Status:** ✅ _Resolved 2026-05-17_ — worker now uses
+`Promise.allSettled(list.map(sendWebPush))`. Per-row latency O(n) → O(1).
 
 **File:** [apps/web/src/app/api/notifications/worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts#L97)
 **Category:** Web push / sequential await
@@ -87,6 +101,11 @@ for the whole detail bundle. Aim for ≤3 queries.
 
 ### 5. Missing composite index on `event_attendees(event_id, payment_status)`
 
+**Status:** ✅ _Resolved 2026-05-17_ — migration
+[20260529000000_event_attendees_payment_idx.sql](../../supabase/migrations/20260529000000_event_attendees_payment_idx.sql)
+added. Apply locally with `pnpm db:migrate`; production picks it up on
+the next deploy.
+
 **File:** scan of [supabase/migrations/](../../supabase/migrations/)
 **Category:** Missing DB index
 
@@ -102,6 +121,9 @@ CREATE INDEX event_attendees_event_payment_idx
 ```
 
 ### 6. Leaflet marker icons loaded from `unpkg.com`
+
+**Status:** ✅ _Resolved 2026-05-17_ — PNGs copied to
+`apps/web/public/leaflet/`; `event-map.tsx` now points at local paths.
 
 **File:** [apps/web/src/components/event-map.tsx](../../apps/web/src/components/event-map.tsx#L7-L13)
 **Category:** External call latency
@@ -243,6 +265,32 @@ These four together would shave the most measurable latency:
 The architectural one — **(P1 #4)** collapsing `getDetail()`'s query count
 — deserves its own PR with before/after timings from Supabase's slow-query
 log.
+
+---
+
+## Remediation log
+
+### 2026-05-17 — Quick-win bundle landed
+
+| Item | Status | Notes |
+|---|---|---|
+| P1 #1 force-dynamic on public pages | 🟡 Partial | Flag dropped from 7 listed pages. Most still dynamic via `cookies()` — the real CDN win needs the per-viewer Suspense refactor (deferred). |
+| P1 #2 force-dynamic on private pages | ✅ Done | Pure cleanup; profile pages remain dynamic. |
+| P1 #3 sequential push fanout | ✅ Done | `Promise.allSettled` over `list.map(sendWebPush)`; `gone`/`errors`/`anyOk` semantics preserved; rejected promises bucket as `threw:<reason>` errors. |
+| P2 #5 composite index | ✅ Done | New migration `20260529000000_event_attendees_payment_idx.sql`. |
+| P2 #6 Leaflet markers | ✅ Done | PNGs under `apps/web/public/leaflet/`; `event-map.tsx` updated. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
+
+**Still open** (not in quick-win scope):
+
+- **P1 #1 architectural** — actually cache public pages by extracting
+  per-viewer state into a Suspense boundary / client component, then
+  setting `revalidate = 60`. Until then the listing pages are dynamic
+  per request because `getCurrentUser()` reads cookies.
+- **P1 #4** — collapse `getDetail()`'s ~14 roundtrips. Wants a dedicated
+  PR with before/after slow-query timings.
+- All **P2 #7–10** and **P3** items.
 
 ---
 

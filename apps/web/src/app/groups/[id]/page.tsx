@@ -7,8 +7,6 @@ import { Pagination } from '@/components/pagination';
 import { GroupHeader } from './_components/group-header';
 import { MembersSection, type GroupMember } from './_components/members-section';
 
-export const dynamic = 'force-dynamic';
-
 const PAST_EVENTS_PER_PAGE = 10;
 
 type GroupRow = {

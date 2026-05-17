@@ -5,7 +5,6 @@ import { getServerSupabase } from '@/lib/supabase';
 import { updateNotificationPreferences } from './actions';
 import { PushSubscribeButton } from '@/components/push-subscribe-button';
 
-export const dynamic = 'force-dynamic';
 export const metadata = {
     title: 'Notifications — PickupVB',
     robots: { index: false, follow: false },

@@ -4,7 +4,6 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { Pagination } from '@/components/pagination';
 
-export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Groups — PickupVB' };
 
 const PAGE_SIZE = 24;

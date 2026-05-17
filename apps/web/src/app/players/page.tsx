@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { Pagination } from '@/components/pagination';
 
-export const dynamic = 'force-dynamic';
 export const metadata = {
     title: 'Players',
     description:

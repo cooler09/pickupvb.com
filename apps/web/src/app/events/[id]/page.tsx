@@ -23,8 +23,6 @@ import EventMap from './_components/event-map-lazy';
 import { TipJar } from './_components/tip-jar';
 import { HostBroadcastPanel } from './_components/host-broadcast-panel';
 
-export const dynamic = 'force-dynamic';
-
 export async function generateMetadata(
     props: { params: Promise<{ id: string }> },
 ): Promise<Metadata> {

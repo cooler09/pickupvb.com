@@ -15,8 +15,6 @@ import { Pagination } from '@/components/pagination';
 import { ProBadge } from '@/components/pro-badge';
 import { isPro } from '@/lib/pro';
 
-export const dynamic = 'force-dynamic';
-
 const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {

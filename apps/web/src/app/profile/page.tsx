@@ -15,7 +15,6 @@ import { HandleEditor } from './_components/handle-editor';
 import { ProBadge } from '@/components/pro-badge';
 import { isPro } from '@/lib/pro';
 
-export const dynamic = 'force-dynamic';
 export const metadata = {
     title: 'Your profile — PickupVB',
     robots: { index: false, follow: false },

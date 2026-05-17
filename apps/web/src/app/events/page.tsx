@@ -25,8 +25,6 @@ import {
     type Timeframe,
 } from './_components/event-timeframe-tabs';
 
-export const dynamic = 'force-dynamic';
-
 export const metadata: Metadata = {
     title: 'Volleyball events',
     description:

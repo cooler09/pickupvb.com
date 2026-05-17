@@ -102,11 +102,22 @@ async function processRow(
         return;
     }
 
+    // Fan out in parallel — per-device latency adds up fast when a user has
+    // several subscriptions. allSettled so one failure doesn't drop the rest.
+    const results = await Promise.allSettled(
+        list.map((sub) => sendWebPush(sub, payload)),
+    );
     let anyOk = false;
     const gone: string[] = [];
     const errors: string[] = [];
-    for (const sub of list) {
-        const result = await sendWebPush(sub, payload);
+    for (let i = 0; i < results.length; i++) {
+        const settled = results[i]!;
+        const sub = list[i]!;
+        if (settled.status === 'rejected') {
+            errors.push(`threw:${String(settled.reason).slice(0, 80)}`);
+            continue;
+        }
+        const result = settled.value;
         if (result.ok) {
             anyOk = true;
         } else if (result.gone) {

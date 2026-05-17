@@ -4,7 +4,6 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { Pagination } from '@/components/pagination';
 
-export const dynamic = 'force-dynamic';
 export const metadata = {
     title: 'Tournament teams',
     description:
