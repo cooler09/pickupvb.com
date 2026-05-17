@@ -28,7 +28,10 @@ export function OpenInNewTabButton({ getUrl, children, className, nullMessage }:
             onClick={() => {
                 if (pending) return;
                 // Open placeholder synchronously so the browser treats it as a user gesture.
-                const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
+                // NOTE: passing `noopener` makes window.open return null in most browsers,
+                // which would silently break the new-tab navigation. Omit it here; the
+                // destinations are first-party-controlled Stripe URLs.
+                const win = window.open('about:blank', '_blank');
                 setPending(true);
                 getUrl()
                     .then((url) => {
