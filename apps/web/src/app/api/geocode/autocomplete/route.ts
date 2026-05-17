@@ -2,18 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Address autocomplete proxy.
- * Uses Photon (https://photon.komoot.io) — free, no API key, OSM-based,
- * designed for typeahead. We proxy server-side to keep our User-Agent
- * polite and to make it easy to swap providers later.
+ *
+ * Primary: Photon (https://photon.komoot.io) — free, no API key, OSM-based,
+ * designed for typeahead.
+ *
+ * Fallback: Nominatim (https://nominatim.openstreetmap.org) — same OSM data,
+ * not typeahead-optimized but reliable. We fall back whenever Photon errors
+ * (it has periodic 502s) or returns no usable suggestions.
+ *
+ * Both are proxied server-side to keep our User-Agent polite and to make it
+ * easy to swap providers later.
  */
 
 export const dynamic = 'force-dynamic';
 
 const PHOTON_URL = 'https://photon.komoot.io/api/';
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT = 'pickupvb.com/1.0 (+https://pickupvb.com)';
 
 // US + populated US territories (ISO 3166-1 alpha-2, lowercase to match Photon).
 const ALLOWED_COUNTRY_CODES = new Set(['us', 'pr', 'vi', 'gu', 'mp', 'as']);
+const NOMINATIM_COUNTRY_CODES = 'us,pr,vi,gu,mp,as';
 
 export type AutocompleteSuggestion = {
     label: string;
@@ -64,32 +73,99 @@ function toSuggestion(f: PhotonFeature): AutocompleteSuggestion | null {
     return { label, addressLine, city, region, postalCode, country, latitude: lat, longitude: lon };
 }
 
+async function fetchPhoton(q: string): Promise<AutocompleteSuggestion[] | null> {
+    const url = `${PHOTON_URL}?q=${encodeURIComponent(q)}&limit=6&lang=en`;
+    try {
+        const res = await fetch(url, {
+            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+            next: { revalidate: 3600 },
+        });
+        if (!res.ok) return null;
+        const data = (await res.json()) as { features?: PhotonFeature[] };
+        return (data.features ?? [])
+            .filter((f) => {
+                const cc = f.properties.countrycode?.toLowerCase();
+                return cc !== undefined && ALLOWED_COUNTRY_CODES.has(cc);
+            })
+            .map(toSuggestion)
+            .filter((s): s is AutocompleteSuggestion => s !== null);
+    } catch {
+        return null;
+    }
+}
+
+type NominatimResult = {
+    lat: string;
+    lon: string;
+    display_name: string;
+    address?: {
+        house_number?: string;
+        road?: string;
+        amenity?: string;
+        building?: string;
+        city?: string;
+        town?: string;
+        village?: string;
+        hamlet?: string;
+        state?: string;
+        postcode?: string;
+        country?: string;
+    };
+};
+
+function fromNominatim(r: NominatimResult): AutocompleteSuggestion | null {
+    const lat = Number(r.lat);
+    const lon = Number(r.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    const a = r.address ?? {};
+    const street = [a.house_number, a.road].filter(Boolean).join(' ').trim();
+    const addressLine = street || a.amenity || a.building || '';
+    const city = a.city ?? a.town ?? a.village ?? a.hamlet ?? '';
+    const region = a.state ?? '';
+    const postalCode = a.postcode ?? '';
+    const country = a.country ?? '';
+    if (!addressLine && !city) return null;
+    return {
+        label: r.display_name,
+        addressLine,
+        city,
+        region,
+        postalCode,
+        country,
+        latitude: lat,
+        longitude: lon,
+    };
+}
+
+async function fetchNominatim(q: string): Promise<AutocompleteSuggestion[]> {
+    const url =
+        `${NOMINATIM_URL}?format=jsonv2&addressdetails=1&limit=6` +
+        `&countrycodes=${NOMINATIM_COUNTRY_CODES}&q=${encodeURIComponent(q)}`;
+    try {
+        const res = await fetch(url, {
+            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+            next: { revalidate: 3600 },
+        });
+        if (!res.ok) return [];
+        const data = (await res.json()) as NominatimResult[];
+        return data
+            .map(fromNominatim)
+            .filter((s): s is AutocompleteSuggestion => s !== null);
+    } catch {
+        return [];
+    }
+}
+
 export async function GET(request: NextRequest) {
     const q = request.nextUrl.searchParams.get('q')?.trim() ?? '';
     if (q.length < 3) return NextResponse.json({ suggestions: [] });
 
-    const url = `${PHOTON_URL}?q=${encodeURIComponent(q)}&limit=6&lang=en`;
-
-    let res: Response;
-    try {
-        res = await fetch(url, {
-            headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-            next: { revalidate: 3600 },
-        });
-    } catch {
-        return NextResponse.json({ suggestions: [] }, { status: 200 });
+    const fromPhoton = await fetchPhoton(q);
+    if (fromPhoton && fromPhoton.length > 0) {
+        return NextResponse.json({ suggestions: fromPhoton });
     }
-
-    if (!res.ok) return NextResponse.json({ suggestions: [] }, { status: 200 });
-
-    const data = (await res.json()) as { features?: PhotonFeature[] };
-    const suggestions = (data.features ?? [])
-        .filter((f) => {
-            const cc = f.properties.countrycode?.toLowerCase();
-            return cc !== undefined && ALLOWED_COUNTRY_CODES.has(cc);
-        })
-        .map(toSuggestion)
-        .filter((s): s is AutocompleteSuggestion => s !== null);
-
-    return NextResponse.json({ suggestions });
+    // Photon errored or returned nothing useful — fall back to Nominatim.
+    const fromNominatimResults = await fetchNominatim(q);
+    return NextResponse.json({ suggestions: fromNominatimResults });
 }
+
