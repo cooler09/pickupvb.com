@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { fieldOrNull } from '@/lib/form-data';
+import { fieldOrNull, bool } from '@/lib/form-data';
 import { isPosition, type Position } from '@/lib/enum-labels';
 import { requireSession } from '@/lib/server-auth';
 
@@ -26,8 +26,8 @@ export async function updateProfile(
     const lastName = fieldOrNull(formData, 'last_name', 60);
     const homeCity = fieldOrNull(formData, 'home_city', 120);
     const displayNameInput = fieldOrNull(formData, 'display_name', 80);
-    const autoAcceptTeamInvites = formData.get('auto_accept_team_invites') != null;
-    const showProBadge = formData.get('show_pro_badge') != null;
+    const autoAcceptTeamInvites = bool(formData, 'auto_accept_team_invites');
+    const showProBadge = bool(formData, 'show_pro_badge');
     const primaryPosition = readPosition(formData, 'primary_position');
     const secondaryPosition = readPosition(formData, 'secondary_position');
     const tertiaryPosition = readPosition(formData, 'tertiary_position');

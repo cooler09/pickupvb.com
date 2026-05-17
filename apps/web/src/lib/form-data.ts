@@ -35,6 +35,17 @@ export function fieldOrUndefined(formData: FormData, name: string): string | und
 }
 
 /**
+ * Read a boolean checkbox field. Returns `true` if the input was submitted
+ * with any non-empty value (browsers send `'on'` by default), `false`
+ * otherwise. Uses the same slot-prefix lookup as `field()` so it works with
+ * `useFormState`, `.bind()`, and plain `<form action={fn}>`.
+ */
+export function bool(formData: FormData, name: string): boolean {
+    const v = rawValue(formData, name);
+    return v !== null && v.length > 0;
+}
+
+/**
  * Read a trimmed field, returning `null` for empty/missing values. Optionally
  * truncates to `maxLen` characters.
  */

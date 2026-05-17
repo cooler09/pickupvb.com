@@ -123,13 +123,15 @@ actions with thin adapters bound at the call site:
 ```ts
 // in members-actions.ts
 'use server';
+import { field } from '@/lib/form-data';
+
 export async function addMemberFromForm(
   groupId: string,
   returnPath: string,
   formData: FormData,
 ): Promise<void> {
-  const userId = String(formData.get('user_id') ?? '').trim();
-  const role = String(formData.get('role') ?? 'member') as 'owner' | 'admin' | 'member';
+  const userId = field(formData, 'user_id');
+  const role = (field(formData, 'role') || 'member') as 'owner' | 'admin' | 'member';
   if (!userId) return;
   await addGroupMember(groupId, userId, role, returnPath);
 }
@@ -139,6 +141,33 @@ export async function addMemberFromForm(
 ```
 
 Always pass `returnPath` so the action can `revalidatePath()` the right URL.
+
+**Always use the helpers in [apps/web/src/lib/form-data.ts](apps/web/src/lib/form-data.ts)**
+— `field()`, `fieldOrNull()`, `fieldOrUndefined()`, `bool()` — instead of
+raw `formData.get(...)`. They handle the `useFormState` slot-prefix quirk
+(fields arrive as `1_email` rather than `email`) so the same action works
+whether the form is wired with `useFormState`, `.bind()`, or a plain
+`<form action={fn}>`.
+
+### Server-action error handling
+
+Two patterns coexist intentionally — pick by call site:
+
+- **Plain `<form action={...}>` (no client state)** → use **flash-param
+  redirects**. The action `redirect(\`${returnPath}?rsvp=error\`)` on failure
+  and the page reads the param to render an alert. See
+  [apps/web/src/app/events/[id]/rsvp-actions.ts](apps/web/src/app/events/[id]/rsvp-actions.ts).
+  Catch typed `DomainError` subclasses and map them to specific reason
+  codes; rethrow anything unknown.
+- **Client-component-invoked actions** (called from `'use client'` with
+  `useTransition`, optimistic UI, or `useFormState`) → return a typed
+  `Result<T, DomainErrorCode>` so the client can branch without parsing
+  redirect URLs. Don't `throw` — the React boundary will turn it into an
+  unhandled error.
+
+Either way, **don't add ad-hoc status mapping in route handlers** — throw
+the typed `DomainError` and let
+[apps/web/src/lib/api-helpers.ts](apps/web/src/lib/api-helpers.ts) map it.
 
 ## Supabase
 

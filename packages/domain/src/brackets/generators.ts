@@ -1,5 +1,6 @@
 import type { TeamId } from '../events/volleyball-event.js';
 import type { Match, MatchId, Seed } from './match.js';
+import { InvariantViolation, ValidationError } from '../shared/result.js';
 
 /**
  * Pure generator helpers for bracket layouts.
@@ -18,7 +19,10 @@ type IdFactory = () => MatchId;
 /** Seeds in the canonical bracket-position order for a P-slot single-elim bracket. */
 function bracketSlots(p: number): number[] {
     if (p < 2 || (p & (p - 1)) !== 0) {
-        throw new Error(`bracketSlots requires power-of-two p, got ${p}`);
+        throw new InvariantViolation(
+            `bracketSlots requires power-of-two p, got ${p}`,
+            { p },
+        );
     }
     if (p === 2) return [1, 2];
     const half = bracketSlots(p / 2);
@@ -43,7 +47,10 @@ export function generateSingleElimination(
     mkId: IdFactory,
 ): Match[] {
     if (seeds.length < 2) {
-        throw new Error('Single elimination requires at least 2 teams.');
+        throw new ValidationError(
+            'Single elimination requires at least 2 teams.',
+            { teamCount: seeds.length },
+        );
     }
     const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
     const N = sorted.length;
@@ -91,7 +98,7 @@ export function generateSingleElimination(
 
     // Round 1 team placement + bye auto-advance.
     const round1 = matchesByRound[totalRounds - 1];
-    if (!round1) throw new Error('round-1 should exist');
+    if (!round1) throw new InvariantViolation('round-1 should exist');
     for (let i = 0; i < round1.length; i++) {
         const slotA = slots[i * 2];
         const slotB = slots[i * 2 + 1];
@@ -149,7 +156,10 @@ export function generateRoundRobin(
     mkId: IdFactory,
 ): Match[] {
     if (seeds.length < 2) {
-        throw new Error('Round robin requires at least 2 teams.');
+        throw new ValidationError(
+            'Round robin requires at least 2 teams.',
+            { teamCount: seeds.length },
+        );
     }
     const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
     const teams: (TeamId | null)[] = sorted.map((s) => s.teamId);
@@ -200,8 +210,9 @@ export function generateRoundRobin(
 
 /** Stub for formats not yet implemented. */
 export function generateNotImplemented(format: string): never {
-    throw new Error(
+    throw new ValidationError(
         `Bracket format "${format}" is not implemented yet.`,
+        { format },
     );
 }
 
@@ -257,12 +268,16 @@ export function generateDoubleElimination(
 ): Match[] {
     const N = seeds.length;
     if (N < 4) {
-        throw new Error('Double elimination requires at least 4 teams.');
+        throw new ValidationError(
+            'Double elimination requires at least 4 teams.',
+            { teamCount: N },
+        );
     }
     const P = nextPow2(N);
     if (P !== N) {
-        throw new Error(
+        throw new ValidationError(
             'Double elimination v1 requires a power-of-two team count (4, 8, 16, 32).',
+            { teamCount: N },
         );
     }
     const W = Math.log2(P);
@@ -401,10 +416,11 @@ export function distributeIntoPools(
     seeds: ReadonlyArray<Seed>,
     poolCount: number,
 ): Seed[][] {
-    if (poolCount < 1) throw new Error('Pool count must be >= 1.');
+    if (poolCount < 1) throw new ValidationError('Pool count must be >= 1.', { poolCount });
     if (seeds.length < poolCount * 2) {
-        throw new Error(
+        throw new ValidationError(
             `Need at least ${poolCount * 2} teams to fill ${poolCount} pools.`,
+            { poolCount, teamCount: seeds.length },
         );
     }
     const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
@@ -459,15 +475,16 @@ export function generatePlayoffFromStandings(
     mkId: IdFactory,
     roundOffset: number,
 ): Match[] {
-    if (advancingPerPool < 1) throw new Error('Must advance at least 1 per pool.');
+    if (advancingPerPool < 1) throw new ValidationError('Must advance at least 1 per pool.', { advancingPerPool });
     const advancing: TeamId[] = [];
     for (let pos = 0; pos < advancingPerPool; pos++) {
         for (const standings of poolStandings) {
             const t = standings[pos];
             if (!t) {
-                throw new Error(
+                throw new ValidationError(
                     `Pool standings missing position ${pos + 1}; ` +
                     `each pool must have at least ${advancingPerPool} teams.`,
+                    { advancingPerPool, missingPosition: pos + 1 },
                 );
             }
             advancing.push(t);

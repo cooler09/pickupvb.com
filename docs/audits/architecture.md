@@ -1,5 +1,7 @@
 # Architecture audit — 2026-05-17
 
+> **Status (2026-05-17):** Quick-win bundle landed — typed-error reclassification in bracket generators (P1), `field()`/`bool()` helper sweep (P2), and server-action error-handling pattern documented in `AGENTS.md` (P2). Mapper extraction (P2) and Vitest bootstrap (P1) deferred — see the Remediation log at the bottom for rationale and the still-open list.
+
 ## Scope
 
 Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects/github/pickupvb.com`. Covered CQRS adherence, layer purity, port/adapter pattern, composition root, domain error hygiene, SOLID, DRY, AGENTS.md convention adherence, client/server boundary, module boundaries, aggregate design, testing architecture, server-action design, and folder/route conventions. Skipped the `copilot-skills` workspace folder.
@@ -8,7 +10,7 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 
 ## P1 findings
 
-### Non-typed error throws in bracket generators
+### Non-typed error throws in bracket generators ✅ Fixed 2026-05-17
 
 - **Where:** [packages/domain/src/brackets/generators.ts](packages/domain/src/brackets/generators.ts) — lines 21, 46, 94, 152, 203, 260, 264, 404, 406, 462, 468 (11 occurrences).
 - **Issue:** `throw new Error('...')` for domain precondition failures (`'bracketSlots requires power-of-two p'`, `'Single elimination requires at least 2 teams'`, `'Double elimination requires at least 4 teams'`, etc.). Violates the typed-error contract — these cannot be caught with `instanceof DomainError`, so the HTTP boundary in `api-helpers.ts` will return 500 instead of a meaningful 400/422.
@@ -42,13 +44,13 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 - **Issue:** ~156 LOC, 6 unrelated actions (create/update/follow/unfollow/addMember/removeMember). Sibling routes (`events/[id]`) split actions by concern (`co-host-actions.ts`, `rsvp-actions.ts`, `members-actions.ts`). Inconsistent and harder to grep.
 - **Fix:** Split into `groups/create-actions.ts`, `groups/follow-actions.ts`. Move membership actions into `groups/[id]/members-actions.ts` (next to the page that uses them).
 
-### FormData parsing inconsistency
+### FormData parsing inconsistency ✅ Fixed 2026-05-17
 
 - **Where:** [apps/web/src/app/profile/notifications/actions.ts](apps/web/src/app/profile/notifications/actions.ts) (~L20) uses raw `formData.get('email_enabled') === 'on'`; [apps/web/src/app/groups/actions.ts](apps/web/src/app/groups/actions.ts) and others use the `field()` helper from `lib/form-data.ts`.
 - **Issue:** Raw `formData.get()` doesn't account for React 18 slot-prefixing and silently breaks under `useFormState`. Two patterns coexisting invites copy-paste of the wrong one.
 - **Fix:** Standardize on `field()`. Optionally add a small `bool()` helper for checkbox parsing.
 
-### Server-action error-handling pattern is inconsistent
+### Server-action error-handling pattern is inconsistent 🟡 Partial 2026-05-17
 
 - **Where:** [apps/web/src/app/events/[id]/rsvp-actions.ts](apps/web/src/app/events/[id]/rsvp-actions.ts) uses `back()` to redirect with `?rsvp=error` flash params; [apps/web/src/app/events/[id]/co-host-actions.ts](apps/web/src/app/events/[id]/co-host-actions.ts) lets errors propagate.
 - **Issue:** No documented strategy. Some actions return `Result`, some redirect with flash, some throw. Users see inconsistent UX on failure (toast vs. URL param vs. error boundary).
@@ -118,3 +120,23 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 - Is the **lack of tests** a deliberate "ship fast" choice, or an oversight? Affects whether quick-win #5 belongs at the top of the list or is deferred.
 - Should the **event detail read model** be enriched with derived fields (`filledByPosition`, payment-status map, viewer flags), shrinking the page to a renderer? Or do you want the page to keep doing aggregation so the read model stays minimal?
 - Is **monolithic `groups/actions.ts`** intentional (the file is small enough that splitting is overkill) or accidental drift from the per-concern pattern used elsewhere?
+
+---
+
+## Remediation log
+
+| Date | Finding | Status | Notes |
+|---|---|---|---|
+| 2026-05-17 | P1: bracket-generator typed errors | ✅ Fixed | All 11 throws in [generators.ts](../../packages/domain/src/brackets/generators.ts) reclassified: user-input preconditions (team counts, power-of-two requirement) → `ValidationError`; internal "shouldn't happen" guards (`bracketSlots` p check, `round-1 should exist`) → `InvariantViolation`. Each throw includes a `details` payload (e.g. `{ teamCount, poolCount }`) for downstream logging. HTTP boundary now maps them to 400/422 instead of 500. |
+| 2026-05-17 | P2: FormData parsing inconsistency | ✅ Fixed | Added `bool()` helper to [form-data.ts](../../apps/web/src/lib/form-data.ts) (uses the same slot-prefix lookup as `field()`). Replaced `formData.get(...) === 'on'` in [profile/notifications/actions.ts](../../apps/web/src/app/profile/notifications/actions.ts) and `formData.get(...) != null` in [profile/actions.ts](../../apps/web/src/app/profile/actions.ts) with `bool()`. Other `String(formData.get(...) ?? '').trim()` call sites are functionally equivalent to `field()` and were left as-is to keep diff scope tight. |
+| 2026-05-17 | P2: server-action error-handling pattern | 🟡 Partial | New **Server-action error handling** subsection added to [AGENTS.md](../../AGENTS.md). Documents the two-pattern split: plain `<form action={...}>` → flash-param redirects; client-component-invoked → typed `Result<T, DomainErrorCode>`. Also expanded the FormData wrapper example to use `field()` and added an "always use the helpers" callout. `rsvp-actions.ts` already follows the flash-param pattern; `co-host-actions.ts` is still unaligned (still lets errors propagate) — left for a follow-up sweep so this stays a doc-only change. |
+
+### Still open
+
+- **P1: Test suite bootstrap.** Deferred from this pass. Adding Vitest + ~20 `VolleyballEvent` cases is a meaningful new dev dep / config / writing exercise — beyond a quick win. Worth its own ticket.
+- **P1: Event detail page diet.** Architectural refactor — extract `loadEventDetail(id, viewer)` helper. Deferred (the audit also flags this as overlap with the Suspense refactor in the performance audit).
+- **P2: Mapper extraction** (attendee, group-member, event-summary). Inspected during this pass — the two `group_members` consumers (`groups/[id]/page.tsx` and `groups/[id]/members/page.tsx`) want different DTO shapes (`avatarUrl` vs. `joined_at`) and select different columns, so a unified mapper requires either a maximal-shape DTO with optional fields or two mappers. Worth doing but needs a design call, not a mechanical extract.
+- **P2: Split `groups/actions.ts`** into per-concern files. Mechanical but touches every importer; deferred.
+- **P2: Position-fill math moved into the event detail read model.** Couples to the read-model refactor above.
+- **P3: JSDoc on aggregate factories, hrefs cleanup, barrel-export docs.**
+- **Follow-up:** Reclassify `co-host-actions.ts` error handling to match the new AGENTS.md pattern (redirect with flash param instead of propagating).

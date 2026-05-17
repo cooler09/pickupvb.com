@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { bool } from '@/lib/form-data';
 import { getServerSupabase } from '@/lib/supabase';
 
 type Patch = {
@@ -17,9 +18,9 @@ export async function updateNotificationPreferences(formData: FormData): Promise
     if (!user) return;
 
     const patch: Patch = {
-        email_enabled: formData.get('email_enabled') === 'on',
-        in_app_enabled: formData.get('in_app_enabled') === 'on',
-        push_enabled: formData.get('push_enabled') === 'on',
+        email_enabled: bool(formData, 'email_enabled'),
+        in_app_enabled: bool(formData, 'in_app_enabled'),
+        push_enabled: bool(formData, 'push_enabled'),
     };
 
     // Upsert — the auth trigger creates a row on signup, but older accounts
