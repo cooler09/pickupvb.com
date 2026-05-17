@@ -11,6 +11,7 @@ type Profile = {
     display_name: string;
     home_city: string | null;
     auto_accept_team_invites: boolean;
+    show_pro_badge: boolean;
     primary_position: string | null;
     secondary_position: string | null;
     tertiary_position: string | null;
@@ -61,7 +62,15 @@ function PositionSelect({
     );
 }
 
-export function ProfileForm({ profile, email }: { profile: Profile; email: string }) {
+export function ProfileForm({
+    profile,
+    email,
+    isPro,
+}: {
+    profile: Profile;
+    email: string;
+    isPro: boolean;
+}) {
     const [state, formAction] = useFormState(updateProfile, initialState);
 
     return (
@@ -167,6 +176,27 @@ export function ProfileForm({ profile, email }: { profile: Profile; email: strin
                     </span>
                 </label>
             </fieldset>
+
+            {isPro && (
+                <fieldset className="space-y-2 rounded-md border border-border-base p-3">
+                    <legend className="px-1 text-sm font-medium">Pro badge</legend>
+                    <label className="flex items-start gap-2 text-sm">
+                        <input
+                            name="show_pro_badge"
+                            type="checkbox"
+                            defaultChecked={profile.show_pro_badge}
+                            className="mt-1"
+                        />
+                        <span>
+                            <span className="font-medium">Show Pro badge on my profile</span>
+                            <span className="mt-0.5 block text-xs text-fg/60">
+                                Turn this off to hide the gold Pro pill next to your name on
+                                your public player page. You&apos;ll still get all Pro perks.
+                            </span>
+                        </span>
+                    </label>
+                </fieldset>
+            )}
 
             {state.error && <Alert variant="error">{state.error}</Alert>}
             {state.success && !state.error && (

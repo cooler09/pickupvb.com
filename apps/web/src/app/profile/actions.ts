@@ -27,6 +27,7 @@ export async function updateProfile(
     const homeCity = fieldOrNull(formData, 'home_city', 120);
     const displayNameInput = fieldOrNull(formData, 'display_name', 80);
     const autoAcceptTeamInvites = formData.get('auto_accept_team_invites') != null;
+    const showProBadge = formData.get('show_pro_badge') != null;
     const primaryPosition = readPosition(formData, 'primary_position');
     const secondaryPosition = readPosition(formData, 'secondary_position');
     const tertiaryPosition = readPosition(formData, 'tertiary_position');
@@ -48,6 +49,7 @@ export async function updateProfile(
             home_city: homeCity,
             display_name: displayName,
             auto_accept_team_invites: autoAcceptTeamInvites,
+            show_pro_badge: showProBadge,
             primary_position: primaryPosition,
             secondary_position: secondaryPosition,
             tertiary_position: tertiaryPosition,

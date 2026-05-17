@@ -12,6 +12,8 @@ import {
 import { addFriend, removeFriend } from '@/app/friends/actions';
 import { ShareLink } from '@/components/share-link';
 import { Pagination } from '@/components/pagination';
+import { ProBadge } from '@/components/pro-badge';
+import { isPro } from '@/lib/pro';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +61,7 @@ type PlayerProfile = {
     last_name: string | null;
     avatar_url: string | null;
     home_city: string | null;
+    show_pro_badge: boolean | null;
     primary_position: string | null;
     secondary_position: string | null;
     tertiary_position: string | null;
@@ -94,7 +97,7 @@ export default async function PlayerProfilePage(props: {
     const [{ data: profileRow }, { user }] = await Promise.all([
         supabase
             .from('profiles')
-            .select('id, handle, display_name, first_name, last_name, avatar_url, home_city, primary_position, secondary_position, tertiary_position')
+            .select('id, handle, display_name, first_name, last_name, avatar_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position')
             .eq('handle', params.id)
             .maybeSingle(),
         getCurrentUser(),
@@ -107,7 +110,7 @@ export default async function PlayerProfilePage(props: {
 
     // Friendship edge + hosted events (upcoming + past split at SQL) are independent.
     const now = new Date();
-    const [edgeResult, upcoming, past] = await Promise.all([
+    const [edgeResult, upcoming, past, isProHost] = await Promise.all([
         user && !isSelf
             ? supabase
                 .from('friendships')
@@ -119,6 +122,7 @@ export default async function PlayerProfilePage(props: {
         // RLS handles visibility — viewer only sees events they're allowed to.
         loadVisibleHostedEvents(profile.id, { startsAfter: now }),
         loadVisibleHostedEvents(profile.id, { startsBefore: now }),
+        profile.show_pro_badge !== false ? isPro(profile.id) : Promise.resolve(false),
     ]);
     const isFollowing = Boolean(edgeResult.data);
 
@@ -155,9 +159,12 @@ export default async function PlayerProfilePage(props: {
                         </span>
                     )}
                     <div className="min-w-0 flex-1">
-                        <h1 className="truncate text-2xl font-bold text-fg">
-                            {name}
-                        </h1>
+                        <div className="flex items-center gap-2">
+                            <h1 className="truncate text-2xl font-bold text-fg">
+                                {name}
+                            </h1>
+                            {isProHost && <ProBadge />}
+                        </div>
                         <p className="text-sm text-muted">
                             {profile.home_city ?? 'No home city set'}
                         </p>

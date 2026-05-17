@@ -12,6 +12,8 @@ import {
 } from '@/components/hosted-events-list';
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 import { HandleEditor } from './_components/handle-editor';
+import { ProBadge } from '@/components/pro-badge';
+import { isPro } from '@/lib/pro';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -26,6 +28,7 @@ type ProfileRow = {
     display_name: string;
     home_city: string | null;
     auto_accept_team_invites: boolean | null;
+    show_pro_badge: boolean | null;
     primary_position: string | null;
     secondary_position: string | null;
     tertiary_position: string | null;
@@ -47,7 +50,7 @@ export default async function ProfilePage() {
 
     const { data } = await supabase
         .from('profiles')
-        .select('handle, first_name, last_name, display_name, home_city, auto_accept_team_invites, primary_position, secondary_position, tertiary_position')
+        .select('handle, first_name, last_name, display_name, home_city, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -59,6 +62,7 @@ export default async function ProfilePage() {
         display_name: row?.display_name ?? user.email?.split('@')[0] ?? 'Player',
         home_city: row?.home_city ?? null,
         auto_accept_team_invites: row?.auto_accept_team_invites ?? false,
+        show_pro_badge: row?.show_pro_badge ?? true,
         primary_position: row?.primary_position ?? null,
         secondary_position: row?.secondary_position ?? null,
         tertiary_position: row?.tertiary_position ?? null,
@@ -91,6 +95,7 @@ export default async function ProfilePage() {
 
     const hostedEvents = await loadVisibleHostedEvents(user.id, { startsAfter: new Date() });
     const upcomingHosted = hostedEvents;
+    const viewerIsPro = await isPro(user.id);
 
     // Groups the user is a member of (with role).
     const { data: myGroupRows } = await supabase
@@ -145,6 +150,7 @@ export default async function ProfilePage() {
                         <h1 className="truncate text-2xl font-bold">
                             {profile.display_name}
                         </h1>
+                        {viewerIsPro && <ProBadge asLink />}
                         <p className="text-sm text-muted">
                             {profile.home_city ?? 'No home city set'}
                             {user.email ? ` · ${user.email}` : ''}
@@ -283,7 +289,7 @@ export default async function ProfilePage() {
                     </span>
                 </summary>
                 <div className="border-t border-border-base p-4">
-                    <ProfileForm profile={profile} email={user.email ?? ''} />
+                    <ProfileForm profile={profile} email={user.email ?? ''} isPro={viewerIsPro} />
                 </div>
             </details>
         </div>
