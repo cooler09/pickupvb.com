@@ -103,26 +103,21 @@ function buildIssueUrl(error: Error & { digest?: string }): string {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const viewport =
     typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '';
-  const body = [
-    '### What happened?',
-    '(please describe what you were doing)',
-    '',
-    '### Page',
-    url,
-    '',
-    '### Environment',
+  const envLines: string[] = [
     `- User agent: ${ua}`,
     `- Viewport: ${viewport}`,
     `- Time (UTC): ${new Date().toISOString()}`,
-    error.digest ? `- Error digest: \`${error.digest}\`` : '',
-    error.message ? `- Error message: \`${error.message}\`` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
-  return (
-    `https://github.com/${REPO}/issues/new` +
-    `?labels=${encodeURIComponent('bug,user-report,global-error')}` +
-    `&title=${encodeURIComponent('Global error: ' + (error.message || 'unknown'))}` +
-    `&body=${encodeURIComponent(body)}`
-  );
+  ];
+  if (error.digest) envLines.push(`- Error digest: \`${error.digest}\``);
+  if (error.message) envLines.push(`- Error message: \`${error.message}\``);
+
+  const params = new URLSearchParams({
+    template: 'bug-report.yml',
+    labels: 'bug,user-report,global-error',
+    title: `Bug: global error — ${error.message || 'unknown'}`,
+    'what-happened': '(please describe what you were doing when this happened)',
+    page: url,
+    environment: envLines.join('\n'),
+  });
+  return `https://github.com/${REPO}/issues/new?${params.toString()}`;
 }

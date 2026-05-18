@@ -12,7 +12,7 @@ import { useId, useRef, useState } from 'react';
  */
 
 const REPO = 'cooler09/pickupvb.com';
-const ISSUE_LABELS = 'bug,user-report';
+const ISSUE_TEMPLATE = 'bug-report.yml';
 
 export function ReportBugButton({
   variant = 'link',
@@ -50,26 +50,23 @@ export function ReportBugButton({
     const viewport = `${window.innerWidth}x${window.innerHeight}`;
     const time = new Date().toISOString();
 
-    const lines: string[] = [
-      '### What happened?',
-      description.trim() || '(no description provided)',
-      '',
-      '### Page',
-      url,
-      '',
-      '### Environment',
+    const envLines: string[] = [
       `- User agent: ${ua}`,
       `- Viewport: ${viewport}`,
       `- Time (UTC): ${time}`,
     ];
-    if (errorDigest) lines.push(`- Error digest: \`${errorDigest}\``);
-    if (errorMessage) lines.push(`- Error message: \`${errorMessage}\``);
+    if (errorDigest) envLines.push(`- Error digest: \`${errorDigest}\``);
+    if (errorMessage) envLines.push(`- Error message: \`${errorMessage}\``);
 
-    const issueUrl =
-      `https://github.com/${REPO}/issues/new` +
-      `?labels=${encodeURIComponent(ISSUE_LABELS)}` +
-      `&title=${encodeURIComponent(title.trim() || 'Bug report')}` +
-      `&body=${encodeURIComponent(lines.join('\n'))}`;
+    const params = new URLSearchParams({
+      template: ISSUE_TEMPLATE,
+      title: `Bug: ${title.trim() || 'unspecified'}`,
+      'what-happened': description.trim() || '(no description provided)',
+      page: url,
+      environment: envLines.join('\n'),
+    });
+
+    const issueUrl = `https://github.com/${REPO}/issues/new?${params.toString()}`;
 
     window.open(issueUrl, '_blank', 'noopener,noreferrer');
     close();
