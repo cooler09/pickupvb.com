@@ -34,6 +34,8 @@ export interface CreateCommunityListingProps {
   startsAt: Date;
   endsAt: Date | null;
   location: ListingLocation | null;
+  /** IANA timezone name for the venue (e.g. `America/Los_Angeles`). */
+  timeZone?: string | null;
   surface: Surface | null;
   format: Format | null;
   skillLevel: SkillLevel | null;
@@ -47,6 +49,7 @@ export interface UpdateCommunityListingProps {
   startsAt?: Date;
   endsAt?: Date | null;
   location?: ListingLocation | null;
+  timeZone?: string | null;
   surface?: Surface | null;
   format?: Format | null;
   skillLevel?: SkillLevel | null;
@@ -106,6 +109,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     private _startsAt: Date,
     private _endsAt: Date | null,
     private _location: ListingLocation | null,
+    private _timeZone: string | null,
     private _surface: Surface | null,
     private _format: Format | null,
     private _skillLevel: SkillLevel | null,
@@ -133,6 +137,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
       props.startsAt,
       props.endsAt,
       location,
+      props.timeZone ?? null,
       props.surface,
       props.format,
       props.skillLevel,
@@ -154,6 +159,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     startsAt: Date;
     endsAt: Date | null;
     location: ListingLocation | null;
+    timeZone?: string | null;
     surface: Surface | null;
     format: Format | null;
     skillLevel: SkillLevel | null;
@@ -173,6 +179,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
       props.startsAt,
       props.endsAt,
       props.location,
+      props.timeZone ?? null,
       props.surface,
       props.format,
       props.skillLevel,
@@ -205,6 +212,10 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
   }
   get location(): ListingLocation | null {
     return this._location;
+  }
+  /** IANA timezone for the venue (e.g. `America/Los_Angeles`). May be null. */
+  get timeZone(): string | null {
+    return this._timeZone;
   }
   get surface(): Surface | null {
     return this._surface;
@@ -248,6 +259,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     if (props.startsAt !== undefined) this._startsAt = props.startsAt;
     if (props.endsAt !== undefined) this._endsAt = props.endsAt;
     if (props.location !== undefined) this._location = normalizeLocation(props.location);
+    if (props.timeZone !== undefined) this._timeZone = props.timeZone ?? null;
     if (props.surface !== undefined) this._surface = props.surface;
     if (props.format !== undefined) this._format = props.format;
     if (props.skillLevel !== undefined) this._skillLevel = props.skillLevel;

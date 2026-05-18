@@ -53,6 +53,8 @@ export interface CommunityListingSummary {
   externalHostName: string | null;
   startsAt: Date;
   endsAt: Date | null;
+  /** IANA timezone for the venue. Null when location is unknown. */
+  timeZone: string | null;
   city: string | null;
   region: string | null;
   surface: Surface | null;
@@ -72,6 +74,8 @@ export interface CommunityListingDetailReadModel {
   externalHostName: string | null;
   startsAt: Date;
   endsAt: Date | null;
+  /** IANA timezone for the venue. Null when location is unknown. */
+  timeZone: string | null;
   location: {
     addressLine: string | null;
     city: string;

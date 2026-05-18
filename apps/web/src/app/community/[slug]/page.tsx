@@ -163,12 +163,12 @@ export default async function CommunityListingDetailPage(props: PageProps) {
       <div className="border-border-base bg-surface space-y-1 rounded-lg border p-4">
         <p className="text-fg text-sm font-semibold">When</p>
         <p className="text-sm">
-          <LocalDateTime iso={startsAt} variant="eventDateLong" /> at{' '}
-          <LocalDateTime iso={startsAt} variant="time" />
+          <LocalDateTime iso={startsAt} variant="eventDateLong" timeZone={detail.timeZone} /> at{' '}
+          <LocalDateTime iso={startsAt} variant="time" timeZone={detail.timeZone} />
           {endsAt && (
             <>
               {' '}
-              &ndash; <LocalDateTime iso={endsAt} variant="time" />
+              &ndash; <LocalDateTime iso={endsAt} variant="time" timeZone={detail.timeZone} />
             </>
           )}
         </p>

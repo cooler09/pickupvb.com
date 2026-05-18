@@ -9,6 +9,8 @@ export type EventCardData = {
   skillLevel: string;
   type: string;
   startsAt: Date | string;
+  /** IANA timezone for the venue. */
+  timeZone?: string | null;
   city: string;
   region: string;
   spotsRemaining: number | null;
@@ -62,7 +64,11 @@ export function EventCard({ event, friendNameById }: Props) {
         {event.title}
       </Link>
       <p className="text-muted mt-1 text-xs">
-        <LocalDateTime iso={startsAtIso} variant="eventStart" />
+        <LocalDateTime
+          iso={startsAtIso}
+          variant="eventStart"
+          {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
+        />
       </p>
       <p className="text-fg/80 mt-1 text-sm">
         {event.city}, {event.region}

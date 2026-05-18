@@ -8,6 +8,7 @@ export type HostedEventRow = {
   id: string;
   title: string;
   starts_at: string;
+  time_zone: string | null;
   city: string;
   region: string;
   type: string;
@@ -53,7 +54,7 @@ export async function loadVisibleHostedEvents(
       supabase
         .from('events_view')
         .select(
-          'id, title, starts_at, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
+          'id, title, starts_at, time_zone, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
         )
         .eq('host_id', hostId),
     ).order('starts_at', { ascending: true }),
@@ -68,7 +69,7 @@ export async function loadVisibleHostedEvents(
       supabase
         .from('events_view')
         .select(
-          'id, title, starts_at, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
+          'id, title, starts_at, time_zone, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
         )
         .in('id', coIds),
     ).order('starts_at', { ascending: true });
@@ -117,7 +118,7 @@ export function HostedEventsList({
               {e.title}
             </Link>
             <p className="text-muted mt-0.5 text-xs">
-              <LocalDateTime iso={e.starts_at} variant="eventStart" />
+              <LocalDateTime iso={e.starts_at} variant="eventStart" timeZone={e.time_zone} />
             </p>
             <p className="text-fg/80 mt-0.5 text-xs">
               {e.city}, {e.region}

@@ -22,6 +22,8 @@ const CommunityListingFields = z.object({
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date().optional().nullable(),
   location: ListingLocationSchema.optional().nullable(),
+  /** IANA timezone name resolved from venue coords. */
+  timeZone: z.string().max(60).optional().nullable(),
   surface: z.enum(enumValues(Surface)).optional().nullable(),
   format: z.enum(enumValues(Format)).optional().nullable(),
   skillLevel: z.enum(enumValues(SkillLevel)).optional().nullable(),

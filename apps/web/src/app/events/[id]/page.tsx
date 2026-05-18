@@ -36,7 +36,7 @@ export async function generateMetadata(props: {
   }
   // Don't expose non-public events to crawlers.
   const isPublic = event.visibility === 'public';
-  const dateLabel = formatEventDateLong(event.startsAt);
+  const dateLabel = formatEventDateLong(event.startsAt, event.timeZone);
   const placeLabel = `${event.location.city}, ${event.location.region}`;
   const summary = event.description
     ? event.description.slice(0, 200)
@@ -258,10 +258,11 @@ export default async function EventDetailPage(props: {
         <div className="sm:border-border-base p-4 sm:border-r">
           <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">When</h2>
           <p className="text-fg mt-1 font-medium">
-            <LocalDateTime iso={event.startsAt} variant="eventDateLong" />
+            <LocalDateTime iso={event.startsAt} variant="eventDateLong" timeZone={event.timeZone} />
           </p>
           <p className="text-muted text-sm">
-            to <LocalDateTime iso={event.endsAt} variant="eventDateLong" />
+            to{' '}
+            <LocalDateTime iso={event.endsAt} variant="eventDateLong" timeZone={event.timeZone} />
           </p>
         </div>
         <div className="border-border-base border-t p-4 sm:border-t-0 sm:border-l-0">

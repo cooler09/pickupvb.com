@@ -27,6 +27,7 @@ type ListingRow = {
   external_host_name: string | null;
   starts_at: string;
   ends_at: string | null;
+  time_zone: string | null;
   address_line: string | null;
   city: string | null;
   region: string | null;
@@ -77,6 +78,7 @@ function rowToAggregate(row: ListingRow): CommunityListing {
     startsAt: new Date(row.starts_at),
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
     location: rowToLocation(row),
+    timeZone: row.time_zone,
     surface: row.surface,
     format: row.format,
     skillLevel: row.skill_level,
@@ -138,6 +140,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       external_host_name: listing.externalHostName,
       starts_at: listing.startsAt.toISOString(),
       ends_at: listing.endsAt ? listing.endsAt.toISOString() : null,
+      time_zone: listing.timeZone,
       address_line: loc?.addressLine ?? null,
       city: loc?.city ?? null,
       region: loc?.region ?? null,
@@ -234,6 +237,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         external_host_name: string | null;
         starts_at: string;
         ends_at: string | null;
+        time_zone: string | null;
         city: string | null;
         region: string | null;
         surface: string | null;
@@ -252,6 +256,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         externalHostName: r.external_host_name,
         startsAt: new Date(r.starts_at),
         endsAt: r.ends_at ? new Date(r.ends_at) : null,
+        timeZone: r.time_zone,
         city: r.city,
         region: r.region,
         surface: r.surface as CommunityListingSummary['surface'],
@@ -264,7 +269,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
 
     let q = this.table('community_listings')
       .select(
-        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, city, region, surface, format, skill_level, status',
+        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
       )
       .in('status', statuses as unknown as string[]);
     if (query.surface) q = q.eq('surface', query.surface);
@@ -287,6 +292,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       | 'external_host_name'
       | 'starts_at'
       | 'ends_at'
+      | 'time_zone'
       | 'city'
       | 'region'
       | 'surface'
@@ -304,6 +310,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       externalHostName: r.external_host_name,
       startsAt: new Date(r.starts_at),
       endsAt: r.ends_at ? new Date(r.ends_at) : null,
+      timeZone: r.time_zone,
       city: r.city,
       region: r.region,
       surface: r.surface,
@@ -374,6 +381,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       externalHostName: row.external_host_name,
       startsAt: new Date(row.starts_at),
       endsAt: row.ends_at ? new Date(row.ends_at) : null,
+      timeZone: row.time_zone,
       location: rowToLocation(row),
       surface: row.surface,
       format: row.format,

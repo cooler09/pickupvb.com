@@ -10,6 +10,7 @@ import { handlers } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { requireRealUser } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
+import { timeZoneForCoords } from '@/lib/timezone';
 
 export type CreateCommunityListingState = {
   error?: string;
@@ -91,6 +92,7 @@ export async function createCommunityListingAction(
     startsAt: field(formData, 'startsAt'),
     endsAt: fieldOrUndefined(formData, 'endsAt') ?? null,
     location,
+    timeZone: location ? timeZoneForCoords(location.latitude, location.longitude) : null,
     surface: pickOrNull(fieldOrUndefined(formData, 'surface'), SURFACE_VALUES),
     format: pickOrNull(fieldOrUndefined(formData, 'format'), FORMAT_VALUES),
     skillLevel: pickOrNull(fieldOrUndefined(formData, 'skillLevel'), SKILL_VALUES),

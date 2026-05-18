@@ -7,6 +7,8 @@ export type CommunityListingCardData = {
   title: string;
   externalHostName: string | null;
   startsAt: Date | string;
+  /** IANA timezone for the venue. */
+  timeZone?: string | null;
   city: string | null;
   region: string | null;
   surface: string | null;
@@ -31,7 +33,11 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
         {listing.title}
       </Link>
       <p className="text-muted mt-1 text-xs">
-        <LocalDateTime iso={startsAtIso} variant="eventStart" />
+        <LocalDateTime
+          iso={startsAtIso}
+          variant="eventStart"
+          {...(listing.timeZone !== undefined ? { timeZone: listing.timeZone } : {})}
+        />
       </p>
       {place && <p className="text-fg/80 mt-1 text-sm">{place}</p>}
       <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
