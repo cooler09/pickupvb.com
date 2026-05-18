@@ -1,18 +1,25 @@
 import {
+  AgeGroup,
   Capacity,
+  Division,
   EventStatus,
   EventType,
   Format,
   Gender,
   Location,
+  PriceUnit,
+  RegistrationMode,
   SkillLevel,
+  SkillTier,
   Surface,
+  TeamComposition,
   Visibility,
   VolleyballEvent,
   isEventPosition,
   type AttendeeLite,
   type CaptainedTeamLite,
   type CoHostParty,
+  type DivisionLite,
   type EventDetailReadModel,
   type EventPosition,
   type EventRepository,
@@ -59,6 +66,43 @@ type EventRow = {
   longitude: number;
   attendee_count: number;
   team_count: number;
+  // ADR 0006 extension columns (nullable / defaulted at DB)
+  venue_name: string | null;
+  registration_closes_at: string | null;
+  series_name: string | null;
+  series_position: number | null;
+  series_size: number | null;
+  is_fundraiser: boolean | null;
+  fundraiser_beneficiary: string | null;
+  theme_tags: string[] | null;
+  sanctioning_body: string | null;
+  registration_mode: RegistrationMode | null;
+  external_registration_url: string | null;
+  external_registration_instructions: string | null;
+  payment_instructions: string | null;
+};
+
+type DivisionRow = {
+  id: string;
+  event_id: string;
+  sort_order: number;
+  label: string;
+  surface: Surface;
+  format: Format;
+  gender: Gender;
+  skill_tier: SkillTier;
+  age_group: AgeGroup;
+  tier_label: string | null;
+  team_composition: TeamComposition;
+  team_size: number | null;
+  capacity_kind: 'fixed' | 'unlimited' | null;
+  max_spots: number | null;
+  price_cents: number | null;
+  price_unit: PriceUnit;
+  prize_text: string | null;
+  prize_purse_cents: number | null;
+  starts_at: string | null;
+  ends_at: string | null;
 };
 
 function rowToCapacity(row: EventRow): Capacity | null {
@@ -87,6 +131,102 @@ function rosterToJson(
   return obj;
 }
 
+function divisionRowToCapacity(row: DivisionRow): Capacity | null {
+  if (row.capacity_kind === 'unlimited') return Capacity.unlimited();
+  if (row.capacity_kind === 'fixed' && row.max_spots !== null) return Capacity.fixed(row.max_spots);
+  return null;
+}
+
+function divisionRowToDomain(row: DivisionRow): Division {
+  return Division.fromPersistence({
+    id: row.id as never,
+    sortOrder: row.sort_order,
+    label: row.label,
+    surface: row.surface,
+    format: row.format,
+    gender: row.gender,
+    skillTier: row.skill_tier,
+    ageGroup: row.age_group,
+    tierLabel: row.tier_label,
+    teamComposition: row.team_composition,
+    teamSize: row.team_size,
+    capacity: divisionRowToCapacity(row),
+    priceCents: row.price_cents,
+    priceUnit: row.price_unit,
+    prizeText: row.prize_text,
+    prizePurseCents: row.prize_purse_cents,
+    startsAt: row.starts_at ? new Date(row.starts_at) : null,
+    endsAt: row.ends_at ? new Date(row.ends_at) : null,
+  });
+}
+
+function divisionRowToLite(row: DivisionRow): DivisionLite {
+  return {
+    id: row.id,
+    sortOrder: row.sort_order,
+    label: row.label,
+    surface: row.surface,
+    format: row.format,
+    gender: row.gender,
+    skillTier: row.skill_tier,
+    ageGroup: row.age_group,
+    tierLabel: row.tier_label,
+    teamComposition: row.team_composition,
+    teamSize: row.team_size,
+    capacityKind: row.capacity_kind,
+    maxSpots: row.max_spots,
+    priceCents: row.price_cents,
+    priceUnit: row.price_unit,
+    prizeText: row.prize_text,
+    prizePurseCents: row.prize_purse_cents,
+    startsAt: row.starts_at ? new Date(row.starts_at) : null,
+    endsAt: row.ends_at ? new Date(row.ends_at) : null,
+  };
+}
+
+function divisionToRow(eventId: string, d: Division): Record<string, unknown> {
+  return {
+    id: String(d.id),
+    event_id: eventId,
+    sort_order: d.sortOrder,
+    label: d.label,
+    surface: d.surface,
+    format: d.format,
+    gender: d.gender,
+    skill_tier: d.skillTier,
+    age_group: d.ageGroup,
+    tier_label: d.tierLabel,
+    team_composition: d.teamComposition,
+    team_size: d.teamSize,
+    capacity_kind: d.capacity?.kind ?? null,
+    max_spots: d.capacity?.kind === 'fixed' ? d.capacity.maxSpots : null,
+    price_cents: d.priceCents,
+    price_unit: d.priceUnit,
+    prize_text: d.prizeText,
+    prize_purse_cents: d.prizePurseCents,
+    starts_at: d.startsAt ? d.startsAt.toISOString() : null,
+    ends_at: d.endsAt ? d.endsAt.toISOString() : null,
+  };
+}
+
+function rowToExtensions(row: EventRow) {
+  return {
+    venueName: row.venue_name,
+    registrationClosesAt: row.registration_closes_at ? new Date(row.registration_closes_at) : null,
+    seriesName: row.series_name,
+    seriesPosition: row.series_position,
+    seriesSize: row.series_size,
+    isFundraiser: row.is_fundraiser ?? false,
+    fundraiserBeneficiary: row.fundraiser_beneficiary,
+    themeTags: row.theme_tags ?? [],
+    sanctioningBody: row.sanctioning_body,
+    registrationMode: row.registration_mode ?? RegistrationMode.Platform,
+    externalRegistrationUrl: row.external_registration_url,
+    externalRegistrationInstructions: row.external_registration_instructions,
+    paymentInstructions: row.payment_instructions,
+  };
+}
+
 export class SupabaseEventRepository implements EventRepository {
   private _client: SupabaseClient | null = null;
 
@@ -109,14 +249,21 @@ export class SupabaseEventRepository implements EventRepository {
       { data: attendees, error: aErr },
       { data: teams, error: tErr },
       { data: freeAgents, error: fErr },
+      { data: divisions, error: dErr },
     ] = await Promise.all([
       this.client.from('event_attendees').select('user_id, position').eq('event_id', id),
       this.client.from('event_teams').select('team_id').eq('event_id', id),
       this.client.from('event_free_agents').select('user_id, notes').eq('event_id', id),
+      this.client
+        .from('event_divisions')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
     ]);
     if (aErr) throw new Error(`findById attendees failed: ${aErr.message}`);
     if (tErr) throw new Error(`findById teams failed: ${tErr.message}`);
     if (fErr) throw new Error(`findById free agents failed: ${fErr.message}`);
+    if (dErr) throw new Error(`findById divisions failed: ${dErr.message}`);
 
     return VolleyballEvent.fromPersistence({
       id: row.id as never,
@@ -152,6 +299,8 @@ export class SupabaseEventRepository implements EventRepository {
         (f) => [f.user_id as never, f.notes] as const,
       ),
       positionRoster: rowToPositionRoster(row),
+      extensions: rowToExtensions(row),
+      divisions: ((divisions ?? []) as DivisionRow[]).map(divisionRowToDomain),
     });
   }
 
@@ -185,6 +334,22 @@ export class SupabaseEventRepository implements EventRepository {
       capacity_kind: capacity?.kind ?? null,
       max_spots: capacity?.kind === 'fixed' ? capacity.maxSpots : null,
       position_roster: rosterToJson(event.positionRoster),
+      // ADR 0006 extension columns
+      venue_name: event.venueName,
+      registration_closes_at: event.registrationClosesAt
+        ? event.registrationClosesAt.toISOString()
+        : null,
+      series_name: event.seriesName,
+      series_position: event.seriesPosition,
+      series_size: event.seriesSize,
+      is_fundraiser: event.isFundraiser,
+      fundraiser_beneficiary: event.fundraiserBeneficiary,
+      theme_tags: event.themeTags,
+      sanctioning_body: event.sanctioningBody,
+      registration_mode: event.registrationMode,
+      external_registration_url: event.externalRegistrationUrl,
+      external_registration_instructions: event.externalRegistrationInstructions,
+      payment_instructions: event.paymentInstructions,
       updated_at: new Date().toISOString(),
     };
 
@@ -241,6 +406,27 @@ export class SupabaseEventRepository implements EventRepository {
         .insert(freeAgentRows as never);
       if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
     }
+
+    // Reconcile divisions: upsert current set by id, delete any id no
+    // longer present so child rows with `division_id` go to NULL via
+    // `on delete set null` and may be re-resolved by the
+    // `fill_default_division_id` trigger when the event has exactly one
+    // remaining division.
+    const eventIdStr = String(event.id);
+    const divisionRows = event.divisions.map((d) => divisionToRow(eventIdStr, d));
+    if (divisionRows.length > 0) {
+      const { error: upErr } = await this.client
+        .from('event_divisions')
+        .upsert(divisionRows as never, { onConflict: 'id' });
+      if (upErr) throw new Error(`save divisions upsert failed: ${upErr.message}`);
+    }
+    const keepIds = event.divisions.map((d) => String(d.id));
+    let delDivQ = this.client.from('event_divisions').delete().eq('event_id', eventIdStr);
+    if (keepIds.length > 0) {
+      delDivQ = delDivQ.not('id', 'in', `(${keepIds.join(',')})`);
+    }
+    const { error: delDivErr } = await delDivQ;
+    if (delDivErr) throw new Error(`save divisions delete failed: ${delDivErr.message}`);
 
     // Drain raised events so callers don't double-handle them.
     event.pullEvents();
@@ -325,6 +511,7 @@ export class SupabaseEventRepository implements EventRepository {
       primaryHostGroupRes,
       teamRowsRes,
       freeAgentRowsRes,
+      divisionRowsRes,
     ] = await Promise.all([
       this.client
         .from('event_attendees')
@@ -360,6 +547,11 @@ export class SupabaseEventRepository implements EventRepository {
         )
         .eq('event_id', id)
         .order('joined_at', { ascending: true }),
+      this.client
+        .from('event_divisions')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
     ]);
 
     type AttendeeRow = {
@@ -673,6 +865,8 @@ export class SupabaseEventRepository implements EventRepository {
       viewerFriendIds,
       viewerHostableGroups,
       viewerCaptainedTeams,
+      ...rowToExtensions(row),
+      divisions: ((divisionRowsRes.data as DivisionRow[] | null) ?? []).map(divisionRowToLite),
     };
   }
 

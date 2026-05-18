@@ -8,6 +8,11 @@ import type {
   Visibility,
   EventStatus,
   EventPosition,
+  SkillTier,
+  AgeGroup,
+  TeamComposition,
+  PriceUnit,
+  RegistrationMode,
 } from './enums.js';
 
 /**
@@ -108,6 +113,32 @@ export interface CaptainedTeamLite {
   isRegistered: boolean;
 }
 
+/**
+ * Read-model row for one event division (ADR 0006). Mirrors the columns
+ * on `event_divisions`. Capacity-related fields are flattened.
+ */
+export interface DivisionLite {
+  id: string;
+  sortOrder: number;
+  label: string;
+  surface: Surface;
+  format: Format;
+  gender: Gender;
+  skillTier: SkillTier;
+  ageGroup: AgeGroup;
+  tierLabel: string | null;
+  teamComposition: TeamComposition;
+  teamSize: number | null;
+  capacityKind: 'fixed' | 'unlimited' | null;
+  maxSpots: number | null;
+  priceCents: number | null;
+  priceUnit: PriceUnit;
+  prizeText: string | null;
+  prizePurseCents: number | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+}
+
 export interface EventDetailReadModel {
   // Base event
   id: string;
@@ -164,6 +195,24 @@ export interface EventDetailReadModel {
   viewerHostableGroups: ReadonlyArray<{ id: string; name: string }>;
   /** Teams the viewer captains in the event's format (only meaningful for tournaments). */
   viewerCaptainedTeams: ReadonlyArray<CaptainedTeamLite>;
+
+  // ---- ADR 0006 event-level extensions ----
+  venueName: string | null;
+  registrationClosesAt: Date | null;
+  seriesName: string | null;
+  seriesPosition: number | null;
+  seriesSize: number | null;
+  isFundraiser: boolean;
+  fundraiserBeneficiary: string | null;
+  themeTags: ReadonlyArray<string>;
+  sanctioningBody: string | null;
+  registrationMode: RegistrationMode;
+  externalRegistrationUrl: string | null;
+  externalRegistrationInstructions: string | null;
+  paymentInstructions: string | null;
+
+  /** Divisions on this event (ADR 0006). Empty array when not yet split. */
+  divisions: ReadonlyArray<DivisionLite>;
 }
 
 export interface FollowingFeedFilters {
