@@ -14,6 +14,7 @@ import {
 import {
   AcceptTeamInviteHandler,
   AddEventCoHostHandler,
+  AddEventDivisionHandler,
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
   CreateBracketHandler,
@@ -37,6 +38,7 @@ import {
   RecordMatchResultHandler,
   RegisterTeamHandler,
   RemoveEventCoHostHandler,
+  RemoveEventDivisionHandler,
   RemoveTeamMemberHandler,
   ReportCommunityListingHandler,
   ResetBracketHandler,
@@ -47,6 +49,7 @@ import {
   SetTeamExtraMembersHandler,
   UnhideCommunityListingHandler,
   UpdateCommunityListingHandler,
+  UpdateEventDivisionHandler,
   WithdrawTeamHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
@@ -81,6 +84,9 @@ export const handlers = {
   getViewerFriends: new GetViewerFriendsHandler(eventRepo),
   addEventCoHost: new AddEventCoHostHandler(eventRepo),
   removeEventCoHost: new RemoveEventCoHostHandler(eventRepo),
+  addEventDivision: new AddEventDivisionHandler(eventRepo),
+  updateEventDivision: new UpdateEventDivisionHandler(eventRepo),
+  removeEventDivision: new RemoveEventDivisionHandler(eventRepo),
   createTeam: new CreateTeamHandler(teamRepo),
   addTeamMember: new AddTeamMemberHandler(teamRepo),
   acceptTeamInvite: new AcceptTeamInviteHandler(teamRepo),

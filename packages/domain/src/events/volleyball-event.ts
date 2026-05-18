@@ -700,4 +700,34 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   changeVisibility(visibility: Visibility): void {
     this._visibility = visibility;
   }
+
+  // ---- Divisions (ADR 0006) -------------------------------------------
+  /** Append a new division. Caller is responsible for unique ids. */
+  addDivision(division: Division): void {
+    if (this._divisions.some((d) => d.id === division.id)) {
+      throw new ConflictError('Division with this id already exists on the event.', {
+        eventId: this.id,
+        divisionId: division.id,
+      });
+    }
+    this._divisions.push(division);
+  }
+
+  /** Replace an existing division by id. */
+  updateDivision(division: Division): void {
+    const idx = this._divisions.findIndex((d) => d.id === division.id);
+    if (idx === -1) {
+      throw new NotFoundError('division', String(division.id));
+    }
+    this._divisions[idx] = division;
+  }
+
+  /** Remove a division by id. */
+  removeDivision(divisionId: Division['id']): void {
+    const idx = this._divisions.findIndex((d) => d.id === divisionId);
+    if (idx === -1) {
+      throw new NotFoundError('division', String(divisionId));
+    }
+    this._divisions.splice(idx, 1);
+  }
 }

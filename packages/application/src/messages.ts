@@ -1,5 +1,7 @@
 import type {
   CreateEventDto,
+  DivisionInputDto,
+  DivisionUpdateDto,
   SearchEventsDto,
   CreateCommunityListingDto,
   UpdateCommunityListingDto,
@@ -65,6 +67,32 @@ export class RemoveEventCoHostCommand {
   constructor(
     public readonly eventId: string,
     public readonly party: CoHostParty,
+    public readonly requesterId: string,
+  ) {}
+}
+
+// ---- Event division commands (ADR 0006) ---------------------------------
+export class AddEventDivisionCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly requesterId: string,
+    public readonly input: DivisionInputDto,
+  ) {}
+}
+
+export class UpdateEventDivisionCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly updates: DivisionUpdateDto,
+  ) {}
+}
+
+export class RemoveEventDivisionCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly divisionId: string,
     public readonly requesterId: string,
   ) {}
 }
