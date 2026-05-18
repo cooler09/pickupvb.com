@@ -5,7 +5,7 @@ import type { Metadata } from 'next/types';
 import { GetCommunityListingDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
-import { formatEventDateLong, formatTime } from '@/lib/date-formats';
+import { LocalDateTime } from '@/components/local-datetime';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import {
@@ -163,8 +163,14 @@ export default async function CommunityListingDetailPage(props: PageProps) {
       <div className="border-border-base bg-surface space-y-1 rounded-lg border p-4">
         <p className="text-fg text-sm font-semibold">When</p>
         <p className="text-sm">
-          {formatEventDateLong(startsAt)} at {formatTime(startsAt)}
-          {endsAt && <> &ndash; {formatTime(endsAt)}</>}
+          <LocalDateTime iso={startsAt} variant="eventDateLong" /> at{' '}
+          <LocalDateTime iso={startsAt} variant="time" />
+          {endsAt && (
+            <>
+              {' '}
+              &ndash; <LocalDateTime iso={endsAt} variant="time" />
+            </>
+          )}
         </p>
         {place && (
           <>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
-import { formatEventStart } from '@/lib/date-formats';
+import { LocalDateTime } from '@/components/local-datetime';
 
 export type CommunityListingCardData = {
   slug: string;
@@ -21,7 +21,8 @@ export type CommunityListingCardData = {
  * detail page so we can show context first.
  */
 export function CommunityListingCard({ listing }: { listing: CommunityListingCardData }) {
-  const startsAt = listing.startsAt instanceof Date ? listing.startsAt : new Date(listing.startsAt);
+  const startsAtIso =
+    listing.startsAt instanceof Date ? listing.startsAt.toISOString() : listing.startsAt;
   const place = [listing.city, listing.region].filter(Boolean).join(', ');
 
   return (
@@ -29,7 +30,9 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
       <Link href={`/community/${listing.slug}`} className="hover:text-primary block font-semibold">
         {listing.title}
       </Link>
-      <p className="text-muted mt-1 text-xs">{formatEventStart(startsAt)}</p>
+      <p className="text-muted mt-1 text-xs">
+        <LocalDateTime iso={startsAtIso} variant="eventStart" />
+      </p>
       {place && <p className="text-fg/80 mt-1 text-sm">{place}</p>}
       <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
         <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
