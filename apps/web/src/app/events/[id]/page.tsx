@@ -25,6 +25,10 @@ import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
 import EventMap from './_components/event-map-lazy';
 import { TipJar } from './_components/tip-jar';
 import { HostBroadcastPanel } from './_components/host-broadcast-panel';
+import { DivisionsSection } from './_components/divisions-section';
+import { ExternalRegistrationCard } from './_components/external-registration-card';
+import { EventMetaSection } from './_components/event-meta-section';
+import { HostDivisionsManager } from './_components/host-divisions-manager';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -98,7 +102,9 @@ export default async function EventDetailPage(props: {
   const friendIds = new Set(event.viewerFriendIds);
   const returnPath = `/events/${event.id}`;
   const hasStarted = event.startsAt.getTime() <= Date.now();
-  const signupsOpen = event.status === 'published' && !hasStarted;
+  const isExternal = event.registrationMode === 'external';
+  // External-registration events suppress all on-platform signup panels.
+  const signupsOpen = event.status === 'published' && !hasStarted && !isExternal;
 
   // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
   const pricing = await getEventPricing(event.id);
@@ -313,6 +319,39 @@ export default async function EventDetailPage(props: {
         </div>
       </section>
 
+      <EventMetaSection
+        venueName={event.venueName}
+        seriesName={event.seriesName}
+        seriesPosition={event.seriesPosition}
+        seriesSize={event.seriesSize}
+        isFundraiser={event.isFundraiser}
+        fundraiserBeneficiary={event.fundraiserBeneficiary}
+        themeTags={event.themeTags}
+        sanctioningBody={event.sanctioningBody}
+        registrationClosesAt={event.registrationClosesAt}
+        paymentInstructions={event.paymentInstructions}
+        isExternal={isExternal}
+        timeZone={event.timeZone}
+      />
+
+      {isExternal && (
+        <ExternalRegistrationCard
+          externalRegistrationUrl={event.externalRegistrationUrl}
+          externalRegistrationInstructions={event.externalRegistrationInstructions}
+          paymentInstructions={event.paymentInstructions}
+        />
+      )}
+
+      <DivisionsSection divisions={event.divisions} />
+
+      {event.canManage && (
+        <HostDivisionsManager
+          eventId={event.id}
+          returnPath={returnPath}
+          divisions={event.divisions}
+        />
+      )}
+
       {event.type === 'open_play' &&
         signupsOpen &&
         (paid && breakdown ? (
@@ -391,6 +430,7 @@ export default async function EventDetailPage(props: {
 
       <section className="space-y-2">
         <h2 className="text-fg text-lg font-semibold">Where</h2>
+        {event.venueName && <p className="text-fg font-medium">{event.venueName}</p>}
         <p className="text-fg/90">{event.location.addressLine}</p>
         <p className="text-muted text-sm">
           {event.location.city}, {event.location.region} {event.location.postalCode}
