@@ -1,9 +1,9 @@
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from 'next/types';
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
+import { SiteFooter } from '@/components/site-footer';
 import { ToastProvider } from '@/components/toast';
 import { EnvBanner } from '@/components/env-banner';
 import { getCurrentUser } from '@/lib/server-auth';
@@ -134,12 +134,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </main>
         </ToastProvider>
-        <footer className="border-border-base text-muted border-t py-6 text-center text-sm">
-          © {new Date().getFullYear()}{' '}
-          <Link href="/" className="hover:underline">
-            PickupVB
-          </Link>
-        </footer>
+        <SiteFooter />
         <Analytics />
         <SpeedInsights />
       </body>
