@@ -7,6 +7,7 @@ import {
   Gender,
   PriceUnit,
   RegistrationMode,
+  SkillBand,
   SkillLevel,
   SkillTier,
   Surface,
@@ -156,6 +157,13 @@ export const SearchEventsSchema = z.object({
   type: z.enum(enumValues(EventType)).optional(),
   startsAfter: z.coerce.date().optional(),
   startsBefore: z.coerce.date().optional(),
+  // ---- Division-level filters (ADR 0006) -----------------------------------
+  skillBand: z.enum(enumValues(SkillBand)).optional(),
+  ageGroup: z.enum(enumValues(AgeGroup)).optional(),
+  teamComposition: z.enum(enumValues(TeamComposition)).optional(),
+  seriesName: z.string().trim().min(1).max(120).optional(),
+  registrationMode: z.enum(enumValues(RegistrationMode)).optional(),
+  isFundraiser: z.coerce.boolean().optional(),
   limit: z.number().int().positive().max(100).default(20),
   cursor: z.string().optional(),
 });

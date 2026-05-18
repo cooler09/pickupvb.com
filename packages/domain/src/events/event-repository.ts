@@ -9,6 +9,7 @@ import type {
   EventStatus,
   EventPosition,
   SkillTier,
+  SkillBand,
   AgeGroup,
   TeamComposition,
   PriceUnit,
@@ -260,10 +261,33 @@ export interface EventSearchQuery {
   visibility?: Visibility;
   startsAfter?: Date;
   startsBefore?: Date;
+  /**
+   * Division-level filters (ADR 0006). When any of these are set the search
+   * requires the event to have at least one matching division.
+   */
+  skillBand?: SkillBand;
+  ageGroup?: AgeGroup;
+  teamComposition?: TeamComposition;
+  /** Substring match on `series_name` (case-insensitive). */
+  seriesName?: string;
+  registrationMode?: RegistrationMode;
+  isFundraiser?: boolean;
   /** Caller's user id, used to enforce visibility (friend graph, invites). */
   viewerId?: string;
   limit?: number;
   cursor?: string;
+}
+
+/** Lightweight division row attached to each event search result. */
+export interface EventSearchDivision {
+  id: string;
+  label: string;
+  skillTier: SkillTier;
+  tierLabel: string | null;
+  ageGroup: AgeGroup;
+  teamComposition: TeamComposition;
+  priceCents: number | null;
+  priceUnit: PriceUnit;
 }
 
 export interface VolleyballEventSummary {
@@ -281,4 +305,12 @@ export interface VolleyballEventSummary {
   region: string;
   spotsRemaining: number | null;
   distanceKm: number | null;
+  /** Series breadcrumb (ADR 0006). */
+  seriesName: string | null;
+  seriesPosition: number | null;
+  seriesSize: number | null;
+  isFundraiser: boolean;
+  registrationMode: RegistrationMode;
+  /** Divisions on this event, sorted by `sort_order`. */
+  divisions: ReadonlyArray<EventSearchDivision>;
 }

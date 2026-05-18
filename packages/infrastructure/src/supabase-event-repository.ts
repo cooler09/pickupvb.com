@@ -433,6 +433,16 @@ export class SupabaseEventRepository implements EventRepository {
   }
 
   async search(query: EventSearchQuery): Promise<VolleyballEventSummary[]> {
+    type DivisionJson = {
+      id: string;
+      label: string;
+      skillTier: SkillTier;
+      tierLabel: string | null;
+      ageGroup: AgeGroup;
+      teamComposition: TeamComposition;
+      priceCents: number | null;
+      priceUnit: PriceUnit;
+    };
     type SearchRow = {
       id: string;
       title: string;
@@ -447,6 +457,12 @@ export class SupabaseEventRepository implements EventRepository {
       region: string;
       spots_remaining: number | null;
       distance_km: number | null;
+      series_name: string | null;
+      series_position: number | null;
+      series_size: number | null;
+      is_fundraiser: boolean;
+      registration_mode: RegistrationMode | null;
+      divisions: DivisionJson[] | null;
     };
 
     const args = {
@@ -461,6 +477,12 @@ export class SupabaseEventRepository implements EventRepository {
       p_starts_after: query.startsAfter?.toISOString() ?? null,
       p_starts_before: query.startsBefore?.toISOString() ?? null,
       p_limit: query.limit ?? 20,
+      p_skill_band: query.skillBand ?? null,
+      p_age_group: query.ageGroup ?? null,
+      p_team_composition: query.teamComposition ?? null,
+      p_series_name: query.seriesName ?? null,
+      p_registration_mode: query.registrationMode ?? null,
+      p_is_fundraiser: query.isFundraiser ?? null,
     };
 
     const { data, error } = await this.client.rpc('search_events', args as never);
@@ -481,6 +503,21 @@ export class SupabaseEventRepository implements EventRepository {
       region: r.region,
       spotsRemaining: r.spots_remaining,
       distanceKm: r.distance_km,
+      seriesName: r.series_name,
+      seriesPosition: r.series_position,
+      seriesSize: r.series_size,
+      isFundraiser: r.is_fundraiser,
+      registrationMode: r.registration_mode ?? RegistrationMode.Platform,
+      divisions: (r.divisions ?? []).map((d) => ({
+        id: d.id,
+        label: d.label,
+        skillTier: d.skillTier,
+        tierLabel: d.tierLabel,
+        ageGroup: d.ageGroup,
+        teamComposition: d.teamComposition,
+        priceCents: d.priceCents,
+        priceUnit: d.priceUnit,
+      })),
     }));
   }
 
