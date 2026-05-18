@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next/types';
 import { GetCommunityListingDetailQuery } from '@pickupvb/application';
@@ -8,6 +9,7 @@ import { formatEventDateLong, formatTime } from '@/lib/date-formats';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import {
+  claimListingFromForm,
   deleteListingFromForm,
   hideListingFromForm,
   reportListingFromForm,
@@ -62,6 +64,15 @@ function noticeBanner(code: string | undefined): React.ReactNode {
     already: { tone: 'warn', text: "You've already reported this listing." },
     hidden: { tone: 'ok', text: 'Listing hidden. Only you and platform admins can see it now.' },
     unhidden: { tone: 'ok', text: 'Listing restored.' },
+    updated: { tone: 'ok', text: 'Listing updated.' },
+    claimed: {
+      tone: 'ok',
+      text: 'Listing claimed and linked to your event.',
+    },
+    claimfail: {
+      tone: 'err',
+      text: "That event couldn't be linked. You can only claim a listing with an event you host on PickupVB.",
+    },
     notallow: { tone: 'err', text: "You don't have permission to do that." },
     notfound: { tone: 'err', text: 'This listing no longer exists.' },
     error: { tone: 'err', text: 'Something went wrong. Please try again.' },
@@ -205,6 +216,38 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         <p className="text-muted text-xs break-all">{detail.externalUrl}</p>
       </section>
 
+      {user && detail.status === 'active' && !detail.canManage && (
+        <section className="border-border-base bg-surface space-y-3 rounded-md border p-4 text-sm">
+          <p className="font-semibold">Host this event on PickupVB?</p>
+          <p className="text-muted text-xs">
+            If you&rsquo;re the organizer and you&rsquo;ve already created the matching event on
+            PickupVB, link it here. We&rsquo;ll mark this listing as claimed and point everyone at
+            your event page. You can only claim a listing with an event you host.
+          </p>
+          <form
+            action={claimListingFromForm.bind(null, detail.id, detail.slug)}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <label htmlFor="event_id" className="sr-only">
+              Your event ID
+            </label>
+            <input
+              id="event_id"
+              name="event_id"
+              required
+              placeholder="Your event UUID"
+              className="border-border-base bg-surface w-72 max-w-full rounded-md border px-2 py-1 font-mono text-xs"
+            />
+            <button
+              type="submit"
+              className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-xs font-semibold"
+            >
+              Claim listing
+            </button>
+          </form>
+        </section>
+      )}
+
       {user && !detail.canManage && detail.status === 'active' && (
         <section className="border-border-base bg-surface rounded-md border p-4 text-sm">
           <p className="font-semibold">See a problem?</p>
@@ -237,7 +280,14 @@ export default async function CommunityListingDetailPage(props: PageProps) {
             <p className="text-muted text-xs">(visible to you as a platform admin)</p>
           )}
           <div className="flex flex-wrap gap-2">
-            {/* Edit page comes in Phase 3. */}
+            {detail.status !== 'claimed' && detail.status !== 'removed' && (
+              <Link
+                href={`/community/${detail.slug}/edit` as Route}
+                className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold"
+              >
+                Edit
+              </Link>
+            )}
             {detail.status === 'active' ? (
               <form action={hideListingFromForm.bind(null, detail.id, detail.slug)}>
                 <button

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
+  ClaimCommunityListingCommand,
   DeleteCommunityListingCommand,
   HideCommunityListingCommand,
   ReportCommunityListingCommand,
@@ -130,4 +131,38 @@ export async function deleteListingFromForm(
   // Defensive: require the confirm checkbox to be checked.
   if (field(formData, 'confirm') !== 'on') back(slug, 'error');
   await deleteListing(listingId, slug);
+}
+
+export async function claimListing(
+  listingId: string,
+  slug: string,
+  eventId: string,
+): Promise<void> {
+  const { user } = await requireRealUser(`/community/${slug}`);
+  if (!eventId) back(slug, 'error');
+  try {
+    await handlers.claimCommunityListing.execute(
+      new ClaimCommunityListingCommand(listingId, user.id, eventId),
+    );
+  } catch (err) {
+    if (err instanceof UnauthorizedError) back(slug, 'claimfail');
+    if (err instanceof ConflictError) back(slug, 'claimfail');
+    if (err instanceof NotFoundError) back(slug, 'notfound');
+    throw err;
+  }
+  revalidatePath(`/community/${slug}`);
+  revalidatePath('/community');
+  back(slug, 'claimed');
+}
+
+export async function claimListingFromForm(
+  listingId: string,
+  slug: string,
+  formData: FormData,
+): Promise<void> {
+  const raw = field(formData, 'event_id').trim();
+  // Lightweight UUID shape check so we surface a friendly error before hitting the DB.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw);
+  if (!isUuid) back(slug, 'claimfail');
+  await claimListing(listingId, slug, raw);
 }

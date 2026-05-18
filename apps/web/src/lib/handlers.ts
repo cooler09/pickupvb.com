@@ -15,6 +15,7 @@ import {
   AcceptTeamInviteHandler,
   AddEventCoHostHandler,
   AddTeamMemberHandler,
+  ClaimCommunityListingHandler,
   CreateBracketHandler,
   CreateCommunityListingHandler,
   CreateEventHandler,
@@ -48,6 +49,7 @@ import {
   UpdateCommunityListingHandler,
   WithdrawTeamHandler,
 } from '@pickupvb/application';
+import { getServerSupabase } from './supabase';
 
 const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
@@ -57,6 +59,13 @@ const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
 const communityListingRepo = new SupabaseCommunityListingRepository();
 
 const isPlatformAdmin = (userId: string) => communityListingRepo.isPlatformAdmin(userId);
+
+const isHostOfEvent = async (userId: string, eventId: string): Promise<boolean> => {
+  const supabase = await getServerSupabase();
+  const { data } = await supabase.from('events').select('host_id').eq('id', eventId).maybeSingle();
+  if (!data) return false;
+  return (data as { host_id: string }).host_id === userId;
+};
 
 export const handlers = {
   createEvent: new CreateEventHandler(eventRepo),
@@ -93,6 +102,7 @@ export const handlers = {
   reportCommunityListing: new ReportCommunityListingHandler(communityListingRepo),
   hideCommunityListing: new HideCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   unhideCommunityListing: new UnhideCommunityListingHandler(communityListingRepo, isPlatformAdmin),
+  claimCommunityListing: new ClaimCommunityListingHandler(communityListingRepo, isHostOfEvent),
   searchCommunityListings: new SearchCommunityListingsHandler(communityListingRepo),
   getCommunityListingDetail: new GetCommunityListingDetailHandler(communityListingRepo),
 };

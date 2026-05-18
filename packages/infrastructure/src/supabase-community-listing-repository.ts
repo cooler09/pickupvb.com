@@ -199,10 +199,69 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
   }
 
   async search(query: CommunityListingSearchQuery): Promise<CommunityListingSummary[]> {
-    // Note: near-search via PostGIS requires an RPC. For Phase 1 we omit
-    // `near` and rely on attribute filters. Add a `search_community_listings`
-    // RPC when the UI wires up radius search.
     const statuses = query.statuses ?? ['active'];
+    const limit = query.limit ?? 20;
+
+    // If a geo radius is requested, defer to the PostGIS RPC so distance
+    // ordering and bounding happen in the database. Otherwise use the plain
+    // table query (cheaper, no PostGIS call).
+    if (query.near) {
+      const rpcClient = this.client as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      };
+      const { data, error } = await rpcClient.rpc('search_community_listings', {
+        p_lat: query.near.latitude,
+        p_lng: query.near.longitude,
+        p_radius_km: query.near.radiusKm,
+        p_surface: query.surface ?? null,
+        p_format: query.format ?? null,
+        p_skill_level: query.skillLevel ?? null,
+        p_starts_after: query.startsAfter ? query.startsAfter.toISOString() : null,
+        p_starts_before: query.startsBefore ? query.startsBefore.toISOString() : null,
+        p_statuses: statuses,
+        p_limit: limit,
+      });
+      if (error) throw new Error(`CommunityListing.search (rpc) failed: ${error.message}`);
+      type RpcRow = {
+        id: string;
+        slug: string;
+        short_code: string;
+        title: string;
+        external_url: string;
+        external_host_name: string | null;
+        starts_at: string;
+        ends_at: string | null;
+        city: string | null;
+        region: string | null;
+        surface: string | null;
+        format: string | null;
+        skill_level: string | null;
+        status: string;
+        distance_km: number | null;
+      };
+      const rows = (data ?? []) as RpcRow[];
+      return rows.map((r) => ({
+        id: r.id,
+        slug: r.slug,
+        shortCode: r.short_code,
+        title: r.title,
+        externalUrl: r.external_url,
+        externalHostName: r.external_host_name,
+        startsAt: new Date(r.starts_at),
+        endsAt: r.ends_at ? new Date(r.ends_at) : null,
+        city: r.city,
+        region: r.region,
+        surface: r.surface as CommunityListingSummary['surface'],
+        format: r.format as CommunityListingSummary['format'],
+        skillLevel: r.skill_level as CommunityListingSummary['skillLevel'],
+        status: r.status as CommunityListingSummary['status'],
+        distanceKm: r.distance_km,
+      }));
+    }
+
     let q = this.table('community_listings')
       .select(
         'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, city, region, surface, format, skill_level, status',
@@ -213,7 +272,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
     if (query.startsAfter) q = q.gte('starts_at', query.startsAfter.toISOString());
     if (query.startsBefore) q = q.lte('starts_at', query.startsBefore.toISOString());
-    q = q.order('starts_at', { ascending: true }).limit(query.limit ?? 20);
+    q = q.order('starts_at', { ascending: true }).limit(limit);
 
     const { data, error } = await q;
     if (error) throw new Error(`CommunityListing.search failed: ${error.message}`);

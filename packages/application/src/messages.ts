@@ -208,6 +208,14 @@ export class UnhideCommunityListingCommand {
   ) {}
 }
 
+export class ClaimCommunityListingCommand {
+  constructor(
+    public readonly listingId: string,
+    public readonly requesterId: string,
+    public readonly eventId: string,
+  ) {}
+}
+
 // ---- Community listings queries -----------------------------------------
 export class SearchCommunityListingsQuery {
   constructor(

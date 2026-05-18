@@ -9,6 +9,7 @@ import {
   type ListingLocation,
 } from '@pickupvb/domain';
 import {
+  ClaimCommunityListingCommand,
   CreateCommunityListingCommand,
   DeleteCommunityListingCommand,
   HideCommunityListingCommand,
@@ -191,6 +192,26 @@ export class UnhideCommunityListingHandler {
       throw new UnauthorizedError('Only platform admins can un-hide listings.');
     }
     listing.unhide();
+    await this.repo.save(listing);
+  }
+}
+
+export class ClaimCommunityListingHandler {
+  constructor(
+    private readonly repo: CommunityListingRepository,
+    private readonly isHostOfEvent: (userId: string, eventId: string) => Promise<boolean>,
+  ) {}
+
+  async execute({ listingId, requesterId, eventId }: ClaimCommunityListingCommand): Promise<void> {
+    const listing = await this.repo.findById(listingId);
+    if (!listing) throw new NotFoundError('CommunityListing', listingId);
+    const isHost = await this.isHostOfEvent(requesterId, eventId);
+    if (!isHost) {
+      throw new UnauthorizedError(
+        'You can only claim a listing with an event you host on PickupVB.',
+      );
+    }
+    listing.markClaimed(eventId as never, requesterId as never, new Date());
     await this.repo.save(listing);
   }
 }
