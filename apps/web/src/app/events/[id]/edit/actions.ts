@@ -170,6 +170,55 @@ export async function editEventAction(
     }
   }
 
+  // ---- ADR 0006 event-level extension fields ------------------------------
+  // All optional. Mirrors the create form. Conditional inclusion in the
+  // update payload so blank inputs don't clobber existing values when the
+  // host doesn't open the Advanced panel.
+  const venueName = fieldOrUndefined(formData, 'venueName');
+  const registrationClosesAtRaw = fieldOrUndefined(formData, 'registrationClosesAt');
+  const isSeries = field(formData, 'isSeries') === 'on';
+  const isFundraiser = field(formData, 'isFundraiser') === 'on';
+  const isExternal = field(formData, 'isExternal') === 'on';
+  const themeTagsRaw = fieldOrUndefined(formData, 'themeTags');
+  const themeTags = themeTagsRaw
+    ? themeTagsRaw
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0)
+        .slice(0, 16)
+    : null;
+  const extUpdate: Record<string, unknown> = {
+    venue_name: venueName ?? null,
+    registration_closes_at: registrationClosesAtRaw
+      ? new Date(registrationClosesAtRaw).toISOString()
+      : null,
+    series_name: isSeries ? (fieldOrUndefined(formData, 'seriesName') ?? null) : null,
+    series_position:
+      isSeries && fieldOrUndefined(formData, 'seriesPosition')
+        ? Number(fieldOrUndefined(formData, 'seriesPosition'))
+        : null,
+    series_size:
+      isSeries && fieldOrUndefined(formData, 'seriesSize')
+        ? Number(fieldOrUndefined(formData, 'seriesSize'))
+        : null,
+    is_fundraiser: isFundraiser,
+    fundraiser_beneficiary: isFundraiser
+      ? (fieldOrUndefined(formData, 'fundraiserBeneficiary') ?? null)
+      : null,
+    theme_tags: themeTags && themeTags.length > 0 ? themeTags : null,
+    sanctioning_body: fieldOrUndefined(formData, 'sanctioningBody') ?? null,
+    registration_mode: isExternal ? 'external' : 'platform',
+    external_registration_url: isExternal
+      ? (fieldOrUndefined(formData, 'externalRegistrationUrl') ?? null)
+      : null,
+    external_registration_instructions: isExternal
+      ? (fieldOrUndefined(formData, 'externalRegistrationInstructions') ?? null)
+      : null,
+    payment_instructions: isExternal
+      ? (fieldOrUndefined(formData, 'paymentInstructions') ?? null)
+      : null,
+  };
+
   // ---- Apply update ----
   // We update via the user-session client so RLS still applies (host or
   // co-host can update; the read-model authorization above is the primary
@@ -193,6 +242,7 @@ export async function editEventAction(
       geo: wkt,
       time_zone: timeZone,
       ...(isOpenPlay ? { capacity_kind: newCapacityKind, max_spots: newMaxSpots } : {}),
+      ...extUpdate,
       updated_at: new Date().toISOString(),
     } as never)
     .eq('id', eventId);

@@ -60,6 +60,92 @@ export async function createEventAction(
     return { error: message, fieldErrors: { 'location.addressLine': message } };
   }
 
+  // ---- ADR 0006 event-level extensions ------------------------------------
+  const isExternal = field(formData, 'isExternal') === 'on';
+  const isFundraiser = field(formData, 'isFundraiser') === 'on';
+  const isSeries = field(formData, 'isSeries') === 'on';
+  const themeTagsRaw = fieldOrUndefined(formData, 'themeTags');
+  const themeTags = themeTagsRaw
+    ? themeTagsRaw
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0)
+        .slice(0, 16)
+    : undefined;
+  const registrationClosesAtRaw = fieldOrUndefined(formData, 'registrationClosesAt');
+  const extensions = {
+    ...(fieldOrUndefined(formData, 'venueName')
+      ? { venueName: fieldOrUndefined(formData, 'venueName') }
+      : {}),
+    ...(registrationClosesAtRaw ? { registrationClosesAt: registrationClosesAtRaw } : {}),
+    ...(isSeries && fieldOrUndefined(formData, 'seriesName')
+      ? { seriesName: fieldOrUndefined(formData, 'seriesName') }
+      : {}),
+    ...(isSeries && fieldOrUndefined(formData, 'seriesPosition')
+      ? { seriesPosition: Number(fieldOrUndefined(formData, 'seriesPosition')) }
+      : {}),
+    ...(isSeries && fieldOrUndefined(formData, 'seriesSize')
+      ? { seriesSize: Number(fieldOrUndefined(formData, 'seriesSize')) }
+      : {}),
+    ...(isFundraiser ? { isFundraiser: true } : {}),
+    ...(isFundraiser && fieldOrUndefined(formData, 'fundraiserBeneficiary')
+      ? { fundraiserBeneficiary: fieldOrUndefined(formData, 'fundraiserBeneficiary') }
+      : {}),
+    ...(themeTags && themeTags.length > 0 ? { themeTags } : {}),
+    ...(fieldOrUndefined(formData, 'sanctioningBody')
+      ? { sanctioningBody: fieldOrUndefined(formData, 'sanctioningBody') }
+      : {}),
+    ...(isExternal
+      ? {
+          registrationMode: 'external' as const,
+          ...(fieldOrUndefined(formData, 'externalRegistrationUrl')
+            ? { externalRegistrationUrl: fieldOrUndefined(formData, 'externalRegistrationUrl') }
+            : {}),
+          ...(fieldOrUndefined(formData, 'externalRegistrationInstructions')
+            ? {
+                externalRegistrationInstructions: fieldOrUndefined(
+                  formData,
+                  'externalRegistrationInstructions',
+                ),
+              }
+            : {}),
+          ...(fieldOrUndefined(formData, 'paymentInstructions')
+            ? { paymentInstructions: fieldOrUndefined(formData, 'paymentInstructions') }
+            : {}),
+        }
+      : {}),
+  };
+
+  // ---- ADR 0006 additional divisions --------------------------------------
+  const divCount = Math.max(0, Number(fieldOrUndefined(formData, 'div_count') ?? 0));
+  const divisions: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < divCount; i++) {
+    const label = fieldOrUndefined(formData, `div_${i}_label`);
+    if (!label) continue; // user added a row then cleared it
+    const teamComposition = fieldOrUndefined(formData, `div_${i}_teamComposition`) || 'solo';
+    const teamSizeRaw = fieldOrUndefined(formData, `div_${i}_teamSize`);
+    const capKind = fieldOrUndefined(formData, `div_${i}_capacityKind`) || 'unlimited';
+    const maxSpots = fieldOrUndefined(formData, `div_${i}_maxSpots`);
+    const priceUsd = fieldOrUndefined(formData, `div_${i}_priceUsd`);
+    const prizeText = fieldOrUndefined(formData, `div_${i}_prizeText`);
+    divisions.push({
+      label,
+      surface: fieldOrUndefined(formData, `div_${i}_surface`) || 'indoor',
+      format: fieldOrUndefined(formData, `div_${i}_format`) || 'sixes',
+      gender: fieldOrUndefined(formData, `div_${i}_gender`) || 'coed',
+      skillTier: fieldOrUndefined(formData, `div_${i}_skillTier`) || 'bb',
+      ageGroup: fieldOrUndefined(formData, `div_${i}_ageGroup`) || 'adult',
+      teamComposition,
+      ...(teamSizeRaw ? { teamSize: Number(teamSizeRaw) } : {}),
+      capacity:
+        capKind === 'fixed' && maxSpots
+          ? { kind: 'fixed' as const, maxSpots: Number(maxSpots) }
+          : { kind: 'unlimited' as const },
+      ...(priceUsd ? { priceCents: parsePriceCents(priceUsd) } : {}),
+      ...(prizeText ? { prizeText } : {}),
+    });
+  }
+
   const raw = {
     title: field(formData, 'title'),
     description: field(formData, 'description'),
@@ -91,6 +177,8 @@ export async function createEventAction(
             : { kind: 'unlimited' as const }
         : undefined,
     ...(byPosition && Object.keys(positionRoster).length > 0 ? { positionRoster } : {}),
+    ...(Object.keys(extensions).length > 0 ? { extensions } : {}),
+    ...(divisions.length > 0 ? { divisions } : {}),
   };
 
   let dto;
