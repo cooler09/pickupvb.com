@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Email support
+    url: mailto:support@pickupvb.com
+    about: For account, billing, or private issues that shouldn't be public.

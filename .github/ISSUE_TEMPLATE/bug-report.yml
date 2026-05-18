@@ -1,0 +1,60 @@
+name: Bug report
+description: Report something that's broken or behaving unexpectedly on pickupvb.com.
+title: 'Bug: '
+labels: ['bug', 'user-report']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! The more detail you provide,
+        the faster we can fix it.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of what went wrong.
+      placeholder: When I clicked RSVP on the event page, nothing happened…
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reliably trigger this?
+      placeholder: |
+        1. Go to /events/...
+        2. Click "RSVP"
+        3. See nothing happen
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      placeholder: I expected to be added to the attendee list.
+
+  - type: input
+    id: page
+    attributes:
+      label: Page URL
+      description: Where did this happen? (Auto-filled by the in-app bug reporter.)
+      placeholder: https://pickupvb.com/events/...
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, viewport, error digest, etc. (Auto-filled by the in-app bug reporter.)
+      render: markdown
+      placeholder: |
+        - User agent: ...
+        - Viewport: 1440x900
+        - Time (UTC): 2026-05-18T12:34:56.000Z
+        - Error digest: `...`
+
+  - type: textarea
+    id: extras
+    attributes:
+      label: Anything else?
+      description: Screenshots, console errors, related links — anything that might help.
