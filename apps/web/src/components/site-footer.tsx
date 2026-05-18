@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 
+import { ReportBugButton } from './report-bug-button';
+
 /**
  * Site-wide footer. Three small columns on desktop, stacked on mobile.
  * Pure server component — no state, no auth-dependent links.
@@ -38,8 +40,11 @@ export function SiteFooter() {
           />
         </div>
 
-        <div className="border-border-base mt-8 border-t pt-6 text-center text-xs">
-          © {year} PickupVB. All rights reserved.
+        <div className="border-border-base text-muted mt-8 flex flex-col items-center gap-2 border-t pt-6 text-center text-xs sm:flex-row sm:justify-between">
+          <p>© {year} PickupVB. All rights reserved.</p>
+          <p>
+            Found a bug? <ReportBugButton />
+          </p>
         </div>
       </div>
     </footer>
