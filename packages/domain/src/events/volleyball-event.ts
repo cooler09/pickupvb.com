@@ -7,12 +7,14 @@ import {
   NotFoundError,
 } from '../shared/result.js';
 import { Capacity } from './capacity.js';
+import { Division } from './division.js';
 import {
   EventPosition,
   EventStatus,
   EventType,
   Format,
   Gender,
+  RegistrationMode,
   SkillLevel,
   Surface,
   Visibility,
@@ -88,6 +90,162 @@ export interface CreateEventProps {
    * Total spots = sum of values; positions with `0` are not selectable.
    */
   positionRoster?: ReadonlyMap<EventPosition, number> | null;
+  /** Phase-2 extensions (ADR 0006). Optional / additive. */
+  extensions?: Partial<EventExtensionsInput>;
+  /** Initial divisions. May be empty; later mutations are TBD. */
+  divisions?: ReadonlyArray<Division>;
+}
+
+/**
+ * Additive event-level fields introduced by ADR 0006 to cover real-world
+ * tournament listings (multi-day series, fundraisers, off-platform signup,
+ * sanctioning bodies, etc.). All fields are optional in inputs; the
+ * aggregate exposes resolved values via getters.
+ */
+export interface EventExtensionsInput {
+  venueName: string | null;
+  registrationClosesAt: Date | null;
+  seriesName: string | null;
+  seriesPosition: number | null;
+  seriesSize: number | null;
+  isFundraiser: boolean;
+  fundraiserBeneficiary: string | null;
+  themeTags: ReadonlyArray<string>;
+  sanctioningBody: string | null;
+  registrationMode: RegistrationMode;
+  externalRegistrationUrl: string | null;
+  externalRegistrationInstructions: string | null;
+  paymentInstructions: string | null;
+}
+
+interface EventExtensions {
+  venueName: string | null;
+  registrationClosesAt: Date | null;
+  seriesName: string | null;
+  seriesPosition: number | null;
+  seriesSize: number | null;
+  isFundraiser: boolean;
+  fundraiserBeneficiary: string | null;
+  themeTags: ReadonlyArray<string>;
+  sanctioningBody: string | null;
+  registrationMode: RegistrationMode;
+  externalRegistrationUrl: string | null;
+  externalRegistrationInstructions: string | null;
+  paymentInstructions: string | null;
+}
+
+const MAX_VENUE_NAME_LEN = 200;
+const MAX_SERIES_NAME_LEN = 120;
+const MAX_BENEFICIARY_LEN = 200;
+const MAX_THEME_TAG_LEN = 40;
+const MAX_THEME_TAGS = 16;
+const MAX_SANCTIONING_BODY_LEN = 60;
+const MAX_URL_LEN = 2048;
+const MAX_INSTRUCTIONS_LEN = 2000;
+
+function resolveExtensions(
+  input: Partial<EventExtensionsInput> | undefined,
+  endsAt: Date,
+): EventExtensions {
+  const venueName = input?.venueName?.trim() || null;
+  if (venueName && venueName.length > MAX_VENUE_NAME_LEN) {
+    throw new InvariantViolation(`Venue name must be at most ${MAX_VENUE_NAME_LEN} characters.`);
+  }
+  const registrationClosesAt = input?.registrationClosesAt ?? null;
+  if (registrationClosesAt && registrationClosesAt > endsAt) {
+    throw new InvariantViolation('Registration close time must be on or before event end time.');
+  }
+  const seriesName = input?.seriesName?.trim() || null;
+  if (seriesName && seriesName.length > MAX_SERIES_NAME_LEN) {
+    throw new InvariantViolation(`Series name must be at most ${MAX_SERIES_NAME_LEN} characters.`);
+  }
+  const seriesPosition = input?.seriesPosition ?? null;
+  const seriesSize = input?.seriesSize ?? null;
+  if (seriesPosition !== null) {
+    if (!Number.isInteger(seriesPosition) || seriesPosition < 1) {
+      throw new InvariantViolation('Series position must be a positive integer.');
+    }
+  }
+  if (seriesSize !== null) {
+    if (!Number.isInteger(seriesSize) || seriesSize < 1) {
+      throw new InvariantViolation('Series size must be a positive integer.');
+    }
+  }
+  if (seriesPosition !== null && seriesSize !== null && seriesPosition > seriesSize) {
+    throw new InvariantViolation('Series position cannot exceed series size.');
+  }
+  const fundraiserBeneficiary = input?.fundraiserBeneficiary?.trim() || null;
+  if (fundraiserBeneficiary && fundraiserBeneficiary.length > MAX_BENEFICIARY_LEN) {
+    throw new InvariantViolation(
+      `Fundraiser beneficiary must be at most ${MAX_BENEFICIARY_LEN} characters.`,
+    );
+  }
+  const themeTagsRaw = input?.themeTags ?? [];
+  if (themeTagsRaw.length > MAX_THEME_TAGS) {
+    throw new InvariantViolation(`Event may have at most ${MAX_THEME_TAGS} theme tags.`);
+  }
+  const themeTags: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of themeTagsRaw) {
+    const tag = raw.trim();
+    if (!tag) continue;
+    if (tag.length > MAX_THEME_TAG_LEN) {
+      throw new InvariantViolation(`Theme tag "${tag}" exceeds ${MAX_THEME_TAG_LEN} characters.`);
+    }
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    themeTags.push(tag);
+  }
+  const sanctioningBody = input?.sanctioningBody?.trim() || null;
+  if (sanctioningBody && sanctioningBody.length > MAX_SANCTIONING_BODY_LEN) {
+    throw new InvariantViolation(
+      `Sanctioning body must be at most ${MAX_SANCTIONING_BODY_LEN} characters.`,
+    );
+  }
+  const registrationMode = input?.registrationMode ?? RegistrationMode.Platform;
+  const externalRegistrationUrl = input?.externalRegistrationUrl?.trim() || null;
+  if (externalRegistrationUrl && externalRegistrationUrl.length > MAX_URL_LEN) {
+    throw new InvariantViolation(
+      `External registration URL must be at most ${MAX_URL_LEN} characters.`,
+    );
+  }
+  const externalRegistrationInstructions = input?.externalRegistrationInstructions?.trim() || null;
+  if (
+    externalRegistrationInstructions &&
+    externalRegistrationInstructions.length > MAX_INSTRUCTIONS_LEN
+  ) {
+    throw new InvariantViolation(
+      `External registration instructions must be at most ${MAX_INSTRUCTIONS_LEN} characters.`,
+    );
+  }
+  if (
+    registrationMode === RegistrationMode.External &&
+    !externalRegistrationUrl &&
+    !externalRegistrationInstructions
+  ) {
+    throw new InvariantViolation('External registration requires either a URL or instructions.');
+  }
+  const paymentInstructions = input?.paymentInstructions?.trim() || null;
+  if (paymentInstructions && paymentInstructions.length > MAX_INSTRUCTIONS_LEN) {
+    throw new InvariantViolation(
+      `Payment instructions must be at most ${MAX_INSTRUCTIONS_LEN} characters.`,
+    );
+  }
+  return {
+    venueName,
+    registrationClosesAt,
+    seriesName,
+    seriesPosition,
+    seriesSize,
+    isFundraiser: input?.isFundraiser ?? false,
+    fundraiserBeneficiary,
+    themeTags,
+    sanctioningBody,
+    registrationMode,
+    externalRegistrationUrl,
+    externalRegistrationInstructions,
+    paymentInstructions,
+  };
 }
 
 /**
@@ -124,6 +282,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _teams: Set<TeamId>,
     private _freeAgents: Map<UserId, string | null>,
     private _positionRoster: Map<EventPosition, number> | null,
+    private _extensions: EventExtensions,
+    private _divisions: Division[],
   ) {
     super(id);
   }
@@ -157,6 +317,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       }
     }
 
+    const extensions = resolveExtensions(props.extensions, props.endsAt);
+    const divisions = (props.divisions ?? []).slice();
+
     const evt = new VolleyballEvent(
       props.id,
       props.hostId,
@@ -179,6 +342,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       new Set(),
       new Map(),
       positionRoster,
+      extensions,
+      divisions,
     );
     evt.raise(new EventCreated(evt.id));
     return evt;
@@ -211,6 +376,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     /** Tuples of `[userId, notes]`. Notes default to `null` when absent. */
     freeAgents?: ReadonlyArray<readonly [UserId, string | null]>;
     positionRoster?: ReadonlyMap<EventPosition, number> | null;
+    extensions?: Partial<EventExtensionsInput>;
+    divisions?: ReadonlyArray<Division>;
   }): VolleyballEvent {
     const attendeeEntries: Array<readonly [UserId, EventPosition | null]> = props.attendees.map(
       (a): readonly [UserId, EventPosition | null] =>
@@ -242,6 +409,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       new Set(props.teams),
       new Map(props.freeAgents ?? []),
       roster,
+      resolveExtensions(props.extensions, props.endsAt),
+      (props.divisions ?? []).slice(),
     );
   }
 
@@ -294,6 +463,49 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   /** Free-agent signups, mapped to their optional notes blurb. */
   get freeAgents(): ReadonlyMap<UserId, string | null> {
     return this._freeAgents;
+  }
+  /** Divisions on this event. Empty when the event has not been split yet. */
+  get divisions(): ReadonlyArray<Division> {
+    return this._divisions;
+  }
+  get venueName(): string | null {
+    return this._extensions.venueName;
+  }
+  get registrationClosesAt(): Date | null {
+    return this._extensions.registrationClosesAt;
+  }
+  get seriesName(): string | null {
+    return this._extensions.seriesName;
+  }
+  get seriesPosition(): number | null {
+    return this._extensions.seriesPosition;
+  }
+  get seriesSize(): number | null {
+    return this._extensions.seriesSize;
+  }
+  get isFundraiser(): boolean {
+    return this._extensions.isFundraiser;
+  }
+  get fundraiserBeneficiary(): string | null {
+    return this._extensions.fundraiserBeneficiary;
+  }
+  get themeTags(): ReadonlyArray<string> {
+    return this._extensions.themeTags;
+  }
+  get sanctioningBody(): string | null {
+    return this._extensions.sanctioningBody;
+  }
+  get registrationMode(): RegistrationMode {
+    return this._extensions.registrationMode;
+  }
+  get externalRegistrationUrl(): string | null {
+    return this._extensions.externalRegistrationUrl;
+  }
+  get externalRegistrationInstructions(): string | null {
+    return this._extensions.externalRegistrationInstructions;
+  }
+  get paymentInstructions(): string | null {
+    return this._extensions.paymentInstructions;
   }
 
   /** Total spots — derived from positionRoster when set, else from capacity. */
