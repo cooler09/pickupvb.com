@@ -6,6 +6,8 @@ import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
+import { getServerSupabase } from '@/lib/supabase';
+import type { SocialHandles } from '@/lib/social-handles';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { LocalDateTime } from '@/components/local-datetime';
 import { getEventPricing, attendeeChargeBreakdownAsync, isPaidEvent } from '@/lib/event-pricing';
@@ -160,6 +162,39 @@ export default async function EventDetailPage(props: {
         })()
       : Promise.resolve(undefined),
   ]);
+
+  // Primary host's social handles — small extra fetch, kept outside the
+  // domain read model since it's purely cosmetic. Renders nothing when the
+  // host hasn't set any handles.
+  let primaryHostUserSocial: SocialHandles | null = null;
+  if (event.primaryHostUser) {
+    const supabaseForSocial = await getServerSupabase();
+    const { data: socialRow } = await supabaseForSocial
+      .from('profiles')
+      .select(
+        'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      )
+      .eq('id', event.primaryHostUser.id)
+      .maybeSingle();
+    const r = socialRow as {
+      instagram_handle: string | null;
+      tiktok_handle: string | null;
+      twitter_handle: string | null;
+      facebook_handle: string | null;
+      youtube_handle: string | null;
+      website_url: string | null;
+    } | null;
+    if (r) {
+      primaryHostUserSocial = {
+        instagramHandle: r.instagram_handle,
+        tiktokHandle: r.tiktok_handle,
+        twitterHandle: r.twitter_handle,
+        facebookHandle: r.facebook_handle,
+        youtubeHandle: r.youtube_handle,
+        websiteUrl: r.website_url,
+      };
+    }
+  }
 
   // The AttendeeList component still expects the snake_case Supabase shape.
   // Map the read model to it inline to keep the component unchanged.
@@ -386,6 +421,7 @@ export default async function EventDetailPage(props: {
         canManage={event.canManage}
         viewerHostableGroups={event.viewerHostableGroups}
         returnPath={returnPath}
+        {...(primaryHostUserSocial ? { primaryHostUserSocial } : {})}
       />
 
       {event.canManage && (
