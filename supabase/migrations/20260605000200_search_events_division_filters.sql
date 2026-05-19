@@ -144,7 +144,7 @@ as $$
       or exists (
         select 1 from public.event_divisions d
         where d.event_id = e.id
-          and (p_skill_band       is null or d.skill_tier::text = any((select tiers from band_tiers)))
+          and (p_skill_band       is null or d.skill_tier::text in (select unnest(tiers) from band_tiers))
           and (p_age_group        is null or d.age_group::text = p_age_group)
           and (p_team_composition is null or d.team_composition::text = p_team_composition)
       )
