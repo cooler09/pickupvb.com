@@ -412,6 +412,12 @@ export class SupabaseEventRepository implements EventRepository {
     // `on delete set null` and may be re-resolved by the
     // `fill_default_division_id` trigger when the event has exactly one
     // remaining division.
+    //
+    // When the aggregate carries no divisions (legacy create path that
+    // pre-dates multi-division), we skip the delete entirely so the
+    // `events_create_default_division` AFTER INSERT trigger's row stays
+    // put. Reconciliation only runs when the caller explicitly listed
+    // divisions on the aggregate.
     const eventIdStr = String(event.id);
     const divisionRows = event.divisions.map((d) => divisionToRow(eventIdStr, d));
     if (divisionRows.length > 0) {
@@ -419,14 +425,14 @@ export class SupabaseEventRepository implements EventRepository {
         .from('event_divisions')
         .upsert(divisionRows as never, { onConflict: 'id' });
       if (upErr) throw new Error(`save divisions upsert failed: ${upErr.message}`);
+      const keepIds = event.divisions.map((d) => String(d.id));
+      const { error: delDivErr } = await this.client
+        .from('event_divisions')
+        .delete()
+        .eq('event_id', eventIdStr)
+        .not('id', 'in', `(${keepIds.join(',')})`);
+      if (delDivErr) throw new Error(`save divisions delete failed: ${delDivErr.message}`);
     }
-    const keepIds = event.divisions.map((d) => String(d.id));
-    let delDivQ = this.client.from('event_divisions').delete().eq('event_id', eventIdStr);
-    if (keepIds.length > 0) {
-      delDivQ = delDivQ.not('id', 'in', `(${keepIds.join(',')})`);
-    }
-    const { error: delDivErr } = await delDivQ;
-    if (delDivErr) throw new Error(`save divisions delete failed: ${delDivErr.message}`);
 
     // Drain raised events so callers don't double-handle them.
     event.pullEvents();

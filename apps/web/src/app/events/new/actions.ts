@@ -245,13 +245,23 @@ export async function createEventAction(
     const { error: priceErr } = await supabase
       .from('events')
       .update({
-        price_cents: priceCents,
         host_absorbs_fee: hostAbsorbsFee,
         refund_window_hours: refundWindowHours,
       } as never)
       .eq('id', result.id);
     if (priceErr) {
       return { error: `Event created, but pricing failed: ${priceErr.message}` };
+    }
+    // Pricing now lives on event_divisions (ADR 0006 Phase 9a). Update
+    // the first (default) division — created either by the create handler
+    // or by the events_create_default_division DB trigger.
+    const { error: divPriceErr } = await supabase
+      .from('event_divisions')
+      .update({ price_cents: priceCents } as never)
+      .eq('event_id', result.id)
+      .eq('sort_order', 0);
+    if (divPriceErr) {
+      return { error: `Event created, but pricing failed: ${divPriceErr.message}` };
     }
   }
 

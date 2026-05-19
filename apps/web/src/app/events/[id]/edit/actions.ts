@@ -121,16 +121,26 @@ export async function editEventAction(
   const newHostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
 
   // Read current pricing to detect changes (and for the price-lock check).
+  // ADR 0006 Phase 9a: price_cents now lives on event_divisions; the rest
+  // remain on events. Read both in parallel.
   const admin = getAdminSupabase();
-  const { data: cur } = await admin
-    .from('events')
-    .select(
-      'price_cents, host_absorbs_fee, refund_window_hours, host_id, title, starts_at, address_line, city',
-    )
-    .eq('id', eventId)
-    .maybeSingle();
+  const [curRes, curDivRes] = await Promise.all([
+    admin
+      .from('events')
+      .select(
+        'host_absorbs_fee, refund_window_hours, host_id, title, starts_at, address_line, city',
+      )
+      .eq('id', eventId)
+      .maybeSingle(),
+    admin
+      .from('event_divisions')
+      .select('id, price_cents')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
   type CurRow = {
-    price_cents: number;
     host_absorbs_fee: boolean;
     refund_window_hours: number;
     host_id: string;
@@ -139,10 +149,13 @@ export async function editEventAction(
     address_line: string;
     city: string;
   };
-  const c = cur as unknown as CurRow | null;
+  type CurDivRow = { id: string; price_cents: number | null };
+  const c = curRes.data as unknown as CurRow | null;
+  const curDiv = (curDivRes.data as unknown as CurDivRow | null) ?? null;
+  const curPriceCents = curDiv?.price_cents ?? 0;
   const pricingChanged = !c
     ? false
-    : c.price_cents !== newPriceCents ||
+    : curPriceCents !== newPriceCents ||
       c.host_absorbs_fee !== newHostAbsorbsFee ||
       c.refund_window_hours !== newRefundWindowHours;
 
@@ -159,7 +172,7 @@ export async function editEventAction(
     if (newPriceCents > 0) {
       const hostIdToCheck = c?.host_id ?? user.id;
       // Free-tier cap also applies when an event flips from free→paid.
-      if ((c?.price_cents ?? 0) === 0) {
+      if (curPriceCents === 0) {
         const cap = await validateHostPaidEventCap(hostIdToCheck, {
           includesCurrentEvent: false,
         });
@@ -249,15 +262,25 @@ export async function editEventAction(
   if (updErr) return { error: `Update failed: ${updErr.message}` };
 
   if (pricingChanged) {
+    // host_absorbs_fee + refund_window_hours stay on events; price_cents
+    // moved to event_divisions in Phase 9a.
     const { error: priceErr } = await admin
       .from('events')
       .update({
-        price_cents: newPriceCents,
         host_absorbs_fee: newHostAbsorbsFee,
         refund_window_hours: newRefundWindowHours,
       } as never)
       .eq('id', eventId);
     if (priceErr) return { error: `Pricing update failed: ${priceErr.message}` };
+    if (curDiv) {
+      const { error: divPriceErr } = await admin
+        .from('event_divisions')
+        .update({ price_cents: newPriceCents } as never)
+        .eq('id', curDiv.id);
+      if (divPriceErr) {
+        return { error: `Pricing update failed: ${divPriceErr.message}` };
+      }
+    }
   }
 
   revalidatePath(`/events/${eventId}`);
