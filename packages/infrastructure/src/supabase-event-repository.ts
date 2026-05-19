@@ -16,6 +16,7 @@ import {
   Visibility,
   VolleyballEvent,
   isEventPosition,
+  skillTierBand,
   type AttendeeLite,
   type CaptainedTeamLite,
   type CoHostParty,
@@ -47,7 +48,7 @@ type EventRow = {
   surface: Surface;
   format: Format | null;
   gender: Gender | null;
-  skill_level: SkillLevel;
+  skill_level: SkillLevel | null;
   type: EventType;
   visibility: Visibility;
   status: EventStatus;
@@ -109,6 +110,32 @@ function rowToCapacity(row: EventRow): Capacity | null {
   if (row.capacity_kind === 'unlimited') return Capacity.unlimited();
   if (row.capacity_kind === 'fixed' && row.max_spots !== null) return Capacity.fixed(row.max_spots);
   return null;
+}
+
+/**
+ * Fallback shim: derive the legacy single-event display fields (format,
+ * gender, skill_level, capacity) from the first division when the event
+ * columns are null. ADR 0006 Phase 9b routed hydrate off the legacy
+ * columns; Phase 9c will DROP them. Until then we tolerate either source.
+ */
+function primaryDivisionFallback(
+  row: EventRow,
+  divisions: ReadonlyArray<DivisionRow>,
+): {
+  format: Format | null;
+  gender: Gender | null;
+  skillLevel: SkillLevel;
+  capacity: Capacity | null;
+} {
+  const d = divisions[0] ?? null;
+  return {
+    format: row.format ?? d?.format ?? null,
+    gender: row.gender ?? d?.gender ?? null,
+    skillLevel:
+      row.skill_level ??
+      (d ? (skillTierBand(d.skill_tier) as SkillLevel) : SkillLevel.Intermediate),
+    capacity: rowToCapacity(row) ?? (d ? divisionRowToCapacity(d) : null),
+  };
 }
 
 function rowToPositionRoster(row: EventRow): Map<EventPosition, number> | null {
@@ -265,6 +292,9 @@ export class SupabaseEventRepository implements EventRepository {
     if (fErr) throw new Error(`findById free agents failed: ${fErr.message}`);
     if (dErr) throw new Error(`findById divisions failed: ${dErr.message}`);
 
+    const divisionRows = (divisions ?? []) as DivisionRow[];
+    const legacy = primaryDivisionFallback(row, divisionRows);
+
     return VolleyballEvent.fromPersistence({
       id: row.id as never,
       hostId: row.host_id as never,
@@ -272,9 +302,9 @@ export class SupabaseEventRepository implements EventRepository {
       description: row.description,
       rules: row.rules,
       surface: row.surface,
-      format: row.format,
-      gender: row.gender,
-      skillLevel: row.skill_level,
+      format: legacy.format,
+      gender: legacy.gender,
+      skillLevel: legacy.skillLevel,
       type: row.type,
       visibility: row.visibility,
       location: Location.create({
@@ -289,7 +319,7 @@ export class SupabaseEventRepository implements EventRepository {
       startsAt: new Date(row.starts_at),
       endsAt: new Date(row.ends_at),
       timeZone: row.time_zone,
-      capacity: rowToCapacity(row),
+      capacity: legacy.capacity,
       status: row.status,
       attendees: ((attendees ?? []) as Array<{ user_id: string; position: string | null }>).map(
         (a) => [a.user_id as never, isEventPosition(a.position) ? a.position : null] as const,
@@ -300,7 +330,7 @@ export class SupabaseEventRepository implements EventRepository {
       ),
       positionRoster: rowToPositionRoster(row),
       extensions: rowToExtensions(row),
-      divisions: ((divisions ?? []) as DivisionRow[]).map(divisionRowToDomain),
+      divisions: divisionRows.map(divisionRowToDomain),
     });
   }
 
@@ -597,6 +627,11 @@ export class SupabaseEventRepository implements EventRepository {
         .order('sort_order', { ascending: true }),
     ]);
 
+    // Derive legacy display fields from primary division when the event
+    // columns are null (ADR 0006 Phase 9b).
+    const divisionRowsForDetail = (divisionRowsRes.data as DivisionRow[] | null) ?? [];
+    const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
+
     type AttendeeRow = {
       user_id: string;
       joined_at: string;
@@ -709,12 +744,12 @@ export class SupabaseEventRepository implements EventRepository {
       // Teams the viewer captains in this event's format. Only meaningful
       // for tournaments; we still issue it for any logged-in viewer to
       // keep the response shape uniform — the cost is one tiny query.
-      viewerId && row.format
+      viewerId && legacyDetail.format
         ? this.client
             .from('teams')
             .select('id, name, format')
             .eq('captain_id', viewerId)
-            .eq('format', row.format)
+            .eq('format', legacyDetail.format)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -849,7 +884,7 @@ export class SupabaseEventRepository implements EventRepository {
       isRegistered: registeredTeamIdSet.has(t.id),
     }));
 
-    const capacity = rowToCapacity(row);
+    const capacity = legacyDetail.capacity;
     const spotsRemaining = positionRoster
       ? Math.max(
           0,
@@ -872,9 +907,9 @@ export class SupabaseEventRepository implements EventRepository {
       description: row.description,
       rules: row.rules,
       surface: row.surface,
-      format: row.format,
-      gender: row.gender,
-      skillLevel: row.skill_level,
+      format: legacyDetail.format,
+      gender: legacyDetail.gender,
+      skillLevel: legacyDetail.skillLevel,
       type: row.type,
       visibility: row.visibility,
       status: row.status,
@@ -909,7 +944,7 @@ export class SupabaseEventRepository implements EventRepository {
       viewerHostableGroups,
       viewerCaptainedTeams,
       ...rowToExtensions(row),
-      divisions: ((divisionRowsRes.data as DivisionRow[] | null) ?? []).map(divisionRowToLite),
+      divisions: divisionRowsForDetail.map(divisionRowToLite),
     };
   }
 

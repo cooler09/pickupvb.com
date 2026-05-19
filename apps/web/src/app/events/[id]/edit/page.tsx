@@ -27,17 +27,16 @@ export default async function EditEventPage(props: { params: Promise<{ id: strin
   }
   if (!event.canManage) redirect(`/events/${id}`);
 
-  // Capacity isn't on the read model — fetch it directly. Uses admin to
-  // avoid any RLS hiccups; we've already verified `canManage` above.
-  const admin = getAdminSupabase();
-  const { data: capRow } = await admin
-    .from('events')
-    .select('capacity_kind, max_spots')
-    .eq('id', id)
-    .maybeSingle();
-  type CapRow = { capacity_kind: 'unlimited' | 'fixed' | null; max_spots: number | null };
-  const cap = (capRow as unknown as CapRow | null) ?? { capacity_kind: null, max_spots: null };
+  // Capacity comes from the first (default) division — ADR 0006 Phase 9b
+  // moved capacity off the legacy event columns. Read model already
+  // carries divisions[].
+  const primaryDiv = event.divisions[0] ?? null;
+  const cap = {
+    capacity_kind: primaryDiv?.capacityKind ?? null,
+    max_spots: primaryDiv?.maxSpots ?? null,
+  };
 
+  const admin = getAdminSupabase();
   const pricing = await getEventPricing(id);
   const pricingLocked = await isPricingLocked(id);
 
