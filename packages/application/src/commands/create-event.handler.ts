@@ -4,11 +4,14 @@ import {
   Capacity,
   Division,
   EventType,
+  Format,
+  Gender,
   Location,
   PriceUnit,
   TeamComposition,
   VolleyballEvent,
   isEventPosition,
+  skillTierFromLegacy,
   type EventPosition,
   type EventRepository,
   type EventExtensionsInput,
@@ -107,6 +110,36 @@ export class CreateEventHandler {
     }
 
     const divisions = (dto.divisions ?? []).map((d, i) => divisionFromDto(d, i));
+
+    // ADR 0006 Phase 9d: divisions are now the authority for skill/format/
+    // gender/capacity. When the caller doesn't supply any, synthesize a
+    // default one from the legacy top-level fields so the event is fully
+    // formed without relying on a DB trigger.
+    if (divisions.length === 0) {
+      divisions.push(
+        Division.create({
+          id: randomUUID() as never,
+          sortOrder: 0,
+          label: 'All',
+          surface: dto.surface,
+          format: dto.format ?? Format.Sixes,
+          gender: dto.gender ?? Gender.Coed,
+          skillTier: skillTierFromLegacy(dto.skillLevel),
+          ageGroup: AgeGroup.Adult,
+          tierLabel: null,
+          teamComposition:
+            dto.type === EventType.OpenPlay ? TeamComposition.Solo : TeamComposition.Team,
+          teamSize: null,
+          capacity: capacity ?? null,
+          priceCents: null,
+          priceUnit: PriceUnit.PerPlayer,
+          prizeText: null,
+          prizePurseCents: null,
+          startsAt: null,
+          endsAt: null,
+        }),
+      );
+    }
 
     const event = VolleyballEvent.create({
       id,
