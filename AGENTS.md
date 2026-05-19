@@ -19,6 +19,13 @@ pnpm typecheck && pnpm lint && pnpm build
 
 Turborepo caches, so re-runs are fast. Don't ship a change until all three pass.
 
+## Do not commit or push
+
+**Never run `git commit` or `git push` on the agent's own initiative.** The
+user reviews and commits changes themselves. Leave the working tree dirty
+after verification — that's the expected hand-off state. Only run git
+write commands when the user explicitly asks you to.
+
 ## Repository shape
 
 Monorepo (pnpm + Turbo). Packages depend strictly inward:
@@ -68,20 +75,21 @@ literals matching the route pattern (e.g. `` `/groups/${id}` ``, not `/groups/` 
 Defined in [packages/domain/src/shared/result.ts](packages/domain/src/shared/result.ts).
 **Always throw a typed subclass; never throw `Error('NOT_FOUND')`-style strings.**
 
-| Class | Code | When |
-|---|---|---|
-| `NotFoundError(resource, id?, msg?)` | `NOT_FOUND` | Missing aggregate, missing attendee row, etc. |
-| `ConflictError` | `CONFLICT` | Duplicate join, already registered |
-| `CapacityExceededError` | `CAPACITY_EXCEEDED` | Event full |
-| `UnauthorizedError` | `UNAUTHORIZED` | Caller lacks permission |
-| `ValidationError` | `VALIDATION` | Bad input that wasn't caught at the boundary |
-| `InvariantViolation` | `INVARIANT_VIOLATION` | Generic state-machine guard (publish/cancel/etc.) |
+| Class                                | Code                  | When                                              |
+| ------------------------------------ | --------------------- | ------------------------------------------------- |
+| `NotFoundError(resource, id?, msg?)` | `NOT_FOUND`           | Missing aggregate, missing attendee row, etc.     |
+| `ConflictError`                      | `CONFLICT`            | Duplicate join, already registered                |
+| `CapacityExceededError`              | `CAPACITY_EXCEEDED`   | Event full                                        |
+| `UnauthorizedError`                  | `UNAUTHORIZED`        | Caller lacks permission                           |
+| `ValidationError`                    | `VALIDATION`          | Bad input that wasn't caught at the boundary      |
+| `InvariantViolation`                 | `INVARIANT_VIOLATION` | Generic state-machine guard (publish/cancel/etc.) |
 
 Server actions and route handlers consume them with `instanceof`:
 
 ```ts
-try { /* ... */ }
-catch (err) {
+try {
+  /* ... */
+} catch (err) {
   if (err instanceof CapacityExceededError) return { ok: false, reason: 'full' };
   if (err instanceof ConflictError) return { ok: false, reason: 'already' };
   if (err instanceof NotFoundError) notFound();
@@ -102,7 +110,7 @@ Routes under `apps/web/src/app/`. Pages should be thin orchestrators (target
 
 - **Co-locate sub-components under `_components/`.** The underscore prefix
   prevents Next.js from treating them as routes. Example:
-  [apps/web/src/app/events/[id]/_components/](apps/web/src/app/events/[id]/_components/).
+  [apps/web/src/app/events/[id]/\_components/](apps/web/src/app/events/[id]/_components/).
 - **Co-locate server actions next to (not inside) the page.** Files like
   `co-host-actions.ts`, `members-actions.ts`. Mark with `'use server'` at the
   top, not per-function.
@@ -154,10 +162,10 @@ whether the form is wired with `useFormState`, `.bind()`, or a plain
 Two patterns coexist intentionally — pick by call site:
 
 - **Plain `<form action={...}>` (no client state)** → use **flash-param
-  redirects**. The action `redirect(\`${returnPath}?rsvp=error\`)` on failure
-  and the page reads the param to render an alert. See
-  [apps/web/src/app/events/[id]/rsvp-actions.ts](apps/web/src/app/events/[id]/rsvp-actions.ts).
-  Catch typed `DomainError` subclasses and map them to specific reason
+  redirects**. The action `redirect(\`${returnPath}?rsvp=error\`)`on failure
+and the page reads the param to render an alert. See
+[apps/web/src/app/events/[id]/rsvp-actions.ts](apps/web/src/app/events/[id]/rsvp-actions.ts).
+Catch typed`DomainError` subclasses and map them to specific reason
   codes; rethrow anything unknown.
 - **Client-component-invoked actions** (called from `'use client'` with
   `useTransition`, optimistic UI, or `useFormState`) → return a typed

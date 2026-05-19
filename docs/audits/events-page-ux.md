@@ -64,7 +64,7 @@ EventStickyCta (mobile-only, hides when #signup is in view)
 
 ### 1. `EventHero` with primary CTA + countdown — **shipped**
 
-[apps/web/src/app/events/[id]/_components/event-hero.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-hero.tsx).
+[apps/web/src/app/events/[id]/\_components/event-hero.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-hero.tsx).
 Renders the tags row, title, meta sub-line, closing-soon pill (visible
 only when `registrationClosesAt` is within 72h), the primary CTA, and the
 Share / Edit secondary actions. CTA selection lives at the page level
@@ -90,6 +90,7 @@ scrolls into view. Pads for `safe-area-inset-bottom` for iOS notches.
 
 [event-closed-state.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-closed-state.tsx).
 Replaces the bare "Signups are closed" `<p>`. Three branches:
+
 - `status === 'cancelled'` → red notice, no CTA.
 - `status === 'completed'` → "View bracket" (tournament) or "View attendees" (open play).
 - `hasStarted` (still published) → same pivot + a host-only "Manage event" button.
