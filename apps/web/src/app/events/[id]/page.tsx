@@ -282,6 +282,32 @@ export default async function EventDetailPage(props: {
           status={event.status}
         />
         <h1 className="text-fg text-3xl font-bold">{event.title}</h1>
+        <p className="text-muted flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <LocalDateTime
+            iso={event.startsAt}
+            variant="dateShort"
+            timeZone={event.timeZone}
+            fallback={formatEventDateLong(event.startsAt, event.timeZone)}
+          />
+          <span aria-hidden="true">·</span>
+          <span>
+            {event.location.city}, {event.location.region}
+          </span>
+          {event.spotsRemaining !== null && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>
+                {event.spotsRemaining === 0
+                  ? 'Full'
+                  : `${event.spotsRemaining} ${event.spotsRemaining === 1 ? 'spot' : 'spots'} left`}
+              </span>
+            </>
+          )}
+          <span aria-hidden="true">·</span>
+          <span className="text-fg font-medium">
+            {paid && breakdown ? `$${(breakdown.ticketCents / 100).toFixed(2)}` : 'Free'}
+          </span>
+        </p>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <EventShareLink shortCode={event.shortCode} title={event.title} />
           {event.canManage && (
@@ -343,14 +369,6 @@ export default async function EventDetailPage(props: {
       )}
 
       <DivisionsSection divisions={event.divisions} />
-
-      {event.canManage && (
-        <HostDivisionsManager
-          eventId={event.id}
-          returnPath={returnPath}
-          divisions={event.divisions}
-        />
-      )}
 
       {event.type === 'open_play' &&
         signupsOpen &&
@@ -428,6 +446,39 @@ export default async function EventDetailPage(props: {
         </p>
       )}
 
+      {event.description && (
+        <section>
+          <h2 className="text-fg mb-2 text-lg font-semibold">Description</h2>
+          <p className="text-fg/90 whitespace-pre-wrap">{event.description}</p>
+        </section>
+      )}
+
+      {event.rules && (
+        <section>
+          <h2 className="text-fg mb-2 text-lg font-semibold">Rules</h2>
+          <p className="text-fg/90 whitespace-pre-wrap">{event.rules}</p>
+        </section>
+      )}
+
+      {event.type === 'tournament' && (
+        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-fg text-base font-semibold">Bracket</h2>
+              <p className="text-muted text-xs">
+                Set up the tournament bracket and report match results.
+              </p>
+            </div>
+            <Link
+              href={`/events/${event.id}/bracket` as Route}
+              className="bg-primary text-primary-fg rounded px-3 py-1 text-sm"
+            >
+              Open bracket
+            </Link>
+          </div>
+        </section>
+      )}
+
       <section className="space-y-2">
         <h2 className="text-fg text-lg font-semibold">Where</h2>
         {event.venueName && <p className="text-fg font-medium">{event.venueName}</p>}
@@ -465,10 +516,22 @@ export default async function EventDetailPage(props: {
       />
 
       {event.canManage && (
-        <HostBroadcastPanel
-          eventId={event.id}
-          attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
-        />
+        <details className="border-border-base group rounded-lg border p-3 open:p-4">
+          <summary className="text-fg cursor-pointer text-sm font-semibold select-none">
+            Host tools
+          </summary>
+          <div className="mt-4 space-y-6">
+            <HostDivisionsManager
+              eventId={event.id}
+              returnPath={returnPath}
+              divisions={event.divisions}
+            />
+            <HostBroadcastPanel
+              eventId={event.id}
+              attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
+            />
+          </div>
+        </details>
       )}
 
       {event.type === 'open_play' && (
@@ -509,39 +572,6 @@ export default async function EventDetailPage(props: {
               )}
             </p>
           )}
-        </section>
-      )}
-
-      {event.description && (
-        <section>
-          <h2 className="text-fg mb-2 text-lg font-semibold">Description</h2>
-          <p className="text-fg/90 whitespace-pre-wrap">{event.description}</p>
-        </section>
-      )}
-
-      {event.rules && (
-        <section>
-          <h2 className="text-fg mb-2 text-lg font-semibold">Rules</h2>
-          <p className="text-fg/90 whitespace-pre-wrap">{event.rules}</p>
-        </section>
-      )}
-
-      {event.type === 'tournament' && (
-        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-fg text-base font-semibold">Bracket</h2>
-              <p className="text-muted text-xs">
-                Set up the tournament bracket and report match results.
-              </p>
-            </div>
-            <Link
-              href={`/events/${event.id}/bracket` as Route}
-              className="bg-primary text-primary-fg rounded px-3 py-1 text-sm"
-            >
-              Open bracket
-            </Link>
-          </div>
         </section>
       )}
 

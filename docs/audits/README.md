@@ -14,6 +14,7 @@ land its fixes.
 | [SEO](seo.md)                                     | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open |
 | [Documentation](documentation.md)                 | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open |
 | [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open |
+| [Events page UX](events-page-ux.md)               | 2026-05-18 | Quick-win bundle landed (2026-05-18); rest open |
 
 ## How findings are graded
 
