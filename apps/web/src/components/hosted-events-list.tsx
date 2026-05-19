@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { skillTierBand, type SkillTier } from '@pickupvb/domain';
 import { getServerSupabase } from '@/lib/supabase';
 import { SURFACE_LABEL, TYPE_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
@@ -19,6 +20,48 @@ export type HostedEventRow = {
   max_spots: number | null;
   attendee_count: number;
 };
+
+/**
+ * Batch-fetch the primary (sort_order=0) division for each event id and
+ * fold its display fields (skill_level via tier→band map, capacity_kind,
+ * max_spots) into the rows. Phase 9b of ADR 0006 routed these display
+ * values off the legacy event columns onto event_divisions.
+ */
+export async function hydratePrimaryDivision(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  rows: HostedEventRow[],
+): Promise<HostedEventRow[]> {
+  if (rows.length === 0) return rows;
+  const { data: divRows } = await supabase
+    .from('event_divisions')
+    .select('event_id, sort_order, skill_tier, capacity_kind, max_spots')
+    .in(
+      'event_id',
+      rows.map((r) => r.id),
+    )
+    .order('sort_order', { ascending: true });
+  type DivRow = {
+    event_id: string;
+    sort_order: number;
+    skill_tier: SkillTier;
+    capacity_kind: 'fixed' | 'unlimited' | null;
+    max_spots: number | null;
+  };
+  const byEvent = new Map<string, DivRow>();
+  for (const d of (divRows as DivRow[] | null) ?? []) {
+    if (!byEvent.has(d.event_id)) byEvent.set(d.event_id, d);
+  }
+  return rows.map((r) => {
+    const d = byEvent.get(r.id);
+    if (!d) return r;
+    return {
+      ...r,
+      skill_level: skillTierBand(d.skill_tier),
+      capacity_kind: d.capacity_kind,
+      max_spots: d.max_spots,
+    };
+  });
+}
 
 /**
  * Loads events hosted by `hostId` (as primary user host or as a co-host) that
@@ -54,13 +97,19 @@ export async function loadVisibleHostedEvents(
       supabase
         .from('events_view')
         .select(
-          'id, title, starts_at, time_zone, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
+          'id, title, starts_at, time_zone, city, region, type, surface, status, attendee_count',
         )
         .eq('host_id', hostId),
     ).order('starts_at', { ascending: true }),
     supabase.from('event_co_hosts').select('event_id').eq('host_user_id', hostId),
   ]);
-  const primary = primaryResult.data;
+  type ViewRow = Omit<HostedEventRow, 'skill_level' | 'capacity_kind' | 'max_spots'>;
+  const primary: HostedEventRow[] = ((primaryResult.data as ViewRow[] | null) ?? []).map((r) => ({
+    ...r,
+    skill_level: '',
+    capacity_kind: null,
+    max_spots: null,
+  }));
   const coIds = ((coRowsResult.data as { event_id: string }[] | null) ?? []).map((r) => r.event_id);
 
   let coEvents: HostedEventRow[] = [];
@@ -69,19 +118,25 @@ export async function loadVisibleHostedEvents(
       supabase
         .from('events_view')
         .select(
-          'id, title, starts_at, time_zone, city, region, type, surface, skill_level, status, capacity_kind, max_spots, attendee_count',
+          'id, title, starts_at, time_zone, city, region, type, surface, status, attendee_count',
         )
         .in('id', coIds),
     ).order('starts_at', { ascending: true });
-    coEvents = (coData as HostedEventRow[] | null) ?? [];
+    coEvents = ((coData as ViewRow[] | null) ?? []).map((r) => ({
+      ...r,
+      skill_level: '',
+      capacity_kind: null,
+      max_spots: null,
+    }));
   }
 
   const merged = new Map<string, HostedEventRow>();
-  for (const e of (primary as HostedEventRow[] | null) ?? []) merged.set(e.id, e);
+  for (const e of primary) merged.set(e.id, e);
   for (const e of coEvents) merged.set(e.id, e);
-  return Array.from(merged.values()).sort(
+  const all = Array.from(merged.values()).sort(
     (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
   );
+  return hydratePrimaryDivision(supabase, all);
 }
 
 export function HostedEventsList({

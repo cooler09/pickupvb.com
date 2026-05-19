@@ -18,9 +18,13 @@ import {
   SURFACES,
   TYPES,
   SKILLS,
+  AGE_GROUPS,
+  TEAM_COMPOSITIONS,
   type Skill,
   type Surface,
   type Type,
+  type AgeGroupFilter,
+  type TeamCompositionFilter,
 } from './_components/event-filter-form';
 import { EventTimeframeTabs, type Timeframe } from './_components/event-timeframe-tabs';
 
@@ -82,7 +86,14 @@ export default async function EventsPage(props: {
   const radiusKm = parseFloatOrNull(get('radiusKm')) ?? 40;
   const surface: Surface | undefined = pick(get('surface'), SURFACES);
   const type: Type | undefined = pick(get('type'), TYPES);
-  const skillLevel: Skill | undefined = pick(get('skill'), SKILLS);
+  const skillBand: Skill | undefined = pick(get('skillBand'), SKILLS) ?? pick(get('skill'), SKILLS);
+  const ageGroup: AgeGroupFilter | undefined = pick(get('ageGroup'), AGE_GROUPS);
+  const teamComposition: TeamCompositionFilter | undefined = pick(
+    get('teamComposition'),
+    TEAM_COMPOSITIONS,
+  );
+  const seriesNameRaw = get('seriesName')?.trim();
+  const seriesName = seriesNameRaw && seriesNameRaw.length > 0 ? seriesNameRaw : undefined;
 
   // Pre-fetch the viewer's friends once. Used for both the Following-tab
   // count badge (always) and the per-card "why" labels (Following tab only).
@@ -116,7 +127,7 @@ export default async function EventsPage(props: {
           limit: 60,
           ...(surface ? { surface } : {}),
           ...(type ? { type } : {}),
-          ...(skillLevel ? { skillLevel } : {}),
+          ...(skillBand ? { skillLevel: skillBand } : {}),
         }),
       );
       events = items.map((it) => ({
@@ -146,19 +157,40 @@ export default async function EventsPage(props: {
         : {}),
       ...(surface ? { surface } : {}),
       ...(type ? { type } : {}),
-      ...(skillLevel ? { skillLevel } : {}),
+      ...(skillBand ? { skillBand } : {}),
+      ...(ageGroup ? { ageGroup } : {}),
+      ...(teamComposition ? { teamComposition } : {}),
+      ...(seriesName ? { seriesName } : {}),
     };
 
     const rawEvents = await handlers.searchEvents.execute(
       new SearchEventsQuery(user?.id ?? null, filters),
     );
     // RPC returns ascending. For past events, show newest first.
-    events =
+    const sorted =
       when === 'past'
         ? [...rawEvents].sort(
             (a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime(),
           )
         : rawEvents;
+    events = sorted.map((e) => ({
+      id: e.id,
+      title: e.title,
+      surface: e.surface,
+      skillLevel: e.skillLevel,
+      type: e.type,
+      startsAt: e.startsAt,
+      timeZone: e.timeZone,
+      city: e.city,
+      region: e.region,
+      spotsRemaining: e.spotsRemaining,
+      distanceKm: e.distanceKm,
+      seriesName: e.seriesName,
+      seriesPosition: e.seriesPosition,
+      seriesSize: e.seriesSize,
+      isFundraiser: e.isFundraiser,
+      divisions: e.divisions,
+    }));
   }
 
   // Community listings: only show on the upcoming tab, alongside platform events.
@@ -174,7 +206,7 @@ export default async function EventsPage(props: {
               ? { near: { latitude: lat, longitude: lng, radiusKm } }
               : {}),
             ...(surface ? { surface } : {}),
-            ...(skillLevel ? { skillLevel } : {}),
+            ...(skillBand ? { skillLevel: skillBand } : {}),
           }),
         )
       : [];
@@ -187,7 +219,10 @@ export default async function EventsPage(props: {
     if (target !== 'upcoming') params.set('when', target);
     if (surface) params.set('surface', surface);
     if (type) params.set('type', type);
-    if (skillLevel) params.set('skill', skillLevel);
+    if (skillBand) params.set('skillBand', skillBand);
+    if (ageGroup) params.set('ageGroup', ageGroup);
+    if (teamComposition) params.set('teamComposition', teamComposition);
+    if (seriesName) params.set('seriesName', seriesName);
     if (hasLocation && target !== 'following') {
       params.set('lat', String(lat));
       params.set('lng', String(lng));
@@ -231,7 +266,10 @@ export default async function EventsPage(props: {
         when={when}
         surface={surface}
         type={type}
-        skillLevel={skillLevel}
+        skillBand={skillBand}
+        ageGroup={ageGroup}
+        teamComposition={teamComposition}
+        seriesName={seriesName}
         location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
       />
 

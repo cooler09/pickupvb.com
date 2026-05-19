@@ -1,4 +1,5 @@
 export * from './capacity.js';
+export * from './division.js';
 export * from './enums.js';
 export * from './event-repository.js';
 export * from './events.js';

@@ -9,39 +9,50 @@
 import { getServerSupabase } from './supabase';
 
 export type EventPricing = {
-    priceCents: number;
-    hostAbsorbsFee: boolean;
-    refundWindowHours: number;
-    hostId: string;
+  priceCents: number;
+  hostAbsorbsFee: boolean;
+  refundWindowHours: number;
+  hostId: string;
 };
 
-export async function getEventPricing(
-    eventId: string,
-): Promise<EventPricing | null> {
-    const supabase = await getServerSupabase();
-    const { data, error } = await supabase
-        .from('events')
-        .select('host_id, price_cents, host_absorbs_fee, refund_window_hours')
-        .eq('id', eventId)
-        .maybeSingle();
-    if (error || !data) return null;
-    type Row = {
-        host_id: string;
-        price_cents: number;
-        host_absorbs_fee: boolean;
-        refund_window_hours: number;
-    };
-    const r = data as unknown as Row;
-    return {
-        hostId: r.host_id,
-        priceCents: r.price_cents ?? 0,
-        hostAbsorbsFee: r.host_absorbs_fee ?? false,
-        refundWindowHours: r.refund_window_hours ?? 24,
-    };
+export async function getEventPricing(eventId: string): Promise<EventPricing | null> {
+  const supabase = await getServerSupabase();
+  // Pricing now lives on `event_divisions` (ADR 0006 Phase 9a). We use the
+  // first division (sort_order asc) as the canonical event price — checkout
+  // is still single-division. Per-division checkout is future scope.
+  const [eventRes, divRes] = await Promise.all([
+    supabase
+      .from('events')
+      .select('host_id, host_absorbs_fee, refund_window_hours')
+      .eq('id', eventId)
+      .maybeSingle(),
+    supabase
+      .from('event_divisions')
+      .select('price_cents')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (eventRes.error || !eventRes.data) return null;
+  type EventRow = {
+    host_id: string;
+    host_absorbs_fee: boolean;
+    refund_window_hours: number;
+  };
+  type DivRow = { price_cents: number | null };
+  const e = eventRes.data as unknown as EventRow;
+  const d = (divRes.data as unknown as DivRow | null) ?? null;
+  return {
+    hostId: e.host_id,
+    priceCents: d?.price_cents ?? 0,
+    hostAbsorbsFee: e.host_absorbs_fee ?? false,
+    refundWindowHours: e.refund_window_hours ?? 24,
+  };
 }
 
 export function isPaidEvent(p: EventPricing | null): boolean {
-    return !!p && p.priceCents > 0;
+  return !!p && p.priceCents > 0;
 }
 
 /**
@@ -57,28 +68,25 @@ import { platformFeeCents } from './stripe';
 import { isPro, PRO_PLATFORM_FEE_BPS } from './pro';
 
 /** Same as `platformFeeCents` but Pro hosts get 2.5% instead of 5%. */
-export async function platformFeeCentsFor(
-    hostId: string,
-    amountCents: number,
-): Promise<number> {
-    if (await isPro(hostId)) {
-        return Math.round((amountCents * PRO_PLATFORM_FEE_BPS) / 10_000);
-    }
-    return platformFeeCents(amountCents);
+export async function platformFeeCentsFor(hostId: string, amountCents: number): Promise<number> {
+  if (await isPro(hostId)) {
+    return Math.round((amountCents * PRO_PLATFORM_FEE_BPS) / 10_000);
+  }
+  return platformFeeCents(amountCents);
 }
 
 export async function attendeeChargeBreakdownAsync(p: EventPricing): Promise<{
-    ticketCents: number;
-    platformFeeCents: number;
-    totalCents: number;
+  ticketCents: number;
+  platformFeeCents: number;
+  totalCents: number;
 }> {
-    const fee = await platformFeeCentsFor(p.hostId, p.priceCents);
-    if (p.hostAbsorbsFee) {
-        return { ticketCents: p.priceCents, platformFeeCents: 0, totalCents: p.priceCents };
-    }
-    return {
-        ticketCents: p.priceCents,
-        platformFeeCents: fee,
-        totalCents: p.priceCents + fee,
-    };
+  const fee = await platformFeeCentsFor(p.hostId, p.priceCents);
+  if (p.hostAbsorbsFee) {
+    return { ticketCents: p.priceCents, platformFeeCents: 0, totalCents: p.priceCents };
+  }
+  return {
+    ticketCents: p.priceCents,
+    platformFeeCents: fee,
+    totalCents: p.priceCents + fee,
+  };
 }

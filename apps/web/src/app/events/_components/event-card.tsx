@@ -1,6 +1,23 @@
 import Link from 'next/link';
-import { SURFACE_LABEL, TYPE_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
+import {
+  SURFACE_LABEL,
+  TYPE_LABEL,
+  SKILL_LABEL,
+  SKILL_TIER_LABEL,
+  AGE_GROUP_LABEL,
+} from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
+
+export type EventCardDivision = {
+  id: string;
+  label: string;
+  skillTier: string;
+  tierLabel: string | null;
+  ageGroup: string;
+  teamComposition: string;
+  priceCents: number | null;
+  priceUnit: string;
+};
 
 export type EventCardData = {
   id: string;
@@ -18,6 +35,12 @@ export type EventCardData = {
   /** Following-tab metadata. */
   hostFriendId?: string;
   attendingFriendIds?: string[];
+  /** ADR 0006 metadata. */
+  seriesName?: string | null;
+  seriesPosition?: number | null;
+  seriesSize?: number | null;
+  isFundraiser?: boolean;
+  divisions?: ReadonlyArray<EventCardDivision>;
 };
 
 type Props = {
@@ -57,12 +80,18 @@ export function EventCard({ event, friendNameById }: Props) {
   const startsAtIso =
     event.startsAt instanceof Date ? event.startsAt.toISOString() : event.startsAt;
   const label = friendNameById ? followingLabel(event, friendNameById) : null;
+  const divisions = event.divisions ?? [];
+  const seriesLabel =
+    event.seriesName && event.seriesPosition && event.seriesSize
+      ? `${event.seriesName} · ${event.seriesPosition}/${event.seriesSize}`
+      : (event.seriesName ?? null);
 
   return (
     <li className="border-border-base bg-surface hover:border-primary/40 rounded-lg border p-4">
       <Link href={`/events/${event.id}`} className="hover:text-primary block font-semibold">
         {event.title}
       </Link>
+      {seriesLabel && <p className="text-muted mt-0.5 text-[11px]">{seriesLabel}</p>}
       <p className="text-muted mt-1 text-xs">
         <LocalDateTime
           iso={startsAtIso}
@@ -86,7 +115,23 @@ export function EventCard({ event, friendNameById }: Props) {
         <span className="bg-fg/5 rounded px-1.5 py-0.5">
           {SKILL_LABEL[event.skillLevel] ?? event.skillLevel}
         </span>
+        {event.isFundraiser && (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Fundraiser</span>
+        )}
       </div>
+      {divisions.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1 text-[11px]">
+          {divisions.slice(0, 4).map((d) => (
+            <li key={d.id} className="bg-fg/5 rounded px-1.5 py-0.5">
+              {d.tierLabel ?? SKILL_TIER_LABEL[d.skillTier] ?? d.skillTier}
+              {d.ageGroup !== 'adult' && ` · ${AGE_GROUP_LABEL[d.ageGroup] ?? d.ageGroup}`}
+            </li>
+          ))}
+          {divisions.length > 4 && (
+            <li className="text-muted px-1.5 py-0.5">+{divisions.length - 4} more</li>
+          )}
+        </ul>
+      )}
       {label && <p className="text-primary mt-2 text-[11px] font-medium">{label}</p>}
       {event.spotsRemaining !== null && (
         <p className="text-muted mt-2 text-xs">{event.spotsRemaining} spots open</p>

@@ -80,8 +80,10 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
           PickupVB
         </Link>
 
-        {/* Desktop nav */}
-        <ul className="hidden items-center gap-4 text-sm md:flex">
+        {/* Desktop nav — primary links only. Secondary actions (theme,
+            notifications, profile, sign out) live in the right-side
+            cluster so the link row stays scannable. */}
+        <ul className="hidden items-center gap-5 text-sm md:flex">
           <li>
             <Link href="/events" className="hover:text-primary">
               Find events
@@ -89,7 +91,7 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
           </li>
           <li>
             <Link href="/events/new" className="hover:text-primary">
-              Host an event
+              Host
             </Link>
           </li>
           <li>
@@ -100,11 +102,6 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
           <li>
             <Link href="/groups" className="hover:text-primary">
               Groups
-            </Link>
-          </li>
-          <li>
-            <Link href="/players" className="hover:text-primary">
-              Players
             </Link>
           </li>
           {userInfo && (
@@ -123,20 +120,17 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
             </li>
           )}
           <li>
-            <Link href="/tools" className="hover:text-primary">
-              Host tools
-            </Link>
-          </li>
-          <li>
             <Link href="/pricing" className="hover:text-primary">
               Pricing
             </Link>
           </li>
-          <li>
-            <ThemeToggle current={theme} />
-          </li>
+        </ul>
+
+        {/* Desktop right-side cluster — utilities + identity. */}
+        <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle current={theme} />
           {userInfo ? (
-            <li className="flex items-center gap-3">
+            <>
               {user && (
                 <NotificationBell
                   userId={user.id}
@@ -152,49 +146,37 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
               >
                 {userInfo.initials}
               </Link>
-              <Link
-                href="/profile"
-                className="text-fg/70 hover:text-primary hidden max-w-[12rem] truncate lg:inline"
-              >
-                {userInfo.displayName}
-              </Link>
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5"
+                  className="text-fg/70 hover:text-primary rounded-md px-2 py-1.5 text-sm"
                 >
                   Sign out
                 </button>
               </form>
-            </li>
+            </>
           ) : (
             <>
               {isAnon && (
-                <li>
-                  <Link
-                    href="/claim"
-                    className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-sm font-medium"
-                  >
-                    Finish creating your account
-                  </Link>
-                </li>
-              )}
-              <li>
-                <Link href="/login" className="hover:text-primary">
-                  Sign in
-                </Link>
-              </li>
-              <li>
                 <Link
-                  href="/login?mode=sign-up"
-                  className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-white"
+                  href="/claim"
+                  className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-sm font-medium"
                 >
-                  Sign up
+                  Finish creating your account
                 </Link>
-              </li>
+              )}
+              <Link href="/login" className="hover:text-primary text-sm">
+                Sign in
+              </Link>
+              <Link
+                href="/login?mode=sign-up"
+                className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm text-white"
+              >
+                Sign up
+              </Link>
             </>
           )}
-        </ul>
+        </div>
 
         {/* Mobile nav */}
         <div className="flex items-center gap-2 md:hidden">

@@ -13,18 +13,25 @@ import { LocalDateTime } from '@/components/local-datetime';
 import { getEventPricing, attendeeChargeBreakdownAsync, isPaidEvent } from '@/lib/event-pricing';
 import { AttendeeList } from '@/components/attendee-list';
 import { Alert } from '@/components/alert';
-import { EventTags } from './_components/event-tags';
-import { EventShareLink } from './_components/event-share-link';
 import { EventJsonLd } from './_components/event-jsonld';
+import { EventHero, type EventHeroCta } from './_components/event-hero';
+import { EventClosedState } from './_components/event-closed-state';
+import { EventStickyCta } from './_components/event-sticky-cta';
 import { HostsSection } from './_components/hosts-section';
 import { PaidTicketPanel } from './_components/paid-ticket-panel';
 import { PositionRsvpPanel } from './_components/position-rsvp-panel';
 import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
 import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
+import { TournamentRegistrationTabs } from './_components/tournament-registration-tabs';
+import { TeamsRegisteredSection } from './_components/teams-registered-section';
 import EventMap from './_components/event-map-lazy';
 import { TipJar } from './_components/tip-jar';
 import { HostBroadcastPanel } from './_components/host-broadcast-panel';
+import { DivisionsSection } from './_components/divisions-section';
+import { ExternalRegistrationCard } from './_components/external-registration-card';
+import { EventMetaSection } from './_components/event-meta-section';
+import { HostDivisionsManager } from './_components/host-divisions-manager';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -98,7 +105,9 @@ export default async function EventDetailPage(props: {
   const friendIds = new Set(event.viewerFriendIds);
   const returnPath = `/events/${event.id}`;
   const hasStarted = event.startsAt.getTime() <= Date.now();
-  const signupsOpen = event.status === 'published' && !hasStarted;
+  const isExternal = event.registrationMode === 'external';
+  // External-registration events suppress all on-platform signup panels.
+  const signupsOpen = event.status === 'published' && !hasStarted && !isExternal;
 
   // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
   const pricing = await getEventPricing(event.id);
@@ -222,6 +231,43 @@ export default async function EventDetailPage(props: {
     ? (event.attendees.find((a) => a.userId === user.id)?.position ?? null)
     : null;
 
+  // Primary call-to-action shown in the hero (and mirrored in the mobile
+  // sticky bar). Falls through to `null` when there's nothing actionable
+  // (draft, cancelled, etc.); the closed-state pivot picks up the slack.
+  const priceLabel = paid && breakdown ? `$${(breakdown.ticketCents / 100).toFixed(2)}` : 'Free';
+  const cta: EventHeroCta = (() => {
+    if (event.status === 'cancelled' || event.status === 'draft') return null;
+    if (isExternal && signupsOpen && event.externalRegistrationUrl) {
+      return {
+        kind: 'external',
+        href: event.externalRegistrationUrl,
+        label: 'Register externally',
+      };
+    }
+    if (event.type === 'tournament' && (hasStarted || event.status === 'completed')) {
+      return {
+        kind: 'internal',
+        href: `/events/${event.id}/bracket` as Route,
+        label: 'Open bracket',
+      };
+    }
+    if (event.type === 'open_play' && (hasStarted || event.status === 'completed')) {
+      return { kind: 'anchor', hash: '#attendees', label: 'View attendees' };
+    }
+    if (!signupsOpen) return null;
+    if (event.isAttending) {
+      return { kind: 'anchor', hash: '#signup', label: "You're in — view details" };
+    }
+    if (event.spotsRemaining === 0) {
+      return { kind: 'anchor', hash: '#signup', label: 'Join waitlist' };
+    }
+    if (event.type === 'tournament') {
+      return { kind: 'anchor', hash: '#signup', label: 'Register' };
+    }
+    if (paid) return { kind: 'anchor', hash: '#signup', label: 'Buy ticket' };
+    return { kind: 'anchor', hash: '#signup', label: 'RSVP' };
+  })();
+
   return (
     <article className="mx-auto max-w-3xl space-y-8">
       {event.visibility === 'public' && (
@@ -267,26 +313,26 @@ export default async function EventDetailPage(props: {
       )}
 
       <header className="space-y-2">
-        <EventTags
+        <EventHero
+          eventId={event.id}
+          shortCode={event.shortCode}
+          title={event.title}
           type={event.type}
           surface={event.surface}
           skillLevel={event.skillLevel}
           format={event.format}
           gender={event.gender}
           status={event.status}
+          startsAt={event.startsAt}
+          timeZone={event.timeZone}
+          city={event.location.city}
+          region={event.location.region}
+          spotsRemaining={event.spotsRemaining}
+          priceLabel={priceLabel}
+          registrationClosesAt={event.registrationClosesAt}
+          canManage={event.canManage}
+          cta={cta}
         />
-        <h1 className="text-fg text-3xl font-bold">{event.title}</h1>
-        <div className="flex flex-wrap items-center gap-3 text-sm">
-          <EventShareLink shortCode={event.shortCode} title={event.title} />
-          {event.canManage && (
-            <Link
-              href={`/events/${event.id}/edit` as Route}
-              className="text-primary hover:underline"
-            >
-              Edit event
-            </Link>
-          )}
-        </div>
       </header>
 
       <section className="border-border-base overflow-hidden rounded-lg border sm:grid sm:grid-cols-2">
@@ -313,84 +359,159 @@ export default async function EventDetailPage(props: {
         </div>
       </section>
 
+      <EventMetaSection
+        venueName={event.venueName}
+        seriesName={event.seriesName}
+        seriesPosition={event.seriesPosition}
+        seriesSize={event.seriesSize}
+        isFundraiser={event.isFundraiser}
+        fundraiserBeneficiary={event.fundraiserBeneficiary}
+        themeTags={event.themeTags}
+        sanctioningBody={event.sanctioningBody}
+        registrationClosesAt={event.registrationClosesAt}
+        paymentInstructions={event.paymentInstructions}
+        isExternal={isExternal}
+        timeZone={event.timeZone}
+      />
+
+      {isExternal && (
+        <ExternalRegistrationCard
+          externalRegistrationUrl={event.externalRegistrationUrl}
+          externalRegistrationInstructions={event.externalRegistrationInstructions}
+          paymentInstructions={event.paymentInstructions}
+        />
+      )}
+
+      <DivisionsSection divisions={event.divisions} />
+
       {event.type === 'open_play' &&
         signupsOpen &&
         (paid && breakdown ? (
-          <PaidTicketPanel
-            eventId={event.id}
-            eventTitle={event.title}
-            isAttending={event.isAttending}
-            isRealUser={isRealUser}
-            ticketCents={breakdown.ticketCents}
-            platformFeeCents={breakdown.platformFeeCents}
-            refundWindowHours={pricing!.refundWindowHours}
-            {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
-          />
+          <div id="signup">
+            <PaidTicketPanel
+              eventId={event.id}
+              eventTitle={event.title}
+              isAttending={event.isAttending}
+              isRealUser={isRealUser}
+              ticketCents={breakdown.ticketCents}
+              platformFeeCents={breakdown.platformFeeCents}
+              refundWindowHours={pricing!.refundWindowHours}
+              {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
+            />
+          </div>
         ) : event.positionRoster ? (
-          <PositionRsvpPanel
-            eventId={event.id}
-            eventTitle={event.title}
-            isAttending={event.isAttending}
-            isRealUser={isRealUser}
-            positionRoster={event.positionRoster}
-            filledByPosition={filledByPosition}
-            viewerPosition={viewerPosition}
-            rsvp={pickQuery(searchParams, 'rsvp')}
-            rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
-          />
+          <div id="signup">
+            <PositionRsvpPanel
+              eventId={event.id}
+              eventTitle={event.title}
+              isAttending={event.isAttending}
+              isRealUser={isRealUser}
+              positionRoster={event.positionRoster}
+              filledByPosition={filledByPosition}
+              viewerPosition={viewerPosition}
+              rsvp={pickQuery(searchParams, 'rsvp')}
+              rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
+            />
+          </div>
         ) : (
-          <RsvpPanel
-            eventId={event.id}
-            eventTitle={event.title}
-            isAttending={event.isAttending}
-            isRealUser={isRealUser}
-            rsvp={pickQuery(searchParams, 'rsvp')}
-            rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
-          />
+          <div id="signup">
+            <RsvpPanel
+              eventId={event.id}
+              eventTitle={event.title}
+              isAttending={event.isAttending}
+              isRealUser={isRealUser}
+              rsvp={pickQuery(searchParams, 'rsvp')}
+              rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
+            />
+          </div>
         ))}
 
       {event.type === 'tournament' && signupsOpen && (
-        <TournamentSignupPanel
-          eventId={event.id}
-          eventFormat={event.format}
-          teams={event.teams}
-          viewerCaptainedTeams={event.viewerCaptainedTeams}
-          viewerId={user?.id ?? null}
-          isRealUser={isRealUser}
-          returnPath={returnPath}
-          {...(pickQuery(searchParams, 'team')
-            ? { resultCode: pickQuery(searchParams, 'team') }
-            : {})}
+        <TournamentRegistrationTabs
+          teamCount={event.teams.length}
+          freeAgentCount={event.freeAgents.length}
+          teamPanel={
+            <TournamentSignupPanel
+              eventId={event.id}
+              eventFormat={event.format}
+              teams={event.teams}
+              viewerCaptainedTeams={event.viewerCaptainedTeams}
+              viewerId={user?.id ?? null}
+              isRealUser={isRealUser}
+              returnPath={returnPath}
+              {...(pickQuery(searchParams, 'team')
+                ? { resultCode: pickQuery(searchParams, 'team') }
+                : {})}
+            />
+          }
+          freeAgentPanel={
+            <FreeAgentSignupPanel
+              eventId={event.id}
+              freeAgents={event.freeAgents.map((f) => ({
+                userId: f.userId,
+                notes: f.notes,
+                profile: {
+                  displayName: f.profile.displayName,
+                  avatarUrl: f.profile.avatarUrl,
+                },
+              }))}
+              isFreeAgent={event.isFreeAgent}
+              viewerId={user?.id ?? null}
+              isRealUser={isRealUser}
+              returnPath={returnPath}
+              {...(pickQuery(searchParams, 'fa')
+                ? { resultCode: pickQuery(searchParams, 'fa') }
+                : {})}
+            />
+          }
         />
       )}
 
-      {event.type === 'tournament' && signupsOpen && (
-        <FreeAgentSignupPanel
-          eventId={event.id}
-          freeAgents={event.freeAgents.map((f) => ({
-            userId: f.userId,
-            notes: f.notes,
-            profile: {
-              displayName: f.profile.displayName,
-              avatarUrl: f.profile.avatarUrl,
-            },
-          }))}
-          isFreeAgent={event.isFreeAgent}
-          viewerId={user?.id ?? null}
-          isRealUser={isRealUser}
-          returnPath={returnPath}
-          {...(pickQuery(searchParams, 'fa') ? { resultCode: pickQuery(searchParams, 'fa') } : {})}
-        />
+      <EventClosedState
+        eventId={event.id}
+        eventType={event.type}
+        status={event.status}
+        hasStarted={hasStarted}
+        attendeeCount={event.attendeeCount}
+        isHost={event.canManage}
+      />
+
+      {event.description && (
+        <section>
+          <h2 className="text-fg mb-2 text-lg font-semibold">Description</h2>
+          <p className="text-fg/90 whitespace-pre-wrap">{event.description}</p>
+        </section>
       )}
 
-      {event.status === 'published' && hasStarted && (
-        <p className="border-border-base bg-fg/5 text-muted rounded-lg border p-3 text-sm">
-          Signups for this event are closed because it has already started.
-        </p>
+      {event.rules && (
+        <section>
+          <h2 className="text-fg mb-2 text-lg font-semibold">Rules</h2>
+          <p className="text-fg/90 whitespace-pre-wrap">{event.rules}</p>
+        </section>
+      )}
+
+      {event.type === 'tournament' && (
+        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-fg text-base font-semibold">Bracket</h2>
+              <p className="text-muted text-xs">
+                Set up the tournament bracket and report match results.
+              </p>
+            </div>
+            <Link
+              href={`/events/${event.id}/bracket` as Route}
+              className="bg-primary text-primary-fg rounded px-3 py-1 text-sm"
+            >
+              Open bracket
+            </Link>
+          </div>
+        </section>
       )}
 
       <section className="space-y-2">
         <h2 className="text-fg text-lg font-semibold">Where</h2>
+        {event.venueName && <p className="text-fg font-medium">{event.venueName}</p>}
         <p className="text-fg/90">{event.location.addressLine}</p>
         <p className="text-muted text-sm">
           {event.location.city}, {event.location.region} {event.location.postalCode}
@@ -425,14 +546,26 @@ export default async function EventDetailPage(props: {
       />
 
       {event.canManage && (
-        <HostBroadcastPanel
-          eventId={event.id}
-          attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
-        />
+        <details className="border-border-base group rounded-lg border p-3 open:p-4">
+          <summary className="text-fg cursor-pointer text-sm font-semibold select-none">
+            Host tools
+          </summary>
+          <div className="mt-4 space-y-6">
+            <HostDivisionsManager
+              eventId={event.id}
+              returnPath={returnPath}
+              divisions={event.divisions}
+            />
+            <HostBroadcastPanel
+              eventId={event.id}
+              attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
+            />
+          </div>
+        </details>
       )}
 
       {event.type === 'open_play' && (
-        <section>
+        <section id="attendees">
           <h2 className="text-fg mb-3 text-lg font-semibold">
             Players signed up{' '}
             <span className="text-muted text-sm font-normal">({event.attendees.length})</span>
@@ -472,38 +605,7 @@ export default async function EventDetailPage(props: {
         </section>
       )}
 
-      {event.description && (
-        <section>
-          <h2 className="text-fg mb-2 text-lg font-semibold">Description</h2>
-          <p className="text-fg/90 whitespace-pre-wrap">{event.description}</p>
-        </section>
-      )}
-
-      {event.rules && (
-        <section>
-          <h2 className="text-fg mb-2 text-lg font-semibold">Rules</h2>
-          <p className="text-fg/90 whitespace-pre-wrap">{event.rules}</p>
-        </section>
-      )}
-
-      {event.type === 'tournament' && (
-        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-fg text-base font-semibold">Bracket</h2>
-              <p className="text-muted text-xs">
-                Set up the tournament bracket and report match results.
-              </p>
-            </div>
-            <Link
-              href={`/events/${event.id}/bracket` as Route}
-              className="bg-primary text-primary-fg rounded px-3 py-1 text-sm"
-            >
-              Open bracket
-            </Link>
-          </div>
-        </section>
-      )}
+      {event.type === 'tournament' && <TeamsRegisteredSection teams={event.teams} />}
 
       {!isHostOfEvent && (
         <TipJar
@@ -513,6 +615,8 @@ export default async function EventDetailPage(props: {
           totalCents={tipTotalCents}
         />
       )}
+
+      <EventStickyCta cta={cta} observeSelector="#signup" />
     </article>
   );
 }

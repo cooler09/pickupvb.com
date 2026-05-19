@@ -13,6 +13,7 @@ import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { GetEventDetailQuery } from '@pickupvb/application';
+import { skillTierFromLegacy, SkillLevel } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { notify } from '@/lib/notify';
 
@@ -121,16 +122,26 @@ export async function editEventAction(
   const newHostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
 
   // Read current pricing to detect changes (and for the price-lock check).
+  // ADR 0006 Phase 9a: price_cents now lives on event_divisions; the rest
+  // remain on events. Read both in parallel.
   const admin = getAdminSupabase();
-  const { data: cur } = await admin
-    .from('events')
-    .select(
-      'price_cents, host_absorbs_fee, refund_window_hours, host_id, title, starts_at, address_line, city',
-    )
-    .eq('id', eventId)
-    .maybeSingle();
+  const [curRes, curDivRes] = await Promise.all([
+    admin
+      .from('events')
+      .select(
+        'host_absorbs_fee, refund_window_hours, host_id, title, starts_at, address_line, city',
+      )
+      .eq('id', eventId)
+      .maybeSingle(),
+    admin
+      .from('event_divisions')
+      .select('id, price_cents')
+      .eq('event_id', eventId)
+      .order('sort_order', { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ]);
   type CurRow = {
-    price_cents: number;
     host_absorbs_fee: boolean;
     refund_window_hours: number;
     host_id: string;
@@ -139,10 +150,13 @@ export async function editEventAction(
     address_line: string;
     city: string;
   };
-  const c = cur as unknown as CurRow | null;
+  type CurDivRow = { id: string; price_cents: number | null };
+  const c = curRes.data as unknown as CurRow | null;
+  const curDiv = (curDivRes.data as unknown as CurDivRow | null) ?? null;
+  const curPriceCents = curDiv?.price_cents ?? 0;
   const pricingChanged = !c
     ? false
-    : c.price_cents !== newPriceCents ||
+    : curPriceCents !== newPriceCents ||
       c.host_absorbs_fee !== newHostAbsorbsFee ||
       c.refund_window_hours !== newRefundWindowHours;
 
@@ -159,7 +173,7 @@ export async function editEventAction(
     if (newPriceCents > 0) {
       const hostIdToCheck = c?.host_id ?? user.id;
       // Free-tier cap also applies when an event flips from free→paid.
-      if ((c?.price_cents ?? 0) === 0) {
+      if (curPriceCents === 0) {
         const cap = await validateHostPaidEventCap(hostIdToCheck, {
           includesCurrentEvent: false,
         });
@@ -169,6 +183,55 @@ export async function editEventAction(
       if (!stripe.ok) return { error: stripe.reason };
     }
   }
+
+  // ---- ADR 0006 event-level extension fields ------------------------------
+  // All optional. Mirrors the create form. Conditional inclusion in the
+  // update payload so blank inputs don't clobber existing values when the
+  // host doesn't open the Advanced panel.
+  const venueName = fieldOrUndefined(formData, 'venueName');
+  const registrationClosesAtRaw = fieldOrUndefined(formData, 'registrationClosesAt');
+  const isSeries = field(formData, 'isSeries') === 'on';
+  const isFundraiser = field(formData, 'isFundraiser') === 'on';
+  const isExternal = field(formData, 'isExternal') === 'on';
+  const themeTagsRaw = fieldOrUndefined(formData, 'themeTags');
+  const themeTags = themeTagsRaw
+    ? themeTagsRaw
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0)
+        .slice(0, 16)
+    : null;
+  const extUpdate: Record<string, unknown> = {
+    venue_name: venueName ?? null,
+    registration_closes_at: registrationClosesAtRaw
+      ? new Date(registrationClosesAtRaw).toISOString()
+      : null,
+    series_name: isSeries ? (fieldOrUndefined(formData, 'seriesName') ?? null) : null,
+    series_position:
+      isSeries && fieldOrUndefined(formData, 'seriesPosition')
+        ? Number(fieldOrUndefined(formData, 'seriesPosition'))
+        : null,
+    series_size:
+      isSeries && fieldOrUndefined(formData, 'seriesSize')
+        ? Number(fieldOrUndefined(formData, 'seriesSize'))
+        : null,
+    is_fundraiser: isFundraiser,
+    fundraiser_beneficiary: isFundraiser
+      ? (fieldOrUndefined(formData, 'fundraiserBeneficiary') ?? null)
+      : null,
+    theme_tags: themeTags && themeTags.length > 0 ? themeTags : null,
+    sanctioning_body: fieldOrUndefined(formData, 'sanctioningBody') ?? null,
+    registration_mode: isExternal ? 'external' : 'platform',
+    external_registration_url: isExternal
+      ? (fieldOrUndefined(formData, 'externalRegistrationUrl') ?? null)
+      : null,
+    external_registration_instructions: isExternal
+      ? (fieldOrUndefined(formData, 'externalRegistrationInstructions') ?? null)
+      : null,
+    payment_instructions: isExternal
+      ? (fieldOrUndefined(formData, 'paymentInstructions') ?? null)
+      : null,
+  };
 
   // ---- Apply update ----
   // We update via the user-session client so RLS still applies (host or
@@ -181,7 +244,6 @@ export async function editEventAction(
       title,
       description,
       rules,
-      skill_level: skillLevel,
       visibility,
       starts_at: startsDate.toISOString(),
       ends_at: endsDate.toISOString(),
@@ -192,22 +254,49 @@ export async function editEventAction(
       country,
       geo: wkt,
       time_zone: timeZone,
-      ...(isOpenPlay ? { capacity_kind: newCapacityKind, max_spots: newMaxSpots } : {}),
+      ...extUpdate,
       updated_at: new Date().toISOString(),
     } as never)
     .eq('id', eventId);
   if (updErr) return { error: `Update failed: ${updErr.message}` };
 
+  // ADR 0006 Phase 9c: skill_level, capacity_kind and max_spots now live on
+  // event_divisions. Write them to the primary (sort_order=0) division.
+  if (curDiv) {
+    const divisionUpdate: Record<string, unknown> = {
+      skill_tier: skillTierFromLegacy(skillLevel as SkillLevel),
+    };
+    if (isOpenPlay) {
+      divisionUpdate.capacity_kind = newCapacityKind;
+      divisionUpdate.max_spots = newMaxSpots;
+    }
+    const { error: divErr } = await admin
+      .from('event_divisions')
+      .update(divisionUpdate as never)
+      .eq('id', curDiv.id);
+    if (divErr) return { error: `Update failed: ${divErr.message}` };
+  }
+
   if (pricingChanged) {
+    // host_absorbs_fee + refund_window_hours stay on events; price_cents
+    // moved to event_divisions in Phase 9a.
     const { error: priceErr } = await admin
       .from('events')
       .update({
-        price_cents: newPriceCents,
         host_absorbs_fee: newHostAbsorbsFee,
         refund_window_hours: newRefundWindowHours,
       } as never)
       .eq('id', eventId);
     if (priceErr) return { error: `Pricing update failed: ${priceErr.message}` };
+    if (curDiv) {
+      const { error: divPriceErr } = await admin
+        .from('event_divisions')
+        .update({ price_cents: newPriceCents } as never)
+        .eq('id', curDiv.id);
+      if (divPriceErr) {
+        return { error: `Pricing update failed: ${divPriceErr.message}` };
+      }
+    }
   }
 
   revalidatePath(`/events/${eventId}`);

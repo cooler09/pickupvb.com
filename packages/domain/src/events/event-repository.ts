@@ -8,6 +8,12 @@ import type {
   Visibility,
   EventStatus,
   EventPosition,
+  SkillTier,
+  SkillBand,
+  AgeGroup,
+  TeamComposition,
+  PriceUnit,
+  RegistrationMode,
 } from './enums.js';
 
 /**
@@ -108,6 +114,32 @@ export interface CaptainedTeamLite {
   isRegistered: boolean;
 }
 
+/**
+ * Read-model row for one event division (ADR 0006). Mirrors the columns
+ * on `event_divisions`. Capacity-related fields are flattened.
+ */
+export interface DivisionLite {
+  id: string;
+  sortOrder: number;
+  label: string;
+  surface: Surface;
+  format: Format;
+  gender: Gender;
+  skillTier: SkillTier;
+  ageGroup: AgeGroup;
+  tierLabel: string | null;
+  teamComposition: TeamComposition;
+  teamSize: number | null;
+  capacityKind: 'fixed' | 'unlimited' | null;
+  maxSpots: number | null;
+  priceCents: number | null;
+  priceUnit: PriceUnit;
+  prizeText: string | null;
+  prizePurseCents: number | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+}
+
 export interface EventDetailReadModel {
   // Base event
   id: string;
@@ -164,6 +196,24 @@ export interface EventDetailReadModel {
   viewerHostableGroups: ReadonlyArray<{ id: string; name: string }>;
   /** Teams the viewer captains in the event's format (only meaningful for tournaments). */
   viewerCaptainedTeams: ReadonlyArray<CaptainedTeamLite>;
+
+  // ---- ADR 0006 event-level extensions ----
+  venueName: string | null;
+  registrationClosesAt: Date | null;
+  seriesName: string | null;
+  seriesPosition: number | null;
+  seriesSize: number | null;
+  isFundraiser: boolean;
+  fundraiserBeneficiary: string | null;
+  themeTags: ReadonlyArray<string>;
+  sanctioningBody: string | null;
+  registrationMode: RegistrationMode;
+  externalRegistrationUrl: string | null;
+  externalRegistrationInstructions: string | null;
+  paymentInstructions: string | null;
+
+  /** Divisions on this event (ADR 0006). Empty array when not yet split. */
+  divisions: ReadonlyArray<DivisionLite>;
 }
 
 export interface FollowingFeedFilters {
@@ -211,10 +261,33 @@ export interface EventSearchQuery {
   visibility?: Visibility;
   startsAfter?: Date;
   startsBefore?: Date;
+  /**
+   * Division-level filters (ADR 0006). When any of these are set the search
+   * requires the event to have at least one matching division.
+   */
+  skillBand?: SkillBand;
+  ageGroup?: AgeGroup;
+  teamComposition?: TeamComposition;
+  /** Substring match on `series_name` (case-insensitive). */
+  seriesName?: string;
+  registrationMode?: RegistrationMode;
+  isFundraiser?: boolean;
   /** Caller's user id, used to enforce visibility (friend graph, invites). */
   viewerId?: string;
   limit?: number;
   cursor?: string;
+}
+
+/** Lightweight division row attached to each event search result. */
+export interface EventSearchDivision {
+  id: string;
+  label: string;
+  skillTier: SkillTier;
+  tierLabel: string | null;
+  ageGroup: AgeGroup;
+  teamComposition: TeamComposition;
+  priceCents: number | null;
+  priceUnit: PriceUnit;
 }
 
 export interface VolleyballEventSummary {
@@ -232,4 +305,12 @@ export interface VolleyballEventSummary {
   region: string;
   spotsRemaining: number | null;
   distanceKm: number | null;
+  /** Series breadcrumb (ADR 0006). */
+  seriesName: string | null;
+  seriesPosition: number | null;
+  seriesSize: number | null;
+  isFundraiser: boolean;
+  registrationMode: RegistrationMode;
+  /** Divisions on this event, sorted by `sort_order`. */
+  divisions: ReadonlyArray<EventSearchDivision>;
 }

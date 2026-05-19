@@ -1,18 +1,27 @@
 import {
+  AgeGroup,
   Capacity,
+  Division,
   EventStatus,
   EventType,
   Format,
   Gender,
   Location,
+  PriceUnit,
+  RegistrationMode,
   SkillLevel,
+  SkillTier,
   Surface,
+  TeamComposition,
   Visibility,
   VolleyballEvent,
   isEventPosition,
+  skillBandTiers,
+  skillTierBand,
   type AttendeeLite,
   type CaptainedTeamLite,
   type CoHostParty,
+  type DivisionLite,
   type EventDetailReadModel,
   type EventPosition,
   type EventRepository,
@@ -23,6 +32,7 @@ import {
   type FriendProfile,
   type GroupLite,
   type ProfileLite,
+  type SkillBand,
   type TeamLite,
   type VolleyballEventSummary,
 } from '@pickupvb/domain';
@@ -40,7 +50,7 @@ type EventRow = {
   surface: Surface;
   format: Format | null;
   gender: Gender | null;
-  skill_level: SkillLevel;
+  skill_level: SkillLevel | null;
   type: EventType;
   visibility: Visibility;
   status: EventStatus;
@@ -59,12 +69,75 @@ type EventRow = {
   longitude: number;
   attendee_count: number;
   team_count: number;
+  // ADR 0006 extension columns (nullable / defaulted at DB)
+  venue_name: string | null;
+  registration_closes_at: string | null;
+  series_name: string | null;
+  series_position: number | null;
+  series_size: number | null;
+  is_fundraiser: boolean | null;
+  fundraiser_beneficiary: string | null;
+  theme_tags: string[] | null;
+  sanctioning_body: string | null;
+  registration_mode: RegistrationMode | null;
+  external_registration_url: string | null;
+  external_registration_instructions: string | null;
+  payment_instructions: string | null;
+};
+
+type DivisionRow = {
+  id: string;
+  event_id: string;
+  sort_order: number;
+  label: string;
+  surface: Surface;
+  format: Format;
+  gender: Gender;
+  skill_tier: SkillTier;
+  age_group: AgeGroup;
+  tier_label: string | null;
+  team_composition: TeamComposition;
+  team_size: number | null;
+  capacity_kind: 'fixed' | 'unlimited' | null;
+  max_spots: number | null;
+  price_cents: number | null;
+  price_unit: PriceUnit;
+  prize_text: string | null;
+  prize_purse_cents: number | null;
+  starts_at: string | null;
+  ends_at: string | null;
 };
 
 function rowToCapacity(row: EventRow): Capacity | null {
   if (row.capacity_kind === 'unlimited') return Capacity.unlimited();
   if (row.capacity_kind === 'fixed' && row.max_spots !== null) return Capacity.fixed(row.max_spots);
   return null;
+}
+
+/**
+ * Fallback shim: derive the legacy single-event display fields (format,
+ * gender, skill_level, capacity) from the first division when the event
+ * columns are null. ADR 0006 Phase 9b routed hydrate off the legacy
+ * columns; Phase 9c will DROP them. Until then we tolerate either source.
+ */
+function primaryDivisionFallback(
+  row: EventRow,
+  divisions: ReadonlyArray<DivisionRow>,
+): {
+  format: Format | null;
+  gender: Gender | null;
+  skillLevel: SkillLevel;
+  capacity: Capacity | null;
+} {
+  const d = divisions[0] ?? null;
+  return {
+    format: row.format ?? d?.format ?? null,
+    gender: row.gender ?? d?.gender ?? null,
+    skillLevel:
+      row.skill_level ??
+      (d ? (skillTierBand(d.skill_tier) as SkillLevel) : SkillLevel.Intermediate),
+    capacity: rowToCapacity(row) ?? (d ? divisionRowToCapacity(d) : null),
+  };
 }
 
 function rowToPositionRoster(row: EventRow): Map<EventPosition, number> | null {
@@ -85,6 +158,102 @@ function rosterToJson(
   const obj: Record<string, number> = {};
   for (const [k, v] of roster) obj[k] = v;
   return obj;
+}
+
+function divisionRowToCapacity(row: DivisionRow): Capacity | null {
+  if (row.capacity_kind === 'unlimited') return Capacity.unlimited();
+  if (row.capacity_kind === 'fixed' && row.max_spots !== null) return Capacity.fixed(row.max_spots);
+  return null;
+}
+
+function divisionRowToDomain(row: DivisionRow): Division {
+  return Division.fromPersistence({
+    id: row.id as never,
+    sortOrder: row.sort_order,
+    label: row.label,
+    surface: row.surface,
+    format: row.format,
+    gender: row.gender,
+    skillTier: row.skill_tier,
+    ageGroup: row.age_group,
+    tierLabel: row.tier_label,
+    teamComposition: row.team_composition,
+    teamSize: row.team_size,
+    capacity: divisionRowToCapacity(row),
+    priceCents: row.price_cents,
+    priceUnit: row.price_unit,
+    prizeText: row.prize_text,
+    prizePurseCents: row.prize_purse_cents,
+    startsAt: row.starts_at ? new Date(row.starts_at) : null,
+    endsAt: row.ends_at ? new Date(row.ends_at) : null,
+  });
+}
+
+function divisionRowToLite(row: DivisionRow): DivisionLite {
+  return {
+    id: row.id,
+    sortOrder: row.sort_order,
+    label: row.label,
+    surface: row.surface,
+    format: row.format,
+    gender: row.gender,
+    skillTier: row.skill_tier,
+    ageGroup: row.age_group,
+    tierLabel: row.tier_label,
+    teamComposition: row.team_composition,
+    teamSize: row.team_size,
+    capacityKind: row.capacity_kind,
+    maxSpots: row.max_spots,
+    priceCents: row.price_cents,
+    priceUnit: row.price_unit,
+    prizeText: row.prize_text,
+    prizePurseCents: row.prize_purse_cents,
+    startsAt: row.starts_at ? new Date(row.starts_at) : null,
+    endsAt: row.ends_at ? new Date(row.ends_at) : null,
+  };
+}
+
+function divisionToRow(eventId: string, d: Division): Record<string, unknown> {
+  return {
+    id: String(d.id),
+    event_id: eventId,
+    sort_order: d.sortOrder,
+    label: d.label,
+    surface: d.surface,
+    format: d.format,
+    gender: d.gender,
+    skill_tier: d.skillTier,
+    age_group: d.ageGroup,
+    tier_label: d.tierLabel,
+    team_composition: d.teamComposition,
+    team_size: d.teamSize,
+    capacity_kind: d.capacity?.kind ?? null,
+    max_spots: d.capacity?.kind === 'fixed' ? d.capacity.maxSpots : null,
+    price_cents: d.priceCents,
+    price_unit: d.priceUnit,
+    prize_text: d.prizeText,
+    prize_purse_cents: d.prizePurseCents,
+    starts_at: d.startsAt ? d.startsAt.toISOString() : null,
+    ends_at: d.endsAt ? d.endsAt.toISOString() : null,
+  };
+}
+
+function rowToExtensions(row: EventRow) {
+  return {
+    venueName: row.venue_name,
+    registrationClosesAt: row.registration_closes_at ? new Date(row.registration_closes_at) : null,
+    seriesName: row.series_name,
+    seriesPosition: row.series_position,
+    seriesSize: row.series_size,
+    isFundraiser: row.is_fundraiser ?? false,
+    fundraiserBeneficiary: row.fundraiser_beneficiary,
+    themeTags: row.theme_tags ?? [],
+    sanctioningBody: row.sanctioning_body,
+    registrationMode: row.registration_mode ?? RegistrationMode.Platform,
+    externalRegistrationUrl: row.external_registration_url,
+    externalRegistrationInstructions: row.external_registration_instructions,
+    paymentInstructions: row.payment_instructions,
+  };
 }
 
 export class SupabaseEventRepository implements EventRepository {
@@ -109,14 +278,24 @@ export class SupabaseEventRepository implements EventRepository {
       { data: attendees, error: aErr },
       { data: teams, error: tErr },
       { data: freeAgents, error: fErr },
+      { data: divisions, error: dErr },
     ] = await Promise.all([
       this.client.from('event_attendees').select('user_id, position').eq('event_id', id),
       this.client.from('event_teams').select('team_id').eq('event_id', id),
       this.client.from('event_free_agents').select('user_id, notes').eq('event_id', id),
+      this.client
+        .from('event_divisions')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
     ]);
     if (aErr) throw new Error(`findById attendees failed: ${aErr.message}`);
     if (tErr) throw new Error(`findById teams failed: ${tErr.message}`);
     if (fErr) throw new Error(`findById free agents failed: ${fErr.message}`);
+    if (dErr) throw new Error(`findById divisions failed: ${dErr.message}`);
+
+    const divisionRows = (divisions ?? []) as DivisionRow[];
+    const legacy = primaryDivisionFallback(row, divisionRows);
 
     return VolleyballEvent.fromPersistence({
       id: row.id as never,
@@ -125,9 +304,9 @@ export class SupabaseEventRepository implements EventRepository {
       description: row.description,
       rules: row.rules,
       surface: row.surface,
-      format: row.format,
-      gender: row.gender,
-      skillLevel: row.skill_level,
+      format: legacy.format,
+      gender: legacy.gender,
+      skillLevel: legacy.skillLevel,
       type: row.type,
       visibility: row.visibility,
       location: Location.create({
@@ -142,7 +321,7 @@ export class SupabaseEventRepository implements EventRepository {
       startsAt: new Date(row.starts_at),
       endsAt: new Date(row.ends_at),
       timeZone: row.time_zone,
-      capacity: rowToCapacity(row),
+      capacity: legacy.capacity,
       status: row.status,
       attendees: ((attendees ?? []) as Array<{ user_id: string; position: string | null }>).map(
         (a) => [a.user_id as never, isEventPosition(a.position) ? a.position : null] as const,
@@ -152,12 +331,13 @@ export class SupabaseEventRepository implements EventRepository {
         (f) => [f.user_id as never, f.notes] as const,
       ),
       positionRoster: rowToPositionRoster(row),
+      extensions: rowToExtensions(row),
+      divisions: divisionRows.map(divisionRowToDomain),
     });
   }
 
   async save(event: VolleyballEvent): Promise<void> {
     const loc = event.location;
-    const capacity = event.capacity;
     const wkt = `SRID=4326;POINT(${loc.longitude} ${loc.latitude})`;
 
     const row = {
@@ -167,9 +347,6 @@ export class SupabaseEventRepository implements EventRepository {
       description: event.description,
       rules: event.rules,
       surface: event.surface,
-      format: event.format,
-      gender: event.gender,
-      skill_level: event.skillLevel,
       type: event.type,
       visibility: event.visibility,
       status: event.status,
@@ -182,9 +359,26 @@ export class SupabaseEventRepository implements EventRepository {
       starts_at: event.startsAt.toISOString(),
       ends_at: event.endsAt.toISOString(),
       time_zone: event.timeZone,
-      capacity_kind: capacity?.kind ?? null,
-      max_spots: capacity?.kind === 'fixed' ? capacity.maxSpots : null,
-      position_roster: rosterToJson(event.positionRoster),
+      // ADR 0006 Phase 9c: legacy event columns (format, gender, skill_level,
+      // capacity_kind, max_spots, position_roster) are no longer written here.
+      // Authority lives on event_divisions; the position_roster moved to
+      // division-scoped data in earlier phases.
+      // ADR 0006 extension columns
+      venue_name: event.venueName,
+      registration_closes_at: event.registrationClosesAt
+        ? event.registrationClosesAt.toISOString()
+        : null,
+      series_name: event.seriesName,
+      series_position: event.seriesPosition,
+      series_size: event.seriesSize,
+      is_fundraiser: event.isFundraiser,
+      fundraiser_beneficiary: event.fundraiserBeneficiary,
+      theme_tags: event.themeTags,
+      sanctioning_body: event.sanctioningBody,
+      registration_mode: event.registrationMode,
+      external_registration_url: event.externalRegistrationUrl,
+      external_registration_instructions: event.externalRegistrationInstructions,
+      payment_instructions: event.paymentInstructions,
       updated_at: new Date().toISOString(),
     };
 
@@ -242,11 +436,48 @@ export class SupabaseEventRepository implements EventRepository {
       if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
     }
 
+    // Reconcile divisions: upsert current set by id, delete any id no
+    // longer present so child rows with `division_id` go to NULL via
+    // `on delete set null` and may be re-resolved by the
+    // `fill_default_division_id` trigger when the event has exactly one
+    // remaining division.
+    //
+    // When the aggregate carries no divisions (legacy create path that
+    // pre-dates multi-division), we skip the delete entirely so the
+    // `events_create_default_division` AFTER INSERT trigger's row stays
+    // put. Reconciliation only runs when the caller explicitly listed
+    // divisions on the aggregate.
+    const eventIdStr = String(event.id);
+    const divisionRows = event.divisions.map((d) => divisionToRow(eventIdStr, d));
+    if (divisionRows.length > 0) {
+      const { error: upErr } = await this.client
+        .from('event_divisions')
+        .upsert(divisionRows as never, { onConflict: 'id' });
+      if (upErr) throw new Error(`save divisions upsert failed: ${upErr.message}`);
+      const keepIds = event.divisions.map((d) => String(d.id));
+      const { error: delDivErr } = await this.client
+        .from('event_divisions')
+        .delete()
+        .eq('event_id', eventIdStr)
+        .not('id', 'in', `(${keepIds.join(',')})`);
+      if (delDivErr) throw new Error(`save divisions delete failed: ${delDivErr.message}`);
+    }
+
     // Drain raised events so callers don't double-handle them.
     event.pullEvents();
   }
 
   async search(query: EventSearchQuery): Promise<VolleyballEventSummary[]> {
+    type DivisionJson = {
+      id: string;
+      label: string;
+      skillTier: SkillTier;
+      tierLabel: string | null;
+      ageGroup: AgeGroup;
+      teamComposition: TeamComposition;
+      priceCents: number | null;
+      priceUnit: PriceUnit;
+    };
     type SearchRow = {
       id: string;
       title: string;
@@ -261,6 +492,12 @@ export class SupabaseEventRepository implements EventRepository {
       region: string;
       spots_remaining: number | null;
       distance_km: number | null;
+      series_name: string | null;
+      series_position: number | null;
+      series_size: number | null;
+      is_fundraiser: boolean;
+      registration_mode: RegistrationMode | null;
+      divisions: DivisionJson[] | null;
     };
 
     const args = {
@@ -275,6 +512,12 @@ export class SupabaseEventRepository implements EventRepository {
       p_starts_after: query.startsAfter?.toISOString() ?? null,
       p_starts_before: query.startsBefore?.toISOString() ?? null,
       p_limit: query.limit ?? 20,
+      p_skill_band: query.skillBand ?? null,
+      p_age_group: query.ageGroup ?? null,
+      p_team_composition: query.teamComposition ?? null,
+      p_series_name: query.seriesName ?? null,
+      p_registration_mode: query.registrationMode ?? null,
+      p_is_fundraiser: query.isFundraiser ?? null,
     };
 
     const { data, error } = await this.client.rpc('search_events', args as never);
@@ -295,6 +538,21 @@ export class SupabaseEventRepository implements EventRepository {
       region: r.region,
       spotsRemaining: r.spots_remaining,
       distanceKm: r.distance_km,
+      seriesName: r.series_name,
+      seriesPosition: r.series_position,
+      seriesSize: r.series_size,
+      isFundraiser: r.is_fundraiser,
+      registrationMode: r.registration_mode ?? RegistrationMode.Platform,
+      divisions: (r.divisions ?? []).map((d) => ({
+        id: d.id,
+        label: d.label,
+        skillTier: d.skillTier,
+        tierLabel: d.tierLabel,
+        ageGroup: d.ageGroup,
+        teamComposition: d.teamComposition,
+        priceCents: d.priceCents,
+        priceUnit: d.priceUnit,
+      })),
     }));
   }
 
@@ -325,6 +583,7 @@ export class SupabaseEventRepository implements EventRepository {
       primaryHostGroupRes,
       teamRowsRes,
       freeAgentRowsRes,
+      divisionRowsRes,
     ] = await Promise.all([
       this.client
         .from('event_attendees')
@@ -360,7 +619,17 @@ export class SupabaseEventRepository implements EventRepository {
         )
         .eq('event_id', id)
         .order('joined_at', { ascending: true }),
+      this.client
+        .from('event_divisions')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
     ]);
+
+    // Derive legacy display fields from primary division when the event
+    // columns are null (ADR 0006 Phase 9b).
+    const divisionRowsForDetail = (divisionRowsRes.data as DivisionRow[] | null) ?? [];
+    const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
 
     type AttendeeRow = {
       user_id: string;
@@ -474,12 +743,12 @@ export class SupabaseEventRepository implements EventRepository {
       // Teams the viewer captains in this event's format. Only meaningful
       // for tournaments; we still issue it for any logged-in viewer to
       // keep the response shape uniform — the cost is one tiny query.
-      viewerId && row.format
+      viewerId && legacyDetail.format
         ? this.client
             .from('teams')
             .select('id, name, format')
             .eq('captain_id', viewerId)
-            .eq('format', row.format)
+            .eq('format', legacyDetail.format)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -614,7 +883,7 @@ export class SupabaseEventRepository implements EventRepository {
       isRegistered: registeredTeamIdSet.has(t.id),
     }));
 
-    const capacity = rowToCapacity(row);
+    const capacity = legacyDetail.capacity;
     const spotsRemaining = positionRoster
       ? Math.max(
           0,
@@ -637,9 +906,9 @@ export class SupabaseEventRepository implements EventRepository {
       description: row.description,
       rules: row.rules,
       surface: row.surface,
-      format: row.format,
-      gender: row.gender,
-      skillLevel: row.skill_level,
+      format: legacyDetail.format,
+      gender: legacyDetail.gender,
+      skillLevel: legacyDetail.skillLevel,
       type: row.type,
       visibility: row.visibility,
       status: row.status,
@@ -673,6 +942,8 @@ export class SupabaseEventRepository implements EventRepository {
       viewerFriendIds,
       viewerHostableGroups,
       viewerCaptainedTeams,
+      ...rowToExtensions(row),
+      divisions: divisionRowsForDetail.map(divisionRowToLite),
     };
   }
 
@@ -747,13 +1018,29 @@ export class SupabaseEventRepository implements EventRepository {
 
     let q = this.client
       .from('events')
-      .select('id, title, surface, skill_level, type, starts_at, time_zone, city, region, host_id')
+      .select('id, title, surface, type, starts_at, time_zone, city, region, host_id')
       .gte('starts_at', filters.startsAfter.toISOString())
       .order('starts_at', { ascending: true })
       .limit(filters.limit ?? 60);
     if (filters.surface) q = q.eq('surface', filters.surface);
     if (filters.type) q = q.eq('type', filters.type);
-    if (filters.skillLevel) q = q.eq('skill_level', filters.skillLevel);
+
+    // Skill filter now reads through event_divisions (ADR 0006 Phase 9c).
+    // Resolve the requested level to its underlying tier set and restrict
+    // to events that have a division matching one of those tiers.
+    if (filters.skillLevel) {
+      const tiers = skillBandTiers(filters.skillLevel as unknown as SkillBand);
+      const { data: divRows, error: dErr } = await this.client
+        .from('event_divisions')
+        .select('event_id')
+        .in('skill_tier', tiers as unknown as string[]);
+      if (dErr) throw new Error(`searchFollowingFeed divisions failed: ${dErr.message}`);
+      const skillEventIds = Array.from(
+        new Set(((divRows ?? []) as { event_id: string }[]).map((r) => r.event_id)),
+      );
+      if (skillEventIds.length === 0) return [];
+      q = q.in('id', skillEventIds);
+    }
 
     const orParts = [`host_id.in.(${friendIds.join(',')})`];
     if (attendeeEventIds.length > 0) {
@@ -768,7 +1055,6 @@ export class SupabaseEventRepository implements EventRepository {
       id: string;
       title: string;
       surface: Surface;
-      skill_level: SkillLevel;
       type: EventType;
       starts_at: string;
       time_zone: string | null;
@@ -776,8 +1062,28 @@ export class SupabaseEventRepository implements EventRepository {
       region: string;
       host_id: string;
     };
+    const evRows = (rows ?? []) as EvRow[];
+
+    // Hydrate per-event skill from the primary (lowest sort_order) division.
+    const eventIds = evRows.map((r) => r.id);
+    const skillByEvent = new Map<string, SkillLevel>();
+    if (eventIds.length > 0) {
+      const { data: dRows, error: dErr } = await this.client
+        .from('event_divisions')
+        .select('event_id, skill_tier, sort_order')
+        .in('event_id', eventIds)
+        .order('sort_order', { ascending: true });
+      if (dErr) throw new Error(`searchFollowingFeed skill hydrate failed: ${dErr.message}`);
+      type DRow = { event_id: string; skill_tier: SkillTier; sort_order: number };
+      for (const d of (dRows ?? []) as DRow[]) {
+        if (!skillByEvent.has(d.event_id)) {
+          skillByEvent.set(d.event_id, skillTierBand(d.skill_tier) as unknown as SkillLevel);
+        }
+      }
+    }
+
     const friendIdSet = new Set(friendIds);
-    return ((rows ?? []) as EvRow[]).map((r) => {
+    return evRows.map((r) => {
       const hostFriendId = friendIdSet.has(r.host_id) ? r.host_id : null;
       const attendingFriendIds = (attendingByEvent.get(r.id) ?? []).filter(
         (uid) => uid !== r.host_id,
@@ -786,7 +1092,7 @@ export class SupabaseEventRepository implements EventRepository {
         id: r.id,
         title: r.title,
         surface: r.surface,
-        skillLevel: r.skill_level,
+        skillLevel: skillByEvent.get(r.id) ?? SkillLevel.Intermediate,
         type: r.type,
         startsAt: new Date(r.starts_at),
         timeZone: r.time_zone,
