@@ -55,6 +55,14 @@ export async function registerTeamFromForm(
         if (err instanceof ValidationError) {
             redirect(`${returnPath}?team=invalid` as Route);
         }
+        console.error('[registerTeamFromForm] uncaught error', {
+            eventId,
+            teamId,
+            userId: user.id,
+            name: (err as Error)?.name,
+            message: (err as Error)?.message,
+            stack: (err as Error)?.stack,
+        });
         throw err;
     }
     revalidatePath(returnPath);
