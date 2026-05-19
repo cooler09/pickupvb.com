@@ -16,13 +16,14 @@ type Props = {
    *  renders the same content. */
   isExternal: boolean;
   timeZone: string | null;
+  /** When true, the hero already surfaces a registration-close countdown,
+   *  so we omit the row here to avoid duplication. */
+  hideRegistrationCloses?: boolean;
 };
 
 /**
- * Renders ADR-0006 event-level extension fields above the fold: series
- * breadcrumb, fundraiser line, sanctioning body, theme tags, and the
- * registration deadline. All fields are optional — the section renders
- * nothing when nothing has been set.
+ * Renders ADR-0006 event-level extension fields above the fold as a dense
+ * definition list. Renders nothing when no fields are set.
  */
 export function EventMetaSection({
   seriesName,
@@ -36,66 +37,80 @@ export function EventMetaSection({
   paymentInstructions,
   isExternal,
   timeZone,
+  hideRegistrationCloses = false,
 }: Props) {
   const seriesLabel = seriesName
     ? seriesSize && seriesPosition
       ? `${seriesName} · Event ${seriesPosition} of ${seriesSize}`
       : seriesName
     : null;
+  const showRegistrationCloses = registrationClosesAt && !hideRegistrationCloses;
+  const showPaymentNotes = paymentInstructions && !isExternal;
   const hasAnything =
     seriesLabel ||
     isFundraiser ||
     themeTags.length > 0 ||
     sanctioningBody ||
-    registrationClosesAt ||
-    (paymentInstructions && !isExternal);
+    showRegistrationCloses ||
+    showPaymentNotes;
   if (!hasAnything) return null;
   return (
-    <section className="border-border-base bg-fg/[0.02] space-y-2 rounded-lg border p-4">
-      {seriesLabel && (
-        <p className="text-fg text-sm">
-          <span className="text-muted">Series · </span>
-          <span className="font-medium">{seriesLabel}</span>
-        </p>
-      )}
-      {(isFundraiser || sanctioningBody) && (
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          {isFundraiser && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-900">
-              Fundraiser{fundraiserBeneficiary ? ` · ${fundraiserBeneficiary}` : ''}
+    <section
+      aria-label="Event details"
+      className="border-border-base bg-fg/[0.02] rounded-lg border p-4"
+    >
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
+        {seriesLabel && (
+          <Row term="Series">
+            <span className="font-medium">{seriesLabel}</span>
+          </Row>
+        )}
+        {isFundraiser && (
+          <Row term="Fundraiser">
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+              {fundraiserBeneficiary ?? 'Charity event'}
             </span>
-          )}
-          {sanctioningBody && (
-            <span className="bg-fg/5 text-fg/80 rounded-full px-2 py-0.5">
-              Sanctioned by {sanctioningBody}
+          </Row>
+        )}
+        {sanctioningBody && <Row term="Sanctioned by">{sanctioningBody}</Row>}
+        {themeTags.length > 0 && (
+          <Row term="Theme">
+            <span className="flex flex-wrap gap-1.5">
+              {themeTags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full bg-fuchsia-100 px-2 py-0.5 text-xs font-medium text-fuchsia-900"
+                >
+                  #{tag}
+                </span>
+              ))}
             </span>
-          )}
-        </div>
-      )}
-      {themeTags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 text-xs">
-          {themeTags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-fuchsia-100 px-2 py-0.5 font-medium text-fuchsia-900"
-            >
-              #{tag}
-            </span>
-          ))}
-        </div>
-      )}
-      {registrationClosesAt && (
-        <p className="text-muted text-xs">
-          Registration closes{' '}
-          <LocalDateTime iso={registrationClosesAt} variant="eventDateLong" timeZone={timeZone} />
-        </p>
-      )}
-      {paymentInstructions && !isExternal && (
-        <p className="text-fg/90 text-xs whitespace-pre-wrap">
-          <span className="text-muted">Payment notes: </span>
-          {paymentInstructions}
-        </p>
-      )}
+          </Row>
+        )}
+        {showRegistrationCloses && (
+          <Row term="Registration closes">
+            <LocalDateTime
+              iso={registrationClosesAt!}
+              variant="eventDateLong"
+              timeZone={timeZone}
+            />
+          </Row>
+        )}
+        {showPaymentNotes && (
+          <Row term="Payment notes">
+            <span className="whitespace-pre-wrap">{paymentInstructions}</span>
+          </Row>
+        )}
+      </dl>
     </section>
+  );
+}
+
+function Row({ term, children }: { term: string; children: React.ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted text-xs font-semibold tracking-wide uppercase sm:pt-0.5">{term}</dt>
+      <dd className="text-fg/90">{children}</dd>
+    </>
   );
 }

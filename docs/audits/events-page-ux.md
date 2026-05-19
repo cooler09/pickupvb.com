@@ -6,27 +6,34 @@ Audit of [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%
 Goal: prioritize the most important information and CTAs for visitors landing
 from a share link, while keeping the page useful for hosts and attendees.
 
-## Render order after quick-win pass
+> **Status:** Quick-win bundle + larger-changes bundle both shipped
+> (2026-05-18). Remaining open items live in the "Won't-do / explicit
+> deferrals" section.
+
+## Render order (current)
 
 ```
 Back link
 Flash alerts (created / tip)
 
-HERO
+EventHero
   ├─ Tags row
   ├─ Title
   ├─ Sub-line: date · city · spots · price
-  └─ Secondary actions: Share, Edit (host)
+  ├─ Closing-soon pill (when registration closes ≤72h)
+  ├─ Primary CTA (RSVP / Buy / Register / Open bracket / View attendees)
+  └─ Secondary: Share, Edit (host)
 
 When / Spots grid
-EventMetaSection (series · fundraiser · sanctioning · close · payment notes)
+EventMetaSection (dl: series · fundraiser · sanctioning · closes · payment notes)
 ExternalRegistrationCard (when external)
 DivisionsSection
 
-Signup panel
+Signup (id="signup")
   - open_play: PaidTicketPanel | PositionRsvpPanel | RsvpPanel
-  - tournament: TournamentSignupPanel + FreeAgentSignupPanel
-  - closed notice if started
+  - tournament: TournamentRegistrationTabs (Register team / Free agent)
+
+EventClosedState (cancelled / completed / hasStarted pivot)
 
 Description
 Rules
@@ -37,110 +44,80 @@ Hosts
 Host tools <details> (host-only)
   ├─ HostDivisionsManager
   └─ HostBroadcastPanel
-Players signed up (open_play)
+Teams registered (tournament, id="teams")
+Players signed up (open_play, id="attendees")
 Tip jar (non-hosts)
+
+EventStickyCta (mobile-only, hides when #signup is in view)
 ```
 
-## Quick wins shipped
+## Quick wins shipped (2026-05-18, first bundle)
 
-- **Hero sub-line** with date · city · spots · price (free vs `$X.XX` derived
-  from `attendeeChargeBreakdownAsync`). Puts the four highest-signal facts
-  one scroll above the fold.
-- **Description + Rules** moved up to immediately after the signup panel —
-  they're decision content, not appendix content.
-- **Bracket card** promoted out of the page-bottom slot to sit right after
-  Description/Rules for tournaments. Anyone running an event in progress
-  finds the CTA before they pass attendees and tip jar.
+- **Hero sub-line** with date · city · spots · price (free vs `$X.XX`
+  derived from `attendeeChargeBreakdownAsync`).
+- **Description + Rules** moved up to immediately after the signup panel.
+- **Bracket card** promoted out of the page-bottom slot.
 - **Host tools disclosure** — `HostDivisionsManager` + `HostBroadcastPanel`
-  now live in one `<details>` block after the Hosts section. Reduces noise
-  for non-hosts (still rendered nothing) and gives hosts a single entry
-  point.
+  collapsed into a single `<details>` block.
 
-## Larger changes (deferred — design + new components)
+## Larger changes shipped (2026-05-18, second bundle)
 
-These weren't quick wins because they require a new component or domain
-shape change. Listed in roughly the order of expected ROI.
+### 1. `EventHero` with primary CTA + countdown — **shipped**
 
-### 1. `EventHero` with primary CTA + countdown
+[apps/web/src/app/events/[id]/_components/event-hero.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-hero.tsx).
+Renders the tags row, title, meta sub-line, closing-soon pill (visible
+only when `registrationClosesAt` is within 72h), the primary CTA, and the
+Share / Edit secondary actions. CTA selection lives at the page level
+(`getPrimaryCta` IIFE in `page.tsx`) so it can read `event.status`,
+`hasStarted`, viewer auth, paid/free, and `isAttending`.
 
-Replace the current header + When/Spots grid with a single hero block:
+### 2. Tabbed tournament registration — **shipped**
 
-- Title + tags
-- Primary CTA button (RSVP / Buy ticket / Register team / Open bracket if
-  status >= ready)
-- Sticky-on-mobile copy of that CTA so the action is always one tap away
-- Countdown ("Closes in 6h") when `registrationClosesAt` is within 72h
-- Secondary: Share, Edit (host)
+[tournament-registration-tabs.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tournament-registration-tabs.tsx).
+Client wrapper that takes the existing `TournamentSignupPanel` and
+`FreeAgentSignupPanel` server components as children and switches between
+them. Tab labels carry count badges ("Register team (3) · Free agent (2)").
+The wrapper carries `id="signup"` so hero and sticky CTAs anchor to it.
 
-Affects: [page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx), new
-`_components/event-hero.tsx`. Requires choosing the CTA based on event
-type, status, viewer auth, signup state — currently scattered across
-`RsvpPanel`, `PaidTicketPanel`, `TournamentSignupPanel`. Hero would render
-a small button; the existing panels stay as the expanded form below.
+### 3. Sticky mobile bottom CTA bar — **shipped**
 
-### 2. Tabbed `TournamentRegistrationPanel`
+[event-sticky-cta.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-sticky-cta.tsx).
+Mobile-only (`sm:hidden`). Mirrors the hero CTA and uses an
+`IntersectionObserver` against `#signup` to fade out once the inline panel
+scrolls into view. Pads for `safe-area-inset-bottom` for iOS notches.
 
-Combine `TournamentSignupPanel` and `FreeAgentSignupPanel` into a single
-tabbed card: "Register team" / "Free agent". Halves vertical bloat on
-tournament pages and resolves the choice-paralysis of stacking both at
-equal visual weight.
+### 4. Closed-state pivot — **shipped**
 
-Affects: new `_components/tournament-registration-panel.tsx`; deletes the
-two existing panel imports from `page.tsx`. Internal logic re-uses the
-existing components as tab bodies.
+[event-closed-state.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-closed-state.tsx).
+Replaces the bare "Signups are closed" `<p>`. Three branches:
+- `status === 'cancelled'` → red notice, no CTA.
+- `status === 'completed'` → "View bracket" (tournament) or "View attendees" (open play).
+- `hasStarted` (still published) → same pivot + a host-only "Manage event" button.
 
-### 3. Sticky mobile bottom CTA bar
+### 5. `EventMetaSection` as a `<dl>` — **shipped**
 
-A fixed-position bottom bar on `< sm` viewports with the primary action
-(RSVP / Buy / Register). Disappears when the inline panel is in viewport.
+[event-meta-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-meta-section.tsx).
+Two-column definition list (`grid-cols-[max-content_1fr]`) on `sm+`,
+stacked on mobile. The `Row` helper handles the term/description pairing.
+`hideRegistrationCloses` prop is wired in but not currently set — the dl
+keeps the precise date while the hero shows the urgency pill, so the two
+are complementary rather than duplicative.
 
-Affects: new `_components/event-sticky-cta.tsx`. Requires an
-`IntersectionObserver` against the inline panel; must coordinate with any
-existing mobile nav to avoid stacking conflicts.
+### 6. "Teams registered (N)" section — **shipped**
 
-### 4. Closed-state pivot
+[teams-registered-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/teams-registered-section.tsx).
+Always-visible read-only roster for tournaments, mirroring the open-play
+"Players signed up" section. Renders under `id="teams"`.
 
-When `event.status === 'published' && hasStarted`, the current text-only
-"Signups are closed" notice should pivot to relevant follow-ups:
+### 7. Bracket promotion when status ≥ ready — **shipped (partial)**
 
-- Tournament → "View bracket" CTA
-- Open play → "View attendees" / "See results"
-- All → permalink to results if past
-- Host → "Mark complete" / "Cancel event" / "Add results"
-
-Affects: a small `_components/event-closed-state.tsx`; replaces the
-inline `<p>` in `page.tsx`.
-
-### 5. Collapse `EventMetaSection` into a `<dl>`
-
-The optional fields (series, fundraiser, sanctioning, theme tags, close
-time, payment notes) read as a noisy list of pills. A two-column
-definition list is denser and easier to scan. Promote `registrationClosesAt`
-into the hero countdown (see #1) and remove the duplicate venue name with
-"Where".
-
-Affects: [event-meta-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-meta-section.tsx).
-
-### 6. Tournament "Teams registered (N)" headline
-
-Open-play pages get a `Players signed up (N)` section near the bottom.
-Tournaments hide the team list inside `TournamentSignupPanel`. Add a
-parallel `Teams registered (N)` section so viewers can scan participants
-without entering the signup form.
-
-Affects: new `_components/teams-list.tsx`; render in `page.tsx` after
-Hosts.
-
-### 7. Bracket promotion when status ≥ ready
-
-Currently the bracket card always sits in the same slot. For events with
-status `in_progress` or `completed`, the bracket is the most-clicked
-action — promote it into the hero (or directly under the hero sub-line)
-when there are seeded teams or completed matches.
-
-Depends on a new domain field (`event.bracketState: 'none' | 'seeded' | 'in_progress' | 'completed'`)
-or a query against the `matches` table. Cheap query already exists for
-seeded count.
+The hero CTA now resolves to **Open bracket** when `hasStarted` or
+`status === 'completed'` on tournaments, and `EventClosedState` repeats
+the same CTA inside the closed-state notice. No new domain field added —
+we read `hasStarted` and `status` directly. The original Bracket card
+still renders in-flow below Description/Rules; promoting it visually into
+the hero would require duplicating the card shell and isn't justified
+given the hero CTA already covers the primary click target.
 
 ## Won't-do / explicit deferrals
 
