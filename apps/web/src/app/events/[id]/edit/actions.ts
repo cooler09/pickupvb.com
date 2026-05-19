@@ -13,6 +13,7 @@ import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { GetEventDetailQuery } from '@pickupvb/application';
+import { skillTierFromLegacy, SkillLevel } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { notify } from '@/lib/notify';
 
@@ -243,7 +244,6 @@ export async function editEventAction(
       title,
       description,
       rules,
-      skill_level: skillLevel,
       visibility,
       starts_at: startsDate.toISOString(),
       ends_at: endsDate.toISOString(),
@@ -254,12 +254,28 @@ export async function editEventAction(
       country,
       geo: wkt,
       time_zone: timeZone,
-      ...(isOpenPlay ? { capacity_kind: newCapacityKind, max_spots: newMaxSpots } : {}),
       ...extUpdate,
       updated_at: new Date().toISOString(),
     } as never)
     .eq('id', eventId);
   if (updErr) return { error: `Update failed: ${updErr.message}` };
+
+  // ADR 0006 Phase 9c: skill_level, capacity_kind and max_spots now live on
+  // event_divisions. Write them to the primary (sort_order=0) division.
+  if (curDiv) {
+    const divisionUpdate: Record<string, unknown> = {
+      skill_tier: skillTierFromLegacy(skillLevel as SkillLevel),
+    };
+    if (isOpenPlay) {
+      divisionUpdate.capacity_kind = newCapacityKind;
+      divisionUpdate.max_spots = newMaxSpots;
+    }
+    const { error: divErr } = await admin
+      .from('event_divisions')
+      .update(divisionUpdate as never)
+      .eq('id', curDiv.id);
+    if (divErr) return { error: `Update failed: ${divErr.message}` };
+  }
 
   if (pricingChanged) {
     // host_absorbs_fee + refund_window_hours stay on events; price_cents

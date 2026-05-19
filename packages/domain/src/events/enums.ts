@@ -83,6 +83,24 @@ export function skillTierBand(tier: SkillTier): SkillBand {
 }
 
 /**
+ * Inverse of {@link skillTierBand} — returns the tiers that fall under a
+ * given band. Useful for search filters that translate a band into a tier
+ * IN clause against `event_divisions.skill_tier`.
+ */
+export function skillBandTiers(band: SkillBand): ReadonlyArray<SkillTier> {
+  switch (band) {
+    case SkillBand.Beginner:
+      return [SkillTier.C, SkillTier.B];
+    case SkillBand.Intermediate:
+      return [SkillTier.BB, SkillTier.BB3];
+    case SkillBand.Advanced:
+      return [SkillTier.A];
+    case SkillBand.Competitive:
+      return [SkillTier.AA, SkillTier.Open];
+  }
+}
+
+/**
  * Maps the legacy single-field {@link SkillLevel} to a {@link SkillTier} for
  * backfill and read-shim compatibility. Mirrors the SQL backfill in
  * 20260605000100_event_divisions.sql.

@@ -16,6 +16,7 @@ import {
   Visibility,
   VolleyballEvent,
   isEventPosition,
+  skillBandTiers,
   skillTierBand,
   type AttendeeLite,
   type CaptainedTeamLite,
@@ -31,6 +32,7 @@ import {
   type FriendProfile,
   type GroupLite,
   type ProfileLite,
+  type SkillBand,
   type TeamLite,
   type VolleyballEventSummary,
 } from '@pickupvb/domain';
@@ -336,7 +338,6 @@ export class SupabaseEventRepository implements EventRepository {
 
   async save(event: VolleyballEvent): Promise<void> {
     const loc = event.location;
-    const capacity = event.capacity;
     const wkt = `SRID=4326;POINT(${loc.longitude} ${loc.latitude})`;
 
     const row = {
@@ -346,9 +347,6 @@ export class SupabaseEventRepository implements EventRepository {
       description: event.description,
       rules: event.rules,
       surface: event.surface,
-      format: event.format,
-      gender: event.gender,
-      skill_level: event.skillLevel,
       type: event.type,
       visibility: event.visibility,
       status: event.status,
@@ -361,9 +359,10 @@ export class SupabaseEventRepository implements EventRepository {
       starts_at: event.startsAt.toISOString(),
       ends_at: event.endsAt.toISOString(),
       time_zone: event.timeZone,
-      capacity_kind: capacity?.kind ?? null,
-      max_spots: capacity?.kind === 'fixed' ? capacity.maxSpots : null,
-      position_roster: rosterToJson(event.positionRoster),
+      // ADR 0006 Phase 9c: legacy event columns (format, gender, skill_level,
+      // capacity_kind, max_spots, position_roster) are no longer written here.
+      // Authority lives on event_divisions; the position_roster moved to
+      // division-scoped data in earlier phases.
       // ADR 0006 extension columns
       venue_name: event.venueName,
       registration_closes_at: event.registrationClosesAt
@@ -1019,13 +1018,29 @@ export class SupabaseEventRepository implements EventRepository {
 
     let q = this.client
       .from('events')
-      .select('id, title, surface, skill_level, type, starts_at, time_zone, city, region, host_id')
+      .select('id, title, surface, type, starts_at, time_zone, city, region, host_id')
       .gte('starts_at', filters.startsAfter.toISOString())
       .order('starts_at', { ascending: true })
       .limit(filters.limit ?? 60);
     if (filters.surface) q = q.eq('surface', filters.surface);
     if (filters.type) q = q.eq('type', filters.type);
-    if (filters.skillLevel) q = q.eq('skill_level', filters.skillLevel);
+
+    // Skill filter now reads through event_divisions (ADR 0006 Phase 9c).
+    // Resolve the requested level to its underlying tier set and restrict
+    // to events that have a division matching one of those tiers.
+    if (filters.skillLevel) {
+      const tiers = skillBandTiers(filters.skillLevel as unknown as SkillBand);
+      const { data: divRows, error: dErr } = await this.client
+        .from('event_divisions')
+        .select('event_id')
+        .in('skill_tier', tiers as unknown as string[]);
+      if (dErr) throw new Error(`searchFollowingFeed divisions failed: ${dErr.message}`);
+      const skillEventIds = Array.from(
+        new Set(((divRows ?? []) as { event_id: string }[]).map((r) => r.event_id)),
+      );
+      if (skillEventIds.length === 0) return [];
+      q = q.in('id', skillEventIds);
+    }
 
     const orParts = [`host_id.in.(${friendIds.join(',')})`];
     if (attendeeEventIds.length > 0) {
@@ -1040,7 +1055,6 @@ export class SupabaseEventRepository implements EventRepository {
       id: string;
       title: string;
       surface: Surface;
-      skill_level: SkillLevel;
       type: EventType;
       starts_at: string;
       time_zone: string | null;
@@ -1048,8 +1062,28 @@ export class SupabaseEventRepository implements EventRepository {
       region: string;
       host_id: string;
     };
+    const evRows = (rows ?? []) as EvRow[];
+
+    // Hydrate per-event skill from the primary (lowest sort_order) division.
+    const eventIds = evRows.map((r) => r.id);
+    const skillByEvent = new Map<string, SkillLevel>();
+    if (eventIds.length > 0) {
+      const { data: dRows, error: dErr } = await this.client
+        .from('event_divisions')
+        .select('event_id, skill_tier, sort_order')
+        .in('event_id', eventIds)
+        .order('sort_order', { ascending: true });
+      if (dErr) throw new Error(`searchFollowingFeed skill hydrate failed: ${dErr.message}`);
+      type DRow = { event_id: string; skill_tier: SkillTier; sort_order: number };
+      for (const d of (dRows ?? []) as DRow[]) {
+        if (!skillByEvent.has(d.event_id)) {
+          skillByEvent.set(d.event_id, skillTierBand(d.skill_tier) as unknown as SkillLevel);
+        }
+      }
+    }
+
     const friendIdSet = new Set(friendIds);
-    return ((rows ?? []) as EvRow[]).map((r) => {
+    return evRows.map((r) => {
       const hostFriendId = friendIdSet.has(r.host_id) ? r.host_id : null;
       const attendingFriendIds = (attendingByEvent.get(r.id) ?? []).filter(
         (uid) => uid !== r.host_id,
@@ -1058,7 +1092,7 @@ export class SupabaseEventRepository implements EventRepository {
         id: r.id,
         title: r.title,
         surface: r.surface,
-        skillLevel: r.skill_level,
+        skillLevel: skillByEvent.get(r.id) ?? SkillLevel.Intermediate,
         type: r.type,
         startsAt: new Date(r.starts_at),
         timeZone: r.time_zone,
