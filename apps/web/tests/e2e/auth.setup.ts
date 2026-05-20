@@ -27,7 +27,10 @@ setup('authenticate test user', async ({ page }) => {
   await page.goto('/login');
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /sign in|log in|continue/i }).click();
+  // Scope to the credentials form so we don't match the header "Sign in"
+  // link or the "Continue with Google" OAuth button.
+  const form = page.locator('form').filter({ has: page.getByLabel(/password/i) });
+  await form.getByRole('button', { name: /sign in|log in|create account/i }).click();
 
   // Sign-in redirects to /events on success.
   await page.waitForURL(/\/events(\b|$)/, { timeout: 15_000 });
