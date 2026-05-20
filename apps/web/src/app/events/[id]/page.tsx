@@ -121,7 +121,9 @@ export default async function EventDetailPage(props: {
 
   const [breakdown, viewerIsPro, tipTotalCents, payments, viewerPaymentStatus] = await Promise.all([
     pricing && paid ? attendeeChargeBreakdownAsync(pricing) : Promise.resolve(null),
-    event.canManage && user ? (await import('@/lib/pro')).isPro(user.id) : Promise.resolve(false),
+    event.canManage && user
+      ? (await import('@/lib/admin')).hasProBenefits(user.id)
+      : Promise.resolve(false),
     // Tip-jar totals (cheap RPC). Hidden from the host themselves.
     isHostOfEvent
       ? Promise.resolve(0)

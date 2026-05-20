@@ -10,6 +10,8 @@ import { addFriend, removeFriend } from '@/app/friends/actions';
 import { ShareLink } from '@/components/share-link';
 import { Pagination } from '@/components/pagination';
 import { ProBadge } from '@/components/pro-badge';
+import { AdminBadge } from '@/components/admin-badge';
+import { isPlatformAdmin } from '@/lib/admin';
 import { SocialLinks } from '@/components/social-links';
 import { isPro } from '@/lib/pro';
 
@@ -114,7 +116,7 @@ export default async function PlayerProfilePage(props: {
 
   // Friendship edge + hosted events (upcoming + past split at SQL) are independent.
   const now = new Date();
-  const [edgeResult, upcoming, past, isProHost] = await Promise.all([
+  const [edgeResult, upcoming, past, isProHost, isAdmin] = await Promise.all([
     user && !isSelf
       ? supabase
           .from('friendships')
@@ -127,6 +129,7 @@ export default async function PlayerProfilePage(props: {
     loadVisibleHostedEvents(profile.id, { startsAfter: now }),
     loadVisibleHostedEvents(profile.id, { startsBefore: now }),
     profile.show_pro_badge !== false ? isPro(profile.id) : Promise.resolve(false),
+    isPlatformAdmin(profile.id),
   ]);
   const isFollowing = Boolean(edgeResult.data);
 
@@ -165,6 +168,7 @@ export default async function PlayerProfilePage(props: {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="text-fg truncate text-2xl font-bold">{name}</h1>
+              {isAdmin && <AdminBadge />}
               {isProHost && <ProBadge />}
             </div>
             <p className="text-muted text-sm">{profile.home_city ?? 'No home city set'}</p>

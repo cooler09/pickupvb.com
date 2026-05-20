@@ -9,6 +9,8 @@ import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-e
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 import { HandleEditor } from './_components/handle-editor';
 import { ProBadge } from '@/components/pro-badge';
+import { AdminBadge } from '@/components/admin-badge';
+import { isPlatformAdmin } from '@/lib/admin';
 import { isPro } from '@/lib/pro';
 
 export const metadata = {
@@ -107,7 +109,10 @@ export default async function ProfilePage() {
 
   const hostedEvents = await loadVisibleHostedEvents(user.id, { startsAfter: new Date() });
   const upcomingHosted = hostedEvents;
-  const viewerIsPro = await isPro(user.id);
+  const [viewerIsPro, viewerIsAdmin] = await Promise.all([
+    isPro(user.id),
+    isPlatformAdmin(user.id),
+  ]);
 
   // Groups the user is a member of (with role).
   const { data: myGroupRows } = await supabase
@@ -172,6 +177,7 @@ export default async function ProfilePage() {
             <p className="text-muted text-xs font-semibold tracking-wide uppercase">Your profile</p>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="truncate text-2xl font-bold">{profile.display_name}</h1>
+              {viewerIsAdmin && <AdminBadge />}
               {viewerIsPro && <ProBadge asLink />}
             </div>
             <p className="text-muted text-sm">
