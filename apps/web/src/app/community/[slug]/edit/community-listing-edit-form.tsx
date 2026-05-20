@@ -30,6 +30,7 @@ export type EditFormInitialValues = {
 
 const initialState: EditCommunityListingState = {};
 
+const cardClass = 'border-border-base bg-surface space-y-5 rounded-lg border p-5 sm:p-6';
 const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
@@ -53,23 +54,43 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
+      className="bg-primary hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
     >
       {pending ? 'Saving…' : 'Save changes'}
     </button>
   );
 }
 
+function SectionHeader({ title, description }: { title: string; description?: string }) {
+  return (
+    <header className="space-y-1">
+      <h2 className="text-fg text-base font-semibold">{title}</h2>
+      {description && <p className="text-muted text-xs">{description}</p>}
+    </header>
+  );
+}
+
 export default function EditCommunityListingForm({ initial }: { initial: EditFormInitialValues }) {
   const boundAction = editCommunityListingAction.bind(null, initial.id, initial.slug);
   const [state, formAction] = useFormState(boundAction, initialState);
-  const [addressLine, setAddressLine] = useState(initial.location?.addressLine ?? '');
-  const [city, setCity] = useState(initial.location?.city ?? '');
-  const [region, setRegion] = useState(initial.location?.region ?? '');
-  const [postalCode, setPostalCode] = useState(initial.location?.postalCode ?? '');
-  const [country, setCountry] = useState(initial.location?.country ?? '');
+
+  const initialAddress = initial.location?.addressLine ?? '';
+  const initialCity = initial.location?.city ?? '';
+  const initialRegion = initial.location?.region ?? '';
+  const initialPostal = initial.location?.postalCode ?? '';
+  const initialCountry = initial.location?.country ?? '';
+
+  const [addressLine, setAddressLine] = useState(initialAddress);
+  const [city, setCity] = useState(initialCity);
+  const [region, setRegion] = useState(initialRegion);
+  const [postalCode, setPostalCode] = useState(initialPostal);
+  const [country, setCountry] = useState(initialCountry);
   const [startsAt, setStartsAt] = useState<Date | null>(initial.startsAt);
   const [endsAt, setEndsAt] = useState<Date | null>(initial.endsAt);
+  const hasInitialLocation = Boolean(
+    initialAddress || initialCity || initialRegion || initialPostal || initialCountry,
+  );
+  const [addressOpen, setAddressOpen] = useState(hasInitialLocation);
 
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
@@ -77,10 +98,11 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
     setRegion(s.region);
     setPostalCode(s.postalCode);
     if (s.country) setCountry(s.country);
+    setAddressOpen(true);
   }
 
   return (
-    <form action={formAction} className="space-y-8">
+    <form action={formAction} className="space-y-6 pb-24 sm:pb-0">
       {state.error && (
         <div
           role="alert"
@@ -90,8 +112,8 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
         </div>
       )}
 
-      <fieldset className="space-y-4">
-        <legend className="text-fg text-lg font-semibold">Basics</legend>
+      <section className={cardClass}>
+        <SectionHeader title="Basics" />
         <div>
           <label htmlFor="title" className={labelClass}>
             Title
@@ -121,10 +143,13 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
           />
           <FieldError name="description" errors={state.fieldErrors} />
         </div>
-      </fieldset>
+      </section>
 
-      <fieldset className="space-y-4">
-        <legend className="text-fg text-lg font-semibold">Where to RSVP</legend>
+      <section className={cardClass}>
+        <SectionHeader
+          title="Where to RSVP"
+          description="Players will be linked off-site to sign up."
+        />
         <div>
           <label htmlFor="externalUrl" className={labelClass}>
             External URL
@@ -152,10 +177,10 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
           />
           <FieldError name="externalHostName" errors={state.fieldErrors} />
         </div>
-      </fieldset>
+      </section>
 
-      <fieldset className="space-y-4">
-        <legend className="text-fg text-lg font-semibold">When</legend>
+      <section className={cardClass}>
+        <SectionHeader title="When & where" />
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="startsAt" className={labelClass}>
@@ -183,94 +208,98 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
             <FieldError name="endsAt" errors={state.fieldErrors} />
           </div>
         </div>
-      </fieldset>
 
-      <fieldset className="space-y-4">
-        <legend className="text-fg text-lg font-semibold">
-          Where <span className="text-fg/50 text-sm font-normal">(optional)</span>
-        </legend>
-        <div>
-          <label className={labelClass}>Search address</label>
-          <AddressAutocomplete onPick={applySuggestion} inputClass={inputClass} />
-        </div>
-        <div>
-          <label htmlFor="addressLine" className={labelClass}>
-            Street <span className="text-fg/50">(optional)</span>
+        <div className="space-y-3">
+          <label className={labelClass}>
+            Search address <span className="text-fg/50">(optional)</span>
           </label>
+          <AddressAutocomplete onPick={applySuggestion} inputClass={inputClass} />
           <input
-            id="addressLine"
             name="addressLine"
+            type="text"
             maxLength={200}
             value={addressLine}
             onChange={(e) => setAddressLine(e.target.value)}
+            placeholder="Street address"
             className={inputClass}
           />
           <FieldError name="location.addressLine" errors={state.fieldErrors} />
+          {!addressOpen ? (
+            <button
+              type="button"
+              onClick={() => setAddressOpen(true)}
+              className="text-primary text-xs font-medium hover:underline"
+            >
+              Add city, state, postal, country
+            </button>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="city" className={labelClass}>
+                  City
+                </label>
+                <input
+                  id="city"
+                  name="city"
+                  maxLength={100}
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className={inputClass}
+                />
+                <FieldError name="location.city" errors={state.fieldErrors} />
+              </div>
+              <div>
+                <label htmlFor="region" className={labelClass}>
+                  State / region <span className="text-fg/50">(optional)</span>
+                </label>
+                <input
+                  id="region"
+                  name="region"
+                  maxLength={100}
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  className={inputClass}
+                />
+                <FieldError name="location.region" errors={state.fieldErrors} />
+              </div>
+              <div>
+                <label htmlFor="postalCode" className={labelClass}>
+                  Postal code <span className="text-fg/50">(optional)</span>
+                </label>
+                <input
+                  id="postalCode"
+                  name="postalCode"
+                  maxLength={20}
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  className={inputClass}
+                />
+                <FieldError name="location.postalCode" errors={state.fieldErrors} />
+              </div>
+              <div>
+                <label htmlFor="country" className={labelClass}>
+                  Country
+                </label>
+                <input
+                  id="country"
+                  name="country"
+                  maxLength={100}
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  className={inputClass}
+                />
+                <FieldError name="location.country" errors={state.fieldErrors} />
+              </div>
+            </div>
+          )}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="city" className={labelClass}>
-              City
-            </label>
-            <input
-              id="city"
-              name="city"
-              maxLength={100}
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className={inputClass}
-            />
-            <FieldError name="location.city" errors={state.fieldErrors} />
-          </div>
-          <div>
-            <label htmlFor="region" className={labelClass}>
-              State / region <span className="text-fg/50">(optional)</span>
-            </label>
-            <input
-              id="region"
-              name="region"
-              maxLength={100}
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              className={inputClass}
-            />
-            <FieldError name="location.region" errors={state.fieldErrors} />
-          </div>
-          <div>
-            <label htmlFor="postalCode" className={labelClass}>
-              Postal code <span className="text-fg/50">(optional)</span>
-            </label>
-            <input
-              id="postalCode"
-              name="postalCode"
-              maxLength={20}
-              value={postalCode}
-              onChange={(e) => setPostalCode(e.target.value)}
-              className={inputClass}
-            />
-            <FieldError name="location.postalCode" errors={state.fieldErrors} />
-          </div>
-          <div>
-            <label htmlFor="country" className={labelClass}>
-              Country
-            </label>
-            <input
-              id="country"
-              name="country"
-              maxLength={100}
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              className={inputClass}
-            />
-            <FieldError name="location.country" errors={state.fieldErrors} />
-          </div>
-        </div>
-      </fieldset>
+      </section>
 
-      <fieldset className="space-y-4">
-        <legend className="text-fg text-lg font-semibold">
-          Details <span className="text-fg/50 text-sm font-normal">(optional)</span>
-        </legend>
+      <section className={cardClass}>
+        <SectionHeader
+          title="Details"
+          description="Optional tags to help players filter community listings."
+        />
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label htmlFor="surface" className={labelClass}>
@@ -323,9 +352,9 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
             </select>
           </div>
         </div>
-      </fieldset>
+      </section>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="border-border-base bg-surface/95 fixed inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t p-4 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <Link href={`/community/${initial.slug}`} className="text-muted hover:text-primary text-sm">
           Cancel
         </Link>
