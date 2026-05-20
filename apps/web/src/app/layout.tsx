@@ -1,4 +1,3 @@
-import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from 'next/types';
 import { cookies } from 'next/headers';
@@ -6,6 +5,7 @@ import SiteHeader from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { ToastProvider } from '@/components/toast';
 import { EnvBanner } from '@/components/env-banner';
+import { AnalyticsClient } from '@/components/analytics-client';
 import { getCurrentUser } from '@/lib/server-auth';
 import { DEFAULT_THEME, isTheme, THEME_COOKIE, type Theme } from '@/lib/theme';
 import './globals.css';
@@ -135,7 +135,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
         </ToastProvider>
         <SiteFooter />
-        <Analytics />
+        <AnalyticsClient />
         <SpeedInsights />
       </body>
     </html>

@@ -9,6 +9,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "echo 'no tests yet' && exit 0",
+    "e2e": "playwright test",
+    "e2e:public": "playwright test --project=public",
+    "e2e:ui": "playwright test --ui",
+    "e2e:report": "playwright show-report",
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
@@ -37,6 +41,7 @@
   },
   "devDependencies": {
     "@pickupvb/config": "workspace:*",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "4",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^25.8.0",

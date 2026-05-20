@@ -35,6 +35,11 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 
+# Playwright
+.playwright/
+playwright-report/
+test-results/
+
 # Supabase local
 supabase/.branches
 supabase/.temp

@@ -1,0 +1,86 @@
+name: Smoke (prod)
+
+# Runs the read-only public smoke suite against production AFTER Vercel
+# reports a successful deploy. Triggered by GitHub's `deployment_status`
+# event (Vercel publishes one per successful deployment) so we never test a
+# URL that isn't live yet.
+#
+# Also exposes a manual trigger for ad-hoc runs.
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Override target URL (defaults to PROD_BASE_URL secret)'
+        required: false
+        type: string
+
+concurrency:
+  group: smoke-prod-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    # On deployment_status: only run for successful Production deploys.
+    # On workflow_dispatch: always run.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Prefer the URL Vercel just deployed (most accurate); fall back to manual
+      # input; then to the configured prod URL.
+      PLAYWRIGHT_BASE_URL: >-
+        ${{
+          github.event.deployment_status.target_url
+          || inputs.base_url
+          || secrets.PROD_BASE_URL
+        }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate target URL
+        run: |
+          if [ -z "${PLAYWRIGHT_BASE_URL}" ]; then
+            echo "::error::No target URL resolved (deployment payload, input, and PROD_BASE_URL secret are all empty)."
+            exit 1
+          fi
+          echo "Targeting: ${PLAYWRIGHT_BASE_URL}"
+
+      - name: Install Playwright (chromium only)
+        run: pnpm --filter @pickupvb/web exec playwright install --with-deps chromium
+
+      - name: Run public smoke tests
+        run: pnpm --filter @pickupvb/web exec playwright test --project=public
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-prod-report
+          path: apps/web/playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-prod-failures
+          path: apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore
