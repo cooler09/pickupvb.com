@@ -1,0 +1,83 @@
+name: E2E (manual)
+
+# Ad-hoc Playwright runs against an arbitrary URL (PR previews, staging,
+# one-off debugging). For regular schedules use:
+#   - smoke-prod.yml      → public smoke on push to main
+#   - e2e-develop.yml     → full suite on push to develop
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Target URL (e.g. https://pr-123.preview.pickupvb.com)'
+        required: true
+        type: string
+      include_authed:
+        description: 'Run authenticated tests (requires DEV_TEST_USER_EMAIL / DEV_TEST_USER_PASSWORD secrets — never use a prod user)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Manual input wins; otherwise fall back to a repo/environment secret.
+      PLAYWRIGHT_BASE_URL: ${{ inputs.base_url != '' && inputs.base_url || secrets.PLAYWRIGHT_BASE_URL }}
+      TEST_USER_EMAIL: ${{ secrets.DEV_TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.DEV_TEST_USER_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate target URL
+        run: |
+          if [ -z "${PLAYWRIGHT_BASE_URL}" ]; then
+            echo "::error::PLAYWRIGHT_BASE_URL is empty. Provide a base_url input or set the PLAYWRIGHT_BASE_URL secret."
+            exit 1
+          fi
+          echo "Targeting: ${PLAYWRIGHT_BASE_URL}"
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @pickupvb/web exec playwright install --with-deps chromium
+
+      - name: Run public smoke tests
+        if: ${{ inputs.include_authed == false }}
+        run: pnpm --filter @pickupvb/web exec playwright test --project=public
+
+      - name: Run full e2e suite (public + authed)
+        if: ${{ inputs.include_authed == true }}
+        run: pnpm --filter @pickupvb/web exec playwright test
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload test results (traces, screenshots, videos)
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore

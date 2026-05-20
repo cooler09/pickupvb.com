@@ -1,0 +1,97 @@
+name: E2E (dev)
+
+# Runs the full Playwright suite (public + authed) against the dev preview
+# AFTER Vercel reports a successful deploy of the `develop` branch. Triggering
+# on GitHub's `deployment_status` event guarantees we test the URL Vercel
+# just published rather than racing the deploy.
+#
+# All authed specs are read-only by convention (see
+# apps/web/tests/e2e/README.md → "Dev-environment hygiene"); any spec that
+# mutates data must clean up after itself.
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Override target URL (defaults to DEV_BASE_URL secret)'
+        required: false
+        type: string
+
+concurrency:
+  group: e2e-dev-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    # On deployment_status: run only for successful Preview deploys of the
+    # `develop` branch. On workflow_dispatch: always run.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Preview' &&
+       github.event.deployment.ref == 'develop')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_BASE_URL: >-
+        ${{
+          github.event.deployment_status.target_url
+          || inputs.base_url
+          || secrets.DEV_BASE_URL
+        }}
+      TEST_USER_EMAIL: ${{ secrets.DEV_TEST_USER_EMAIL }}
+      TEST_USER_PASSWORD: ${{ secrets.DEV_TEST_USER_PASSWORD }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate config
+        run: |
+          if [ -z "${PLAYWRIGHT_BASE_URL}" ]; then
+            echo "::error::No target URL resolved (deployment payload, input, and DEV_BASE_URL secret are all empty)."
+            exit 1
+          fi
+          if [ -z "${TEST_USER_EMAIL}" ] || [ -z "${TEST_USER_PASSWORD}" ]; then
+            echo "::error::DEV_TEST_USER_EMAIL and DEV_TEST_USER_PASSWORD secrets must both be set."
+            exit 1
+          fi
+          echo "Targeting: ${PLAYWRIGHT_BASE_URL}"
+          if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET}" ]; then
+            echo "Vercel protection bypass: enabled"
+          fi
+
+      - name: Install Playwright (chromium only)
+        run: pnpm --filter @pickupvb/web exec playwright install --with-deps chromium
+
+      - name: Run full e2e suite
+        run: pnpm --filter @pickupvb/web exec playwright test
+
+      - name: Upload Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-dev-report
+          path: apps/web/playwright-report
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-dev-failures
+          path: apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore

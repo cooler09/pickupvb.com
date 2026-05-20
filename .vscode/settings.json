@@ -35,6 +35,7 @@
   "search.exclude": {
     "**/.next": true,
     "**/.turbo": true,
+    "**/coverage": true,
     "**/dist": true,
     "**/node_modules": true,
     "**/pnpm-lock.yaml": true
