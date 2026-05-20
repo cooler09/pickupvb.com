@@ -11,7 +11,7 @@
   "scripts": {
     "lint": "echo 'no-op' && exit 0",
     "typecheck": "echo 'no-op' && exit 0",
-    "test": "echo 'no-op' && exit 0",
+    "test": "echo no-op",
     "build": "echo 'no-op' && exit 0",
     "clean": "rm -rf .turbo"
   },

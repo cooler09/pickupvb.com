@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint: no rules yet' && exit 0",
-    "test": "echo 'no tests yet' && exit 0",
+    "test": "vitest run",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "devDependencies": {

@@ -8,7 +8,7 @@
     "start": "next start -p 3000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet' && exit 0",
+    "test": "vitest run",
     "e2e": "playwright test",
     "e2e:public": "playwright test --project=public",
     "e2e:ui": "playwright test --ui",

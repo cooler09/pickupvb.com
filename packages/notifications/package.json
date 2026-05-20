@@ -1,19 +1,19 @@
 {
-    "name": "@pickupvb/notifications",
-    "version": "0.1.0",
-    "private": true,
-    "type": "module",
-    "main": "./src/index.ts",
-    "types": "./src/index.ts",
-    "scripts": {
-        "build": "tsc -p tsconfig.json",
-        "typecheck": "tsc --noEmit",
-        "lint": "echo 'lint: no rules yet' && exit 0",
-        "test": "echo 'no tests yet' && exit 0",
-        "clean": "rm -rf dist .turbo *.tsbuildinfo"
-    },
-    "devDependencies": {
-        "@types/node": "25",
-        "typescript": "^6.0.3"
-    }
+  "name": "@pickupvb/notifications",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint: no rules yet' && exit 0",
+    "test": "echo no-tests",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "25",
+    "typescript": "^6.0.3"
+  }
 }
