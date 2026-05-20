@@ -32,6 +32,7 @@ import { DivisionsSection } from './_components/divisions-section';
 import { ExternalRegistrationCard } from './_components/external-registration-card';
 import { EventMetaSection } from './_components/event-meta-section';
 import { HostDivisionsManager } from './_components/host-divisions-manager';
+import { SignupSection } from './_components/signup-section';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -374,20 +375,39 @@ export default async function EventDetailPage(props: {
         timeZone={event.timeZone}
       />
 
-      {isExternal && (
-        <ExternalRegistrationCard
-          externalRegistrationUrl={event.externalRegistrationUrl}
-          externalRegistrationInstructions={event.externalRegistrationInstructions}
-          paymentInstructions={event.paymentInstructions}
-        />
-      )}
-
       <DivisionsSection divisions={event.divisions} />
 
-      {event.type === 'open_play' &&
-        signupsOpen &&
-        (paid && breakdown ? (
-          <div id="signup">
+      {isExternal ? (
+        <SignupSection
+          title="Register"
+          badge={{ tone: 'external', label: 'Off-platform' }}
+          subline="Sign-ups are handled on the host's site."
+        >
+          <ExternalRegistrationCard
+            externalRegistrationUrl={event.externalRegistrationUrl}
+            externalRegistrationInstructions={event.externalRegistrationInstructions}
+            paymentInstructions={event.paymentInstructions}
+          />
+        </SignupSection>
+      ) : signupsOpen && event.type === 'open_play' ? (
+        <SignupSection
+          title="Sign up"
+          badge={
+            paid && breakdown
+              ? { tone: 'paid', label: priceLabel }
+              : { tone: 'free', label: 'Free' }
+          }
+          subline={
+            event.positionRoster
+              ? 'Pick a position below.'
+              : event.spotsRemaining === null
+                ? 'Unlimited spots.'
+                : event.spotsRemaining === 0
+                  ? 'Full — join the waitlist below.'
+                  : `${event.spotsRemaining} ${event.spotsRemaining === 1 ? 'spot' : 'spots'} left.`
+          }
+        >
+          {paid && breakdown ? (
             <PaidTicketPanel
               eventId={event.id}
               eventTitle={event.title}
@@ -398,9 +418,7 @@ export default async function EventDetailPage(props: {
               refundWindowHours={pricing!.refundWindowHours}
               {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
             />
-          </div>
-        ) : event.positionRoster ? (
-          <div id="signup">
+          ) : event.positionRoster ? (
             <PositionRsvpPanel
               eventId={event.id}
               eventTitle={event.title}
@@ -412,9 +430,7 @@ export default async function EventDetailPage(props: {
               rsvp={pickQuery(searchParams, 'rsvp')}
               rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
             />
-          </div>
-        ) : (
-          <div id="signup">
+          ) : (
             <RsvpPanel
               eventId={event.id}
               eventTitle={event.title}
@@ -423,58 +439,63 @@ export default async function EventDetailPage(props: {
               rsvp={pickQuery(searchParams, 'rsvp')}
               rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
             />
-          </div>
-        ))}
-
-      {event.type === 'tournament' && signupsOpen && (
-        <TournamentRegistrationTabs
-          teamCount={event.teams.length}
-          freeAgentCount={event.freeAgents.length}
-          teamPanel={
-            <TournamentSignupPanel
-              eventId={event.id}
-              eventFormat={event.format}
-              teams={event.teams}
-              viewerCaptainedTeams={event.viewerCaptainedTeams}
-              viewerId={user?.id ?? null}
-              isRealUser={isRealUser}
-              returnPath={returnPath}
-              {...(pickQuery(searchParams, 'team')
-                ? { resultCode: pickQuery(searchParams, 'team') }
-                : {})}
-            />
-          }
-          freeAgentPanel={
-            <FreeAgentSignupPanel
-              eventId={event.id}
-              freeAgents={event.freeAgents.map((f) => ({
-                userId: f.userId,
-                notes: f.notes,
-                profile: {
-                  displayName: f.profile.displayName,
-                  avatarUrl: f.profile.avatarUrl,
-                },
-              }))}
-              isFreeAgent={event.isFreeAgent}
-              viewerId={user?.id ?? null}
-              isRealUser={isRealUser}
-              returnPath={returnPath}
-              {...(pickQuery(searchParams, 'fa')
-                ? { resultCode: pickQuery(searchParams, 'fa') }
-                : {})}
-            />
-          }
+          )}
+        </SignupSection>
+      ) : signupsOpen && event.type === 'tournament' ? (
+        <SignupSection
+          title="Register"
+          badge={{ tone: 'neutral', label: 'Tournament' }}
+          subline={`${event.teams.length} ${event.teams.length === 1 ? 'team' : 'teams'} · ${event.freeAgents.length} free ${event.freeAgents.length === 1 ? 'agent' : 'agents'}`}
+        >
+          <TournamentRegistrationTabs
+            teamCount={event.teams.length}
+            freeAgentCount={event.freeAgents.length}
+            teamPanel={
+              <TournamentSignupPanel
+                eventId={event.id}
+                eventFormat={event.format}
+                teams={event.teams}
+                viewerCaptainedTeams={event.viewerCaptainedTeams}
+                viewerId={user?.id ?? null}
+                isRealUser={isRealUser}
+                returnPath={returnPath}
+                {...(pickQuery(searchParams, 'team')
+                  ? { resultCode: pickQuery(searchParams, 'team') }
+                  : {})}
+              />
+            }
+            freeAgentPanel={
+              <FreeAgentSignupPanel
+                eventId={event.id}
+                freeAgents={event.freeAgents.map((f) => ({
+                  userId: f.userId,
+                  notes: f.notes,
+                  profile: {
+                    displayName: f.profile.displayName,
+                    avatarUrl: f.profile.avatarUrl,
+                  },
+                }))}
+                isFreeAgent={event.isFreeAgent}
+                viewerId={user?.id ?? null}
+                isRealUser={isRealUser}
+                returnPath={returnPath}
+                {...(pickQuery(searchParams, 'fa')
+                  ? { resultCode: pickQuery(searchParams, 'fa') }
+                  : {})}
+              />
+            }
+          />
+        </SignupSection>
+      ) : (
+        <EventClosedState
+          eventId={event.id}
+          eventType={event.type}
+          status={event.status}
+          hasStarted={hasStarted}
+          attendeeCount={event.attendeeCount}
+          isHost={event.canManage}
         />
       )}
-
-      <EventClosedState
-        eventId={event.id}
-        eventType={event.type}
-        status={event.status}
-        hasStarted={hasStarted}
-        attendeeCount={event.attendeeCount}
-        isHost={event.canManage}
-      />
 
       {event.description && (
         <section>
