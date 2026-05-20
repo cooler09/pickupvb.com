@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
-import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
@@ -10,6 +9,8 @@ import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-e
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 import { HandleEditor } from './_components/handle-editor';
 import { ProBadge } from '@/components/pro-badge';
+import { AdminBadge } from '@/components/admin-badge';
+import { isPlatformAdmin } from '@/lib/admin';
 import { isPro } from '@/lib/pro';
 
 export const metadata = {
@@ -45,6 +46,13 @@ type FriendProfile = {
   avatar_url: string | null;
   home_city: string | null;
 };
+
+const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+}
 
 export default async function ProfilePage() {
   const { supabase, user } = await getCurrentUser();
@@ -93,10 +101,6 @@ export default async function ProfilePage() {
     .filter((p): p is FriendProfile => p !== null);
 
   // Incoming edges (people who've added you) → used to flag mutual friendships.
-  // RLS only lets you see rows where user_id = auth.uid(), so we ask for rows
-  // where friend_id = us; per policy you can also see those because they are
-  // your inbound edges if the policy allows. If not, this will simply return
-  // an empty list and "mutual" badges won't appear — graceful degradation.
   const { data: inRows } = await supabase
     .from('friendships')
     .select('user_id')
@@ -105,7 +109,10 @@ export default async function ProfilePage() {
 
   const hostedEvents = await loadVisibleHostedEvents(user.id, { startsAfter: new Date() });
   const upcomingHosted = hostedEvents;
-  const viewerIsPro = await isPro(user.id);
+  const [viewerIsPro, viewerIsAdmin] = await Promise.all([
+    isPro(user.id),
+    isPlatformAdmin(user.id),
+  ]);
 
   // Groups the user is a member of (with role).
   const { data: myGroupRows } = await supabase
@@ -134,8 +141,7 @@ export default async function ProfilePage() {
     role: r.role,
   }));
 
-  // Outstanding team invites — surfaces in a callout near the top so the
-  // user notices without having to navigate to /teams.
+  // Outstanding team invites.
   const { data: pendingRows } = await supabase
     .from('team_members')
     .select('teams:teams!inner(id, slug, name, format)')
@@ -148,69 +154,82 @@ export default async function ProfilePage() {
     .map((r) => r.teams)
     .filter((t): t is NonNullable<PendingRow['teams']> => t !== null);
 
+  const positions = [
+    profile.primary_position,
+    profile.secondary_position,
+    profile.tertiary_position,
+  ]
+    .filter((p): p is string => Boolean(p))
+    .map((p) => POSITION_LABEL[p] ?? p);
+
   return (
-    <div className="mx-auto max-w-xl space-y-8 py-4">
-      {/* ── Identity header: who you are at a glance ────────────── */}
-      <section className="border-border-base bg-surface space-y-4 rounded-lg border p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0 space-y-1">
+    <div className="mx-auto max-w-3xl space-y-6 py-4">
+      {/* Identity hero */}
+      <section className={cardClass}>
+        <div className="flex items-start gap-4 sm:gap-5">
+          <div
+            aria-hidden
+            className="bg-primary/15 text-primary flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold sm:h-20 sm:w-20 sm:text-2xl"
+          >
+            {initials(profile.display_name)}
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
             <p className="text-muted text-xs font-semibold tracking-wide uppercase">Your profile</p>
-            <h1 className="truncate text-2xl font-bold">{profile.display_name}</h1>
-            {viewerIsPro && <ProBadge asLink />}
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="truncate text-2xl font-bold">{profile.display_name}</h1>
+              {viewerIsAdmin && <AdminBadge />}
+              {viewerIsPro && <ProBadge asLink />}
+            </div>
             <p className="text-muted text-sm">
               {profile.home_city ?? 'No home city set'}
               {user.email ? ` · ${user.email}` : ''}
             </p>
-            {(profile.primary_position ||
-              profile.secondary_position ||
-              profile.tertiary_position) && (
-              <p className="text-muted text-xs">
-                {[profile.primary_position, profile.secondary_position, profile.tertiary_position]
-                  .filter((p): p is string => Boolean(p))
-                  .map((p) => POSITION_LABEL[p] ?? p)
-                  .join(' · ')}
-              </p>
-            )}
+            {positions.length > 0 && <p className="text-muted text-xs">{positions.join(' · ')}</p>}
           </div>
           <Link
             href={`/players/${profile.handle}` as Route}
-            className="border-border-base hover:bg-fg/5 shrink-0 rounded-md border px-3 py-1.5 text-sm"
+            className="border-border-base hover:bg-fg/5 shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium sm:text-sm"
           >
             Public view ↗
           </Link>
         </div>
 
-        <HandleEditor currentHandle={profile.handle} />
-
-        {/* Primary CTAs — visible without scrolling */}
-        <div className="grid gap-2 sm:grid-cols-3">
-          <Link
-            href={'/events/new' as Route}
-            className="bg-primary text-primary-fg rounded-md px-3 py-2 text-center text-sm font-medium hover:opacity-90"
-          >
-            + New event
-          </Link>
-          <Link
-            href={'/profile/billing' as Route}
-            className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-center text-sm"
-          >
-            Payouts &amp; Stripe →
-          </Link>
-          <Link
-            href={'/profile/receipts' as Route}
-            className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-center text-sm"
-          >
-            Receipts →
-          </Link>
+        <div className="border-border-base mt-5 border-t pt-4">
+          <HandleEditor currentHandle={profile.handle} />
         </div>
       </section>
 
-      {/* ── Anything that needs you to act ──────────────────────── */}
+      {/* Quick actions */}
+      <nav aria-label="Quick actions" className="grid gap-3 sm:grid-cols-3">
+        <ActionTile
+          href={'/events/new' as Route}
+          title="Host an event"
+          description="Open play or tournament"
+          variant="primary"
+        />
+        <ActionTile
+          href={'/profile/billing' as Route}
+          title="Payouts & Stripe"
+          description="Connect your account"
+        />
+        <ActionTile
+          href={'/profile/receipts' as Route}
+          title="Receipts"
+          description="Past payments"
+        />
+      </nav>
+
+      {/* Action required */}
       {pendingInvites.length > 0 && (
-        <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-          <h2 className="text-sm font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
-            Pending team invites ({pendingInvites.length})
-          </h2>
+        <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-5">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
+              Pending team invites
+            </h2>
+            <span className="text-xs text-amber-700 dark:text-amber-400">
+              {pendingInvites.length} waiting
+            </span>
+          </div>
           <ul className="space-y-2">
             {pendingInvites.map((t) => (
               <li key={t.id}>
@@ -227,60 +246,121 @@ export default async function ProfilePage() {
         </section>
       )}
 
-      {/* ── Your stuff ──────────────────────────────────────────── */}
-      <section className="space-y-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-bold">
-            Hosting{' '}
-            <span className="text-muted text-sm font-normal">
-              ({upcomingHosted.length} upcoming)
-            </span>
-          </h2>
-          <Link
-            href={'/events/new' as Route}
-            className="text-primary text-sm font-medium hover:underline"
-          >
-            + New event
-          </Link>
-        </div>
-        <HostedEventsList
-          events={upcomingHosted}
-          emptyState={
-            <>
-              No upcoming events yet.{' '}
-              <Link
-                href={'/events/new' as Route}
-                className="text-primary font-medium hover:underline"
-              >
-                Create your first event →
-              </Link>
-            </>
-          }
+      {/* Hosting */}
+      <section className={cardClass}>
+        <SectionHeader
+          title="Hosting"
+          count={upcomingHosted.length}
+          countLabel="upcoming"
+          action={{ href: '/events/new', label: '+ New event' }}
         />
-      </section>
-
-      <MyGroupsSection groups={groupsForSection} />
-
-      <section className="space-y-4">
-        <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-bold">
-            Following <span className="text-muted text-sm font-normal">({friends.length})</span>
-          </h2>
+        <div className="mt-4">
+          <HostedEventsList
+            events={upcomingHosted}
+            emptyState={
+              <>
+                No upcoming events yet.{' '}
+                <Link
+                  href={'/events/new' as Route}
+                  className="text-primary font-medium hover:underline"
+                >
+                  Create your first event →
+                </Link>
+              </>
+            }
+          />
         </div>
-        <FriendsList friends={friends} mutualIds={mutualIds} returnPath="/profile" />
       </section>
 
-      {/* ── Edit (rare; collapsed by default) ───────────────────── */}
+      {/* Groups */}
+      <section className={cardClass}>
+        <MyGroupsSection groups={groupsForSection} />
+      </section>
+
+      {/* Following */}
+      <section className={cardClass}>
+        <SectionHeader title="Following" count={friends.length} />
+        <div className="mt-4">
+          <FriendsList friends={friends} mutualIds={mutualIds} returnPath="/profile" />
+        </div>
+      </section>
+
+      {/* Edit profile */}
       <details className="group border-border-base bg-surface rounded-lg border">
         <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
           <span>Edit profile</span>
-          <span className="text-muted text-xs group-open:hidden">Name, city, positions…</span>
+          <span className="text-muted text-xs group-open:hidden">
+            Name, city, positions, socials…
+          </span>
           <span className="text-muted hidden text-xs group-open:inline">Collapse</span>
         </summary>
-        <div className="border-border-base border-t p-4">
+        <div className="border-border-base border-t p-4 sm:p-6">
           <ProfileForm profile={profile} email={user.email ?? ''} isPro={viewerIsPro} />
         </div>
       </details>
     </div>
+  );
+}
+
+function SectionHeader({
+  title,
+  count,
+  countLabel,
+  action,
+}: {
+  title: string;
+  count?: number;
+  countLabel?: string;
+  action?: { href: string; label: string };
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <h2 className="text-lg font-bold">
+        {title}
+        {typeof count === 'number' && (
+          <span className="text-muted ml-1.5 text-sm font-normal">
+            ({count}
+            {countLabel ? ` ${countLabel}` : ''})
+          </span>
+        )}
+      </h2>
+      {action && (
+        <Link
+          href={action.href as Route}
+          className="text-primary text-sm font-medium hover:underline"
+        >
+          {action.label}
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function ActionTile({
+  href,
+  title,
+  description,
+  variant,
+}: {
+  href: Route;
+  title: string;
+  description: string;
+  variant?: 'primary';
+}) {
+  const isPrimary = variant === 'primary';
+  return (
+    <Link
+      href={href}
+      className={
+        isPrimary
+          ? 'bg-primary text-primary-fg block rounded-lg p-4 transition hover:opacity-90'
+          : 'border-border-base bg-surface hover:border-primary/40 block rounded-lg border p-4 transition'
+      }
+    >
+      <p className="text-sm font-semibold">{title}</p>
+      <p className={isPrimary ? 'mt-0.5 text-xs opacity-80' : 'text-muted mt-0.5 text-xs'}>
+        {description}
+      </p>
+    </Link>
   );
 }

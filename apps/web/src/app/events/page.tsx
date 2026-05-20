@@ -8,7 +8,6 @@ import {
   SearchEventsQuery,
 } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
-import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { NearMeButton } from './near-me-button';
 import { EventCard, type EventCardData } from './_components/event-card';
@@ -27,6 +26,7 @@ import {
   type TeamCompositionFilter,
 } from './_components/event-filter-form';
 import { EventTimeframeTabs, type Timeframe } from './_components/event-timeframe-tabs';
+import { ActiveFilterChips, type FilterKey } from './_components/active-filter-chips';
 
 export const metadata: Metadata = {
   title: 'Volleyball events',
@@ -58,23 +58,11 @@ function pickWhen(value: string | undefined): Timeframe | undefined {
 
 type FollowingEmptyReason = 'not_signed_in' | 'no_follows' | null;
 
-function emptyMessage(when: Timeframe, reason: FollowingEmptyReason): string {
-  if (when === 'past') return 'No past events match your filters.';
-  if (when === 'following') {
-    if (reason === 'not_signed_in') return 'Sign in to see events from people you follow.';
-    if (reason === 'no_follows') {
-      return "You're not following anyone yet. Follow players from any event page to see their upcoming events here.";
-    }
-    return 'No upcoming events from people you follow match your filters.';
-  }
-  return 'No upcoming events match your filters yet.';
-}
-
 export default async function EventsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const searchParams = await props.searchParams;
-  const { supabase, user } = await getCurrentUser();
+  const { user } = await getCurrentUser();
 
   const get = (k: string): string | undefined => {
     const v = searchParams[k];
@@ -193,9 +181,6 @@ export default async function EventsPage(props: {
     }));
   }
 
-  // Community listings: only show on the upcoming tab, alongside platform events.
-  // They share the same surface/skill filters and near-me geo. We always fetch
-  // up to 6 to keep the section compact.
   const communityListings =
     when === 'upcoming'
       ? await handlers.searchCommunityListings.execute(
@@ -212,39 +197,67 @@ export default async function EventsPage(props: {
       : [];
 
   const hasLocation = lat !== null && lng !== null;
+  const hasAnyFilter = Boolean(
+    surface || type || skillBand || ageGroup || teamComposition || seriesName || hasLocation,
+  );
 
-  // Build a query string that preserves filters across tab switches.
-  const tabHref = (target: Timeframe): Route => {
+  // Build URLs for tabs / chip removal / clear-all. All preserve the current
+  // tab unless the caller explicitly overrides it.
+  function buildHref(overrides: Partial<Record<string, string | null>>): Route {
     const params = new URLSearchParams();
+    const target = (overrides.when as Timeframe | undefined) ?? when;
     if (target !== 'upcoming') params.set('when', target);
-    if (surface) params.set('surface', surface);
-    if (type) params.set('type', type);
-    if (skillBand) params.set('skillBand', skillBand);
-    if (ageGroup) params.set('ageGroup', ageGroup);
-    if (teamComposition) params.set('teamComposition', teamComposition);
-    if (seriesName) params.set('seriesName', seriesName);
-    if (hasLocation && target !== 'following') {
-      params.set('lat', String(lat));
-      params.set('lng', String(lng));
-      params.set('radiusKm', String(radiusKm));
+    const set = (key: string, value: string | null | undefined) => {
+      if (overrides[key] === null) return;
+      const v = overrides[key] !== undefined ? overrides[key]! : value;
+      if (v) params.set(key, v);
+    };
+    set('surface', surface);
+    set('type', type);
+    set('skillBand', skillBand);
+    set('ageGroup', ageGroup);
+    set('teamComposition', teamComposition);
+    set('seriesName', seriesName);
+    if (target !== 'following') {
+      if (overrides.location !== null && hasLocation) {
+        params.set('lat', String(lat));
+        params.set('lng', String(lng));
+        params.set('radiusKm', String(radiusKm));
+      }
     }
     const q = params.toString();
     return (q ? `/events?${q}` : '/events') as Route;
-  };
+  }
+
+  const tabHref = (target: Timeframe): Route => buildHref({ when: target });
+  const buildRemoveHref = (key: FilterKey): Route => buildHref({ [key]: null });
+  const clearAllHref = (when === 'upcoming' ? '/events' : `/events?when=${when}`) as Route;
+
+  const subheader = (() => {
+    const parts: string[] = [];
+    if (when === 'upcoming') parts.push('Upcoming events');
+    else if (when === 'following') parts.push('From people you follow');
+    else parts.push('Past events');
+    if (hasLocation) parts.push(`within ${radiusKm} km`);
+    return parts.join(' ');
+  })();
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Find events</h1>
-        {user && (
-          <Link
-            href="/events/new"
-            className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 font-medium text-white"
-          >
-            Host an event
-          </Link>
-        )}
-      </div>
+      <header className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold">Find events</h1>
+          {user && (
+            <Link
+              href="/events/new"
+              className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white"
+            >
+              Host an event
+            </Link>
+          )}
+        </div>
+        <p className="text-muted text-sm">{subheader}</p>
+      </header>
 
       {!user && (
         <p className="bg-highlight/30 rounded-md p-4 text-sm">
@@ -255,12 +268,17 @@ export default async function EventsPage(props: {
         </p>
       )}
 
-      <EventTimeframeTabs
-        when={when}
-        showFollowing={!!user}
-        followingCount={friendIds.length}
-        hrefFor={tabHref}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <EventTimeframeTabs
+          when={when}
+          showFollowing={!!user}
+          followingCount={friendIds.length}
+          hrefFor={tabHref}
+        />
+        <div className="ml-auto">
+          <NearMeButton />
+        </div>
+      </div>
 
       <EventFilterForm
         when={when}
@@ -273,23 +291,27 @@ export default async function EventsPage(props: {
         location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <NearMeButton />
-        {hasLocation && (
-          <Link href="/events" className="text-primary text-sm hover:underline">
-            Clear location
-          </Link>
-        )}
-      </div>
-
-      {hasLocation && (
-        <p className="text-muted text-sm">Showing events within {radiusKm} km of your location.</p>
-      )}
+      <ActiveFilterChips
+        when={when}
+        surface={surface}
+        type={type}
+        skillBand={skillBand}
+        ageGroup={ageGroup}
+        teamComposition={teamComposition}
+        seriesName={seriesName}
+        location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
+        buildRemoveHref={buildRemoveHref}
+        clearAllHref={clearAllHref}
+      />
 
       {events.length === 0 ? (
-        <p className="bg-highlight/30 text-muted rounded-md p-6 text-center">
-          {emptyMessage(when, followingEmptyReason)}
-        </p>
+        <EmptyState
+          when={when}
+          reason={followingEmptyReason}
+          hasAnyFilter={hasAnyFilter}
+          clearAllHref={clearAllHref}
+          canHost={!!user}
+        />
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {events.map((e) => (
@@ -299,17 +321,22 @@ export default async function EventsPage(props: {
       )}
 
       {communityListings.length > 0 && (
-        <section className="space-y-3 pt-2">
+        <section className="border-border-base space-y-3 border-t pt-6">
           <div className="flex items-end justify-between gap-2">
-            <h2 className="text-xl font-semibold">From the community</h2>
-            <Link href="/community" className="text-primary text-sm hover:underline">
+            <div>
+              <h2 className="text-xl font-semibold">From the community</h2>
+              <p className="text-muted text-sm">
+                Events posted by players that aren&rsquo;t hosted on PickupVB. RSVP at the linked
+                source.
+              </p>
+            </div>
+            <Link
+              href="/community"
+              className="text-primary text-sm whitespace-nowrap hover:underline"
+            >
               See all
             </Link>
           </div>
-          <p className="text-muted text-sm">
-            Events posted by players that aren&rsquo;t hosted on PickupVB. RSVP at the linked
-            source.
-          </p>
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {communityListings.map((listing) => (
               <CommunityListingCard
@@ -333,5 +360,76 @@ export default async function EventsPage(props: {
         </section>
       )}
     </section>
+  );
+}
+
+function EmptyState({
+  when,
+  reason,
+  hasAnyFilter,
+  clearAllHref,
+  canHost,
+}: {
+  when: Timeframe;
+  reason: FollowingEmptyReason;
+  hasAnyFilter: boolean;
+  clearAllHref: Route;
+  canHost: boolean;
+}) {
+  let title = 'No events match your filters';
+  let body: string | null = null;
+  if (when === 'past') {
+    title = 'No past events match your filters';
+  } else if (when === 'following') {
+    if (reason === 'not_signed_in') {
+      title = 'Sign in to see events from people you follow';
+      body = "We'll personalize your feed once you're signed in.";
+    } else if (reason === 'no_follows') {
+      title = "You're not following anyone yet";
+      body = 'Follow players from any event page to see their upcoming events here.';
+    } else {
+      title = 'No upcoming events from people you follow';
+      body = 'Try the Upcoming tab to see more events near you.';
+    }
+  } else if (!hasAnyFilter) {
+    title = 'No upcoming events yet';
+    body = canHost
+      ? 'Be the first to host one in your area.'
+      : 'Check back soon or sign in to host an event.';
+  } else {
+    body = 'Try clearing a filter or widening your radius.';
+  }
+
+  return (
+    <div className="border-border-base bg-surface rounded-lg border p-8 text-center">
+      <h3 className="text-fg text-base font-semibold">{title}</h3>
+      {body && <p className="text-muted mt-1 text-sm">{body}</p>}
+      <div className="mt-4 flex flex-wrap justify-center gap-3">
+        {hasAnyFilter && (
+          <Link
+            href={clearAllHref}
+            className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm font-medium"
+          >
+            Clear filters
+          </Link>
+        )}
+        {when === 'following' && reason === 'not_signed_in' && (
+          <Link
+            href="/login"
+            className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-semibold text-white"
+          >
+            Sign in
+          </Link>
+        )}
+        {canHost && (
+          <Link
+            href="/events/new"
+            className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-semibold text-white"
+          >
+            Host an event
+          </Link>
+        )}
+      </div>
+    </div>
   );
 }

@@ -41,10 +41,18 @@ export default function AdvancedDetailsPanel({
   onExternalChange,
   initial,
   defaultOpen,
+  hideExternal,
 }: {
   onExternalChange?: (external: boolean) => void;
   initial?: AdvancedDetailsInitial;
   defaultOpen?: boolean;
+  /**
+   * When true, the external-registration toggle and its fields are not
+   * rendered. The hosting form may want to promote that toggle into a
+   * more prominent section (e.g. above the type chooser) without
+   * duplicating the input names.
+   */
+  hideExternal?: boolean;
 }) {
   const hasInitialAdvanced = Boolean(
     initial &&
@@ -54,7 +62,7 @@ export default function AdvancedDetailsPanel({
       initial.isFundraiser ||
       (initial.themeTags && initial.themeTags.length > 0) ||
       initial.sanctioningBody ||
-      initial.registrationMode === 'external'),
+      (!hideExternal && initial.registrationMode === 'external')),
   );
   const [open, setOpen] = useState(Boolean(defaultOpen) || hasInitialAdvanced);
   const [isFundraiser, setIsFundraiser] = useState(Boolean(initial?.isFundraiser));
@@ -82,7 +90,9 @@ export default function AdvancedDetailsPanel({
       >
         {open
           ? 'Hide advanced options'
-          : 'Show advanced options (venue, series, fundraiser, external registration)'}
+          : hideExternal
+            ? 'Show advanced options (venue, series, fundraiser, theme tags)'
+            : 'Show advanced options (venue, series, fundraiser, external registration)'}
       </button>
 
       {open && (
@@ -251,71 +261,73 @@ export default function AdvancedDetailsPanel({
           </div>
 
           {/* External registration */}
-          <div className="border-border-base bg-highlight/20 rounded-md border p-3">
-            <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="isExternal"
-                checked={isExternal}
-                onChange={(e) => toggleExternal(e.target.checked)}
-                className="mt-0.5"
-              />
-              <span>
-                <span className="text-fg font-medium">Registration happens off-platform</span>
-                <span className="text-muted block text-xs">
-                  Use this for tournaments hosted via AES, VolleyballLife, Eventbrite, etc. PickupVB
-                  will list the event and link to the external registration page; we won&apos;t
-                  collect signups or payments.
+          {!hideExternal && (
+            <div className="border-border-base bg-highlight/20 rounded-md border p-3">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="isExternal"
+                  checked={isExternal}
+                  onChange={(e) => toggleExternal(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-fg font-medium">Registration happens off-platform</span>
+                  <span className="text-muted block text-xs">
+                    Use this for tournaments hosted via AES, VolleyballLife, Eventbrite, etc.
+                    PickupVB will list the event and link to the external registration page; we
+                    won&apos;t collect signups or payments.
+                  </span>
                 </span>
-              </span>
-            </label>
-            {isExternal && (
-              <div className="mt-3 space-y-3">
-                <div>
-                  <label htmlFor="externalRegistrationUrl" className={subLabelClass}>
-                    Registration URL
-                  </label>
-                  <input
-                    id="externalRegistrationUrl"
-                    name="externalRegistrationUrl"
-                    type="url"
-                    maxLength={2048}
-                    defaultValue={initial?.externalRegistrationUrl ?? ''}
-                    placeholder="https://…"
-                    className={inputClass}
-                  />
+              </label>
+              {isExternal && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label htmlFor="externalRegistrationUrl" className={subLabelClass}>
+                      Registration URL
+                    </label>
+                    <input
+                      id="externalRegistrationUrl"
+                      name="externalRegistrationUrl"
+                      type="url"
+                      maxLength={2048}
+                      defaultValue={initial?.externalRegistrationUrl ?? ''}
+                      placeholder="https://…"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="externalRegistrationInstructions" className={subLabelClass}>
+                      Instructions
+                    </label>
+                    <textarea
+                      id="externalRegistrationInstructions"
+                      name="externalRegistrationInstructions"
+                      rows={2}
+                      maxLength={2000}
+                      defaultValue={initial?.externalRegistrationInstructions ?? ''}
+                      placeholder="e.g. Register via AES by Friday. Bring photo ID to check-in."
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="paymentInstructions" className={subLabelClass}>
+                      Payment instructions
+                    </label>
+                    <textarea
+                      id="paymentInstructions"
+                      name="paymentInstructions"
+                      rows={2}
+                      maxLength={2000}
+                      defaultValue={initial?.paymentInstructions ?? ''}
+                      placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
+                      className={inputClass}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="externalRegistrationInstructions" className={subLabelClass}>
-                    Instructions
-                  </label>
-                  <textarea
-                    id="externalRegistrationInstructions"
-                    name="externalRegistrationInstructions"
-                    rows={2}
-                    maxLength={2000}
-                    defaultValue={initial?.externalRegistrationInstructions ?? ''}
-                    placeholder="e.g. Register via AES by Friday. Bring photo ID to check-in."
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="paymentInstructions" className={subLabelClass}>
-                    Payment instructions
-                  </label>
-                  <textarea
-                    id="paymentInstructions"
-                    name="paymentInstructions"
-                    rows={2}
-                    maxLength={2000}
-                    defaultValue={initial?.paymentInstructions ?? ''}
-                    placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </fieldset>
