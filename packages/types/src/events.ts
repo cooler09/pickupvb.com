@@ -12,6 +12,7 @@ import {
   SkillTier,
   Surface,
   TeamComposition,
+  TeamRegistrationMode,
   Visibility,
 } from '@pickupvb/domain';
 
@@ -49,6 +50,12 @@ export const EventExtensionsSchema = z.object({
   paymentInstructions: z.string().max(2000).optional().nullable(),
   /** When true, host collects payment off-platform (no Stripe). */
   paymentsOffPlatform: z.boolean().optional(),
+  /**
+   * ADR 0007 team paradigm. `null` for individual signup; `ad_hoc` (default
+   * for tournaments) for one-off captain-assembled rosters; `roster` for
+   * registering a persistent {@link Team}.
+   */
+  teamRegistrationMode: z.enum(enumValues(TeamRegistrationMode)).optional().nullable(),
 });
 export type EventExtensionsDto = z.infer<typeof EventExtensionsSchema>;
 

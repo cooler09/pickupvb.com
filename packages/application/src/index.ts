@@ -4,6 +4,7 @@ export * from './commands/join-event.handler';
 export * from './commands/co-host.handler';
 export * from './commands/event-division.handler';
 export * from './commands/team.handler';
+export * from './commands/event-team-registration.handler';
 export * from './commands/bracket.handler';
 export * from './queries/event-queries.handler';
 export * from './queries/event-detail.handler';

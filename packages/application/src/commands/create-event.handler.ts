@@ -50,6 +50,9 @@ function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventEx
     ...(input.paymentsOffPlatform !== undefined
       ? { paymentsOffPlatform: input.paymentsOffPlatform }
       : {}),
+    ...(input.teamRegistrationMode !== undefined
+      ? { teamRegistrationMode: input.teamRegistrationMode }
+      : {}),
   };
 }
 

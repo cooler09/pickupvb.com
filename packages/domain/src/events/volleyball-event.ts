@@ -14,9 +14,11 @@ import {
   EventType,
   Format,
   Gender,
+  PriceUnit,
   RegistrationMode,
   SkillLevel,
   Surface,
+  TeamRegistrationMode,
   Visibility,
   isEventPosition,
 } from './enums.js';
@@ -122,6 +124,13 @@ export interface EventExtensionsInput {
    * RSVP on-platform. Defaults to false.
    */
   paymentsOffPlatform: boolean;
+  /**
+   * ADR 0007 team paradigm. `null` for open-play / individual-signup
+   * events; `ad_hoc` for events where the captain assembles a one-off
+   * roster (default for tournaments); `roster` for events that register
+   * an existing persistent {@link Team}.
+   */
+  teamRegistrationMode: TeamRegistrationMode | null;
 }
 
 interface EventExtensions {
@@ -139,6 +148,7 @@ interface EventExtensions {
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
   paymentsOffPlatform: boolean;
+  teamRegistrationMode: TeamRegistrationMode | null;
 }
 
 const MAX_VENUE_NAME_LEN = 200;
@@ -253,6 +263,7 @@ function resolveExtensions(
     externalRegistrationInstructions,
     paymentInstructions,
     paymentsOffPlatform: input?.paymentsOffPlatform ?? false,
+    teamRegistrationMode: input?.teamRegistrationMode ?? null,
   };
 }
 
@@ -326,6 +337,12 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     }
 
     const extensions = resolveExtensions(props.extensions, props.endsAt);
+    // ADR 0007: tournaments default to ad-hoc team registration unless the
+    // host explicitly opted into roster mode (or out, via null on a non-
+    // tournament). Open-play stays null — individual signup.
+    if (props.type === EventType.Tournament && extensions.teamRegistrationMode === null) {
+      extensions.teamRegistrationMode = TeamRegistrationMode.AdHoc;
+    }
     const divisions = (props.divisions ?? []).slice();
 
     const evt = new VolleyballEvent(
@@ -353,6 +370,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       extensions,
       divisions,
     );
+    evt.assertPaymentConfigValid();
     evt.raise(new EventCreated(evt.id));
     return evt;
   }
@@ -517,6 +535,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
   get paymentsOffPlatform(): boolean {
     return this._extensions.paymentsOffPlatform;
+  }
+  /** ADR 0007 team paradigm. Null for open-play / individual-signup events. */
+  get teamRegistrationMode(): TeamRegistrationMode | null {
+    return this._extensions.teamRegistrationMode;
   }
 
   /** Total spots — derived from positionRoster when set, else from capacity. */
@@ -722,6 +744,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       });
     }
     this._divisions.push(division);
+    this.assertPaymentConfigValid();
   }
 
   /** Replace an existing division by id. */
@@ -731,6 +754,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       throw new NotFoundError('division', String(division.id));
     }
     this._divisions[idx] = division;
+    this.assertPaymentConfigValid();
   }
 
   /** Remove a division by id. */
@@ -740,5 +764,28 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       throw new NotFoundError('division', String(divisionId));
     }
     this._divisions.splice(idx, 1);
+  }
+
+  /**
+   * ADR 0007 cross-cutting rule: when the event is registered by team
+   * (`teamRegistrationMode != null`) and any priced division charges per
+   * player, payments MUST be collected off-platform. We don't model split
+   * payments across a roster; the captain handles collection.
+   *
+   * Invoked from {@link create} and from division mutations so the bad
+   * combination can't sneak in by adding a division later.
+   */
+  private assertPaymentConfigValid(): void {
+    if (this._extensions.teamRegistrationMode === null) return;
+    if (this._extensions.paymentsOffPlatform) return;
+    const hasPaidPerPlayerDivision = this._divisions.some(
+      (d) => d.priceCents !== null && d.priceCents > 0 && d.priceUnit === PriceUnit.PerPlayer,
+    );
+    if (hasPaidPerPlayerDivision) {
+      throw new InvariantViolation(
+        'Team-registered events with per-player pricing must collect payment off-platform. ' +
+          'Switch pricing to per-team, change the event to individual signup, or enable off-platform payments.',
+      );
+    }
   }
 }

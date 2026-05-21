@@ -2,14 +2,19 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { VolleyballEvent, type EventId, type UserId, type TeamId } from './volleyball-event.js';
 import { Capacity } from './capacity.js';
 import { Location } from './location.js';
+import { Division, type DivisionId } from './division.js';
 import {
   EventPosition,
   EventStatus,
   EventType,
   Format,
   Gender,
+  PriceUnit,
   SkillLevel,
+  SkillTier,
   Surface,
+  TeamComposition,
+  TeamRegistrationMode,
   Visibility,
 } from './enums.js';
 import {
@@ -358,5 +363,116 @@ describe('free agent (tournament only)', () => {
     const open = makeOpenPlay();
     open.publish();
     expect(() => open.joinAsFreeAgent(ALICE, null)).toThrow(InvariantViolation);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR 0007 — payment-config invariant for team-registered events
+// ---------------------------------------------------------------------------
+
+function pricedDivision(props: {
+  id?: string;
+  priceCents: number | null;
+  priceUnit: PriceUnit;
+  sortOrder?: number;
+}): Division {
+  return Division.create({
+    id: (props.id ?? 'div-1') as DivisionId,
+    sortOrder: props.sortOrder ?? 0,
+    label: 'Open',
+    surface: Surface.Sand,
+    format: Format.Quads,
+    gender: Gender.Coed,
+    skillTier: SkillTier.BB,
+    teamComposition: TeamComposition.Team,
+    priceCents: props.priceCents,
+    priceUnit: props.priceUnit,
+  });
+}
+
+function makeTournamentWith(opts: {
+  divisions: ReadonlyArray<Division>;
+  teamRegistrationMode?: TeamRegistrationMode | null;
+  paymentsOffPlatform?: boolean;
+}): VolleyballEvent {
+  return VolleyballEvent.create({
+    id: 'tourney-pc' as EventId,
+    hostId: HOST,
+    title: 'Tournament',
+    description: '',
+    rules: '',
+    surface: Surface.Sand,
+    format: Format.Quads,
+    gender: Gender.Coed,
+    skillLevel: SkillLevel.Advanced,
+    type: EventType.Tournament,
+    visibility: Visibility.Public,
+    location: LOCATION,
+    startsAt: tomorrow(),
+    endsAt: tomorrow(8),
+    divisions: opts.divisions,
+    extensions: {
+      ...(opts.teamRegistrationMode !== undefined
+        ? { teamRegistrationMode: opts.teamRegistrationMode }
+        : {}),
+      ...(opts.paymentsOffPlatform !== undefined
+        ? { paymentsOffPlatform: opts.paymentsOffPlatform }
+        : {}),
+    },
+  });
+}
+
+describe('VolleyballEvent payment-config invariant (ADR 0007)', () => {
+  it('defaults tournaments to ad-hoc team registration', () => {
+    const evt = makeTournament();
+    expect(evt.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
+  });
+
+  it('rejects ad-hoc team event with per-player priced division on-platform', () => {
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 2500, priceUnit: PriceUnit.PerPlayer })],
+      }),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('accepts ad-hoc team event with per-team priced division on-platform', () => {
+    const evt = makeTournamentWith({
+      divisions: [pricedDivision({ priceCents: 10000, priceUnit: PriceUnit.PerTeam })],
+    });
+    expect(evt.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
+  });
+
+  it('accepts ad-hoc team event with per-player pricing when paymentsOffPlatform', () => {
+    const evt = makeTournamentWith({
+      divisions: [pricedDivision({ priceCents: 2500, priceUnit: PriceUnit.PerPlayer })],
+      paymentsOffPlatform: true,
+    });
+    expect(evt.paymentsOffPlatform).toBe(true);
+  });
+
+  it('accepts ad-hoc team event with a free (price 0) per-player division', () => {
+    const evt = makeTournamentWith({
+      divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerPlayer })],
+    });
+    expect(evt.divisions[0]!.priceCents).toBe(0);
+  });
+
+  it('open-play events are unaffected (no teamRegistrationMode default)', () => {
+    const open = makeOpenPlay();
+    expect(open.teamRegistrationMode).toBeNull();
+  });
+
+  it('addDivision rejects a division that creates the bad combo', () => {
+    const evt = makeTournamentWith({
+      divisions: [pricedDivision({ priceCents: 10000, priceUnit: PriceUnit.PerTeam })],
+    });
+    const bad = pricedDivision({
+      id: 'div-bad',
+      sortOrder: 1,
+      priceCents: 2500,
+      priceUnit: PriceUnit.PerPlayer,
+    });
+    expect(() => evt.addDivision(bad)).toThrow(InvariantViolation);
   });
 });

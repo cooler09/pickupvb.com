@@ -161,6 +161,59 @@ export class WithdrawTeamCommand {
   ) {}
 }
 
+// ---- Ad-hoc team registration (ADR 0007) --------------------------------
+/** Input for a single roster slot when (un)registering an ad-hoc team. */
+export interface AdHocRegistrationMemberInput {
+  /** Linked account, when the player exists on-platform. */
+  userId?: string | null;
+  /** Free-text display name, used when the player has no account. */
+  displayName?: string | null;
+  /** Optional contact email for off-platform players. */
+  email?: string | null;
+}
+
+export class RegisterAdHocTeamCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly divisionId: string,
+    /** Caller; becomes the registration's captain. */
+    public readonly captainId: string,
+    public readonly name: string,
+    public readonly members: ReadonlyArray<AdHocRegistrationMemberInput>,
+  ) {}
+}
+
+export class RenameAdHocTeamRegistrationCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+    public readonly name: string,
+  ) {}
+}
+
+export class AddAdHocTeamMemberCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+    public readonly member: AdHocRegistrationMemberInput,
+  ) {}
+}
+
+export class RemoveAdHocTeamMemberCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+    public readonly memberId: string,
+  ) {}
+}
+
+export class WithdrawAdHocTeamRegistrationCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
 // ---- Queries --------------------------------------------------------------
 export class SearchEventsQuery {
   constructor(
