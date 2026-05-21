@@ -1,12 +1,12 @@
 'use client';
 
 /**
- * Repeater UI for "additional divisions" on the create-event form.
+ * Repeater UI for the per-division block of the create-event form.
  *
- * Per ADR 0006, the primary fields on the form (surface/format/gender/
- * skillLevel/capacity) define division #1 implicitly. This component
- * collects any *additional* divisions the host wants to create at the
- * same time (multi-format tournaments, multi-skill, multi-day, etc.).
+ * Per ADR 0006, every event is composed of one or more divisions. For
+ * tournaments the form requires at least one (pass `requireAtLeastOne`);
+ * open-play and other surfaces may keep it optional and use the legacy
+ * top-level fields to synthesize a default division server-side.
  *
  * Each row submits its fields under indexed names `div_${i}_label`,
  * `div_${i}_surface`, … so the server action can rebuild the array.
@@ -52,16 +52,25 @@ const labelClass = 'block text-xs font-medium text-fg';
 const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-2 py-1.5 text-sm shadow-sm focus:border-primary focus:outline-none';
 
-export default function DivisionsRepeater({ defaultSurface }: { defaultSurface?: string }) {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [nextKey, setNextKey] = useState(1);
+export default function DivisionsRepeater({
+  defaultSurface,
+  requireAtLeastOne = false,
+}: {
+  defaultSurface?: string;
+  /** When true, always render at least one row and hide its Remove button. */
+  requireAtLeastOne?: boolean;
+}) {
+  const [rows, setRows] = useState<Row[]>(() =>
+    requireAtLeastOne ? [blankRow(0, { surface: defaultSurface ?? 'indoor' })] : [],
+  );
+  const [nextKey, setNextKey] = useState(requireAtLeastOne ? 1 : 1);
 
   function add() {
     setRows((r) => [...r, blankRow(nextKey, { surface: defaultSurface ?? 'indoor' })]);
     setNextKey((k) => k + 1);
   }
   function remove(key: number) {
-    setRows((r) => r.filter((row) => row.key !== key));
+    setRows((r) => (requireAtLeastOne && r.length <= 1 ? r : r.filter((row) => row.key !== key)));
   }
   function patch(key: number, patch: Partial<Row>) {
     setRows((r) => r.map((row) => (row.key === key ? { ...row, ...patch } : row)));
@@ -70,11 +79,18 @@ export default function DivisionsRepeater({ defaultSurface }: { defaultSurface?:
   return (
     <fieldset className="border-border-base space-y-3 rounded-md border p-4">
       <legend className="text-fg px-1 text-sm font-semibold">
-        Additional divisions <span className="text-muted font-normal">(optional)</span>
+        {requireAtLeastOne ? (
+          'Divisions'
+        ) : (
+          <>
+            Additional divisions <span className="text-muted font-normal">(optional)</span>
+          </>
+        )}
       </legend>
       <p className="text-muted text-xs">
-        Running a multi-format or multi-skill tournament? Add a row for each extra division (e.g.
-        Men&apos;s A, Women&apos;s BB, Coed Quads). The fields above define your first division.
+        {requireAtLeastOne
+          ? "Add a row for each division you're running (e.g. Men's A, Women's BB, Coed Quads). Each division has its own skill tier, capacity, and entry price."
+          : "Running a multi-format or multi-skill tournament? Add a row for each extra division (e.g. Men's A, Women's BB, Coed Quads). The fields above define your first division."}
       </p>
 
       {rows.map((row, idx) => (
@@ -85,15 +101,17 @@ export default function DivisionsRepeater({ defaultSurface }: { defaultSurface?:
           <input type="hidden" name={`div_${idx}_present`} value="1" />
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted text-xs font-semibold tracking-wide uppercase">
-              Division {idx + 2}
+              Division {requireAtLeastOne ? idx + 1 : idx + 2}
             </span>
-            <button
-              type="button"
-              onClick={() => remove(row.key)}
-              className="text-xs text-red-600 hover:underline"
-            >
-              Remove
-            </button>
+            {!(requireAtLeastOne && rows.length <= 1) && (
+              <button
+                type="button"
+                onClick={() => remove(row.key)}
+                className="text-xs text-red-600 hover:underline"
+              >
+                Remove
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

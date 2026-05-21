@@ -49,7 +49,9 @@ export async function editEventAction(
   const title = field(formData, 'title');
   const description = fieldOrUndefined(formData, 'description') ?? '';
   const rules = fieldOrUndefined(formData, 'rules') ?? '';
-  const skillTier = field(formData, 'skillTier');
+  // Tournaments manage skill tier per-division on the event page; the
+  // edit form only submits this field for open-play events.
+  const skillTier = fieldOrUndefined(formData, 'skillTier');
   const visibility = field(formData, 'visibility');
   const startsAt = field(formData, 'startsAt');
   const endsAt = field(formData, 'endsAt');
@@ -115,7 +117,10 @@ export async function editEventAction(
   const timeZone = timeZoneForCoords(coords.latitude, coords.longitude);
 
   // ---- Pricing ----
-  const newPriceCents = parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
+  // Tournaments manage entry price per-division; the top-level Price input
+  // is only rendered for open-play. Treat missing as "unchanged".
+  const priceUsdRaw = fieldOrUndefined(formData, 'priceUsd');
+  const newPriceCents = priceUsdRaw !== undefined ? parsePriceCents(priceUsdRaw) : null;
   const newRefundWindowHours = parseRefundWindowHours(
     fieldOrUndefined(formData, 'refundWindowHours'),
   );
@@ -154,9 +159,10 @@ export async function editEventAction(
   const c = curRes.data as unknown as CurRow | null;
   const curDiv = (curDivRes.data as unknown as CurDivRow | null) ?? null;
   const curPriceCents = curDiv?.price_cents ?? 0;
+  const priceChanged = newPriceCents !== null && curPriceCents !== newPriceCents;
   const pricingChanged = !c
     ? false
-    : curPriceCents !== newPriceCents ||
+    : priceChanged ||
       c.host_absorbs_fee !== newHostAbsorbsFee ||
       c.refund_window_hours !== newRefundWindowHours;
 
@@ -170,7 +176,7 @@ export async function editEventAction(
       };
     }
     // If switching to paid, the host needs Stripe set up.
-    if (newPriceCents > 0) {
+    if (newPriceCents !== null && newPriceCents > 0) {
       const hostIdToCheck = c?.host_id ?? user.id;
       // Free-tier cap also applies when an event flips from free→paid.
       if (curPriceCents === 0) {
@@ -262,19 +268,22 @@ export async function editEventAction(
 
   // ADR 0006 Phase 9c: skill_level, capacity_kind and max_spots now live on
   // event_divisions. Write them to the primary (sort_order=0) division.
-  if (curDiv) {
-    const divisionUpdate: Record<string, unknown> = {
-      skill_tier: skillTier as SkillTier,
-    };
+  // Tournaments edit per-division skill on the event page; only open-play
+  // submits a top-level skillTier here.
+  if (curDiv && (isOpenPlay || skillTier)) {
+    const divisionUpdate: Record<string, unknown> = {};
+    if (skillTier) divisionUpdate.skill_tier = skillTier as SkillTier;
     if (isOpenPlay) {
       divisionUpdate.capacity_kind = newCapacityKind;
       divisionUpdate.max_spots = newMaxSpots;
     }
-    const { error: divErr } = await admin
-      .from('event_divisions')
-      .update(divisionUpdate as never)
-      .eq('id', curDiv.id);
-    if (divErr) return { error: `Update failed: ${divErr.message}` };
+    if (Object.keys(divisionUpdate).length > 0) {
+      const { error: divErr } = await admin
+        .from('event_divisions')
+        .update(divisionUpdate as never)
+        .eq('id', curDiv.id);
+      if (divErr) return { error: `Update failed: ${divErr.message}` };
+    }
   }
 
   if (pricingChanged) {
@@ -288,7 +297,7 @@ export async function editEventAction(
       } as never)
       .eq('id', eventId);
     if (priceErr) return { error: `Pricing update failed: ${priceErr.message}` };
-    if (curDiv) {
+    if (curDiv && newPriceCents !== null) {
       const { error: divPriceErr } = await admin
         .from('event_divisions')
         .update({ price_cents: newPriceCents } as never)

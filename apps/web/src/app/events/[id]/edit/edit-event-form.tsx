@@ -145,33 +145,35 @@ export default function EditEventForm({
           />
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="skillTier" className={labelClass}>
-              Skill tier
-            </label>
-            <select
-              id="skillTier"
-              name="skillTier"
-              defaultValue={initial.skillTier}
-              className={inputClass}
-            >
-              <optgroup label="Beginner">
-                <option value="c">C</option>
-                <option value="b">B</option>
-              </optgroup>
-              <optgroup label="Intermediate">
-                <option value="bb">BB</option>
-                <option value="bb3">BB-3</option>
-              </optgroup>
-              <optgroup label="Advanced">
-                <option value="a">A</option>
-              </optgroup>
-              <optgroup label="Competitive">
-                <option value="aa">AA</option>
-                <option value="open">Open</option>
-              </optgroup>
-            </select>
-          </div>
+          {isOpenPlay && (
+            <div>
+              <label htmlFor="skillTier" className={labelClass}>
+                Skill tier
+              </label>
+              <select
+                id="skillTier"
+                name="skillTier"
+                defaultValue={initial.skillTier}
+                className={inputClass}
+              >
+                <optgroup label="Beginner">
+                  <option value="c">C</option>
+                  <option value="b">B</option>
+                </optgroup>
+                <optgroup label="Intermediate">
+                  <option value="bb">BB</option>
+                  <option value="bb3">BB-3</option>
+                </optgroup>
+                <optgroup label="Advanced">
+                  <option value="a">A</option>
+                </optgroup>
+                <optgroup label="Competitive">
+                  <option value="aa">AA</option>
+                  <option value="open">Open</option>
+                </optgroup>
+              </select>
+            </div>
+          )}
           <div>
             <label htmlFor="visibility" className={labelClass}>
               Visibility
@@ -236,64 +238,115 @@ export default function EditEventForm({
         </fieldset>
       )}
 
-      <fieldset className="border-border-base space-y-3 rounded-md border p-4">
-        <legend className="text-fg px-1 text-sm font-semibold">Pricing</legend>
-        {pricingLocked && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-            Pricing is locked because at least one ticket has been sold. Refund all attendees first
-            to change price, fee, or refund window.
-          </div>
-        )}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div>
-            <label htmlFor="priceUsd" className={labelClass}>
-              Price (USD)
-            </label>
-            <input
-              id="priceUsd"
-              name="priceUsd"
-              type="number"
-              min="0"
-              max="10000"
-              step="0.01"
-              defaultValue={initial.priceUsd}
-              disabled={pricingLocked}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="refundWindowHours" className={labelClass}>
-              Refund window (hours)
-            </label>
-            <input
-              id="refundWindowHours"
-              name="refundWindowHours"
-              type="number"
-              min="0"
-              max="720"
-              step="1"
-              defaultValue={initial.refundWindowHours}
-              disabled={pricingLocked}
-              className={inputClass}
-            />
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-start gap-2 text-xs">
+      {isOpenPlay ? (
+        <fieldset className="border-border-base space-y-3 rounded-md border p-4">
+          <legend className="text-fg px-1 text-sm font-semibold">Pricing</legend>
+          {pricingLocked && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+              Pricing is locked because at least one ticket has been sold. Refund all attendees
+              first to change price, fee, or refund window.
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label htmlFor="priceUsd" className={labelClass}>
+                Price (USD)
+              </label>
               <input
-                type="checkbox"
-                name="hostAbsorbsFee"
-                defaultChecked={initial.hostAbsorbsFee}
+                id="priceUsd"
+                name="priceUsd"
+                type="number"
+                min="0"
+                max="10000"
+                step="0.01"
+                defaultValue={initial.priceUsd}
                 disabled={pricingLocked}
-                className="mt-0.5"
+                className={inputClass}
               />
-              <span>
-                <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
-                <span className="text-muted block">Otherwise added on top of ticket price.</span>
-              </span>
-            </label>
+            </div>
+            <div>
+              <label htmlFor="refundWindowHours" className={labelClass}>
+                Refund window (hours)
+              </label>
+              <input
+                id="refundWindowHours"
+                name="refundWindowHours"
+                type="number"
+                min="0"
+                max="720"
+                step="1"
+                defaultValue={initial.refundWindowHours}
+                disabled={pricingLocked}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  name="hostAbsorbsFee"
+                  defaultChecked={initial.hostAbsorbsFee}
+                  disabled={pricingLocked}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
+                  <span className="text-muted block">Otherwise added on top of ticket price.</span>
+                </span>
+              </label>
+            </div>
           </div>
-        </div>
-      </fieldset>
+        </fieldset>
+      ) : (
+        <fieldset className="border-border-base space-y-3 rounded-md border p-4">
+          <legend className="text-fg px-1 text-sm font-semibold">Payment settings</legend>
+          {pricingLocked && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+              Payment settings are locked because at least one ticket has been sold.
+            </div>
+          )}
+          <p className="text-muted text-xs">
+            Entry prices are managed per division on the{' '}
+            <Link href={`/events/${eventId}`} className="text-primary hover:underline">
+              event page
+            </Link>
+            .
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label htmlFor="refundWindowHours" className={labelClass}>
+                Refund window (hours)
+              </label>
+              <input
+                id="refundWindowHours"
+                name="refundWindowHours"
+                type="number"
+                min="0"
+                max="720"
+                step="1"
+                defaultValue={initial.refundWindowHours}
+                disabled={pricingLocked}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  name="hostAbsorbsFee"
+                  defaultChecked={initial.hostAbsorbsFee}
+                  disabled={pricingLocked}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
+                  <span className="text-muted block">Otherwise added on top of ticket price.</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </fieldset>
+      )}
 
       <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <legend className="text-fg col-span-full text-lg font-semibold">When</legend>

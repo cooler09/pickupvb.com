@@ -146,19 +146,40 @@ export async function createEventAction(
     });
   }
 
+  const isTournament = type === EventType.Tournament;
+  if (isTournament && !isExternal && divisions.length === 0) {
+    return {
+      error: 'Add at least one division for your tournament.',
+      fieldErrors: { divisions: 'Add at least one division.' },
+    };
+  }
+
+  // For tournaments the per-division grid is the single source of truth for
+  // surface/format/gender/skill. Fall back to division[0] so the legacy
+  // top-level columns on `events` (still required by the schema) stay
+  // populated. Open-play and external still submit them directly.
+  const primaryDiv = isTournament && divisions.length > 0 ? divisions[0]! : undefined;
+  const topSurface = (primaryDiv?.surface as string | undefined) ?? field(formData, 'surface');
+  const topFormat =
+    (primaryDiv?.format as string | undefined) ?? fieldOrUndefined(formData, 'format');
+  const topGender =
+    (primaryDiv?.gender as string | undefined) ?? fieldOrUndefined(formData, 'gender');
+  const topSkillTier =
+    (primaryDiv?.skillTier as SkillTier | undefined) ??
+    (fieldOrUndefined(formData, 'skillTier') as SkillTier | undefined) ??
+    SkillTier.BB;
+
   const raw = {
     title: field(formData, 'title'),
     description: field(formData, 'description'),
     rules: field(formData, 'rules'),
-    surface: field(formData, 'surface'),
-    format: fieldOrUndefined(formData, 'format'),
-    gender: fieldOrUndefined(formData, 'gender'),
+    surface: topSurface,
+    format: topFormat,
+    gender: topGender,
     // The form submits the precise SkillTier (matching the per-division
     // selects); the create command still takes the legacy 4-bucket band, so
     // derive it. Falls back to 'bb' (intermediate) if the field is missing.
-    skillLevel: skillTierBand(
-      (fieldOrUndefined(formData, 'skillTier') as SkillTier) ?? SkillTier.BB,
-    ),
+    skillLevel: skillTierBand(topSkillTier),
     type,
     visibility: field(formData, 'visibility'),
     location: {
@@ -222,10 +243,16 @@ export async function createEventAction(
     }
   }
 
-  // Pricing: if the host set a non-zero price, gate it behind a connected
-  // Stripe account that's actually able to receive charges. Free events
-  // (price = 0) skip Stripe entirely.
-  const priceCents = parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
+  // Pricing: open-play uses the top-level priceUsd input. Tournaments price
+  // per-division (already collected above); for Stripe gating we treat the
+  // highest division price as the event price. Free events (price = 0) skip
+  // Stripe entirely.
+  const priceCents = isTournament
+    ? divisions.reduce(
+        (max, d) => Math.max(max, typeof d.priceCents === 'number' ? (d.priceCents as number) : 0),
+        0,
+      )
+    : parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
   if (priceCents > 0) {
     // Free hosts are capped at 1 paid event per 30 days. Pro hosts have
     // no cap. Check BEFORE creating Stripe Checkout, so we can roll back
@@ -257,16 +284,18 @@ export async function createEventAction(
     if (priceErr) {
       return { error: `Event created, but pricing failed: ${priceErr.message}` };
     }
-    // Pricing now lives on event_divisions (ADR 0006 Phase 9a). Update
-    // the first (default) division — created either by the create handler
-    // or by the events_create_default_division DB trigger.
-    const { error: divPriceErr } = await supabase
-      .from('event_divisions')
-      .update({ price_cents: priceCents } as never)
-      .eq('event_id', result.id)
-      .eq('sort_order', 0);
-    if (divPriceErr) {
-      return { error: `Event created, but pricing failed: ${divPriceErr.message}` };
+    // Pricing now lives on event_divisions (ADR 0006 Phase 9a). For
+    // open-play we update the first (default) division here. Tournaments
+    // already supplied per-division priceCents through the create handler.
+    if (!isTournament) {
+      const { error: divPriceErr } = await supabase
+        .from('event_divisions')
+        .update({ price_cents: priceCents } as never)
+        .eq('event_id', result.id)
+        .eq('sort_order', 0);
+      if (divPriceErr) {
+        return { error: `Event created, but pricing failed: ${divPriceErr.message}` };
+      }
     }
   }
 

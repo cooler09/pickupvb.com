@@ -201,7 +201,10 @@ export default function NewEventForm({
     setAddressOpen(true);
   }
 
-  const showPricing = !isExternal;
+  const showPricing = !isExternal && type === EventType.OpenPlay;
+  // Tournament divisions collect their own per-division price below; keep the
+  // event-level payment settings (refund window, fee absorption) separate.
+  const showPaymentSettings = !isExternal && type === EventType.Tournament;
   const showCapacity = type === EventType.OpenPlay && !isExternal;
 
   return (
@@ -483,7 +486,7 @@ export default function NewEventForm({
               ? "Where players go to sign up. We'll link out from your event page."
               : type === EventType.OpenPlay
                 ? 'Surface, skill level, how many spots, and what it costs.'
-                : 'Set up your first division — add more below for multi-format or multi-skill events.'}
+                : 'Add one or more divisions — each gets its own skill tier, capacity, and entry price.'}
           </p>
         </div>
 
@@ -500,10 +503,11 @@ export default function NewEventForm({
             fieldErrors={state.fieldErrors}
           />
         ) : (
-          <TournamentBody fieldErrors={state.fieldErrors} />
+          <DivisionsRepeater defaultSurface="indoor" requireAtLeastOne />
         )}
 
         {showPricing && <PricingSubsection fieldErrors={state.fieldErrors} />}
+        {showPaymentSettings && <PaymentSettingsSubsection />}
       </section>
 
       {/* Hidden fields the server action expects. Top-level format/gender
@@ -693,57 +697,49 @@ function OpenPlayBody({
   );
 }
 
-function TournamentBody({ fieldErrors }: { fieldErrors: Record<string, string> | undefined }) {
+function PaymentSettingsSubsection() {
   return (
-    <>
-      <div className="border-border-base bg-fg/[0.02] space-y-4 rounded-md border p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-muted text-xs font-semibold tracking-wide uppercase">
-            Division 1
-          </span>
-          <span className="text-muted text-xs">Primary division</span>
+    <div className="border-border-base space-y-3 border-t pt-4">
+      <div>
+        <p className={labelClass}>Payment settings</p>
+        <p className="text-muted mt-1 text-xs">
+          Entry prices are set per division above. To charge, finish Stripe payout setup at{' '}
+          <Link href="/profile/billing" className="text-primary hover:underline">
+            Payouts &amp; Stripe
+          </Link>
+          .
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label htmlFor="refundWindowHours" className={labelClass}>
+            Refund window (h)
+          </label>
+          <input
+            id="refundWindowHours"
+            name="refundWindowHours"
+            type="number"
+            min="0"
+            max="720"
+            step="1"
+            defaultValue="24"
+            className={inputClass}
+          />
+          <p className="text-muted mt-1 text-xs">
+            Hours before start when self-cancel refunds work. 0 disables.
+          </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="surface" className={labelClass}>
-              Surface
-            </label>
-            <select id="surface" name="surface" defaultValue="indoor" className={inputClass}>
-              <option value="indoor">Indoor</option>
-              <option value="grass">Grass</option>
-              <option value="sand">Sand</option>
-            </select>
-            <FieldError name="surface" errors={fieldErrors} />
-          </div>
-          <div>
-            <label htmlFor="format" className={labelClass}>
-              Format
-            </label>
-            <select id="format" name="format" defaultValue="sixes" className={inputClass}>
-              <option value="sixes">Sixes</option>
-              <option value="quads">Quads</option>
-              <option value="triples">Triples</option>
-              <option value="doubles">Doubles</option>
-            </select>
-            <FieldError name="format" errors={fieldErrors} />
-          </div>
-          <div>
-            <label htmlFor="gender" className={labelClass}>
-              Gender
-            </label>
-            <select id="gender" name="gender" defaultValue="coed" className={inputClass}>
-              <option value="coed">Coed</option>
-              <option value="mens">Men&apos;s</option>
-              <option value="womens">Women&apos;s</option>
-            </select>
-            <FieldError name="gender" errors={fieldErrors} />
-          </div>
-          <SkillTierSelect fieldErrors={fieldErrors} />
+        <div className="flex items-end">
+          <label className="flex items-start gap-2 text-xs">
+            <input type="checkbox" name="hostAbsorbsFee" className="mt-0.5" />
+            <span>
+              <span className="text-fg font-medium">Absorb the 5% service fee</span>
+              <span className="text-muted block">Otherwise added to ticket price.</span>
+            </span>
+          </label>
         </div>
       </div>
-
-      <DivisionsRepeater defaultSurface="indoor" />
-    </>
+    </div>
   );
 }
 
