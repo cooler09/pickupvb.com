@@ -119,6 +119,36 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
   forbidden: { tone: 'error', text: "You can't do that." },
   refunded: { tone: 'info', text: 'This registration was refunded.' },
   free_event: { tone: 'info', text: 'No payment needed for this division.' },
+
+  // ADR 0007 — host management actions
+  team_marked_paid: {
+    tone: 'success',
+    text: 'Team marked as paid (off-platform).',
+  },
+  team_refund_sent: {
+    tone: 'success',
+    text: 'Refund issued. Stripe will email the captain a receipt.',
+  },
+  team_refund_offline: {
+    tone: 'info',
+    text: 'Team marked as refunded. Issue the off-platform refund yourself.',
+  },
+  team_force_withdrawn: {
+    tone: 'info',
+    text: 'Team registration removed.',
+  },
+  team_not_paid: {
+    tone: 'error',
+    text: 'This team has not paid — nothing to refund.',
+  },
+  team_refund_failed: {
+    tone: 'error',
+    text: 'Stripe refund failed — check the dashboard or try again.',
+  },
+  team_force_blocked: {
+    tone: 'error',
+    text: 'Refund this team first before removing them.',
+  },
 };
 
 /**

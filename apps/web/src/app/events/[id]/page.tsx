@@ -37,6 +37,7 @@ import { DivisionsSection } from './_components/divisions-section';
 import { ExternalRegistrationCard } from './_components/external-registration-card';
 import { EventMetaSection } from './_components/event-meta-section';
 import { HostDivisionsManager } from './_components/host-divisions-manager';
+import { HostAdHocTeamsPanel, type HostAdHocTeamRow } from './_components/host-ad-hoc-teams-panel';
 import { SignupSection } from './_components/signup-section';
 
 export async function generateMetadata(props: {
@@ -183,15 +184,17 @@ export default async function EventDetailPage(props: {
   // ADR 0007 — ad-hoc team registrations side-load. Only fetched on
   // tournaments configured for ad-hoc registration. We load all rows
   // (for the public list) and split out the viewer-captained subset for
-  // the editor.
+  // the editor. When the viewer can manage, we also build a host-facing
+  // rows array with captain names + payment fields for HostAdHocTeamsPanel.
   let adHocViewerRegistrations: ReadonlyArray<AdHocTeamRegistration> = [];
   let adHocAllRegistrations: ReadonlyArray<AdHocTeamPublicEntry> = [];
+  let adHocHostRows: ReadonlyArray<HostAdHocTeamRow> = [];
   if (event.type === 'tournament' && event.teamRegistrationMode === 'ad_hoc') {
     const supabaseForAdHoc = await getServerSupabase();
     const { data: regRows } = await supabaseForAdHoc
       .from('event_team_registrations')
       .select(
-        'id, name, division_id, captain_id, payment_status, members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
+        'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
       )
       .eq('event_id', event.id);
     type MemberRow = {
@@ -207,6 +210,8 @@ export default async function EventDetailPage(props: {
       division_id: string;
       captain_id: string;
       payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+      payment_intent_id: string | null;
+      amount_paid_cents: number | null;
       members: MemberRow[] | null;
     };
     const rows: RegRow[] = (regRows as RegRow[] | null) ?? [];
@@ -237,6 +242,34 @@ export default async function EventDetailPage(props: {
               sortOrder: m.sort_order,
             })),
         }));
+    }
+    if (event.canManage && rows.length > 0) {
+      // Side-load captain display names for the host management panel.
+      const captainIds = Array.from(new Set(rows.map((r) => r.captain_id)));
+      const { data: profileRows } = await supabaseForAdHoc
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', captainIds);
+      type ProfileRow = { id: string; display_name: string | null };
+      const captainById = new Map<string, ProfileRow>(
+        ((profileRows as ProfileRow[] | null) ?? []).map((p) => [p.id, p]),
+      );
+      adHocHostRows = rows.map((r) => {
+        const captainProfile = captainById.get(r.captain_id) ?? null;
+        return {
+          id: r.id,
+          name: r.name,
+          divisionId: r.division_id,
+          paymentStatus: r.payment_status,
+          paymentIntentId: r.payment_intent_id,
+          amountPaidCents: r.amount_paid_cents ?? 0,
+          rosterSize: 1 + (r.members?.length ?? 0),
+          captain: {
+            id: r.captain_id,
+            displayName: captainProfile?.display_name ?? null,
+          },
+        };
+      });
     }
   }
 
@@ -676,6 +709,14 @@ export default async function EventDetailPage(props: {
               eventId={event.id}
               attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
             />
+            {event.type === 'tournament' && event.teamRegistrationMode === 'ad_hoc' && (
+              <HostAdHocTeamsPanel
+                eventId={event.id}
+                returnPath={returnPath}
+                divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
+                rows={adHocHostRows}
+              />
+            )}
           </div>
         </details>
       )}
