@@ -15,6 +15,7 @@
 
 import { useState } from 'react';
 import type { DivisionLite } from '@pickupvb/domain';
+import { SubmitButton } from '@/components/submit-button';
 import { addDivisionFromForm, updateDivisionFromForm, removeDivision } from '../division-actions';
 
 type Props = {
@@ -207,12 +208,9 @@ function DivisionForm({
         >
           Cancel
         </button>
-        <button
-          type="submit"
-          className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium"
-        >
+        <SubmitButton className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50">
           {submitLabel}
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );

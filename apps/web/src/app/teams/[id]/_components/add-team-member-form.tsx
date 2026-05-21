@@ -1,11 +1,12 @@
 import { UserPicker } from '@/components/user-picker';
+import { SubmitButton } from '@/components/submit-button';
 import { addMemberFromForm } from '../../actions';
 
 type Props = {
-    teamId: string;
-    returnPath: string;
-    /** Members already on the roster — hidden from search results. */
-    existingMemberIds: ReadonlyArray<string>;
+  teamId: string;
+  returnPath: string;
+  /** Members already on the roster — hidden from search results. */
+  existingMemberIds: ReadonlyArray<string>;
 };
 
 /**
@@ -14,29 +15,26 @@ type Props = {
  * the captain check + roster cap.
  */
 export function AddTeamMemberForm({ teamId, returnPath, existingMemberIds }: Props) {
-    return (
-        <section className="rounded-lg border border-border-base p-4">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
-                Add a teammate
-            </h2>
-            <form action={addMemberFromForm.bind(null, teamId, returnPath)} className="space-y-3">
-                <UserPicker
-                    name="user_id"
-                    label="Find a player"
-                    placeholder="Search by name…"
-                    required
-                    helperText="Type at least 2 characters to search."
-                    excludeIds={existingMemberIds}
-                />
-                <div className="flex justify-end">
-                    <button
-                        type="submit"
-                        className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90"
-                    >
-                        Add teammate
-                    </button>
-                </div>
-            </form>
-        </section>
-    );
+  return (
+    <section className="border-border-base rounded-lg border p-4">
+      <h2 className="text-muted mb-3 text-sm font-semibold tracking-wide uppercase">
+        Add a teammate
+      </h2>
+      <form action={addMemberFromForm.bind(null, teamId, returnPath)} className="space-y-3">
+        <UserPicker
+          name="user_id"
+          label="Find a player"
+          placeholder="Search by name…"
+          required
+          helperText="Type at least 2 characters to search."
+          excludeIds={existingMemberIds}
+        />
+        <div className="flex justify-end">
+          <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
+            Add teammate
+          </SubmitButton>
+        </div>
+      </form>
+    </section>
+  );
 }

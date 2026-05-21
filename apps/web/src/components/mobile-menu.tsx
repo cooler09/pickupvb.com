@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { Theme } from '@/lib/theme';
+import { SubmitButton } from '@/components/submit-button';
 import { ThemeToggle } from './theme-toggle';
 import { signOut } from './actions';
 
@@ -189,12 +190,9 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                     <span className="text-fg/60 text-xs">Profile →</span>
                   </Link>
                   <form action={signOut}>
-                    <button
-                      type="submit"
-                      className="border-border-base hover:bg-fg/5 w-full rounded-md border px-3 py-2 text-sm"
-                    >
+                    <SubmitButton className="border-border-base hover:bg-fg/5 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-50">
                       Sign out
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               ) : (

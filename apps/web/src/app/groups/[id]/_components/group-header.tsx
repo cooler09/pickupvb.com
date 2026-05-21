@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { followGroup, unfollowGroup } from '@/app/groups/actions';
 import { ShareLink } from '@/components/share-link';
+import { SubmitButton } from '@/components/submit-button';
 
 type Props = {
   group: {
@@ -83,21 +84,15 @@ export function GroupHeader({
         {isSignedIn ? (
           isFollowing ? (
             <form action={unfollowGroup.bind(null, group.id, returnPath)}>
-              <button
-                type="submit"
-                className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm font-medium"
-              >
+              <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50">
                 ✓ Following
-              </button>
+              </SubmitButton>
             </form>
           ) : (
             <form action={followGroup.bind(null, group.id, returnPath)}>
-              <button
-                type="submit"
-                className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white"
-              >
+              <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
                 + Follow
-              </button>
+              </SubmitButton>
             </form>
           )
         ) : (

@@ -1,4 +1,5 @@
 import type { Match } from '@pickupvb/domain';
+import { SubmitButton } from '@/components/submit-button';
 import { recordMatchResultFromForm, resetMatch } from '../actions';
 import type { TeamLite } from './labels';
 
@@ -85,20 +86,16 @@ export function MatchCard(props: {
               );
             })}
             <div className="flex gap-2 pt-1">
-              <button
-                type="submit"
-                className="bg-primary text-primary-fg rounded px-2 py-0.5 text-xs"
-              >
+              <SubmitButton className="bg-primary text-primary-fg rounded px-2 py-0.5 text-xs disabled:opacity-50">
                 Save
-              </button>
+              </SubmitButton>
               {m.status === 'completed' && (
-                <button
-                  type="submit"
+                <SubmitButton
                   formAction={resetMatch.bind(null, props.eventId, props.divisionId, String(m.id))}
-                  className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-2 py-0.5 text-xs"
+                  className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-2 py-0.5 text-xs disabled:opacity-50"
                 >
                   Clear
-                </button>
+                </SubmitButton>
               )}
             </div>
           </form>

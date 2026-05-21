@@ -13,6 +13,7 @@ import { ProBadge } from '@/components/pro-badge';
 import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
 import { SocialLinks } from '@/components/social-links';
+import { SubmitButton } from '@/components/submit-button';
 import { isPro } from '@/lib/pro';
 
 const PAST_EVENTS_PER_PAGE = 10;
@@ -195,21 +196,15 @@ export default async function PlayerProfilePage(props: {
             (user ? (
               isFollowing ? (
                 <form action={removeFriend.bind(null, profile.id, returnPath)}>
-                  <button
-                    type="submit"
-                    className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
-                  >
+                  <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-60">
                     ✓ Following
-                  </button>
+                  </SubmitButton>
                 </form>
               ) : (
                 <form action={addFriend.bind(null, profile.id, returnPath)}>
-                  <button
-                    type="submit"
-                    className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90"
-                  >
+                  <SubmitButton className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-60">
                     + Follow
-                  </button>
+                  </SubmitButton>
                 </form>
               )
             ) : (

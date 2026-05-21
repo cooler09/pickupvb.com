@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getCurrentUser } from '@/lib/server-auth';
 import type { Theme } from '@/lib/theme';
+import { SubmitButton } from '@/components/submit-button';
 import { ThemeToggle } from './theme-toggle';
 import { MobileMenu } from './mobile-menu';
 import { NotificationBell } from './notification-bell';
@@ -147,12 +148,9 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
                 {userInfo.initials}
               </Link>
               <form action={signOut}>
-                <button
-                  type="submit"
-                  className="text-fg/70 hover:text-primary rounded-md px-2 py-1.5 text-sm"
-                >
+                <SubmitButton className="text-fg/70 hover:text-primary rounded-md px-2 py-1.5 text-sm disabled:opacity-50">
                   Sign out
-                </button>
+                </SubmitButton>
               </form>
             </>
           ) : (

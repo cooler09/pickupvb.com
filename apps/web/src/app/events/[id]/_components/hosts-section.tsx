@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { EventDetailReadModel } from '@pickupvb/domain';
 import { UserPicker } from '@/components/user-picker';
 import { SocialLinks } from '@/components/social-links';
+import { SubmitButton } from '@/components/submit-button';
 import type { SocialHandles } from '@/lib/social-handles';
 import { addCoHostFromForm, removeEventCoHost } from '../co-host-actions';
 
@@ -106,14 +107,13 @@ export function HostsSection({
                 action={removeEventCoHost.bind(null, eventId, { groupId: g.id }, returnPath)}
                 className="ml-1 inline"
               >
-                <button
-                  type="submit"
+                <SubmitButton
                   title="Remove co-host"
                   aria-label={`Remove co-host ${g.name}`}
-                  className="text-muted text-xs hover:text-red-600"
+                  className="text-muted text-xs hover:text-red-600 disabled:opacity-50"
                 >
                   <span aria-hidden>✕</span>
-                </button>
+                </SubmitButton>
               </form>
             )}
           </li>
@@ -132,14 +132,13 @@ export function HostsSection({
                 action={removeEventCoHost.bind(null, eventId, { userId: p.id }, returnPath)}
                 className="ml-1 inline"
               >
-                <button
-                  type="submit"
+                <SubmitButton
                   title="Remove co-host"
                   aria-label={`Remove co-host ${profileName(p)}`}
-                  className="text-muted text-xs hover:text-red-600"
+                  className="text-muted text-xs hover:text-red-600 disabled:opacity-50"
                 >
                   <span aria-hidden>✕</span>
-                </button>
+                </SubmitButton>
               </form>
             )}
           </li>
@@ -173,12 +172,12 @@ export function HostsSection({
                     ))}
                   </select>
                 </label>
-                <button
-                  type="submit"
-                  className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-sm"
+                <SubmitButton
+                  className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-sm disabled:opacity-50"
+                  pendingChildren="Adding…"
                 >
                   Add group
-                </button>
+                </SubmitButton>
               </form>
             )}
             <form action={addCoHostFromForm.bind(null, eventId, returnPath)} className="space-y-2">
@@ -193,12 +192,12 @@ export function HostsSection({
                   ...coHostUsers.map((p) => p.id),
                 ]}
               />
-              <button
-                type="submit"
-                className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-sm"
+              <SubmitButton
+                className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-sm disabled:opacity-50"
+                pendingChildren="Adding…"
               >
                 Add user
-              </button>
+              </SubmitButton>
             </form>
           </div>
         </details>
