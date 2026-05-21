@@ -337,6 +337,7 @@ export default async function EventDetailPage(props: {
           registrationClosesAt={event.registrationClosesAt}
           canManage={event.canManage}
           cta={cta}
+          divisionCount={event.divisions.length}
         />
       </header>
 

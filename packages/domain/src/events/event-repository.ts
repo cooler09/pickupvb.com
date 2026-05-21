@@ -283,6 +283,9 @@ export interface EventSearchQuery {
 export interface EventSearchDivision {
   id: string;
   label: string;
+  surface: Surface;
+  format: Format | null;
+  gender: Gender | null;
   skillTier: SkillTier;
   tierLabel: string | null;
   ageGroup: AgeGroup;

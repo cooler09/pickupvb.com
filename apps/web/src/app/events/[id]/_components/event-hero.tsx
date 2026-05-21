@@ -34,6 +34,8 @@ type Props = {
   registrationClosesAt: Date | null;
   canManage: boolean;
   cta: EventHeroCta;
+  /** Number of divisions; passed through to EventTags. */
+  divisionCount?: number;
 };
 
 /**
@@ -62,6 +64,7 @@ export function EventHero({
   registrationClosesAt,
   canManage,
   cta,
+  divisionCount,
 }: Props) {
   // Surface a closing-soon countdown when the registration deadline is
   // within 72 hours. Done in user-local time on the client; SSR shows the
@@ -86,6 +89,7 @@ export function EventHero({
           format={format}
           gender={gender}
           status={status}
+          {...(divisionCount !== undefined ? { divisionCount } : {})}
         />
         <div className="flex shrink-0 items-center gap-3 text-sm">
           <EventShareLink shortCode={shortCode} title={title} />

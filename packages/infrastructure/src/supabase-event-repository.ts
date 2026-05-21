@@ -474,6 +474,9 @@ export class SupabaseEventRepository implements EventRepository {
     type DivisionJson = {
       id: string;
       label: string;
+      surface: Surface;
+      format: Format | null;
+      gender: Gender | null;
       skillTier: SkillTier;
       tierLabel: string | null;
       ageGroup: AgeGroup;
@@ -549,6 +552,9 @@ export class SupabaseEventRepository implements EventRepository {
       divisions: (r.divisions ?? []).map((d) => ({
         id: d.id,
         label: d.label,
+        surface: d.surface,
+        format: d.format,
+        gender: d.gender,
         skillTier: d.skillTier,
         tierLabel: d.tierLabel,
         ageGroup: d.ageGroup,
