@@ -82,8 +82,10 @@ test.describe('public smoke', () => {
     expect(robots.ok()).toBeTruthy();
     const robotsBody = (await robots.text()).toLowerCase();
     // Non-prod hosts (dev, previews) intentionally disallow everything and
-    // omit the sitemap reference — see apps/web/src/app/robots.ts.
-    const isProdRobots = robotsBody.includes('allow: /');
+    // omit the sitemap reference — see apps/web/src/app/robots.ts. Match on
+    // a line-start `allow:` (not a substring) because `disallow: /` would
+    // otherwise match.
+    const isProdRobots = /^allow:/m.test(robotsBody);
     if (isProdRobots) {
       expect(robotsBody).toContain('sitemap');
     }
