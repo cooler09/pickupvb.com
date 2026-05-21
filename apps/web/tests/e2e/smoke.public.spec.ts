@@ -80,7 +80,13 @@ test.describe('public smoke', () => {
   test('sitemap and robots are served', async ({ request }) => {
     const robots = await request.get('/robots.txt');
     expect(robots.ok()).toBeTruthy();
-    expect((await robots.text()).toLowerCase()).toContain('sitemap');
+    const robotsBody = (await robots.text()).toLowerCase();
+    // Non-prod hosts (dev, previews) intentionally disallow everything and
+    // omit the sitemap reference — see apps/web/src/app/robots.ts.
+    const isProdRobots = robotsBody.includes('allow: /');
+    if (isProdRobots) {
+      expect(robotsBody).toContain('sitemap');
+    }
 
     const sitemap = await request.get('/sitemap.xml');
     expect(sitemap.ok()).toBeTruthy();
