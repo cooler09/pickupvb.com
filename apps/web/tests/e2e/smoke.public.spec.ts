@@ -64,7 +64,12 @@ test.describe('public smoke', () => {
 
     await expect(page.getByLabel(/email/i)).toBeVisible();
     await expect(page.getByLabel(/password/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /sign in|log in|continue/i })).toBeVisible();
+    // Scope to the credentials form so we don't match the header link
+    // or the "Continue with Google" OAuth button.
+    const form = page.locator('form').filter({ has: page.getByLabel(/password/i) });
+    await expect(
+      form.getByRole('button', { name: /sign in|log in|create account/i }),
+    ).toBeVisible();
   });
 
   test('sitemap and robots are served', async ({ request }) => {

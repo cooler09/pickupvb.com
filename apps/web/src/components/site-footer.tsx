@@ -42,9 +42,9 @@ export function SiteFooter() {
 
         <div className="border-border-base text-muted mt-8 flex flex-col items-center gap-2 border-t pt-6 text-center text-xs sm:flex-row sm:justify-between">
           <p>© {year} PickupVB. All rights reserved.</p>
-          <p>
+          <div>
             Found a bug? <ReportBugButton />
-          </p>
+          </div>
         </div>
       </div>
     </footer>
