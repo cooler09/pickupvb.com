@@ -323,6 +323,8 @@ export default async function EventDetailPage(props: {
           type={event.type}
           surface={event.surface}
           skillLevel={event.skillLevel}
+          {...(event.divisions[0]?.skillTier ? { skillTier: event.divisions[0].skillTier } : {})}
+          {...(event.divisions[0]?.tierLabel ? { tierLabel: event.divisions[0].tierLabel } : {})}
           format={event.format}
           gender={event.gender}
           status={event.status}
