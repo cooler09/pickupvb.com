@@ -65,6 +65,7 @@ export type EditEventFormProps = {
     priceUsd: string;
     refundWindowHours: number;
     hostAbsorbsFee: boolean;
+    paymentsOffPlatform: boolean;
     extensions: AdvancedDetailsInitial;
   };
 };
@@ -296,6 +297,23 @@ export default function EditEventForm({
               </label>
             </div>
           </div>
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="paymentsOffPlatform"
+              defaultChecked={initial.paymentsOffPlatform}
+              disabled={pricingLocked}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-fg font-medium">
+                I&apos;ll collect payment myself (off-platform)
+              </span>
+              <span className="text-muted block">
+                Display the price but skip Stripe. Players RSVP without paying online.
+              </span>
+            </span>
+          </label>
         </fieldset>
       ) : (
         <fieldset className="border-border-base space-y-3 rounded-md border p-4">
@@ -345,6 +363,23 @@ export default function EditEventForm({
               </label>
             </div>
           </div>
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="paymentsOffPlatform"
+              defaultChecked={initial.paymentsOffPlatform}
+              disabled={pricingLocked}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-fg font-medium">
+                I&apos;ll collect payment myself (off-platform)
+              </span>
+              <span className="text-muted block">
+                Display the price but skip Stripe. Players RSVP without paying online.
+              </span>
+            </span>
+          </label>
         </fieldset>
       )}
 

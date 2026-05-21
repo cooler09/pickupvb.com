@@ -47,6 +47,9 @@ function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventEx
     ...(input.paymentInstructions !== undefined
       ? { paymentInstructions: input.paymentInstructions }
       : {}),
+    ...(input.paymentsOffPlatform !== undefined
+      ? { paymentsOffPlatform: input.paymentsOffPlatform }
+      : {}),
   };
 }
 

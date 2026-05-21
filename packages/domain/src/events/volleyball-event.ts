@@ -116,6 +116,12 @@ export interface EventExtensionsInput {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
+  /**
+   * When true, the host collects entry payment off-platform (cash, Venmo,
+   * etc.). Platform skips Stripe Connect gating and Checkout; players still
+   * RSVP on-platform. Defaults to false.
+   */
+  paymentsOffPlatform: boolean;
 }
 
 interface EventExtensions {
@@ -132,6 +138,7 @@ interface EventExtensions {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
+  paymentsOffPlatform: boolean;
 }
 
 const MAX_VENUE_NAME_LEN = 200;
@@ -245,6 +252,7 @@ function resolveExtensions(
     externalRegistrationUrl,
     externalRegistrationInstructions,
     paymentInstructions,
+    paymentsOffPlatform: input?.paymentsOffPlatform ?? false,
   };
 }
 
@@ -506,6 +514,9 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
   get paymentInstructions(): string | null {
     return this._extensions.paymentInstructions;
+  }
+  get paymentsOffPlatform(): boolean {
+    return this._extensions.paymentsOffPlatform;
   }
 
   /** Total spots — derived from positionRoster when set, else from capacity. */

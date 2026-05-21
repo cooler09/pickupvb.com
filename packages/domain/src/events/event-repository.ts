@@ -211,6 +211,7 @@ export interface EventDetailReadModel {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
+  paymentsOffPlatform: boolean;
 
   /** Divisions on this event (ADR 0006). Empty array when not yet split. */
   divisions: ReadonlyArray<DivisionLite>;

@@ -47,6 +47,8 @@ export const EventExtensionsSchema = z.object({
   externalRegistrationUrl: z.string().url().max(2048).optional().nullable(),
   externalRegistrationInstructions: z.string().max(2000).optional().nullable(),
   paymentInstructions: z.string().max(2000).optional().nullable(),
+  /** When true, host collects payment off-platform (no Stripe). */
+  paymentsOffPlatform: z.boolean().optional(),
 });
 export type EventExtensionsDto = z.infer<typeof EventExtensionsSchema>;
 

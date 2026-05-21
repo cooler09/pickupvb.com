@@ -703,12 +703,37 @@ function PaymentSettingsSubsection() {
       <div>
         <p className={labelClass}>Payment settings</p>
         <p className="text-muted mt-1 text-xs">
-          Entry prices are set per division above. To charge, finish Stripe payout setup at{' '}
+          Entry prices are set per division above. To charge on-platform, finish Stripe payout setup
+          at{' '}
           <Link href="/profile/billing" className="text-primary hover:underline">
             Payouts &amp; Stripe
           </Link>
           .
         </p>
+      </div>
+      <label className="flex items-start gap-2 text-xs">
+        <input type="checkbox" name="paymentsOffPlatform" className="mt-0.5" />
+        <span>
+          <span className="text-fg font-medium">
+            I&apos;ll collect payment myself (off-platform)
+          </span>
+          <span className="text-muted block">
+            Display the price but skip Stripe. Players RSVP without paying online.
+          </span>
+        </span>
+      </label>
+      <div>
+        <label htmlFor="paymentInstructionsTourney" className={labelClass}>
+          Payment instructions <span className="text-fg/50">(optional)</span>
+        </label>
+        <textarea
+          id="paymentInstructionsTourney"
+          name="paymentInstructions"
+          rows={2}
+          maxLength={2000}
+          placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
+          className={inputClass}
+        />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
@@ -749,12 +774,36 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
       <div>
         <p className={labelClass}>Pricing</p>
         <p className="text-muted mt-1 text-xs">
-          Leave at $0 for free. To charge, finish Stripe payout setup at{' '}
+          Leave at $0 for free. To charge on-platform, finish Stripe payout setup at{' '}
           <Link href="/profile/billing" className="text-primary hover:underline">
             Payouts &amp; Stripe
           </Link>
           .
         </p>
+      </div>
+      <label className="flex items-start gap-2 text-xs">
+        <input type="checkbox" name="paymentsOffPlatform" className="mt-0.5" />
+        <span>
+          <span className="text-fg font-medium">
+            I&apos;ll collect payment myself (off-platform)
+          </span>
+          <span className="text-muted block">
+            Display the price but skip Stripe. Players RSVP without paying online.
+          </span>
+        </span>
+      </label>
+      <div>
+        <label htmlFor="paymentInstructionsOpen" className={labelClass}>
+          Payment instructions <span className="text-fg/50">(optional)</span>
+        </label>
+        <textarea
+          id="paymentInstructionsOpen"
+          name="paymentInstructions"
+          rows={2}
+          maxLength={2000}
+          placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
+          className={inputClass}
+        />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>

@@ -83,6 +83,7 @@ type EventRow = {
   external_registration_url: string | null;
   external_registration_instructions: string | null;
   payment_instructions: string | null;
+  payments_off_platform: boolean | null;
 };
 
 type DivisionRow = {
@@ -253,6 +254,7 @@ function rowToExtensions(row: EventRow) {
     externalRegistrationUrl: row.external_registration_url,
     externalRegistrationInstructions: row.external_registration_instructions,
     paymentInstructions: row.payment_instructions,
+    paymentsOffPlatform: row.payments_off_platform ?? false,
   };
 }
 
@@ -379,6 +381,7 @@ export class SupabaseEventRepository implements EventRepository {
       external_registration_url: event.externalRegistrationUrl,
       external_registration_instructions: event.externalRegistrationInstructions,
       payment_instructions: event.paymentInstructions,
+      payments_off_platform: event.paymentsOffPlatform,
       updated_at: new Date().toISOString(),
     };
 

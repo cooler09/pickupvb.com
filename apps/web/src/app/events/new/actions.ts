@@ -113,7 +113,12 @@ export async function createEventAction(
             ? { paymentInstructions: fieldOrUndefined(formData, 'paymentInstructions') }
             : {}),
         }
-      : {}),
+      : {
+          ...(fieldOrUndefined(formData, 'paymentInstructions')
+            ? { paymentInstructions: fieldOrUndefined(formData, 'paymentInstructions') }
+            : {}),
+          ...(field(formData, 'paymentsOffPlatform') === 'on' ? { paymentsOffPlatform: true } : {}),
+        }),
   };
 
   // ---- ADR 0006 additional divisions --------------------------------------
@@ -253,7 +258,8 @@ export async function createEventAction(
         0,
       )
     : parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
-  if (priceCents > 0) {
+  const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
+  if (priceCents > 0 && !paymentsOffPlatform) {
     // Free hosts are capped at 1 paid event per 30 days. Pro hosts have
     // no cap. Check BEFORE creating Stripe Checkout, so we can roll back
     // the event row cleanly. Count already includes the row we just

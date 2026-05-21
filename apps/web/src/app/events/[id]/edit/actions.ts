@@ -125,6 +125,7 @@ export async function editEventAction(
     fieldOrUndefined(formData, 'refundWindowHours'),
   );
   const newHostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
+  const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
 
   // Read current pricing to detect changes (and for the price-lock check).
   // ADR 0006 Phase 9a: price_cents now lives on event_divisions; the rest
@@ -175,8 +176,9 @@ export async function editEventAction(
           'Refund all attendees first to change pricing.',
       };
     }
-    // If switching to paid, the host needs Stripe set up.
-    if (newPriceCents !== null && newPriceCents > 0) {
+    // If switching to paid, the host needs Stripe set up — unless they're
+    // collecting off-platform.
+    if (newPriceCents !== null && newPriceCents > 0 && !paymentsOffPlatform) {
       const hostIdToCheck = c?.host_id ?? user.id;
       // Free-tier cap also applies when an event flips from free→paid.
       if (curPriceCents === 0) {
@@ -237,6 +239,7 @@ export async function editEventAction(
     payment_instructions: isExternal
       ? (fieldOrUndefined(formData, 'paymentInstructions') ?? null)
       : null,
+    payments_off_platform: paymentsOffPlatform,
   };
 
   // ---- Apply update ----
