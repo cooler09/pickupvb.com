@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
-import { NotFoundError } from '@pickupvb/domain';
+import { NotFoundError, skillTierFromLegacy } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { getEventPricing } from '@/lib/event-pricing';
@@ -67,7 +67,7 @@ export default async function EditEventPage(props: { params: Promise<{ id: strin
           title: event.title,
           description: event.description ?? '',
           rules: event.rules ?? '',
-          skillLevel: event.skillLevel,
+          skillTier: primaryDiv?.skillTier ?? skillTierFromLegacy(event.skillLevel),
           visibility: event.visibility,
           startsAt: event.startsAt,
           endsAt: event.endsAt,
