@@ -177,6 +177,17 @@ function DivisionForm({
             className={inputClass}
           />
         </div>
+        <div>
+          <label className={labelClass}>Charge</label>
+          <select
+            name="priceUnit"
+            defaultValue={initial?.priceUnit ?? 'per_player'}
+            className={inputClass}
+          >
+            <option value="per_player">Per player</option>
+            <option value="per_team">Per team</option>
+          </select>
+        </div>
         <div className="sm:col-span-2">
           <label className={labelClass}>Prize</label>
           <input

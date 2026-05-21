@@ -34,6 +34,8 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
   const maxSpotsRaw = fieldOrUndefined(formData, 'maxSpots');
   const teamSizeRaw = fieldOrUndefined(formData, 'teamSize');
   const priceUsd = fieldOrUndefined(formData, 'priceUsd');
+  const priceUnitRaw = fieldOrUndefined(formData, 'priceUnit');
+  const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
   const prizeText = fieldOrUndefined(formData, 'prizeText');
   const tierLabel = fieldOrUndefined(formData, 'tierLabel');
 
@@ -52,6 +54,7 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
         ? { kind: 'fixed' as const, maxSpots: Number(maxSpotsRaw) }
         : { kind: 'unlimited' as const },
     ...(priceUsd ? { priceCents: parsePriceCents(priceUsd) } : {}),
+    ...(priceUsd ? { priceUnit } : {}),
     ...(prizeText ? { prizeText } : {}),
   };
   return DivisionInputSchema.parse(dto);

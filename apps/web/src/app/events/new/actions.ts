@@ -154,6 +154,8 @@ export async function createEventAction(
     const capKind = fieldOrUndefined(formData, `div_${i}_capacityKind`) || 'unlimited';
     const maxSpots = fieldOrUndefined(formData, `div_${i}_maxSpots`);
     const priceUsd = fieldOrUndefined(formData, `div_${i}_priceUsd`);
+    const priceUnitRaw = fieldOrUndefined(formData, `div_${i}_priceUnit`);
+    const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
     const prizeText = fieldOrUndefined(formData, `div_${i}_prizeText`);
     divisions.push({
       label,
@@ -169,6 +171,7 @@ export async function createEventAction(
           ? { kind: 'fixed' as const, maxSpots: Number(maxSpots) }
           : { kind: 'unlimited' as const },
       ...(priceUsd ? { priceCents: parsePriceCents(priceUsd) } : {}),
+      ...(priceUsd ? { priceUnit } : {}),
       ...(prizeText ? { prizeText } : {}),
     });
   }

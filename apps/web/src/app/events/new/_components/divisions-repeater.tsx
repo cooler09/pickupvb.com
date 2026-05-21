@@ -28,6 +28,7 @@ type Row = {
   capacityKind: 'unlimited' | 'fixed';
   maxSpots: string;
   priceUsd: string;
+  priceUnit: 'per_player' | 'per_team';
   prizeText: string;
 };
 
@@ -44,6 +45,7 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
   capacityKind: 'unlimited',
   maxSpots: '',
   priceUsd: '',
+  priceUnit: 'per_player',
   prizeText: '',
   ...defaults,
 });
@@ -269,6 +271,20 @@ export default function DivisionsRepeater({
                 placeholder="0"
                 className={inputClass}
               />
+            </div>
+            <div>
+              <label className={labelClass}>Charge</label>
+              <select
+                name={`div_${idx}_priceUnit`}
+                value={row.priceUnit}
+                onChange={(e) =>
+                  patch(row.key, { priceUnit: e.target.value as 'per_player' | 'per_team' })
+                }
+                className={inputClass}
+              >
+                <option value="per_player">Per player</option>
+                <option value="per_team">Per team</option>
+              </select>
             </div>
             <div className="sm:col-span-2">
               <label className={labelClass}>Prize (text)</label>
