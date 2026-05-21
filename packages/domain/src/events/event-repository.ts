@@ -14,6 +14,7 @@ import type {
   TeamComposition,
   PriceUnit,
   RegistrationMode,
+  TeamRegistrationMode,
 } from './enums.js';
 
 /**
@@ -212,6 +213,8 @@ export interface EventDetailReadModel {
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
   paymentsOffPlatform: boolean;
+  /** ADR 0007 — null on open-play. Tournaments default to RosterTeams. */
+  teamRegistrationMode: TeamRegistrationMode | null;
 
   /** Divisions on this event (ADR 0006). Empty array when not yet split. */
   divisions: ReadonlyArray<DivisionLite>;

@@ -253,6 +253,20 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     this._updatedAt = new Date();
   }
 
+  /**
+   * Stripe Checkout Session expired (30-min default) or the captain
+   * cancelled out of the hosted page without paying. Reset to None so the
+   * captain can edit the roster and start a fresh checkout without having
+   * to withdraw the whole registration. No-op if not Pending — the webhook
+   * may race the captain's manual retry.
+   */
+  expireCheckout(): void {
+    if (this._paymentStatus !== RegistrationPaymentStatus.Pending) return;
+    this._paymentStatus = RegistrationPaymentStatus.None;
+    this._checkoutSessionId = null;
+    this._updatedAt = new Date();
+  }
+
   /** Webhook confirms the captain's checkout session was paid. */
   markPaid(props: { paymentIntentId: string; amountCents: number; paidAt: Date }): void {
     if (

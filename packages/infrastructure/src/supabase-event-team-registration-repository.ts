@@ -60,6 +60,10 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     return this.loadOne('checkout_session_id', sessionId);
   }
 
+  async findByPaymentIntentId(paymentIntentId: string): Promise<EventTeamRegistration | null> {
+    return this.loadOne('payment_intent_id', paymentIntentId);
+  }
+
   async save(registration: EventTeamRegistration): Promise<void> {
     const row = {
       id: String(registration.id),
@@ -120,7 +124,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
   }
 
   private async loadOne(
-    column: 'id' | 'checkout_session_id',
+    column: 'id' | 'checkout_session_id' | 'payment_intent_id',
     value: string,
   ): Promise<EventTeamRegistration | null> {
     const { data, error } = await this.client

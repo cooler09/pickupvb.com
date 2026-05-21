@@ -12,6 +12,8 @@ export interface EventTeamRegistrationRepository {
   findById(id: EventTeamRegistrationId): Promise<EventTeamRegistration | null>;
   /** Lookup by Stripe Checkout session id for webhook handlers. */
   findByCheckoutSessionId(sessionId: string): Promise<EventTeamRegistration | null>;
+  /** Lookup by Stripe PaymentIntent id (set on markPaid) for refund webhooks. */
+  findByPaymentIntentId(paymentIntentId: string): Promise<EventTeamRegistration | null>;
   save(registration: EventTeamRegistration): Promise<void>;
   /** Removes the registration and cascades its roster members. */
   delete(id: EventTeamRegistrationId): Promise<void>;

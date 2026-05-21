@@ -22,6 +22,11 @@ import { PaidTicketPanel } from './_components/paid-ticket-panel';
 import { PositionRsvpPanel } from './_components/position-rsvp-panel';
 import { RsvpPanel } from './_components/rsvp-panel';
 import { TournamentSignupPanel } from './_components/tournament-signup-panel';
+import {
+  AdHocTeamSignupPanel,
+  type AdHocTeamPublicEntry,
+  type AdHocTeamRegistration,
+} from './_components/ad-hoc-team-signup-panel';
 import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
 import { TournamentRegistrationTabs } from './_components/tournament-registration-tabs';
 import { TeamsRegisteredSection } from './_components/teams-registered-section';
@@ -174,6 +179,66 @@ export default async function EventDetailPage(props: {
         })()
       : Promise.resolve(undefined),
   ]);
+
+  // ADR 0007 — ad-hoc team registrations side-load. Only fetched on
+  // tournaments configured for ad-hoc registration. We load all rows
+  // (for the public list) and split out the viewer-captained subset for
+  // the editor.
+  let adHocViewerRegistrations: ReadonlyArray<AdHocTeamRegistration> = [];
+  let adHocAllRegistrations: ReadonlyArray<AdHocTeamPublicEntry> = [];
+  if (event.type === 'tournament' && event.teamRegistrationMode === 'ad_hoc') {
+    const supabaseForAdHoc = await getServerSupabase();
+    const { data: regRows } = await supabaseForAdHoc
+      .from('event_team_registrations')
+      .select(
+        'id, name, division_id, captain_id, payment_status, members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
+      )
+      .eq('event_id', event.id);
+    type MemberRow = {
+      id: string;
+      user_id: string | null;
+      display_name: string | null;
+      email: string | null;
+      sort_order: number;
+    };
+    type RegRow = {
+      id: string;
+      name: string;
+      division_id: string;
+      captain_id: string;
+      payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+      members: MemberRow[] | null;
+    };
+    const rows: RegRow[] = (regRows as RegRow[] | null) ?? [];
+    adHocAllRegistrations = rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      divisionId: r.division_id,
+      paymentStatus: r.payment_status,
+      memberCount: 1 + (r.members?.length ?? 0),
+      isViewerCaptain: !!user && r.captain_id === user.id,
+    }));
+    if (user) {
+      adHocViewerRegistrations = rows
+        .filter((r) => r.captain_id === user.id)
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          divisionId: r.division_id,
+          paymentStatus: r.payment_status,
+          members: (r.members ?? [])
+            .slice()
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map((m) => ({
+              id: m.id,
+              userId: m.user_id,
+              displayName: m.display_name,
+              email: m.email,
+              sortOrder: m.sort_order,
+            })),
+        }));
+    }
+  }
 
   // Primary host's social handles — small extra fetch, kept outside the
   // domain read model since it's purely cosmetic. Renders nothing when the
@@ -457,18 +522,42 @@ export default async function EventDetailPage(props: {
             teamCount={event.teams.length}
             freeAgentCount={event.freeAgents.length}
             teamPanel={
-              <TournamentSignupPanel
-                eventId={event.id}
-                eventFormat={event.format}
-                teams={event.teams}
-                viewerCaptainedTeams={event.viewerCaptainedTeams}
-                viewerId={user?.id ?? null}
-                isRealUser={isRealUser}
-                returnPath={returnPath}
-                {...(pickQuery(searchParams, 'team')
-                  ? { resultCode: pickQuery(searchParams, 'team') }
-                  : {})}
-              />
+              event.teamRegistrationMode === 'ad_hoc' ? (
+                <AdHocTeamSignupPanel
+                  eventId={event.id}
+                  returnPath={returnPath}
+                  divisions={event.divisions.map((d) => ({
+                    id: d.id,
+                    label: d.label,
+                    priceCents: d.priceCents,
+                    priceUnit: d.priceUnit,
+                    teamSize: d.teamSize,
+                  }))}
+                  viewerId={user?.id ?? null}
+                  isRealUser={isRealUser}
+                  viewerRegistrations={adHocViewerRegistrations}
+                  allRegistrations={adHocAllRegistrations}
+                  {...(pickQuery(searchParams, 'rsvp')
+                    ? { resultCode: pickQuery(searchParams, 'rsvp') }
+                    : {})}
+                  {...(pickQuery(searchParams, 'rsvp_msg')
+                    ? { resultMsg: pickQuery(searchParams, 'rsvp_msg') }
+                    : {})}
+                />
+              ) : (
+                <TournamentSignupPanel
+                  eventId={event.id}
+                  eventFormat={event.format}
+                  teams={event.teams}
+                  viewerCaptainedTeams={event.viewerCaptainedTeams}
+                  viewerId={user?.id ?? null}
+                  isRealUser={isRealUser}
+                  returnPath={returnPath}
+                  {...(pickQuery(searchParams, 'team')
+                    ? { resultCode: pickQuery(searchParams, 'team') }
+                    : {})}
+                />
+              )
             }
             freeAgentPanel={
               <FreeAgentSignupPanel

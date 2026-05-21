@@ -197,4 +197,38 @@ describe('EventTeamRegistration payment transitions', () => {
     const reg = makeReg([userMember('m1', 'u1')]);
     expect(() => reg.markRefunded()).toThrow(InvariantViolation);
   });
+
+  it('expireCheckout resets Pending → None and clears session id', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.markCheckoutPending('cs_1');
+    expect(reg.checkoutSessionId).toBe('cs_1');
+    reg.expireCheckout();
+    expect(reg.paymentStatus).toBe(RegistrationPaymentStatus.None);
+    expect(reg.checkoutSessionId).toBeNull();
+  });
+
+  it('expireCheckout is a no-op when status is not Pending', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.expireCheckout();
+    expect(reg.paymentStatus).toBe(RegistrationPaymentStatus.None);
+    reg.markPaid({ paymentIntentId: 'pi', amountCents: 100, paidAt: new Date() });
+    reg.expireCheckout();
+    expect(reg.paymentStatus).toBe(RegistrationPaymentStatus.Paid);
+  });
+
+  it('captain can restart checkout after expiry', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.markCheckoutPending('cs_1');
+    reg.expireCheckout();
+    reg.markCheckoutPending('cs_2');
+    expect(reg.checkoutSessionId).toBe('cs_2');
+  });
+
+  it('roster edits are allowed again after expireCheckout', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.markCheckoutPending('cs_1');
+    reg.expireCheckout();
+    reg.addMember(guestMember('m2', 'Guest', 1));
+    expect(reg.rosterSize).toBe(2);
+  });
 });
