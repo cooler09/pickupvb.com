@@ -13,7 +13,7 @@ import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { GetEventDetailQuery } from '@pickupvb/application';
-import { skillTierFromLegacy, SkillLevel } from '@pickupvb/domain';
+import { SkillTier } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { notify } from '@/lib/notify';
 
@@ -49,7 +49,7 @@ export async function editEventAction(
   const title = field(formData, 'title');
   const description = fieldOrUndefined(formData, 'description') ?? '';
   const rules = fieldOrUndefined(formData, 'rules') ?? '';
-  const skillLevel = field(formData, 'skillLevel');
+  const skillTier = field(formData, 'skillTier');
   const visibility = field(formData, 'visibility');
   const startsAt = field(formData, 'startsAt');
   const endsAt = field(formData, 'endsAt');
@@ -264,7 +264,7 @@ export async function editEventAction(
   // event_divisions. Write them to the primary (sort_order=0) division.
   if (curDiv) {
     const divisionUpdate: Record<string, unknown> = {
-      skill_tier: skillTierFromLegacy(skillLevel as SkillLevel),
+      skill_tier: skillTier as SkillTier,
     };
     if (isOpenPlay) {
       divisionUpdate.capacity_kind = newCapacityKind;

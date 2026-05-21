@@ -18,6 +18,10 @@ type Props = {
   type: string;
   surface: string;
   skillLevel: string;
+  /** Primary division SkillTier — preferred over `skillLevel` when present. */
+  skillTier?: string | null;
+  /** Optional override label from the division row. */
+  tierLabel?: string | null;
   format: string | null;
   gender: string | null;
   status: string;
@@ -44,6 +48,8 @@ export function EventHero({
   type,
   surface,
   skillLevel,
+  skillTier,
+  tierLabel,
   format,
   gender,
   status,
@@ -75,6 +81,8 @@ export function EventHero({
           type={type}
           surface={surface}
           skillLevel={skillLevel}
+          {...(skillTier !== undefined ? { skillTier } : {})}
+          {...(tierLabel !== undefined ? { tierLabel } : {})}
           format={format}
           gender={gender}
           status={status}

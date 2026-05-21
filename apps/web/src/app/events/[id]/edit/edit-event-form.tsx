@@ -51,7 +51,7 @@ export type EditEventFormProps = {
     title: string;
     description: string;
     rules: string;
-    skillLevel: string;
+    skillTier: string;
     visibility: string;
     startsAt: Date;
     endsAt: Date;
@@ -146,19 +146,30 @@ export default function EditEventForm({
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="skillLevel" className={labelClass}>
-              Skill level
+            <label htmlFor="skillTier" className={labelClass}>
+              Skill tier
             </label>
             <select
-              id="skillLevel"
-              name="skillLevel"
-              defaultValue={initial.skillLevel}
+              id="skillTier"
+              name="skillTier"
+              defaultValue={initial.skillTier}
               className={inputClass}
             >
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-              <option value="competitive">Competitive</option>
+              <optgroup label="Beginner">
+                <option value="c">C</option>
+                <option value="b">B</option>
+              </optgroup>
+              <optgroup label="Intermediate">
+                <option value="bb">BB</option>
+                <option value="bb3">BB-3</option>
+              </optgroup>
+              <optgroup label="Advanced">
+                <option value="a">A</option>
+              </optgroup>
+              <optgroup label="Competitive">
+                <option value="aa">AA</option>
+                <option value="open">Open</option>
+              </optgroup>
             </select>
           </div>
           <div>

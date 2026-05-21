@@ -50,10 +50,15 @@ test.describe('authed smoke', () => {
       const menu = page.getByRole('button', { name: /menu|account|profile/i }).first();
       if (await menu.isVisible().catch(() => false)) await menu.click();
     }
-    await page
-      .getByRole('button', { name: /sign out/i })
-      .first()
-      .click();
+    // Sign-out submits a server action / form post; wait for the resulting
+    // navigation so the auth cookie clear is in effect before we re-visit.
+    await Promise.all([
+      page.waitForURL((url) => !/\/profile(\/|$)/.test(url.pathname), { timeout: 15_000 }),
+      page
+        .getByRole('button', { name: /sign out/i })
+        .first()
+        .click(),
+    ]);
     // After sign-out, /profile should redirect to /login.
     await page.goto('/profile');
     await expect(page).toHaveURL(/\/login/);

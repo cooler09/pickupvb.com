@@ -23,14 +23,16 @@ concurrency:
 
 jobs:
   e2e:
-    # On deployment_status: run only for successful Preview deploys of the
-    # `develop` branch. On workflow_dispatch: always run.
+    # On deployment_status: run only for successful Vercel deploys of the
+    # `develop` branch. Vercel's GitHub integration sets `environment` to the
+    # branch name for preview deploys (e.g. "develop") and "Production" for
+    # main, and sets `ref` to the commit SHA — so we gate on environment, not
+    # ref. On workflow_dispatch: always run.
     if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'deployment_status' &&
        github.event.deployment_status.state == 'success' &&
-       github.event.deployment.environment == 'Preview' &&
-       github.event.deployment.ref == 'develop')
+       github.event.deployment.environment == 'develop')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

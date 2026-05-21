@@ -45,6 +45,37 @@ function FieldError({
   return <p className={errorClass}>{msg}</p>;
 }
 
+// Renders the SkillTier ladder used by every division (incl. the implicit
+// division #1 that the top-level form represents). Grouped by SkillBand so
+// the labels still line up with the legacy band buckets.
+function SkillTierSelect({ fieldErrors }: { fieldErrors: Record<string, string> | undefined }) {
+  return (
+    <div>
+      <label htmlFor="skillTier" className={labelClass}>
+        Skill tier
+      </label>
+      <select id="skillTier" name="skillTier" defaultValue="bb" className={inputClass}>
+        <optgroup label="Beginner">
+          <option value="c">C</option>
+          <option value="b">B</option>
+        </optgroup>
+        <optgroup label="Intermediate">
+          <option value="bb">BB</option>
+          <option value="bb3">BB-3</option>
+        </optgroup>
+        <optgroup label="Advanced">
+          <option value="a">A</option>
+        </optgroup>
+        <optgroup label="Competitive">
+          <option value="aa">AA</option>
+          <option value="open">Open</option>
+        </optgroup>
+      </select>
+      <FieldError name="skillLevel" errors={fieldErrors} />
+    </div>
+  );
+}
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
@@ -582,23 +613,7 @@ function OpenPlayBody({
           </select>
           <FieldError name="surface" errors={fieldErrors} />
         </div>
-        <div>
-          <label htmlFor="skillLevel" className={labelClass}>
-            Skill level
-          </label>
-          <select
-            id="skillLevel"
-            name="skillLevel"
-            defaultValue="intermediate"
-            className={inputClass}
-          >
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="competitive">Competitive</option>
-          </select>
-          <FieldError name="skillLevel" errors={fieldErrors} />
-        </div>
+        <SkillTierSelect fieldErrors={fieldErrors} />
       </div>
 
       <div>
@@ -723,23 +738,7 @@ function TournamentBody({ fieldErrors }: { fieldErrors: Record<string, string> |
             </select>
             <FieldError name="gender" errors={fieldErrors} />
           </div>
-          <div>
-            <label htmlFor="skillLevel" className={labelClass}>
-              Skill level
-            </label>
-            <select
-              id="skillLevel"
-              name="skillLevel"
-              defaultValue="intermediate"
-              className={inputClass}
-            >
-              <option value="beginner">Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-              <option value="competitive">Competitive</option>
-            </select>
-            <FieldError name="skillLevel" errors={fieldErrors} />
-          </div>
+          <SkillTierSelect fieldErrors={fieldErrors} />
         </div>
       </div>
 
@@ -831,23 +830,7 @@ function ExternalFields({
           </select>
           <FieldError name="surface" errors={fieldErrors} />
         </div>
-        <div>
-          <label htmlFor="skillLevel" className={labelClass}>
-            Skill level
-          </label>
-          <select
-            id="skillLevel"
-            name="skillLevel"
-            defaultValue="intermediate"
-            className={inputClass}
-          >
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="competitive">Competitive</option>
-          </select>
-          <FieldError name="skillLevel" errors={fieldErrors} />
-        </div>
+        <SkillTierSelect fieldErrors={fieldErrors} />
         {type === EventType.Tournament && (
           <>
             <div>

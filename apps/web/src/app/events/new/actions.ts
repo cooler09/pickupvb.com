@@ -9,7 +9,7 @@ import {
   JoinEventCommand,
   JoinEventWithPositionCommand,
 } from '@pickupvb/application';
-import { EVENT_POSITIONS, EventType } from '@pickupvb/domain';
+import { EVENT_POSITIONS, EventType, SkillTier, skillTierBand } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
@@ -153,7 +153,12 @@ export async function createEventAction(
     surface: field(formData, 'surface'),
     format: fieldOrUndefined(formData, 'format'),
     gender: fieldOrUndefined(formData, 'gender'),
-    skillLevel: field(formData, 'skillLevel'),
+    // The form submits the precise SkillTier (matching the per-division
+    // selects); the create command still takes the legacy 4-bucket band, so
+    // derive it. Falls back to 'bb' (intermediate) if the field is missing.
+    skillLevel: skillTierBand(
+      (fieldOrUndefined(formData, 'skillTier') as SkillTier) ?? SkillTier.BB,
+    ),
     type,
     visibility: field(formData, 'visibility'),
     location: {

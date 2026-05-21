@@ -113,7 +113,13 @@ export function EventCard({ event, friendNameById }: Props) {
           {SURFACE_LABEL[event.surface] ?? event.surface}
         </span>
         <span className="bg-fg/5 rounded px-1.5 py-0.5">
-          {SKILL_LABEL[event.skillLevel] ?? event.skillLevel}
+          {(() => {
+            const primary = divisions[0];
+            if (primary) {
+              return primary.tierLabel ?? SKILL_TIER_LABEL[primary.skillTier] ?? primary.skillTier;
+            }
+            return SKILL_LABEL[event.skillLevel] ?? event.skillLevel;
+          })()}
         </span>
         {event.isFundraiser && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Fundraiser</span>
