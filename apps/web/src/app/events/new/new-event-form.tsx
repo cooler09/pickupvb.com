@@ -45,16 +45,41 @@ function FieldError({
   return <p className={errorClass}>{msg}</p>;
 }
 
+/** Lookup a previously-submitted form value (echoed back on action error) */
+function val(values: Record<string, string> | undefined, name: string, fallback = ''): string {
+  return values?.[name] ?? fallback;
+}
+function chk(
+  values: Record<string, string> | undefined,
+  submitted: boolean | undefined,
+  name: string,
+  fallback = false,
+): boolean {
+  if (!submitted) return fallback;
+  return values?.[name] === 'on';
+}
+
 // Renders the SkillTier ladder used by every division (incl. the implicit
 // division #1 that the top-level form represents). Grouped by SkillBand so
 // the labels still line up with the legacy band buckets.
-function SkillTierSelect({ fieldErrors }: { fieldErrors: Record<string, string> | undefined }) {
+function SkillTierSelect({
+  fieldErrors,
+  values,
+}: {
+  fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
+}) {
   return (
     <div>
       <label htmlFor="skillTier" className={labelClass}>
         Skill tier
       </label>
-      <select id="skillTier" name="skillTier" defaultValue="bb" className={inputClass}>
+      <select
+        id="skillTier"
+        name="skillTier"
+        defaultValue={val(values, 'skillTier', 'bb')}
+        className={inputClass}
+      >
         <optgroup label="Beginner">
           <option value="c">C</option>
           <option value="b">B</option>
@@ -169,28 +194,53 @@ export default function NewEventForm({
   hostableGroups?: { id: string; name: string }[];
 }) {
   const [state, formAction] = useFormState(createEventAction, initialState);
-  const [type, setType] = useState<EventType>(EventType.OpenPlay);
-  const [isExternal, setIsExternal] = useState(false);
+  const values = state.values;
+  const submitted = state.submitted;
+  const [type, setType] = useState<EventType>(
+    (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
+  );
+  const [isExternal, setIsExternal] = useState(chk(values, submitted, 'isExternal', false));
 
   // Capacity is a single 3-way selector now (Unlimited / Fixed / By position).
   // It's only meaningful for open-play, on-platform events.
-  const [capacityKind, setCapacityKind] = useState<CapacityKind>('unlimited');
+  const [capacityKind, setCapacityKind] = useState<CapacityKind>(() => {
+    if (chk(values, submitted, 'byPosition', false)) return 'by_position';
+    const raw = val(values, 'capacityKind', 'unlimited');
+    return raw === 'fixed' ? 'fixed' : 'unlimited';
+  });
   const byPosition = capacityKind === 'by_position';
-  const [positionCounts, setPositionCounts] =
-    useState<Record<EventPosition, number>>(DEFAULT_POSITION_ROSTER);
+  const [positionCounts, setPositionCounts] = useState<Record<EventPosition, number>>(() => {
+    if (!submitted) return DEFAULT_POSITION_ROSTER;
+    const out = { ...DEFAULT_POSITION_ROSTER };
+    for (const pos of EVENT_POSITIONS) {
+      const raw = values?.[`position_${pos}`];
+      if (raw !== undefined) out[pos] = Math.max(0, Math.floor(Number(raw) || 0));
+    }
+    return out;
+  });
   const positionTotal = Object.values(positionCounts).reduce((a, b) => a + b, 0);
 
   // Address (autocomplete fills these; user can edit any of them).
-  const [addressLine, setAddressLine] = useState('');
-  const [city, setCity] = useState('');
-  const [region, setRegion] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-  const [country, setCountry] = useState('USA');
+  const [addressLine, setAddressLine] = useState(val(values, 'addressLine', ''));
+  const [city, setCity] = useState(val(values, 'city', ''));
+  const [region, setRegion] = useState(val(values, 'region', ''));
+  const [postalCode, setPostalCode] = useState(val(values, 'postalCode', ''));
+  const [country, setCountry] = useState(val(values, 'country', 'USA'));
   const hasAddress = addressLine.trim().length > 0;
   const [addressOpen, setAddressOpen] = useState(false);
 
-  const [startsAt, setStartsAt] = useState<Date | null>(null);
-  const [endsAt, setEndsAt] = useState<Date | null>(null);
+  const [startsAt, setStartsAt] = useState<Date | null>(() => {
+    const raw = values?.startsAt;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  });
+  const [endsAt, setEndsAt] = useState<Date | null>(() => {
+    const raw = values?.endsAt;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  });
 
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
@@ -280,6 +330,7 @@ export default function NewEventForm({
             required
             minLength={3}
             maxLength={120}
+            defaultValue={val(values, 'title')}
             placeholder="Tuesday night open gym"
             className={inputClass}
           />
@@ -294,6 +345,7 @@ export default function NewEventForm({
             name="description"
             rows={3}
             maxLength={4000}
+            defaultValue={val(values, 'description')}
             placeholder="Indoor 6's, all levels welcome. Bring kneepads — we'll rotate teams every set."
             className={inputClass}
           />
@@ -303,7 +355,12 @@ export default function NewEventForm({
           <label htmlFor="hostGroupId" className={labelClass}>
             Host as
           </label>
-          <select id="hostGroupId" name="hostGroupId" defaultValue="" className={inputClass}>
+          <select
+            id="hostGroupId"
+            name="hostGroupId"
+            defaultValue={val(values, 'hostGroupId', '')}
+            className={inputClass}
+          >
             <option value="">Yourself</option>
             {hostableGroups.map((g) => (
               <option key={g.id} value={g.id}>
@@ -491,7 +548,7 @@ export default function NewEventForm({
         </div>
 
         {isExternal ? (
-          <ExternalFields type={type} fieldErrors={state.fieldErrors} />
+          <ExternalFields type={type} fieldErrors={state.fieldErrors} values={values} />
         ) : type === EventType.OpenPlay ? (
           <OpenPlayBody
             capacityKind={capacityKind}
@@ -501,13 +558,21 @@ export default function NewEventForm({
             setPositionCounts={setPositionCounts}
             positionTotal={positionTotal}
             fieldErrors={state.fieldErrors}
+            values={values}
+            submitted={submitted}
           />
         ) : (
           <DivisionsRepeater defaultSurface="indoor" requireAtLeastOne />
         )}
 
-        {showPricing && <PricingSubsection fieldErrors={state.fieldErrors} />}
-        {showPaymentSettings && <PaymentSettingsSubsection />}
+        {showPricing && (
+          <PricingSubsection
+            fieldErrors={state.fieldErrors}
+            values={values}
+            submitted={submitted}
+          />
+        )}
+        {showPaymentSettings && <PaymentSettingsSubsection values={values} submitted={submitted} />}
       </section>
 
       {/* Hidden fields the server action expects. Top-level format/gender
@@ -541,7 +606,12 @@ export default function NewEventForm({
           <label htmlFor="visibility" className={labelClass}>
             Who can see this event?
           </label>
-          <select id="visibility" name="visibility" defaultValue="public" className={inputClass}>
+          <select
+            id="visibility"
+            name="visibility"
+            defaultValue={val(values, 'visibility', 'public')}
+            className={inputClass}
+          >
             <option value="public">Public — anyone can find it</option>
             <option value="invite_only">Invite only</option>
             <option value="friends_of_host">People the host follows</option>
@@ -558,6 +628,7 @@ export default function NewEventForm({
             name="rules"
             rows={2}
             maxLength={4000}
+            defaultValue={val(values, 'rules')}
             placeholder="Rally scoring to 25, win by 2. Captain's choice on lets."
             className={inputClass}
           />
@@ -594,6 +665,8 @@ function OpenPlayBody({
   setPositionCounts,
   positionTotal,
   fieldErrors,
+  values,
+  submitted,
 }: {
   capacityKind: CapacityKind;
   setCapacityKind: (k: CapacityKind) => void;
@@ -602,6 +675,8 @@ function OpenPlayBody({
   setPositionCounts: React.Dispatch<React.SetStateAction<Record<EventPosition, number>>>;
   positionTotal: number;
   fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
 }) {
   return (
     <>
@@ -610,14 +685,19 @@ function OpenPlayBody({
           <label htmlFor="surface" className={labelClass}>
             Surface
           </label>
-          <select id="surface" name="surface" defaultValue="indoor" className={inputClass}>
+          <select
+            id="surface"
+            name="surface"
+            defaultValue={val(values, 'surface', 'indoor')}
+            className={inputClass}
+          >
             <option value="indoor">Indoor</option>
             <option value="grass">Grass</option>
             <option value="sand">Sand</option>
           </select>
           <FieldError name="surface" errors={fieldErrors} />
         </div>
-        <SkillTierSelect fieldErrors={fieldErrors} />
+        <SkillTierSelect fieldErrors={fieldErrors} values={values} />
       </div>
 
       <div>
@@ -640,7 +720,14 @@ function OpenPlayBody({
             <label htmlFor="maxSpots" className={labelClass}>
               Max spots
             </label>
-            <input id="maxSpots" name="maxSpots" type="number" min={1} className={inputClass} />
+            <input
+              id="maxSpots"
+              name="maxSpots"
+              type="number"
+              min={1}
+              defaultValue={val(values, 'maxSpots')}
+              className={inputClass}
+            />
             <FieldError name="capacity" errors={fieldErrors} />
           </div>
         )}
@@ -684,7 +771,12 @@ function OpenPlayBody({
       </div>
 
       <label className="bg-highlight/40 flex items-start gap-2 rounded-md p-3 text-sm">
-        <input type="checkbox" name="joinAsHost" defaultChecked className="mt-0.5" />
+        <input
+          type="checkbox"
+          name="joinAsHost"
+          defaultChecked={chk(values, submitted, 'joinAsHost', true)}
+          className="mt-0.5"
+        />
         <span>
           <span className="text-fg font-medium">Sign me up as a player too</span>
           <span className="text-muted block text-xs">
@@ -697,7 +789,13 @@ function OpenPlayBody({
   );
 }
 
-function PaymentSettingsSubsection() {
+function PaymentSettingsSubsection({
+  values,
+  submitted,
+}: {
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
+}) {
   return (
     <div className="border-border-base space-y-3 border-t pt-4">
       <div>
@@ -712,7 +810,12 @@ function PaymentSettingsSubsection() {
         </p>
       </div>
       <label className="flex items-start gap-2 text-xs">
-        <input type="checkbox" name="paymentsOffPlatform" className="mt-0.5" />
+        <input
+          type="checkbox"
+          name="paymentsOffPlatform"
+          defaultChecked={chk(values, submitted, 'paymentsOffPlatform', false)}
+          className="mt-0.5"
+        />
         <span>
           <span className="text-fg font-medium">
             I&apos;ll collect payment myself (off-platform)
@@ -731,6 +834,7 @@ function PaymentSettingsSubsection() {
           name="paymentInstructions"
           rows={2}
           maxLength={2000}
+          defaultValue={val(values, 'paymentInstructions')}
           placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
           className={inputClass}
         />
@@ -747,7 +851,7 @@ function PaymentSettingsSubsection() {
             min="0"
             max="720"
             step="1"
-            defaultValue="24"
+            defaultValue={val(values, 'refundWindowHours', '24')}
             className={inputClass}
           />
           <p className="text-muted mt-1 text-xs">
@@ -756,7 +860,12 @@ function PaymentSettingsSubsection() {
         </div>
         <div className="flex items-end">
           <label className="flex items-start gap-2 text-xs">
-            <input type="checkbox" name="hostAbsorbsFee" className="mt-0.5" />
+            <input
+              type="checkbox"
+              name="hostAbsorbsFee"
+              defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
+              className="mt-0.5"
+            />
             <span>
               <span className="text-fg font-medium">Absorb the 5% service fee</span>
               <span className="text-muted block">Otherwise added to ticket price.</span>
@@ -768,7 +877,15 @@ function PaymentSettingsSubsection() {
   );
 }
 
-function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string> | undefined }) {
+function PricingSubsection({
+  fieldErrors,
+  values,
+  submitted,
+}: {
+  fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
+}) {
   return (
     <div className="border-border-base space-y-3 border-t pt-4">
       <div>
@@ -782,7 +899,12 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
         </p>
       </div>
       <label className="flex items-start gap-2 text-xs">
-        <input type="checkbox" name="paymentsOffPlatform" className="mt-0.5" />
+        <input
+          type="checkbox"
+          name="paymentsOffPlatform"
+          defaultChecked={chk(values, submitted, 'paymentsOffPlatform', false)}
+          className="mt-0.5"
+        />
         <span>
           <span className="text-fg font-medium">
             I&apos;ll collect payment myself (off-platform)
@@ -801,6 +923,7 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
           name="paymentInstructions"
           rows={2}
           maxLength={2000}
+          defaultValue={val(values, 'paymentInstructions')}
           placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
           className={inputClass}
         />
@@ -817,7 +940,7 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
             min="0"
             max="10000"
             step="0.01"
-            defaultValue="0"
+            defaultValue={val(values, 'priceUsd', '0')}
             className={inputClass}
           />
         </div>
@@ -832,7 +955,7 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
             min="0"
             max="720"
             step="1"
-            defaultValue="24"
+            defaultValue={val(values, 'refundWindowHours', '24')}
             className={inputClass}
           />
           <p className="text-muted mt-1 text-xs">
@@ -841,7 +964,12 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
         </div>
         <div className="flex items-end">
           <label className="flex items-start gap-2 text-xs">
-            <input type="checkbox" name="hostAbsorbsFee" className="mt-0.5" />
+            <input
+              type="checkbox"
+              name="hostAbsorbsFee"
+              defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
+              className="mt-0.5"
+            />
             <span>
               <span className="text-fg font-medium">Absorb the 5% service fee</span>
               <span className="text-muted block">Otherwise added to ticket price.</span>
@@ -857,9 +985,11 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
 function ExternalFields({
   type,
   fieldErrors,
+  values,
 }: {
   type: EventType;
   fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
 }) {
   return (
     <div className="space-y-4">
@@ -868,21 +998,31 @@ function ExternalFields({
           <label htmlFor="surface" className={labelClass}>
             Surface
           </label>
-          <select id="surface" name="surface" defaultValue="indoor" className={inputClass}>
+          <select
+            id="surface"
+            name="surface"
+            defaultValue={val(values, 'surface', 'indoor')}
+            className={inputClass}
+          >
             <option value="indoor">Indoor</option>
             <option value="grass">Grass</option>
             <option value="sand">Sand</option>
           </select>
           <FieldError name="surface" errors={fieldErrors} />
         </div>
-        <SkillTierSelect fieldErrors={fieldErrors} />
+        <SkillTierSelect fieldErrors={fieldErrors} values={values} />
         {type === EventType.Tournament && (
           <>
             <div>
               <label htmlFor="format" className={labelClass}>
                 Format
               </label>
-              <select id="format" name="format" defaultValue="sixes" className={inputClass}>
+              <select
+                id="format"
+                name="format"
+                defaultValue={val(values, 'format', 'sixes')}
+                className={inputClass}
+              >
                 <option value="sixes">Sixes</option>
                 <option value="quads">Quads</option>
                 <option value="triples">Triples</option>
@@ -894,7 +1034,12 @@ function ExternalFields({
               <label htmlFor="gender" className={labelClass}>
                 Gender
               </label>
-              <select id="gender" name="gender" defaultValue="coed" className={inputClass}>
+              <select
+                id="gender"
+                name="gender"
+                defaultValue={val(values, 'gender', 'coed')}
+                className={inputClass}
+              >
                 <option value="coed">Coed</option>
                 <option value="mens">Men&apos;s</option>
                 <option value="womens">Women&apos;s</option>
@@ -913,6 +1058,7 @@ function ExternalFields({
           name="externalRegistrationUrl"
           type="url"
           maxLength={2048}
+          defaultValue={val(values, 'externalRegistrationUrl')}
           placeholder="https://…"
           className={inputClass}
         />
@@ -926,6 +1072,7 @@ function ExternalFields({
           name="externalRegistrationInstructions"
           rows={2}
           maxLength={2000}
+          defaultValue={val(values, 'externalRegistrationInstructions')}
           placeholder="e.g. Register via AES by Friday. Bring photo ID to check-in."
           className={inputClass}
         />
@@ -939,6 +1086,7 @@ function ExternalFields({
           name="paymentInstructions"
           rows={2}
           maxLength={2000}
+          defaultValue={val(values, 'paymentInstructions')}
           placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
           className={inputClass}
         />

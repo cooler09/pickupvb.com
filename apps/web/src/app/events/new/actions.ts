@@ -22,15 +22,33 @@ import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 export type CreateEventState = {
   error?: string;
   fieldErrors?: Record<string, string>;
+  /** True once any submission has been attempted (success or failure). */
+  submitted?: boolean;
+  /** Snapshot of submitted form values, echoed back so uncontrolled inputs
+   *  can restore the user's entries when the action returns an error. */
+  values?: Record<string, string>;
 };
+
+/** Collect string entries from a FormData for echo-on-error. */
+function snapshot(formData: FormData): { submitted: true; values: Record<string, string> } {
+  const values: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) {
+    if (typeof v === 'string') values[k] = v;
+  }
+  return { submitted: true, values };
+}
 
 export async function createEventAction(
   _prev: CreateEventState,
   formData: FormData,
 ): Promise<CreateEventState> {
   const viewer = await getViewer();
-  if (!viewer) return { error: 'You must be signed in to host an event.' };
-  if (viewer.isAnonymous) return { error: 'Finish claiming your account before hosting an event.' };
+  if (!viewer) return { ...snapshot(formData), error: 'You must be signed in to host an event.' };
+  if (viewer.isAnonymous)
+    return {
+      ...snapshot(formData),
+      error: 'Finish claiming your account before hosting an event.',
+    };
   const { supabase, user } = viewer;
 
   const type = field(formData, 'type');
@@ -57,7 +75,11 @@ export async function createEventAction(
     coords = await geocodeAddress({ addressLine, city, region, postalCode, country });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not geocode address.';
-    return { error: message, fieldErrors: { 'location.addressLine': message } };
+    return {
+      ...snapshot(formData),
+      error: message,
+      fieldErrors: { 'location.addressLine': message },
+    };
   }
 
   // ---- ADR 0006 event-level extensions ------------------------------------
@@ -154,6 +176,7 @@ export async function createEventAction(
   const isTournament = type === EventType.Tournament;
   if (isTournament && !isExternal && divisions.length === 0) {
     return {
+      ...snapshot(formData),
       error: 'Add at least one division for your tournament.',
       fieldErrors: { divisions: 'Add at least one division.' },
     };
@@ -222,9 +245,9 @@ export async function createEventAction(
         const path = issue.path.join('.');
         if (!fieldErrors[path]) fieldErrors[path] = issue.message;
       }
-      return { error: 'Please fix the highlighted fields.', fieldErrors };
+      return { ...snapshot(formData), error: 'Please fix the highlighted fields.', fieldErrors };
     }
-    return { error: 'Could not parse form input.' };
+    return { ...snapshot(formData), error: 'Could not parse form input.' };
   }
 
   let result: { id: string };
@@ -232,7 +255,7 @@ export async function createEventAction(
     result = await handlers.createEvent.execute(new CreateEventCommand(user.id, dto));
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to create event.';
-    return { error: message };
+    return { ...snapshot(formData), error: message };
   }
 
   // If the user chose to host on behalf of a group, attach it to the row.
@@ -244,7 +267,10 @@ export async function createEventAction(
       .update({ host_group_id: hostGroupId } as never)
       .eq('id', result.id);
     if (groupErr) {
-      return { error: `Event created, but couldn't set group host: ${groupErr.message}` };
+      return {
+        ...snapshot(formData),
+        error: `Event created, but couldn't set group host: ${groupErr.message}`,
+      };
     }
   }
 
@@ -267,14 +293,14 @@ export async function createEventAction(
     const cap = await validateHostPaidEventCap(user.id, { includesCurrentEvent: true });
     if (!cap.ok) {
       await supabase.from('events').delete().eq('id', result.id);
-      return { error: cap.reason };
+      return { ...snapshot(formData), error: cap.reason };
     }
     const stripe = await requireHostChargesEnabled(user.id);
     if (!stripe.ok) {
       // Roll back the event so the host doesn't end up with a free
       // event they thought was paid.
       await supabase.from('events').delete().eq('id', result.id);
-      return { error: stripe.reason };
+      return { ...snapshot(formData), error: stripe.reason };
     }
     const refundWindowHours = parseRefundWindowHours(
       fieldOrUndefined(formData, 'refundWindowHours'),
@@ -288,7 +314,10 @@ export async function createEventAction(
       } as never)
       .eq('id', result.id);
     if (priceErr) {
-      return { error: `Event created, but pricing failed: ${priceErr.message}` };
+      return {
+        ...snapshot(formData),
+        error: `Event created, but pricing failed: ${priceErr.message}`,
+      };
     }
     // Pricing now lives on event_divisions (ADR 0006 Phase 9a). For
     // open-play we update the first (default) division here. Tournaments
@@ -300,7 +329,10 @@ export async function createEventAction(
         .eq('event_id', result.id)
         .eq('sort_order', 0);
       if (divPriceErr) {
-        return { error: `Event created, but pricing failed: ${divPriceErr.message}` };
+        return {
+          ...snapshot(formData),
+          error: `Event created, but pricing failed: ${divPriceErr.message}`,
+        };
       }
     }
   }
