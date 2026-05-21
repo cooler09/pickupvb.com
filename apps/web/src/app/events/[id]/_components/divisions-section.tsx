@@ -33,6 +33,13 @@ function formatCapacity(kind: 'fixed' | 'unlimited' | null, maxSpots: number | n
  */
 export function DivisionsSection({ divisions }: Props) {
   if (divisions.length === 0) return null;
+  // Per ADR 0007: until per-division checkout lands, we only render the
+  // per-division price for single-division events (where it matches what
+  // the resolved event-level checkout actually charges). For multi-division
+  // events we suppress the price so the UI doesn't advertise a number the
+  // checkout doesn't honor; the event-level price summary in the hero is the
+  // source of truth in the interim.
+  const showPerDivisionPrice = divisions.length === 1;
   return (
     <section className="space-y-3">
       <h2 className="text-fg text-lg font-semibold">
@@ -40,7 +47,7 @@ export function DivisionsSection({ divisions }: Props) {
       </h2>
       <ul className="space-y-3">
         {divisions.map((d) => {
-          const price = formatPrice(d.priceCents, d.priceUnit);
+          const price = showPerDivisionPrice ? formatPrice(d.priceCents, d.priceUnit) : null;
           const tierLabel = d.tierLabel ?? SKILL_TIER_LABEL[d.skillTier] ?? d.skillTier;
           return (
             <li

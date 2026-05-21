@@ -11,13 +11,14 @@ before making changes. Related reading:
 
 ## Verify
 
-After any non-trivial change, run **all three** from the repo root:
+After any non-trivial change, run **all four** from the repo root:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm build
+pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
 
-Turborepo caches, so re-runs are fast. Don't ship a change until all three pass.
+Turborepo caches, so re-runs are fast. Don't ship a change until all four pass.
+`pnpm test` runs the Vitest suites in `packages/domain` and `packages/application`.
 
 ## Do not commit or push
 
@@ -232,8 +233,8 @@ add a test in `packages/{domain,application}/src/**/*.test.ts`.
   `createSupabaseBrowserClient()` inside `'use client'` files.
 - **Adding a string error code in the application layer.** Define a typed
   `DomainError` subclass instead.
-- **Shipping a "fix" without `pnpm typecheck && pnpm lint && pnpm build`.**
+- **Shipping a "fix" without `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.**
   The build catches issues the editor doesn't (route type generation,
-  `next/font` validation, etc.).
+  `next/font` validation, etc.); the tests guard domain/application invariants.
 - **Refactoring beyond what was asked.** Match the surrounding style; don't
   drop in unrelated improvements.

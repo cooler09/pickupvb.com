@@ -1,4 +1,5 @@
 export * from './supabase-event-repository';
+export * from './supabase-event-team-registration-repository';
 export * from './supabase-team-repository';
 export * from './supabase-bracket-repository';
 export * from './supabase-host-stripe-account-repository';

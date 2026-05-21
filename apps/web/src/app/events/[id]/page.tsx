@@ -421,6 +421,7 @@ export default async function EventDetailPage(props: {
               ticketCents={breakdown.ticketCents}
               platformFeeCents={breakdown.platformFeeCents}
               refundWindowHours={pricing!.refundWindowHours}
+              paymentsOffPlatform={event.paymentsOffPlatform}
               {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
             />
           ) : event.positionRoster ? (

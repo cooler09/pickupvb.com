@@ -162,6 +162,25 @@ export const RegistrationMode = {
 } as const;
 export type RegistrationMode = (typeof RegistrationMode)[keyof typeof RegistrationMode];
 
+/**
+ * How team registration works for an event (ADR 0007).
+ *
+ *   - `AdHoc`  Captain assembles a one-off team at signup time. The team
+ *              is event-scoped and stored in `event_team_registrations`;
+ *              members may be existing users (by id) or freeform names/emails
+ *              for unregistered players. Default for tournaments.
+ *   - `Roster` Captain picks one of their persistent `teams`. Best for stable
+ *              squads (school, club, series).
+ *
+ * `null` at the event level means team registration is not applicable
+ * (open-play events use individual RSVP only).
+ */
+export const TeamRegistrationMode = {
+  AdHoc: 'ad_hoc',
+  Roster: 'roster',
+} as const;
+export type TeamRegistrationMode = (typeof TeamRegistrationMode)[keyof typeof TeamRegistrationMode];
+
 export const EventType = {
   OpenPlay: 'open_play',
   Tournament: 'tournament',

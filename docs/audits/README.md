@@ -15,6 +15,7 @@ land its fixes.
 | [Documentation](documentation.md)                 | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
 | [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
 | [Events page UX](events-page-ux.md)               | 2026-05-18 | Quick-win + larger-changes bundles landed (2026-05-18) |
+| [Registration workflow](registration-workflow.md) | 2026-05-21 | Open                                                   |
 
 ## How findings are graded
 

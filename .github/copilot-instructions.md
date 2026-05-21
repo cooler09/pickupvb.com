@@ -14,7 +14,7 @@ Related reading:
 
 ## Quick reminders (also in AGENTS.md)
 
-- Verify after any non-trivial change: `pnpm typecheck && pnpm lint && pnpm build`.
+- Verify after any non-trivial change: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
 - Throw typed `DomainError` subclasses (`NotFoundError`, `ConflictError`,
   `CapacityExceededError`, `UnauthorizedError`, `ValidationError`,
   `InvariantViolation`) — never `throw new Error('NOT_FOUND')`.

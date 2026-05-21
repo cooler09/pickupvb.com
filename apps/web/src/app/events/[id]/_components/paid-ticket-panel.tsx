@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
-import { SubmitButton } from '@/components/submit-button';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
 import GuestSignupForm from '../guest-signup-form';
 import { joinEvent, leaveEvent } from '../rsvp-actions';
@@ -13,6 +12,12 @@ type Props = {
   ticketCents: number;
   platformFeeCents: number;
   refundWindowHours: number;
+  /**
+   * When true, the host is collecting payment outside the app (cash,
+   * Venmo, etc.). The panel shows a single "reserve spot — pay the host"
+   * CTA and hides the Stripe path entirely.
+   */
+  paymentsOffPlatform: boolean;
   /** Viewer's own payment status, used to colour the "you're in" pill. */
   viewerPaymentStatus?: 'paid' | 'pending' | 'none';
 };
@@ -54,6 +59,7 @@ export function PaidTicketPanel({
   ticketCents,
   platformFeeCents,
   refundWindowHours,
+  paymentsOffPlatform,
   viewerPaymentStatus,
 }: Props) {
   const total = ticketCents + platformFeeCents;
@@ -66,27 +72,30 @@ export function PaidTicketPanel({
       };
   return (
     <div className="space-y-4">
-      <div className="border-border-base overflow-hidden rounded-lg border sm:grid sm:grid-cols-2">
-        <div className="bg-fg/5 sm:border-border-base p-4 sm:border-r">
-          <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">
-            Pay in person
-          </h2>
-          <p className="text-fg mt-1 text-2xl font-bold">{formatUsd(ticketCents)}</p>
-          <p className="text-muted text-xs">
-            Cash, Venmo, etc. — settle up with the host at the event.
-          </p>
-        </div>
-        <div className="border-border-base bg-fg/5 border-t p-4 sm:border-t-0 sm:border-l-0">
-          <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Pay online</h2>
-          <p className="text-fg mt-1 text-2xl font-bold">{formatUsd(total)}</p>
-          {platformFeeCents > 0 ? (
+      <div className="border-border-base bg-fg/5 overflow-hidden rounded-lg border p-4">
+        {paymentsOffPlatform ? (
+          <>
+            <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">
+              Pay in person
+            </h2>
+            <p className="text-fg mt-1 text-2xl font-bold">{formatUsd(ticketCents)}</p>
             <p className="text-muted text-xs">
-              {formatUsd(ticketCents)} to the host + {formatUsd(platformFeeCents)} service fee
+              Cash, Venmo, etc. — settle up with the host at the event.
             </p>
-          ) : (
-            <p className="text-muted text-xs">Service fee absorbed by host</p>
-          )}
-        </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Pay online</h2>
+            <p className="text-fg mt-1 text-2xl font-bold">{formatUsd(total)}</p>
+            {platformFeeCents > 0 ? (
+              <p className="text-muted text-xs">
+                {formatUsd(ticketCents)} to the host + {formatUsd(platformFeeCents)} service fee
+              </p>
+            ) : (
+              <p className="text-muted text-xs">Service fee absorbed by host</p>
+            )}
+          </>
+        )}
       </div>
 
       {isAttending ? (
@@ -119,7 +128,7 @@ export function PaidTicketPanel({
           )}
         </div>
       ) : isRealUser ? (
-        <div className="space-y-3">
+        paymentsOffPlatform ? (
           <form action={joinEvent.bind(null, eventId)} className="flex justify-end">
             <ConfirmSubmitButton
               label={`Sign up — pay the host ${formatUsd(ticketCents)}`}
@@ -127,72 +136,78 @@ export function PaidTicketPanel({
               confirmMessage={`Sign up for "${eventTitle}" and pay the host ${formatUsd(ticketCents)} in person (cash, Venmo, etc.)?`}
             />
           </form>
+        ) : (
           <div className="flex flex-col items-end gap-1">
             <form action={startTicketCheckout.bind(null, eventId)}>
-              <SubmitButton className="border-border-base text-fg/70 hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs disabled:opacity-50">
-                Or pay online now — {formatUsd(total)}
-              </SubmitButton>
+              <ConfirmSubmitButton
+                label={`Pay online — ${formatUsd(total)}`}
+                pendingLabel="Redirecting…"
+                confirmMessage={`Continue to Stripe to pay ${formatUsd(total)}?`}
+              />
             </form>
-            <p className="text-muted max-w-[18rem] text-right text-[10px]">
-              Includes {formatUsd(platformFeeCents)} service fee. Paying in person? Skip this.
-            </p>
+            {platformFeeCents > 0 && (
+              <p className="text-muted max-w-[18rem] text-right text-[10px]">
+                Includes {formatUsd(platformFeeCents)} service fee.
+              </p>
+            )}
           </div>
-        </div>
+        )
       ) : (
         <div className="space-y-4">
-          <section className="border-border-base rounded-lg border p-4">
-            <h2 className="text-fg text-sm font-semibold">
-              Sign up & pay the host {formatUsd(ticketCents)} in person
-            </h2>
-            <p className="text-muted mb-3 text-xs">
-              No account needed — just your name. You&apos;ll settle up with the host at the event
-              (cash, Venmo, etc.).
-            </p>
-            <GuestSignupForm eventId={eventId} />
-          </section>
-
-          <section className="border-border-base rounded-lg border p-4">
-            <h2 className="text-fg text-sm font-semibold">
-              Or pay online now — {formatUsd(total)}
-            </h2>
-            <p className="text-muted mb-3 text-xs">
-              Includes {formatUsd(platformFeeCents)} service fee. We need an email to send your
-              receipt + cancellation link.
-            </p>
-            <form action={startGuestTicketCheckout.bind(null, eventId)} className="space-y-3">
-              <div>
-                <label htmlFor="guest-name" className="text-fg block text-xs font-medium">
-                  Your name
-                </label>
-                <input
-                  id="guest-name"
-                  name="display_name"
-                  required
-                  maxLength={80}
-                  className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label htmlFor="guest-email" className="text-fg block text-xs font-medium">
-                  Email
-                </label>
-                <input
-                  id="guest-email"
-                  name="email"
-                  type="email"
-                  required
-                  className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="flex justify-end">
-                <ConfirmSubmitButton
-                  label={`Pay online — ${formatUsd(total)}`}
-                  pendingLabel="Redirecting…"
-                  confirmMessage={`Continue to Stripe to pay ${formatUsd(total)}?`}
-                />
-              </div>
-            </form>
-          </section>
+          {paymentsOffPlatform ? (
+            <section className="border-border-base rounded-lg border p-4">
+              <h2 className="text-fg text-sm font-semibold">
+                Sign up & pay the host {formatUsd(ticketCents)} in person
+              </h2>
+              <p className="text-muted mb-3 text-xs">
+                No account needed — just your name. You&apos;ll settle up with the host at the event
+                (cash, Venmo, etc.).
+              </p>
+              <GuestSignupForm eventId={eventId} />
+            </section>
+          ) : (
+            <section className="border-border-base rounded-lg border p-4">
+              <h2 className="text-fg text-sm font-semibold">Pay online — {formatUsd(total)}</h2>
+              <p className="text-muted mb-3 text-xs">
+                {platformFeeCents > 0
+                  ? `Includes ${formatUsd(platformFeeCents)} service fee. We need an email to send your receipt + cancellation link.`
+                  : 'We need an email to send your receipt + cancellation link.'}
+              </p>
+              <form action={startGuestTicketCheckout.bind(null, eventId)} className="space-y-3">
+                <div>
+                  <label htmlFor="guest-name" className="text-fg block text-xs font-medium">
+                    Your name
+                  </label>
+                  <input
+                    id="guest-name"
+                    name="display_name"
+                    required
+                    maxLength={80}
+                    className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="guest-email" className="text-fg block text-xs font-medium">
+                    Email
+                  </label>
+                  <input
+                    id="guest-email"
+                    name="email"
+                    type="email"
+                    required
+                    className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <ConfirmSubmitButton
+                    label={`Pay online — ${formatUsd(total)}`}
+                    pendingLabel="Redirecting…"
+                    confirmMessage={`Continue to Stripe to pay ${formatUsd(total)}?`}
+                  />
+                </div>
+              </form>
+            </section>
+          )}
 
           <p className="text-muted text-center text-xs">
             Already have an account?{' '}
