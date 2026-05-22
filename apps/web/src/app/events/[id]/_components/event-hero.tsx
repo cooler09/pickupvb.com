@@ -36,6 +36,13 @@ type Props = {
   cta: EventHeroCta;
   /** Number of divisions; passed through to EventTags. */
   divisionCount?: number;
+  /**
+   * Whether registration closes within 72 hours. Computed by the parent
+   * page at the request boundary (server components only) so the hero
+   * itself stays free of impure clock reads — the React Compiler purity
+   * rule rejects `Date.now()` inside render.
+   */
+  closingSoon?: boolean;
 };
 
 /**
@@ -65,15 +72,8 @@ export function EventHero({
   canManage,
   cta,
   divisionCount,
+  closingSoon = false,
 }: Props) {
-  // Surface a closing-soon countdown when the registration deadline is
-  // within 72 hours. Done in user-local time on the client; SSR shows the
-  // long-form fallback so the SEO meta still resolves.
-  const now = Date.now();
-  const closesAtMs = registrationClosesAt ? registrationClosesAt.getTime() : null;
-  const closingSoon =
-    closesAtMs !== null && closesAtMs > now && closesAtMs - now <= 72 * 60 * 60 * 1000;
-
   return (
     <header className="space-y-2">
       {/* Row 1 — tags on the left, secondary actions on the right.
@@ -130,7 +130,7 @@ export function EventHero({
             </span>
           </>
         )}
-        {closingSoon && closesAtMs !== null && (
+        {closingSoon && registrationClosesAt !== null && (
           <span
             className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900"
             aria-label="Registration closing soon"

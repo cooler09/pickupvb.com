@@ -5,12 +5,15 @@ state of the repo at the date in the document header. Use them as a backlog
 of remediation work, not as a permanent reference. Re-run an audit after you
 land its fixes.
 
+For the narrative behind each remediation bundle (decisions, rejected
+alternatives, patterns observed), see [docs/journal/](../journal/).
+
 | Audit                                             | Date       | Status                                                                     |
 | ------------------------------------------------- | ---------- | -------------------------------------------------------------------------- |
-| [Security](security.md)                           | 2026-05-22 | New P1: 15 `next` advisories (5 high). Quick-win bundle landed 2026-05-17  |
-| [Performance](performance.md)                     | 2026-05-22 | New P1: 9 React Compiler warnings. Quick-win bundle landed 2026-05-17      |
+| [Security](security.md)                           | 2026-05-22 | postcss override landed 2026-05-22 (Bundle 2); CSP still open              |
+| [Performance](performance.md)                     | 2026-05-22 | React Compiler lint cleared 2026-05-22 (Bundle 2); page-diet still open    |
 | [Architecture (CQRS/DRY/SOLID)](architecture.md)  | 2026-05-22 | New P2s (revalidatePath; billing typed errors); page-diet regressed        |
-| [508 / Accessibility](accessibility.md)           | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |
+| [508 / Accessibility](accessibility.md)           | 2026-05-22 | Mobile menu focus trap + shared FieldError landed 2026-05-22 (Bundle 2)    |
 | [SEO](seo.md)                                     | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |
 | [Documentation](documentation.md)                 | 2026-05-22 | AGENTS Audits section landed 2026-05-22; ADR backfill + READMEs still open |
 | [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |

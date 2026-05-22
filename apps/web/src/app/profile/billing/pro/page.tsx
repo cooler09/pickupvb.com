@@ -6,6 +6,7 @@ import { getHostSubscription, isPro, PRO_MONTHLY_PRICE_USD, PRO_YEARLY_PRICE_USD
 import { startProCheckout, getBillingPortalUrl } from './actions';
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 import { SubmitButton } from '@/components/submit-button';
+import { renderNowMs } from '@/lib/render-now';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -35,6 +36,10 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
 
   const sub = isStripeConfigured() ? await getHostSubscription(user.id) : null;
   const active = isStripeConfigured() ? await isPro(user.id) : false;
+  // Snapshot the wall clock at the page boundary so the trial-end check
+  // below stays out of the React Compiler purity rule.
+  const nowMs = renderNowMs();
+  const trialActive = !!sub?.trial_end && new Date(sub.trial_end).getTime() > nowMs;
 
   return (
     <section className="space-y-6">
@@ -96,7 +101,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
               {sub.status}
             </span>
           </div>
-          {sub.trial_end && new Date(sub.trial_end).getTime() > Date.now() && (
+          {sub.trial_end && trialActive && (
             <p className="text-muted text-sm">
               Trial ends <strong>{formatDate(sub.trial_end)}</strong>.
             </p>

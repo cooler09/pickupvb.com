@@ -14,6 +14,9 @@ Related reading:
 - [docs/audits/](../docs/audits/) — point-in-time audits with a P1/P2/P3
   remediation backlog. **Read the relevant file before doing a new audit
   and write findings into it** (don't dump audit results into chat only).
+- [docs/journal/](../docs/journal/) — dated narrative entries explaining
+  why each change-bundle was made. **Write an entry after shipping a
+  non-trivial bundle.** See [docs/journal/README.md](../docs/journal/README.md).
 
 ## Quick reminders (also in AGENTS.md)
 
@@ -27,3 +30,6 @@ Related reading:
   next to (not inside) the page.
 - `domain` and `application` packages must stay framework-free — no Next.js,
   no Supabase imports.
+- After a non-trivial change-bundle, add an entry to
+  [docs/journal/](../docs/journal/) capturing decisions, patterns observed,
+  and follow-ups deferred.

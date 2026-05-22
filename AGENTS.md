@@ -10,6 +10,9 @@ before making changes. Related reading:
   Supabase Auth, why typed domain errors, …).
 - [docs/audits/](docs/audits/) — point-in-time codebase audits and the
   remediation backlog. **See "Audits" below before running a new one.**
+- [docs/journal/](docs/journal/) — dated narrative entries explaining why
+  each change-bundle was made. **See "Journal" below before shipping a
+  non-trivial bundle.**
 
 ## Verify
 
@@ -47,6 +50,26 @@ conventions in [docs/audits/README.md](docs/audits/README.md):
 - An ad-hoc chat-only summary is fine for a quick sanity scan, but **call
   that out explicitly** ("quick scan, not a full audit") and offer to write
   it up into the relevant audit file.
+
+## Journal
+
+Audits record **what** is broken; the journal records **why** a change was
+made and **how** the codebase reached its current state. After shipping a
+non-trivial bundle of changes, write a dated entry under
+[docs/journal/](docs/journal/). See
+[docs/journal/README.md](docs/journal/README.md) for the format.
+
+Use the journal for:
+
+- The rationale behind a bundle of changes — including alternatives you
+  rejected and why.
+- Patterns and common issues surfaced during the change (e.g. a lint rule
+  that keeps tripping, a primitive that was missing). Promote durable
+  patterns into the "Patterns surfaced by audits" section of this file.
+- Follow-ups deferred from the bundle so the next agent can pick them up.
+
+Audit files still capture the dated remediation log per topic — the journal
+sits alongside as the narrative thread across topics.
 
 ## Do not commit or push
 

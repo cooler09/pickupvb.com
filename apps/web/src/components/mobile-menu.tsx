@@ -15,13 +15,25 @@ type Props = {
   pendingTeamInvites: number;
 };
 
+/** Selector for focusable elements within the drawer (used by the focus trap). */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const drawerRef = useRef<HTMLDivElement | null>(null);
+  // Track pathname across renders so we only close on actual navigations
+  // (avoids the cascading-setState-in-effect warning by skipping the initial
+  // mount and only acting when pathname genuinely changes).
+  const lastPathnameRef = useRef(pathname);
 
-  // Close drawer on route change.
+  // Close drawer on route change. Guarded by a ref so the effect doesn't
+  // call setState on its initial run — only on actual navigations.
   useEffect(() => {
+    if (lastPathnameRef.current === pathname) return;
+    lastPathnameRef.current = pathname;
     setOpen(false);
   }, [pathname]);
 
@@ -35,16 +47,43 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
     };
   }, [open]);
 
-  // Escape closes the drawer and returns focus to the trigger.
+  // Escape closes the drawer and returns focus to the trigger; Tab/Shift+Tab
+  // are trapped within the drawer so screen-reader / keyboard users can't
+  // tab into the obscured page content behind the overlay.
   useEffect(() => {
     if (!open) return;
+    function focusables(): HTMLElement[] {
+      const root = drawerRef.current;
+      if (!root) return [];
+      return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null,
+      );
+    }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         setOpen(false);
         triggerRef.current?.focus();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !drawerRef.current?.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
       }
     }
     document.addEventListener('keydown', onKey);
+    // Move initial focus into the drawer so the keyboard user lands inside
+    // the trap (otherwise Tab from the trigger would land below it).
+    const items = focusables();
+    items[0]?.focus();
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
@@ -102,7 +141,11 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
             className="fixed inset-0 z-40 bg-black/40"
           />
           <div
+            ref={drawerRef}
             id="mobile-nav"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Main menu"
             className="border-border-base bg-surface fixed inset-x-0 top-[57px] z-50 border-b px-4 py-4 shadow-lg"
           >
             <ul className="flex flex-col gap-1 text-base">

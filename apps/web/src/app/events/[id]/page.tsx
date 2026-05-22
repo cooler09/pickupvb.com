@@ -11,6 +11,7 @@ import type { SocialHandles } from '@/lib/social-handles';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { LocalDateTime } from '@/components/local-datetime';
 import { getEventPricing, attendeeChargeBreakdownAsync, isPaidEvent } from '@/lib/event-pricing';
+import { renderNowMs } from '@/lib/render-now';
 import { AttendeeList } from '@/components/attendee-list';
 import { Alert } from '@/components/alert';
 import { EventJsonLd } from './_components/event-jsonld';
@@ -112,7 +113,11 @@ export default async function EventDetailPage(props: {
 
   const friendIds = new Set(event.viewerFriendIds);
   const returnPath = `/events/${event.id}`;
-  const hasStarted = event.startsAt.getTime() <= Date.now();
+  const nowMs = renderNowMs();
+  const hasStarted = event.startsAt.getTime() <= nowMs;
+  const closesAtMs = event.registrationClosesAt ? event.registrationClosesAt.getTime() : null;
+  const closingSoon =
+    closesAtMs !== null && closesAtMs > nowMs && closesAtMs - nowMs <= 72 * 60 * 60 * 1000;
   const isExternal = event.registrationMode === 'external';
   // External-registration events suppress all on-platform signup panels.
   const signupsOpen = event.status === 'published' && !hasStarted && !isExternal;
@@ -481,6 +486,7 @@ export default async function EventDetailPage(props: {
           canManage={event.canManage}
           cta={cta}
           divisionCount={event.divisions.length}
+          closingSoon={closingSoon}
         />
       </header>
 

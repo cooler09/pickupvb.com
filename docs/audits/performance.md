@@ -319,6 +319,16 @@ log.
 
 ## Remediation log
 
+### 2026-05-22 — Bundle 2: React Compiler lint cleanup
+
+| Item                                                            | Status       | Notes                                                                                                                                                                                                          |
+| --------------------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 #0 `react-hooks/purity` (server-render `Date.now()` reads)   | ✅ Done      | Introduced [render-now.ts](../../apps/web/src/lib/render-now.ts) (`renderNowMs()`); lifted `EventHero` time-derived booleans to the page boundary as a `closingSoon` prop. 3 sites cleaned.                    |
+| P1 #0 `react-hooks/set-state-in-effect` (hydration-mount flags) | ✅ Done      | Extracted [use-is-mounted.ts](../../apps/web/src/lib/use-is-mounted.ts) (`useSyncExternalStore`-based). Migrated `local-datetime`, `datetime-picker`, `share-link`; `mobile-menu` pathname-effect ref-guarded. |
+| P1 #0 `react-hooks/set-state-in-effect` (debounce-fetch)        | 🟡 Annotated | `address-autocomplete` + `user-picker` use per-line `eslint-disable` with rationale — no cleaner primitive for debounce-then-display flows.                                                                    |
+
+See [Bundle 2 journal](../journal/2026-05-22-bundle-2.md) for rationale.
+
 ### 2026-05-22 — Quick-win bundle landed
 
 | Item                                             | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                  |
@@ -339,7 +349,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 **Still open** (not in quick-win scope):
 
-- **P1 #0 (new 2026-05-22):** React Compiler purity + setState-in-effect warnings (9 sites).
+- **P1 #0 (new 2026-05-22):** React Compiler purity + setState-in-effect warnings (9 sites). ✅ Resolved 2026-05-22 (Bundle 2) — 7 sites refactored via shared helpers, 2 debounce sites annotated.
 - **P1 #1 architectural** — actually cache public pages by extracting
   per-viewer state into a Suspense boundary / client component, then
   setting `revalidate = 60`. Until then the listing pages are dynamic

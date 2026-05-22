@@ -282,6 +282,12 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-05-22 — Bundle 2: postcss override
+
+| Item                             | Status  | Notes                                                                                                                                                                                            |
+| -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P2 transitive `postcss` advisory | ✅ Done | Added `pnpm.overrides.postcss: ">=8.5.10"` to root `package.json`. `pnpm install`; `pnpm audit --prod` now reports 0 vulnerabilities. See [Bundle 2 journal](../journal/2026-05-22-bundle-2.md). |
+
 ### 2026-05-22 — Quick-win bundle landed
 
 | Item                               | Status  | Notes                                                                                                                                                                                                                                                                                           |
