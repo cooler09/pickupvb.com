@@ -1292,4 +1292,18 @@ export class SupabaseEventRepository implements EventRepository {
     const { error } = await q;
     if (error) throw new Error(`removeCoHost failed: ${error.message}`);
   }
+
+  async attachTeamToDivision(eventId: string, teamId: string, divisionId: string): Promise<void> {
+    // Upsert on the natural key (event_id, team_id). If the team is already
+    // attached to the event we just update its division_id (the captain may
+    // be re-classifying themselves into a different division).
+    const { error } = await this.client
+      .from('event_teams')
+      .upsert({ event_id: eventId, team_id: teamId, division_id: divisionId } as never, {
+        onConflict: 'event_id,team_id',
+      });
+    if (error) {
+      throw new Error(`attachTeamToDivision failed: ${error.message}`);
+    }
+  }
 }

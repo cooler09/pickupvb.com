@@ -50,6 +50,15 @@ export interface EventRepository {
   // ---- Co-host management (separate sub-resource) ----
   addCoHost(eventId: string, party: CoHostParty, addedBy: string): Promise<void>;
   removeCoHost(eventId: string, party: CoHostParty): Promise<void>;
+
+  /**
+   * Idempotently attach a team to a division on the event. Sidesteps the
+   * `VolleyballEvent` aggregate because its `_teams` set carries only
+   * team ids — it has no place for the division id, and `event_teams`
+   * requires `division_id` (NOT NULL). Use this from the registration
+   * handler instead of `event.registerTeam(...)` + `save(event)`.
+   */
+  attachTeamToDivision(eventId: string, teamId: string, divisionId: string): Promise<void>;
 }
 
 // ---- Read-model shapes ----

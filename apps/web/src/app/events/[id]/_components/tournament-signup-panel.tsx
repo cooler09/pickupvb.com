@@ -26,6 +26,8 @@ type Props = {
   eventFormat: string | null;
   teams: ReadonlyArray<RegisteredTeam>;
   viewerCaptainedTeams: ReadonlyArray<EligibleTeam>;
+  /** Divisions on this event — required so the captain can pick where to register. */
+  divisions: ReadonlyArray<{ id: string; label: string; format: string | null }>;
   viewerId: string | null;
   isRealUser: boolean;
   returnPath: string;
@@ -41,6 +43,8 @@ const RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string 
   closed: { tone: 'error', text: "This event isn't open for signups." },
   missing: { tone: 'error', text: 'Team not found.' },
   invalid: { tone: 'error', text: "Team format doesn't match the event." },
+  division_required: { tone: 'error', text: 'Pick a division to continue.' },
+  division_missing: { tone: 'error', text: 'Division not found on this event.' },
 };
 
 export function TournamentSignupPanel({
@@ -48,6 +52,7 @@ export function TournamentSignupPanel({
   eventFormat,
   teams,
   viewerCaptainedTeams,
+  divisions,
   viewerId,
   isRealUser,
   returnPath,
@@ -193,6 +198,25 @@ export function TournamentSignupPanel({
                   </option>
                 ))}
               </select>
+              {divisions.length === 1 ? (
+                <input type="hidden" name="division_id" value={divisions[0]!.id} />
+              ) : (
+                <select
+                  name="division_id"
+                  required
+                  defaultValue=""
+                  className="border-border-base bg-surface min-w-[10rem] flex-1 rounded-md border px-3 py-2 text-sm"
+                >
+                  <option value="" disabled>
+                    Pick a division…
+                  </option>
+                  {divisions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              )}
               <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
                 Register team
               </SubmitButton>

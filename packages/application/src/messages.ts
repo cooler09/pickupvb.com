@@ -150,6 +150,13 @@ export class RegisterTeamCommand {
     public readonly eventId: string,
     public readonly teamId: string,
     public readonly requesterId: string,
+    /**
+     * Division the captain is registering the team into. Required because
+     * `event_teams.division_id` is NOT NULL and multi-division events need
+     * the captain's choice (the `fill_default_division_id` trigger only
+     * covers single-division events).
+     */
+    public readonly divisionId: string,
   ) {}
 }
 

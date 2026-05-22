@@ -628,6 +628,11 @@ export default async function EventDetailPage(props: {
                   eventFormat={event.format}
                   teams={event.teams}
                   viewerCaptainedTeams={event.viewerCaptainedTeams}
+                  divisions={event.divisions.map((d) => ({
+                    id: d.id,
+                    label: d.label,
+                    format: d.format,
+                  }))}
                   viewerId={user?.id ?? null}
                   isRealUser={isRealUser}
                   returnPath={returnPath}
