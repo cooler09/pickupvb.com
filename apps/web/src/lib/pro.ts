@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import type { HostSubscriptionUpsert } from '@pickupvb/domain';
 import { repositories } from './handlers';
 
@@ -20,9 +21,15 @@ export const PRO_PLATFORM_FEE_BPS = 250;
 /** Free-tier cap on paid events per rolling 30 days. */
 export const FREE_PAID_EVENT_CAP_30D = 1;
 
-export async function isPro(userId: string): Promise<boolean> {
+/**
+ * Per-request memoized. Event detail (and several other pages) call this
+ * from multiple side-load branches in the same render; `React.cache`
+ * dedupes the underlying `is_pro_host(uuid)` lookup. See performance
+ * audit P3 #12.
+ */
+export const isPro = cache(async (userId: string): Promise<boolean> => {
     return repositories.hostSubscriptionRepo.isPro(userId);
-}
+});
 
 /** Count of paid events the user has created in the last 30 days. */
 export async function hostPaidEventCount30d(userId: string): Promise<number> {

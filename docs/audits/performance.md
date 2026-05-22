@@ -20,6 +20,12 @@ pages — [apps/web/src/app/page.tsx](../../apps/web/src/app/page.tsx),
 [claim-link page e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx)
 — so the original P1 #1 is partially re-opened on those routes.
 
+> **2026-05-24 follow-up:** both items above are now resolved. P1 #0
+> shipped in [Bundle 2](#2026-05-22--bundle-2-react-compiler-lint-cleanup);
+> the public `force-dynamic` regression shipped in the
+> [2026-05-22 quick-win bundle](#2026-05-22--quick-win-bundle-landed).
+> `pnpm lint` is fully green as of Bundle 11.
+
 **Status update (2026-05-24, Bundle 9):** Event detail page side-loads
 collapsed from 4–6 sequential waves down to 2 (wave 1: pricing + viewer
 pro + tip-total + host social + eligible-winners + ad-hoc bundle in
@@ -43,6 +49,36 @@ the page _and_ infrastructure level. Remaining sub-wave (viewer
 captained-team member counts) is a small leaf still open; aggregating
 it via a PostgREST `count` projection is a future micro-optimization.
 See the [Bundle 10 journal](../journal/2026-05-24-bundle-10.md).
+
+**Status update (2026-05-24, Bundle 11):** Three small wins shipped to
+close out the easier P2/P3 items, plus a CI/Sentry build fix.
+
+- **P2 #7 — push subscriptions N+1 in the worker:** subscriptions for
+  the whole batch are now pre-fetched in one
+  `push_subscriptions ... in('user_id', distinctUserIds)` query and looked
+  up in a `Map<userId, Sub[]>` during the per-row loop, instead of one
+  query per outbox row. A user with N pending push rows now costs 1 lookup
+  instead of N.
+- **P2 #8 — narrow `event_attendees` select on event detail:** already
+  done in an earlier bundle. The select at
+  [page.tsx:340](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L340)
+  pulls only `(user_id, payment_status, payment_intent_id)`. Marked
+  resolved retroactively.
+- **P3 #12 — memoize `isPro()`:** wrapped `isPro()` and
+  `isPlatformAdmin()` with `React.cache()` so repeated calls during the
+  same render share the underlying query. Most relevant for the event
+  detail page, which branches on Pro status from multiple side-load paths.
+- **CI build hotfix — guard `withSentryConfig`:** Vercel build was
+  failing with `TypeError: The "path" argument must be of type string.
+  Received undefined` because the Sentry plugin was wrapped
+  unconditionally and `path.join(undefined, …)`d during source-map upload
+  when `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` were not all
+  set. Now gated on all three being present; otherwise the bare
+  `nextConfig` is exported. Local build was masking the issue because
+  `silent: !process.env.CI` suppresses plugin errors outside CI.
+
+See the [Bundle 11 journal](../journal/2026-05-24-bundle-11.md) for the
+full rationale and the CI-vs-local asymmetry lesson.
 
 ---
 
@@ -217,6 +253,11 @@ point Leaflet's `iconUrl` / `iconRetinaUrl` / `shadowUrl` there.
 
 ### 7. Push subscriptions queried per notification
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 11)_ — worker now pre-fetches
+the distinct push-user set in one `.in('user_id', …)` query before the
+loop and looks up via `Map<userId, Sub[]>`. See
+[worker route.ts](../../apps/web/src/app/api/notifications/worker/route.ts).
+
 **File:** [apps/web/src/app/api/notifications/worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts#L82)
 **Category:** N+1
 
@@ -228,6 +269,13 @@ Worker iterates up to 50 outbox rows; for each, queries
 worker startup, then look up in a `Map<userId, subs[]>` during the loop.
 
 ### 8. Payment-status map built in JS instead of SQL
+
+**Status:** ✅ _Resolved — logged 2026-05-24 (Bundle 11)_ — the
+host-payments side-load in [page.tsx#L340](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L340)
+already selects only `(user_id, payment_status, payment_intent_id)`
+and the viewer-payment side-load selects only `payment_status`. Fix
+landed in an earlier bundle; marked resolved here for the audit
+record.
 
 **File:** [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/[id]/page.tsx#L140)
 **Category:** N+1 / DB inefficiency
@@ -285,6 +333,12 @@ route responses, or precompute and store in Supabase Storage. Easy win
 once the route is opted out of dynamic.
 
 ### 12. `isPro()` checked per event-detail render
+
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 11)_ — `isPro()` and
+`isPlatformAdmin()` are now wrapped in `React.cache()` so repeated calls
+during the same request share a single underlying lookup. See
+[lib/pro.ts](../../apps/web/src/lib/pro.ts) and
+[lib/admin.ts](../../apps/web/src/lib/admin.ts).
 
 **File:** [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/[id]/page.tsx#L120)
 **Category:** External call latency
@@ -352,6 +406,17 @@ log.
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 11: backend N+1 / batching cleanup + CI hotfix
+
+| Item                                                       | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2 #7 push subscriptions N+1 in notification worker        | ✅ Done | Pre-fetch the distinct push-user set in one query (`push_subscriptions ... in('user_id', userIds)`) before the per-row loop; lookup via `Map<userId, Sub[]>`. A user with N pending push rows now costs 1 lookup. See [worker route.ts](../../apps/web/src/app/api/notifications/worker/route.ts).                                                                                                          |
+| P2 #8 narrow `event_attendees` select on event detail      | ✅ Done | Already shipped in an earlier bundle; logged here. Host-payments select narrowed to `(user_id, payment_status, payment_intent_id)`; viewer-payment select narrowed to `payment_status`. See [page.tsx#L340](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L340).                                                                                                                                          |
+| P3 #12 `isPro()` memoization                               | ✅ Done | Wrapped `isPro()` and `isPlatformAdmin()` with `React.cache()`. Per-request dedupe means the event detail page's two `hasProBenefits` branches collapse to one underlying `is_pro_host(uuid)` lookup. See [lib/pro.ts](../../apps/web/src/lib/pro.ts) + [lib/admin.ts](../../apps/web/src/lib/admin.ts).                                                                                                    |
+| CI hotfix — `withSentryConfig` crashes when env unset      | ✅ Done | Vercel builds were failing with `TypeError: The "path" argument must be of type string. Received undefined` because the Sentry plugin was wrapped unconditionally and its source-map pipeline `path.join(undefined, …)`d when `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` were not all set. Now gated on all three being present; bare `nextConfig` otherwise. See [next.config.mjs](../../apps/web/next.config.mjs). |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
 ### 2026-05-24 — Bundle 10: infrastructure `getDetail()` JOIN consolidation
 
 | Item                                           | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -405,7 +470,11 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
   setting `revalidate = 60`. Until then the listing pages are dynamic
   per request because `getCurrentUser()` reads cookies.
 - **P1 #4** — fully resolved 2026-05-24: page-level portion (Bundle 9) and infrastructure `getDetail()` JOIN consolidation (Bundle 10).
-- All **P2 #7–10** and **P3** items.
+- **P2 #7** — ✅ Resolved 2026-05-24 (Bundle 11).
+- **P2 #8** — ✅ Resolved (logged 2026-05-24, Bundle 11; fix landed earlier).
+- **P2 #9, #10** — still open (Stripe upsert dedupe; Photon timeout).
+- **P3 #12** — ✅ Resolved 2026-05-24 (Bundle 11).
+- **P3 #11, #13** — still open (OG image cache headers; worker cold-start monitoring).
 
 ---
 

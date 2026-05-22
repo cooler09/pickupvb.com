@@ -43,9 +43,12 @@ function isAuthorized(req: Request): boolean {
     return header === `Bearer ${secret}`;
 }
 
+type PushSub = { endpoint: string; p256dh: string; auth: string };
+
 async function processRow(
     admin: ReturnType<typeof createSupabaseAdminClient>,
     row: OutboxRow,
+    pushSubsByUser: Map<string, PushSub[]>,
 ): Promise<void> {
     if (row.channel === 'email') {
         const p = row.payload as { subject: string; html: string; text: string };
@@ -83,12 +86,11 @@ async function processRow(
     // as long as ANY delivery succeeded; if all fail with non-gone errors,
     // we throw to trigger the outer retry/backoff. `to_address` is the
     // user_id for push rows (set in lib/notify.ts).
-    type Sub = { endpoint: string; p256dh: string; auth: string };
-    const { data: subRows } = await admin
-        .from('push_subscriptions')
-        .select('endpoint, p256dh, auth')
-        .eq('user_id', row.to_address);
-    const list = (subRows as Sub[] | null) ?? [];
+    //
+    // Subscriptions are pre-fetched once per batch by the GET handler — see
+    // performance audit P2 #7. If 30 outbox rows target the same user we'd
+    // otherwise issue 30 identical lookups against `push_subscriptions`.
+    const list = pushSubsByUser.get(row.to_address) ?? [];
     const payload = row.payload as unknown as WebPushPayload;
 
     if (list.length === 0) {
@@ -173,13 +175,34 @@ export async function GET(req: Request): Promise<Response> {
 
     const rows = (claimed as unknown as OutboxRow[] | null) ?? [];
 
+    // Pre-fetch push subscriptions for the distinct set of users we're about
+    // to deliver to (P2 #7 in performance.md). One query for the whole batch
+    // instead of one per row; a user with N outbox rows costs 1 lookup, not N.
+    const pushUserIds = Array.from(
+        new Set(rows.filter((r) => r.channel === 'push').map((r) => r.to_address)),
+    );
+    const pushSubsByUser = new Map<string, PushSub[]>();
+    if (pushUserIds.length > 0) {
+        const { data: subRows } = await admin
+            .from('push_subscriptions')
+            .select('user_id, endpoint, p256dh, auth')
+            .in('user_id', pushUserIds);
+        const typed = (subRows as ({ user_id: string } & PushSub)[] | null) ?? [];
+        for (const sub of typed) {
+            const existing = pushSubsByUser.get(sub.user_id);
+            const entry: PushSub = { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth };
+            if (existing) existing.push(entry);
+            else pushSubsByUser.set(sub.user_id, [entry]);
+        }
+    }
+
     let sent = 0;
     let failed = 0;
     let skipped = 0;
 
     for (const row of rows) {
         try {
-            await processRow(admin, row);
+            await processRow(admin, row, pushSubsByUser);
             if (row.channel === 'email' || row.channel === 'push') sent += 1;
             else skipped += 1;
         } catch (err) {
