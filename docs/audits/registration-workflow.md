@@ -1,6 +1,6 @@
 # Registration Workflow Audit
 
-_Last updated: 2026-05-21_
+_Last updated: 2026-05-22_
 
 Audit of the event registration flow after divisions landed (ADR
 [0006-event-divisions](../adr/0006-event-divisions.md)). Focus areas: how
@@ -12,7 +12,20 @@ Scope is the registration surface only — schema, domain rules, and the
 event-detail signup panels. Bracket/scoring, communications, and post-event
 flows are out of scope.
 
-> **Status:** Open. No remediation has shipped from this audit yet.
+> **Status (2026-05-22):** Partial remediation landed. Model P1
+> (`division_id` populated for multi-division registrations) ✅ via the new
+> `attachTeamToDivision` repository port and a refactored
+> `RegisterTeamHandler`. UX P1 (division picker for tournament team
+> registration) ✅ in [tournament-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tournament-signup-panel.tsx).
+> Model P3 (team format must match division format) ✅. The
+> `team_registration_mode` model and ad-hoc panel scaffolding shipped
+> in migration
+> [20260606000000_team_registration_model.sql](../../supabase/migrations/20260606000000_team_registration_model.sql)
+> and
+> [ad-hoc-team-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/ad-hoc-team-signup-panel.tsx) —
+> P2 "persistent team requirement doesn't fit adult-tournament reality" is
+> in flight (panel exists at 440 LOC; pricing/payment-policy gaps still
+> open). See **Remediation log** and **Still open** at the bottom.
 
 ## TL;DR
 
@@ -313,3 +326,41 @@ Each step is independently shippable. Don't try to land them all at once.
   [apps/web/src/lib/event-pricing.ts](../../apps/web/src/lib/event-pricing.ts)
 - Page composition:
   [apps/web/src/app/events/\[id\]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)
+
+## Remediation log
+
+| Date       | Finding                                                                                                             | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-05-22 | Model P1 — `event_teams.division_id` not populated for multi-division team registration (NOT NULL violation in dev) | Added `attachTeamToDivision(eventId, teamId, divisionId)` port on `EventRepository`; refactored `RegisterTeamHandler` to validate the chosen division, run aggregate invariants via `event.registerTeam()`, then upsert the `event_teams` row with explicit `division_id` (no longer relies on `events.save()` + the single-division trigger). Server action reads `division_id` from the form; missing division redirects with `?team=division_required`. | [packages/application/src/messages.ts](../../packages/application/src/messages.ts), [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts), [packages/domain/src/events/event-repository.ts](../../packages/domain/src/events/event-repository.ts), [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts), [apps/web/src/app/events/[id]/team-signup-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-signup-actions.ts) |
+| 2026-05-22 | UX P1 — No division picker in the team-registration path (partial)                                                  | Added a `divisions` prop to `TournamentSignupPanel`. Single-division events render a hidden `<input>`; multi-division events render a required `<select>` with `label · format` options. Page passes the projection. Free-agent and open-play paths still don't expose a picker.                                                                                                                                                                           | [apps/web/src/app/events/[id]/\_components/tournament-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tournament-signup-panel.tsx), [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)                                                                                                                                                                                                                                                                                                          |
+| 2026-05-22 | Model P3 — team format not validated against the chosen division's format                                           | `RegisterTeamHandler` now throws `ValidationError` when `division.format !== team.format`. Cross-event-format check retained as a fallback.                                                                                                                                                                                                                                                                                                                | [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+## Still open
+
+- **Model P1** — `price_unit` (`per_team` / `per_player`) still not enforced;
+  checkout reads the first division's price only. No captain-pays-team
+  Stripe path.
+- **Model P2** — Ad-hoc team registration scaffolding shipped
+  ([20260606000000_team_registration_model.sql](../../supabase/migrations/20260606000000_team_registration_model.sql),
+  [ad-hoc-team-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/ad-hoc-team-signup-panel.tsx))
+  but the end-to-end flow (event-edit toggle, captain payment, roster
+  capture, post-event cleanup) is not yet wired through the registration
+  UX. Confirm what is live vs. dead code.
+- **Model P2** — Free agents still can't declare a division
+  (`event_free_agents.division_id` nullable, no UI).
+- **UX P1 (partial)** — Free-agent and open-play signup paths still have
+  no division picker.
+- **UX P1** — Per-division pricing in `DivisionsSection` still doesn't
+  match what checkout charges (single price for the whole event).
+- **UX P2** — `PaidTicketPanel` still surfaces both "pay online" and
+  "pay in person" CTAs simultaneously when `payments_off_platform` is set.
+- **UX P2** — `TournamentRegistrationTabs` is still a two-tab split
+  rather than a single guided flow (division → mode → roster → pay).
+- **UX P3** — Free-agent list still has no division grouping or
+  captain-claim affordance.
+- **Payment policy P1** — The misconfigured combination
+  `(team-led) + (per_player) + (!payments_off_platform)` is still accepted
+  silently by the event editor.
+- **Payment policy P2** — No captain pre-pay opt-in for per-player pricing.
+- **Recommended sequencing step 1** — ADR for the team-paradigm split
+  not written yet.

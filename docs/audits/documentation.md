@@ -2,6 +2,17 @@
 
 > **Status (2026-05-17):** Quick-win bundle landed — primary-docs version refresh (P1), `LICENSE` (P1, MIT), [packages/supabase/README.md](../../packages/supabase/README.md) (P1), and [docs/runbook.md](../runbook.md) (P1). ADR 0006 (canonical-domain-apex), the four other missing package READMEs, and `CONTRIBUTING.md` are still open — see the Remediation log at the bottom.
 
+> **Status update (2026-05-22):** New "Audits" section added to
+> [AGENTS.md](../../AGENTS.md) codifying the docs/audits convention (check
+> existing file before re-auditing; P1/P2/P3 grades; file links + concrete
+> fixes; write findings into the file, not just chat; update the
+> [audits index](README.md)). [.github/copilot-instructions.md](../../.github/copilot-instructions.md)
+> gained a pointer to `docs/audits/` with the same write-into-the-file
+> reminder. New cross-doc inconsistency surfaced: the README claims
+> Next.js 16 but `apps/web/package.json` installs `next@14.2.35` (see the
+> [security audit](security.md) P1 #0). Either upgrade the dependency or
+> walk the doc back — the current state misleads.
+
 ## Scope
 
 Read-only audit of all documentation in the pickupvb.com monorepo: top-level docs (README, AGENTS, copilot-instructions), package READMEs, ADRs in `docs/adr/`, operational docs in `docs/`, env-var docs, inline JSDoc, migration preambles, and cross-doc consistency. Skipped `copilot-skills`.
@@ -10,34 +21,34 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 
 ## Doc inventory
 
-| Document | Path | Status | Notes |
-|---|---|---|---|
-| README | [README.md](README.md) | ✅ | ~180 LOC; **stale Next.js version** |
-| AGENTS | [AGENTS.md](AGENTS.md) | ✅ | ~185 LOC; **stale Next.js version** |
-| Copilot instructions | [.github/copilot-instructions.md](.github/copilot-instructions.md) | ✅ | mirrors AGENTS |
-| LICENSE | — | ❌ | Missing |
-| CONTRIBUTING | — | ❌ | Missing |
-| CHANGELOG | — | ❌ | Missing |
-| Domain README | [packages/domain/README.md](packages/domain/README.md) | ✅ | Exemplary aggregate cookbook |
-| Application README | [packages/application/](packages/application/) | ❌ | Missing |
-| Infrastructure README | [packages/infrastructure/](packages/infrastructure/) | ❌ | Missing |
-| Types README | [packages/types/](packages/types/) | ❌ | Missing |
-| Supabase README | [packages/supabase/](packages/supabase/) | ❌ | Missing (yet `gen:types` is the only way to regen DB types) |
-| Web app README | [apps/web/](apps/web/) | ❌ | Missing |
-| ADRs | [docs/adr/](docs/adr/) | ✅ | 5 ADRs (0001–0005) + index README |
-| Features | [docs/features.md](docs/features.md) | ✅ | ~270 LOC |
-| Integrations | [docs/integrations.md](docs/integrations.md) | ✅ | ~280 LOC, links to env vars + degradation behavior |
-| Stripe webhooks | [docs/stripe-webhooks.md](docs/stripe-webhooks.md) | ✅ | ~60 LOC; covers event types + idempotency |
-| Reset test data | [docs/reset-test-data.md](docs/reset-test-data.md) | ✅ | ~70 LOC |
-| Audits index | [docs/audits/README.md](docs/audits/README.md) | ✅ | tracks 6 audits, P1/P2/P3 legend |
-| .env.example | [.env.example](.env.example) | ✅ | ~60 LOC, organized by integration |
-| Deployment runbook | — | ❌ | Missing |
-| Incident / on-call runbook | — | ❌ | Missing |
-| Backup / restore | — | ❌ | Missing |
-| Monitoring / alerting | — | ❌ | Missing |
-| Testing strategy | — | ❌ | Missing (architecture audit flagged: no tests exist) |
-| API reference | — | ⚠️ | Partial — only 6 endpoints listed in README |
-| Server-action pattern doc | — | ❌ | Missing (only embedded in AGENTS) |
+| Document                   | Path                                                               | Status | Notes                                                       |
+| -------------------------- | ------------------------------------------------------------------ | ------ | ----------------------------------------------------------- |
+| README                     | [README.md](README.md)                                             | ✅     | ~180 LOC; **stale Next.js version**                         |
+| AGENTS                     | [AGENTS.md](AGENTS.md)                                             | ✅     | ~185 LOC; **stale Next.js version**                         |
+| Copilot instructions       | [.github/copilot-instructions.md](.github/copilot-instructions.md) | ✅     | mirrors AGENTS                                              |
+| LICENSE                    | —                                                                  | ❌     | Missing                                                     |
+| CONTRIBUTING               | —                                                                  | ❌     | Missing                                                     |
+| CHANGELOG                  | —                                                                  | ❌     | Missing                                                     |
+| Domain README              | [packages/domain/README.md](packages/domain/README.md)             | ✅     | Exemplary aggregate cookbook                                |
+| Application README         | [packages/application/](packages/application/)                     | ❌     | Missing                                                     |
+| Infrastructure README      | [packages/infrastructure/](packages/infrastructure/)               | ❌     | Missing                                                     |
+| Types README               | [packages/types/](packages/types/)                                 | ❌     | Missing                                                     |
+| Supabase README            | [packages/supabase/](packages/supabase/)                           | ❌     | Missing (yet `gen:types` is the only way to regen DB types) |
+| Web app README             | [apps/web/](apps/web/)                                             | ❌     | Missing                                                     |
+| ADRs                       | [docs/adr/](docs/adr/)                                             | ✅     | 5 ADRs (0001–0005) + index README                           |
+| Features                   | [docs/features.md](docs/features.md)                               | ✅     | ~270 LOC                                                    |
+| Integrations               | [docs/integrations.md](docs/integrations.md)                       | ✅     | ~280 LOC, links to env vars + degradation behavior          |
+| Stripe webhooks            | [docs/stripe-webhooks.md](docs/stripe-webhooks.md)                 | ✅     | ~60 LOC; covers event types + idempotency                   |
+| Reset test data            | [docs/reset-test-data.md](docs/reset-test-data.md)                 | ✅     | ~70 LOC                                                     |
+| Audits index               | [docs/audits/README.md](docs/audits/README.md)                     | ✅     | tracks 6 audits, P1/P2/P3 legend                            |
+| .env.example               | [.env.example](.env.example)                                       | ✅     | ~60 LOC, organized by integration                           |
+| Deployment runbook         | —                                                                  | ❌     | Missing                                                     |
+| Incident / on-call runbook | —                                                                  | ❌     | Missing                                                     |
+| Backup / restore           | —                                                                  | ❌     | Missing                                                     |
+| Monitoring / alerting      | —                                                                  | ❌     | Missing                                                     |
+| Testing strategy           | —                                                                  | ❌     | Missing (architecture audit flagged: no tests exist)        |
+| API reference              | —                                                                  | ⚠️     | Partial — only 6 endpoints listed in README                 |
+| Server-action pattern doc  | —                                                                  | ❌     | Missing (only embedded in AGENTS)                           |
 
 ---
 
@@ -213,12 +224,13 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 
 ## Remediation log
 
-| Date | Finding | Status | Notes |
-|---|---|---|---|
-| 2026-05-17 | P1: outdated Next.js version | ✅ Fixed | [README.md](../../README.md) updated `Next.js 14 (App Router) + React 18` → `Next.js 16 (App Router) + React 19` (the React bump was also stale). [AGENTS.md](../../AGENTS.md) `Next.js 14 App Router` → `Next.js 16 App Router`. [.github/copilot-instructions.md](../../.github/copilot-instructions.md) had no version mention to update. |
-| 2026-05-17 | P1: deployment / rollback runbook | ✅ Fixed | New [docs/runbook.md](../runbook.md) covering environments, standard deploy flow, code rollback, bad-migration recovery (forward fix + schema rollback paths), partway-migration failure recovery, emergency deploy bypass, common-incident playbooks (Stripe storm, push worker, Supabase outage), and a "where to look" dashboard map. |
-| 2026-05-17 | P1: LICENSE | ✅ Fixed | MIT, copyright Zachary Lockhart. Defaulted to MIT because the project is a personal-account web app with no patent surface; permissive license keeps options open if it ever opens to contributions. |
-| 2026-05-17 | P1: package READMEs (5 missing) | 🟡 Partial | [packages/supabase/README.md](../../packages/supabase/README.md) created — covers exports, `gen:types` regeneration flow with troubleshooting, conventions (nested joins, snake/camel boundary, anonymous-auth guard), and env vars. The four other missing READMEs (application, infrastructure, types, apps/web) are still open. |
+| Date       | Finding                                 | Status     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------- | --------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-05-17 | P1: outdated Next.js version            | ✅ Fixed   | [README.md](../../README.md) updated `Next.js 14 (App Router) + React 18` → `Next.js 16 (App Router) + React 19` (the React bump was also stale). [AGENTS.md](../../AGENTS.md) `Next.js 14 App Router` → `Next.js 16 App Router`. [.github/copilot-instructions.md](../../.github/copilot-instructions.md) had no version mention to update.                                                                                                              |
+| 2026-05-17 | P1: deployment / rollback runbook       | ✅ Fixed   | New [docs/runbook.md](../runbook.md) covering environments, standard deploy flow, code rollback, bad-migration recovery (forward fix + schema rollback paths), partway-migration failure recovery, emergency deploy bypass, common-incident playbooks (Stripe storm, push worker, Supabase outage), and a "where to look" dashboard map.                                                                                                                  |
+| 2026-05-17 | P1: LICENSE                             | ✅ Fixed   | MIT, copyright Zachary Lockhart. Defaulted to MIT because the project is a personal-account web app with no patent surface; permissive license keeps options open if it ever opens to contributions.                                                                                                                                                                                                                                                      |
+| 2026-05-17 | P1: package READMEs (5 missing)         | 🟡 Partial | [packages/supabase/README.md](../../packages/supabase/README.md) created — covers exports, `gen:types` regeneration flow with troubleshooting, conventions (nested joins, snake/camel boundary, anonymous-auth guard), and env vars. The four other missing READMEs (application, infrastructure, types, apps/web) are still open.                                                                                                                        |
+| 2026-05-22 | P2 (new): codify docs/audits convention | ✅ Done    | New **Audits** section in [AGENTS.md](../../AGENTS.md) explains: check the existing audit file before running a new pass; grade P1/P2/P3; every finding has a file link + concrete fix; updates land in the file (chat-only summaries must be called out as quick scans); update the [audits index](README.md). [.github/copilot-instructions.md](../../.github/copilot-instructions.md) gained a matching pointer with the write-into-the-file reminder. |
 
 ### Still open
 

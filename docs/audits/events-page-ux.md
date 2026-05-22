@@ -10,7 +10,12 @@ from a share link, while keeping the page useful for hosts and attendees.
 > (2026-05-18). Remaining open items live in the "Won't-do / explicit
 > deferrals" section.
 
-## Render order (current)
+> **Status update (2026-05-22):** UX findings still closed. Architectural
+> note: the page is now 837 LOC (was ~520 when this audit ran) — see the
+> [architecture audit](architecture.md) P1 regression and the
+> [performance audit](performance.md) new P1 #0 (`Date.now()` in render at
+> [page.tsx#L115](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L115)).
+> Both belong in the next page-diet pass.## Render order (current)
 
 ```
 Back link

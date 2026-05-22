@@ -2,6 +2,21 @@
 
 > **Status (2026-05-17):** Quick-win bundle landed — typed-error reclassification in bracket generators (P1), `field()`/`bool()` helper sweep (P2), and server-action error-handling pattern documented in `AGENTS.md` (P2). Mapper extraction (P2) and Vitest bootstrap (P1) deferred — see the Remediation log at the bottom for rationale and the still-open list.
 
+> **Status update (2026-05-22):** No new architecture shipments this pass.
+> Net regressions and new findings noted: P1 page diet worsened —
+> [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) is
+> now 837 LOC (was ~520 at 2026-05-17). Two new P2s added below: 6
+> server-action files still don't call `revalidatePath` after a mutation
+> (stale read-after-write); and `profile/billing/actions.ts` still throws
+> bare `Error()` (4 sites) rather than typed `DomainError` subclasses.
+> A partial typed-error win shipped on the registration path —
+> `RegisterTeamHandler` now throws `NotFoundError` / `ValidationError` for
+> division-format mismatches (see the [registration-workflow audit](registration-workflow.md)).
+> P1 test-suite bootstrap is still open: 5 `*.test.ts` files in `packages/`
+>
+> - 4 in `apps/`, plus an `apps/web/tests/e2e/` skeleton; no Vitest config
+>   for `packages/domain` yet.
+
 ## Scope
 
 Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects/github/pickupvb.com`. Covered CQRS adherence, layer purity, port/adapter pattern, composition root, domain error hygiene, SOLID, DRY, AGENTS.md convention adherence, client/server boundary, module boundaries, aggregate design, testing architecture, server-action design, and folder/route conventions. Skipped the `copilot-skills` workspace folder.
@@ -31,6 +46,34 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 ---
 
 ## P2 findings
+
+### Server-action files missing `revalidatePath` after mutation 🆕 2026-05-22
+
+- **Where:** [apps/web/src/app/people-actions.ts](../../apps/web/src/app/people-actions.ts), [groups/[id]/members/members-actions.ts](../../apps/web/src/app/groups/%5Bid%5D/members/members-actions.ts), [profile/billing/pro/actions.ts](../../apps/web/src/app/profile/billing/pro/actions.ts), [events/[id]/team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-checkout-actions.ts), [events/[id]/tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts), [events/[id]/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts).
+- **Issue:** All six declare `'use server'` and perform Supabase writes
+  but never call `revalidatePath` (or `revalidateTag`). The checkout and
+  tip actions are partially excused — they redirect to Stripe and the
+  webhook handles the eventual revalidation — but the others land the
+  user back on a stale ISR / data-cache page until the next navigation
+  evicts it. Diverges from the documented pattern used by `rsvp-actions.ts`,
+  `co-host-actions.ts`, and `team-signup-actions.ts`.
+- **Fix:** Add an explicit `revalidatePath(returnPath)` (or the
+  appropriate parent route) at the end of each mutating branch. For the
+  Stripe-redirecting actions, document the deferred revalidation with a
+  one-line comment so the next reader doesn't "helpfully" add a stale
+  call.
+
+### `profile/billing/actions.ts` throws bare `Error()` instead of typed `DomainError` 🆕 2026-05-22
+
+- **Where:** [apps/web/src/app/profile/billing/actions.ts](../../apps/web/src/app/profile/billing/actions.ts) — 4 `throw new Error(...)` sites.
+- **Issue:** Violates the typed-error contract documented in AGENTS.md and
+  enforced everywhere else. Errors here bypass `apps/web/src/lib/api-helpers.ts`
+  HTTP mapping and surface as generic 500s. Same root cause as the
+  bracket-generator P1 that was fixed 2026-05-17.
+- **Fix:** Reclassify as `UnauthorizedError` (anonymous / not-onboarded
+  caller), `ConflictError` (Stripe account already linked), or
+  `ValidationError` (missing config) as appropriate. Mechanical — fewer
+  than 10 minutes.
 
 ### Duplicated snake_case → camelCase row mapping
 
@@ -125,11 +168,12 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 
 ## Remediation log
 
-| Date | Finding | Status | Notes |
-|---|---|---|---|
-| 2026-05-17 | P1: bracket-generator typed errors | ✅ Fixed | All 11 throws in [generators.ts](../../packages/domain/src/brackets/generators.ts) reclassified: user-input preconditions (team counts, power-of-two requirement) → `ValidationError`; internal "shouldn't happen" guards (`bracketSlots` p check, `round-1 should exist`) → `InvariantViolation`. Each throw includes a `details` payload (e.g. `{ teamCount, poolCount }`) for downstream logging. HTTP boundary now maps them to 400/422 instead of 500. |
-| 2026-05-17 | P2: FormData parsing inconsistency | ✅ Fixed | Added `bool()` helper to [form-data.ts](../../apps/web/src/lib/form-data.ts) (uses the same slot-prefix lookup as `field()`). Replaced `formData.get(...) === 'on'` in [profile/notifications/actions.ts](../../apps/web/src/app/profile/notifications/actions.ts) and `formData.get(...) != null` in [profile/actions.ts](../../apps/web/src/app/profile/actions.ts) with `bool()`. Other `String(formData.get(...) ?? '').trim()` call sites are functionally equivalent to `field()` and were left as-is to keep diff scope tight. |
-| 2026-05-17 | P2: server-action error-handling pattern | 🟡 Partial | New **Server-action error handling** subsection added to [AGENTS.md](../../AGENTS.md). Documents the two-pattern split: plain `<form action={...}>` → flash-param redirects; client-component-invoked → typed `Result<T, DomainErrorCode>`. Also expanded the FormData wrapper example to use `field()` and added an "always use the helpers" callout. `rsvp-actions.ts` already follows the flash-param pattern; `co-host-actions.ts` is still unaligned (still lets errors propagate) — left for a follow-up sweep so this stays a doc-only change. |
+| Date       | Finding                                                          | Status     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------- | ---------------------------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-05-17 | P1: bracket-generator typed errors                               | ✅ Fixed   | All 11 throws in [generators.ts](../../packages/domain/src/brackets/generators.ts) reclassified: user-input preconditions (team counts, power-of-two requirement) → `ValidationError`; internal "shouldn't happen" guards (`bracketSlots` p check, `round-1 should exist`) → `InvariantViolation`. Each throw includes a `details` payload (e.g. `{ teamCount, poolCount }`) for downstream logging. HTTP boundary now maps them to 400/422 instead of 500.                                                                                           |
+| 2026-05-17 | P2: FormData parsing inconsistency                               | ✅ Fixed   | Added `bool()` helper to [form-data.ts](../../apps/web/src/lib/form-data.ts) (uses the same slot-prefix lookup as `field()`). Replaced `formData.get(...) === 'on'` in [profile/notifications/actions.ts](../../apps/web/src/app/profile/notifications/actions.ts) and `formData.get(...) != null` in [profile/actions.ts](../../apps/web/src/app/profile/actions.ts) with `bool()`. Other `String(formData.get(...) ?? '').trim()` call sites are functionally equivalent to `field()` and were left as-is to keep diff scope tight.                 |
+| 2026-05-17 | P2: server-action error-handling pattern                         | 🟡 Partial | New **Server-action error handling** subsection added to [AGENTS.md](../../AGENTS.md). Documents the two-pattern split: plain `<form action={...}>` → flash-param redirects; client-component-invoked → typed `Result<T, DomainErrorCode>`. Also expanded the FormData wrapper example to use `field()` and added an "always use the helpers" callout. `rsvp-actions.ts` already follows the flash-param pattern; `co-host-actions.ts` is still unaligned (still lets errors propagate) — left for a follow-up sweep so this stays a doc-only change. |
+| 2026-05-22 | P1: bracket-generator typed errors (registration-flow extension) | ✅ Partial | `RegisterTeamHandler` refactored to throw `NotFoundError('division', divisionId)` and `ValidationError` for team-vs-division format mismatch instead of bare `Error`. New `attachTeamToDivision` port on `EventRepository` carries `division_id` through to the `event_teams` row. See [registration-workflow audit](registration-workflow.md) for full context.                                                                                                                                                                                      | [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts), [packages/domain/src/events/event-repository.ts](../../packages/domain/src/events/event-repository.ts), [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts) |
 
 ### Still open
 
@@ -140,3 +184,6 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 - **P2: Position-fill math moved into the event detail read model.** Couples to the read-model refactor above.
 - **P3: JSDoc on aggregate factories, hrefs cleanup, barrel-export docs.**
 - **Follow-up:** Reclassify `co-host-actions.ts` error handling to match the new AGENTS.md pattern (redirect with flash param instead of propagating).
+- **P2 (new 2026-05-22):** 6 server-action files missing `revalidatePath`.
+- **P2 (new 2026-05-22):** `profile/billing/actions.ts` still throws bare `Error()` (4 sites).
+- **P1 regression (2026-05-22):** `events/[id]/page.tsx` grew to 837 LOC; the data-loading/mapping extraction proposed in the original P1 is now larger and more urgent.

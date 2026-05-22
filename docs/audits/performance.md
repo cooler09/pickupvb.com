@@ -10,17 +10,64 @@ before/after each fix.
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
+**Status update (2026-05-22):** No new performance shipments this pass. New
+P1: 9 React Compiler warnings now surface in `pnpm lint` — 3 "impure
+function during render" (`Date.now()` read in component bodies) and 6
+"setState synchronously within an effect" (cascading-render risk). Details
+below. `force-dynamic` regression noted: it has re-appeared on three public
+pages — [apps/web/src/app/page.tsx](../../apps/web/src/app/page.tsx),
+[pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx), and the
+[claim-link page e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx)
+— so the original P1 #1 is partially re-opened on those routes.
+
 ---
 
 ## P1 — biggest impact
 
+### 0. React Compiler / `react-hooks` purity violations 🆕 2026-05-22
+
+- **Where (impure read during render — `Date.now()` returns different values across renders, defeats memoization):**
+  - [apps/web/src/app/events/[id]/\_components/event-hero.tsx#L72](../../apps/web/src/app/events/%5Bid%5D/_components/event-hero.tsx#L72) — closing-soon pill window.
+  - [apps/web/src/app/events/[id]/page.tsx#L115](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L115) — `const hasStarted = event.startsAt.getTime() <= Date.now()`.
+  - [apps/web/src/app/profile/billing/pro/page.tsx#L99](../../apps/web/src/app/profile/billing/pro/page.tsx#L99) — trial-end check.
+- **Where (setState synchronously inside `useEffect` — cascading renders):**
+  - [apps/web/src/components/address-autocomplete.tsx#L32](../../apps/web/src/components/address-autocomplete.tsx#L32), [#L37](../../apps/web/src/components/address-autocomplete.tsx#L37)
+  - [apps/web/src/components/datetime-picker.tsx](../../apps/web/src/components/datetime-picker.tsx) (1)
+  - [apps/web/src/components/local-datetime.tsx#L47](../../apps/web/src/components/local-datetime.tsx#L47)
+  - [apps/web/src/components/mobile-menu.tsx#L25](../../apps/web/src/components/mobile-menu.tsx#L25)
+  - [apps/web/src/components/share-link.tsx#L35](../../apps/web/src/components/share-link.tsx#L35)
+  - [apps/web/src/components/user-picker.tsx#L50](../../apps/web/src/components/user-picker.tsx#L50)
+- **Issue:** React Compiler can't memoize components that read impure
+  values in render, and `setState` synchronously inside `useEffect`
+  triggers an extra commit per mount/dep change. These are the only
+  warnings reported by `pnpm lint` (9 of the 16 total; the rest are
+  stale `eslint-disable` directives and 2 `no-anonymous-default-export`).
+- **Fix (impure):** Compute `Date.now()` (and similar `Math.random()` /
+  `new Date()` reads) at the page boundary or behind
+  [`useSyncExternalStore`](https://react.dev/reference/react/useSyncExternalStore)
+  / a memoized hook so the value is stable across re-renders. For the
+  hero countdown, pass `nowMs` as a prop computed in the server
+  component.
+- **Fix (setState-in-effect):** For mount-only patterns like
+  `setMounted(true)` and `setOrigin(window.location.origin)`, switch to
+  `useSyncExternalStore` with a `getServerSnapshot` that returns the
+  empty state. For pathname-driven `setOpen(false)`, derive from
+  `usePathname()` via a key prop instead of an effect. For query-driven
+  `setResults([])`, replace with an early-return derived value.
+
 ### 1. `dynamic = 'force-dynamic'` on public pages disables CDN caching
 
-**Status:** 🟡 _Partially resolved 2026-05-17_ — `force-dynamic` removed
-from the 7 listed pages, but most still implicitly dynamic via `cookies()`.
-Full CDN caching needs the Suspense refactor described below (still open).
+**Status:** 🟡 _Partially resolved 2026-05-17; partially regressed 2026-05-22_
+— `force-dynamic` removed from the 7 listed pages, but most still implicitly
+dynamic via `cookies()`. Full CDN caching needs the Suspense refactor
+described below (still open). 2026-05-22 scan finds `force-dynamic` now
+declared on three additional public pages: [app/page.tsx](../../apps/web/src/app/page.tsx),
+[app/pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx),
+[app/e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx). Confirm
+intent or drop.
 
 **Files:**
+
 - [apps/web/src/app/events/page.tsx](../../apps/web/src/app/events/page.tsx#L25)
 - [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/[id]/page.tsx#L26)
 - [apps/web/src/app/players/page.tsx](../../apps/web/src/app/players/page.tsx#L10)
@@ -81,6 +128,7 @@ per-notification latency from O(n) to O(1).
 ### 4. Event detail page does ~14 DB roundtrips
 
 **Files:**
+
 - [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/[id]/page.tsx#L115)
 - [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts#L303)
 
@@ -188,6 +236,7 @@ loser.
 ### 11. OG-image routes query DB synchronously, uncached
 
 **Files:**
+
 - [apps/web/src/app/events/[id]/opengraph-image.tsx](../../apps/web/src/app/events/[id]/opengraph-image.tsx)
 - [apps/web/src/app/players/[id]/opengraph-image.tsx](../../apps/web/src/app/players/[id]/opengraph-image.tsx)
 - [apps/web/src/app/teams/[id]/opengraph-image.tsx](../../apps/web/src/app/teams/[id]/opengraph-image.tsx)
@@ -272,18 +321,19 @@ log.
 
 ### 2026-05-17 — Quick-win bundle landed
 
-| Item | Status | Notes |
-|---|---|---|
-| P1 #1 force-dynamic on public pages | 🟡 Partial | Flag dropped from 7 listed pages. Most still dynamic via `cookies()` — the real CDN win needs the per-viewer Suspense refactor (deferred). |
-| P1 #2 force-dynamic on private pages | ✅ Done | Pure cleanup; profile pages remain dynamic. |
-| P1 #3 sequential push fanout | ✅ Done | `Promise.allSettled` over `list.map(sendWebPush)`; `gone`/`errors`/`anyOk` semantics preserved; rejected promises bucket as `threw:<reason>` errors. |
-| P2 #5 composite index | ✅ Done | New migration `20260529000000_event_attendees_payment_idx.sql`. |
-| P2 #6 Leaflet markers | ✅ Done | PNGs under `apps/web/public/leaflet/`; `event-map.tsx` updated. |
+| Item                                 | Status     | Notes                                                                                                                                                |
+| ------------------------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 #1 force-dynamic on public pages  | 🟡 Partial | Flag dropped from 7 listed pages. Most still dynamic via `cookies()` — the real CDN win needs the per-viewer Suspense refactor (deferred).           |
+| P1 #2 force-dynamic on private pages | ✅ Done    | Pure cleanup; profile pages remain dynamic.                                                                                                          |
+| P1 #3 sequential push fanout         | ✅ Done    | `Promise.allSettled` over `list.map(sendWebPush)`; `gone`/`errors`/`anyOk` semantics preserved; rejected promises bucket as `threw:<reason>` errors. |
+| P2 #5 composite index                | ✅ Done    | New migration `20260529000000_event_attendees_payment_idx.sql`.                                                                                      |
+| P2 #6 Leaflet markers                | ✅ Done    | PNGs under `apps/web/public/leaflet/`; `event-map.tsx` updated.                                                                                      |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 **Still open** (not in quick-win scope):
 
+- **P1 #0 (new 2026-05-22):** React Compiler purity + setState-in-effect warnings (9 sites).
 - **P1 #1 architectural** — actually cache public pages by extracting
   per-viewer state into a Suspense boundary / client component, then
   setting `revalidate = 60`. Until then the listing pages are dynamic
@@ -303,5 +353,5 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
    revalidate + `revalidatePath` on join/leave is a reasonable middle.
 3. Any push subscriber count we should plan for before #3 becomes urgent?
    (Today it's a quality fix; at 1k+ subs/user it becomes correctness.)
-</content>
-</invoke>
+   </content>
+   </invoke>

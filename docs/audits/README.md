@@ -5,17 +5,17 @@ state of the repo at the date in the document header. Use them as a backlog
 of remediation work, not as a permanent reference. Re-run an audit after you
 land its fixes.
 
-| Audit                                             | Date       | Status                                                 |
-| ------------------------------------------------- | ---------- | ------------------------------------------------------ |
-| [Security](security.md)                           | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
-| [Performance](performance.md)                     | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
-| [Architecture (CQRS/DRY/SOLID)](architecture.md)  | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
-| [508 / Accessibility](accessibility.md)           | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
-| [SEO](seo.md)                                     | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
-| [Documentation](documentation.md)                 | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
-| [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open        |
-| [Events page UX](events-page-ux.md)               | 2026-05-18 | Quick-win + larger-changes bundles landed (2026-05-18) |
-| [Registration workflow](registration-workflow.md) | 2026-05-21 | Open                                                   |
+| Audit                                             | Date       | Status                                                                     |
+| ------------------------------------------------- | ---------- | -------------------------------------------------------------------------- |
+| [Security](security.md)                           | 2026-05-22 | New P1: 15 `next` advisories (5 high). Quick-win bundle landed 2026-05-17  |
+| [Performance](performance.md)                     | 2026-05-22 | New P1: 9 React Compiler warnings. Quick-win bundle landed 2026-05-17      |
+| [Architecture (CQRS/DRY/SOLID)](architecture.md)  | 2026-05-22 | New P2s (revalidatePath; billing typed errors); page-diet regressed        |
+| [508 / Accessibility](accessibility.md)           | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |
+| [SEO](seo.md)                                     | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |
+| [Documentation](documentation.md)                 | 2026-05-22 | AGENTS Audits section landed 2026-05-22; ADR backfill + READMEs still open |
+| [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |
+| [Events page UX](events-page-ux.md)               | 2026-05-18 | Closed UX; architectural regression noted 2026-05-22                       |
+| [Registration workflow](registration-workflow.md) | 2026-05-22 | Multi-division team registration shipped; pricing + ad-hoc flow still open |
 
 ## How findings are graded
 

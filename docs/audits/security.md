@@ -9,9 +9,38 @@ RLS policies, third-party integrations, secrets handling, logging.
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
+**Status update (2026-05-22):** New P1 — `pnpm audit --prod` reports **15
+vulnerabilities** in `next` (2 low / 8 moderate / 5 high), all resolved by
+upgrading from the installed `next@14.2.35` to `>=15.5.16`. Details below.
+No other security shipments this pass; CSP, admin-client refactor, and
+rate-limiting remain open.
+
 ---
 
 ## P1 — fix before next deploy
+
+### 0. Outdated `next` with 15 known vulnerabilities (5 high) 🆕 2026-05-22
+
+**Files:** [apps/web/package.json](../../apps/web/package.json), [packages/supabase/package.json](../../packages/supabase/package.json), [packages/infrastructure/package.json](../../packages/infrastructure/package.json)
+**Category:** Dependency vulnerabilities
+
+`pnpm audit --prod` reports **15 advisories** against `next@14.2.35`, all
+fixed by `>=15.5.16`. High-severity items include:
+
+- HTTP request deserialization → DoS via insecure RSC ([GHSA-h25m-26qc-wcjf](https://github.com/advisories/GHSA-h25m-26qc-wcjf))
+- Two distinct DoS via Server Components ([GHSA-q4gf-8mx6-v5v3](https://github.com/advisories/GHSA-q4gf-8mx6-v5v3), [GHSA-8h8q-6873-q5fj](https://github.com/advisories/GHSA-8h8q-6873-q5fj))
+- SSRF via WebSocket upgrade ([GHSA-c4j6-fc7j-m34r](https://github.com/advisories/GHSA-c4j6-fc7j-m34r))
+- Middleware / proxy bypass in Pages Router with i18n (not exercised here — we're App Router only — but the advisory still applies to the package)
+
+This disagrees with the README's claim of Next 16.2.6; the installed
+version is what matters. The mismatch likely came from the `--webpack`
+flag rollback noted in the [organization audit](organization.md).
+
+**Fix:** bump to the latest 15.x (or 16.x) across `apps/web`,
+`packages/supabase`, and `packages/infrastructure`, run `pnpm install`,
+then verify `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
+Re-evaluate the `--webpack` flag at the same time — Turbopack defaults
+are back on 15.x and 16.x.
 
 ### 1. Open redirect in `auth/callback`
 
@@ -88,6 +117,7 @@ Supabase, Sentry, Turnstile, OSM tiles, fonts, images) — roll it out behind
 ### 4. Admin Supabase client used for user-driven writes
 
 **Files:**
+
 - [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts#L65) — admin `INSERT` into `event_attendees` for the calling user.
 - [apps/web/src/app/events/[id]/tip-actions.ts](../../apps/web/src/app/events/[id]/tip-actions.ts#L89) — admin write to `event_tips`.
 - [apps/web/src/app/events/[id]/manage-payments-actions.ts](../../apps/web/src/app/events/[id]/manage-payments-actions.ts#L45) — admin `UPDATE` on attendee payment status, with auth derived from `detail.canManage`.
@@ -113,6 +143,7 @@ directly include the email field; left as-is, but worth a follow-up to
 truncate Supabase error messages in case they echo the address.
 
 **Files:**
+
 - [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts#L94) — `log.error('[claim] updateUser(email) failed', emailErr, { email })`
 - [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts#L210)
 
@@ -126,6 +157,7 @@ them indefinitely. The stack trace is sufficient for debugging.
 ### 6. No rate limiting on email-sending paths
 
 **Files:**
+
 - [apps/web/src/app/api/notifications/worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts)
 - [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts)
 - [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts)
@@ -252,17 +284,18 @@ The bigger items deserve their own PR each:
 
 ### 2026-05-17 — Quick-win bundle landed
 
-| Item | Status | Notes |
-|---|---|---|
-| P1 #1 open redirect in `auth/callback` | ✅ Done | `next` validated; falls back to `/events`. |
-| P2 #3 missing security headers | 🟡 Partial | Baseline 5 headers added via `next.config.mjs`. CSP still open. |
-| P2 #5 PII in logs | 🟡 Partial | Removed `{ email }` from `claim/actions.ts`. `checkout-actions.ts:210` already logs only `emailErr.message`; flagged for follow-up review. |
-| P2 #7 Stripe metadata cross-check | ✅ Done | Mismatch detection added to both checkout and subscription handlers. |
+| Item                                   | Status     | Notes                                                                                                                                      |
+| -------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1 #1 open redirect in `auth/callback` | ✅ Done    | `next` validated; falls back to `/events`.                                                                                                 |
+| P2 #3 missing security headers         | 🟡 Partial | Baseline 5 headers added via `next.config.mjs`. CSP still open.                                                                            |
+| P2 #5 PII in logs                      | 🟡 Partial | Removed `{ email }` from `claim/actions.ts`. `checkout-actions.ts:210` already logs only `emailErr.message`; flagged for follow-up review. |
+| P2 #7 Stripe metadata cross-check      | ✅ Done    | Mismatch detection added to both checkout and subscription handlers.                                                                       |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 **Still open** (not in quick-win scope):
 
+- **P1 #0 (new 2026-05-22)** — upgrade `next` to `>=15.5.16` (15 advisories).
 - **P2 #3** — CSP rollout (report-only first), once an allowlist is
   inventoried.
 - **P2 #4** — admin-Supabase-client refactor across user-driven write
@@ -283,5 +316,5 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
    rate-limit state?
 3. Any secrets we should rotate proactively because of past local exposure
    (shared drives, old machines, etc.)?
-</content>
-</invoke>
+   </content>
+   </invoke>

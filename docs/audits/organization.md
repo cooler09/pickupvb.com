@@ -2,6 +2,15 @@
 
 > **Status (2026-05-17):** Quick-win bundle landed. P1 #3 (editor/VS Code config) ✅, P2 (PR template, Dependabot, `.gitattributes`) ✅. P1 #1 (lint coverage) and #2 (test scripts) deferred — they require non-trivial decisions (shared ESLint config; test framework choice). See **Remediation log** and **Still open** below.
 
+> **Status update (2026-05-22):** No organization shipments this pass. Two
+> notes: (1) the `apps/web` `dev` / `build` `--webpack` flag (P2 open
+> question) is now likely tied to staying on `next@14.2.35` — see the
+> [security audit](security.md) P1 #0. Bumping to Next 15.5.16+ should let
+> Turbopack come back. (2) Test scripts P1 status: 5 `*.test.ts` files in
+> `packages/` and 4 in `apps/` exist (plus an `apps/web/tests/e2e/`
+> skeleton); root `pnpm test` still routes through the no-op scripts in
+> the unconfigured packages, so CI remains green-by-accident as documented.
+
 ## Scope
 
 Organizational and operational layer of the pickupvb.com monorepo: workspace + Turborepo configuration, TypeScript setup, lint/format tooling, CI/CD, git hygiene, editor config, dependency hygiene, folder conventions, dev scripts, migration tooling, and onboarding ergonomics. Application-level findings (code quality, architecture, security, etc.) live in the sibling audits — this report only covers things that affect how the project is _operated_. Skipped `copilot-skills`.
@@ -174,12 +183,12 @@ Organizational and operational layer of the pickupvb.com monorepo: workspace + T
 
 ## Remediation log
 
-| Date | Finding | Change | Files |
-| --- | --- | --- | --- |
+| Date       | Finding                                   | Change                                                                                                                                                                                                                       | Files                                                                                                                                                |
+| ---------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-05-17 | No editor / VS Code config committed (P1) | Added EditorConfig matching actual code style (4-space TS/TSX, 2-space JSON/YAML/MD) plus VS Code recommended extensions and workspace settings (format-on-save, ESLint working dirs, Tailwind classRegex, search excludes). | [.editorconfig](../../.editorconfig), [.vscode/extensions.json](../../.vscode/extensions.json), [.vscode/settings.json](../../.vscode/settings.json) |
-| 2026-05-17 | No `.gitattributes` (P2) | Added attributes file forcing LF line endings, marking `pnpm-lock.yaml` and generated Supabase types as `linguist-generated`, and tagging binary file extensions. | [.gitattributes](../../.gitattributes) |
-| 2026-05-17 | No PR template (P2 partial) | Added pull-request template covering summary/changes, the verification triple checklist, DB-touch / domain-test / ADR prompts, and screenshots. Issue templates and CODEOWNERS still deferred. | [.github/PULL_REQUEST_TEMPLATE.md](../../.github/PULL_REQUEST_TEMPLATE.md) |
-| 2026-05-17 | No Dependabot / Renovate (P2) | Added Dependabot config: weekly npm updates grouped by surface area (supabase, stripe, next, react, types, eslint, prettier) plus weekly github-actions updates. | [.github/dependabot.yml](../../.github/dependabot.yml) |
+| 2026-05-17 | No `.gitattributes` (P2)                  | Added attributes file forcing LF line endings, marking `pnpm-lock.yaml` and generated Supabase types as `linguist-generated`, and tagging binary file extensions.                                                            | [.gitattributes](../../.gitattributes)                                                                                                               |
+| 2026-05-17 | No PR template (P2 partial)               | Added pull-request template covering summary/changes, the verification triple checklist, DB-touch / domain-test / ADR prompts, and screenshots. Issue templates and CODEOWNERS still deferred.                               | [.github/PULL_REQUEST_TEMPLATE.md](../../.github/PULL_REQUEST_TEMPLATE.md)                                                                           |
+| 2026-05-17 | No Dependabot / Renovate (P2)             | Added Dependabot config: weekly npm updates grouped by surface area (supabase, stripe, next, react, types, eslint, prettier) plus weekly github-actions updates.                                                             | [.github/dependabot.yml](../../.github/dependabot.yml)                                                                                               |
 
 ## Still open
 
