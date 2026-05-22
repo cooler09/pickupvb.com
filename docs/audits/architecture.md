@@ -2,20 +2,23 @@
 
 > **Status (2026-05-17):** Quick-win bundle landed — typed-error reclassification in bracket generators (P1), `field()`/`bool()` helper sweep (P2), and server-action error-handling pattern documented in `AGENTS.md` (P2). Mapper extraction (P2) and Vitest bootstrap (P1) deferred — see the Remediation log at the bottom for rationale and the still-open list.
 
-> **Status update (2026-05-22):** No new architecture shipments this pass.
-> Net regressions and new findings noted: P1 page diet worsened —
-> [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) is
-> now 837 LOC (was ~520 at 2026-05-17). Two new P2s added below: 6
-> server-action files still don't call `revalidatePath` after a mutation
-> (stale read-after-write); and `profile/billing/actions.ts` still throws
-> bare `Error()` (4 sites) rather than typed `DomainError` subclasses.
-> A partial typed-error win shipped on the registration path —
+> **Status update (2026-05-22):** Two P2s opened earlier today have already
+> shipped: `profile/billing/actions.ts` + `pro/actions.ts` reclassified to
+> typed `DomainError`s (all 11 sites now `InvariantViolation` /
+> `UnauthorizedError`), and the six `revalidatePath`-flagged files were
+> rescoped — `people-actions.ts` is read-only, `members-actions.ts` is a
+> thin wrapper around an action that already revalidates, and the four
+> Stripe-redirect actions deferred revalidation to webhooks and now carry
+> an explicit comment per the AGENTS.md "Stripe-redirecting actions"
+> exception. A typed-error win also shipped on the registration path —
 > `RegisterTeamHandler` now throws `NotFoundError` / `ValidationError` for
 > division-format mismatches (see the [registration-workflow audit](registration-workflow.md)).
-> P1 test-suite bootstrap is still open: 5 `*.test.ts` files in `packages/`
 >
-> - 4 in `apps/`, plus an `apps/web/tests/e2e/` skeleton; no Vitest config
->   for `packages/domain` yet.
+> Net regressions still on the table: P1 page diet worsened —
+> [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) is
+> now 837 LOC (was ~520 at 2026-05-17). P1 test-suite bootstrap is still
+> open: 5 `*.test.ts` files in `packages/` + 4 in `apps/`, plus an
+> `apps/web/tests/e2e/` skeleton; no Vitest config for `packages/domain` yet.
 
 ## Scope
 
@@ -47,33 +50,29 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 
 ## P2 findings
 
-### Server-action files missing `revalidatePath` after mutation 🆕 2026-05-22
+### Server-action files missing `revalidatePath` after mutation ✅ Resolved 2026-05-22
 
 - **Where:** [apps/web/src/app/people-actions.ts](../../apps/web/src/app/people-actions.ts), [groups/[id]/members/members-actions.ts](../../apps/web/src/app/groups/%5Bid%5D/members/members-actions.ts), [profile/billing/pro/actions.ts](../../apps/web/src/app/profile/billing/pro/actions.ts), [events/[id]/team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-checkout-actions.ts), [events/[id]/tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts), [events/[id]/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts).
-- **Issue:** All six declare `'use server'` and perform Supabase writes
-  but never call `revalidatePath` (or `revalidateTag`). The checkout and
-  tip actions are partially excused — they redirect to Stripe and the
-  webhook handles the eventual revalidation — but the others land the
-  user back on a stale ISR / data-cache page until the next navigation
-  evicts it. Diverges from the documented pattern used by `rsvp-actions.ts`,
-  `co-host-actions.ts`, and `team-signup-actions.ts`.
-- **Fix:** Add an explicit `revalidatePath(returnPath)` (or the
-  appropriate parent route) at the end of each mutating branch. For the
-  Stripe-redirecting actions, document the deferred revalidation with a
-  one-line comment so the next reader doesn't "helpfully" add a stale
-  call.
+- **Resolution:** Audit was overzealous. `people-actions.ts` only exposes
+  a read-only `searchPeople()` SELECT — no mutation. `members-actions.ts`
+  is a thin FormData adapter that delegates to `addGroupMember()` in
+  [groups/actions.ts](../../apps/web/src/app/groups/actions.ts), which
+  already calls `revalidatePath(returnPath)` (L134). The four
+  Stripe-redirecting actions (`tip-actions.ts`, `checkout-actions.ts`,
+  `team-checkout-actions.ts`, `pro/actions.ts`) defer revalidation to the
+  `checkout.session.completed` / `customer.subscription.*` webhooks per
+  the **Stripe-redirecting actions** exception now codified in AGENTS.md;
+  each site carries an explicit `// No revalidatePath here: webhook
+handles it` comment.
 
-### `profile/billing/actions.ts` throws bare `Error()` instead of typed `DomainError` 🆕 2026-05-22
+### `profile/billing/actions.ts` throws bare `Error()` instead of typed `DomainError` ✅ Resolved 2026-05-22
 
-- **Where:** [apps/web/src/app/profile/billing/actions.ts](../../apps/web/src/app/profile/billing/actions.ts) — 4 `throw new Error(...)` sites.
-- **Issue:** Violates the typed-error contract documented in AGENTS.md and
-  enforced everywhere else. Errors here bypass `apps/web/src/lib/api-helpers.ts`
-  HTTP mapping and surface as generic 500s. Same root cause as the
-  bracket-generator P1 that was fixed 2026-05-17.
-- **Fix:** Reclassify as `UnauthorizedError` (anonymous / not-onboarded
-  caller), `ConflictError` (Stripe account already linked), or
-  `ValidationError` (missing config) as appropriate. Mechanical — fewer
-  than 10 minutes.
+- **Where:** [apps/web/src/app/profile/billing/actions.ts](../../apps/web/src/app/profile/billing/actions.ts) (4 sites) and [apps/web/src/app/profile/billing/pro/actions.ts](../../apps/web/src/app/profile/billing/pro/actions.ts) (7 sites).
+- **Resolution:** All 11 `throw new Error(...)` sites reclassified.
+  Stripe-misconfig / unexpected-Stripe-response sites now throw
+  `InvariantViolation`; anonymous-caller guards throw `UnauthorizedError`.
+  HTTP boundary now maps to 401 / 422 instead of 500. See the
+  remediation log entry below.
 
 ### Duplicated snake_case → camelCase row mapping
 

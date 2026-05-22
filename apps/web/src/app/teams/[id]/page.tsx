@@ -66,7 +66,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
 
   const { data: teamData } = await supabase
     .from('teams')
-    .select('id, name, format, captain_id, extra_member_count')
+    .select('id, slug, name, format, captain_id, extra_member_count')
     .eq('slug', params.id)
     .maybeSingle();
   const team = teamData as TeamRow | null;
@@ -113,7 +113,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
         items={[
           { name: 'Home', url: 'https://pickupvb.com/' },
           { name: 'Teams', url: 'https://pickupvb.com/teams' },
-          { name: team.name, url: `https://pickupvb.com/teams/${params.id}` },
+          { name: team.name, url: `https://pickupvb.com/teams/${team.slug}` },
         ]}
       />
       <header className="space-y-1">
