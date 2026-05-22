@@ -392,55 +392,155 @@ export class SupabaseEventRepository implements EventRepository {
     const { error } = await this.client.from('events').upsert(row as never, { onConflict: 'id' });
     if (error) throw new Error(`save(${event.id}) failed: ${error.message}`);
 
-    // Reconcile attendees: clear then re-insert (sets are small enough).
-    const attendeeRows = Array.from(event.attendees.entries()).map(([u, position]) => ({
-      event_id: String(event.id),
-      user_id: String(u),
-      position,
-    }));
-    const { error: delErr } = await this.client
+    // Reconcile attendees by delta. The aggregate's `_attendees` Map carries
+    // (userId, position) but NOT `division_id` — that's chosen at signup
+    // time and stored on the DB row. A naive delete-all-then-reinsert
+    // would clobber `division_id` on every save, which (since the
+    // `team_registration_model` migration made `division_id` NOT NULL on
+    // event_attendees / event_teams / event_free_agents) trips the
+    // `fill_default_division_id` trigger and fails for any multi-division
+    // event whenever an unrelated save happens (e.g. another player
+    // joining triggers a re-save of the whole aggregate). So:
+    //
+    //   * Read the current rows.
+    //   * Delete only rows no longer in the aggregate.
+    //   * Insert only rows newly added — division_id stays null and the
+    //     trigger fills it when the event has exactly one division;
+    //     multi-division joins go through dedicated handlers that write
+    //     event_attendees directly with the chosen division_id.
+    //   * UPDATE rows whose position changed.
+    const eventIdForChildren = String(event.id);
+    const { data: existingAttendeeRows, error: selAErr } = await this.client
       .from('event_attendees')
-      .delete()
-      .eq('event_id', String(event.id));
-    if (delErr) throw new Error(`save attendees clear failed: ${delErr.message}`);
-    if (attendeeRows.length > 0) {
+      .select('user_id, position')
+      .eq('event_id', eventIdForChildren);
+    if (selAErr) throw new Error(`save attendees load failed: ${selAErr.message}`);
+    const existingAttendees = new Map<string, string | null>(
+      (
+        (existingAttendeeRows as Array<{ user_id: string; position: string | null }> | null) ?? []
+      ).map((r) => [r.user_id, r.position]),
+    );
+    const desiredAttendees = new Map<string, string | null>(
+      Array.from(event.attendees.entries()).map(([u, position]) => [String(u), position]),
+    );
+    const attendeesToDelete: string[] = [];
+    for (const userId of existingAttendees.keys()) {
+      if (!desiredAttendees.has(userId)) attendeesToDelete.push(userId);
+    }
+    const attendeesToInsert: Array<{
+      event_id: string;
+      user_id: string;
+      position: string | null;
+    }> = [];
+    const attendeesToUpdate: Array<{ user_id: string; position: string | null }> = [];
+    for (const [userId, position] of desiredAttendees.entries()) {
+      if (!existingAttendees.has(userId)) {
+        attendeesToInsert.push({ event_id: eventIdForChildren, user_id: userId, position });
+      } else if (existingAttendees.get(userId) !== position) {
+        attendeesToUpdate.push({ user_id: userId, position });
+      }
+    }
+    if (attendeesToDelete.length > 0) {
+      const { error: delErr } = await this.client
+        .from('event_attendees')
+        .delete()
+        .eq('event_id', eventIdForChildren)
+        .in('user_id', attendeesToDelete);
+      if (delErr) throw new Error(`save attendees delete failed: ${delErr.message}`);
+    }
+    if (attendeesToInsert.length > 0) {
       const { error: insErr } = await this.client
         .from('event_attendees')
-        .insert(attendeeRows as never);
+        .insert(attendeesToInsert as never);
       if (insErr) throw new Error(`save attendees insert failed: ${insErr.message}`);
     }
+    for (const row of attendeesToUpdate) {
+      const { error: updErr } = await this.client
+        .from('event_attendees')
+        .update({ position: row.position } as never)
+        .eq('event_id', eventIdForChildren)
+        .eq('user_id', row.user_id);
+      if (updErr) throw new Error(`save attendees update failed: ${updErr.message}`);
+    }
 
-    // Same pattern for teams.
-    const teamIds = Array.from(event.teams).map((t) => String(t));
-    const { error: delTErr } = await this.client
+    // Same delta pattern for event_teams. Aggregate's `_teams` Set has no
+    // division_id, so we MUST avoid blowing away existing rows.
+    const desiredTeams = new Set(Array.from(event.teams).map((t) => String(t)));
+    const { data: existingTeamRows, error: selTErr } = await this.client
       .from('event_teams')
-      .delete()
-      .eq('event_id', String(event.id));
-    if (delTErr) throw new Error(`save teams clear failed: ${delTErr.message}`);
-    if (teamIds.length > 0) {
+      .select('team_id')
+      .eq('event_id', eventIdForChildren);
+    if (selTErr) throw new Error(`save teams load failed: ${selTErr.message}`);
+    const existingTeams = new Set(
+      ((existingTeamRows as Array<{ team_id: string }> | null) ?? []).map((r) => r.team_id),
+    );
+    const teamsToDelete = Array.from(existingTeams).filter((t) => !desiredTeams.has(t));
+    const teamsToInsert = Array.from(desiredTeams).filter((t) => !existingTeams.has(t));
+    if (teamsToDelete.length > 0) {
+      const { error: delTErr } = await this.client
+        .from('event_teams')
+        .delete()
+        .eq('event_id', eventIdForChildren)
+        .in('team_id', teamsToDelete);
+      if (delTErr) throw new Error(`save teams delete failed: ${delTErr.message}`);
+    }
+    if (teamsToInsert.length > 0) {
       const { error: insTErr } = await this.client
         .from('event_teams')
-        .insert(teamIds.map((team_id) => ({ event_id: String(event.id), team_id })) as never);
+        .insert(
+          teamsToInsert.map((team_id) => ({ event_id: eventIdForChildren, team_id })) as never,
+        );
       if (insTErr) throw new Error(`save teams insert failed: ${insTErr.message}`);
     }
 
-    // Free agents — same reconcile pattern, including each row's optional
-    // notes blurb (carried on the aggregate so save() round-trips it).
-    const freeAgentRows = Array.from(event.freeAgents.entries()).map(([u, notes]) => ({
-      event_id: String(event.id),
-      user_id: String(u),
-      notes,
-    }));
-    const { error: delFErr } = await this.client
+    // Free agents — delta on membership + notes update.
+    const { data: existingFaRows, error: selFErr } = await this.client
       .from('event_free_agents')
-      .delete()
-      .eq('event_id', String(event.id));
-    if (delFErr) throw new Error(`save free agents clear failed: ${delFErr.message}`);
-    if (freeAgentRows.length > 0) {
+      .select('user_id, notes')
+      .eq('event_id', eventIdForChildren);
+    if (selFErr) throw new Error(`save free agents load failed: ${selFErr.message}`);
+    const existingFa = new Map<string, string | null>(
+      ((existingFaRows as Array<{ user_id: string; notes: string | null }> | null) ?? []).map(
+        (r) => [r.user_id, r.notes],
+      ),
+    );
+    const desiredFa = new Map<string, string | null>(
+      Array.from(event.freeAgents.entries()).map(([u, notes]) => [String(u), notes]),
+    );
+    const faToDelete: string[] = [];
+    for (const userId of existingFa.keys()) {
+      if (!desiredFa.has(userId)) faToDelete.push(userId);
+    }
+    const faToInsert: Array<{ event_id: string; user_id: string; notes: string | null }> = [];
+    const faToUpdate: Array<{ user_id: string; notes: string | null }> = [];
+    for (const [userId, notes] of desiredFa.entries()) {
+      if (!existingFa.has(userId)) {
+        faToInsert.push({ event_id: eventIdForChildren, user_id: userId, notes });
+      } else if (existingFa.get(userId) !== notes) {
+        faToUpdate.push({ user_id: userId, notes });
+      }
+    }
+    if (faToDelete.length > 0) {
+      const { error: delFErr } = await this.client
+        .from('event_free_agents')
+        .delete()
+        .eq('event_id', eventIdForChildren)
+        .in('user_id', faToDelete);
+      if (delFErr) throw new Error(`save free agents delete failed: ${delFErr.message}`);
+    }
+    if (faToInsert.length > 0) {
       const { error: insFErr } = await this.client
         .from('event_free_agents')
-        .insert(freeAgentRows as never);
+        .insert(faToInsert as never);
       if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
+    }
+    for (const row of faToUpdate) {
+      const { error: updErr } = await this.client
+        .from('event_free_agents')
+        .update({ notes: row.notes } as never)
+        .eq('event_id', eventIdForChildren)
+        .eq('user_id', row.user_id);
+      if (updErr) throw new Error(`save free agents update failed: ${updErr.message}`);
     }
 
     // Reconcile divisions: upsert current set by id, delete any id no
