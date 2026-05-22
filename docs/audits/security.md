@@ -9,6 +9,13 @@ RLS policies, third-party integrations, secrets handling, logging.
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
+**Status update (2026-05-22, Bundle 27):** P2 #3a closed — CSP promoted
+from `Content-Security-Policy-Report-Only` to enforcing
+`Content-Security-Policy` in [next.config.mjs](../../apps/web/next.config.mjs).
+Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24)
+without producing real violations. Browsers now block any script/style/
+connect/img/frame/font/worker target that isn't explicitly allowed.
+
 **Status update (2026-05-22):** New P1 — `pnpm audit --prod` reports **15
 vulnerabilities** in `next` (2 low / 8 moderate / 5 high), all resolved by
 upgrading from the installed `next@14.2.35` to `>=15.5.16`. Details below.
@@ -89,14 +96,16 @@ exploit, no commit-history scrub needed.
 
 ### 3. Missing security headers
 
-**Status:** ✅ _Resolved 2026-05-24 (Bundle 15, Report-Only milestone)_ —
+**Status:** ✅ _Resolved 2026-05-22 (Bundle 27, enforcement milestone)_ —
 baseline headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`,
 `X-Frame-Options`, `Permissions-Policy`) added 2026-05-17. CSP shipped
 2026-05-24 as `Content-Security-Policy-Report-Only` with the full
 third-party allowlist (Supabase REST/Realtime, Cloudflare Turnstile,
 OSM tiles); see the [Bundle 15 journal](../journal/2026-05-24-bundle-15.md).
-Follow-up: after a clean soak window, swap the header name to
-`Content-Security-Policy` (enforcement) — tracked as **P2 #3a** below.
+Bundle 27 (2026-05-22) promoted the same policy to enforcing
+`Content-Security-Policy` after a clean soak window. Nonce-based
+hardening of `'unsafe-inline'` on `script-src` / `style-src` (to drop
+the JSON-LD + Tailwind escape hatches) is tracked as **P2 #3b** below.
 
 **Files:** [apps/web/next.config.mjs](../../apps/web/next.config.mjs), [apps/web/vercel.json](../../apps/web/vercel.json)
 **Category:** Security headers / CSP
@@ -348,6 +357,16 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
   swap the helper's backend to Upstash / Vercel KV behind the same
   `consumeRateLimit()` signature.
 
+### 2026-05-22 — Bundle 27: CSP enforcement (P2 #3a)
+
+| Item                                     | Status  | Notes                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Swap header to `Content-Security-Policy` | ✅ Done | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) — single one-line swap from `Content-Security-Policy-Report-Only`. Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24); no policy changes. Browsers now block any script / style / connect / img / frame / font / worker target that isn't on the allowlist.                    |
+| Comment refresh                          | ✅ Done | Updated the inline policy-rationale comment in `next.config.mjs` to reflect enforcement mode and re-pointed the nonce follow-up at the new **P2 #3b** entry.                                                                                                                                                                                                      |
+| Nonce-based hardening                    | 🔴 Open | `'unsafe-inline'` is still required on `script-src` (JSON-LD `<script type="application/ld+json">` in [layout.tsx](../../apps/web/src/app/layout.tsx) + [event-jsonld.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-jsonld.tsx)) and `style-src` (Tailwind utility classes). Tracked as **P2 #3b** — requires nonce threading through middleware. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
 ### 2026-05-24 — Bundle 15: CSP Report-Only (P2 #3)
 
 | Item                             | Status  | Notes                                                                                                                                                                                                                                                                                                                  |
@@ -397,10 +416,9 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 **Still open** (not in quick-win scope):
 
-- **P2 #3a** — promote CSP from Report-Only to enforcing
-  (`Content-Security-Policy`) after a clean soak window. Optional
-  follow-up: wire a nonce through middleware to drop
-  `'unsafe-inline'` from `script-src`.
+- ~~**P2 #3a**~~ — resolved 2026-05-22 (Bundle 27). CSP now enforced.
+  Optional follow-up (**P2 #3b**): wire a nonce through middleware to
+  drop `'unsafe-inline'` from `script-src` / `style-src`.
 - ~~**P2 #4**~~ — resolved 2026-05-24 (Bundle 14).
 - ~~**P2 #6**~~ — resolved 2026-05-24 (Bundle 16).
 - ~~**P3 #9** (FormData global cap)~~ — resolved 2026-05-24 (Bundle 17).

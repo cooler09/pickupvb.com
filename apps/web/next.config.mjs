@@ -17,12 +17,15 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.supabase.in' },
     ],
   },
-  // Baseline security headers. CSP ships as Report-Only (P2 #3 first
-  // milestone): browsers will *report* violations to the devtools console
-  // but won't block anything. After a soak window with no real violations,
-  // a follow-up bundle swaps the header name to `Content-Security-Policy`.
+  // Baseline security headers. CSP is now enforced (P2 #3a, Bundle 27):
+  // browsers block any resource that doesn't match the allowlist below.
+  // The same policy soaked behind `Content-Security-Policy-Report-Only`
+  // from Bundle 15 (2026-05-24) without producing real violations.
+  // Nonce-based hardening of `'unsafe-inline'` on script-src/style-src
+  // is still a follow-up (would require threading a nonce through
+  // middleware to every inline JSON-LD `<script>` and Tailwind style).
   //
-  // Inventory (see docs/audits/security.md P2 #3):
+  // Inventory (see docs/audits/security.md P2 #3 / #3a):
   //   - Stripe.js: NOT used (server-side redirect to Checkout only) — no
   //     allowlist entry needed.
   //   - Supabase REST + Realtime: https://*.supabase.co (+.in) for fetch;
@@ -80,7 +83,7 @@ const nextConfig = {
             key: 'Permissions-Policy',
             value: 'geolocation=(self), microphone=(), camera=(), payment=(self)',
           },
-          { key: 'Content-Security-Policy-Report-Only', value: csp },
+          { key: 'Content-Security-Policy', value: csp },
         ],
       },
     ];
