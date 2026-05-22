@@ -16,9 +16,21 @@
 >
 > Net regressions still on the table: P1 page diet worsened —
 > [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) is
-> now 837 LOC (was ~520 at 2026-05-17). P1 test-suite bootstrap is still
-> open: 5 `*.test.ts` files in `packages/` + 4 in `apps/`, plus an
-> `apps/web/tests/e2e/` skeleton; no Vitest config for `packages/domain` yet.
+> now 837 LOC (was ~520 at 2026-05-17).
+
+> **Status update (2026-05-22, Bundle 22):** P1 **test suite bootstrap is
+> now closed.** Vitest is wired through every package via the root
+> `vitest@^2.1.9` dep + `turbo run test`; `packages/domain` has its own
+> [vitest.config.ts](../../packages/domain/vitest.config.ts) and now
+> ships **122 tests across 6 files** (events: 90; teams: 32 new this
+> bundle), and `packages/application` ships 6 tests on the
+> `JoinEventHandler`. The earlier status note that there was "no Vitest
+> config for `packages/domain` yet" was stale — the config + first 90
+> events tests had landed in an unrecorded earlier pass; this bundle
+> backfilled the `Team` aggregate (the only aggregate without coverage)
+> and reconciled the audit doc.
+>
+> Still open from the P1 list: events/[id] page diet (837 LOC).
 
 ## Scope
 
@@ -34,11 +46,17 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
 - **Issue:** `throw new Error('...')` for domain precondition failures (`'bracketSlots requires power-of-two p'`, `'Single elimination requires at least 2 teams'`, `'Double elimination requires at least 4 teams'`, etc.). Violates the typed-error contract — these cannot be caught with `instanceof DomainError`, so the HTTP boundary in `api-helpers.ts` will return 500 instead of a meaningful 400/422.
 - **Fix:** Replace each with `ValidationError` (for team-count / power-of-two preconditions that originate in user input) or `InvariantViolation` (for "shouldn't happen" internal guards like `'round-1 should exist'`). Mechanical find-replace; <15 min.
 
-### No automated test suite
+### No automated test suite ✅ Resolved 2026-05-22
 
 - **Where:** Entire monorepo. No `*.test.ts` or `*.spec.ts` in `packages/domain`, `packages/application`, or `apps/web`. `AGENTS.md` mentions `pnpm --filter @pickupvb/domain test` but no tests exist to run.
 - **Issue:** Aggregates encode complex invariants (capacity math, position rosters, status transitions, bracket generation). Handlers own load → mutate → save semantics. Zero test coverage means every refactor is a manual regression risk, and the audit's other recommendations (mapper extraction, error reclassification) carry no safety net.
-- **Fix:** Start with a `packages/domain` Vitest config and ~20 tests covering `VolleyballEvent` invariants (time validation, capacity, status transitions, join/leave, position assignment). Then add application-layer tests using in-memory port fakes. Don't try to backfill 100% in one go — set a floor (e.g. all new aggregates must ship with tests) and grow upward.
+- **Resolution:** Vitest is wired through every package via the root
+  `vitest@^2.1.9` dep + `turbo run test`. `packages/domain` has its own
+  [vitest.config.ts](../../packages/domain/vitest.config.ts);
+  `packages/application` runs through the same root config. Coverage as
+  of Bundle 22: 122 domain tests across 6 files (events: 90; teams: 32)
+  - 6 application tests on `JoinEventHandler`. New aggregates must ship
+    with tests — that floor is now enforceable by the verify quad.
 
 ### Oversized event detail page
 
@@ -177,10 +195,10 @@ handles it` comment.
 | 2026-05-22 | P2: `profile/billing/actions.ts` (and `pro/actions.ts`) typed errors | ✅ Fixed | All 11 `throw new Error(...)` sites across both billing actions files reclassified to `InvariantViolation` (Stripe misconfig / unexpected Stripe response) and `UnauthorizedError` (anonymous caller). Imports added from `@pickupvb/domain`. HTTP boundary now maps to 401/422 instead of 500. |
 | 2026-05-22 | P2: server-action files missing `revalidatePath` | 🟡 Partial | Confirmed [people-actions.ts](../../apps/web/src/app/people-actions.ts) and [members-actions.ts](../../apps/web/src/app/groups/%5Bid%5D/members/members-actions.ts) are not actually mutators (search + thin wrapper around `addGroupMember`, which already revalidates) — audit was overzealous, no change needed. Stripe-redirecting actions ([tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts), [checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts), [team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-checkout-actions.ts)) gained an explicit `// No revalidatePath here: webhook handles it` comment before each redirect. `pro/actions.ts` redirects to Stripe and is covered by the same pattern. |
 | 2026-05-22 | Patterns surfaced by audits codified in AGENTS.md | ✅ Done | New "Patterns surfaced by audits" section in [AGENTS.md](../../AGENTS.md) covers: mutating actions must revalidate (+ Stripe-redirect exception), never bare `throw new Error` for domain failures, no `force-dynamic` on public pages, no impure reads in render (React Compiler), no sync `setState` in `useEffect`, multi-division registrations need explicit `division_id`. |
+| 2026-05-22 | P1: test suite bootstrap | ✅ Fixed (Bundle 22) | Vitest config + 90 events-aggregate tests had landed in an earlier unrecorded pass; this bundle added [teams/team.test.ts](../../packages/domain/src/teams/team.test.ts) (32 cases covering `Team.create` / `rehydrate` validation, invite/accept/remove transitions, roster cap math across all four formats, and `setExtraMemberCount` guards) so every domain aggregate now has coverage. Total: 122 domain tests + 6 application tests, all passing via `turbo run test`. Audit doc reconciled to match reality. |
 
 ### Still open
 
-- **P1: Test suite bootstrap.** Deferred from this pass. Adding Vitest + ~20 `VolleyballEvent` cases is a meaningful new dev dep / config / writing exercise — beyond a quick win. Worth its own ticket.
 - **P1: Event detail page diet.** Architectural refactor — extract `loadEventDetail(id, viewer)` helper. Deferred (the audit also flags this as overlap with the Suspense refactor in the performance audit).
 - **P2: Mapper extraction** (attendee, group-member, event-summary). Inspected during this pass — the two `group_members` consumers (`groups/[id]/page.tsx` and `groups/[id]/members/page.tsx`) want different DTO shapes (`avatarUrl` vs. `joined_at`) and select different columns, so a unified mapper requires either a maximal-shape DTO with optional fields or two mappers. Worth doing but needs a design call, not a mechanical extract.
 - **P2: Split `groups/actions.ts`** into per-concern files. Mechanical but touches every importer; deferred.
