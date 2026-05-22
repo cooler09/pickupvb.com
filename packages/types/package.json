@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "lint": "echo 'lint: no rules yet' && exit 0",
+    "lint": "eslint .",
     "test": "echo no-tests",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
@@ -17,6 +17,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@pickupvb/config": "workspace:*",
     "typescript": "^6.0.3"
   }
 }

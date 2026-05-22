@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "lint": "echo 'lint: no rules yet' && exit 0",
+    "lint": "eslint .",
     "test": "echo no-tests",
     "gen:types": "supabase gen types typescript --local > src/database.types.ts.tmp && mv src/database.types.ts.tmp src/database.types.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
@@ -24,6 +24,7 @@
     "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {
+    "@pickupvb/config": "workspace:*",
     "@types/node": "25",
     "typescript": "^6.0.3"
   },

@@ -6,7 +6,8 @@
   "exports": {
     "./tsconfig/base": "./tsconfig/base.json",
     "./tsconfig/next": "./tsconfig/next.json",
-    "./tsconfig/node": "./tsconfig/node.json"
+    "./tsconfig/node": "./tsconfig/node.json",
+    "./eslint/base": "./eslint.base.mjs"
   },
   "scripts": {
     "lint": "echo 'no-op' && exit 0",
@@ -14,6 +15,11 @@
     "test": "echo no-op",
     "build": "echo 'no-op' && exit 0",
     "clean": "rm -rf .turbo"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "typescript-eslint": "^8.46.4"
   },
   "devDependencies": {
     "typescript": "6"

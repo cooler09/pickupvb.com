@@ -157,15 +157,6 @@ function rowToPositionRoster(row: EventRow): Map<EventPosition, number> | null {
   return out.size > 0 ? out : null;
 }
 
-function rosterToJson(
-  roster: ReadonlyMap<EventPosition, number> | null,
-): Record<string, number> | null {
-  if (!roster) return null;
-  const obj: Record<string, number> = {};
-  for (const [k, v] of roster) obj[k] = v;
-  return obj;
-}
-
 function divisionRowToCapacity(row: DivisionRow): Capacity | null {
   if (row.capacity_kind === 'unlimited') return Capacity.unlimited();
   if (row.capacity_kind === 'fixed' && row.max_spots !== null) return Capacity.fixed(row.max_spots);
@@ -1061,7 +1052,7 @@ export class SupabaseEventRepository implements EventRepository {
     type ViewerTeamRow = { id: string; name: string; format: Format };
     const viewerTeamRows = (viewerCaptainedTeamsRes.data as ViewerTeamRow[] | null) ?? [];
     const viewerTeamIds = viewerTeamRows.map((t) => t.id);
-    let viewerTeamMemberCounts = new Map<string, number>();
+    const viewerTeamMemberCounts = new Map<string, number>();
     if (viewerTeamIds.length) {
       const { data: vtm } = await this.client
         .from('team_members')
