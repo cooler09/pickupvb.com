@@ -168,12 +168,19 @@ them indefinitely. The stack trace is sufficient for debugging.
 
 ### 6. No rate limiting on email-sending paths
 
+**Status:** ✅ _Resolved 2026-05-24_ (Bundle 16). Postgres-backed fixed-window
+limiter (`public.rate_limits` + `public.consume_rate_limit()`) gates the
+three user-facing email paths (`claimAccount`, `signupAsGuest`,
+`startGuestTicketCheckout`) at 20 requests/hour per IP and 5/hour per
+email. Cron-driven `api/notifications/worker/route.ts` was intentionally
+skipped — it's `CRON_SECRET`-guarded with no user-driven trigger surface.
+
 **Files:**
 
 - [apps/web/src/app/api/notifications/worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts)
 - [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts)
-- [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts)
-- [apps/web/src/app/events/[id]/guest-actions.ts](../../apps/web/src/app/events/[id]/guest-actions.ts)
+- [apps/web/src/app/events/%5Bid%5D/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts)
+- [apps/web/src/app/events/%5Bid%5D/guest-actions.ts](../../apps/web/src/app/events/%5Bid%5D/guest-actions.ts)
 
 **Category:** Rate limiting / abuse
 
@@ -294,6 +301,34 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 16: rate limiting on email-sending paths (P2 #6)
+
+| Item                                | Status  | Notes                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Postgres-backed limiter migration   | ✅ Done | [20260610000000_rate_limits.sql](../../supabase/migrations/20260610000000_rate_limits.sql) — `public.rate_limits(key, count, window_start)` + `consume_rate_limit(p_key, p_limit, p_window_seconds)` `security definer` RPC. Atomic via `insert … on conflict do update`. Table locked down (RLS on, no policies); service role only via the function. |
+| `consumeRateLimit()` helper         | ✅ Done | [apps/web/src/lib/rate-limit.ts](../../apps/web/src/lib/rate-limit.ts) — admin-client RPC wrapper, fail-open on infra error (logged via `log.warn`). `getClientIp()` reads `x-forwarded-for` (Vercel) with `x-real-ip` fallback.                                                                                                                       |
+| `claimAccount` gated                | ✅ Done | [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts) — 20/h per IP, 5/h per email; blocks `updateUser({ email })` (Supabase confirmation send) when over.                                                                                                                                                                      |
+| `signupAsGuest` gated               | ✅ Done | [apps/web/src/app/events/%5Bid%5D/guest-actions.ts](../../apps/web/src/app/events/%5Bid%5D/guest-actions.ts) — same limits, only when an email is supplied (the abuse vector for P2 #6).                                                                                                                                                               |
+| `startGuestTicketCheckout` gated    | ✅ Done | [apps/web/src/app/events/%5Bid%5D/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts) — same limits; `backWithError(eventId, 'rate_limited', …)` flash to surface the error.                                                                                                                                              |
+| `rate_limited` banner               | ✅ Done | [apps/web/src/lib/event-rsvp-flash.ts](../../apps/web/src/lib/event-rsvp-flash.ts) — new `rate_limited` entry, `error` tone.                                                                                                                                                                                                                           |
+| `api/notifications/worker/route.ts` | ⏭ Skip | Listed by the audit but cron-only and `CRON_SECRET`-guarded. No user-driven abuse surface; per-IP / per-email keys would be meaningless. Documented in the [Bundle 16 journal](../journal/2026-05-24-bundle-16.md).                                                                                                                                    |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+**Follow-ups:**
+
+- Generated `database.types.ts` doesn't yet include the new RPC — the
+  `consumeRateLimit` helper casts the rpc handle. Run
+  `pnpm --filter @pickupvb/supabase gen:types` after applying the
+  migration locally to drop the cast.
+- A periodic prune of stale `public.rate_limits` rows is not yet scheduled.
+  Volume is tiny (one row per active key, naturally collapses on next hit)
+  but a nightly `delete from public.rate_limits where window_start < now() - interval '1 day'`
+  would keep the table tidy.
+- If traffic ever makes Postgres write contention visible on this path,
+  swap the helper's backend to Upstash / Vercel KV behind the same
+  `consumeRateLimit()` signature.
+
 ### 2026-05-24 — Bundle 15: CSP Report-Only (P2 #3)
 
 | Item                             | Status  | Notes                                                                                                                                                                                                                                                                                                                  |
@@ -348,8 +383,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
   follow-up: wire a nonce through middleware to drop
   `'unsafe-inline'` from `script-src`.
 - ~~**P2 #4**~~ — resolved 2026-05-24 (Bundle 14).
-- **P2 #6** — rate limiting on email-sending paths (needs a KV backend
-  decision first).
+- ~~**P2 #6**~~ — resolved 2026-05-24 (Bundle 16).
 - All **P3** items (audit-log coverage, FormData global cap, Turnstile
   freshness, upload hardening).
 

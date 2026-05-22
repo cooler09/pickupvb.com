@@ -5,11 +5,12 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
+import { consumeRateLimit, getClientIp } from '@/lib/rate-limit';
 import { getViewer } from '@/lib/server-auth';
 
 export type ClaimState = {
-    error?: string;
-    fieldErrors?: Record<string, string>;
+  error?: string;
+  fieldErrors?: Record<string, string>;
 };
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -34,67 +35,81 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
  * don't depend on email confirmation.
  */
 export async function claimAccount(_prev: ClaimState, formData: FormData): Promise<ClaimState> {
-    const email = field(formData, 'email');
-    const firstName = field(formData, 'first_name');
-    const lastName = field(formData, 'last_name');
+  const email = field(formData, 'email');
+  const firstName = field(formData, 'first_name');
+  const lastName = field(formData, 'last_name');
 
-    const fieldErrors: Record<string, string> = {};
-    if (!EMAIL_RE.test(email)) fieldErrors.email = 'Enter a valid email address.';
-    if (Object.keys(fieldErrors).length > 0) {
-        return { error: 'Please fix the highlighted fields.', fieldErrors };
+  const fieldErrors: Record<string, string> = {};
+  if (!EMAIL_RE.test(email)) fieldErrors.email = 'Enter a valid email address.';
+  if (Object.keys(fieldErrors).length > 0) {
+    return { error: 'Please fix the highlighted fields.', fieldErrors };
+  }
+
+  const viewer = await getViewer();
+  if (!viewer) {
+    return { error: 'No active session. Sign up as a guest for an event first.' };
+  }
+  if (!viewer.isAnonymous) {
+    return { error: 'Your account is already permanent.' };
+  }
+  const { supabase, user } = viewer;
+
+  // Step 1: stash the names in user_metadata + profiles. Doesn't require
+  // email/phone, so it's safe to do pre-confirmation.
+  if (firstName || lastName) {
+    const { error: metaErr } = await supabase.auth.updateUser({
+      data: {
+        ...(firstName ? { first_name: firstName } : {}),
+        ...(lastName ? { last_name: lastName } : {}),
+      },
+    });
+    if (metaErr) {
+      await log.error('[claim] updateUser(metadata) failed', metaErr);
     }
 
-    const viewer = await getViewer();
-    if (!viewer) {
-        return { error: 'No active session. Sign up as a guest for an event first.' };
-    }
-    if (!viewer.isAnonymous) {
-        return { error: 'Your account is already permanent.' };
-    }
-    const { supabase, user } = viewer;
+    const updates: Record<string, string> = {
+      display_name: [firstName, lastName].filter(Boolean).join(' '),
+    };
+    if (firstName) updates['first_name'] = firstName;
+    if (lastName) updates['last_name'] = lastName;
+    await supabase
+      .from('profiles')
+      .update(updates as never)
+      .eq('id', user.id);
+  }
 
-    // Step 1: stash the names in user_metadata + profiles. Doesn't require
-    // email/phone, so it's safe to do pre-confirmation.
-    if (firstName || lastName) {
-        const { error: metaErr } = await supabase.auth.updateUser({
-            data: {
-                ...(firstName ? { first_name: firstName } : {}),
-                ...(lastName ? { last_name: lastName } : {}),
-            },
-        });
-        if (metaErr) {
-            await log.error('[claim] updateUser(metadata) failed', metaErr);
-        }
+  // Step 2: attach the email. Supabase sends a confirmation link; until the
+  // user clicks it the email stays in `email_change` and `is_anonymous`
+  // stays true. The user CANNOT set a password until after confirmation —
+  // emailRedirectTo sends them through /auth/callback to /reset-password.
+  const h = await headers();
+  const origin =
+    h.get('origin') ?? (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
+  const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
+    '/reset-password?from=claim',
+  )}`;
 
-        const updates: Record<string, string> = {
-            display_name: [firstName, lastName].filter(Boolean).join(' '),
-        };
-        if (firstName) updates['first_name'] = firstName;
-        if (lastName) updates['last_name'] = lastName;
-        await supabase.from('profiles').update(updates as never).eq('id', user.id);
-    }
+  // Rate-limit before the email send so an attacker can't replay this
+  // form to spam a target with confirmation emails. Audit P2 #6.
+  const ip = await getClientIp();
+  const [ipGate, emailGate] = await Promise.all([
+    consumeRateLimit({ key: `claim:ip:${ip}`, limit: 20, windowSeconds: 3600 }),
+    consumeRateLimit({ key: `claim:email:${email}`, limit: 5, windowSeconds: 3600 }),
+  ]);
+  const blocked = !ipGate.allowed ? ipGate : !emailGate.allowed ? emailGate : null;
+  if (blocked) {
+    const mins = Math.max(1, Math.ceil(blocked.retryAfterSeconds / 60));
+    return {
+      error: `Too many attempts. Please try again in ${mins} minute${mins === 1 ? '' : 's'}.`,
+    };
+  }
 
-    // Step 2: attach the email. Supabase sends a confirmation link; until the
-    // user clicks it the email stays in `email_change` and `is_anonymous`
-    // stays true. The user CANNOT set a password until after confirmation —
-    // emailRedirectTo sends them through /auth/callback to /reset-password.
-    const h = await headers();
-    const origin =
-        h.get('origin') ??
-        (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
-    const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
-        '/reset-password?from=claim',
-    )}`;
+  const { error: emailErr } = await supabase.auth.updateUser({ email }, { emailRedirectTo });
+  if (emailErr) {
+    await log.error('[claim] updateUser(email) failed', emailErr);
+    return { error: emailErr.message };
+  }
 
-    const { error: emailErr } = await supabase.auth.updateUser(
-        { email },
-        { emailRedirectTo },
-    );
-    if (emailErr) {
-        await log.error('[claim] updateUser(email) failed', emailErr);
-        return { error: emailErr.message };
-    }
-
-    revalidatePath('/');
-    redirect(`/claim/check-email?to=${encodeURIComponent(email)}`);
+  revalidatePath('/');
+  redirect(`/claim/check-email?to=${encodeURIComponent(email)}`);
 }

@@ -15,6 +15,7 @@ import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
+import { consumeRateLimit, getClientIp } from '@/lib/rate-limit';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
   redirectEventNotice(eventId, 'rsvp', code, msg);
@@ -177,6 +178,32 @@ export async function startGuestTicketCheckout(eventId: string, formData: FormDa
   if (!displayName) backWithError(eventId, 'bad_name');
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     backWithError(eventId, 'bad_email');
+  }
+
+  // Rate-limit the email-bearing path so a bot can't replay the guest
+  // checkout form to mail-bomb a target with Supabase confirmation
+  // emails. Audit P2 #6.
+  const ip = await getClientIp();
+  const [ipGate, emailGate] = await Promise.all([
+    consumeRateLimit({
+      key: `guest-checkout:ip:${ip}`,
+      limit: 20,
+      windowSeconds: 3600,
+    }),
+    consumeRateLimit({
+      key: `guest-checkout:email:${email}`,
+      limit: 5,
+      windowSeconds: 3600,
+    }),
+  ]);
+  const blocked = !ipGate.allowed ? ipGate : !emailGate.allowed ? emailGate : null;
+  if (blocked) {
+    const mins = Math.max(1, Math.ceil(blocked.retryAfterSeconds / 60));
+    backWithError(
+      eventId,
+      'rate_limited',
+      `Too many attempts. Please try again in ${mins} minute${mins === 1 ? '' : 's'}.`,
+    );
   }
 
   const supabase = await getServerSupabase();

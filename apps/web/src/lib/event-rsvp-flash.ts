@@ -70,6 +70,10 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
     tone: 'error',
     text: "Stripe didn't respond — please try again in a moment.",
   },
+  rate_limited: {
+    tone: 'error',
+    text: 'Too many attempts. Please wait a few minutes and try again.',
+  },
 
   // ADR 0007 — ad-hoc team registrations
   team_registered: {
