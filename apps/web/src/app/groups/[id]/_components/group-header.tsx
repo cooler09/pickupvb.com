@@ -1,9 +1,5 @@
 import Image from 'next/image';
-import Link from 'next/link';
-import type { Route } from 'next';
-import { followGroup, unfollowGroup } from '@/app/groups/actions';
-import { ShareLink } from '@/components/share-link';
-import { SubmitButton } from '@/components/submit-button';
+import type { ReactNode } from 'react';
 
 type Props = {
   group: {
@@ -15,33 +11,24 @@ type Props = {
     homeCity: string | null;
     region: string | null;
   };
-  /** Owner/admin: shows Edit + Host event actions. */
-  canManage: boolean;
-  /** Whether a viewer is signed in (controls follow vs sign-in CTA). */
-  isSignedIn: boolean;
-  isFollowing: boolean;
-  /** Where to send the user after follow/unfollow (revalidates this path). */
-  returnPath: string;
   /** Inline stats shown next to the group name. */
   stats: {
     members: number;
     upcoming: number;
   };
+  /** Action row rendered under the description. Typically a client island
+   * that resolves the viewer's session and renders follow / share / manage
+   * controls. */
+  actions: ReactNode;
 };
 
 /**
- * Top-of-page header for a group profile. Renders as a card with an
- * avatar, identity line, quick stats, description, and a row of viewer
- * actions (Follow / Share / Edit / Host event).
+ * Top-of-page header for a group profile. Public, viewer-independent
+ * card: avatar, identity, stats, description. The viewer-conditional
+ * controls are delegated to the `actions` slot so the page above can stay
+ * ISR-cacheable while a client island renders per-viewer chrome.
  */
-export function GroupHeader({
-  group,
-  canManage,
-  isSignedIn,
-  isFollowing,
-  returnPath,
-  stats,
-}: Props) {
+export function GroupHeader({ group, stats, actions }: Props) {
   const place = [group.homeCity, group.region].filter(Boolean).join(', ');
   return (
     <header className="border-border-base bg-surface space-y-5 rounded-lg border p-5 sm:p-6">
@@ -81,45 +68,7 @@ export function GroupHeader({
       )}
 
       <div className="border-border-base flex flex-wrap items-center gap-2 border-t pt-4">
-        {isSignedIn ? (
-          isFollowing ? (
-            <form action={unfollowGroup.bind(null, group.id, returnPath)}>
-              <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50">
-                ✓ Following
-              </SubmitButton>
-            </form>
-          ) : (
-            <form action={followGroup.bind(null, group.id, returnPath)}>
-              <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-                + Follow
-              </SubmitButton>
-            </form>
-          )
-        ) : (
-          <Link
-            href={`/login?next=${encodeURIComponent(returnPath)}`}
-            className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
-          >
-            Sign in to follow
-          </Link>
-        )}
-        <ShareLink path={`/groups/${group.slug}`} title={group.name} />
-        {canManage && (
-          <>
-            <Link
-              href={'/events/new' as Route}
-              className="border-primary/40 text-primary hover:bg-primary/5 ml-auto rounded-md border px-3 py-1.5 text-sm font-medium"
-            >
-              Host an event
-            </Link>
-            <Link
-              href={`/groups/${group.slug}/edit` as Route}
-              className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
-            >
-              Edit
-            </Link>
-          </>
-        )}
+        {actions}
       </div>
     </header>
   );

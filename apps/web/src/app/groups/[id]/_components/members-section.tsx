@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import type { Route } from 'next';
 import { Pagination } from '@/components/pagination';
 
@@ -38,8 +39,9 @@ const ROLE_BADGE: Record<GroupMember['role'], string> = {
 type Props = {
   groupSlug: string;
   members: GroupMember[];
-  /** Owner/admin: shows the "Manage members" link. */
-  canManage: boolean;
+  /** Owner/admin CTA slot. Typically a client island that resolves the
+   * viewer's role and renders "Manage members →" when applicable. */
+  manageSlot?: ReactNode;
   /** 1-indexed current page for the `mpage` paginator. */
   page: number;
   /** Caller's full searchParams so pagination can preserve other params. */
@@ -51,7 +53,7 @@ type Props = {
  * sits below the upcoming-events feed. Each tile links to the player's
  * profile and shows a role badge. Paginated 12 at a time via `mpage`.
  */
-export function MembersSection({ groupSlug, members, canManage, page, searchParams }: Props) {
+export function MembersSection({ groupSlug, members, manageSlot, page, searchParams }: Props) {
   const total = members.length;
   const start = (page - 1) * MEMBERS_PER_PAGE;
   const visible = members.slice(start, start + MEMBERS_PER_PAGE);
@@ -62,17 +64,9 @@ export function MembersSection({ groupSlug, members, canManage, page, searchPara
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-fg text-lg font-semibold">
-          Members{' '}
-          <span className="text-muted text-sm font-normal">({total})</span>
+          Members <span className="text-muted text-sm font-normal">({total})</span>
         </h2>
-        {canManage && (
-          <Link
-            href={`/groups/${groupSlug}/members` as Route}
-            className="text-primary text-sm font-medium hover:underline"
-          >
-            Manage members →
-          </Link>
-        )}
+        {manageSlot}
       </div>
       {total === 0 ? (
         <p className="text-muted text-sm">No members yet.</p>

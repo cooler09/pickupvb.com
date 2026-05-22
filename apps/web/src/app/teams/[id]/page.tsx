@@ -1,21 +1,26 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getServerSupabase } from '@/lib/supabase';
+import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
-import { AddTeamMemberForm } from './_components/add-team-member-form';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
-import { InviteResponse } from './_components/invite-response';
-import { ExtraMembersForm } from './_components/extra-members-form';
-import { CaptainBroadcastPanel } from './_components/captain-broadcast-panel';
+import { TeamViewerChrome } from './_components/team-viewer-chrome';
 import { TeamJsonLd } from './_components/team-jsonld';
 import { ShareLink } from '@/components/share-link';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 
-export const dynamic = 'force-dynamic';
+/**
+ * ISR cache for anonymous traffic: the public team profile (header,
+ * JSON-LD, share link, roster) is fully cacheable. Viewer-conditional
+ * chrome (pending-invite accept/decline, captain controls, per-row remove
+ * buttons) is rendered by `<TeamViewerChrome />`, a client island that
+ * fetches the viewer's session after hydration. See
+ * `docs/audits/performance.md` P1 #1.
+ */
+export const revalidate = 60;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = await getServerSupabase();
+  const supabase = createSupabaseAnonClient();
   const { data } = await supabase
     .from('teams')
     .select('slug, name, format')
@@ -59,10 +64,7 @@ type MemberRow = {
 
 export default async function TeamDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = createSupabaseAnonClient();
 
   const { data: teamData } = await supabase
     .from('teams')
@@ -72,7 +74,6 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
   const team = teamData as TeamRow | null;
   if (!team) notFound();
 
-  const isCaptain = user ? team.captain_id === user.id : false;
   const extraMembers = team.extra_member_count ?? 0;
 
   const { data: memberRows } = await supabase
@@ -102,8 +103,6 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
 
   const activeCount = members.filter((m) => m.status === 'active').length;
   const pendingCount = members.length - activeCount;
-  const viewerMember = user ? (members.find((m) => m.userId === user.id) ?? null) : null;
-  const viewerHasPendingInvite = viewerMember?.status === 'pending';
 
   const returnPath = `/teams/${team.slug}`;
 
@@ -138,24 +137,6 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
         </p>
       </header>
 
-      {viewerHasPendingInvite && (
-        <InviteResponse teamId={team.id} returnPath={returnPath} teamName={team.name} />
-      )}
-
-      {isCaptain && (
-        <AddTeamMemberForm
-          teamId={team.id}
-          returnPath={returnPath}
-          existingMemberIds={members.map((m) => m.userId)}
-        />
-      )}
-
-      {isCaptain && (
-        <ExtraMembersForm teamId={team.id} returnPath={returnPath} value={extraMembers} />
-      )}
-
-      {isCaptain && <CaptainBroadcastPanel teamId={team.id} memberCount={activeCount} />}
-
       <section className="space-y-2">
         <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">Roster</h2>
         <ul className="space-y-2">
@@ -165,12 +146,22 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
               teamId={team.id}
               member={m}
               isCaptain={m.userId === team.captain_id}
-              viewerIsCaptain={isCaptain}
+              viewerIsCaptain={false}
               returnPath={returnPath}
             />
           ))}
         </ul>
       </section>
+
+      <TeamViewerChrome
+        teamId={team.id}
+        teamName={team.name}
+        captainId={team.captain_id}
+        members={members}
+        extraMembers={extraMembers}
+        activeCount={activeCount}
+        returnPath={returnPath}
+      />
     </div>
   );
 }

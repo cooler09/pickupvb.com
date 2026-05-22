@@ -1,22 +1,26 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { getServerSupabase } from '@/lib/supabase';
-import { type HostedEventRow, hydratePrimaryDivision } from './hosted-events-list';
+import {
+  type HostedEventRow,
+  type HostedEventsLoaderClient,
+  hydratePrimaryDivision,
+} from './hosted-events-list';
 import { HostedEventsList } from './hosted-events-list';
 
 /**
- * Loads events hosted by `groupId` (primary host or co-host) that the
- * **current viewer** is allowed to see. RLS on `events` filters automatically.
+ * Loads events hosted by `groupId` (primary host or co-host). Visibility
+ * is enforced by RLS on `events` via the `events_view` read model; pass a
+ * cookie-bound server client for per-viewer visibility, or the anon
+ * client for the public set (used by ISR-cacheable shells).
  *
  * Optional `startsAfter` / `startsBefore` push the upcoming/past split into
  * SQL so we don't pull the entire history just to drop half of it client-side.
  */
 export async function loadVisibleGroupHostedEvents(
+  supabase: HostedEventsLoaderClient,
   groupId: string,
   opts: { startsAfter?: Date; startsBefore?: Date } = {},
 ): Promise<HostedEventRow[]> {
-  const supabase = await getServerSupabase();
-
   const applyDateFilters = <
     T extends {
       gte: (col: string, val: string) => T;

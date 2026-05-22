@@ -107,7 +107,9 @@ export default async function ProfilePage() {
     .eq('friend_id', user.id);
   const mutualIds = new Set(((inRows as { user_id: string }[] | null) ?? []).map((r) => r.user_id));
 
-  const hostedEvents = await loadVisibleHostedEvents(user.id, { startsAfter: new Date() });
+  const hostedEvents = await loadVisibleHostedEvents(supabase, user.id, {
+    startsAfter: new Date(),
+  });
   const upcomingHosted = hostedEvents;
   const [viewerIsPro, viewerIsAdmin] = await Promise.all([
     isPro(user.id),
