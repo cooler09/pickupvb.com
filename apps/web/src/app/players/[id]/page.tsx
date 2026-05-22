@@ -1,27 +1,31 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
-import type { Route } from 'next';
-import { getServerSupabase } from '@/lib/supabase';
-import { getCurrentUser } from '@/lib/server-auth';
+import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
-import { addFriend, removeFriend } from '@/app/friends/actions';
-import { ShareLink } from '@/components/share-link';
 import { Pagination } from '@/components/pagination';
 import { ProBadge } from '@/components/pro-badge';
 import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
 import { SocialLinks } from '@/components/social-links';
-import { SubmitButton } from '@/components/submit-button';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { PlayerViewerActions } from './_components/player-viewer-actions';
+
+/**
+ * ISR cache for anonymous traffic. The public player profile (identity
+ * card, positions, socials, hosted events) is fully cacheable. The CTA
+ * row (follow / unfollow / sign-in / edit-profile) is rendered by
+ * `<PlayerViewerActions />`, a client island that fetches the viewer's
+ * session after hydration. See `docs/audits/performance.md` P1 #1.
+ */
+export const revalidate = 60;
 
 const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = await getServerSupabase();
+  const supabase = createSupabaseAnonClient();
   const { data } = await supabase
     .from('profiles')
     .select('handle, display_name, first_name, last_name, home_city')
@@ -97,43 +101,28 @@ export default async function PlayerProfilePage(props: {
     Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
   );
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
-  const supabase = await getServerSupabase();
+  const supabase = createSupabaseAnonClient();
 
-  // Profile + viewer are independent.
-  const [{ data: profileRow }, { user }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select(
-        'id, handle, display_name, first_name, last_name, avatar_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
-      )
-      .eq('handle', params.id)
-      .maybeSingle(),
-    getCurrentUser(),
-  ]);
+  const { data: profileRow } = await supabase
+    .from('profiles')
+    .select(
+      'id, handle, display_name, first_name, last_name, avatar_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+    )
+    .eq('handle', params.id)
+    .maybeSingle();
 
   const profile = profileRow as PlayerProfile | null;
   if (!profile) notFound();
 
-  const isSelf = user?.id === profile.id;
-
-  // Friendship edge + hosted events (upcoming + past split at SQL) are independent.
+  // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.
   const now = new Date();
-  const [edgeResult, upcoming, past, isProHost, isAdmin] = await Promise.all([
-    user && !isSelf
-      ? supabase
-          .from('friendships')
-          .select('friend_id')
-          .eq('user_id', user.id)
-          .eq('friend_id', profile.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    // RLS handles visibility — viewer only sees events they're allowed to.
-    loadVisibleHostedEvents(profile.id, { startsAfter: now }),
-    loadVisibleHostedEvents(profile.id, { startsBefore: now }),
+  const [upcoming, past, isProHost, isAdmin] = await Promise.all([
+    // RLS handles visibility — anon viewers only see public events.
+    loadVisibleHostedEvents(supabase, profile.id, { startsAfter: now }),
+    loadVisibleHostedEvents(supabase, profile.id, { startsBefore: now }),
     profile.show_pro_badge !== false ? isPro(profile.id) : Promise.resolve(false),
     isPlatformAdmin(profile.id),
   ]);
-  const isFollowing = Boolean(edgeResult.data);
 
   const returnPath = `/players/${profile.handle}`;
   const name = nameOf(profile);
@@ -200,38 +189,12 @@ export default async function PlayerProfilePage(props: {
 
         {/* Primary CTA + share row */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {!isSelf &&
-            (user ? (
-              isFollowing ? (
-                <form action={removeFriend.bind(null, profile.id, returnPath)}>
-                  <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-60">
-                    ✓ Following
-                  </SubmitButton>
-                </form>
-              ) : (
-                <form action={addFriend.bind(null, profile.id, returnPath)}>
-                  <SubmitButton className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-60">
-                    + Follow
-                  </SubmitButton>
-                </form>
-              )
-            ) : (
-              <Link
-                href={`/login?next=${encodeURIComponent(returnPath)}` as Route}
-                className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90"
-              >
-                Sign in to follow
-              </Link>
-            ))}
-          {isSelf && (
-            <Link
-              href={'/profile' as Route}
-              className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90"
-            >
-              Edit profile →
-            </Link>
-          )}
-          <ShareLink path={`/players/${profile.handle}`} title={name} />
+          <PlayerViewerActions
+            profileId={profile.id}
+            profileHandle={profile.handle}
+            profileName={name}
+            returnPath={returnPath}
+          />
         </div>
       </header>
 
@@ -242,11 +205,7 @@ export default async function PlayerProfilePage(props: {
         </h2>
         <HostedEventsList
           events={upcoming}
-          emptyState={
-            isSelf
-              ? "You aren't hosting any upcoming events yet."
-              : `${name} isn't hosting any upcoming events you can see.`
-          }
+          emptyState={`${name} isn't hosting any upcoming events you can see.`}
         />
       </section>
       {past.length > 0 && (

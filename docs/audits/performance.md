@@ -99,6 +99,18 @@ stale-while-revalidate=86400`. All four `opengraph-image.tsx` routes
 
 See the [Bundle 12 journal](../journal/2026-05-24-bundle-12.md).
 
+**Status update (2026-05-22, Bundle 25):** Three more public pages now
+ISR-cacheable for anonymous traffic — `/teams/[id]`, `/groups/[id]`, and
+`/players/[id]` — closing the detail-page half of P1 #1 for the three
+smaller aggregates. Each page now uses `createSupabaseAnonClient()` +
+`export const revalidate = 60`; viewer-conditional chrome (pending-invite,
+captain controls, follow/unfollow, manage CTAs, Edit-profile) was peeled
+into a single client island per page. Shared loaders
+(`loadVisibleHostedEvents`, `loadVisibleGroupHostedEvents`) accept either
+client now. `/events` and `/events/[id]` remain deferred — RSVP /
+co-host / following overlay needs a wider split. See the
+[Bundle 25 journal](../journal/2026-05-22-bundle-25.md).
+
 **Status update (2026-05-24, Bundle 13a):** Listings-Suspense refactor
 landed for three of the four listing pages — `/players`, `/groups`, and
 `/teams` now render their public lists with a sessionless anon Supabase
@@ -148,8 +160,31 @@ friends / following / RSVP overlay is wider in scope. See the
 
 ### 1. `dynamic = 'force-dynamic'` on public pages disables CDN caching
 
-**Status:** 🟡 _Partially resolved 2026-05-24 (Bundle 13a)_ — three of
-the four listing pages are now ISR-cacheable for anonymous traffic:
+**Status:** 🟡 _Partially resolved 2026-05-22 (Bundle 25)_ — three more
+detail pages are now ISR-cacheable for anonymous traffic, on top of the
+three listing pages shipped in Bundle 13a:
+
+Bundle 25 (2026-05-22):
+
+- [`/teams/[id]`](../../apps/web/src/app/teams/%5Bid%5D/page.tsx) —
+  sessionless anon client, `revalidate = 60`. Pending-invite accept /
+  decline, captain controls (Add member, Extra members, Broadcast,
+  per-row Remove) moved into
+  [`<TeamViewerChrome />`](../../apps/web/src/app/teams/%5Bid%5D/_components/team-viewer-chrome.tsx).
+- [`/groups/[id]`](../../apps/web/src/app/groups/%5Bid%5D/page.tsx) —
+  sessionless anon client, `revalidate = 60`. `GroupHeader` now takes an
+  `actions` slot; follow / unfollow / Host event / Edit moved into
+  [`<GroupViewerActions />`](../../apps/web/src/app/groups/%5Bid%5D/_components/group-viewer-actions.tsx)
+  and the "Manage members →" CTA into `<GroupManageMembersLink />` in
+  the same file.
+- [`/players/[id]`](../../apps/web/src/app/players/%5Bid%5D/page.tsx) —
+  sessionless anon client, `revalidate = 60`. Follow / unfollow /
+  sign-in-to-follow / Edit-profile CTAs moved into
+  [`<PlayerViewerActions />`](../../apps/web/src/app/players/%5Bid%5D/_components/player-viewer-actions.tsx).
+  `isPro()` / `isPlatformAdmin()` stay server-side (admin-client backed,
+  not cookie-bound).
+
+Bundle 13a (2026-05-24, listings):
 
 - [`/players`](../../apps/web/src/app/players/page.tsx) — sessionless
   anon client, `revalidate = 60`. Page never reads `cookies()`; viewer
@@ -167,12 +202,16 @@ Still open for follow-up:
 - [`/events`](../../apps/web/src/app/events/page.tsx) — has friends list,
   following feed, and per-card friend badges; needs a wider split before
   the shell can be cacheable.
-- All `/[id]` detail pages — RSVP / manage / member chrome needs an
-  overlay strategy before the shell can drop `cookies()`.
-- Earlier 2026-05-22 regression: confirm `force-dynamic` intent (or drop)
-  on [app/page.tsx](../../apps/web/src/app/page.tsx),
-  [app/pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx),
-  [app/e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx).
+- [`/events/[id]`](../../apps/web/src/app/events/%5Bid%5D/page.tsx) —
+  RSVP / co-host / waitlist / manage chrome and the host-payment side
+  loads need an overlay strategy before the shell can drop `cookies()`.
+
+**Tradeoff accepted (Bundle 25):** the anon Supabase client only sees
+public data — `loadVisibleHostedEvents` / `loadVisibleGroupHostedEvents`
+called with the anon client return only public events. Private events
+that a signed-in viewer would otherwise see on a group/player profile
+won't appear on the cached shell. Matches the Bundle 13a tradeoff for
+the listing pages and was judged acceptable for the SEO/share-link win.
 
 **Files:**
 
@@ -470,6 +509,22 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-05-22 — Bundle 25: force-dynamic Suspense refactor (3 detail pages)
+
+| Item                                  | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1 #1 `/teams/[id]` cacheable shell   | ✅ Done | Dropped `force-dynamic`; switched to `createSupabaseAnonClient()` + `revalidate = 60`. Pending-invite + captain controls moved into [`<TeamViewerChrome />`](../../apps/web/src/app/teams/%5Bid%5D/_components/team-viewer-chrome.tsx).                                                                                                                                        |
+| P1 #1 `/groups/[id]` cacheable shell  | ✅ Done | Sessionless anon client + `revalidate = 60`. `GroupHeader` reduced to public props + `actions` slot; viewer-conditional follow/manage CTAs moved into [`<GroupViewerActions />` + `<GroupManageMembersLink />`](../../apps/web/src/app/groups/%5Bid%5D/_components/group-viewer-actions.tsx). `MembersSection`'s `canManage` prop replaced with a `manageSlot` ReactNode prop. |
+| P1 #1 `/players/[id]` cacheable shell | ✅ Done | Sessionless anon client + `revalidate = 60`. Follow / unfollow / sign-in / Edit-profile CTAs moved into [`<PlayerViewerActions />`](../../apps/web/src/app/players/%5Bid%5D/_components/player-viewer-actions.tsx). `isPro()` / `isPlatformAdmin()` stay server-side.                                                                                                          |
+| Shared loader signature refactor      | ✅ Done | `loadVisibleHostedEvents()` and `loadVisibleGroupHostedEvents()` now take the supabase client as their first argument (typed `HostedEventsLoaderClient = SupabaseClient<Database>`), so callers can pass either a cookie-bound server client or the sessionless anon client. Updated callers: `profile/page.tsx`, the three detail pages.                                      |
+| P1 #1 `/events` + `/events/[id]`      | 🔴 Open | Deferred. `/events` needs friends-list / following / per-card friend-badge split before the shell can be cached. `/events/[id]` needs RSVP / co-host / waitlist / manage overlay strategy before dropping `cookies()`.                                                                                                                                                         |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+See [Bundle 25 journal](../journal/2026-05-22-bundle-25.md) for the
+slot-pattern decision, the anon-only public events tradeoff, and the
+single-island-per-page rationale.
 
 ### 2026-05-24 — Bundle 13a: ISR listings-Suspense (3 of 4 pages)
 
