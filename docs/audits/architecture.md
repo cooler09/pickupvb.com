@@ -32,6 +32,18 @@
 >
 > Still open from the P1 list: events/[id] page diet (837 LOC).
 
+> **Status update (2026-05-22, Bundle 23):** P1 **events/[id] page diet is
+> now closed.** The 887-LOC `apps/web/src/app/events/[id]/page.tsx` was
+> split: all data loading, two-wave side-loads, snake_case bridging, and
+> position-fill computation moved into a new
+> [`_loaders/load-event-detail.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+> module exporting a fully-typed `EventDetailViewModel`. The page is now
+> 566 LOC — a thin renderer that calls `loadEventDetail()` and
+> destructures the view-model. The aspirational ≤300 LOC target would
+> require further JSX componentization (deferred to a P2 follow-up).
+>
+> No P1s remaining on the architecture audit.
+
 ## Scope
 
 Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects/github/pickupvb.com`. Covered CQRS adherence, layer purity, port/adapter pattern, composition root, domain error hygiene, SOLID, DRY, AGENTS.md convention adherence, client/server boundary, module boundaries, aggregate design, testing architecture, server-action design, and folder/route conventions. Skipped the `copilot-skills` workspace folder.
@@ -58,11 +70,17 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
   - 6 application tests on `JoinEventHandler`. New aggregates must ship
     with tests — that floor is now enforceable by the verify quad.
 
-### Oversized event detail page
+### Oversized event detail page ✅ Resolved 2026-05-22 (Bundle 23)
 
-- **Where:** [apps/web/src/app/events/[id]/page.tsx](apps/web/src/app/events/[id]/page.tsx) (~520 LOC).
-- **Issue:** Exceeds the AGENTS.md soft cap (~200 LOC, ideally <150). Mixes metadata generation, viewer auth, parallel data loading, snake_case→camelCase mapping, position-roster fill math, and 10+ conditional render branches. Sub-components are extracted under `_components/`, but the orchestration layer is dense and hard to skim.
-- **Fix:** Extract the data-loading + mapping block into a `loadEventDetail(id, viewer)` helper that returns a fully-hydrated `EventDetailViewModel`. Page becomes a thin orchestrator that renders. Target ≤ 300 LOC. Also move position-fill computation into the read model (see P2 below).
+- **Where:** [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) (was 887 LOC, now 566).
+- **Resolution:** Extracted data loading + mapping into
+  [`_loaders/load-event-detail.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts).
+  The helper returns a typed `EventDetailViewModel` containing the
+  `EventDetailReadModel` plus all pricing, side-load, ad-hoc, attendee-list-bridge,
+  filled-by-position, and CTA-shape fields. The page consumes it via a
+  single `await loadEventDetail(...)` + destructure.
+- **Follow-up (P2):** JSX componentization to land the ≤300 LOC target —
+  the remaining bulk is render branches, not orchestration.
 
 ---
 
@@ -196,13 +214,13 @@ handles it` comment.
 | 2026-05-22 | P2: server-action files missing `revalidatePath` | 🟡 Partial | Confirmed [people-actions.ts](../../apps/web/src/app/people-actions.ts) and [members-actions.ts](../../apps/web/src/app/groups/%5Bid%5D/members/members-actions.ts) are not actually mutators (search + thin wrapper around `addGroupMember`, which already revalidates) — audit was overzealous, no change needed. Stripe-redirecting actions ([tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts), [checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts), [team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-checkout-actions.ts)) gained an explicit `// No revalidatePath here: webhook handles it` comment before each redirect. `pro/actions.ts` redirects to Stripe and is covered by the same pattern. |
 | 2026-05-22 | Patterns surfaced by audits codified in AGENTS.md | ✅ Done | New "Patterns surfaced by audits" section in [AGENTS.md](../../AGENTS.md) covers: mutating actions must revalidate (+ Stripe-redirect exception), never bare `throw new Error` for domain failures, no `force-dynamic` on public pages, no impure reads in render (React Compiler), no sync `setState` in `useEffect`, multi-division registrations need explicit `division_id`. |
 | 2026-05-22 | P1: test suite bootstrap | ✅ Fixed (Bundle 22) | Vitest config + 90 events-aggregate tests had landed in an earlier unrecorded pass; this bundle added [teams/team.test.ts](../../packages/domain/src/teams/team.test.ts) (32 cases covering `Team.create` / `rehydrate` validation, invite/accept/remove transitions, roster cap math across all four formats, and `setExtraMemberCount` guards) so every domain aggregate now has coverage. Total: 122 domain tests + 6 application tests, all passing via `turbo run test`. Audit doc reconciled to match reality. |
+| 2026-05-22 | P1: event detail page diet | ✅ Fixed (Bundle 23) | Extracted data loading + view-model assembly from [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) into new [`_loaders/load-event-detail.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts). The loader returns a typed `EventDetailViewModel` containing the `EventDetailReadModel` plus pricing, two-wave side-loads (viewer-pro / tip total / host social / eligible teams / ad-hoc bundle, then breakdown / payments / viewer payment status), ad-hoc registrations, the legacy snake_case attendee bridge, `filledByPosition`, `viewerPosition`, and the hero `cta`. Page dropped 887 → 566 LOC (35% cut). Aspirational ≤300 LOC requires further JSX componentization (carried as P2 follow-up). |
 
 ### Still open
 
-- **P1: Event detail page diet.** Architectural refactor — extract `loadEventDetail(id, viewer)` helper. Deferred (the audit also flags this as overlap with the Suspense refactor in the performance audit).
+- **P2: JSX componentization of `events/[id]/page.tsx`.** Bundle 23 closed the data-loading P1 (page is now 566 LOC); the remaining bulk is render branches. Componentization (e.g. signup-area router, host tools panel grouping) would land the aspirational ≤300 LOC target.
 - **P2: Mapper extraction** (attendee, group-member, event-summary). Inspected during this pass — the two `group_members` consumers (`groups/[id]/page.tsx` and `groups/[id]/members/page.tsx`) want different DTO shapes (`avatarUrl` vs. `joined_at`) and select different columns, so a unified mapper requires either a maximal-shape DTO with optional fields or two mappers. Worth doing but needs a design call, not a mechanical extract.
 - **P2: Split `groups/actions.ts`** into per-concern files. Mechanical but touches every importer; deferred.
-- **P2: Position-fill math moved into the event detail read model.** Couples to the read-model refactor above.
+- **P2: Position-fill math moved into the event detail read model.** The new `loadEventDetail` helper still recomputes `filledByPosition` from `event.attendees`; pushing it into `EventDetailReadModel` would let the loader skip the loop.
 - **P3: JSDoc on aggregate factories, hrefs cleanup, barrel-export docs.**
 - **Follow-up:** Reclassify `co-host-actions.ts` error handling to match the new AGENTS.md pattern (redirect with flash param instead of propagating).
-- **P1 regression (2026-05-22):** `events/[id]/page.tsx` grew to 837 LOC; the data-loading/mapping extraction proposed in the original P1 is now larger and more urgent.
