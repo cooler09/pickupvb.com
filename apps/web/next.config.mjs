@@ -59,20 +59,30 @@ const nextConfig = {
 
 // Wrap with Sentry's Next.js plugin: uploads source maps in CI, tunnels
 // browser requests through /monitoring to dodge ad-blockers, and tree-shakes
-// the SDK in client bundles. Only active when SENTRY_AUTH_TOKEN +
-// NEXT_PUBLIC_SENTRY_DSN are set; otherwise the runtime SDK no-ops.
+// the SDK in client bundles. Only active when SENTRY_ORG + SENTRY_PROJECT +
+// SENTRY_AUTH_TOKEN are all set; otherwise we export the bare next config
+// and the runtime SDK no-ops (its `enabled` flag is already gated on
+// NEXT_PUBLIC_SENTRY_DSN). Wrapping unconditionally crashes the build when
+// any of org/project/authToken is undefined — the plugin's source-map
+// pipeline calls `path.join(undefined, …)` and surfaces as
+// `TypeError: The "path" argument must be of type string. Received undefined`.
 import { withSentryConfig } from '@sentry/nextjs';
 
-export default withSentryConfig(nextConfig, {
-  // Set in Vercel project settings (or .env.local for development).
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
+const sentryOrg = process.env.SENTRY_ORG;
+const sentryProject = process.env.SENTRY_PROJECT;
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+const sentryConfigured = Boolean(sentryOrg && sentryProject && sentryAuthToken);
 
-  silent: !process.env.CI,
-  widenClientFileUpload: true,
-  tunnelRoute: '/monitoring',
-  sourcemaps: {
-    deleteSourcemapsAfterUpload: true,
-  },
-});
+export default sentryConfigured
+  ? withSentryConfig(nextConfig, {
+      org: sentryOrg,
+      project: sentryProject,
+      authToken: sentryAuthToken,
+      silent: !process.env.CI,
+      widenClientFileUpload: true,
+      tunnelRoute: '/monitoring',
+      sourcemaps: {
+        deleteSourcemapsAfterUpload: true,
+      },
+    })
+  : nextConfig;

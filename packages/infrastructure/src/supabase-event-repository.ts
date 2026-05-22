@@ -704,7 +704,12 @@ export class SupabaseEventRepository implements EventRepository {
         )
         .eq('event_id', id)
         .order('joined_at', { ascending: true }),
-      this.client.from('event_co_hosts').select('host_user_id, host_group_id').eq('event_id', id),
+      this.client
+        .from('event_co_hosts')
+        .select(
+          'host_user_id, host_group_id, profiles:profiles(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
+        )
+        .eq('event_id', id),
       row.host_id
         ? this.client
             .from('profiles')
@@ -722,7 +727,7 @@ export class SupabaseEventRepository implements EventRepository {
       this.client
         .from('event_teams')
         .select(
-          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id)',
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url))',
         )
         .eq('event_id', id)
         .order('registered_at', { ascending: true }),
@@ -831,47 +836,52 @@ export class SupabaseEventRepository implements EventRepository {
       };
     });
 
-    const coHostRows =
-      (coHostRowsRes.data as
-        | { host_user_id: string | null; host_group_id: string | null }[]
-        | null) ?? [];
-    const coUserIds = coHostRows.map((c) => c.host_user_id).filter((v): v is string => !!v);
+    type ProfileRow = {
+      id: string;
+      handle: string;
+      display_name: string;
+      first_name: string | null;
+      last_name: string | null;
+      avatar_url: string | null;
+    };
+    type GroupRow = { id: string; slug: string; name: string; avatar_url: string | null };
+
+    type CoHostJoinRow = {
+      host_user_id: string | null;
+      host_group_id: string | null;
+      profiles: ProfileRow | null;
+      groups: GroupRow | null;
+    };
+    const coHostRows = (coHostRowsRes.data as CoHostJoinRow[] | null) ?? [];
     const coGroupIds = coHostRows.map((c) => c.host_group_id).filter((v): v is string => !!v);
 
-    // Registered tournament teams. Captain id only here — we batch-fetch
-    // captain profiles + roster sizes in the next parallel block.
+    // Registered tournament teams. Captain profile arrives nested via the
+    // teams!inner join; we still batch-fetch roster sizes + payments in the
+    // next parallel block.
     type TeamJoinRow = {
       team_id: string;
       division_id: string | null;
-      teams: { id: string; slug: string; name: string; format: Format; captain_id: string } | null;
+      teams: {
+        id: string;
+        slug: string;
+        name: string;
+        format: Format;
+        captain_id: string;
+        captain: ProfileRow | null;
+      } | null;
     };
     const teamJoinRows = (teamRowsRes.data as TeamJoinRow[] | null) ?? [];
     const registeredTeamIds = teamJoinRows.map((r) => r.teams?.id).filter((v): v is string => !!v);
-    const registeredCaptainIds = teamJoinRows
-      .map((r) => r.teams?.captain_id)
-      .filter((v): v is string => !!v);
 
-    // Co-host detail fetch + viewer-specific fetches in parallel.
+    // Viewer-specific fetches + team roster sizes/payments in parallel.
     const [
-      coHostUsersRes,
-      coHostGroupsRes,
       viewerFriendsRes,
       viewerRoleRes,
       viewerHostableGroupsRes,
-      teamCaptainsRes,
       teamMemberCountsRes,
       teamPaymentsRes,
       viewerCaptainedTeamsRes,
     ] = await Promise.all([
-      coUserIds.length
-        ? this.client
-            .from('profiles')
-            .select('id, handle, display_name, first_name, last_name, avatar_url')
-            .in('id', coUserIds)
-        : Promise.resolve({ data: [], error: null }),
-      coGroupIds.length
-        ? this.client.from('groups').select('id, slug, name, avatar_url').in('id', coGroupIds)
-        : Promise.resolve({ data: [], error: null }),
       viewerId
         ? this.client.from('friendships').select('friend_id').eq('user_id', viewerId)
         : Promise.resolve({ data: [], error: null }),
@@ -889,12 +899,6 @@ export class SupabaseEventRepository implements EventRepository {
             .select('groups:groups!inner(id, name)')
             .eq('user_id', viewerId)
             .in('role', ['owner', 'admin'])
-        : Promise.resolve({ data: [], error: null }),
-      registeredCaptainIds.length
-        ? this.client
-            .from('profiles')
-            .select('id, handle, display_name, first_name, last_name, avatar_url')
-            .in('id', registeredCaptainIds)
         : Promise.resolve({ data: [], error: null }),
       registeredTeamIds.length
         ? this.client.from('team_members').select('team_id').in('team_id', registeredTeamIds)
@@ -918,15 +922,6 @@ export class SupabaseEventRepository implements EventRepository {
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-    type ProfileRow = {
-      id: string;
-      handle: string;
-      display_name: string;
-      first_name: string | null;
-      last_name: string | null;
-      avatar_url: string | null;
-    };
-    type GroupRow = { id: string; slug: string; name: string; avatar_url: string | null };
     const toProfile = (p: ProfileRow): ProfileLite => ({
       id: p.id,
       handle: p.handle,
@@ -948,8 +943,14 @@ export class SupabaseEventRepository implements EventRepository {
     const primaryHostGroup = primaryHostGroupRes.data
       ? toGroup(primaryHostGroupRes.data as GroupRow)
       : null;
-    const coHostUsers = ((coHostUsersRes.data as ProfileRow[] | null) ?? []).map(toProfile);
-    const coHostGroups = ((coHostGroupsRes.data as GroupRow[] | null) ?? []).map(toGroup);
+    const coHostUsers = coHostRows
+      .map((r) => r.profiles)
+      .filter((p): p is ProfileRow => p !== null)
+      .map(toProfile);
+    const coHostGroups = coHostRows
+      .map((r) => r.groups)
+      .filter((g): g is GroupRow => g !== null)
+      .map(toGroup);
 
     const viewerFriendIds = ((viewerFriendsRes.data as { friend_id: string }[] | null) ?? []).map(
       (r) => r.friend_id,
@@ -1004,10 +1005,7 @@ export class SupabaseEventRepository implements EventRepository {
       .filter((g) => g.id !== row.host_group_id && !coGroupIds.includes(g.id));
 
     // ---- Build registered-team list (TeamLite[]) --------------------
-    const captainProfiles = new Map<string, ProfileLite>();
-    for (const p of (teamCaptainsRes.data as ProfileRow[] | null) ?? []) {
-      captainProfiles.set(p.id, toProfile(p));
-    }
+    // Captain profile is already attached to each team row via the JOIN.
     const memberCounts = new Map<string, number>();
     for (const m of (teamMemberCountsRes.data as { team_id: string }[] | null) ?? []) {
       memberCounts.set(m.team_id, (memberCounts.get(m.team_id) ?? 0) + 1);
@@ -1028,8 +1026,16 @@ export class SupabaseEventRepository implements EventRepository {
     const teams: TeamLite[] = teamJoinRows
       .map((r) => r.teams)
       .filter(
-        (t): t is { id: string; slug: string; name: string; format: Format; captain_id: string } =>
-          !!t,
+        (
+          t,
+        ): t is {
+          id: string;
+          slug: string;
+          name: string;
+          format: Format;
+          captain_id: string;
+          captain: ProfileRow | null;
+        } => !!t,
       )
       .map((t) => {
         const pay = paymentsByTeam.get(t.id);
@@ -1039,7 +1045,7 @@ export class SupabaseEventRepository implements EventRepository {
           name: t.name,
           format: t.format,
           captainId: t.captain_id,
-          captain: captainProfiles.get(t.captain_id) ?? null,
+          captain: t.captain ? toProfile(t.captain) : null,
           memberCount: memberCounts.get(t.id) ?? 0,
           divisionId: teamDivisionByTeam.get(t.id) ?? null,
           payment: pay

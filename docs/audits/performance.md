@@ -32,6 +32,18 @@ still issues two parallel rounds totalling ~17 queries; reducing _that_
 query count needs JOINs against co-host profiles + team captains and is
 left as a follow-up. See the [Bundle 9 journal](../journal/2026-05-24-bundle-9.md).
 
+**Status update (2026-05-24, Bundle 10):** Infrastructure `getDetail()`
+JOIN consolidation shipped. Co-host detail (profiles + groups) now
+arrives nested inside the `event_co_hosts` select; team captain profile
+now arrives nested inside the `event_teams → teams` join. Three queries
+removed from wave 2 (`coHostUsersRes`, `coHostGroupsRes`,
+`teamCaptainsRes`); wave 2 drops from 9 → 6 parallel queries. Total
+`getDetail()` query count goes from ~17 → ~14. P1 #4 fully resolved at
+the page _and_ infrastructure level. Remaining sub-wave (viewer
+captained-team member counts) is a small leaf still open; aggregating
+it via a PostgREST `count` projection is a future micro-optimization.
+See the [Bundle 10 journal](../journal/2026-05-24-bundle-10.md).
+
 ---
 
 ## P1 — biggest impact
@@ -139,12 +151,14 @@ per-notification latency from O(n) to O(1).
 
 ### 4. Event detail page does ~14 DB roundtrips
 
-**Status:** 🟡 _Partially resolved 2026-05-24 (Bundle 9)_ — page-level
-side-loads collapsed from 4–6 sequential waves to 2; ad-hoc captain
-profile fetch JOINed into the registrations query. Infrastructure
-`getDetail()` still does two parallel rounds (~17 queries total);
-remaining win needs JOINs to co-host profiles + team captains — left
-as a follow-up bundle.
+**Status:** ✅ _Resolved 2026-05-24_ — page-level side-loads collapsed
+from 4–6 sequential waves to 2 (Bundle 9); ad-hoc captain profile fetch
+JOINed into the registrations query (Bundle 9); co-host profile+group
+detail JOINed into the `event_co_hosts` select and team captain
+profile JOINed into the nested `event_teams → teams` select (Bundle 10).
+Wave-2 query count: 9 → 6. Total `getDetail()` query count: ~17 → ~14.
+The remaining sub-wave (viewer captained-team member counts) is a
+small leaf left for a future micro-optimization.
 
 **Files:**
 
@@ -338,6 +352,14 @@ log.
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 10: infrastructure `getDetail()` JOIN consolidation
+
+| Item                                           | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 #4 infrastructure `getDetail()` query count | ✅ Done | JOINed co-host profile + group lookups into the `event_co_hosts` select; JOINed captain profile into the nested `event_teams → teams` select via `captain:profiles!teams_captain_id_fkey`. Removed three batched fetches from wave 2 (`coHostUsersRes`, `coHostGroupsRes`, `teamCaptainsRes`). Wave-2 query count: 9 → 6. Total `getDetail()` query count: ~17 → ~14. See [supabase-event-repository.ts `getDetail`](../../packages/infrastructure/src/supabase-event-repository.ts). |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
 ### 2026-05-24 — Bundle 9: event detail page side-load parallelization
 
 | Item                                            | Status     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -382,7 +404,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
   per-viewer state into a Suspense boundary / client component, then
   setting `revalidate = 60`. Until then the listing pages are dynamic
   per request because `getCurrentUser()` reads cookies.
-- **P1 #4** — page-level portion closed 2026-05-24 (Bundle 9); infrastructure `getDetail()` JOIN consolidation still open.
+- **P1 #4** — fully resolved 2026-05-24: page-level portion (Bundle 9) and infrastructure `getDetail()` JOIN consolidation (Bundle 10).
 - All **P2 #7–10** and **P3** items.
 
 ---
