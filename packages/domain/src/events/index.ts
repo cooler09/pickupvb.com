@@ -2,6 +2,8 @@ export * from './capacity.js';
 export * from './division.js';
 export * from './enums.js';
 export * from './event-repository.js';
+export * from './event-team-payment.js';
+export * from './event-team-payment-repository.js';
 export * from './event-team-registration.js';
 export * from './event-team-registration-repository.js';
 export * from './events.js';

@@ -741,6 +741,63 @@ export type Database = {
           },
         ]
       }
+      event_team_payments: {
+        Row: {
+          amount_paid_cents: number | null
+          captain_id: string
+          checkout_session_id: string | null
+          created_at: string
+          event_id: string
+          id: string
+          paid_at: string | null
+          payment_intent_id: string | null
+          payment_status: string
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_paid_cents?: number | null
+          captain_id: string
+          checkout_session_id?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          paid_at?: string | null
+          payment_intent_id?: string | null
+          payment_status?: string
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_paid_cents?: number | null
+          captain_id?: string
+          checkout_session_id?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          paid_at?: string | null
+          payment_intent_id?: string | null
+          payment_status?: string
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_team_payments_captain_id_fkey"
+            columns: ["captain_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_team_payments_event_team_fk"
+            columns: ["event_id", "team_id"]
+            isOneToOne: true
+            referencedRelation: "event_teams"
+            referencedColumns: ["event_id", "team_id"]
+          },
+        ]
+      }
       event_team_registration_members: {
         Row: {
           created_at: string

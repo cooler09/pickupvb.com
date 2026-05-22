@@ -638,12 +638,18 @@ export default async function EventDetailPage(props: {
                     id: d.id,
                     label: d.label,
                     format: d.format,
+                    priceCents: d.priceCents,
+                    priceUnit: d.priceUnit,
                   }))}
                   viewerId={user?.id ?? null}
                   isRealUser={isRealUser}
                   returnPath={returnPath}
-                  {...(pickQuery(searchParams, 'team')
-                    ? { resultCode: pickQuery(searchParams, 'team') }
+                  paymentsOffPlatform={event.paymentsOffPlatform}
+                  {...(pickQuery(searchParams, 'team') || pickQuery(searchParams, 'rsvp')
+                    ? {
+                        resultCode:
+                          pickQuery(searchParams, 'team') ?? pickQuery(searchParams, 'rsvp'),
+                      }
                     : {})}
                 />
               )

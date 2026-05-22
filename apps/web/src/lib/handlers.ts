@@ -7,6 +7,7 @@ import {
   SupabaseBracketRepository,
   SupabaseCommunityListingRepository,
   SupabaseEventRepository,
+  SupabaseEventTeamPaymentRepository,
   SupabaseEventTeamRegistrationRepository,
   SupabaseHostStripeAccountRepository,
   SupabaseHostSubscriptionRepository,
@@ -63,6 +64,7 @@ import { getServerSupabase } from './supabase';
 const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
 const eventTeamRegistrationRepo = new SupabaseEventTeamRegistrationRepository();
+const eventTeamPaymentRepo = new SupabaseEventTeamPaymentRepository();
 const bracketRepo = new SupabaseBracketRepository();
 const hostStripeAccountRepo = new SupabaseHostStripeAccountRepository();
 const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
@@ -131,6 +133,7 @@ export const handlers = {
 export const repositories = {
   bracketRepo,
   eventRepo,
+  eventTeamPaymentRepo,
   eventTeamRegistrationRepo,
   hostStripeAccountRepo,
   hostSubscriptionRepo,

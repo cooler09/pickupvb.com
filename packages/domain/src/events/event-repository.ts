@@ -112,6 +112,18 @@ export interface TeamLite {
   captain: ProfileLite | null;
   /** Roster size (members count). */
   memberCount: number;
+  /** Division the team is registered for. Null on legacy rows. */
+  divisionId: string | null;
+  /**
+   * Sidecar per-team payment state (ADR 0007, Bundle 4). Null when the
+   * team owes nothing or hasn't started checkout — UI infers "owed" from
+   * the division's price_unit + price_cents and shows the Pay button when
+   * `payment === null || payment.status !== 'paid'`.
+   */
+  payment: {
+    status: 'none' | 'pending' | 'paid' | 'refunded';
+    amountPaidCents: number | null;
+  } | null;
 }
 
 /** Team the viewer captains — used for the "Register a team" picker. */

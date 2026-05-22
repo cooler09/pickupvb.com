@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 import {
   InvariantViolation,
   RegistrationPaymentStatus,
+  type EventTeamPaymentId,
   type EventTeamRegistrationId,
 } from '@pickupvb/domain';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
@@ -177,8 +178,10 @@ type CheckoutMetadata = {
   host_id?: string;
   tip_id?: string;
   registration_id?: string;
+  team_id?: string;
+  payment_id?: string;
   captain_id?: string;
-  kind?: 'attendee' | 'tip' | 'team_registration';
+  kind?: 'attendee' | 'tip' | 'team_registration' | 'roster_team_payment';
 };
 
 /**
@@ -266,6 +269,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       paidAt: new Date(paidAt),
     });
   }
+
+  if (meta.kind === 'roster_team_payment' && meta.payment_id) {
+    if (!piId) {
+      log.warn('webhook.roster_team_payment.missing_pi', {
+        paymentId: meta.payment_id,
+      });
+      return;
+    }
+    await markRosterTeamPaymentPaid({
+      paymentId: meta.payment_id,
+      paymentIntentId: piId,
+      amountCents: amountTotal,
+      paidAt: new Date(paidAt),
+    });
+  }
 }
 
 /**
@@ -294,6 +312,10 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
 
   if (meta.kind === 'team_registration' && meta.registration_id) {
     await expireTeamRegistrationCheckout(meta.registration_id);
+  }
+
+  if (meta.kind === 'roster_team_payment' && meta.payment_id) {
+    await expireRosterTeamPaymentCheckout(meta.payment_id);
   }
 }
 
@@ -387,6 +409,7 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
   // Team registrations (ADR 0007). The PI id was stored on the aggregate
   // at markPaid; refund flips it to Refunded which is the terminal state.
   await refundTeamRegistrationIfAny(piId, charge.amount_refunded ?? null);
+  await refundRosterTeamPaymentIfAny(piId, charge.amount_refunded ?? null);
 }
 
 // ----------------------------------------------------------------------------
@@ -443,6 +466,60 @@ async function refundTeamRegistrationIfAny(
   if (reg.paymentStatus !== RegistrationPaymentStatus.Paid) return;
   reg.markRefunded();
   await eventTeamRegistrationRepo.save(reg);
+}
+
+// ----------------------------------------------------------------------------
+// Roster-mode per-team payment helpers (ADR 0007 — Bundle 4). Sidecar to
+// the persistent team registration in `event_teams`; mediated through the
+// {@link EventTeamPayment} aggregate.
+// ----------------------------------------------------------------------------
+
+async function markRosterTeamPaymentPaid(args: {
+  paymentId: string;
+  paymentIntentId: string;
+  amountCents: number;
+  paidAt: Date;
+}): Promise<void> {
+  const { eventTeamPaymentRepo } = repositories;
+  const payment = await eventTeamPaymentRepo.findById(
+    args.paymentId as never as EventTeamPaymentId,
+  );
+  if (!payment) {
+    log.warn('webhook.roster_team_payment.missing', { paymentId: args.paymentId });
+    return;
+  }
+  if (payment.paymentStatus === RegistrationPaymentStatus.Paid) return;
+  try {
+    payment.markPaid({
+      paymentIntentId: args.paymentIntentId,
+      amountCents: args.amountCents,
+      paidAt: args.paidAt,
+    });
+    await eventTeamPaymentRepo.save(payment);
+  } catch (err) {
+    if (err instanceof InvariantViolation) return;
+    throw err;
+  }
+}
+
+async function expireRosterTeamPaymentCheckout(paymentId: string): Promise<void> {
+  const { eventTeamPaymentRepo } = repositories;
+  const payment = await eventTeamPaymentRepo.findById(paymentId as never as EventTeamPaymentId);
+  if (!payment) return;
+  payment.expireCheckout();
+  await eventTeamPaymentRepo.save(payment);
+}
+
+async function refundRosterTeamPaymentIfAny(
+  paymentIntentId: string,
+  _amountRefundedCents: number | null,
+): Promise<void> {
+  const { eventTeamPaymentRepo } = repositories;
+  const payment = await eventTeamPaymentRepo.findByPaymentIntentId(paymentIntentId);
+  if (!payment) return;
+  if (payment.paymentStatus !== RegistrationPaymentStatus.Paid) return;
+  payment.markRefunded();
+  await eventTeamPaymentRepo.save(payment);
 }
 
 // ============================================================================

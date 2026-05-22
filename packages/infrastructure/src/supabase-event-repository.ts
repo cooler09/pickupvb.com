@@ -730,7 +730,9 @@ export class SupabaseEventRepository implements EventRepository {
         : Promise.resolve({ data: null, error: null }),
       this.client
         .from('event_teams')
-        .select('team_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id)')
+        .select(
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id)',
+        )
         .eq('event_id', id)
         .order('registered_at', { ascending: true }),
       this.client
@@ -849,6 +851,7 @@ export class SupabaseEventRepository implements EventRepository {
     // captain profiles + roster sizes in the next parallel block.
     type TeamJoinRow = {
       team_id: string;
+      division_id: string | null;
       teams: { id: string; slug: string; name: string; format: Format; captain_id: string } | null;
     };
     const teamJoinRows = (teamRowsRes.data as TeamJoinRow[] | null) ?? [];
@@ -866,6 +869,7 @@ export class SupabaseEventRepository implements EventRepository {
       viewerHostableGroupsRes,
       teamCaptainsRes,
       teamMemberCountsRes,
+      teamPaymentsRes,
       viewerCaptainedTeamsRes,
     ] = await Promise.all([
       coUserIds.length
@@ -903,6 +907,13 @@ export class SupabaseEventRepository implements EventRepository {
         : Promise.resolve({ data: [], error: null }),
       registeredTeamIds.length
         ? this.client.from('team_members').select('team_id').in('team_id', registeredTeamIds)
+        : Promise.resolve({ data: [], error: null }),
+      registeredTeamIds.length
+        ? this.client
+            .from('event_team_payments')
+            .select('team_id, payment_status, amount_paid_cents')
+            .eq('event_id', id)
+            .in('team_id', registeredTeamIds)
         : Promise.resolve({ data: [], error: null }),
       // Teams the viewer captains in this event's format. Only meaningful
       // for tournaments; we still issue it for any logged-in viewer to
@@ -1008,21 +1019,41 @@ export class SupabaseEventRepository implements EventRepository {
     for (const m of (teamMemberCountsRes.data as { team_id: string }[] | null) ?? []) {
       memberCounts.set(m.team_id, (memberCounts.get(m.team_id) ?? 0) + 1);
     }
+    type PaymentRow = {
+      team_id: string;
+      payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+      amount_paid_cents: number | null;
+    };
+    const paymentsByTeam = new Map<string, PaymentRow>();
+    for (const p of (teamPaymentsRes.data as PaymentRow[] | null) ?? []) {
+      paymentsByTeam.set(p.team_id, p);
+    }
+    const teamDivisionByTeam = new Map<string, string | null>();
+    for (const r of teamJoinRows) {
+      if (r.teams) teamDivisionByTeam.set(r.teams.id, r.division_id);
+    }
     const teams: TeamLite[] = teamJoinRows
       .map((r) => r.teams)
       .filter(
         (t): t is { id: string; slug: string; name: string; format: Format; captain_id: string } =>
           !!t,
       )
-      .map((t) => ({
-        teamId: t.id,
-        slug: t.slug,
-        name: t.name,
-        format: t.format,
-        captainId: t.captain_id,
-        captain: captainProfiles.get(t.captain_id) ?? null,
-        memberCount: memberCounts.get(t.id) ?? 0,
-      }));
+      .map((t) => {
+        const pay = paymentsByTeam.get(t.id);
+        return {
+          teamId: t.id,
+          slug: t.slug,
+          name: t.name,
+          format: t.format,
+          captainId: t.captain_id,
+          captain: captainProfiles.get(t.captain_id) ?? null,
+          memberCount: memberCounts.get(t.id) ?? 0,
+          divisionId: teamDivisionByTeam.get(t.id) ?? null,
+          payment: pay
+            ? { status: pay.payment_status, amountPaidCents: pay.amount_paid_cents }
+            : null,
+        };
+      });
 
     // ---- Build viewer's captained teams (CaptainedTeamLite[]) -------
     type ViewerTeamRow = { id: string; name: string; format: Format };
