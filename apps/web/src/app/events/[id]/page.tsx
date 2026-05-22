@@ -29,7 +29,7 @@ import {
   type AdHocTeamRegistration,
 } from './_components/ad-hoc-team-signup-panel';
 import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
-import { TournamentRegistrationTabs } from './_components/tournament-registration-tabs';
+import { TournamentRegisterPanel } from './_components/tournament-register-panel';
 import { TeamsRegisteredSection } from './_components/teams-registered-section';
 import EventMap from './_components/event-map-lazy';
 import { TipJar } from './_components/tip-jar';
@@ -602,9 +602,11 @@ export default async function EventDetailPage(props: {
           badge={{ tone: 'neutral', label: 'Tournament' }}
           subline={`${event.teams.length} ${event.teams.length === 1 ? 'team' : 'teams'} · ${event.freeAgents.length} free ${event.freeAgents.length === 1 ? 'agent' : 'agents'}`}
         >
-          <TournamentRegistrationTabs
+          <TournamentRegisterPanel
             teamCount={event.teams.length}
             freeAgentCount={event.freeAgents.length}
+            teamEnabled={event.teamRegistrationMode !== null}
+            defaultMode={event.isFreeAgent ? 'free-agent' : 'team'}
             teamPanel={
               event.teamRegistrationMode === 'ad_hoc' ? (
                 <AdHocTeamSignupPanel
