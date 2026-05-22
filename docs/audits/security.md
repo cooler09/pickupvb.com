@@ -301,6 +301,25 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 17: FormData hard cap + Turnstile freshness (P3 #9, #10)
+
+| Item                               | Status  | Notes                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Global 4 KB cap on form fields     | ✅ Done | [apps/web/src/lib/form-data.ts](../../apps/web/src/lib/form-data.ts) — `FIELD_HARD_MAX = 4096` applied inside `rawValue()`, so `field()` / `fieldOrNull()` / `fieldOrUndefined()` / `bool()` all inherit the ceiling. Per-call `maxLen` still narrows; it can never raise the ceiling.                  |
+| Turnstile `challenge_ts` freshness | ✅ Done | [apps/web/src/lib/turnstile.ts](../../apps/web/src/lib/turnstile.ts#L13-L84) — reject tokens whose `challenge_ts` is older than 2 min. Replays return `{ ok: false, error: 'Verification expired. Please try again.' }`. Missing `challenge_ts` is accepted (Cloudflare always returns one on success). |
+| Tests                              | ✅ Done | [form-data.test.ts](../../apps/web/src/lib/form-data.test.ts) — bare/slot-prefixed truncation, `fieldOrNull` cap precedence. [turnstile.test.ts](../../apps/web/src/lib/turnstile.test.ts) — fresh success, omitted `challenge_ts`, stale token rejection, error-codes path, empty token.               |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+**Follow-ups:**
+
+- P3 #11 (file-upload hardening) is still preemptive — re-evaluate when
+  the first upload endpoint lands.
+- P3 #8 (audit-log coverage) is the largest open security P3 and the
+  natural next bundle: extend `event_payment_audit` (or a sibling
+  `audit_log` table) to cover group role changes, co-host add/remove,
+  Stripe account mutations, and subscription state changes.
+
 ### 2026-05-24 — Bundle 16: rate limiting on email-sending paths (P2 #6)
 
 | Item                                | Status  | Notes                                                                                                                                                                                                                                                                                                                                                  |
@@ -384,8 +403,10 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
   `'unsafe-inline'` from `script-src`.
 - ~~**P2 #4**~~ — resolved 2026-05-24 (Bundle 14).
 - ~~**P2 #6**~~ — resolved 2026-05-24 (Bundle 16).
-- All **P3** items (audit-log coverage, FormData global cap, Turnstile
-  freshness, upload hardening).
+- ~~**P3 #9** (FormData global cap)~~ — resolved 2026-05-24 (Bundle 17).
+- ~~**P3 #10** (Turnstile freshness)~~ — resolved 2026-05-24 (Bundle 17).
+- **P3 #8** (audit-log coverage) and **P3 #11** (preemptive upload
+  hardening) remain open.
 
 ---
 
