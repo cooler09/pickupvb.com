@@ -99,6 +99,18 @@ stale-while-revalidate=86400`. All four `opengraph-image.tsx` routes
 
 See the [Bundle 12 journal](../journal/2026-05-24-bundle-12.md).
 
+**Status update (2026-05-24, Bundle 13a):** Listings-Suspense refactor
+landed for three of the four listing pages — `/players`, `/groups`, and
+`/teams` now render their public lists with a sessionless anon Supabase
+client (`createSupabaseAnonClient()`) and `export const revalidate = 60`,
+so anonymous traffic can be CDN-cached for a minute. Viewer-only chrome
+(`+ New group`, `+ New team`, captained / rostered / pending-invite
+sections) moved into client components that fetch their own session via
+`createSupabaseBrowserClient()` after hydration. `/events` plus all
+`/[id]` detail pages are deferred to a follow-up bundle because the
+friends / following / RSVP overlay is wider in scope. See the
+[Bundle 13a journal](../journal/2026-05-24-bundle-13a.md).
+
 ---
 
 ## P1 — biggest impact
@@ -136,14 +148,31 @@ See the [Bundle 12 journal](../journal/2026-05-24-bundle-12.md).
 
 ### 1. `dynamic = 'force-dynamic'` on public pages disables CDN caching
 
-**Status:** 🟡 _Partially resolved 2026-05-17; partially regressed 2026-05-22_
-— `force-dynamic` removed from the 7 listed pages, but most still implicitly
-dynamic via `cookies()`. Full CDN caching needs the Suspense refactor
-described below (still open). 2026-05-22 scan finds `force-dynamic` now
-declared on three additional public pages: [app/page.tsx](../../apps/web/src/app/page.tsx),
-[app/pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx),
-[app/e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx). Confirm
-intent or drop.
+**Status:** 🟡 _Partially resolved 2026-05-24 (Bundle 13a)_ — three of
+the four listing pages are now ISR-cacheable for anonymous traffic:
+
+- [`/players`](../../apps/web/src/app/players/page.tsx) — sessionless
+  anon client, `revalidate = 60`. Page never reads `cookies()`; viewer
+  chrome (none) was never needed.
+- [`/groups`](../../apps/web/src/app/groups/page.tsx) — sessionless anon
+  client, `revalidate = 60`. "+ New group" CTA moved into
+  [`<NewGroupButton />`](../../apps/web/src/app/groups/_components/new-group-button.tsx).
+- [`/teams`](../../apps/web/src/app/teams/page.tsx) — sessionless anon
+  client, `revalidate = 60`. Captained / rostered / pending-invite
+  sections and create-team CTA moved into
+  [`<MyTeamsPanel />`](../../apps/web/src/app/teams/_components/my-teams-panel.tsx).
+
+Still open for follow-up:
+
+- [`/events`](../../apps/web/src/app/events/page.tsx) — has friends list,
+  following feed, and per-card friend badges; needs a wider split before
+  the shell can be cacheable.
+- All `/[id]` detail pages — RSVP / manage / member chrome needs an
+  overlay strategy before the shell can drop `cookies()`.
+- Earlier 2026-05-22 regression: confirm `force-dynamic` intent (or drop)
+  on [app/page.tsx](../../apps/web/src/app/page.tsx),
+  [app/pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx),
+  [app/e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx).
 
 **Files:**
 
@@ -442,6 +471,18 @@ log.
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 13a: ISR listings-Suspense (3 of 4 pages)
+
+| Item                                                      | Status      | Notes                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add sessionless anon Supabase client                      | ✅ Done     | New [`createSupabaseAnonClient()`](../../packages/supabase/src/anon.ts) exported at `@pickupvb/supabase/anon`. Uses anon/publishable key, `persistSession: false`. Does NOT read cookies, so pages using it can stay ISR-cacheable.                                                                                                                                                           |
+| P1 #1 — `/players` ISR shell                              | ✅ Done     | Page swapped from `getServerSupabase()` to `createSupabaseAnonClient()` and gained `export const revalidate = 60`. Listing has no viewer-specific state, so no viewer chrome was needed.                                                                                                                                                                                                      |
+| P1 #1 — `/groups` ISR shell + client `<NewGroupButton />` | ✅ Done     | Page now sessionless + `revalidate = 60`. The `+ New group` CTA moved into [`<NewGroupButton />`](../../apps/web/src/app/groups/_components/new-group-button.tsx) (client component using `createSupabaseBrowserClient()`).                                                                                                                                                                   |
+| P1 #1 — `/teams` ISR shell + client `<MyTeamsPanel />`    | ✅ Done     | Public "discover" query now uses anon client; `revalidate = 60`. Viewer's captained / rostered / pending-invite sections plus the create-team CTA moved into [`<MyTeamsPanel />`](../../apps/web/src/app/teams/_components/my-teams-panel.tsx). Shared [`<TeamCard />`](../../apps/web/src/app/teams/_components/team-card.tsx) extracted so it's safe to import from both server and client. |
+| P1 #1 — `/events` + all `/[id]` detail pages              | 🔴 Deferred | Wider scope: events listing has friends/following + per-card friend badges; detail pages have RSVP / manage / member chrome. Tracked as a follow-up bundle.                                                                                                                                                                                                                                   |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
 ### 2026-05-24 — Bundle 12: Stripe dedupe / Photon timeout / OG cache
 
 | Item                                            | Status  | Notes                                                                                                                                                                                                                                                                                                                                                   |
@@ -515,6 +556,10 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
   per-viewer state into a Suspense boundary / client component, then
   setting `revalidate = 60`. Until then the listing pages are dynamic
   per request because `getCurrentUser()` reads cookies.
+- **P1 #1** — 🟡 Partially resolved 2026-05-24 (Bundle 13a). `/players`,
+  `/groups`, `/teams` ISR-cacheable for anonymous traffic via new
+  `createSupabaseAnonClient()` + client-component viewer chrome.
+  `/events` and all `/[id]` detail pages deferred to a follow-up bundle.
 - **P1 #4** — fully resolved 2026-05-24: page-level portion (Bundle 9) and infrastructure `getDetail()` JOIN consolidation (Bundle 10).
 - **P2 #7** — ✅ Resolved 2026-05-24 (Bundle 11).
 - **P2 #8** — ✅ Resolved (logged 2026-05-24, Bundle 11; fix landed earlier).

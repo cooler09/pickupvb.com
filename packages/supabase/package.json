@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./browser": "./src/browser.ts",
     "./server": "./src/server.ts",
-    "./admin": "./src/admin.ts"
+    "./admin": "./src/admin.ts",
+    "./anon": "./src/anon.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
