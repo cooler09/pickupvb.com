@@ -122,19 +122,41 @@ export default async function EventDetailPage(props: {
   // External-registration events suppress all on-platform signup panels.
   const signupsOpen = event.status === 'published' && !hasStarted && !isExternal;
 
-  // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
-  const pricing = await getEventPricing(event.id);
-  const paid = isPaidEvent(pricing);
-
-  // Side-loads below are all independent of each other. Run in parallel.
+  // Side-loads after the domain read model:
+  //
+  //   wave 1 — pricing + every viewer/host/event side-load that doesn't
+  //            depend on `paid`. Up to 6 RTTs in parallel.
+  //   wave 2 — the three paid-event-only fetches (breakdown, host payments
+  //            map, viewer payment status). Up to 3 RTTs in parallel.
+  //
+  // Previously these landed as 4–6 sequential waves; the original audit
+  // (P1 #4) flagged ~300–800 ms total at warm Postgres. Collapsing to
+  // 2 waves keeps the page-level perimeter at constant RTT regardless of
+  // how many side-loads we add later.
+  type EligibleTeamOption = {
+    kind: 'team' | 'registration';
+    id: string;
+    label: string;
+  };
+  type AdHocBundle = {
+    viewerRegistrations: ReadonlyArray<AdHocTeamRegistration>;
+    allRegistrations: ReadonlyArray<AdHocTeamPublicEntry>;
+    hostRows: ReadonlyArray<HostAdHocTeamRow>;
+  };
   const isHostOfEvent = !!user && event.canManage;
-  const needsViewerPayment = paid && !!user && event.isAttending;
-  const needsManagePayments = paid && event.canManage;
 
-  const [breakdown, viewerIsPro, tipTotalCents, payments, viewerPaymentStatus] = await Promise.all([
-    pricing && paid ? attendeeChargeBreakdownAsync(pricing) : Promise.resolve(null),
+  const [
+    pricing,
+    viewerIsPro,
+    tipTotalCents,
+    primaryHostUserSocial,
+    eligibleTeamsByDivision,
+    adHocBundle,
+  ] = await Promise.all([
+    // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
+    getEventPricing(event.id),
     event.canManage && user
-      ? (await import('@/lib/admin')).hasProBenefits(user.id)
+      ? (async () => (await import('@/lib/admin')).hasProBenefits(user.id))()
       : Promise.resolve(false),
     // Tip-jar totals (cheap RPC). Hidden from the host themselves.
     isHostOfEvent
@@ -146,6 +168,169 @@ export default async function EventDetailPage(props: {
           } as never);
           return Number(tipTotal ?? 0);
         })(),
+    // Primary host's social handles — small cosmetic fetch, kept outside the
+    // domain read model. Resolves to null when no handles are set.
+    event.primaryHostUser
+      ? (async (): Promise<SocialHandles | null> => {
+          const sb = await getServerSupabase();
+          const { data: socialRow } = await sb
+            .from('profiles')
+            .select(
+              'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+            )
+            .eq('id', event.primaryHostUser!.id)
+            .maybeSingle();
+          const r = socialRow as {
+            instagram_handle: string | null;
+            tiktok_handle: string | null;
+            twitter_handle: string | null;
+            facebook_handle: string | null;
+            youtube_handle: string | null;
+            website_url: string | null;
+          } | null;
+          if (!r) return null;
+          return {
+            instagramHandle: r.instagram_handle,
+            tiktokHandle: r.tiktok_handle,
+            twitterHandle: r.twitter_handle,
+            facebookHandle: r.facebook_handle,
+            youtubeHandle: r.youtube_handle,
+            websiteUrl: r.website_url,
+          };
+        })()
+      : Promise.resolve(null),
+    // Eligible winning teams per division for the host's "Record winner"
+    // panel. Pulls roster-mode entries (event_teams → teams) and ad-hoc
+    // registrations (event_team_registrations) and groups by division.
+    event.canManage && event.type === 'tournament' && event.divisions.length > 0
+      ? (async (): Promise<Map<string, EligibleTeamOption[]>> => {
+          const sbWinners = await getServerSupabase();
+          const [{ data: rosterRows }, { data: regOptions }] = await Promise.all([
+            sbWinners
+              .from('event_teams')
+              .select('division_id, team_id, teams!inner(id, name)')
+              .eq('event_id', event.id),
+            sbWinners
+              .from('event_team_registrations')
+              .select('id, name, division_id')
+              .eq('event_id', event.id),
+          ]);
+          type RosterRow = {
+            division_id: string;
+            team_id: string;
+            teams: { id: string; name: string } | null;
+          };
+          type RegOptionRow = { id: string; name: string; division_id: string };
+          const map = new Map<string, EligibleTeamOption[]>();
+          for (const r of (rosterRows as RosterRow[] | null) ?? []) {
+            if (!r.teams || !r.division_id) continue;
+            const arr = map.get(r.division_id) ?? [];
+            arr.push({ kind: 'team', id: r.team_id, label: r.teams.name });
+            map.set(r.division_id, arr);
+          }
+          for (const r of (regOptions as RegOptionRow[] | null) ?? []) {
+            const arr = map.get(r.division_id) ?? [];
+            arr.push({ kind: 'registration', id: r.id, label: r.name });
+            map.set(r.division_id, arr);
+          }
+          for (const [k, v] of map) {
+            v.sort((a, b) => a.label.localeCompare(b.label));
+            map.set(k, v);
+          }
+          return map;
+        })()
+      : Promise.resolve(new Map<string, EligibleTeamOption[]>()),
+    // ADR 0007 — ad-hoc team registrations. Only fetched on tournaments
+    // configured for ad-hoc registration. Single query JOINs captain
+    // profile + members so the host management panel doesn't need a
+    // second RTT to resolve captain display names.
+    event.type === 'tournament' && event.teamRegistrationMode === 'ad_hoc'
+      ? (async (): Promise<AdHocBundle> => {
+          const sb = await getServerSupabase();
+          const { data: regRows } = await sb
+            .from('event_team_registrations')
+            .select(
+              'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
+            )
+            .eq('event_id', event.id);
+          type MemberRow = {
+            id: string;
+            user_id: string | null;
+            display_name: string | null;
+            email: string | null;
+            sort_order: number;
+          };
+          type RegRow = {
+            id: string;
+            name: string;
+            division_id: string;
+            captain_id: string;
+            payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+            payment_intent_id: string | null;
+            amount_paid_cents: number | null;
+            captain: { id: string; display_name: string | null } | null;
+            members: MemberRow[] | null;
+          };
+          const rows: RegRow[] = (regRows as RegRow[] | null) ?? [];
+          const allRegistrations: AdHocTeamPublicEntry[] = rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            divisionId: r.division_id,
+            paymentStatus: r.payment_status,
+            memberCount: 1 + (r.members?.length ?? 0),
+            isViewerCaptain: !!user && r.captain_id === user.id,
+          }));
+          const viewerRegistrations: AdHocTeamRegistration[] = user
+            ? rows
+                .filter((r) => r.captain_id === user.id)
+                .map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  divisionId: r.division_id,
+                  paymentStatus: r.payment_status,
+                  members: (r.members ?? [])
+                    .slice()
+                    .sort((a, b) => a.sort_order - b.sort_order)
+                    .map((m) => ({
+                      id: m.id,
+                      userId: m.user_id,
+                      displayName: m.display_name,
+                      email: m.email,
+                      sortOrder: m.sort_order,
+                    })),
+                }))
+            : [];
+          const hostRows: HostAdHocTeamRow[] =
+            event.canManage && rows.length > 0
+              ? rows.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  divisionId: r.division_id,
+                  paymentStatus: r.payment_status,
+                  paymentIntentId: r.payment_intent_id,
+                  amountPaidCents: r.amount_paid_cents ?? 0,
+                  rosterSize: 1 + (r.members?.length ?? 0),
+                  captain: {
+                    id: r.captain_id,
+                    displayName: r.captain?.display_name ?? null,
+                  },
+                }))
+              : [];
+          return { viewerRegistrations, allRegistrations, hostRows };
+        })()
+      : Promise.resolve<AdHocBundle>({
+          viewerRegistrations: [],
+          allRegistrations: [],
+          hostRows: [],
+        }),
+  ]);
+
+  const paid = isPaidEvent(pricing);
+  const needsViewerPayment = paid && !!user && event.isAttending;
+  const needsManagePayments = paid && event.canManage;
+
+  const [breakdown, payments, viewerPaymentStatus] = await Promise.all([
+    pricing && paid ? attendeeChargeBreakdownAsync(pricing) : Promise.resolve(null),
     // For paid events, side-load per-attendee payment status (admin client —
     // visibility is host-only). Free events get undefined.
     needsManagePayments
@@ -174,8 +359,8 @@ export default async function EventDetailPage(props: {
     // RSVP panel can show "paid / pending / due" badges.
     needsViewerPayment
       ? (async () => {
-          const supabaseForViewer = await (await import('@/lib/supabase')).getServerSupabase();
-          const { data: row } = await supabaseForViewer
+          const sb = await getServerSupabase();
+          const { data: row } = await sb
             .from('event_attendees')
             .select('payment_status')
             .eq('event_id', event.id)
@@ -187,174 +372,11 @@ export default async function EventDetailPage(props: {
       : Promise.resolve(undefined),
   ]);
 
-  // ADR 0007 — ad-hoc team registrations side-load. Only fetched on
-  // tournaments configured for ad-hoc registration. We load all rows
-  // (for the public list) and split out the viewer-captained subset for
-  // the editor. When the viewer can manage, we also build a host-facing
-  // rows array with captain names + payment fields for HostAdHocTeamsPanel.
-  let adHocViewerRegistrations: ReadonlyArray<AdHocTeamRegistration> = [];
-  let adHocAllRegistrations: ReadonlyArray<AdHocTeamPublicEntry> = [];
-  let adHocHostRows: ReadonlyArray<HostAdHocTeamRow> = [];
-  if (event.type === 'tournament' && event.teamRegistrationMode === 'ad_hoc') {
-    const supabaseForAdHoc = await getServerSupabase();
-    const { data: regRows } = await supabaseForAdHoc
-      .from('event_team_registrations')
-      .select(
-        'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
-      )
-      .eq('event_id', event.id);
-    type MemberRow = {
-      id: string;
-      user_id: string | null;
-      display_name: string | null;
-      email: string | null;
-      sort_order: number;
-    };
-    type RegRow = {
-      id: string;
-      name: string;
-      division_id: string;
-      captain_id: string;
-      payment_status: 'none' | 'pending' | 'paid' | 'refunded';
-      payment_intent_id: string | null;
-      amount_paid_cents: number | null;
-      members: MemberRow[] | null;
-    };
-    const rows: RegRow[] = (regRows as RegRow[] | null) ?? [];
-    adHocAllRegistrations = rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      divisionId: r.division_id,
-      paymentStatus: r.payment_status,
-      memberCount: 1 + (r.members?.length ?? 0),
-      isViewerCaptain: !!user && r.captain_id === user.id,
-    }));
-    if (user) {
-      adHocViewerRegistrations = rows
-        .filter((r) => r.captain_id === user.id)
-        .map((r) => ({
-          id: r.id,
-          name: r.name,
-          divisionId: r.division_id,
-          paymentStatus: r.payment_status,
-          members: (r.members ?? [])
-            .slice()
-            .sort((a, b) => a.sort_order - b.sort_order)
-            .map((m) => ({
-              id: m.id,
-              userId: m.user_id,
-              displayName: m.display_name,
-              email: m.email,
-              sortOrder: m.sort_order,
-            })),
-        }));
-    }
-    if (event.canManage && rows.length > 0) {
-      // Side-load captain display names for the host management panel.
-      const captainIds = Array.from(new Set(rows.map((r) => r.captain_id)));
-      const { data: profileRows } = await supabaseForAdHoc
-        .from('profiles')
-        .select('id, display_name')
-        .in('id', captainIds);
-      type ProfileRow = { id: string; display_name: string | null };
-      const captainById = new Map<string, ProfileRow>(
-        ((profileRows as ProfileRow[] | null) ?? []).map((p) => [p.id, p]),
-      );
-      adHocHostRows = rows.map((r) => {
-        const captainProfile = captainById.get(r.captain_id) ?? null;
-        return {
-          id: r.id,
-          name: r.name,
-          divisionId: r.division_id,
-          paymentStatus: r.payment_status,
-          paymentIntentId: r.payment_intent_id,
-          amountPaidCents: r.amount_paid_cents ?? 0,
-          rosterSize: 1 + (r.members?.length ?? 0),
-          captain: {
-            id: r.captain_id,
-            displayName: captainProfile?.display_name ?? null,
-          },
-        };
-      });
-    }
-  }
-
-  // Side-load eligible winning teams per division for the host's "Record
-  // winner" panel. Pulls roster-mode entries (event_teams → teams) and
-  // ad-hoc registrations (event_team_registrations) and groups by division.
-  type EligibleTeamOption = {
-    kind: 'team' | 'registration';
-    id: string;
-    label: string;
-  };
-  const eligibleTeamsByDivision = new Map<string, EligibleTeamOption[]>();
-  if (event.canManage && event.type === 'tournament' && event.divisions.length > 0) {
-    const sbWinners = await getServerSupabase();
-    const [{ data: rosterRows }, { data: regOptions }] = await Promise.all([
-      sbWinners
-        .from('event_teams')
-        .select('division_id, team_id, teams!inner(id, name)')
-        .eq('event_id', event.id),
-      sbWinners
-        .from('event_team_registrations')
-        .select('id, name, division_id')
-        .eq('event_id', event.id),
-    ]);
-    type RosterRow = {
-      division_id: string;
-      team_id: string;
-      teams: { id: string; name: string } | null;
-    };
-    type RegOptionRow = { id: string; name: string; division_id: string };
-    for (const r of (rosterRows as RosterRow[] | null) ?? []) {
-      if (!r.teams || !r.division_id) continue;
-      const arr = eligibleTeamsByDivision.get(r.division_id) ?? [];
-      arr.push({ kind: 'team', id: r.team_id, label: r.teams.name });
-      eligibleTeamsByDivision.set(r.division_id, arr);
-    }
-    for (const r of (regOptions as RegOptionRow[] | null) ?? []) {
-      const arr = eligibleTeamsByDivision.get(r.division_id) ?? [];
-      arr.push({ kind: 'registration', id: r.id, label: r.name });
-      eligibleTeamsByDivision.set(r.division_id, arr);
-    }
-    for (const [k, v] of eligibleTeamsByDivision) {
-      v.sort((a, b) => a.label.localeCompare(b.label));
-      eligibleTeamsByDivision.set(k, v);
-    }
-  }
-
-  // Primary host's social handles — small extra fetch, kept outside the
-  // domain read model since it's purely cosmetic. Renders nothing when the
-  // host hasn't set any handles.
-  let primaryHostUserSocial: SocialHandles | null = null;
-  if (event.primaryHostUser) {
-    const supabaseForSocial = await getServerSupabase();
-    const { data: socialRow } = await supabaseForSocial
-      .from('profiles')
-      .select(
-        'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
-      )
-      .eq('id', event.primaryHostUser.id)
-      .maybeSingle();
-    const r = socialRow as {
-      instagram_handle: string | null;
-      tiktok_handle: string | null;
-      twitter_handle: string | null;
-      facebook_handle: string | null;
-      youtube_handle: string | null;
-      website_url: string | null;
-    } | null;
-    if (r) {
-      primaryHostUserSocial = {
-        instagramHandle: r.instagram_handle,
-        tiktokHandle: r.tiktok_handle,
-        twitterHandle: r.twitter_handle,
-        facebookHandle: r.facebook_handle,
-        youtubeHandle: r.youtube_handle,
-        websiteUrl: r.website_url,
-      };
-    }
-  }
+  const {
+    viewerRegistrations: adHocViewerRegistrations,
+    allRegistrations: adHocAllRegistrations,
+    hostRows: adHocHostRows,
+  } = adHocBundle;
 
   // The AttendeeList component still expects the snake_case Supabase shape.
   // Map the read model to it inline to keep the component unchanged.

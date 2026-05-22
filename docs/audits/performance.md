@@ -20,6 +20,18 @@ pages — [apps/web/src/app/page.tsx](../../apps/web/src/app/page.tsx),
 [claim-link page e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx)
 — so the original P1 #1 is partially re-opened on those routes.
 
+**Status update (2026-05-24, Bundle 9):** Event detail page side-loads
+collapsed from 4–6 sequential waves down to 2 (wave 1: pricing + viewer
+pro + tip-total + host social + eligible-winners + ad-hoc bundle in
+parallel; wave 2: breakdown + host payments map + viewer payment status
+in parallel — only for paid events). Ad-hoc captain profile fetch JOINed
+into the registrations query, removing one more sub-wave RTT. Net: ~3–4
+fewer page-level RTTs per event detail render. Closes the page-level
+portion of P1 #4. The infrastructure `getDetail()` repository method
+still issues two parallel rounds totalling ~17 queries; reducing _that_
+query count needs JOINs against co-host profiles + team captains and is
+left as a follow-up. See the [Bundle 9 journal](../journal/2026-05-24-bundle-9.md).
+
 ---
 
 ## P1 — biggest impact
@@ -126,6 +138,13 @@ Collect errors after; still prune dead subscriptions on 404/410. Reduces
 per-notification latency from O(n) to O(1).
 
 ### 4. Event detail page does ~14 DB roundtrips
+
+**Status:** 🟡 _Partially resolved 2026-05-24 (Bundle 9)_ — page-level
+side-loads collapsed from 4–6 sequential waves to 2; ad-hoc captain
+profile fetch JOINed into the registrations query. Infrastructure
+`getDetail()` still does two parallel rounds (~17 queries total);
+remaining win needs JOINs to co-host profiles + team captains — left
+as a follow-up bundle.
 
 **Files:**
 
@@ -319,6 +338,15 @@ log.
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 9: event detail page side-load parallelization
+
+| Item                                            | Status     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 #4 page-level side-load waves (event detail) | 🟡 Partial | Collapsed page-level side-loads in [event detail page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) from 4–6 sequential waves to 2: wave 1 runs pricing, viewer-pro check, tip-total RPC, primary-host social handles, eligible-winning-teams map, and the ad-hoc registrations bundle in parallel; wave 2 (paid events only) runs breakdown, host payments map, viewer payment status in parallel. Ad-hoc captain profile fetch JOINed into the registrations query, eliminating its sequential second RTT. |
+| P1 #4 infrastructure `getDetail()` query count  | 🔴 Open    | Two parallel rounds totalling ~17 queries unchanged. Next bundle should JOIN profile/group lookups for co-hosts and JOIN captain profile into the teams query; aim for ≤3 queries.                                                                                                                                                                                                                                                                                                                                   |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
 ### 2026-05-22 — Bundle 2: React Compiler lint cleanup
 
 | Item                                                            | Status       | Notes                                                                                                                                                                                                          |
@@ -354,8 +382,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
   per-viewer state into a Suspense boundary / client component, then
   setting `revalidate = 60`. Until then the listing pages are dynamic
   per request because `getCurrentUser()` reads cookies.
-- **P1 #4** — collapse `getDetail()`'s ~14 roundtrips. Wants a dedicated
-  PR with before/after slow-query timings.
+- **P1 #4** — page-level portion closed 2026-05-24 (Bundle 9); infrastructure `getDetail()` JOIN consolidation still open.
 - All **P2 #7–10** and **P3** items.
 
 ---
