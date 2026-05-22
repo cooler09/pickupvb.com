@@ -1,5 +1,7 @@
 # Developer / project organization audit — 2026-05-17
 
+> **Status (2026-05-22, Bundle 29):** **Three P2s closed.** (a) Pre-commit hooks shipped — `husky` + `lint-staged` at workspace root run `prettier --write` over staged files; `pnpm install` installs the git hook via the new `prepare` script. (b) Dependency pinning standardized to caret form (`^25.8.0` / `^6.0.3`) across `application`, `infrastructure`, `notifications`, `supabase`, `config`. (c) The `apps/web` `--webpack` flag stays, but the **mystery is resolved** — `next.config.mjs` now carries a comment explaining the `webpack(config)` extensionAlias for NodeNext workspace imports that Turbopack doesn't honor. A full Turbopack migration is a deferred bundle (needs `turbopack.resolveExtensions` + an import-specifier sweep). See the [Bundle 29 journal](../journal/2026-05-22-bundle-29.md).
+>
 > **Status (2026-05-22, Bundle 28):** **P1 #2 (test scripts) closed.** The five remaining placeholder `test` scripts (`config`, `infrastructure`, `notifications`, `supabase`, `types`) now invoke `vitest run --passWithNoTests` instead of `echo`. Adding a `*.test.ts` file to any package now actually runs under CI; an existing test failure breaks `pnpm test`. CI is no longer green-by-accident. See the [Bundle 28 journal](../journal/2026-05-22-bundle-28.md).
 >
 > **Status (2026-05-24, Bundle 8):** **Shared ESLint flat config landed** — closes P1 #1 (lint coverage). `@pickupvb/config` now exports an `./eslint/base` flat config (typescript-eslint recommended + `no-unused-vars` + `no-explicit-any` + `no-console`); all six library packages (`domain`, `application`, `infrastructure`, `notifications`, `supabase`, `types`) replaced their no-op `lint` scripts with `eslint .` and extend the shared base. Also resolves part of the P2 "`@pickupvb/config` misleading name" — the package now hosts shared ESLint config too. `pnpm lint` exits non-zero on real violations across the monorepo. See the [Bundle 8 journal](../journal/2026-05-24-bundle-8.md).
@@ -71,11 +73,12 @@ Organizational and operational layer of the pickupvb.com monorepo: workspace + T
 
 ## P2 findings
 
-### No pre-commit hooks (husky + lint-staged)
+### No pre-commit hooks (husky + lint-staged) ✅ (2026-05-22, Bundle 29)
 
 - **Where:** Root `package.json` lacks `husky` / `lint-staged`; no `.husky/` directory.
 - **Issue:** Developers can commit code that fails `pnpm typecheck` / `pnpm lint` / `pnpm build`. The verification triple lives in AGENTS.md but isn't enforced locally — it gets caught only by CI, with longer feedback loop. Combined with the lint coverage gap (P1) this means broken-but-unlinted packages can land repeatedly.
 - **Fix:** `pnpm add -D husky lint-staged` at root; add `.husky/pre-commit` running `pnpm exec lint-staged`; configure lint-staged to run ESLint on `*.{ts,tsx}` and Prettier on the broader pattern. Optionally a `pre-push` running `pnpm typecheck`.
+- **Resolved (Bundle 29):** `husky` + `lint-staged` installed at the workspace root; `prepare: husky` installs the git hook on `pnpm install`; `.husky/pre-commit` runs `pnpm exec lint-staged`. lint-staged is configured to run `prettier --write` over staged `*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,yml,yaml}` files. **ESLint deliberately excluded from pre-commit**: each package owns its own flat `eslint.config.mjs`, and lint-staged invokes binaries from the repo root — ESLint v9 then fails to discover a config (root has none, and adding one would clobber the Next-aware config in `apps/web`). `pnpm lint` (via `turbo run lint`, which delegates with each package as cwd) continues to enforce ESLint in CI.
 
 ### No PR template, issue templates, or CODEOWNERS 🟡 Partial (2026-05-17)
 
@@ -101,17 +104,19 @@ Organizational and operational layer of the pickupvb.com monorepo: workspace + T
 - **Issue:** Only exports `tsconfig` presets. Future contributor will reasonably expect ESLint/Prettier/Tailwind configs here and not find them. As lint coverage expands (P1), this is the natural home.
 - **Fix:** Either rename to `@pickupvb/tsconfig`, or expand it into the home for shared ESLint + Prettier + Tailwind presets and keep the name.
 
-### Inconsistent dependency pinning
+### Inconsistent dependency pinning ✅ (2026-05-22, Bundle 29)
 
 - **Where:** `@types/node` is `^25.8.0` in some packages, `25` in others; `typescript` is `^6.0.3` everywhere but root scripts handle the resolver inconsistently.
 - **Issue:** Bare version (`25`) vs. caret (`^25.8.0`) yield different update behavior and confuse readers about intent.
 - **Fix:** Pick one (caret for dev deps, exact only where reproducibility matters) and apply uniformly. Document in AGENTS.md.
+- **Resolved (Bundle 29):** All dev-dep versions normalized to caret form. `@types/node: "25"` → `"^25.8.0"` in `application`, `infrastructure`, `notifications`, `supabase`; `typescript: "6"` → `"^6.0.3"` in `config`. Apps and remaining packages already used caret; nothing else changed. AGENTS.md does not yet document the convention — add a one-liner next time a contributor lands.
 
-### `apps/web/package.json` `dev` and `build` force `--webpack`
+### `apps/web/package.json` `dev` and `build` force `--webpack` 🟡 Documented (2026-05-22, Bundle 29)
 
 - **Where:** [apps/web/package.json](apps/web/package.json) (~L8–L9).
 - **Issue:** Next 16's default is Turbopack — explicitly opting back to Webpack slows local dev and may be a leftover from a debugging session. No code comment explains why.
 - **Fix:** Either drop `--webpack` (preferred — Turbopack is the default for a reason in Next 16) or add a comment explaining the specific incompatibility forcing it.
+- **Documented (Bundle 29):** Dropping `--webpack` was attempted and failed the build with `"This build is using Turbopack, with a webpack config and no turbopack config."` — `next.config.mjs` carries a `webpack(config)` callback that installs an `extensionAlias` mapping `.js` / `.mjs` / `.cjs` import specifiers to TS sources for the NodeNext ESM workspace packages (`@pickupvb/{application,domain,infrastructure,supabase,types}`). Turbopack ignores `webpack()` callbacks. A comment in `next.config.mjs` now explains the constraint and points back to this audit entry. **Full Turbopack migration deferred** — it needs an equivalent `turbopack.resolveExtensions` block plus a sweep of every workspace-internal import specifier, which is a bundle of its own.
 
 ### No remote Turbo cache configured
 
@@ -202,11 +207,11 @@ Organizational and operational layer of the pickupvb.com monorepo: workspace + T
 
 - ~~**P1** Lint coverage limited to `apps/web` — six packages still unlinted. Needs shared ESLint config decision (see open question).~~ — **closed** by Bundle 8 (2026-05-24): shared `@pickupvb/config/eslint/base` flat config; all six library packages now lint via `eslint .`. `no-floating-promises` deferred (needs type-aware parser config).
 - ~~**P1** Test scripts are no-ops in most packages~~ — **closed** by Bundle 28 (2026-05-22): 5 remaining placeholder packages (`config`, `infrastructure`, `notifications`, `supabase`, `types`) now run `vitest run --passWithNoTests`. Adding a `*.test.ts` to any package now flows straight into CI; failing tests break `pnpm test`. Filling out actual infrastructure-adapter tests remains a separate effort (architecture audit).
-- **P2** No pre-commit hooks (husky + lint-staged) — unblocked now that lint actually catches issues across the monorepo.
+- ~~**P2** No pre-commit hooks (husky + lint-staged)~~ — **closed** by Bundle 29 (2026-05-22): husky + lint-staged at root run `prettier --write` over staged files. ESLint omitted from pre-commit (flat-config discovery from root fails on cross-package paths); enforced in CI via `pnpm lint`.
 - **P2** Issue templates + CODEOWNERS — only PR template shipped.
 - ~~**P2** `@pickupvb/config` misleading name.~~ — **partially closed** by Bundle 8 (2026-05-24): the package now hosts shared ESLint config in addition to tsconfig presets, so the name is no longer misleading. (Could still expand to Prettier / Tailwind presets later.)
-- **P2** Inconsistent dependency pinning across packages.
-- **P2** `apps/web` `--webpack` flag — investigate / remove if obsolete.
+- ~~**P2** Inconsistent dependency pinning across packages.~~ — **closed** by Bundle 29 (2026-05-22): all dev-deps normalized to caret form across the workspace.
+- ~~**P2** `apps/web` `--webpack` flag — investigate / remove if obsolete.~~ — **documented** by Bundle 29 (2026-05-22): flag is required by the `webpack(config)` extensionAlias for NodeNext workspace imports; Turbopack ignores it. Full Turbopack migration (needs `turbopack.resolveExtensions` + import-specifier sweep) deferred to its own bundle.
 - **P2** No remote Turbo cache.
 - All **P3** items.
 - All **Open questions** above.

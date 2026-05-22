@@ -88,6 +88,17 @@ const nextConfig = {
       },
     ];
   },
+  // NOTE: `--webpack` is retained on `dev` / `build` (apps/web/package.json)
+  // because the `webpack(config)` callback below installs an
+  // `extensionAlias` that resolves `.js` / `.mjs` / `.cjs` import
+  // specifiers to TS sources in our NodeNext ESM workspace packages
+  // (`@pickupvb/{application,domain,infrastructure,supabase,types}`).
+  // Turbopack doesn't honor `webpack()` callbacks, so dropping `--webpack`
+  // breaks the build on the first cross-package `.js`-suffixed import.
+  // Migrating to Turbopack is its own bundle: it needs an equivalent
+  // `turbopack.resolveExtensions` config and a sweep of every
+  // workspace-internal import specifier first. Tracked in
+  // docs/audits/organization.md (P2 `--webpack` flag).
   webpack(config) {
     // Resolve `.js` / `.mjs` / `.cjs` import specifiers to TS sources
     // inside our ESM workspace packages (NodeNext-style imports).
