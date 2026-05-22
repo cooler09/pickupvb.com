@@ -44,6 +44,17 @@
 >
 > No P1s remaining on the architecture audit.
 
+> **Status update (2026-05-22, Bundle 24):** The P2 follow-up to Bundle 23
+> shipped — the events/[id] page now lands the original audit's
+> aspirational ≤300 LOC target. JSX componentization extracted six
+> render-branch components from `page.tsx` (`EventStructuredData`,
+> `EventFlashBanners`, `EventLocationSection`, `EventSignupArea`,
+> `HostToolsSection`, `AttendeesPanel`) plus reuse of the existing
+> `_components/` siblings. The page is now **294 LOC** (down from 566
+> after Bundle 23, and 887 before Bundle 23 — a 67% cut across both
+> bundles). All extracted components are co-located under
+> `_components/` and take typed view-model slices.
+
 ## Scope
 
 Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects/github/pickupvb.com`. Covered CQRS adherence, layer purity, port/adapter pattern, composition root, domain error hygiene, SOLID, DRY, AGENTS.md convention adherence, client/server boundary, module boundaries, aggregate design, testing architecture, server-action design, and folder/route conventions. Skipped the `copilot-skills` workspace folder.
@@ -70,17 +81,26 @@ Read-only review of the hexagonal monorepo at `/Users/zachary/Documents/projects
   - 6 application tests on `JoinEventHandler`. New aggregates must ship
     with tests — that floor is now enforceable by the verify quad.
 
-### Oversized event detail page ✅ Resolved 2026-05-22 (Bundle 23)
+### Oversized event detail page ✅ Resolved 2026-05-22 (Bundles 23 + 24)
 
-- **Where:** [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) (was 887 LOC, now 566).
-- **Resolution:** Extracted data loading + mapping into
+- **Where:** [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) (was 887 LOC, now **294**).
+- **Resolution (Bundle 23):** Extracted data loading + mapping into
   [`_loaders/load-event-detail.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts).
   The helper returns a typed `EventDetailViewModel` containing the
   `EventDetailReadModel` plus all pricing, side-load, ad-hoc, attendee-list-bridge,
   filled-by-position, and CTA-shape fields. The page consumes it via a
   single `await loadEventDetail(...)` + destructure.
-- **Follow-up (P2):** JSX componentization to land the ≤300 LOC target —
-  the remaining bulk is render branches, not orchestration.
+- **Resolution (Bundle 24):** JSX componentization. Six new components
+  under `_components/` absorb the render branches:
+  [`event-structured-data.tsx`](../../apps/web/src/app/events/%5Bid%5D/_components/event-structured-data.tsx),
+  [`event-flash-banners.tsx`](../../apps/web/src/app/events/%5Bid%5D/_components/event-flash-banners.tsx),
+  [`event-location-section.tsx`](../../apps/web/src/app/events/%5Bid%5D/_components/event-location-section.tsx),
+  [`event-signup-area.tsx`](../../apps/web/src/app/events/%5Bid%5D/_components/event-signup-area.tsx)
+  (the largest — the external/open-play/tournament/closed switcher with
+  paid/positional/RSVP and ad-hoc/captained branches),
+  [`host-tools-section.tsx`](../../apps/web/src/app/events/%5Bid%5D/_components/host-tools-section.tsx),
+  and [`attendees-panel.tsx`](../../apps/web/src/app/events/%5Bid%5D/_components/attendees-panel.tsx).
+  Page is now ≤300 LOC, well inside the AGENTS.md soft cap.
 
 ---
 
@@ -215,10 +235,10 @@ handles it` comment.
 | 2026-05-22 | Patterns surfaced by audits codified in AGENTS.md | ✅ Done | New "Patterns surfaced by audits" section in [AGENTS.md](../../AGENTS.md) covers: mutating actions must revalidate (+ Stripe-redirect exception), never bare `throw new Error` for domain failures, no `force-dynamic` on public pages, no impure reads in render (React Compiler), no sync `setState` in `useEffect`, multi-division registrations need explicit `division_id`. |
 | 2026-05-22 | P1: test suite bootstrap | ✅ Fixed (Bundle 22) | Vitest config + 90 events-aggregate tests had landed in an earlier unrecorded pass; this bundle added [teams/team.test.ts](../../packages/domain/src/teams/team.test.ts) (32 cases covering `Team.create` / `rehydrate` validation, invite/accept/remove transitions, roster cap math across all four formats, and `setExtraMemberCount` guards) so every domain aggregate now has coverage. Total: 122 domain tests + 6 application tests, all passing via `turbo run test`. Audit doc reconciled to match reality. |
 | 2026-05-22 | P1: event detail page diet | ✅ Fixed (Bundle 23) | Extracted data loading + view-model assembly from [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) into new [`_loaders/load-event-detail.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts). The loader returns a typed `EventDetailViewModel` containing the `EventDetailReadModel` plus pricing, two-wave side-loads (viewer-pro / tip total / host social / eligible teams / ad-hoc bundle, then breakdown / payments / viewer payment status), ad-hoc registrations, the legacy snake_case attendee bridge, `filledByPosition`, `viewerPosition`, and the hero `cta`. Page dropped 887 → 566 LOC (35% cut). Aspirational ≤300 LOC requires further JSX componentization (carried as P2 follow-up). |
+| 2026-05-22 | P2: event detail JSX componentization | ✅ Fixed (Bundle 24) | Followed up on Bundle 23 to land the audit's original ≤300 LOC target. Six new render-branch components under [`apps/web/src/app/events/[id]/_components/`](../../apps/web/src/app/events/%5Bid%5D/_components/): `event-structured-data`, `event-flash-banners`, `event-location-section`, `event-signup-area` (the external / open-play / tournament / closed switcher — the largest extraction at ~210 LOC), `host-tools-section`, `attendees-panel`. Page dropped 566 → **294 LOC** (48% cut on this pass; 67% cut across both bundles). |
 
 ### Still open
 
-- **P2: JSX componentization of `events/[id]/page.tsx`.** Bundle 23 closed the data-loading P1 (page is now 566 LOC); the remaining bulk is render branches. Componentization (e.g. signup-area router, host tools panel grouping) would land the aspirational ≤300 LOC target.
 - **P2: Mapper extraction** (attendee, group-member, event-summary). Inspected during this pass — the two `group_members` consumers (`groups/[id]/page.tsx` and `groups/[id]/members/page.tsx`) want different DTO shapes (`avatarUrl` vs. `joined_at`) and select different columns, so a unified mapper requires either a maximal-shape DTO with optional fields or two mappers. Worth doing but needs a design call, not a mechanical extract.
 - **P2: Split `groups/actions.ts`** into per-concern files. Mechanical but touches every importer; deferred.
 - **P2: Position-fill math moved into the event detail read model.** The new `loadEventDetail` helper still recomputes `filledByPosition` from `event.attendees`; pushing it into `EventDetailReadModel` would let the loader skip the loop.
