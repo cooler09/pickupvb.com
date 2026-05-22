@@ -59,6 +59,15 @@ export interface EventRepository {
    * handler instead of `event.registerTeam(...)` + `save(event)`.
    */
   attachTeamToDivision(eventId: string, teamId: string, divisionId: string): Promise<void>;
+
+  /**
+   * Idempotently attach a free agent to a division on the event. Sidesteps
+   * the `VolleyballEvent` aggregate for the same reason as
+   * `attachTeamToDivision`: its `_freeAgents` map stores only userId → notes
+   * and has no place for the chosen division. Use this from
+   * `JoinEventAsFreeAgentHandler` after `event.joinAsFreeAgent(...)` + save.
+   */
+  attachFreeAgentToDivision(eventId: string, userId: string, divisionId: string): Promise<void>;
 }
 
 // ---- Read-model shapes ----
@@ -98,6 +107,8 @@ export interface FreeAgentLite {
   userId: string;
   joinedAt: Date;
   notes: string | null;
+  /** Division the free agent is signed up for. Null on legacy rows. */
+  divisionId: string | null;
   profile: ProfileLite;
 }
 

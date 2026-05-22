@@ -660,11 +660,13 @@ export default async function EventDetailPage(props: {
                 freeAgents={event.freeAgents.map((f) => ({
                   userId: f.userId,
                   notes: f.notes,
+                  divisionId: f.divisionId,
                   profile: {
                     displayName: f.profile.displayName,
                     avatarUrl: f.profile.avatarUrl,
                   },
                 }))}
+                divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
                 isFreeAgent={event.isFreeAgent}
                 viewerId={user?.id ?? null}
                 isRealUser={isRealUser}

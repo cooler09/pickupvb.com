@@ -5,12 +5,20 @@ import { joinAsFreeAgentFromForm, leaveAsFreeAgent } from '../free-agent-actions
 export type FreeAgentEntry = {
   userId: string;
   notes: string | null;
+  divisionId: string | null;
   profile: { displayName: string; avatarUrl: string | null };
+};
+
+export type FreeAgentDivision = {
+  id: string;
+  label: string;
 };
 
 type Props = {
   eventId: string;
   freeAgents: ReadonlyArray<FreeAgentEntry>;
+  /** Divisions on this event. Always ≥ 1 for tournaments. */
+  divisions: ReadonlyArray<FreeAgentDivision>;
   /** Is the viewer already signed up as a free agent? */
   isFreeAgent: boolean;
   viewerId: string | null;
@@ -26,6 +34,7 @@ const RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string 
   already: { tone: 'error', text: "You're already in the free-agent pool." },
   notin: { tone: 'error', text: "You weren't in the free-agent pool." },
   closed: { tone: 'error', text: "This event isn't open for free-agent signups." },
+  division_required: { tone: 'error', text: 'Pick a division to sign up for.' },
   signin: { tone: 'error', text: 'Log in to sign up.' },
   anon: { tone: 'error', text: 'Finish creating your account to sign up.' },
   error: { tone: 'error', text: 'Something went wrong. Try again.' },
@@ -39,6 +48,7 @@ const RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string 
 export function FreeAgentSignupPanel({
   eventId,
   freeAgents,
+  divisions,
   isFreeAgent,
   viewerId,
   isRealUser,
@@ -46,6 +56,7 @@ export function FreeAgentSignupPanel({
   resultCode,
 }: Props) {
   const result = resultCode ? RESULT_MESSAGES[resultCode] : undefined;
+  const divisionLabelById = new Map(divisions.map((d) => [d.id, d.label]));
 
   return (
     <section className="border-border-base space-y-4 rounded-lg border p-4">
@@ -79,12 +90,22 @@ export function FreeAgentSignupPanel({
           </p>
         ) : (
           <ul className="space-y-2">
-            {freeAgents.map((f) => (
-              <li key={f.userId} className="border-border-base bg-surface rounded-md border p-3">
-                <p className="text-fg text-sm font-semibold">{f.profile.displayName}</p>
-                {f.notes && <p className="text-muted mt-1 text-xs">{f.notes}</p>}
-              </li>
-            ))}
+            {freeAgents.map((f) => {
+              const divisionLabel = f.divisionId ? divisionLabelById.get(f.divisionId) : null;
+              return (
+                <li key={f.userId} className="border-border-base bg-surface rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-fg text-sm font-semibold">{f.profile.displayName}</p>
+                    {divisionLabel && divisions.length > 1 && (
+                      <span className="border-border-base text-muted rounded-full border px-2 py-0.5 text-xs">
+                        {divisionLabel}
+                      </span>
+                    )}
+                  </div>
+                  {f.notes && <p className="text-muted mt-1 text-xs">{f.notes}</p>}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -123,6 +144,30 @@ export function FreeAgentSignupPanel({
 
       {viewerId && isRealUser && !isFreeAgent && (
         <form action={joinAsFreeAgentFromForm.bind(null, eventId)} className="space-y-2">
+          {divisions.length === 1 ? (
+            <input type="hidden" name="division_id" value={divisions[0]!.id} />
+          ) : (
+            <label className="block">
+              <span className="text-muted text-xs font-medium tracking-wide uppercase">
+                Division
+              </span>
+              <select
+                name="division_id"
+                required
+                defaultValue=""
+                className="border-border-base bg-surface mt-1 block w-full rounded-md border px-3 py-2 text-sm"
+              >
+                <option value="" disabled>
+                  Pick a division…
+                </option>
+                {divisions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="block">
             <span className="text-muted text-xs font-medium tracking-wide uppercase">
               Notes (optional)

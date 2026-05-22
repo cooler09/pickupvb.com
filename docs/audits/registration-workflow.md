@@ -1,6 +1,6 @@
 # Registration Workflow Audit
 
-_Last updated: 2026-05-23_
+_Last updated: 2026-05-24_
 
 Audit of the event registration flow after divisions landed (ADR
 [0006-event-divisions](../adr/0006-event-divisions.md)). Focus areas: how
@@ -12,6 +12,15 @@ Scope is the registration surface only — schema, domain rules, and the
 event-detail signup panels. Bracket/scoring, communications, and post-event
 flows are out of scope.
 
+> **Status (2026-05-24, Bundle 5):** **Free-agent division picker
+> shipped** — `JoinEventAsFreeAgentCommand` now takes a required
+> `divisionId`; new `attachFreeAgentToDivision` port mirrors the teams
+> pattern; `FreeAgentSignupPanel` renders a hidden input (single-
+> division) or required `<select>` (multi-division) and displays a
+> division pill on the free-agent list. Closes the **UX P1 leftover**
+> and the free-agent half of **Model P2**. See the
+> [Bundle 5 journal](../journal/2026-05-24-bundle-5.md).
+>
 > **Status (2026-05-23, Bundle 4):** **Roster-mode per-team captain
 > checkout shipped end-to-end** — sidecar `event_team_payments` table +
 > `EventTeamPayment` aggregate + `startRosterTeamCheckout` server action
@@ -351,6 +360,7 @@ Each step is independently shippable. Don't try to land them all at once.
 | 2026-05-22 | Payment policy P1 — `(team-led) + (per_player) + (!payments_off_platform)` silently accepted at create/edit             | Added shared boundary validator `validateTeamPricing`; wired into `createEventAction` and `editEventAction`. Returns an actionable error naming the three ADR 0007 §3 resolutions (switch division to per-team, disable team mode, or set off-platform). See [Bundle 3 journal](../journal/2026-05-22-bundle-3.md).                                                                                                                                                                                                                                                                   | [apps/web/src/lib/event-team-pricing-validation.ts](../../apps/web/src/lib/event-team-pricing-validation.ts), [apps/web/src/app/events/new/actions.ts](../../apps/web/src/app/events/new/actions.ts), [apps/web/src/app/events/%5Bid%5D/edit/actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/actions.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 2026-05-22 | Model P2 — `team_registration_mode` not editable; not even exposed at event creation                                    | Added a `Team registration` `<select>` (ad-hoc / roster / none) to both `new-event-form` and `edit-event-form`. Create action reads it into the extensions DTO; edit action persists it to `events.team_registration_mode` (tournaments only). Default remains ad-hoc for new tournaments via the aggregate.                                                                                                                                                                                                                                                                          | [apps/web/src/app/events/new/new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx), [apps/web/src/app/events/new/actions.ts](../../apps/web/src/app/events/new/actions.ts), [apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx), [apps/web/src/app/events/%5Bid%5D/edit/actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/actions.ts), [apps/web/src/app/events/%5Bid%5D/edit/page.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/page.tsx)                                                                                                                                                                                                                                                                |
 | 2026-05-23 | Model P1 — Roster-mode per-team captain checkout missing (captain registered through `event_teams` with no Stripe path) | Added sidecar `event_team_payments` table + `EventTeamPayment` aggregate (state machine mirrors `EventTeamRegistration`) + repository port + Supabase adapter + `startRosterTeamCheckout` server action + Stripe webhook branches (paid/expired/refund) for `kind='roster_team_payment'` + parallel success/cancel routes. `TournamentSignupPanel` now surfaces a `Pay — $X` / `Resume checkout` button inline with the captain's registered team and status pills for all viewers. Closes the last open P1 on this audit. See [Bundle 4 journal](../journal/2026-05-23-bundle-4.md). | [supabase/migrations/20260608000000_event_team_payments.sql](../../supabase/migrations/20260608000000_event_team_payments.sql), [packages/domain/src/events/event-team-payment.ts](../../packages/domain/src/events/event-team-payment.ts), [packages/infrastructure/src/supabase-event-team-payment-repository.ts](../../packages/infrastructure/src/supabase-event-team-payment-repository.ts), [apps/web/src/app/events/%5Bid%5D/roster-team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/roster-team-checkout-actions.ts), [apps/web/src/app/api/webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts), [apps/web/src/app/events/%5Bid%5D/\_components/tournament-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tournament-signup-panel.tsx) |
+| 2026-05-24 | UX P1 (partial) + Model P2 — Free-agent signup had no division picker and `event_free_agents.division_id` was never populated | `JoinEventAsFreeAgentCommand` now takes a required `divisionId`; handler validates the division belongs to the event then calls new `attachFreeAgentToDivision` port (mirrors `attachTeamToDivision`). `FreeAgentSignupPanel` renders a hidden input on single-division events and a required `<select>` on multi-division, and shows a division pill on each free-agent row. Detail read model + Supabase select extended to surface `divisionId`. No migration needed (column added in 20260605000100). See [Bundle 5 journal](../journal/2026-05-24-bundle-5.md). | [packages/domain/src/events/event-repository.ts](../../packages/domain/src/events/event-repository.ts), [packages/application/src/commands/join-event.handler.ts](../../packages/application/src/commands/join-event.handler.ts), [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts), [apps/web/src/app/events/%5Bid%5D/free-agent-actions.ts](../../apps/web/src/app/events/%5Bid%5D/free-agent-actions.ts), [apps/web/src/app/events/%5Bid%5D/\_components/free-agent-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/free-agent-signup-panel.tsx), [apps/web/src/app/events/%5Bid%5D/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) |
 
 ## Still open
 
@@ -369,10 +379,16 @@ Each step is independently shippable. Don't try to land them all at once.
   but the end-to-end flow (event-edit toggle, captain payment, roster
   capture, post-event cleanup) is not yet wired through the registration
   UX. Confirm what is live vs. dead code.
-- **Model P2** — Free agents still can't declare a division
-  (`event_free_agents.division_id` nullable, no UI).
-- **UX P1 (partial)** — Free-agent and open-play signup paths still have
-  no division picker.
+- ~~**Model P2** — Free agents still can't declare a division
+  (`event_free_agents.division_id` nullable, no UI).~~ — **closed** by
+  Bundle 5 (2026-05-24): `JoinEventAsFreeAgentCommand` now requires
+  `divisionId`; `FreeAgentSignupPanel` renders a hidden input or
+  required `<select>`; `attachFreeAgentToDivision` port persists it.
+- ~~**UX P1 (partial)** — Free-agent and open-play signup paths still
+  have no division picker.~~ — **closed for free agents** by Bundle 5
+  (2026-05-24). Open-play is intentionally out of scope: the domain
+  guards `joinAsFreeAgent` on `EventType === Tournament` and open-play
+  events don't model divisions at all.
 - ~~**UX P1** — Per-division pricing in `DivisionsSection` still doesn't
   match what checkout charges~~ — **resolved** by the existing
   `divisions.length === 1` gate (see remediation log 2026-05-22) and

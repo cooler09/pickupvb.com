@@ -45,6 +45,9 @@ export class JoinEventAsFreeAgentCommand {
     public readonly userId: string,
     /** Optional captain-facing blurb (e.g. "setter, can play Sat morning"). */
     public readonly notes: string | null,
+    /** Division the free agent is signing up for. Required — every
+     * tournament has at least one (default) division. */
+    public readonly divisionId: string,
   ) {}
 }
 

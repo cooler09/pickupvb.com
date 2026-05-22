@@ -18,7 +18,7 @@ alternatives, patterns observed), see [docs/journal/](../journal/).
 | [Documentation](documentation.md)                 | 2026-05-22 | AGENTS Audits section landed 2026-05-22; ADR backfill + READMEs still open                                                                                              |
 | [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                                                                                                                         |
 | [Events page UX](events-page-ux.md)               | 2026-05-18 | Closed UX; architectural regression noted 2026-05-22                                                                                                                    |
-| [Registration workflow](registration-workflow.md) | 2026-05-23 | Roster-mode per-team captain checkout shipped (Bundle 4); last open P1 closed; remaining items are P2/P3 (free-agent division picker, off-platform double-CTA, tabs UX) |
+| [Registration workflow](registration-workflow.md) | 2026-05-24 | Free-agent division picker shipped (Bundle 5) — closes UX P1 leftover + Model P2 free-agent half; remaining items are P2/P3 (ad-hoc flow audit, off-platform double-CTA, tabs UX, free-agent claim/grouping) |
 
 ## How findings are graded
 

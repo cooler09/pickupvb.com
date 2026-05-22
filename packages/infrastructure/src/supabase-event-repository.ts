@@ -738,7 +738,7 @@ export class SupabaseEventRepository implements EventRepository {
       this.client
         .from('event_free_agents')
         .select(
-          'user_id, notes, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)',
+          'user_id, notes, division_id, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)',
         )
         .eq('event_id', id)
         .order('joined_at', { ascending: true }),
@@ -970,6 +970,7 @@ export class SupabaseEventRepository implements EventRepository {
     type FreeAgentRow = {
       user_id: string;
       notes: string | null;
+      division_id: string | null;
       joined_at: string;
       profiles: {
         handle: string;
@@ -983,6 +984,7 @@ export class SupabaseEventRepository implements EventRepository {
     const freeAgents: FreeAgentLite[] = faRows.map((f) => ({
       userId: f.user_id,
       notes: f.notes,
+      divisionId: f.division_id,
       joinedAt: new Date(f.joined_at),
       profile: {
         id: f.user_id,
@@ -1335,6 +1337,24 @@ export class SupabaseEventRepository implements EventRepository {
       });
     if (error) {
       throw new Error(`attachTeamToDivision failed: ${error.message}`);
+    }
+  }
+
+  async attachFreeAgentToDivision(
+    eventId: string,
+    userId: string,
+    divisionId: string,
+  ): Promise<void> {
+    // Upsert on the natural key (event_id, user_id). The aggregate has
+    // already inserted the row via `save(event)`; this update fills in the
+    // `division_id` column. Mirrors `attachTeamToDivision`.
+    const { error } = await this.client
+      .from('event_free_agents')
+      .update({ division_id: divisionId } as never)
+      .eq('event_id', eventId)
+      .eq('user_id', userId);
+    if (error) {
+      throw new Error(`attachFreeAgentToDivision failed: ${error.message}`);
     }
   }
 }
