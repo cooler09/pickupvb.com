@@ -15,6 +15,7 @@ import { isPlatformAdmin } from '@/lib/admin';
 import { SocialLinks } from '@/components/social-links';
 import { SubmitButton } from '@/components/submit-button';
 import { isPro } from '@/lib/pro';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 
 const PAST_EVENTS_PER_PAGE = 10;
 
@@ -147,6 +148,13 @@ export default async function PlayerProfilePage(props: {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 py-4">
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: 'https://pickupvb.com/' },
+          { name: 'Players', url: 'https://pickupvb.com/players' },
+          { name, url: `https://pickupvb.com/players/${profile.handle}` },
+        ]}
+      />
       {/* ── Identity card ─────────────────────────────────────── */}
       <header className="border-border-base bg-surface rounded-lg border p-5">
         <div className="flex items-start gap-4">

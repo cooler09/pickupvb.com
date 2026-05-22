@@ -6,6 +6,7 @@ import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
 import { Pagination } from '@/components/pagination';
 import { GroupHeader } from './_components/group-header';
 import { MembersSection, type GroupMember } from './_components/members-section';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 
 const PAST_EVENTS_PER_PAGE = 10;
 const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
@@ -114,7 +115,7 @@ export default async function GroupProfilePage(props: {
   ]);
   const memberRowsTyped = (memberRows as MemberRow[] | null) ?? [];
 
-  const myMembership = user ? memberRowsTyped.find((m) => m.user_id === user.id) ?? null : null;
+  const myMembership = user ? (memberRowsTyped.find((m) => m.user_id === user.id) ?? null) : null;
   const canManage = myMembership?.role === 'owner' || myMembership?.role === 'admin';
 
   const isFollowing = Boolean(followRowResult.data);
@@ -138,6 +139,13 @@ export default async function GroupProfilePage(props: {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: 'https://pickupvb.com/' },
+          { name: 'Groups', url: 'https://pickupvb.com/groups' },
+          { name: group.name, url: `https://pickupvb.com/groups/${group.slug}` },
+        ]}
+      />
       <GroupHeader
         group={{
           id: group.id,
@@ -184,8 +192,7 @@ export default async function GroupProfilePage(props: {
       {past.length > 0 && (
         <section id="past-events" className={`${cardClass} space-y-4`}>
           <h2 className="text-fg text-lg font-semibold">
-            Past events{' '}
-            <span className="text-muted text-sm font-normal">({past.length})</span>
+            Past events <span className="text-muted text-sm font-normal">({past.length})</span>
           </h2>
           <HostedEventsList
             events={past.slice((ppage - 1) * PAST_EVENTS_PER_PAGE, ppage * PAST_EVENTS_PER_PAGE)}

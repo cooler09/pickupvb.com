@@ -15,6 +15,7 @@ import { renderNowMs } from '@/lib/render-now';
 import { AttendeeList } from '@/components/attendee-list';
 import { Alert } from '@/components/alert';
 import { EventJsonLd } from './_components/event-jsonld';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { EventHero, type EventHeroCta } from './_components/event-hero';
 import { EventClosedState } from './_components/event-closed-state';
 import { EventStickyCta } from './_components/event-sticky-cta';
@@ -444,20 +445,31 @@ export default async function EventDetailPage(props: {
   return (
     <article className="mx-auto max-w-3xl space-y-8">
       {event.visibility === 'public' && (
-        <EventJsonLd
-          id={event.id}
-          title={event.title}
-          description={event.description}
-          startsAt={event.startsAt}
-          endsAt={event.endsAt}
-          visibility={event.visibility}
-          status={event.status}
-          spotsRemaining={event.spotsRemaining}
-          attendeeCount={event.attendeeCount}
-          location={event.location}
-          organizerName={event.primaryHostGroup?.name ?? event.primaryHostUser?.displayName ?? null}
-          ticketCents={breakdown?.ticketCents ?? null}
-        />
+        <>
+          <EventJsonLd
+            id={event.id}
+            title={event.title}
+            description={event.description}
+            startsAt={event.startsAt}
+            endsAt={event.endsAt}
+            visibility={event.visibility}
+            status={event.status}
+            spotsRemaining={event.spotsRemaining}
+            attendeeCount={event.attendeeCount}
+            location={event.location}
+            organizerName={
+              event.primaryHostGroup?.name ?? event.primaryHostUser?.displayName ?? null
+            }
+            ticketCents={breakdown?.ticketCents ?? null}
+          />
+          <BreadcrumbJsonLd
+            items={[
+              { name: 'Home', url: 'https://pickupvb.com/' },
+              { name: 'Events', url: 'https://pickupvb.com/events' },
+              { name: event.title, url: `https://pickupvb.com/events/${event.id}` },
+            ]}
+          />
+        </>
       )}
       <Link href="/events" className="text-primary text-sm hover:underline">
         ← Back to events
