@@ -109,6 +109,9 @@ type DivisionRow = {
   prize_purse_cents: number | null;
   starts_at: string | null;
   ends_at: string | null;
+  winner_team_id: string | null;
+  winner_team_registration_id: string | null;
+  winner_recorded_at: string | null;
 };
 
 function rowToCapacity(row: EventRow): Capacity | null {
@@ -192,7 +195,11 @@ function divisionRowToDomain(row: DivisionRow): Division {
   });
 }
 
-function divisionRowToLite(row: DivisionRow): DivisionLite {
+function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): DivisionLite {
+  const winner =
+    winnerLabel !== null && row.winner_recorded_at !== null
+      ? { label: winnerLabel, recordedAt: new Date(row.winner_recorded_at) }
+      : null;
   return {
     id: row.id,
     sortOrder: row.sort_order,
@@ -213,6 +220,7 @@ function divisionRowToLite(row: DivisionRow): DivisionLite {
     prizePurseCents: row.prize_purse_cents,
     startsAt: row.starts_at ? new Date(row.starts_at) : null,
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
+    winner,
   };
 }
 
@@ -744,6 +752,49 @@ export class SupabaseEventRepository implements EventRepository {
     const divisionRowsForDetail = (divisionRowsRes.data as DivisionRow[] | null) ?? [];
     const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
 
+    // Resolve winner labels per division. Each division stores at most one
+    // of `winner_team_id` (roster mode -> teams.name) or
+    // `winner_team_registration_id` (ad-hoc -> event_team_registrations.name).
+    // We batch both lookups and build a single id → label map keyed by
+    // division id for the DivisionLite mapping below.
+    const winnerLabelsByDivision = new Map<string, string>();
+    const teamWinnerIds = divisionRowsForDetail
+      .map((d) => d.winner_team_id)
+      .filter((v): v is string => !!v);
+    const regWinnerIds = divisionRowsForDetail
+      .map((d) => d.winner_team_registration_id)
+      .filter((v): v is string => !!v);
+    if (teamWinnerIds.length > 0) {
+      const { data: teamRows } = await this.client
+        .from('teams')
+        .select('id, name')
+        .in('id', teamWinnerIds);
+      const byId = new Map<string, string>(
+        ((teamRows as Array<{ id: string; name: string }> | null) ?? []).map((r) => [r.id, r.name]),
+      );
+      for (const d of divisionRowsForDetail) {
+        if (d.winner_team_id) {
+          const label = byId.get(d.winner_team_id);
+          if (label) winnerLabelsByDivision.set(d.id, label);
+        }
+      }
+    }
+    if (regWinnerIds.length > 0) {
+      const { data: regRows } = await this.client
+        .from('event_team_registrations')
+        .select('id, name')
+        .in('id', regWinnerIds);
+      const byId = new Map<string, string>(
+        ((regRows as Array<{ id: string; name: string }> | null) ?? []).map((r) => [r.id, r.name]),
+      );
+      for (const d of divisionRowsForDetail) {
+        if (d.winner_team_registration_id) {
+          const label = byId.get(d.winner_team_registration_id);
+          if (label) winnerLabelsByDivision.set(d.id, label);
+        }
+      }
+    }
+
     type AttendeeRow = {
       user_id: string;
       joined_at: string;
@@ -1056,7 +1107,9 @@ export class SupabaseEventRepository implements EventRepository {
       viewerHostableGroups,
       viewerCaptainedTeams,
       ...rowToExtensions(row),
-      divisions: divisionRowsForDetail.map(divisionRowToLite),
+      divisions: divisionRowsForDetail.map((d) =>
+        divisionRowToLite(d, winnerLabelsByDivision.get(d.id) ?? null),
+      ),
     };
   }
 
@@ -1146,7 +1199,10 @@ export class SupabaseEventRepository implements EventRepository {
       const { data: divRows, error: dErr } = await this.client
         .from('event_divisions')
         .select('event_id')
-        .in('skill_tier', tiers as unknown as string[]);
+        .in(
+          'skill_tier',
+          tiers as unknown as readonly ('c' | 'b' | 'bb' | 'bb3' | 'a' | 'aa' | 'open')[],
+        );
       if (dErr) throw new Error(`searchFollowingFeed divisions failed: ${dErr.message}`);
       const skillEventIds = Array.from(
         new Set(((divRows ?? []) as { event_id: string }[]).map((r) => r.event_id)),

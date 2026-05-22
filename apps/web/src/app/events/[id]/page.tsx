@@ -38,6 +38,7 @@ import { ExternalRegistrationCard } from './_components/external-registration-ca
 import { EventMetaSection } from './_components/event-meta-section';
 import { HostDivisionsManager } from './_components/host-divisions-manager';
 import { HostAdHocTeamsPanel, type HostAdHocTeamRow } from './_components/host-ad-hoc-teams-panel';
+import { HostDivisionWinnersPanel } from './_components/host-division-winners-panel';
 import { SignupSection } from './_components/signup-section';
 
 export async function generateMetadata(props: {
@@ -270,6 +271,50 @@ export default async function EventDetailPage(props: {
           },
         };
       });
+    }
+  }
+
+  // Side-load eligible winning teams per division for the host's "Record
+  // winner" panel. Pulls roster-mode entries (event_teams → teams) and
+  // ad-hoc registrations (event_team_registrations) and groups by division.
+  type EligibleTeamOption = {
+    kind: 'team' | 'registration';
+    id: string;
+    label: string;
+  };
+  const eligibleTeamsByDivision = new Map<string, EligibleTeamOption[]>();
+  if (event.canManage && event.type === 'tournament' && event.divisions.length > 0) {
+    const sbWinners = await getServerSupabase();
+    const [{ data: rosterRows }, { data: regOptions }] = await Promise.all([
+      sbWinners
+        .from('event_teams')
+        .select('division_id, team_id, teams!inner(id, name)')
+        .eq('event_id', event.id),
+      sbWinners
+        .from('event_team_registrations')
+        .select('id, name, division_id')
+        .eq('event_id', event.id),
+    ]);
+    type RosterRow = {
+      division_id: string;
+      team_id: string;
+      teams: { id: string; name: string } | null;
+    };
+    type RegOptionRow = { id: string; name: string; division_id: string };
+    for (const r of (rosterRows as RosterRow[] | null) ?? []) {
+      if (!r.teams || !r.division_id) continue;
+      const arr = eligibleTeamsByDivision.get(r.division_id) ?? [];
+      arr.push({ kind: 'team', id: r.team_id, label: r.teams.name });
+      eligibleTeamsByDivision.set(r.division_id, arr);
+    }
+    for (const r of (regOptions as RegOptionRow[] | null) ?? []) {
+      const arr = eligibleTeamsByDivision.get(r.division_id) ?? [];
+      arr.push({ kind: 'registration', id: r.id, label: r.name });
+      eligibleTeamsByDivision.set(r.division_id, arr);
+    }
+    for (const [k, v] of eligibleTeamsByDivision) {
+      v.sort((a, b) => a.label.localeCompare(b.label));
+      eligibleTeamsByDivision.set(k, v);
     }
   }
 
@@ -715,6 +760,14 @@ export default async function EventDetailPage(props: {
                 returnPath={returnPath}
                 divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
                 rows={adHocHostRows}
+              />
+            )}
+            {event.type === 'tournament' && event.divisions.length > 0 && (
+              <HostDivisionWinnersPanel
+                eventId={event.id}
+                returnPath={returnPath}
+                divisions={event.divisions}
+                eligibleTeamsByDivision={eligibleTeamsByDivision}
               />
             )}
           </div>

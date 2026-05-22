@@ -139,6 +139,13 @@ export interface DivisionLite {
   prizePurseCents: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
+  /**
+   * Winning team for this division, set by the host after play wraps up.
+   * Null when no winner has been recorded yet. The label is the team's
+   * display name (roster-mode `teams.name` or ad-hoc
+   * `event_team_registrations.name`).
+   */
+  winner: { label: string; recordedAt: Date } | null;
 }
 
 export interface EventDetailReadModel {

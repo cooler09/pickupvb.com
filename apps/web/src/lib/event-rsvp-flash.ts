@@ -149,6 +149,18 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
     tone: 'error',
     text: 'Refund this team first before removing them.',
   },
+
+  // Division winners (host-recorded)
+  winner_recorded: { tone: 'success', text: 'Winner recorded.' },
+  winner_cleared: { tone: 'info', text: 'Winner cleared.' },
+  winner_invalid: {
+    tone: 'error',
+    text: "Selected team isn't registered for this division.",
+  },
+  winner_save_failed: {
+    tone: 'error',
+    text: "Couldn't save the winner — please try again.",
+  },
 };
 
 /**

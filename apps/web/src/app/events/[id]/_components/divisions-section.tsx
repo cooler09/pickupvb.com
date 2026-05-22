@@ -99,6 +99,11 @@ export function DivisionsSection({ divisions }: Props) {
                   )}
                 </dl>
               )}
+              {d.winner && (
+                <p className="text-primary text-sm font-medium">
+                  Winner: <span className="text-fg">{d.winner.label}</span>
+                </p>
+              )}
             </li>
           );
         })}
