@@ -873,6 +873,25 @@ function PaymentSettingsSubsection({
           </label>
         </div>
       </div>
+      <div>
+        <label htmlFor="teamRegistrationMode" className={labelClass}>
+          Team registration
+        </label>
+        <select
+          id="teamRegistrationMode"
+          name="teamRegistrationMode"
+          defaultValue={val(values, 'teamRegistrationMode', 'ad_hoc')}
+          className={inputClass}
+        >
+          <option value="ad_hoc">Ad-hoc — captains create a team at signup</option>
+          <option value="roster">Roster — captains pick an existing team</option>
+          <option value="none">None — individual signups only</option>
+        </select>
+        <p className="text-muted mt-1 text-xs">
+          Per-team pricing requires a team-led mode. Per-player pricing requires &ldquo;none&rdquo;
+          or off-platform payment.
+        </p>
+      </div>
     </div>
   );
 }

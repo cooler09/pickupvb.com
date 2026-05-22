@@ -12,20 +12,21 @@ Scope is the registration surface only — schema, domain rules, and the
 event-detail signup panels. Bracket/scoring, communications, and post-event
 flows are out of scope.
 
-> **Status (2026-05-22):** Partial remediation landed. Model P1
-> (`division_id` populated for multi-division registrations) ✅ via the new
-> `attachTeamToDivision` repository port and a refactored
-> `RegisterTeamHandler`. UX P1 (division picker for tournament team
-> registration) ✅ in [tournament-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tournament-signup-panel.tsx).
-> Model P3 (team format must match division format) ✅. The
-> `team_registration_mode` model and ad-hoc panel scaffolding shipped
-> in migration
-> [20260606000000_team_registration_model.sql](../../supabase/migrations/20260606000000_team_registration_model.sql)
-> and
-> [ad-hoc-team-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/ad-hoc-team-signup-panel.tsx) —
-> P2 "persistent team requirement doesn't fit adult-tournament reality" is
-> in flight (panel exists at 440 LOC; pricing/payment-policy gaps still
-> open). See **Remediation log** and **Still open** at the bottom.
+> **Status (2026-05-22, Bundle 3):** Boundary validation for ADR 0007 §3
+> shipped — the misconfigured `(team-led + per_player + on-platform)`
+> combination is now rejected at both event-create and event-edit with an
+> actionable three-option error. `team_registration_mode` is now editable
+> in the event-edit form and selectable at create. Per-division pricing
+> display fix verified live. Ad-hoc captain-pays-team Stripe path
+> confirmed end-to-end (verified during Bundle 3 discovery —
+> `team-checkout-actions.ts` + webhook + success route). **Roster-mode
+> per-team captain checkout still open** with a full implementation spec
+> in the [Bundle 3 journal](../journal/2026-05-22-bundle-3.md).
+>
+> Earlier Bundle 2 work: Model P1 (`division_id` populated for
+> multi-division registrations) ✅ via `attachTeamToDivision`. UX P1
+> (division picker) ✅. Model P3 (team format vs. division format) ✅.
+> See **Remediation log** and **Still open** at the bottom.
 
 ## TL;DR
 
@@ -228,6 +229,10 @@ division B but get charged whatever division A costs.
 lands, suppress per-division prices and show one event-level number, so
 the UI doesn't lie.
 
+> ✅ **Interim fix landed (ADR 0007):** `DivisionsSection` now suppresses
+> per-division price when `divisions.length > 1`. The underlying Model P1
+> (per-division checkout honoring `price_unit`) is still open.
+
 #### P2 — `PaidTicketPanel` shows two payment buttons with no context
 
 When `payments_off_platform` is true the host wants offline only, but the
@@ -331,15 +336,25 @@ Each step is independently shippable. Don't try to land them all at once.
 
 | Date       | Finding                                                                                                             | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ---------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-05-22 | UX P1 — Pricing shown in `DivisionsSection` doesn't match what checkout charges (interim)                           | Verified the fix is already live: `DivisionsSection` gates per-division price on `divisions.length === 1` (see ADR 0007 reference comment in the file). Multi-division events no longer advertise a per-division number; the event-hero summary is the source of truth until per-division checkout (Model P1) lands. No other attendee-facing surface renders per-division price. Logged here for completeness; full fix still requires Model P1 below.    | [apps/web/src/app/events/[id]/\_components/divisions-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/divisions-section.tsx#L36-L51)                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 2026-05-22 | Model P1 — `event_teams.division_id` not populated for multi-division team registration (NOT NULL violation in dev) | Added `attachTeamToDivision(eventId, teamId, divisionId)` port on `EventRepository`; refactored `RegisterTeamHandler` to validate the chosen division, run aggregate invariants via `event.registerTeam()`, then upsert the `event_teams` row with explicit `division_id` (no longer relies on `events.save()` + the single-division trigger). Server action reads `division_id` from the form; missing division redirects with `?team=division_required`. | [packages/application/src/messages.ts](../../packages/application/src/messages.ts), [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts), [packages/domain/src/events/event-repository.ts](../../packages/domain/src/events/event-repository.ts), [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts), [apps/web/src/app/events/[id]/team-signup-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-signup-actions.ts) |
 | 2026-05-22 | UX P1 — No division picker in the team-registration path (partial)                                                  | Added a `divisions` prop to `TournamentSignupPanel`. Single-division events render a hidden `<input>`; multi-division events render a required `<select>` with `label · format` options. Page passes the projection. Free-agent and open-play paths still don't expose a picker.                                                                                                                                                                           | [apps/web/src/app/events/[id]/\_components/tournament-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tournament-signup-panel.tsx), [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)                                                                                                                                                                                                                                                                                                          |
 | 2026-05-22 | Model P3 — team format not validated against the chosen division's format                                           | `RegisterTeamHandler` now throws `ValidationError` when `division.format !== team.format`. Cross-event-format check retained as a fallback.                                                                                                                                                                                                                                                                                                                | [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2026-05-22 | Payment policy P1 — `(team-led) + (per_player) + (!payments_off_platform)` silently accepted at create/edit         | Added shared boundary validator `validateTeamPricing`; wired into `createEventAction` and `editEventAction`. Returns an actionable error naming the three ADR 0007 §3 resolutions (switch division to per-team, disable team mode, or set off-platform). See [Bundle 3 journal](../journal/2026-05-22-bundle-3.md).                                                                                                                                        | [apps/web/src/lib/event-team-pricing-validation.ts](../../apps/web/src/lib/event-team-pricing-validation.ts), [apps/web/src/app/events/new/actions.ts](../../apps/web/src/app/events/new/actions.ts), [apps/web/src/app/events/%5Bid%5D/edit/actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/actions.ts)                                                                                                                                                                                                                                           |
+| 2026-05-22 | Model P2 — `team_registration_mode` not editable; not even exposed at event creation                                | Added a `Team registration` `<select>` (ad-hoc / roster / none) to both `new-event-form` and `edit-event-form`. Create action reads it into the extensions DTO; edit action persists it to `events.team_registration_mode` (tournaments only). Default remains ad-hoc for new tournaments via the aggregate.                                                                                                                                               | [apps/web/src/app/events/new/new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx), [apps/web/src/app/events/new/actions.ts](../../apps/web/src/app/events/new/actions.ts), [apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx), [apps/web/src/app/events/%5Bid%5D/edit/actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/actions.ts), [apps/web/src/app/events/%5Bid%5D/edit/page.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/page.tsx)           |
 
 ## Still open
 
-- **Model P1** — `price_unit` (`per_team` / `per_player`) still not enforced;
-  checkout reads the first division's price only. No captain-pays-team
-  Stripe path.
+- **Model P1 (partial)** — `price_unit` is now **enforced at the create/edit
+  boundary** (Bundle 3, 2026-05-22), and **ad-hoc** team registration has a
+  full captain-pays-team Stripe path
+  ([team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-checkout-actions.ts)
+  - webhook + success route). What's still open: **roster-mode** per-team
+    captain checkout. Roster captains using a `per_team` priced division
+    currently register via [team-signup-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-signup-actions.ts)
+    with no payment step. Full implementation spec lives in the
+    [Bundle 3 journal](../journal/2026-05-22-bundle-3.md) — sidecar
+    `event_team_payments` table + new server action + new webhook branch.
 - **Model P2** — Ad-hoc team registration scaffolding shipped
   ([20260606000000_team_registration_model.sql](../../supabase/migrations/20260606000000_team_registration_model.sql),
   [ad-hoc-team-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/ad-hoc-team-signup-panel.tsx))
@@ -350,17 +365,21 @@ Each step is independently shippable. Don't try to land them all at once.
   (`event_free_agents.division_id` nullable, no UI).
 - **UX P1 (partial)** — Free-agent and open-play signup paths still have
   no division picker.
-- **UX P1** — Per-division pricing in `DivisionsSection` still doesn't
-  match what checkout charges (single price for the whole event).
+- ~~**UX P1** — Per-division pricing in `DivisionsSection` still doesn't
+  match what checkout charges~~ — **resolved** by the existing
+  `divisions.length === 1` gate (see remediation log 2026-05-22). The
+  underlying multi-division-checkout work is now scoped under Model P1's
+  roster-mode bullet above.
 - **UX P2** — `PaidTicketPanel` still surfaces both "pay online" and
   "pay in person" CTAs simultaneously when `payments_off_platform` is set.
 - **UX P2** — `TournamentRegistrationTabs` is still a two-tab split
   rather than a single guided flow (division → mode → roster → pay).
 - **UX P3** — Free-agent list still has no division grouping or
   captain-claim affordance.
-- **Payment policy P1** — The misconfigured combination
+- ~~**Payment policy P1** — The misconfigured combination
   `(team-led) + (per_player) + (!payments_off_platform)` is still accepted
-  silently by the event editor.
+  silently by the event editor.~~ — **closed** by `validateTeamPricing`
+  (Bundle 3, 2026-05-22).
 - **Payment policy P2** — No captain pre-pay opt-in for per-player pricing.
 - **Recommended sequencing step 1** — ADR for the team-paradigm split
   not written yet.

@@ -66,6 +66,8 @@ export type EditEventFormProps = {
     refundWindowHours: number;
     hostAbsorbsFee: boolean;
     paymentsOffPlatform: boolean;
+    /** ADR 0007 — tournaments only. `null` for open-play. */
+    teamRegistrationMode: 'ad_hoc' | 'roster' | null;
     extensions: AdvancedDetailsInitial;
   };
 };
@@ -380,6 +382,25 @@ export default function EditEventForm({
               </span>
             </span>
           </label>
+          <div>
+            <label htmlFor="teamRegistrationMode" className={labelClass}>
+              Team registration
+            </label>
+            <select
+              id="teamRegistrationMode"
+              name="teamRegistrationMode"
+              defaultValue={initial.teamRegistrationMode ?? 'none'}
+              className={inputClass}
+            >
+              <option value="ad_hoc">Ad-hoc — captains create a team at signup</option>
+              <option value="roster">Roster — captains pick an existing team</option>
+              <option value="none">None — individual signups only</option>
+            </select>
+            <p className="text-muted mt-1 text-xs">
+              Tournaments only. Switching modes after registrations exist may strand existing
+              signups; change with care.
+            </p>
+          </div>
         </fieldset>
       )}
 

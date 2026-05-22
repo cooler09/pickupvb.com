@@ -8,17 +8,17 @@ land its fixes.
 For the narrative behind each remediation bundle (decisions, rejected
 alternatives, patterns observed), see [docs/journal/](../journal/).
 
-| Audit                                             | Date       | Status                                                                     |
-| ------------------------------------------------- | ---------- | -------------------------------------------------------------------------- |
-| [Security](security.md)                           | 2026-05-22 | postcss override landed 2026-05-22 (Bundle 2); CSP still open              |
-| [Performance](performance.md)                     | 2026-05-22 | React Compiler lint cleared 2026-05-22 (Bundle 2); page-diet still open    |
-| [Architecture (CQRS/DRY/SOLID)](architecture.md)  | 2026-05-22 | New P2s (revalidatePath; billing typed errors); page-diet regressed        |
-| [508 / Accessibility](accessibility.md)           | 2026-05-22 | Mobile menu focus trap + shared FieldError landed 2026-05-22 (Bundle 2)    |
-| [SEO](seo.md)                                     | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |
-| [Documentation](documentation.md)                 | 2026-05-22 | AGENTS Audits section landed 2026-05-22; ADR backfill + READMEs still open |
-| [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                            |
-| [Events page UX](events-page-ux.md)               | 2026-05-18 | Closed UX; architectural regression noted 2026-05-22                       |
-| [Registration workflow](registration-workflow.md) | 2026-05-22 | Multi-division team registration shipped; pricing + ad-hoc flow still open |
+| Audit                                             | Date       | Status                                                                                                                                                       |
+| ------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Security](security.md)                           | 2026-05-22 | postcss override landed 2026-05-22 (Bundle 2); CSP still open                                                                                                |
+| [Performance](performance.md)                     | 2026-05-22 | React Compiler lint cleared 2026-05-22 (Bundle 2); page-diet still open                                                                                      |
+| [Architecture (CQRS/DRY/SOLID)](architecture.md)  | 2026-05-22 | New P2s (revalidatePath; billing typed errors); page-diet regressed                                                                                          |
+| [508 / Accessibility](accessibility.md)           | 2026-05-22 | Mobile menu focus trap + shared FieldError landed 2026-05-22 (Bundle 2)                                                                                      |
+| [SEO](seo.md)                                     | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                                                                                                              |
+| [Documentation](documentation.md)                 | 2026-05-22 | AGENTS Audits section landed 2026-05-22; ADR backfill + READMEs still open                                                                                   |
+| [Developer project organization](organization.md) | 2026-05-17 | Quick-win bundle landed (2026-05-17); rest open                                                                                                              |
+| [Events page UX](events-page-ux.md)               | 2026-05-18 | Closed UX; architectural regression noted 2026-05-22                                                                                                         |
+| [Registration workflow](registration-workflow.md) | 2026-05-22 | ADR 0007 §3 validation enforced at create/edit; `team_registration_mode` editable; ad-hoc captain checkout verified; roster-mode captain checkout still open |
 
 ## How findings are graded
 

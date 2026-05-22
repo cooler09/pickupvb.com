@@ -18,6 +18,7 @@ import { timeZoneForCoords } from '@/lib/timezone';
 import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
+import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 
 export type CreateEventState = {
   error?: string;
@@ -141,6 +142,17 @@ export async function createEventAction(
             : {}),
           ...(field(formData, 'paymentsOffPlatform') === 'on' ? { paymentsOffPlatform: true } : {}),
         }),
+    // ADR 0007 — only meaningful for tournaments; aggregate ignores it for
+    // open-play. `none` = individual signups only.
+    ...(type === EventType.Tournament
+      ? (() => {
+          const raw = fieldOrUndefined(formData, 'teamRegistrationMode');
+          if (raw === 'ad_hoc') return { teamRegistrationMode: 'ad_hoc' as const };
+          if (raw === 'roster') return { teamRegistrationMode: 'roster' as const };
+          if (raw === 'none') return { teamRegistrationMode: null };
+          return {} as const; // unset → aggregate default (ad_hoc)
+        })()
+      : {}),
   };
 
   // ---- ADR 0006 additional divisions --------------------------------------
@@ -183,6 +195,26 @@ export async function createEventAction(
       error: 'Add at least one division for your tournament.',
       fieldErrors: { divisions: 'Add at least one division.' },
     };
+  }
+
+  // ADR 0007 §3 — reject the (team-led + per-player priced + on-platform) combo.
+  if (isTournament && !isExternal) {
+    const submittedMode = fieldOrUndefined(formData, 'teamRegistrationMode');
+    const resolvedMode: 'ad_hoc' | 'roster' | null =
+      submittedMode === 'roster' ? 'roster' : submittedMode === 'none' ? null : 'ad_hoc'; // default when unset, matching the aggregate
+    const teamPricing = validateTeamPricing({
+      type: 'tournament',
+      teamRegistrationMode: resolvedMode,
+      paymentsOffPlatform: field(formData, 'paymentsOffPlatform') === 'on',
+      divisions: divisions.map((d) => ({
+        label: (d.label as string) ?? '',
+        priceUnit: ((d.priceUnit as string) ?? 'per_player') as 'per_player' | 'per_team',
+        priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
+      })),
+    });
+    if (!teamPricing.ok) {
+      return { ...snapshot(formData), error: teamPricing.error };
+    }
   }
 
   // For tournaments the per-division grid is the single source of truth for
