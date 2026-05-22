@@ -10,6 +10,19 @@ before/after each fix.
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
+**Status update (2026-05-22, Bundle 26):** `/events/[id]` got a pragmatic
+caching layer — viewer-independent side-loads (read model with `viewerId
+= null`, pricing, tip total, primary-host social, ad-hoc team rows) now
+flow through `unstable_cache`, 60 s revalidate, tagged `event:{id}`.
+Anonymous cold hits skip Supabase entirely on warm cache; signed-in
+viewers still fetch the viewer-aware read model but skip ~4 side-loads.
+The full structural ISR refactor of `/events/[id]` (lifting RSVP / manage
+/ flash-banner chrome out of the page render) remains deferred — see the
+[Bundle 26 remediation log entry](#2026-05-22--bundle-26-eventsid-viewer-independent-cache-layer)
+and [journal](../journal/2026-05-22-bundle-26.md). P1 #1 status: 3 of 5
+target detail pages fully ISR, 1 (`/events/[id]`) partial, 1 (`/events`)
+still deferred pending friends/following split.
+
 **Status update (2026-05-22):** No new performance shipments this pass. New
 P1: 9 React Compiler warnings now surface in `pnpm lint` — 3 "impure
 function during render" (`Date.now()` read in component bodies) and 6
@@ -509,6 +522,21 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-05-22 — Bundle 26: `/events/[id]` viewer-independent cache layer
+
+| Item                                           | Status     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1 #1 `/events/[id]` cacheable shell (partial) | 🟡 Partial | Pragmatic interim: wrapped viewer-independent side-loads in `unstable_cache` keyed by event id, 60 s revalidate, tagged `event:{id}`. Cached helpers added to [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts): `loadEventReadModelPublic`, `loadEventPricingCached`, `loadEventTipTotalCached`, `loadPrimaryHostSocialCached`, `loadAdHocRowsCached`. Anonymous viewers (SEO crawlers, link clicks, logged-out browsing) hit zero Supabase round-trips on warm cache; signed-in viewers still fetch the viewer-aware read-model copy but skip ~4 side-loads. `generateMetadata` switched to `loadEventReadModelPublic` to avoid duplicating the metadata fetch. |
+| Full ISR shell rewrite                         | 🔴 Open    | The full structural refactor (drop `cookies()`/`searchParams` on the page, lift viewer-aware chrome — RSVP / co-host / waitlist / manage / tip flash banners — into client islands) is still deferred. 17 viewer-aware subcomponents + 7 `searchParams` flash-banner reads make this a multi-bundle change. Tracked for a future PPR-enabled pass.                                                                                                                                                                                                                                                                                                                                                           |
+| Mutating-action cache eviction                 | 🟡 Partial | 60 s revalidate is the staleness budget — hosts use the uncached signed-in read-model path so they see their own edits immediately, and other viewers tolerate ≤60 s lag. Mutating actions (RSVP, co-host changes, division edits, etc.) do not call `revalidateTag('event:{id}')` in this bundle; if/when staleness becomes a complaint, sprinkling tag invalidations across the 16 action files is a localized follow-up.                                                                                                                                                                                                                                                                                  |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+See [Bundle 26 journal](../journal/2026-05-22-bundle-26.md) for the
+pragmatic-vs-structural decision, the admin-client cache-safety rationale,
+and the tradeoffs accepted (60 s anonymous staleness; no per-action tag
+invalidation; viewer-aware chrome still inside the dynamic render).
 
 ### 2026-05-22 — Bundle 25: force-dynamic Suspense refactor (3 detail pages)
 

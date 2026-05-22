@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import type { Metadata } from 'next/types';
-import { GetEventDetailQuery } from '@pickupvb/application';
-import { handlers } from '@/lib/handlers';
+import { NotFoundError } from '@pickupvb/domain';
 import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { LocalDateTime } from '@/components/local-datetime';
@@ -19,7 +18,7 @@ import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
 import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
-import { loadEventDetail } from './_loaders/load-event-detail';
+import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -27,8 +26,9 @@ export async function generateMetadata(props: {
   const { id } = await props.params;
   let event;
   try {
-    event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, null));
-  } catch {
+    event = await loadEventReadModelPublic(id);
+  } catch (err) {
+    if (err instanceof NotFoundError) return { title: 'Event — PickupVB' };
     return { title: 'Event — PickupVB' };
   }
   // Don't expose non-public events to crawlers.

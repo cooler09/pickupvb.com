@@ -9,6 +9,7 @@
  * the audit at docs/audits/architecture.md (P1: Event detail page diet).
  */
 import { notFound } from 'next/navigation';
+import { unstable_cache } from 'next/cache';
 import type { Route } from 'next';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError, type EventDetailReadModel, type EventPosition } from '@pickupvb/domain';
@@ -118,6 +119,106 @@ const EMPTY_AD_HOC: AdHocBundle = {
   hostRows: [],
 };
 
+// -----------------------------------------------------------------------------
+// Cached viewer-independent side-loads (Bundle 26)
+// -----------------------------------------------------------------------------
+//
+// The event-detail read model + a handful of side-loads (pricing, primary
+// host socials, tip total, ad-hoc team registrations) are identical for
+// every visitor. The infrastructure repository runs on the admin client
+// so RLS doesn't vary by caller — safe to share results across requests.
+//
+// We wrap each in `unstable_cache` keyed on the event id with a 60s
+// revalidate window — matches the ISR cadence on sibling detail pages
+// (/teams/[id], /groups/[id], /players/[id]). For anonymous viewers
+// (SEO crawlers, link clicks, logged-out browsing) the entire detail
+// page can be served without a single Supabase round-trip on warm cache.
+// Signed-in viewers still hit DB for the viewer-aware read-model copy,
+// but skip the side-loads listed below.
+//
+// Cache tags: `event:{id}`. Mutating actions can call
+// `revalidateTag('event:{id}')` to evict on demand; otherwise the 60s
+// window covers all currently-acceptable staleness budgets.
+
+/**
+ * Cached event-detail read model with `viewerId = null` — i.e. the
+ * public, anonymous view. Used directly for anonymous viewers and from
+ * `generateMetadata`. Throws `NotFoundError` if the event doesn't exist.
+ */
+export function loadEventReadModelPublic(id: string): Promise<EventDetailReadModel> {
+  return unstable_cache(
+    async () => handlers.getEventDetail.execute(new GetEventDetailQuery(id, null)),
+    ['event-detail-public', id],
+    { revalidate: 60, tags: [`event:${id}`] },
+  )();
+}
+
+function loadEventPricingCached(id: string): Promise<EventPricing | null> {
+  return unstable_cache(async () => getEventPricing(id), ['event-pricing', id], {
+    revalidate: 60,
+    tags: [`event:${id}`],
+  })();
+}
+
+function loadEventTipTotalCached(id: string): Promise<number> {
+  return unstable_cache(
+    async () => {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data } = await getAdminSupabase().rpc('event_tip_total_cents', {
+        p_event_id: id,
+      } as never);
+      return Number(data ?? 0);
+    },
+    ['event-tip-total', id],
+    { revalidate: 60, tags: [`event:${id}`] },
+  )();
+}
+
+function loadPrimaryHostSocialCached(hostUserId: string): Promise<SocialHandles | null> {
+  return unstable_cache(
+    async () => loadPrimaryHostSocialFresh(hostUserId),
+    ['profile-social', hostUserId],
+    { revalidate: 300, tags: [`profile:${hostUserId}`] },
+  )();
+}
+
+type AdHocMemberRow = {
+  id: string;
+  user_id: string | null;
+  display_name: string | null;
+  email: string | null;
+  sort_order: number;
+};
+
+type AdHocRegRow = {
+  id: string;
+  name: string;
+  division_id: string;
+  captain_id: string;
+  payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+  payment_intent_id: string | null;
+  amount_paid_cents: number | null;
+  captain: { id: string; display_name: string | null } | null;
+  members: AdHocMemberRow[] | null;
+};
+
+function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
+  return unstable_cache(
+    async () => {
+      const sb = await getServerSupabase();
+      const { data } = await sb
+        .from('event_team_registrations')
+        .select(
+          'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
+        )
+        .eq('event_id', eventId);
+      return (data as AdHocRegRow[] | null) ?? [];
+    },
+    ['event-ad-hoc-rows', eventId],
+    { revalidate: 60, tags: [`event:${eventId}`] },
+  )();
+}
+
 /**
  * Load and hydrate the full event detail view model. Calls `notFound()`
  * when the event doesn't exist; other domain errors propagate.
@@ -131,7 +232,9 @@ export async function loadEventDetail(
 
   let event: EventDetailReadModel;
   try {
-    event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, user?.id ?? null));
+    event = user
+      ? await handlers.getEventDetail.execute(new GetEventDetailQuery(id, user.id))
+      : await loadEventReadModelPublic(id);
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
@@ -149,7 +252,9 @@ export async function loadEventDetail(
   const isHostOfEvent = !!user && event.canManage;
 
   // Wave 1 — every viewer/host/event side-load that doesn't depend on
-  // `paid`. Up to 6 RTTs in parallel.
+  // `paid`. Up to 6 RTTs in parallel. Pricing / tip total / primary host
+  // social / ad-hoc team rows are all viewer-independent and served via
+  // `unstable_cache` (60s revalidate, `event:{id}` tag).
   const [
     pricing,
     viewerIsPro,
@@ -158,20 +263,14 @@ export async function loadEventDetail(
     eligibleTeamsByDivision,
     adHocBundle,
   ] = await Promise.all([
-    getEventPricing(event.id),
+    loadEventPricingCached(event.id),
     event.canManage && user
       ? (async () => (await import('@/lib/admin')).hasProBenefits(user.id))()
       : Promise.resolve(false),
-    isHostOfEvent
-      ? Promise.resolve(0)
-      : (async () => {
-          const { getAdminSupabase } = await import('@/lib/supabase-admin');
-          const { data: tipTotal } = await getAdminSupabase().rpc('event_tip_total_cents', {
-            p_event_id: event.id,
-          } as never);
-          return Number(tipTotal ?? 0);
-        })(),
-    loadPrimaryHostSocial(event),
+    isHostOfEvent ? Promise.resolve(0) : loadEventTipTotalCached(event.id),
+    event.primaryHostUser
+      ? loadPrimaryHostSocialCached(event.primaryHostUser.id)
+      : Promise.resolve(null),
     loadEligibleTeamsByDivision(event),
     loadAdHocBundle(event, user),
   ]);
@@ -256,15 +355,14 @@ export async function loadEventDetail(
 // Side-load helpers
 // -----------------------------------------------------------------------------
 
-async function loadPrimaryHostSocial(event: EventDetailReadModel): Promise<SocialHandles | null> {
-  if (!event.primaryHostUser) return null;
+async function loadPrimaryHostSocialFresh(hostUserId: string): Promise<SocialHandles | null> {
   const sb = await getServerSupabase();
   const { data: socialRow } = await sb
     .from('profiles')
     .select(
       'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
-    .eq('id', event.primaryHostUser.id)
+    .eq('id', hostUserId)
     .maybeSingle();
   const r = socialRow as {
     instagram_handle: string | null;
@@ -331,32 +429,10 @@ async function loadAdHocBundle(
   if (event.type !== 'tournament' || event.teamRegistrationMode !== 'ad_hoc') {
     return EMPTY_AD_HOC;
   }
-  const sb = await getServerSupabase();
-  const { data: regRows } = await sb
-    .from('event_team_registrations')
-    .select(
-      'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
-    )
-    .eq('event_id', event.id);
-  type MemberRow = {
-    id: string;
-    user_id: string | null;
-    display_name: string | null;
-    email: string | null;
-    sort_order: number;
-  };
-  type RegRow = {
-    id: string;
-    name: string;
-    division_id: string;
-    captain_id: string;
-    payment_status: 'none' | 'pending' | 'paid' | 'refunded';
-    payment_intent_id: string | null;
-    amount_paid_cents: number | null;
-    captain: { id: string; display_name: string | null } | null;
-    members: MemberRow[] | null;
-  };
-  const rows: RegRow[] = (regRows as RegRow[] | null) ?? [];
+  // Raw rows come from the cached helper above (viewer-independent). Per-
+  // viewer projections (viewerRegistrations, hostRows, isViewerCaptain
+  // flag) are derived here against the cached snapshot.
+  const rows = await loadAdHocRowsCached(event.id);
   const allRegistrations: AdHocTeamPublicEntry[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
