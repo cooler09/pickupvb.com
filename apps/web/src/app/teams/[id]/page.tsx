@@ -7,6 +7,7 @@ import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-
 import { InviteResponse } from './_components/invite-response';
 import { ExtraMembersForm } from './_components/extra-members-form';
 import { CaptainBroadcastPanel } from './_components/captain-broadcast-panel';
+import { TeamJsonLd } from './_components/team-jsonld';
 import { ShareLink } from '@/components/share-link';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 
@@ -115,6 +116,12 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
           { name: 'Teams', url: 'https://pickupvb.com/teams' },
           { name: team.name, url: `https://pickupvb.com/teams/${team.slug}` },
         ]}
+      />
+      <TeamJsonLd
+        slug={team.slug}
+        name={team.name}
+        format={team.format}
+        memberCount={activeCount + extraMembers}
       />
       <header className="space-y-1">
         <Link href="/teams" className="text-primary text-sm hover:underline">

@@ -6,6 +6,7 @@ import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
 import { Pagination } from '@/components/pagination';
 import { GroupHeader } from './_components/group-header';
 import { MembersSection, type GroupMember } from './_components/members-section';
+import { GroupJsonLd } from './_components/group-jsonld';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 
 const PAST_EVENTS_PER_PAGE = 10;
@@ -145,6 +146,14 @@ export default async function GroupProfilePage(props: {
           { name: 'Groups', url: 'https://pickupvb.com/groups' },
           { name: group.name, url: `https://pickupvb.com/groups/${group.slug}` },
         ]}
+      />
+      <GroupJsonLd
+        slug={group.slug}
+        name={group.name}
+        description={group.description}
+        homeCity={group.home_city}
+        region={group.region}
+        avatarUrl={group.avatar_url}
       />
       <GroupHeader
         group={{
