@@ -282,6 +282,12 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-05-22 — Quick-win bundle landed
+
+| Item                               | Status  | Notes                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 #0 `next` advisories (15 vulns) | ✅ Done | Root cause was `packages/supabase/package.json` `"next": ">=14.0.0"` peer floor, which pnpm satisfied with a phantom `next@14.2.35`. Bumped peer to `>=15.5.16`; `pnpm install`; `pnpm audit --prod` now reports 1 moderate (transitive `postcss` via `@sentry/nextjs`) instead of 15 (5 high). |
+
 ### 2026-05-17 — Quick-win bundle landed
 
 | Item                                   | Status     | Notes                                                                                                                                      |
@@ -295,7 +301,6 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 **Still open** (not in quick-win scope):
 
-- **P1 #0 (new 2026-05-22)** — upgrade `next` to `>=15.5.16` (15 advisories).
 - **P2 #3** — CSP rollout (report-only first), once an allowlist is
   inventoried.
 - **P2 #4** — admin-Supabase-client refactor across user-driven write

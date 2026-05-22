@@ -266,3 +266,73 @@ add a test in `packages/{domain,application}/src/**/*.test.ts`.
   `next/font` validation, etc.); the tests guard domain/application invariants.
 - **Refactoring beyond what was asked.** Match the surrounding style; don't
   drop in unrelated improvements.
+
+## Patterns surfaced by audits (keep these in mind)
+
+These are recurring regressions caught in [docs/audits/](docs/audits/). Each
+one has a reference fix already in the tree — match that shape when adding
+new code.
+
+### 1. Mutating server actions must revalidate
+
+Every server action that writes to Supabase must end with
+`revalidatePath(returnPath)` (or the appropriate parent route). Pass
+`returnPath` as an argument from the page so the action knows what to
+evict.
+
+**Exception — Stripe-redirecting actions:** when the action redirects to a
+Stripe Checkout session and the eventual revalidation is driven by a
+webhook (`checkout.session.completed`, `customer.subscription.*`, …),
+leave a one-line comment explaining the deferral so the next reader
+doesn't add a stale `revalidatePath` before the redirect. See
+[apps/web/src/app/events/[id]/checkout-actions.ts](apps/web/src/app/events/[id]/checkout-actions.ts).
+
+### 2. Never `throw new Error(...)` for a domain failure
+
+Throw a typed `DomainError` subclass (see the table above). Bare
+`Error` instances bypass [api-helpers.ts](apps/web/src/lib/api-helpers.ts)
+and surface as generic 500s. Use:
+
+- `UnauthorizedError` — caller lacks permission / not signed in.
+- `InvariantViolation` — server misconfiguration (env var missing,
+  third-party API returned an unusable response).
+- `ConflictError` / `ValidationError` / `NotFoundError` / `CapacityExceededError`
+  for the obvious cases.
+
+Reference fix: [apps/web/src/app/profile/billing/actions.ts](apps/web/src/app/profile/billing/actions.ts)
+and [apps/web/src/app/profile/billing/pro/actions.ts](apps/web/src/app/profile/billing/pro/actions.ts)
+(both reclassified 2026-05-22).
+
+### 3. No `force-dynamic` on public pages
+
+`export const dynamic = 'force-dynamic'` disables CDN caching for every
+visitor. Only use it when the page genuinely cannot be cached (e.g. a
+profile dashboard that depends on `cookies()`). Public marketing /
+landing / pricing / short-link pages must not opt out of caching without
+a documented reason. Prefer `export const revalidate = N` plus
+`revalidatePath()` from mutating actions.
+
+### 4. No impure reads in render bodies (React Compiler)
+
+Don't call `Date.now()`, `Math.random()`, or `new Date()` inside a
+component render. The React Compiler treats render as pure; impure
+reads break memoization and trigger
+`react-hooks/refs` / `purity` lint warnings. Compute the value at the
+page boundary (server) and pass it as a prop, or move it into an effect
+/ event handler.
+
+### 5. No synchronous `setState` inside `useEffect` for mount/sync patterns
+
+Triggers `react-hooks/set-state-in-effect`. The right primitive for
+"subscribe to an external store and re-render" is `useSyncExternalStore`
+with a `getServerSnapshot`. Saves one extra render and works correctly
+with concurrent rendering.
+
+### 6. Multi-division event registrations need an explicit `division_id`
+
+For tournaments with multiple divisions, the registration boundary must
+pass `division_id` — the DB trigger only fills it for single-division
+events. The reference pattern is the `attachTeamToDivision` port on
+`EventRepository` (implemented by `SupabaseEventRepository`), driven from
+[team-signup-actions.ts](apps/web/src/app/events/[id]/team-signup-actions.ts).
+Don't try to insert into `event_teams` without it.

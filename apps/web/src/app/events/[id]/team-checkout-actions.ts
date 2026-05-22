@@ -184,5 +184,8 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
     backWithError(eventId, 'error', 'Could not record checkout. Please retry.');
   }
 
+  // No `revalidatePath` here: payment hasn't completed yet. The Stripe
+  // `checkout.session.completed` webhook revalidates once the team
+  // registration is marked paid.
   redirect(session.url as Route);
 }

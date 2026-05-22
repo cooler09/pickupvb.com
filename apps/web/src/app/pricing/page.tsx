@@ -12,7 +12,6 @@ import { startProCheckout, getBillingPortalUrl } from '@/app/profile/billing/pro
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 import { SubmitButton } from '@/components/submit-button';
 
-export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Pricing',
   description:

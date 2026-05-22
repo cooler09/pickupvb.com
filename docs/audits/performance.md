@@ -319,6 +319,12 @@ log.
 
 ## Remediation log
 
+### 2026-05-22 — Quick-win bundle landed
+
+| Item                                             | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 #1 `force-dynamic` regression on public pages | ✅ Done | Removed `export const dynamic = 'force-dynamic'` from [page.tsx](../../apps/web/src/app/page.tsx), [pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx), [e/[code]/page.tsx](../../apps/web/src/app/e/%5Bcode%5D/page.tsx). Other listed pages remain dynamic via `cookies()`; the architectural Suspense refactor is still the follow-on for real CDN caching. |
+
 ### 2026-05-17 — Quick-win bundle landed
 
 | Item                                 | Status     | Notes                                                                                                                                                |

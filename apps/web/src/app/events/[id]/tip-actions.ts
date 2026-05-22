@@ -16,31 +16,31 @@ import { log } from '@/lib/log';
 import { MIN_TIP_CENTS, MAX_TIP_CENTS } from './tip-constants';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
-    redirectEventNotice(eventId, 'tip', code, msg);
+  redirectEventNotice(eventId, 'tip', code, msg);
 }
 
 function parseAmountCents(raw: string): number | null {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return null;
-    const cents = Math.round(n * 100);
-    if (cents < MIN_TIP_CENTS || cents > MAX_TIP_CENTS) return null;
-    return cents;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const cents = Math.round(n * 100);
+  if (cents < MIN_TIP_CENTS || cents > MAX_TIP_CENTS) return null;
+  return cents;
 }
 
 type EventLite = {
-    id: string;
-    host_id: string;
-    title: string;
+  id: string;
+  host_id: string;
+  title: string;
 };
 
 async function loadEvent(eventId: string): Promise<EventLite | null> {
-    const admin = getAdminSupabase();
-    const { data } = await admin
-        .from('events')
-        .select('id, host_id, title')
-        .eq('id', eventId)
-        .maybeSingle();
-    return (data as EventLite | null) ?? null;
+  const admin = getAdminSupabase();
+  const { data } = await admin
+    .from('events')
+    .select('id, host_id, title')
+    .eq('id', eventId)
+    .maybeSingle();
+  return (data as EventLite | null) ?? null;
 }
 
 /**
@@ -50,154 +50,151 @@ async function loadEvent(eventId: string): Promise<EventLite | null> {
  * Authenticated (incl. anon-auth) users only — the calling form mints an
  * anonymous Supabase session first via the guest flow if needed.
  */
-export async function startTipCheckout(
-    eventId: string,
-    formData: FormData,
-): Promise<void> {
-    if (!isStripeConfigured()) backWithError(eventId, 'error', 'Payments are not configured.');
+export async function startTipCheckout(eventId: string, formData: FormData): Promise<void> {
+  if (!isStripeConfigured()) backWithError(eventId, 'error', 'Payments are not configured.');
 
-    const amountCents = parseAmountCents(field(formData, 'amount'));
-    if (amountCents === null) {
-        backWithError(eventId, 'error', `Tip must be between $${MIN_TIP_CENTS / 100} and $${MAX_TIP_CENTS / 100}.`);
-    }
-    const message = field(formData, 'message').slice(0, 280) || null;
+  const amountCents = parseAmountCents(field(formData, 'amount'));
+  if (amountCents === null) {
+    backWithError(
+      eventId,
+      'error',
+      `Tip must be between $${MIN_TIP_CENTS / 100} and $${MAX_TIP_CENTS / 100}.`,
+    );
+  }
+  const message = field(formData, 'message').slice(0, 280) || null;
 
-    const supabase = await getServerSupabase();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) backWithError(eventId, 'signin');
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) backWithError(eventId, 'signin');
 
-    const event = await loadEvent(eventId);
-    if (!event) backWithError(eventId, 'error', 'Event not found.');
-    if (event.host_id === user.id) backWithError(eventId, 'error', "You can't tip your own event.");
+  const event = await loadEvent(eventId);
+  if (!event) backWithError(eventId, 'error', 'Event not found.');
+  if (event.host_id === user.id) backWithError(eventId, 'error', "You can't tip your own event.");
 
-    const hostAccountId = await getHostStripeAccount(event.host_id);
-    if (!hostAccountId) backWithError(eventId, 'error', 'Host has not finished payment setup.');
+  const hostAccountId = await getHostStripeAccount(event.host_id);
+  if (!hostAccountId) backWithError(eventId, 'error', 'Host has not finished payment setup.');
 
-    // Look up tipper display name for the public list.
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', user.id)
-        .maybeSingle();
-    const displayName = (profile as { display_name: string | null } | null)?.display_name ?? null;
+  // Look up tipper display name for the public list.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', user.id)
+    .maybeSingle();
+  const displayName = (profile as { display_name: string | null } | null)?.display_name ?? null;
 
-    const platformCut = await platformFeeCentsFor(event.host_id, amountCents!);
+  const platformCut = await platformFeeCentsFor(event.host_id, amountCents!);
 
-    // Insert pending tip row up front so the webhook can match by session id.
-    const admin = getAdminSupabase();
-    const { data: inserted, error: insertErr } = await admin
-        .from('event_tips')
-        .insert({
-            event_id: eventId,
-            host_id: event.host_id,
-            tipper_user_id: user.id,
-            tipper_display_name: displayName,
-            amount_cents: amountCents,
-            platform_fee_cents: platformCut,
-            message,
-            status: 'pending',
-        } as never)
-        .select('id')
-        .single();
-    if (insertErr || !inserted) {
-        await log.error('[tip] insert pending failed', insertErr, { eventId });
-        backWithError(eventId, 'error', insertErr?.message ?? 'Could not start tip.');
-    }
-    const tipId = (inserted as { id: string }).id;
+  // Insert pending tip row up front so the webhook can match by session id.
+  const admin = getAdminSupabase();
+  const { data: inserted, error: insertErr } = await admin
+    .from('event_tips')
+    .insert({
+      event_id: eventId,
+      host_id: event.host_id,
+      tipper_user_id: user.id,
+      tipper_display_name: displayName,
+      amount_cents: amountCents,
+      platform_fee_cents: platformCut,
+      message,
+      status: 'pending',
+    } as never)
+    .select('id')
+    .single();
+  if (insertErr || !inserted) {
+    await log.error('[tip] insert pending failed', insertErr, { eventId });
+    backWithError(eventId, 'error', insertErr?.message ?? 'Could not start tip.');
+  }
+  const tipId = (inserted as { id: string }).id;
 
-    const origin = await buildOrigin();
+  const origin = await buildOrigin();
 
-    let session: Stripe.Checkout.Session;
-    try {
-        session = await createDestinationCheckoutSession({
-            destinationAccountId: hostAccountId!,
-            applicationFeeAmount: platformCut,
-            customerEmail: user.email ?? null,
-            lineItems: [
-                {
-                    quantity: 1,
-                    price_data: {
-                        currency: 'usd',
-                        unit_amount: amountCents!,
-                        product_data: {
-                            name: `Tip — ${event.title}`,
-                            ...(message ? { description: message } : {}),
-                        },
-                    },
-                },
-            ],
-            successUrl: `${origin}/events/${eventId}?tip=thanks`,
-            cancelUrl: `${origin}/events/${eventId}?tip=cancel`,
-            metadata: {
-                kind: 'tip',
-                event_id: eventId,
-                host_id: event.host_id,
-                user_id: user.id,
-                tip_id: tipId,
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await createDestinationCheckoutSession({
+      destinationAccountId: hostAccountId!,
+      applicationFeeAmount: platformCut,
+      customerEmail: user.email ?? null,
+      lineItems: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: amountCents!,
+            product_data: {
+              name: `Tip — ${event.title}`,
+              ...(message ? { description: message } : {}),
             },
-        });
-    } catch (err) {
-        // Roll back the pending row.
-        await admin.from('event_tips').delete().eq('id', tipId);
-        await log.error('[tip] session create failed', err, { eventId });
-        const m = err instanceof Error ? err.message : 'Could not start tip checkout.';
-        backWithError(eventId, 'error', m);
-    }
+          },
+        },
+      ],
+      successUrl: `${origin}/events/${eventId}?tip=thanks`,
+      cancelUrl: `${origin}/events/${eventId}?tip=cancel`,
+      metadata: {
+        kind: 'tip',
+        event_id: eventId,
+        host_id: event.host_id,
+        user_id: user.id,
+        tip_id: tipId,
+      },
+    });
+  } catch (err) {
+    // Roll back the pending row.
+    await admin.from('event_tips').delete().eq('id', tipId);
+    await log.error('[tip] session create failed', err, { eventId });
+    const m = err instanceof Error ? err.message : 'Could not start tip checkout.';
+    backWithError(eventId, 'error', m);
+  }
 
-    await admin
-        .from('event_tips')
-        .update({ stripe_session_id: session.id } as never)
-        .eq('id', tipId);
+  await admin
+    .from('event_tips')
+    .update({ stripe_session_id: session.id } as never)
+    .eq('id', tipId);
 
-    if (!session.url) backWithError(eventId, 'error', 'Stripe did not return a URL.');
-    redirect(session.url as Route);
+  if (!session.url) backWithError(eventId, 'error', 'Stripe did not return a URL.');
+  // No `revalidatePath` here: payment hasn't completed yet. The Stripe
+  // `checkout.session.completed` webhook handles revalidation once the
+  // tip is recorded.
+  redirect(session.url as Route);
 }
 
 /**
  * Guest variant — mints an anonymous Supabase session first (same pattern
  * as guest ticket purchase), then delegates to startTipCheckout.
  */
-export async function startGuestTipCheckout(
-    eventId: string,
-    formData: FormData,
-): Promise<void> {
-    const displayName = field(formData, 'display_name');
-    const turnstileToken = field(formData, 'cf-turnstile-response');
+export async function startGuestTipCheckout(eventId: string, formData: FormData): Promise<void> {
+  const displayName = field(formData, 'display_name');
+  const turnstileToken = field(formData, 'cf-turnstile-response');
 
-    if (displayName.length < 1 || displayName.length > 80) {
-        backWithError(eventId, 'error', 'Name is required (1–80 characters).');
+  if (displayName.length < 1 || displayName.length > 80) {
+    backWithError(eventId, 'error', 'Name is required (1–80 characters).');
+  }
+  const turnstile = await verifyTurnstileToken(turnstileToken || null);
+  if (!turnstile.ok) backWithError(eventId, 'error', turnstile.error ?? 'Verification failed.');
+
+  const supabase = await getServerSupabase();
+  const {
+    data: { user: existing },
+  } = await supabase.auth.getUser();
+
+  if (!existing) {
+    const { data, error } = await supabase.auth.signInAnonymously({
+      options: { data: { display_name: displayName } },
+    });
+    if (error || !data.user) {
+      backWithError(eventId, 'error', error?.message ?? 'Could not start a guest session.');
     }
-    const turnstile = await verifyTurnstileToken(turnstileToken || null);
-    if (!turnstile.ok) backWithError(eventId, 'error', turnstile.error ?? 'Verification failed.');
+  }
 
-    const supabase = await getServerSupabase();
-    const {
-        data: { user: existing },
-    } = await supabase.auth.getUser();
+  // Persist chosen name onto profile so it shows on the public tip list.
+  const userId = existing?.id ?? (await supabase.auth.getUser()).data.user?.id;
+  if (userId) {
+    await supabase
+      .from('profiles')
+      .update({ display_name: displayName } as never)
+      .eq('id', userId);
+  }
 
-    if (!existing) {
-        const { data, error } = await supabase.auth.signInAnonymously({
-            options: { data: { display_name: displayName } },
-        });
-        if (error || !data.user) {
-            backWithError(
-                eventId,
-                'error',
-                error?.message ?? 'Could not start a guest session.',
-            );
-        }
-    }
-
-    // Persist chosen name onto profile so it shows on the public tip list.
-    const userId = existing?.id ?? (await supabase.auth.getUser()).data.user?.id;
-    if (userId) {
-        await supabase
-            .from('profiles')
-            .update({ display_name: displayName } as never)
-            .eq('id', userId);
-    }
-
-    await startTipCheckout(eventId, formData);
+  await startTipCheckout(eventId, formData);
 }
