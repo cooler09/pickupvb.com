@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { AddTeamMemberForm } from './_components/add-team-member-form';
@@ -63,7 +63,6 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/teams/${params.id}`);
 
   const { data: teamData } = await supabase
     .from('teams')
@@ -73,7 +72,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
   const team = teamData as TeamRow | null;
   if (!team) notFound();
 
-  const isCaptain = team.captain_id === user.id;
+  const isCaptain = user ? team.captain_id === user.id : false;
   const extraMembers = team.extra_member_count ?? 0;
 
   const { data: memberRows } = await supabase
@@ -103,7 +102,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
 
   const activeCount = members.filter((m) => m.status === 'active').length;
   const pendingCount = members.length - activeCount;
-  const viewerMember = members.find((m) => m.userId === user.id);
+  const viewerMember = user ? (members.find((m) => m.userId === user.id) ?? null) : null;
   const viewerHasPendingInvite = viewerMember?.status === 'pending';
 
   const returnPath = `/teams/${team.slug}`;
