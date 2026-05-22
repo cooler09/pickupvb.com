@@ -89,12 +89,14 @@ exploit, no commit-history scrub needed.
 
 ### 3. Missing security headers
 
-**Status:** 🟡 _Partially resolved 2026-05-17_ — baseline headers (HSTS,
-`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`,
-`Permissions-Policy`) added via `async headers()` in
-[apps/web/next.config.mjs](../../apps/web/next.config.mjs). CSP still open
-— needs an allowlist for Stripe.js, Supabase, Sentry, OSM tiles, fonts, and
-images, rolled out behind `Content-Security-Policy-Report-Only` first.
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 15, Report-Only milestone)_ —
+baseline headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`,
+`X-Frame-Options`, `Permissions-Policy`) added 2026-05-17. CSP shipped
+2026-05-24 as `Content-Security-Policy-Report-Only` with the full
+third-party allowlist (Supabase REST/Realtime, Cloudflare Turnstile,
+OSM tiles); see the [Bundle 15 journal](../journal/2026-05-24-bundle-15.md).
+Follow-up: after a clean soak window, swap the header name to
+`Content-Security-Policy` (enforcement) — tracked as **P2 #3a** below.
 
 **Files:** [apps/web/next.config.mjs](../../apps/web/next.config.mjs), [apps/web/vercel.json](../../apps/web/vercel.json)
 **Category:** Security headers / CSP
@@ -292,6 +294,19 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 15: CSP Report-Only (P2 #3)
+
+| Item                             | Status  | Notes                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CSP allowlist + Report-Only ship | ✅ Done | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) `async headers()`. Directives: `default-src 'self'`; `script-src` adds Turnstile; `connect-src` adds Supabase (https/wss) + Turnstile siteverify origin; `img-src` adds Supabase storage + OSM tiles; `frame-src` Turnstile only; `frame-ancestors 'none'`. |
+| Inline-script accommodation      | ✅ Done | `'unsafe-inline'` retained on `script-src` to support JSON-LD `<script type="application/ld+json">` in [layout.tsx](../../apps/web/src/app/layout.tsx) + [event-jsonld.tsx](../../apps/web/src/app/events/[id]/_components/event-jsonld.tsx). Nonce-based hardening tracked as P2 #3a follow-up.                       |
+| Inline-style accommodation       | ✅ Done | `'unsafe-inline'` retained on `style-src` (Tailwind + inline `style` attrs). Standard for Tailwind apps without a CSS-hash pipeline.                                                                                                                                                                                   |
+| Sentry coverage                  | ✅ Done | Existing `tunnelRoute: '/monitoring'` keeps Sentry traffic same-origin, so no `*.ingest.sentry.io` allowlist entry needed.                                                                                                                                                                                             |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅. CSP
+is Report-Only — violations log to the devtools console / Reporting API but do not
+block requests.
+
 ### 2026-05-24 — Bundle 14: admin-client refactor (P2 #4)
 
 | Item                                             | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                  |
@@ -328,8 +343,10 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 **Still open** (not in quick-win scope):
 
-- **P2 #3** — CSP rollout (report-only first), once an allowlist is
-  inventoried.
+- **P2 #3a** — promote CSP from Report-Only to enforcing
+  (`Content-Security-Policy`) after a clean soak window. Optional
+  follow-up: wire a nonce through middleware to drop
+  `'unsafe-inline'` from `script-src`.
 - ~~**P2 #4**~~ — resolved 2026-05-24 (Bundle 14).
 - **P2 #6** — rate limiting on email-sending paths (needs a KV backend
   decision first).

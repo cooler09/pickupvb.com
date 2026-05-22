@@ -17,11 +17,51 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.supabase.in' },
     ],
   },
-  // Baseline security headers. CSP is intentionally not set here yet — it
-  // needs an allowlist for Stripe.js, Supabase, Sentry, OSM tiles, fonts,
-  // images, and should roll out behind Content-Security-Policy-Report-Only
-  // first. See docs/audits/security.md P2 #3.
+  // Baseline security headers. CSP ships as Report-Only (P2 #3 first
+  // milestone): browsers will *report* violations to the devtools console
+  // but won't block anything. After a soak window with no real violations,
+  // a follow-up bundle swaps the header name to `Content-Security-Policy`.
+  //
+  // Inventory (see docs/audits/security.md P2 #3):
+  //   - Stripe.js: NOT used (server-side redirect to Checkout only) — no
+  //     allowlist entry needed.
+  //   - Supabase REST + Realtime: https://*.supabase.co (+.in) for fetch;
+  //     wss://*.supabase.co (+.in) for the realtime WebSocket.
+  //   - Sentry: tunneled through `/monitoring` (same-origin) — no
+  //     ingest.sentry.io entry needed.
+  //   - Cloudflare Turnstile: script + iframe at challenges.cloudflare.com.
+  //     Token verification (siteverify) is server-side, so no connect-src
+  //     entry needed.
+  //   - OSM tiles: https://{s}.tile.openstreetmap.org for the leaflet map.
+  //   - Photon / Nominatim: server-side only (geocoding API routes).
+  //   - Fonts: system stack only (no next/font, no Google Fonts).
+  //   - Inline scripts: JSON-LD `<script type="application/ld+json">` in
+  //     layout + event pages. CSP applies to all `<script>` elements
+  //     regardless of `type`, so `'unsafe-inline'` stays until a follow-up
+  //     bundle wires a nonce through middleware.
+  //   - Inline styles: Tailwind utility classes + the occasional style
+  //     attribute (event-map height, dashboard widgets). `'unsafe-inline'`
+  //     here is the practical default for Tailwind apps without a CSS
+  //     hashing pipeline.
+  //   - Workers: leaflet uses none today, but the React DevTools hook +
+  //     Next dev overlay both use blob: workers. Allow `blob:` to keep
+  //     `next dev` quiet.
   async headers() {
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.tile.openstreetmap.org",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com",
+      'frame-src https://challenges.cloudflare.com',
+      "worker-src 'self' blob:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      'upgrade-insecure-requests',
+    ].join('; ');
     return [
       {
         source: '/:path*',
@@ -40,6 +80,7 @@ const nextConfig = {
             key: 'Permissions-Policy',
             value: 'geolocation=(self), microphone=(), camera=(), payment=(self)',
           },
+          { key: 'Content-Security-Policy-Report-Only', value: csp },
         ],
       },
     ];
