@@ -6,7 +6,6 @@ import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
 import { platformFeeCentsFor } from '@/lib/event-pricing';
 import { getServerSupabase } from '@/lib/supabase';
-import { getAdminSupabase } from '@/lib/supabase-admin';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
@@ -33,9 +32,11 @@ type EventLite = {
   title: string;
 };
 
-async function loadEvent(eventId: string): Promise<EventLite | null> {
-  const admin = getAdminSupabase();
-  const { data } = await admin
+async function loadEvent(
+  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  eventId: string,
+): Promise<EventLite | null> {
+  const { data } = await supabase
     .from('events')
     .select('id, host_id, title')
     .eq('id', eventId)
@@ -69,7 +70,7 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
   } = await supabase.auth.getUser();
   if (!user) backWithError(eventId, 'signin');
 
-  const event = await loadEvent(eventId);
+  const event = await loadEvent(supabase, eventId);
   if (!event) backWithError(eventId, 'error', 'Event not found.');
   if (event.host_id === user.id) backWithError(eventId, 'error', "You can't tip your own event.");
 
@@ -87,8 +88,10 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
   const platformCut = await platformFeeCentsFor(event.host_id, amountCents!);
 
   // Insert pending tip row up front so the webhook can match by session id.
-  const admin = getAdminSupabase();
-  const { data: inserted, error: insertErr } = await admin
+  // RLS: event_tips_insert_own gates this on auth.uid() = tipper_user_id
+  // and status = 'pending'. The webhook handler (admin client) is what
+  // flips status to 'paid' later.
+  const { data: inserted, error: insertErr } = await supabase
     .from('event_tips')
     .insert({
       event_id: eventId,
@@ -141,13 +144,13 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
     });
   } catch (err) {
     // Roll back the pending row.
-    await admin.from('event_tips').delete().eq('id', tipId);
+    await supabase.from('event_tips').delete().eq('id', tipId);
     await log.error('[tip] session create failed', err, { eventId });
     const m = err instanceof Error ? err.message : 'Could not start tip checkout.';
     backWithError(eventId, 'error', m);
   }
 
-  await admin
+  await supabase
     .from('event_tips')
     .update({ stripe_session_id: session.id } as never)
     .eq('id', tipId);

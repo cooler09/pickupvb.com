@@ -5,7 +5,6 @@ import type Stripe from 'stripe';
 import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
-import { getAdminSupabase } from '@/lib/supabase-admin';
 import {
   getEventPricing,
   attendeeChargeBreakdownAsync,
@@ -62,8 +61,12 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   // Reserve the spot atomically. The capacity trigger raises if full.
   // 23505 (unique violation on PK) means the user already has a row;
   // could be from a previous checkout that didn't complete.
-  const admin = getAdminSupabase();
-  const { error: insertErr } = await admin.from('event_attendees').insert({
+  //
+  // RLS: event_attendees_insert requires auth.uid() = user_id, so this is
+  // self-service. Webhook handlers (admin client) flip status to 'paid'
+  // later; the user can't self-promote (event_attendees_update_own_pending
+  // requires the row to stay 'pending').
+  const { error: insertErr } = await supabase.from('event_attendees').insert({
     event_id: eventId,
     user_id: user.id,
     payment_status: 'pending',
@@ -75,7 +78,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
     if (insertErr.code === '23505') {
       // Already have a row. If they're already 'paid' bounce them, else
       // fall through and create a new checkout for the existing pending row.
-      const { data: existing } = await admin
+      const { data: existing } = await supabase
         .from('event_attendees')
         .select('payment_status')
         .eq('event_id', eventId)
@@ -132,7 +135,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
     });
   } catch (err) {
     // Roll back the pending row so we don't leak capacity.
-    await admin
+    await supabase
       .from('event_attendees')
       .delete()
       .eq('event_id', eventId)
@@ -144,7 +147,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   }
 
   // Stash the session id on the row so we can match the webhook later.
-  await admin
+  await supabase
     .from('event_attendees')
     .update({ checkout_session_id: session.id } as never)
     .eq('event_id', eventId)

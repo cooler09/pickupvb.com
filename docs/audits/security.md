@@ -116,6 +116,16 @@ Supabase, Sentry, Turnstile, OSM tiles, fonts, images) — roll it out behind
 
 ### 4. Admin Supabase client used for user-driven writes
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 14)_ — all three call sites
+now use `getServerSupabase()` (RLS-enforced). New migration
+[20260609000000_self_writes_attendees_tips.sql](../../supabase/migrations/20260609000000_self_writes_attendees_tips.sql)
+adds self-service policies for `event_attendees` /
+`event_tips` (own pending row only — caller can't self-promote to
+`paid`) plus host-update policies for the manage-payments flow and a
+host-insert policy for `event_payment_audit`. Stripe webhook handlers
+continue to use the admin client (correct — they run with no user
+session). See the [Bundle 14 journal](../journal/2026-05-24-bundle-14.md).
+
 **Files:**
 
 - [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts#L65) — admin `INSERT` into `event_attendees` for the calling user.
@@ -282,6 +292,17 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 14: admin-client refactor (P2 #4)
+
+| Item                                             | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New RLS migration                                | ✅ Done | [20260609000000_self_writes_attendees_tips.sql](../../supabase/migrations/20260609000000_self_writes_attendees_tips.sql). Adds `event_attendees_update_own_pending`, `event_attendees_update_host`, `event_tips_{select,insert,update,delete}_own[_pending]`, `event_payment_audit_insert_host`. `is_event_host()` (added in 20260514000400) reused for host policies. |
+| `checkout-actions.ts` swap admin → server        | ✅ Done | INSERT, the SELECT-existing lookup, the rollback DELETE, and the `checkout_session_id` stash UPDATE all run as the caller. Self-promote to 'paid' blocked by RLS (row must stay 'pending').                                                                                                                                                                            |
+| `tip-actions.ts` swap admin → server             | ✅ Done | `loadEvent` now takes the server client; pending insert / session-id stash / rollback delete all RLS-enforced.                                                                                                                                                                                                                                                         |
+| `manage-payments-actions.ts` swap admin → server | ✅ Done | Host UPDATE on `event_attendees` + audit INSERT both RLS-enforced via `is_event_host()`. Existing `canManage` app-layer check kept as belt-and-suspenders.                                                                                                                                                                                                             |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
 ### 2026-05-22 — Bundle 2: postcss override
 
 | Item                             | Status  | Notes                                                                                                                                                                                            |
@@ -309,8 +330,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 - **P2 #3** — CSP rollout (report-only first), once an allowlist is
   inventoried.
-- **P2 #4** — admin-Supabase-client refactor across user-driven write
-  paths.
+- ~~**P2 #4**~~ — resolved 2026-05-24 (Bundle 14).
 - **P2 #6** — rate limiting on email-sending paths (needs a KV backend
   decision first).
 - All **P3** items (audit-log coverage, FormData global cap, Turnstile
