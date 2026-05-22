@@ -11,6 +11,9 @@ Related reading:
   rules and the aggregate cookbook.
 - [docs/adr/](../docs/adr/) — why hexagonal, why Supabase Auth, why typed
   domain errors, why the page-decomposition pattern.
+- [docs/audits/](../docs/audits/) — point-in-time audits with a P1/P2/P3
+  remediation backlog. **Read the relevant file before doing a new audit
+  and write findings into it** (don't dump audit results into chat only).
 
 ## Quick reminders (also in AGENTS.md)
 

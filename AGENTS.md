@@ -8,6 +8,8 @@ before making changes. Related reading:
   is organized and how to extend an aggregate.
 - [docs/adr/](docs/adr/) — architecture decision records (why hexagonal, why
   Supabase Auth, why typed domain errors, …).
+- [docs/audits/](docs/audits/) — point-in-time codebase audits and the
+  remediation backlog. **See "Audits" below before running a new one.**
 
 ## Verify
 
@@ -19,6 +21,32 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build
 
 Turborepo caches, so re-runs are fast. Don't ship a change until all four pass.
 `pnpm test` runs the Vitest suites in `packages/domain` and `packages/application`.
+
+## Audits
+
+If the user asks for an "audit" — full repo or scoped to a topic — follow the
+conventions in [docs/audits/README.md](docs/audits/README.md):
+
+- **Check [docs/audits/](docs/audits/) first.** Each topic (security,
+  performance, architecture, accessibility, SEO, documentation,
+  organization, plus per-feature audits like `registration-workflow.md`,
+  `events-page-ux.md`) has an existing file. Read the relevant one before
+  re-auditing — open findings are the starting backlog.
+- **Grade every finding P1 / P2 / P3** using the rubric in the audits
+  README (P1 = ship-blocking; P2 = next-sprint hardening; P3 = nice-to-have).
+- **Each finding needs a file link** (`path/file.ts#L10-L20`) and a
+  **concrete recommended fix** so it can be picked up later without
+  re-running the audit. No vague "consider refactoring" entries.
+- **Write findings into the appropriate audit file** — update the existing
+  file rather than dumping a one-off report into chat. Add a dated
+  **status update** block at the top and a **remediation log** entry when
+  fixes land. Create a new file under `docs/audits/` only if the topic
+  doesn't fit an existing one (use the existing files as a template).
+- **Update the index table** in [docs/audits/README.md](docs/audits/README.md)
+  with the new date and status.
+- An ad-hoc chat-only summary is fine for a quick sanity scan, but **call
+  that out explicitly** ("quick scan, not a full audit") and offer to write
+  it up into the relevant audit file.
 
 ## Do not commit or push
 
