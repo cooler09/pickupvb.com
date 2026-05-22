@@ -69,17 +69,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'INVALID_SIGNATURE' }, { status: 400 });
   }
 
-  // Idempotency: insert-and-check. Unique-violation on `id` means we've
-  // already processed this event id. Return 200 so Stripe stops retrying.
+  // Idempotency: upsert with `ignoreDuplicates`. On first sight the row is
+  // inserted and `.select()` returns it; on a redelivery the unique
+  // constraint on `id` short-circuits Postgres' insert path without raising
+  // an exception, so `.select()` returns an empty array. Cheaper than the
+  // previous insert-and-catch (`23505`) pattern by ~5–20 ms per retry —
+  // see performance audit P2 #9.
   const admin = getAdminSupabase();
-  const { error: insertErr } = await admin
+  const { data: insertedRows, error: insertErr } = await admin
     .from('stripe_webhook_events')
-    .insert({ id: event.id, event_type: event.type } as never);
+    .upsert({ id: event.id, event_type: event.type } as never, {
+      onConflict: 'id',
+      ignoreDuplicates: true,
+    })
+    .select('id');
   if (insertErr) {
-    // 23505 = unique_violation. Treat as "already processed".
-    if (insertErr.code === '23505') {
-      return NextResponse.json({ ok: true, deduped: true });
-    }
     await log.error('[stripe-webhook] insert log failed', insertErr, {
       eventId: event.id,
       eventType: event.type,
@@ -87,6 +91,11 @@ export async function POST(request: Request) {
     // Return 500 so Stripe retries; we'd rather process twice than not at
     // all (downstream handlers are idempotent).
     return NextResponse.json({ error: 'LOG_FAILED' }, { status: 500 });
+  }
+  if (!insertedRows || insertedRows.length === 0) {
+    // Row already existed — duplicate delivery. Return 200 so Stripe
+    // stops retrying.
+    return NextResponse.json({ ok: true, deduped: true });
   }
 
   try {

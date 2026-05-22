@@ -80,6 +80,25 @@ Received undefined` because the Sentry plugin was wrapped
 See the [Bundle 11 journal](../journal/2026-05-24-bundle-11.md) for the
 full rationale and the CI-vs-local asymmetry lesson.
 
+**Status update (2026-05-24, Bundle 12):** Three more small wins shipped
+— the last of the easy P2/P3 items.
+
+- **P2 #9 — Stripe webhook dedupe:** swapped `insert`-and-catch-`23505`
+  for `upsert(…, { onConflict: 'id', ignoreDuplicates: true }).select('id')`.
+  Avoids the ~5–20 ms exception path per redelivery; `[]` from
+  `.select()` is the duplicate signal.
+- **P2 #10 — Photon timeout:** added `AbortSignal.timeout(1500)` to the
+  geocode-autocomplete `fetchPhoton` call so slow Photon doesn't pin a
+  user's keystrokes waiting for the Nominatim fallback. Timeout error is
+  swallowed by the existing `catch` and falls through to Nominatim.
+- **P3 #11 — OG image cache headers:** shared `brandOgImage()` helper now
+  emits `Cache-Control: public, immutable, max-age=3600,
+stale-while-revalidate=86400`. All four `opengraph-image.tsx` routes
+  inherit the header, so the unfurler thundering-herd on share lands on
+  Vercel's edge cache instead of Supabase.
+
+See the [Bundle 12 journal](../journal/2026-05-24-bundle-12.md).
+
 ---
 
 ## P1 — biggest impact
@@ -289,6 +308,11 @@ join into the same query that fetched attendees in the first place.
 
 ### 9. Stripe webhook dedupe relies on unique-violation exception
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 12)_ — webhook now uses
+`upsert({ id, event_type }, { onConflict: 'id', ignoreDuplicates: true })
+  .select('id')`; empty `data` indicates a redelivery. See
+[stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts).
+
 **File:** [apps/web/src/app/api/webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts#L60)
 **Category:** External call latency
 
@@ -299,6 +323,12 @@ retry.
 or a `SELECT … FOR UPDATE` check first. Minor but cheap.
 
 ### 10. Geocode fallback waits for Photon before trying Nominatim
+
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 12)_ — `fetchPhoton` now
+passes `signal: AbortSignal.timeout(1500)`; the resulting `TimeoutError`
+is swallowed by the existing `catch` and the autocomplete handler falls
+through to Nominatim. See
+[geocode/autocomplete/route.ts](../../apps/web/src/app/api/geocode/autocomplete/route.ts).
 
 **File:** [apps/web/src/app/api/geocode/autocomplete/route.ts](../../apps/web/src/app/api/geocode/autocomplete/route.ts#L159)
 **Category:** External call latency
@@ -315,6 +345,12 @@ loser.
 ## P3 — nice to have
 
 ### 11. OG-image routes query DB synchronously, uncached
+
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 12)_ — shared
+[`brandOgImage()`](../../apps/web/src/lib/og-image.tsx) now emits
+`Cache-Control: public, immutable, max-age=3600,
+stale-while-revalidate=86400` on every OG render. All four
+`opengraph-image.tsx` routes inherit it via the helper.
 
 **Files:**
 
@@ -406,6 +442,16 @@ log.
 
 ## Remediation log
 
+### 2026-05-24 — Bundle 12: Stripe dedupe / Photon timeout / OG cache
+
+| Item                                            | Status  | Notes                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2 #9 Stripe webhook dedupe via `upsert`        | ✅ Done | Replaced insert-and-catch-`23505` with `upsert(…, { onConflict: 'id', ignoreDuplicates: true }).select('id')`. Empty `data` is the dedupe signal; saves ~5–20 ms per Stripe retry. See [stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts).                                                                                          |
+| P2 #10 Photon timeout before Nominatim fallback | ✅ Done | Added `signal: AbortSignal.timeout(1500)` to `fetchPhoton`. Slow Photon now caps at 1.5 s before the existing `catch` returns null and `GET` falls through to Nominatim. See [geocode/autocomplete/route.ts](../../apps/web/src/app/api/geocode/autocomplete/route.ts).                                                                                 |
+| P3 #11 OG image `Cache-Control`                 | ✅ Done | Shared [`brandOgImage()`](../../apps/web/src/lib/og-image.tsx) emits `Cache-Control: public, immutable, max-age=3600, stale-while-revalidate=86400` on every OG render. Unfurler thundering-herd on share now lands on Vercel's edge cache rather than Supabase. All four `opengraph-image.tsx` routes inherit it via the helper — no per-route change. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
 ### 2026-05-24 — Bundle 11: backend N+1 / batching cleanup + CI hotfix
 
 | Item                                                  | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -472,9 +518,11 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 - **P1 #4** — fully resolved 2026-05-24: page-level portion (Bundle 9) and infrastructure `getDetail()` JOIN consolidation (Bundle 10).
 - **P2 #7** — ✅ Resolved 2026-05-24 (Bundle 11).
 - **P2 #8** — ✅ Resolved (logged 2026-05-24, Bundle 11; fix landed earlier).
-- **P2 #9, #10** — still open (Stripe upsert dedupe; Photon timeout).
+- **P2 #9** — ✅ Resolved 2026-05-24 (Bundle 12).
+- **P2 #10** — ✅ Resolved 2026-05-24 (Bundle 12).
+- **P3 #11** — ✅ Resolved 2026-05-24 (Bundle 12).
 - **P3 #12** — ✅ Resolved 2026-05-24 (Bundle 11).
-- **P3 #11, #13** — still open (OG image cache headers; worker cold-start monitoring).
+- **P3 #13** — still open (notification worker cold-start monitoring).
 
 ---
 
