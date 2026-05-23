@@ -77,6 +77,11 @@ export default function EditEventForm({
   const [country, setCountry] = useState(initial.country);
   const [startsAt, setStartsAt] = useState<Date | null>(initial.startsAt);
   const [endsAt, setEndsAt] = useState<Date | null>(initial.endsAt);
+  // Controlled so we can hide on-platform-only controls (refund window,
+  // service-fee absorption) when the host opts out of Stripe entirely.
+  // Matches the gating in apps/web/src/app/events/new/new-event-form.tsx.
+  const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(initial.paymentsOffPlatform);
+  const showOnPlatformControls = !paymentsOffPlatform;
 
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
@@ -240,7 +245,9 @@ export default function EditEventForm({
               first to change price, fee, or refund window.
             </div>
           )}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div
+            className={`grid grid-cols-1 gap-3 ${showOnPlatformControls ? 'sm:grid-cols-3' : ''}`}
+          >
             <div>
               <label htmlFor="priceUsd" className={labelClass}>
                 Price (USD)
@@ -257,43 +264,50 @@ export default function EditEventForm({
                 className={inputClass}
               />
             </div>
-            <div>
-              <label htmlFor="refundWindowHours" className={labelClass}>
-                Refund window (hours)
-              </label>
-              <input
-                id="refundWindowHours"
-                name="refundWindowHours"
-                type="number"
-                min="0"
-                max="720"
-                step="1"
-                defaultValue={initial.refundWindowHours}
-                disabled={pricingLocked}
-                className={inputClass}
-              />
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-start gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  name="hostAbsorbsFee"
-                  defaultChecked={initial.hostAbsorbsFee}
-                  disabled={pricingLocked}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
-                  <span className="text-muted block">Otherwise added on top of ticket price.</span>
-                </span>
-              </label>
-            </div>
+            {showOnPlatformControls && (
+              <>
+                <div>
+                  <label htmlFor="refundWindowHours" className={labelClass}>
+                    Refund window (hours)
+                  </label>
+                  <input
+                    id="refundWindowHours"
+                    name="refundWindowHours"
+                    type="number"
+                    min="0"
+                    max="720"
+                    step="1"
+                    defaultValue={initial.refundWindowHours}
+                    disabled={pricingLocked}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-start gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      name="hostAbsorbsFee"
+                      defaultChecked={initial.hostAbsorbsFee}
+                      disabled={pricingLocked}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
+                      <span className="text-muted block">
+                        Otherwise added on top of ticket price.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </>
+            )}
           </div>
           <label className="flex items-start gap-2 text-xs">
             <input
               type="checkbox"
               name="paymentsOffPlatform"
-              defaultChecked={initial.paymentsOffPlatform}
+              checked={paymentsOffPlatform}
+              onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
               disabled={pricingLocked}
               className="mt-0.5"
             />
@@ -322,44 +336,49 @@ export default function EditEventForm({
             </Link>
             .
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label htmlFor="refundWindowHours" className={labelClass}>
-                Refund window (hours)
-              </label>
-              <input
-                id="refundWindowHours"
-                name="refundWindowHours"
-                type="number"
-                min="0"
-                max="720"
-                step="1"
-                defaultValue={initial.refundWindowHours}
-                disabled={pricingLocked}
-                className={inputClass}
-              />
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-start gap-2 text-xs">
+          {showOnPlatformControls && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="refundWindowHours" className={labelClass}>
+                  Refund window (hours)
+                </label>
                 <input
-                  type="checkbox"
-                  name="hostAbsorbsFee"
-                  defaultChecked={initial.hostAbsorbsFee}
+                  id="refundWindowHours"
+                  name="refundWindowHours"
+                  type="number"
+                  min="0"
+                  max="720"
+                  step="1"
+                  defaultValue={initial.refundWindowHours}
                   disabled={pricingLocked}
-                  className="mt-0.5"
+                  className={inputClass}
                 />
-                <span>
-                  <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
-                  <span className="text-muted block">Otherwise added on top of ticket price.</span>
-                </span>
-              </label>
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    name="hostAbsorbsFee"
+                    defaultChecked={initial.hostAbsorbsFee}
+                    disabled={pricingLocked}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
+                    <span className="text-muted block">
+                      Otherwise added on top of ticket price.
+                    </span>
+                  </span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
           <label className="flex items-start gap-2 text-xs">
             <input
               type="checkbox"
               name="paymentsOffPlatform"
-              defaultChecked={initial.paymentsOffPlatform}
+              checked={paymentsOffPlatform}
+              onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
               disabled={pricingLocked}
               className="mt-0.5"
             />
