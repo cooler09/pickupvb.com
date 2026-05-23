@@ -13,33 +13,33 @@
  */
 :root,
 :root[data-theme='light'] {
-    color-scheme: light;
-    --tw-color-background: 249 235 217; /* #F9EBD9 */
-    --tw-color-surface: 235 214 215; /* #EBD6D7 */
-    --tw-color-primary: 67 144 147; /* #439093 */
-    --tw-color-primary-fg: 249 235 217;
-    --tw-color-secondary: 240 155 147; /* #F09B93 */
-    --tw-color-secondary-fg: 24 51 52;
-    --tw-color-highlight: 233 221 138; /* #E9DD8A */
-    --tw-color-highlight-fg: 24 51 52;
-    --tw-color-fg: 24 51 52; /* #183334 */
-    --tw-color-muted: 85 95 96; /* #555F60 */
-    --tw-color-border-base: 235 214 215; /* #EBD6D7 */
+  color-scheme: light;
+  --tw-color-background: 249 235 217; /* #F9EBD9 */
+  --tw-color-surface: 235 214 215; /* #EBD6D7 */
+  --tw-color-primary: 67 144 147; /* #439093 */
+  --tw-color-primary-fg: 249 235 217;
+  --tw-color-secondary: 240 155 147; /* #F09B93 */
+  --tw-color-secondary-fg: 24 51 52;
+  --tw-color-highlight: 233 221 138; /* #E9DD8A */
+  --tw-color-highlight-fg: 24 51 52;
+  --tw-color-fg: 24 51 52; /* #183334 */
+  --tw-color-muted: 85 95 96; /* #555F60 */
+  --tw-color-border-base: 235 214 215; /* #EBD6D7 */
 }
 
 :root[data-theme='dark'] {
-    color-scheme: dark;
-    --tw-color-background: 14 42 44; /* #0E2A2C */
-    --tw-color-surface: 27 63 66; /* #1B3F42 */
-    --tw-color-primary: 91 176 179; /* #5BB0B3 */
-    --tw-color-primary-fg: 249 235 217;
-    --tw-color-secondary: 240 155 147; /* #F09B93 */
-    --tw-color-secondary-fg: 14 42 44;
-    --tw-color-highlight: 233 221 138; /* #E9DD8A */
-    --tw-color-highlight-fg: 14 42 44;
-    --tw-color-fg: 249 235 217; /* #F9EBD9 */
-    --tw-color-muted: 159 191 190; /* #9FBFBE */
-    --tw-color-border-base: 42 85 87; /* #2A5557 */
+  color-scheme: dark;
+  --tw-color-background: 14 42 44; /* #0E2A2C */
+  --tw-color-surface: 27 63 66; /* #1B3F42 */
+  --tw-color-primary: 91 176 179; /* #5BB0B3 */
+  --tw-color-primary-fg: 249 235 217;
+  --tw-color-secondary: 240 155 147; /* #F09B93 */
+  --tw-color-secondary-fg: 14 42 44;
+  --tw-color-highlight: 233 221 138; /* #E9DD8A */
+  --tw-color-highlight-fg: 14 42 44;
+  --tw-color-fg: 249 235 217; /* #F9EBD9 */
+  --tw-color-muted: 159 191 190; /* #9FBFBE */
+  --tw-color-border-base: 42 85 87; /* #2A5557 */
 }
 
 /*
@@ -53,35 +53,34 @@
  * built from the R/G/B triple variable.
  */
 @theme inline {
-    --color-background: rgb(var(--tw-color-background));
-    --color-surface: rgb(var(--tw-color-surface));
-    --color-primary: rgb(var(--tw-color-primary));
-    --color-primary-fg: rgb(var(--tw-color-primary-fg));
-    --color-secondary: rgb(var(--tw-color-secondary));
-    --color-secondary-fg: rgb(var(--tw-color-secondary-fg));
-    --color-highlight: rgb(var(--tw-color-highlight));
-    --color-highlight-fg: rgb(var(--tw-color-highlight-fg));
-    --color-fg: rgb(var(--tw-color-fg));
-    --color-muted: rgb(var(--tw-color-muted));
-    --color-border-base: rgb(var(--tw-color-border-base));
+  --color-background: rgb(var(--tw-color-background));
+  --color-surface: rgb(var(--tw-color-surface));
+  --color-primary: rgb(var(--tw-color-primary));
+  --color-primary-fg: rgb(var(--tw-color-primary-fg));
+  --color-secondary: rgb(var(--tw-color-secondary));
+  --color-secondary-fg: rgb(var(--tw-color-secondary-fg));
+  --color-highlight: rgb(var(--tw-color-highlight));
+  --color-highlight-fg: rgb(var(--tw-color-highlight-fg));
+  --color-fg: rgb(var(--tw-color-fg));
+  --color-muted: rgb(var(--tw-color-muted));
+  --color-border-base: rgb(var(--tw-color-border-base));
 
-    /* Legacy palette (kept so existing utility classes keep working). */
-    --color-court-50: #fff7ed;
-    --color-court-100: #ffedd5;
-    --color-court-200: #fed7aa;
-    --color-court-300: #fdba74;
-    --color-court-500: #f97316;
-    --color-court-600: #ea580c;
-    --color-court-700: #c2410c;
-    --color-court-800: #9a3412;
-    --color-sand-50: #fefce8;
-    --color-sand-100: #fef9c3;
-    --color-sand-500: #eab308;
-    --color-net-900: #0f172a;
-    --color-net-800: #1e293b;
+  /* Legacy palette (kept so existing utility classes keep working). */
+  --color-court-50: #fff7ed;
+  --color-court-100: #ffedd5;
+  --color-court-200: #fed7aa;
+  --color-court-300: #fdba74;
+  --color-court-500: #f97316;
+  --color-court-600: #ea580c;
+  --color-court-700: #c2410c;
+  --color-court-800: #9a3412;
+  --color-sand-50: #fefce8;
+  --color-sand-100: #fef9c3;
+  --color-sand-500: #eab308;
+  --color-net-900: #0f172a;
+  --color-net-800: #1e293b;
 
-    --font-sans:
-        ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 /*
@@ -90,16 +89,40 @@
  * suddenly inherit text color.
  */
 @layer base {
-    *,
-    ::after,
-    ::before,
-    ::backdrop,
-    ::file-selector-button {
-        border-color: rgb(var(--tw-color-border-base));
-    }
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: rgb(var(--tw-color-border-base));
+  }
 }
 
 html,
 body {
-    @apply bg-background text-fg antialiased;
+  @apply bg-background text-fg antialiased;
+}
+
+/*
+ * Make `aria-invalid="true"` form fields visibly distinct. The `FieldError`
+ * primitive (apps/web/src/components/field-error.tsx) sets the attribute on
+ * every input/select/textarea that has a server-side error, so styling it
+ * here keeps the highlight consistent across every form without each one
+ * having to bake `aria-invalid:` variants into its class string.
+ *
+ * Uses a strong red border + a subtle red ring so the field stands out on
+ * both light and dark themes. Pairs with the inline `<FieldError>` message
+ * rendered underneath the field.
+ */
+@layer base {
+  :where(input, select, textarea, button)[aria-invalid='true'] {
+    border-color: rgb(220 38 38); /* red-600 */
+    box-shadow: 0 0 0 1px rgb(220 38 38 / 0.4);
+  }
+  :where(input, select, textarea, button)[aria-invalid='true']:focus,
+  :where(input, select, textarea, button)[aria-invalid='true']:focus-visible {
+    border-color: rgb(220 38 38);
+    outline: 2px solid rgb(220 38 38 / 0.5);
+    outline-offset: 2px;
+  }
 }
