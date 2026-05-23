@@ -197,12 +197,16 @@ export default function NewEventForm({
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
   const [isExternal, setIsExternal] = useState(chk(values, submitted, 'isExternal', false));
-  // When the host can't collect payments through Stripe we force the
-  // off-platform branch and hide the toggle entirely. Otherwise the
-  // checkbox is user-controlled (state lifted to the parent so it
-  // survives switching between OpenPlay and Tournament sections).
-  const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(
-    () => !canCollectPayments || chk(values, submitted, 'paymentsOffPlatform', false),
+  // The off-platform checkbox is always user-controlled (state lifted to
+  // the parent so it survives switching between OpenPlay and Tournament
+  // sections). When the host has no Stripe Connect account we still show
+  // the toggle alongside a `StripeOnboardingBanner` so they can either
+  // (a) explicitly opt into off-platform collection or (b) finish
+  // Stripe onboarding before continuing. The server-side gate in
+  // `actions.ts` (`requireHostChargesEnabled`) rejects paid + on-platform
+  // submissions without Stripe so the host can't sneak past.
+  const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(() =>
+    chk(values, submitted, 'paymentsOffPlatform', false),
   );
   // Team registration mode is lifted to the parent so the DivisionsRepeater
   // can react to it (per ADR 0012: team-led modes hide solo composition +
@@ -864,31 +868,24 @@ function PaymentSettingsSubsection({
             : ''}
         </p>
       </div>
-      {canCollectPayments ? (
-        <label className="flex items-start gap-2 text-xs">
-          <input
-            type="checkbox"
-            name="paymentsOffPlatform"
-            checked={paymentsOffPlatform}
-            onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="text-fg font-medium">
-              I&apos;ll collect payment myself (off-platform)
-            </span>
-            <span className="text-muted block">
-              Display the price but skip Stripe. Players RSVP without paying online.
-            </span>
+      {!canCollectPayments && <StripeOnboardingBanner />}
+      <label className="flex items-start gap-2 text-xs">
+        <input
+          type="checkbox"
+          name="paymentsOffPlatform"
+          checked={paymentsOffPlatform}
+          onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="text-fg font-medium">
+            I&apos;ll collect payment myself (off-platform)
           </span>
-        </label>
-      ) : (
-        <StripeOnboardingBanner />
-      )}
-      {/* Always submit the boolean so the server doesn't have to infer it
-          from absence. When the toggle is hidden (no Stripe), we still
-          force off-platform mode. */}
-      {!canCollectPayments && <input type="hidden" name="paymentsOffPlatform" value="on" />}
+          <span className="text-muted block">
+            Display the price but skip Stripe. Players RSVP without paying online.
+          </span>
+        </span>
+      </label>
       <div>
         <label htmlFor="paymentInstructionsTourney" className={labelClass}>
           Payment instructions <span className="text-fg/50">(optional)</span>
@@ -989,13 +986,12 @@ function StripeOnboardingBanner() {
     <div role="status" className="border-border-base bg-highlight/30 rounded-md border p-3 text-sm">
       <p className="text-fg font-medium">On-platform payments aren&apos;t set up yet.</p>
       <p className="text-muted mt-1 text-xs">
-        This event will display its price but won&apos;t collect payment online — players RSVP and
-        pay you directly using the instructions you provide below. To accept payments through
-        PickupVB instead, finish Stripe onboarding at{' '}
+        To accept online payments through PickupVB, finish Stripe onboarding at{' '}
         <Link href="/profile/billing" className="text-primary hover:underline">
           Payouts &amp; Stripe
         </Link>
-        .
+        . Otherwise, check the off-platform option below to collect payment yourself (cash, Venmo,
+        etc.) — paid events without Stripe will be rejected at submit.
       </p>
     </div>
   );
@@ -1028,28 +1024,24 @@ function PricingSubsection({
             : ''}
         </p>
       </div>
-      {canCollectPayments ? (
-        <label className="flex items-start gap-2 text-xs">
-          <input
-            type="checkbox"
-            name="paymentsOffPlatform"
-            checked={paymentsOffPlatform}
-            onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="text-fg font-medium">
-              I&apos;ll collect payment myself (off-platform)
-            </span>
-            <span className="text-muted block">
-              Display the price but skip Stripe. Players RSVP without paying online.
-            </span>
+      {!canCollectPayments && <StripeOnboardingBanner />}
+      <label className="flex items-start gap-2 text-xs">
+        <input
+          type="checkbox"
+          name="paymentsOffPlatform"
+          checked={paymentsOffPlatform}
+          onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="text-fg font-medium">
+            I&apos;ll collect payment myself (off-platform)
           </span>
-        </label>
-      ) : (
-        <StripeOnboardingBanner />
-      )}
-      {!canCollectPayments && <input type="hidden" name="paymentsOffPlatform" value="on" />}
+          <span className="text-muted block">
+            Display the price but skip Stripe. Players RSVP without paying online.
+          </span>
+        </span>
+      </label>
       <div>
         <label htmlFor="paymentInstructionsOpen" className={labelClass}>
           Payment instructions <span className="text-fg/50">(optional)</span>
