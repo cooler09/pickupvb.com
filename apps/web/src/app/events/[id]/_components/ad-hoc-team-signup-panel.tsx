@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { SubmitButton } from '@/components/submit-button';
 import { rsvpBannerFor, RSVP_BANNER_CLASS } from '@/lib/event-rsvp-flash';
-import { PriceUnit } from '@pickupvb/domain';
 import { startTeamRegistrationCheckout } from '../team-checkout-actions';
 import {
   addAdHocTeamMemberFromForm,
@@ -111,7 +110,11 @@ export function AdHocTeamSignupPanel({
   resultMsg,
 }: Props) {
   const banner = rsvpBannerFor(resultCode, resultMsg);
-  const perTeamDivisions = divisions.filter((d) => d.priceUnit === PriceUnit.PerTeam);
+  // Ad-hoc tournaments: every division is registerable as a team — the
+  // captain assembles the roster regardless of price unit. `per_player`
+  // just changes who pays at checkout time; it does not change the
+  // registration shape (cf. ADR 0007).
+  const perTeamDivisions = divisions;
   const hasRegisterable = perTeamDivisions.length > 0;
 
   return (
