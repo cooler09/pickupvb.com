@@ -45,10 +45,6 @@ function DivisionForm({
   const [teamComposition, setTeamComposition] = useState<string>(
     initial?.teamComposition ?? 'solo',
   );
-  const needsTeamSize =
-    teamComposition === 'team' ||
-    teamComposition === 'pair_draw' ||
-    teamComposition === 'partner_required';
   return (
     <form action={action} className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -129,19 +125,6 @@ function DivisionForm({
             <option value="partner_required">Bring partner(s)</option>
           </select>
         </div>
-        {needsTeamSize && (
-          <div>
-            <label className={labelClass}>Team size</label>
-            <input
-              type="number"
-              name="teamSize"
-              min={1}
-              max={24}
-              defaultValue={initial?.teamSize ?? ''}
-              className={inputClass}
-            />
-          </div>
-        )}
         <div>
           <label className={labelClass}>Capacity</label>
           <select

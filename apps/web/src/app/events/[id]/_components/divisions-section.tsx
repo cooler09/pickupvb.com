@@ -80,7 +80,6 @@ export function DivisionsSection({ divisions }: Props) {
                 )}
                 <span className="bg-fg/5 text-fg/80 rounded-full px-2 py-0.5">
                   {TEAM_COMPOSITION_LABEL[d.teamComposition] ?? d.teamComposition}
-                  {d.teamSize ? ` · ${d.teamSize}` : ''}
                 </span>
               </div>
               {(price || d.prizeText) && (

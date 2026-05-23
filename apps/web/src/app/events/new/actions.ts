@@ -162,7 +162,6 @@ export async function createEventAction(
     const label = fieldOrUndefined(formData, `div_${i}_label`);
     if (!label) continue; // user added a row then cleared it
     const teamComposition = fieldOrUndefined(formData, `div_${i}_teamComposition`) || 'solo';
-    const teamSizeRaw = fieldOrUndefined(formData, `div_${i}_teamSize`);
     const capKind = fieldOrUndefined(formData, `div_${i}_capacityKind`) || 'unlimited';
     const maxSpots = fieldOrUndefined(formData, `div_${i}_maxSpots`);
     const priceUsd = fieldOrUndefined(formData, `div_${i}_priceUsd`);
@@ -177,7 +176,6 @@ export async function createEventAction(
       skillTier: fieldOrUndefined(formData, `div_${i}_skillTier`) || 'bb',
       ageGroup: fieldOrUndefined(formData, `div_${i}_ageGroup`) || 'adult',
       teamComposition,
-      ...(teamSizeRaw ? { teamSize: Number(teamSizeRaw) } : {}),
       capacity:
         capKind === 'fixed' && maxSpots
           ? { kind: 'fixed' as const, maxSpots: Number(maxSpots) }

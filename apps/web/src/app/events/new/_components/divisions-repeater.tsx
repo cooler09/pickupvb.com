@@ -61,7 +61,6 @@ type Row = {
   skillTier: string;
   ageGroup: string;
   teamComposition: string;
-  teamSize: string;
   capacityKind: 'unlimited' | 'fixed';
   maxSpots: string;
   priceUsd: string;
@@ -78,7 +77,6 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
   skillTier: 'bb',
   ageGroup: 'adult',
   teamComposition: 'team',
-  teamSize: '',
   capacityKind: 'unlimited',
   maxSpots: '',
   priceUsd: '',
@@ -273,26 +271,6 @@ export default function DivisionsRepeater({
                 ))}
               </select>
             </div>
-            {(() => {
-              const composition = clampComposition(teamRegistrationMode, row.teamComposition);
-              if (composition === 'solo') return null;
-              return (
-                <div>
-                  <label className={labelClass}>Team size</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={24}
-                    name={`div_${idx}_teamSize`}
-                    value={row.teamSize}
-                    onChange={(e) => patch(row.key, { teamSize: e.target.value })}
-                    className={inputClass}
-                    {...fieldA11y(rowErrorKey(idx, 'teamSize'), fieldErrors)}
-                  />
-                  <FieldError name={rowErrorKey(idx, 'teamSize')} errors={fieldErrors} />
-                </div>
-              );
-            })()}
             <div>
               <label className={labelClass}>Capacity</label>
               <select

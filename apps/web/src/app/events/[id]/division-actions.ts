@@ -32,7 +32,6 @@ function parsePriceCents(usd: string | undefined): number | undefined {
 function divisionInputFromForm(formData: FormData): DivisionInputDto {
   const capKind = field(formData, 'capacityKind');
   const maxSpotsRaw = fieldOrUndefined(formData, 'maxSpots');
-  const teamSizeRaw = fieldOrUndefined(formData, 'teamSize');
   const priceUsd = fieldOrUndefined(formData, 'priceUsd');
   const priceUnitRaw = fieldOrUndefined(formData, 'priceUnit');
   const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
@@ -47,7 +46,6 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
     skillTier: field(formData, 'skillTier'),
     ageGroup: field(formData, 'ageGroup') || 'adult',
     teamComposition: field(formData, 'teamComposition') || 'solo',
-    ...(teamSizeRaw ? { teamSize: Number(teamSizeRaw) } : {}),
     ...(tierLabel ? { tierLabel } : {}),
     capacity:
       capKind === 'fixed' && maxSpotsRaw
