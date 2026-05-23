@@ -15,6 +15,42 @@
 import { useState } from 'react';
 import { FieldError, fieldA11y } from '@/components/field-error';
 
+type TeamRegistrationMode = 'ad_hoc' | 'roster' | 'none';
+type Composition = 'solo' | 'team' | 'pair_draw' | 'partner_required';
+type PriceUnit = 'per_player' | 'per_team';
+
+/**
+ * Per ADR 0012: composition + price-unit must match the event's team
+ * registration mode. These helpers clamp each row's selection to the
+ * subset valid for the currently-selected mode so the UI never lets the
+ * host submit a combination the domain invariant will reject.
+ */
+function allowedCompositions(mode: TeamRegistrationMode): readonly Composition[] {
+  return mode === 'none' ? ['solo'] : ['team', 'pair_draw', 'partner_required'];
+}
+function allowedPriceUnits(mode: TeamRegistrationMode): readonly PriceUnit[] {
+  return mode === 'none' ? ['per_player'] : ['per_team'];
+}
+function clampComposition(mode: TeamRegistrationMode, value: string): Composition {
+  const allowed = allowedCompositions(mode);
+  return (allowed as readonly string[]).includes(value) ? (value as Composition) : allowed[0]!;
+}
+function clampPriceUnit(mode: TeamRegistrationMode, value: string): PriceUnit {
+  const allowed = allowedPriceUnits(mode);
+  return (allowed as readonly string[]).includes(value) ? (value as PriceUnit) : allowed[0]!;
+}
+
+const COMPOSITION_LABELS: Record<Composition, string> = {
+  solo: 'Solo signup',
+  team: 'Pre-formed team',
+  pair_draw: 'Pair draw',
+  partner_required: 'Partner required',
+};
+const PRICE_UNIT_LABELS: Record<PriceUnit, string> = {
+  per_player: 'Per player',
+  per_team: 'Per team',
+};
+
 type Row = {
   // Stable client key; never sent to the server.
   key: number;
@@ -41,12 +77,12 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
   gender: 'coed',
   skillTier: 'bb',
   ageGroup: 'adult',
-  teamComposition: 'solo',
+  teamComposition: 'team',
   teamSize: '',
   capacityKind: 'unlimited',
   maxSpots: '',
   priceUsd: '',
-  priceUnit: 'per_player',
+  priceUnit: 'per_team',
   prizeText: '',
   ...defaults,
 });
@@ -58,11 +94,18 @@ const inputClass =
 export default function DivisionsRepeater({
   defaultSurface,
   requireAtLeastOne = false,
+  teamRegistrationMode = 'ad_hoc',
   fieldErrors,
 }: {
   defaultSurface?: string;
   /** When true, always render at least one row and hide its Remove button. */
   requireAtLeastOne?: boolean;
+  /**
+   * Event-level team registration mode (lifted from the parent form).
+   * Gates which team-composition + price-unit options each row exposes,
+   * per ADR 0012. Defaults to `ad_hoc` to match the parent default.
+   */
+  teamRegistrationMode?: TeamRegistrationMode;
   /**
    * Server-side validation errors keyed by Zod path. Division errors arrive
    * as `divisions.${idx}.${field}` (e.g. `divisions.0.label`) — those keys
@@ -219,34 +262,37 @@ export default function DivisionsRepeater({
               <label className={labelClass}>Team composition</label>
               <select
                 name={`div_${idx}_teamComposition`}
-                value={row.teamComposition}
+                value={clampComposition(teamRegistrationMode, row.teamComposition)}
                 onChange={(e) => patch(row.key, { teamComposition: e.target.value })}
                 className={inputClass}
               >
-                <option value="solo">Solo signup</option>
-                <option value="team">Pre-formed team</option>
-                <option value="pair_draw">Pair draw</option>
-                <option value="partner_required">Partner required</option>
+                {allowedCompositions(teamRegistrationMode).map((c) => (
+                  <option key={c} value={c}>
+                    {COMPOSITION_LABELS[c]}
+                  </option>
+                ))}
               </select>
             </div>
-            {(row.teamComposition === 'pair_draw' ||
-              row.teamComposition === 'partner_required' ||
-              row.teamComposition === 'team') && (
-              <div>
-                <label className={labelClass}>Team size</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={24}
-                  name={`div_${idx}_teamSize`}
-                  value={row.teamSize}
-                  onChange={(e) => patch(row.key, { teamSize: e.target.value })}
-                  className={inputClass}
-                  {...fieldA11y(rowErrorKey(idx, 'teamSize'), fieldErrors)}
-                />
-                <FieldError name={rowErrorKey(idx, 'teamSize')} errors={fieldErrors} />
-              </div>
-            )}
+            {(() => {
+              const composition = clampComposition(teamRegistrationMode, row.teamComposition);
+              if (composition === 'solo') return null;
+              return (
+                <div>
+                  <label className={labelClass}>Team size</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={24}
+                    name={`div_${idx}_teamSize`}
+                    value={row.teamSize}
+                    onChange={(e) => patch(row.key, { teamSize: e.target.value })}
+                    className={inputClass}
+                    {...fieldA11y(rowErrorKey(idx, 'teamSize'), fieldErrors)}
+                  />
+                  <FieldError name={rowErrorKey(idx, 'teamSize')} errors={fieldErrors} />
+                </div>
+              );
+            })()}
             <div>
               <label className={labelClass}>Capacity</label>
               <select
@@ -295,14 +341,17 @@ export default function DivisionsRepeater({
               <label className={labelClass}>Charge</label>
               <select
                 name={`div_${idx}_priceUnit`}
-                value={row.priceUnit}
+                value={clampPriceUnit(teamRegistrationMode, row.priceUnit)}
                 onChange={(e) =>
                   patch(row.key, { priceUnit: e.target.value as 'per_player' | 'per_team' })
                 }
                 className={inputClass}
               >
-                <option value="per_player">Per player</option>
-                <option value="per_team">Per team</option>
+                {allowedPriceUnits(teamRegistrationMode).map((u) => (
+                  <option key={u} value={u}>
+                    {PRICE_UNIT_LABELS[u]}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="sm:col-span-2">
