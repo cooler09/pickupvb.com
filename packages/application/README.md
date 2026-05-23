@@ -45,6 +45,10 @@ src/
   responses; side effects (DB writes, email sends) happen via injected
   ports.
 
+## Exports
+
+`src/index.ts` re-exports every command/query **handler module** by name (`./commands/create-event.handler`, `./commands/co-host.handler`, `./queries/event-detail.handler`, …) plus the `./messages` namespace of command / query / DTO types. There is no per-subfolder rollup — each handler file is named in the barrel so the composition root in [apps/web/src/lib/handlers.ts](../../apps/web/src/lib/handlers.ts) can pick up new handlers without deep imports. When you add a handler, name it in `src/index.ts` so the application surface stays a single import path for callers.
+
 ## Testing
 
 ```bash

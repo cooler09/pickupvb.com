@@ -308,6 +308,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   // ---- Factory ---------------------------------------------------------
+  /**
+   * Validate inputs and produce a new `VolleyballEvent` in `Draft` status.
+   * Throws {@link InvariantViolation} (bad time range, missing title,
+   * missing open-play capacity, invalid payment config) or rejects with
+   * `assertFormatAllowedForSurface` when surface/format are incompatible.
+   * Raises an `EventCreated` domain event on success.
+   */
   static create(props: CreateEventProps): VolleyballEvent {
     if (props.format !== null) {
       assertFormatAllowedForSurface(props.surface, props.format);

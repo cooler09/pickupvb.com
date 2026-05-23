@@ -50,6 +50,10 @@ type Row = { user_id: string; role: string; profiles: { display_name: string } |
 const typed = (rows as Row[] | null) ?? [];
 ```
 
+## Exports
+
+`src/index.ts` re-exports each Supabase repository adapter by file name (`./supabase-event-repository`, `./supabase-event-team-payment-repository`, `./supabase-event-team-registration-repository`, `./supabase-team-repository`, `./supabase-bracket-repository`, `./supabase-host-stripe-account-repository`, `./supabase-host-subscription-repository`, `./supabase-community-listing-repository`). Only the adapter classes / factory functions are exported — internal row mappers and SQL helpers stay file-private. When you add a new adapter, name it in `src/index.ts`; the composition root in [apps/web/src/lib/handlers.ts](../../apps/web/src/lib/handlers.ts) wires it to its domain port.
+
 ## Testing
 
 ```bash

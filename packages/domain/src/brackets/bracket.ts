@@ -70,6 +70,12 @@ export class Bracket extends AggregateRoot<BracketId> {
     super(id);
   }
 
+  /**
+   * Validate inputs and produce a new `Bracket` in `setup` status with
+   * no seeds and no matches. Merges `config` over `DEFAULT_BRACKET_CONFIG`
+   * and throws {@link ValidationError} when `bestOf` is not a positive
+   * odd number. Raises a `BracketCreated` domain event.
+   */
   static create(
     id: BracketId,
     eventId: EventId,
@@ -86,6 +92,11 @@ export class Bracket extends AggregateRoot<BracketId> {
     return b;
   }
 
+  /**
+   * Rebuild a `Bracket` from already-persisted state. Skips create-time
+   * validation and does not raise `BracketCreated` — only call from
+   * repository adapters reading already-validated rows.
+   */
   static fromPersistence(props: {
     id: BracketId;
     eventId: EventId;

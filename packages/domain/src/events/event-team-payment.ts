@@ -43,6 +43,11 @@ export class EventTeamPayment extends AggregateRoot<EventTeamPaymentId> {
     super(id);
   }
 
+  /**
+   * Produce a fresh `EventTeamPayment` in `None` status — no checkout has
+   * been started yet. Pure constructor; no validation beyond what the
+   * caller-supplied IDs already enforce.
+   */
   static create(props: {
     id: EventTeamPaymentId;
     eventId: string;
@@ -65,6 +70,11 @@ export class EventTeamPayment extends AggregateRoot<EventTeamPaymentId> {
     );
   }
 
+  /**
+   * Rebuild an `EventTeamPayment` from already-persisted state. Skips the
+   * payment-state-machine guards that the mutation methods enforce — only
+   * call from repository adapters.
+   */
   static rehydrate(props: {
     id: EventTeamPaymentId;
     eventId: string;

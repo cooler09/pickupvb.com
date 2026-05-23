@@ -42,6 +42,12 @@ export class RegistrationMember {
     public readonly sortOrder: number,
   ) {}
 
+  /**
+   * Validate and produce a single roster member. Throws
+   * {@link InvariantViolation} when neither a linked user nor a display
+   * name is supplied, when the display name / email lengths are out of
+   * range, or when `sortOrder` is not a non-negative integer.
+   */
   static create(props: RegistrationMemberProps): RegistrationMember {
     const displayName = props.displayName?.trim() || null;
     const email = props.email?.trim() || null;
@@ -117,6 +123,12 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     super(id);
   }
 
+  /**
+   * Validate inputs and produce a new `EventTeamRegistration` in payment
+   * status `None`. Throws {@link InvariantViolation} when the name is
+   * empty / too long, the roster exceeds {@link MAX_ROSTER_SIZE}, or a
+   * member is duplicated (see `assertUniqueMembers`).
+   */
   static create(props: CreateEventTeamRegistrationProps): EventTeamRegistration {
     const name = props.name.trim();
     if (!name) {
@@ -147,6 +159,11 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     );
   }
 
+  /**
+   * Rebuild an `EventTeamRegistration` from already-persisted state.
+   * Skips the create-time invariants (name length, roster size, uniqueness)
+   * — only call from repository adapters reading already-validated rows.
+   */
   static rehydrate(props: RehydrateEventTeamRegistrationProps): EventTeamRegistration {
     return new EventTeamRegistration(
       props.id,
