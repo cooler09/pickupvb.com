@@ -49,15 +49,21 @@ const nextConfig = {
   //   - Workers: leaflet uses none today, but the React DevTools hook +
   //     Next dev overlay both use blob: workers. Allow `blob:` to keep
   //     `next dev` quiet.
+  //   - Vercel Live (preview deployments only): Vercel injects a feedback
+  //     widget from https://vercel.live on preview builds. It loads a
+  //     script + iframe from vercel.live, pulls assets from vercel.com,
+  //     and opens a Pusher WebSocket (ws-*.pusher.com) for realtime
+  //     comments. Not present on production builds; allowlisting is
+  //     harmless either way and avoids noisy console errors on previews.
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.tile.openstreetmap.org",
-      "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com",
-      'frame-src https://challenges.cloudflare.com',
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://vercel.live",
+      "style-src 'self' 'unsafe-inline' https://vercel.live",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.tile.openstreetmap.org https://vercel.live https://vercel.com",
+      "font-src 'self' data: https://vercel.live https://assets.vercel.com",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com https://vercel.live wss://ws-us3.pusher.com",
+      'frame-src https://challenges.cloudflare.com https://vercel.live',
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",

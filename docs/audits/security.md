@@ -19,6 +19,15 @@ closed as **wontfix-preemptive** with an explicit re-open trigger
 `upload()` call). The only open security items remaining are P2 #3b
 (nonce-based CSP hardening) and P3 #8 (audit-log coverage gaps).
 
+**Status update (2026-05-23):** CSP allowlist extended to cover
+Vercel Live's preview-deployment feedback widget — `vercel.live`
+(script/style/img/font/frame), `assets.vercel.com` (font),
+`vercel.com` (img), and `wss://ws-us3.pusher.com` (Pusher realtime
+that backs the widget's comments). Preview builds were emitting a
+console-blocking CSP violation on every page load. Widget is not
+injected on production builds; allowlisting is harmless either way.
+See [apps/web/next.config.mjs](../../apps/web/next.config.mjs).
+
 **Status update (2026-05-22, Bundle 27):** P2 #3a closed — CSP promoted
 from `Content-Security-Policy-Report-Only` to enforcing
 `Content-Security-Policy` in [next.config.mjs](../../apps/web/next.config.mjs).
