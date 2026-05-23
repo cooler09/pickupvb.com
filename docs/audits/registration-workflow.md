@@ -1,6 +1,6 @@
 # Registration Workflow Audit
 
-_Last updated: 2026-05-24_
+_Last updated: 2026-05-23 (Bundle 52)_
 
 Audit of the event registration flow after divisions landed (ADR
 [0006-event-divisions](../adr/0006-event-divisions.md)). Focus areas: how
@@ -12,6 +12,18 @@ Scope is the registration surface only — schema, domain rules, and the
 event-detail signup panels. Bracket/scoring, communications, and post-event
 flows are out of scope.
 
+> **Status (2026-05-23, Bundle 52):** **Model P3 — team format vs
+> division format — closed.** `RegisterTeamHandler` now throws
+> `ValidationError` (was `UnauthorizedError`) for both the cross-event
+> and cross-division format mismatch. The earlier 2026-05-22 remediation
+> log row had claimed `ValidationError` but the code shipped
+> `UnauthorizedError`, which (a) misclassified a validation failure as
+> a permission failure and (b) routed the user to the wrong flash
+> message ("Only the team captain can do that.") instead of the
+> wired-up `?team=invalid` → "Team format doesn't match the event."
+> Code now matches the documented intent. See the
+> [Bundle 52 journal](../journal/2026-05-23-bundle-52.md).
+>
 > **Status (2026-05-24, Bundle 7):** **Tournament tabs collapsed to a
 > single guided picker** — the old `TournamentRegistrationTabs`
 > client component is gone; a new `TournamentRegisterPanel` renders one
@@ -234,7 +246,7 @@ to the division they're rostering for.
 a `event_free_agent_divisions` join table. Filter the captain-facing list
 by division.
 
-#### P3 — Team `format` is locked at team creation but division `format` is not validated
+#### P3 — Team `format` is locked at team creation but division `format` is not validated — ✅ Closed (2026-05-23, Bundle 52)
 
 [`RegisterTeamCommand`](../../packages/application/src/events/commands/register-team.ts)
 checks team format against `events.format`, not the chosen division's
@@ -243,6 +255,12 @@ event-level format but be wrong for the actual division they want.
 
 **Fix:** validate team format against the **selected division's** format
 once division selection is wired through.
+
+**Resolved (Bundle 52):** `RegisterTeamHandler` validates against
+`division.format` (added with division-selection wiring in Bundle 1) and
+now throws `ValidationError` — not `UnauthorizedError` — for both the
+event-level and division-level format mismatch. See
+[team.handler.ts#L136-L148](../../packages/application/src/commands/team.handler.ts#L136-L148).
 
 ### UX
 
@@ -389,6 +407,7 @@ Each step is independently shippable. Don't try to land them all at once.
 | 2026-05-24 | Recommended sequencing step 1 — team-paradigm ADR not written                                                                 | Wrote [ADR 0008](../adr/0008-team-registration-paradigm.md) ratifying per-event single-mode (ad-hoc default for tournaments), two-aggregate split (`Team` vs `EventTeamRegistration`), sidecar payment (`EventTeamPayment` for roster, inline column for ad-hoc), side-step `attach*ToDivision` ports as a documented doctrine, captain-pre-pay deferred, and single-flow collapse as a pure UX bundle. ADR index updated to include 0007 + 0008. Discovery confirmed ad-hoc scaffolding is live end-to-end (handlers, signup panel, host panel, division-winner picker) — Model P2 ad-hoc audit no longer needs a separate dead-code pass. See [Bundle 6 journal](../journal/2026-05-24-bundle-6.md).                                    | [docs/adr/0008-team-registration-paradigm.md](../adr/0008-team-registration-paradigm.md), [docs/adr/README.md](../adr/README.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 2026-05-24 | UX P2 — Tournament signup was two tabs that should be one flow + stale UX P2 for `PaidTicketPanel` dual CTA                   | Replaced `TournamentRegistrationTabs` (`role=tablist`) with `TournamentRegisterPanel` — a single `'use client'` wrapper that renders a `role=radiogroup` "How are you signing up?" picker above the existing team and free-agent server-component panels (passed in as `ReactNode` children to preserve the server-action boundary). Hides the team branch entirely when `team_registration_mode === null`; defaults to the free-agent panel on free-agent-only events. Also verified the `PaidTicketPanel` dual-CTA finding is stale — the panel already gates on `paymentsOffPlatform` to show exactly one CTA. Full division→mode→roster→pay wizard (ADR 0008 §6) deferred. See [Bundle 7 journal](../journal/2026-05-24-bundle-7.md). | [apps/web/src/app/events/%5Bid%5D/\_components/tournament-register-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tournament-register-panel.tsx), [apps/web/src/app/events/%5Bid%5D/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 2026-05-24 | UX P1 (partial) + Model P2 — Free-agent signup had no division picker and `event_free_agents.division_id` was never populated | `JoinEventAsFreeAgentCommand` now takes a required `divisionId`; handler validates the division belongs to the event then calls new `attachFreeAgentToDivision` port (mirrors `attachTeamToDivision`). `FreeAgentSignupPanel` renders a hidden input on single-division events and a required `<select>` on multi-division, and shows a division pill on each free-agent row. Detail read model + Supabase select extended to surface `divisionId`. No migration needed (column added in 20260605000100). See [Bundle 5 journal](../journal/2026-05-24-bundle-5.md).                                                                                                                                                                      | [packages/domain/src/events/event-repository.ts](../../packages/domain/src/events/event-repository.ts), [packages/application/src/commands/join-event.handler.ts](../../packages/application/src/commands/join-event.handler.ts), [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts), [apps/web/src/app/events/%5Bid%5D/free-agent-actions.ts](../../apps/web/src/app/events/%5Bid%5D/free-agent-actions.ts), [apps/web/src/app/events/%5Bid%5D/\_components/free-agent-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/free-agent-signup-panel.tsx), [apps/web/src/app/events/%5Bid%5D/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)                                                                 |
+| 2026-05-23 | Model P3 — team format vs division format misclassified as `UnauthorizedError`                                                | Reclassified both the cross-event and cross-division format-mismatch throws in `RegisterTeamHandler` from `UnauthorizedError` to `ValidationError`, matching the documented intent from the 2026-05-22 remediation log row and routing the user to the wired-up `?team=invalid` → "Team format doesn't match the event." flash instead of the misleading `?team=forbidden` → "Only the team captain can do that." See [Bundle 52 journal](../journal/2026-05-23-bundle-52.md).                                                                                                                                                                                                                                                            | [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 ## Still open
 

@@ -3,6 +3,7 @@ import {
   NotFoundError,
   Team,
   UnauthorizedError,
+  ValidationError,
   type EventRepository,
   type Format,
   type TeamId,
@@ -134,14 +135,14 @@ export class RegisterTeamHandler {
     const event = await this.events.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     if (event.format && event.format !== team.format) {
-      throw new UnauthorizedError(
+      throw new ValidationError(
         `Team format (${team.format}) doesn't match event format (${event.format}).`,
       );
     }
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
     if (division.format && division.format !== team.format) {
-      throw new UnauthorizedError(
+      throw new ValidationError(
         `Team format (${team.format}) doesn't match division format (${division.format}).`,
       );
     }
