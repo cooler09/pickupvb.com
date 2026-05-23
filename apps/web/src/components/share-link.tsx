@@ -185,6 +185,7 @@ function QuickShareButton({
       className="border-border-base hover:bg-fg/5 text-fg/80 flex items-center justify-center rounded-md border px-2 py-1.5 text-xs font-medium"
     >
       {label}
+      {external && <span className="sr-only"> (opens in new tab)</span>}
     </a>
   );
 }

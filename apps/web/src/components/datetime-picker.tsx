@@ -33,7 +33,9 @@ export default function DateTimePicker({
   const [time, setTime] = useState<string>(value ? format(value, 'HH:mm') : '18:00');
   const mounted = useIsMounted();
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
+  // Close on click outside.
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
       if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
@@ -41,6 +43,25 @@ export default function DateTimePicker({
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
+
+  // Escape closes the picker and returns focus to the trigger.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  function closeAndReturnFocus() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
 
   function combine(date: Date | undefined, hhmm: string): Date | null {
     if (!date) return null;
@@ -71,6 +92,7 @@ export default function DateTimePicker({
       <button
         type="button"
         id={name}
+        ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         className={`${inputClass} text-left`}
         aria-haspopup="dialog"
@@ -116,7 +138,7 @@ export default function DateTimePicker({
             />
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={closeAndReturnFocus}
               className="bg-primary hover:bg-primary/90 ml-auto rounded-md px-3 py-1 text-xs font-semibold text-white"
             >
               Done
