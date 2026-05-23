@@ -78,6 +78,13 @@ export function EventSignupArea({
   // hide Stripe Checkout CTAs.
   const effectiveOffPlatform = event.paymentsOffPlatform || !hostStripeReady;
 
+  // Suppress the "host hasn't finished payment setup" flash banner on
+  // off-platform events — the on-platform Pay CTA is hidden anyway, so
+  // the banner (typically arriving via a stale `?rsvp=host_not_ready`
+  // URL) is just noise.
+  const effRsvp = effectiveOffPlatform && rsvp === 'host_not_ready' ? undefined : rsvp;
+  const effRsvpMsg = effRsvp === undefined ? undefined : rsvpMsg;
+
   if (isExternal) {
     return (
       <SignupSection
@@ -132,8 +139,8 @@ export function EventSignupArea({
             positionRoster={event.positionRoster}
             filledByPosition={filledByPosition}
             viewerPosition={viewerPosition}
-            rsvp={rsvp}
-            rsvpMsg={rsvpMsg}
+            rsvp={effRsvp}
+            rsvpMsg={effRsvpMsg}
           />
         ) : (
           <RsvpPanel
@@ -141,8 +148,8 @@ export function EventSignupArea({
             eventTitle={event.title}
             isAttending={event.isAttending}
             isRealUser={isRealUser}
-            rsvp={rsvp}
-            rsvpMsg={rsvpMsg}
+            rsvp={effRsvp}
+            rsvpMsg={effRsvpMsg}
           />
         )}
       </SignupSection>
@@ -178,8 +185,8 @@ export function EventSignupArea({
                 viewerRegistrations={adHocViewerRegistrations}
                 allRegistrations={adHocAllRegistrations}
                 paymentsOffPlatform={effectiveOffPlatform}
-                {...(rsvp ? { resultCode: rsvp } : {})}
-                {...(rsvpMsg ? { resultMsg: rsvpMsg } : {})}
+                {...(effRsvp ? { resultCode: effRsvp } : {})}
+                {...(effRsvpMsg ? { resultMsg: effRsvpMsg } : {})}
               />
             ) : (
               <TournamentSignupPanel
@@ -198,7 +205,7 @@ export function EventSignupArea({
                 isRealUser={isRealUser}
                 returnPath={returnPath}
                 paymentsOffPlatform={effectiveOffPlatform}
-                {...(team || rsvp ? { resultCode: team ?? rsvp } : {})}
+                {...(team || effRsvp ? { resultCode: team ?? effRsvp } : {})}
               />
             )
           }
