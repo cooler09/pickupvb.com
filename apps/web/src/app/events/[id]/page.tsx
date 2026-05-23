@@ -281,7 +281,13 @@ export default async function EventDetailPage(props: {
         viewerIsPro={viewerIsPro}
       />
 
-      {event.type === 'tournament' && <TeamsRegisteredSection teams={event.teams} />}
+      {event.type === 'tournament' && (
+        <TeamsRegisteredSection
+          teams={event.teams}
+          adHocRegistrations={adHocAllRegistrations}
+          divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
+        />
+      )}
 
       {!isHostOfEvent && (
         <TipJar
