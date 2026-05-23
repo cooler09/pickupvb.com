@@ -119,6 +119,8 @@ export default async function EventDetailPage(props: {
         created={pickQuery(searchParams, 'created')}
         tip={pickQuery(searchParams, 'tip')}
         tipMsg={pickQuery(searchParams, 'tip_msg')}
+        cohost={pickQuery(searchParams, 'cohost')}
+        cohostMsg={pickQuery(searchParams, 'cohost_msg')}
       />
 
       <header className="space-y-2">
