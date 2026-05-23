@@ -146,13 +146,14 @@ export async function editEventAction(
     newTeamRegistrationMode = null;
   }
 
-  // ADR 0007 §3 — reject the invalid (team-led + per-player priced + on-platform)
-  // combination at the boundary. Build the resulting division list using the
-  // submitted primary-division price (if changed) on top of the current
-  // read-model values.
+  // ADR 0012 — canonical registration-config invariants (event type ×
+  // team mode × division composition × price unit). Build the resulting
+  // division list using the submitted primary-division price (if changed)
+  // on top of the current read-model values.
   {
     const resultingDivisions = detail.divisions.map((d, i) => ({
       label: d.label,
+      teamComposition: d.teamComposition,
       priceUnit: d.priceUnit,
       priceCents: i === 0 && newPriceCents !== null ? newPriceCents : (d.priceCents ?? null),
     }));

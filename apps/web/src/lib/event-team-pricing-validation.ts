@@ -1,28 +1,20 @@
 /**
- * ADR 0007 §3 — Forbid the combination
- *   `team_registration_mode IN ('ad_hoc' | 'roster')`
- *   + at least one division priced `per_player`
- *   + on-platform payments (not `payments_off_platform`).
+ * Boundary mirror of `VolleyballEvent.assertRegistrationConfigValid` —
+ * see [docs/adr/0012-registration-paradigm-invariants.md](../../../../docs/adr/0012-registration-paradigm-invariants.md).
  *
- * In that combination the platform would be unable to collect: the
- * tournament is team-led, so registration happens at the team level, but
- * each priced division charges per-player — so there is no captain-pays-team
- * checkout path that satisfies the price unit. The host must pick one of
- * three resolutions:
+ * The canonical matrix (event type × team mode × division composition ×
+ * division price unit) is enforced inside the domain aggregate so it
+ * cannot be bypassed, but the domain only throws `InvariantViolation`.
+ * Reproducing the rules here lets the create/edit form surface a useful
+ * error message before save and short-circuit before reaching the
+ * application layer.
  *
- *   1. Switch the offending division(s) to `per_team` pricing (a captain
- *      pays one fee for the team).
- *   2. Disable team registration on the event (open per-player signup
- *      where each player pays their own ticket).
- *   3. Set the event to off-platform payments so the host collects the
- *      money outside Stripe.
- *
- * The same rule is enforced at both event-create and event-edit
- * boundaries so a misconfigured combo can neither be created nor saved.
+ * Off-platform payments do **not** relax any of these rules.
  */
 
 export type TeamPricingDivisionInput = {
   label: string;
+  teamComposition: 'solo' | 'team' | 'pair_draw' | 'partner_required';
   priceUnit: 'per_player' | 'per_team';
   priceCents: number | null;
 };
@@ -39,25 +31,60 @@ export type TeamPricingValidationResult = { ok: true } | { ok: false; error: str
 export function validateTeamPricing(
   input: TeamPricingValidationInput,
 ): TeamPricingValidationResult {
-  // Rule only applies to tournaments in a team-led registration mode.
-  if (input.type !== 'tournament') return { ok: true };
-  if (input.teamRegistrationMode == null) return { ok: true };
-  if (input.paymentsOffPlatform) return { ok: true };
+  const mode = input.teamRegistrationMode;
+  const isTeamLed = mode === 'ad_hoc' || mode === 'roster';
+  const isIndividual = mode === null;
 
-  const offending = input.divisions.filter(
-    (d) => d.priceUnit === 'per_player' && (d.priceCents ?? 0) > 0,
-  );
-  if (offending.length === 0) return { ok: true };
+  // Rule 1: open-play is individual-only.
+  if (input.type === 'open_play' && !isIndividual) {
+    return {
+      ok: false,
+      error:
+        'Open-play events must use individual signup. Set team registration to “none” or change the event type to tournament.',
+    };
+  }
 
-  const labels = offending.map((d) => `“${d.label}”`).join(', ');
-  return {
-    ok: false,
-    error:
-      `This event uses team registration, but ${labels} ${offending.length === 1 ? 'is' : 'are'} priced per-player. ` +
-      `On-platform checkout has no way to collect a per-player fee from a team registration. ` +
-      `Choose one of: ` +
-      `(1) switch the priced division${offending.length === 1 ? '' : 's'} to “per team” pricing so the captain pays one fee; ` +
-      `(2) turn off team registration so each player signs up and pays individually; or ` +
-      `(3) collect payment off-platform.`,
-  };
+  for (const d of input.divisions) {
+    // Rule 2: team-led events require team composition + per-team price.
+    if (isTeamLed) {
+      if (d.teamComposition === 'solo') {
+        return {
+          ok: false,
+          error:
+            `Team-registered events cannot have a solo-composition division. ` +
+            `Division “${d.label}” must use team, pair-draw, or partner-required composition.`,
+        };
+      }
+      if (d.priceUnit === 'per_player') {
+        return {
+          ok: false,
+          error:
+            `Team-registered events require per-team pricing. Division “${d.label}” is priced per-player — ` +
+            `the captain pays for the team. Switch the division to per-team pricing, or disable team registration on the event.`,
+        };
+      }
+    }
+
+    // Rule 3: individual events require solo composition + per-player price.
+    if (isIndividual) {
+      if (d.teamComposition !== 'solo') {
+        return {
+          ok: false,
+          error:
+            `Individual-signup events must use solo divisions. Division “${d.label}” has team composition ` +
+            `“${d.teamComposition}” — enable team registration on the event, or switch the division to solo.`,
+        };
+      }
+      if (d.priceUnit === 'per_team') {
+        return {
+          ok: false,
+          error:
+            `Individual-signup events cannot use per-team pricing. Division “${d.label}” must be priced per-player, ` +
+            `or enable team registration on the event.`,
+        };
+      }
+    }
+  }
+
+  return { ok: true };
 }

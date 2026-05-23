@@ -18,6 +18,7 @@ import {
   RegistrationMode,
   SkillLevel,
   Surface,
+  TeamComposition,
   TeamRegistrationMode,
   Visibility,
   isEventPosition,
@@ -347,10 +348,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     }
 
     const extensions = resolveExtensions(props.extensions, props.endsAt);
-    // ADR 0007: tournaments default to ad-hoc team registration unless the
-    // host explicitly opted into roster mode (or out, via null on a non-
-    // tournament). Open-play stays null — individual signup.
-    if (props.type === EventType.Tournament && extensions.teamRegistrationMode === null) {
+    // ADR 0007 / 0012: tournaments default to ad-hoc team registration when
+    // the host did not specify a mode at all. An explicit `null` from the
+    // host (= "individual signup tournament") is respected.
+    if (
+      props.type === EventType.Tournament &&
+      props.extensions?.teamRegistrationMode === undefined
+    ) {
       extensions.teamRegistrationMode = TeamRegistrationMode.AdHoc;
     }
     const divisions = (props.divisions ?? []).slice();
@@ -380,7 +384,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       extensions,
       divisions,
     );
-    evt.assertPaymentConfigValid();
+    evt.assertRegistrationConfigValid();
     evt.raise(new EventCreated(evt.id));
     return evt;
   }
@@ -790,7 +794,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       });
     }
     this._divisions.push(division);
-    this.assertPaymentConfigValid();
+    this.assertRegistrationConfigValid();
   }
 
   /** Replace an existing division by id. */
@@ -800,7 +804,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       throw new NotFoundError('division', String(division.id));
     }
     this._divisions[idx] = division;
-    this.assertPaymentConfigValid();
+    this.assertRegistrationConfigValid();
   }
 
   /** Remove a division by id. */
@@ -813,25 +817,70 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * ADR 0007 cross-cutting rule: when the event is registered by team
-   * (`teamRegistrationMode != null`) and any priced division charges per
-   * player, payments MUST be collected off-platform. We don't model split
-   * payments across a roster; the captain handles collection.
+   * ADR 0012 — canonical registration-config matrix. Enforces the
+   * interlocking rules across {@link EventType}, `teamRegistrationMode`,
+   * `team_composition`, and `price_unit`:
    *
-   * Invoked from {@link create} and from division mutations so the bad
+   *   1. Open-play events must use individual signup
+   *      (`teamRegistrationMode === null`) and solo divisions only.
+   *   2. Team-led events (`teamRegistrationMode ∈ {ad_hoc, roster}`)
+   *      require every division to use a non-solo composition and
+   *      `priceUnit === per_team`. The captain pays for the team;
+   *      per-player pricing is rejected because the platform does not
+   *      split a captain's payment across teammates.
+   *   3. Individual-signup events (`teamRegistrationMode === null`)
+   *      require every division to use `TeamComposition.Solo` and
+   *      `priceUnit === per_player`.
+   *   4. `payments_off_platform` does not relax any of the above —
+   *      off-platform changes who handles the money, not what shape
+   *      of registration the platform accepts.
+   *
+   * Invoked from {@link create} and from division mutations so a bad
    * combination can't sneak in by adding a division later.
    */
-  private assertPaymentConfigValid(): void {
-    if (this._extensions.teamRegistrationMode === null) return;
-    if (this._extensions.paymentsOffPlatform) return;
-    const hasPaidPerPlayerDivision = this._divisions.some(
-      (d) => d.priceCents !== null && d.priceCents > 0 && d.priceUnit === PriceUnit.PerPlayer,
-    );
-    if (hasPaidPerPlayerDivision) {
+  private assertRegistrationConfigValid(): void {
+    const mode = this._extensions.teamRegistrationMode;
+    const isTeamLed = mode === TeamRegistrationMode.AdHoc || mode === TeamRegistrationMode.Roster;
+    const isIndividual = mode === null;
+
+    // Rule 1: open-play is individual-only.
+    if (this.type === EventType.OpenPlay && !isIndividual) {
       throw new InvariantViolation(
-        'Team-registered events with per-player pricing must collect payment off-platform. ' +
-          'Switch pricing to per-team, change the event to individual signup, or enable off-platform payments.',
+        'Open-play events must use individual signup (team registration mode must be "none").',
       );
+    }
+
+    for (const d of this._divisions) {
+      const composition = d.teamComposition;
+      const priceUnit = d.priceUnit;
+
+      // Rule 2: team-led events require team composition + per-team price.
+      if (isTeamLed) {
+        if (composition === TeamComposition.Solo) {
+          throw new InvariantViolation(
+            `Team-registered events cannot have a solo-composition division. Division "${d.label}" must use team, pair_draw, or partner_required.`,
+          );
+        }
+        if (priceUnit === PriceUnit.PerPlayer) {
+          throw new InvariantViolation(
+            `Team-registered events require per-team pricing. Division "${d.label}" is priced per-player — the captain pays for the team. Switch the division to per-team pricing or disable team registration on the event.`,
+          );
+        }
+      }
+
+      // Rule 3: individual events require solo composition + per-player price.
+      if (isIndividual) {
+        if (composition !== TeamComposition.Solo) {
+          throw new InvariantViolation(
+            `Individual-signup events must use solo divisions. Division "${d.label}" has team composition "${composition}" — enable team registration on the event or switch the division to solo.`,
+          );
+        }
+        if (priceUnit === PriceUnit.PerTeam) {
+          throw new InvariantViolation(
+            `Individual-signup events cannot use per-team pricing. Division "${d.label}" must be priced per-player, or enable team registration on the event.`,
+          );
+        }
+      }
     }
   }
 }

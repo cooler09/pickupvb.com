@@ -197,7 +197,8 @@ export async function createEventAction(
     };
   }
 
-  // ADR 0007 §3 — reject the (team-led + per-player priced + on-platform) combo.
+  // ADR 0012 — canonical registration-config invariants (event type × team
+  // mode × division composition × price unit).
   if (isTournament && !isExternal) {
     const submittedMode = fieldOrUndefined(formData, 'teamRegistrationMode');
     const resolvedMode: 'ad_hoc' | 'roster' | null =
@@ -208,6 +209,11 @@ export async function createEventAction(
       paymentsOffPlatform: field(formData, 'paymentsOffPlatform') === 'on',
       divisions: divisions.map((d) => ({
         label: (d.label as string) ?? '',
+        teamComposition: ((d.teamComposition as string) ?? 'solo') as
+          | 'solo'
+          | 'team'
+          | 'pair_draw'
+          | 'partner_required',
         priceUnit: ((d.priceUnit as string) ?? 'per_player') as 'per_player' | 'per_team',
         priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
       })),

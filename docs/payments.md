@@ -129,6 +129,15 @@ outside the app (Venmo, cash at the door, club account, etc.). The app
 records that the host is opting out and then deliberately suppresses
 every Stripe-shaped affordance.
 
+> **Off-platform is not a registration-config escape hatch.** Per
+> [ADR 0012](adr/0012-registration-paradigm-invariants.md), the
+> canonical matrix of `events.type` × `team_registration_mode` ×
+> `team_composition` × `price_unit` is enforced identically whether the
+> event is on-platform or off-platform. The captain still pays for the
+> team in team modes; per-player pricing is still rejected on team
+> events. Off-platform only changes _who handles the money_, not _what
+> shape of registration the platform accepts_.
+
 **UI consequences (intentional):**
 
 - **Create form** ([apps/web/src/app/events/new/new-event-form.tsx](../apps/web/src/app/events/new/new-event-form.tsx))

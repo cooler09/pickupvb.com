@@ -51,7 +51,7 @@ function makeDivision(format: Format, id = 'div-1'): Division {
     gender: Gender.Coed,
     skillTier: SkillTier.Intermediate,
     ageGroup: AgeGroup.Adult,
-    teamComposition: TeamComposition.Roster,
+    teamComposition: TeamComposition.Team,
     teamSize: 6,
     capacity: Capacity.fixed(8),
     priceUnit: PriceUnit.PerTeam,
