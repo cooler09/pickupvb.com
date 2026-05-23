@@ -301,11 +301,11 @@ export async function loadEventDetail(
     },
   }));
 
-  const filledByPosition: Partial<Record<string, number>> = {};
-  for (const a of event.attendees) {
-    if (!a.position) continue;
-    filledByPosition[a.position] = (filledByPosition[a.position] ?? 0) + 1;
-  }
+  // Per-position fill counts (including waitlisted) come straight off
+  // the read model — the infrastructure repository already maintains
+  // the running count while computing waitlist flags, so there's no
+  // need to re-walk attendees here.
+  const filledByPosition = event.filledByPosition;
   const viewerPosition = user
     ? (event.attendees.find((a) => a.userId === user.id)?.position ?? null)
     : null;

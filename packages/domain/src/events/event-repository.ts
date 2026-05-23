@@ -205,6 +205,13 @@ export interface EventDetailReadModel {
    * positional sign-up. `null` when the host hasn't configured one.
    */
   positionRoster: Partial<Record<EventPosition, number>> | null;
+  /**
+   * Count of attendees per position, including waitlisted entries. Empty
+   * when no attendees have a position set. Mirrors the shape of
+   * `positionRoster` so the UI can render `filled / target` per slot
+   * without re-walking the attendees array on the consumer side.
+   */
+  filledByPosition: Partial<Record<EventPosition, number>>;
   location: {
     addressLine: string;
     city: string;

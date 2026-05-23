@@ -809,16 +809,21 @@ export class SupabaseEventRepository implements EventRepository {
     const positionRoster = rowToPositionRoster(row);
     // Attendees arrive ordered by joined_at; mark waitlist when, in
     // chronological order, the per-position count exceeds the configured
-    // roster value. Earliest signups keep their seat.
+    // roster value. Earliest signups keep their seat. The per-position
+    // running count is also surfaced on the read model
+    // (`filledByPosition`) so the UI doesn't have to re-walk attendees
+    // to render `filled / target` per slot.
     const filledByPosition = new Map<EventPosition, number>();
     const attendees: AttendeeLite[] = attRows.map((a) => {
       const pos = isEventPosition(a.position) ? a.position : null;
       let waitlist = false;
-      if (pos && positionRoster) {
-        const target = positionRoster.get(pos) ?? 0;
+      if (pos) {
         const next = (filledByPosition.get(pos) ?? 0) + 1;
         filledByPosition.set(pos, next);
-        waitlist = next > target;
+        if (positionRoster) {
+          const target = positionRoster.get(pos) ?? 0;
+          waitlist = next > target;
+        }
       }
       return {
         userId: a.user_id,
@@ -1112,6 +1117,9 @@ export class SupabaseEventRepository implements EventRepository {
       spotsRemaining,
       attendeeCount: row.attendee_count,
       positionRoster: positionRosterOut,
+      filledByPosition: Object.fromEntries(filledByPosition) as Partial<
+        Record<EventPosition, number>
+      >,
       location: {
         addressLine: row.address_line,
         city: row.city,
