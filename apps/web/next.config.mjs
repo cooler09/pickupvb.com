@@ -88,6 +88,22 @@ const nextConfig = {
       },
     ];
   },
+  // Force `www.pickupvb.com` → apex with a permanent (308) redirect.
+  // Vercel's default www-redirect issues a 307 (Temporary), which doesn't
+  // pass link equity and won't update SERP canonicals. 308 preserves both
+  // the request method and the permanence signal. Apex is the canonical
+  // host everywhere else (`metadataBase`, sitemap, robots.ts Host:).
+  // See docs/audits/seo.md Bundle 54 remediation row.
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.pickupvb.com' }],
+        destination: 'https://pickupvb.com/:path*',
+        permanent: true,
+      },
+    ];
+  },
   // NOTE: `--webpack` is retained on `dev` / `build` (apps/web/package.json)
   // because the `webpack(config)` callback below installs an
   // `extensionAlias` that resolves `.js` / `.mjs` / `.cjs` import
