@@ -9,6 +9,16 @@ RLS policies, third-party integrations, secrets handling, logging.
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
+**Status update (2026-05-23, Bundle 53):** All three remaining P3
+findings closed in audit text. #9 (FormData hard cap) and #10
+(Turnstile freshness) were code-closed in Bundle 17 (2026-05-24) but
+the finding headers still read as open — flipped to ✅ with status
+lines pointing at the resolved code. #11 (file-upload hardening)
+closed as **wontfix-preemptive** with an explicit re-open trigger
+(any new `apps/web/src/app/api/` upload route or Supabase Storage
+`upload()` call). The only open security items remaining are P2 #3b
+(nonce-based CSP hardening) and P3 #8 (audit-log coverage gaps).
+
 **Status update (2026-05-22, Bundle 27):** P2 #3a closed — CSP promoted
 from `Content-Security-Policy-Report-Only` to enforcing
 `Content-Security-Policy` in [next.config.mjs](../../apps/web/next.config.mjs).
@@ -239,6 +249,12 @@ but the pattern isn't extended to:
 
 ### 9. FormData hard max-size
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 17)_ — `FIELD_HARD_MAX = 4096`
+enforced inside `rawValue()`, so every helper (`field`, `fieldOrNull`,
+`fieldOrUndefined`, `bool`) inherits the cap. Per-call `maxLen` can
+narrow but never raise the ceiling. Test coverage in
+[form-data.test.ts](../../apps/web/src/lib/form-data.test.ts).
+
 **File:** [apps/web/src/lib/form-data.ts](../../apps/web/src/lib/form-data.ts)
 
 `field()` / `fieldOrNull()` take a per-field `max` arg. There's no global
@@ -249,6 +265,13 @@ limited by Next.js body-parsing defaults.
 
 ### 10. Turnstile token freshness
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 17)_ —
+`verifyTurnstileToken` rejects tokens whose `challenge_ts` is older
+than `TURNSTILE_MAX_AGE_MS = 2 * 60 * 1000`. Replays return
+`{ ok: false, error: 'Verification expired. Please try again.' }`.
+Test coverage in
+[turnstile.test.ts](../../apps/web/src/lib/turnstile.test.ts).
+
 **File:** [apps/web/src/lib/turnstile.ts](../../apps/web/src/lib/turnstile.ts#L20-L46)
 
 Cloudflare's `verify` endpoint returns `challenge_ts`. We don't assert it's
@@ -256,7 +279,17 @@ recent. A bot could pre-generate a token and replay it later.
 
 **Fix:** reject tokens older than ~2 min.
 
-### 11. File-upload hardening (preemptive)
+### 11. File-upload hardening (preemptive) — ✅ Closed (2026-05-23, Bundle 53) (Wontfix until uploads exist)
+
+**Decision:** No file-upload endpoints exist in the app today. Closing
+as preemptive — re-open when the first upload endpoint lands (likely
+avatars or broadcast images) with concrete requirements (`Content-Type`
+allowlist, `Content-Length` cap, storage-bucket policy, virus-scan path
+if needed). Keeping a vague "validate something someday" P3 on the
+backlog adds noise without action.
+
+**Re-open trigger:** any new route under `apps/web/src/app/api/` or any
+client code that calls Supabase Storage `upload()` / `createSignedUploadUrl()`.
 
 No file uploads in the app today. If/when added (avatars, broadcast
 images), validate `Content-Type` and `Content-Length` at the API boundary,
@@ -309,6 +342,24 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-05-23 — Bundle 53: Security P3 audit-text closure (#9, #10, #11)
+
+| Item                                                                      | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P3 #9 FormData hard cap — header flipped to ✅ (code closed Bundle 17)    | ✅ Done | Finding header now carries an inline `Status: ✅ Resolved 2026-05-24 (Bundle 17)` line pointing at `FIELD_HARD_MAX = 4096` in [form-data.ts](../../apps/web/src/lib/form-data.ts) and the existing test coverage. Bundle 17 shipped the code but left the audit text untagged, so the finding still read as open in scans. No code change.                                                                    |
+| P3 #10 Turnstile freshness — header flipped to ✅ (code closed Bundle 17) | ✅ Done | Same situation as #9 — code-closed in Bundle 17, audit text untagged until this bundle. Header now points at `TURNSTILE_MAX_AGE_MS` in [turnstile.ts](../../apps/web/src/lib/turnstile.ts) and the matching test. No code change.                                                                                                                                                                             |
+| P3 #11 File-upload hardening — closed as wontfix-preemptive               | ✅ Done | No upload endpoints exist; keeping a vague "validate something someday" P3 on the backlog adds noise without action. Closed with explicit **re-open trigger** in the finding body: any new route under `apps/web/src/app/api/` or any client call to Supabase Storage `upload()` / `createSignedUploadUrl()`. Concrete requirements (allowlist, size cap, virus-scan path) will be specified at re-open time. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(no code change, all cached).
+
+**Open security items after this bundle:** P2 #3b (nonce-based CSP
+hardening — drops `'unsafe-inline'` on `script-src` / `style-src`,
+requires nonce threading through middleware) and P3 #8 (audit-log
+coverage gaps — extend `event_payment_audit` or add `audit_log` to
+cover group role changes, co-host add/remove, Stripe account mutations,
+subscription state changes).
 
 ### 2026-05-24 — Bundle 17: FormData hard cap + Turnstile freshness (P3 #9, #10)
 
