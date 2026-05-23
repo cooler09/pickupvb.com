@@ -310,10 +310,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   // ---- Factory ---------------------------------------------------------
   /**
    * Validate inputs and produce a new `VolleyballEvent` in `Draft` status.
-   * Throws {@link InvariantViolation} (bad time range, missing title,
-   * missing open-play capacity, invalid payment config) or rejects with
-   * `assertFormatAllowedForSurface` when surface/format are incompatible.
    * Raises an `EventCreated` domain event on success.
+   *
+   * @throws {InvariantViolation} for invalid time range, missing title,
+   *   missing open-play capacity, invalid payment config, or any other
+   *   broken aggregate invariant.
+   * @throws {ValidationError} from `assertFormatAllowedForSurface` when
+   *   `surface` and `format` are incompatible.
    */
   static create(props: CreateEventProps): VolleyballEvent {
     if (props.format !== null) {
@@ -599,7 +602,14 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new EventCancelled(this.id, reason));
   }
 
-  /** Open-play signup. */
+  /**
+   * Open-play signup.
+   *
+   * @throws {InvariantViolation} if the event is not OpenPlay, uses
+   *   position-based signup, is not Published, or has already started.
+   * @throws {ConflictError} if the user is already signed up.
+   * @throws {CapacityExceededError} if the event is at capacity.
+   */
   joinAsPlayer(userId: UserId): void {
     if (this.type !== EventType.OpenPlay) {
       throw new InvariantViolation('Tournaments require team signup.');
@@ -630,6 +640,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * Open-play signup at a specific position. Available only when the host
    * configured a `positionRoster`. Over-fill is allowed (waitlist style):
    * we don't reject when the position is full, we just flag the event.
+   *
+   * @throws {InvariantViolation} if the event is not OpenPlay, has no
+   *   position roster, is not Published, has already started, or the
+   *   requested position is not part of this event.
+   * @throws {ConflictError} if the user is already signed up.
    */
   joinAsPlayerWithPosition(userId: UserId, position: EventPosition): void {
     if (this.type !== EventType.OpenPlay) {
@@ -660,6 +675,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new SpotFilled(this.id, userId, this.spotsRemaining, position, waitlist));
   }
 
+  /**
+   * Remove an open-play signup.
+   *
+   * @throws {NotFoundError} if the user is not currently signed up.
+   */
   leave(userId: UserId): void {
     if (!this._attendees.delete(userId)) {
       throw new NotFoundError('attendee', userId, 'User is not signed up for this event.');
@@ -667,7 +687,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new SpotReleased(this.id, userId));
   }
 
-  /** Tournament signup. */
+  /**
+   * Tournament signup.
+   *
+   * @throws {InvariantViolation} if the event is not a Tournament, is not
+   *   Published, or has already started.
+   * @throws {ConflictError} if the team is already registered.
+   */
   registerTeam(teamId: TeamId): void {
     if (this.type !== EventType.Tournament) {
       throw new InvariantViolation('Open-play events require player signup.');
@@ -688,7 +714,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new TeamRegistered(this.id, teamId));
   }
 
-  /** Tournament withdraw. */
+  /**
+   * Tournament withdraw.
+   *
+   * @throws {NotFoundError} if the team is not currently registered.
+   */
   withdrawTeam(teamId: TeamId): void {
     if (!this._teams.delete(teamId)) {
       throw new NotFoundError('team', String(teamId), 'Team is not registered for this event.');
@@ -700,6 +730,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * Free-agent signup for a tournament. Lets a player advertise that
    * they want to be picked up by a team that's short. Independent of
    * team registration — a captain can be both.
+   *
+   * @throws {InvariantViolation} if the event is not a Tournament, is not
+   *   Published, has already started, or notes exceed 280 characters.
+   * @throws {ConflictError} if the user is already signed up as a free agent.
    */
   joinAsFreeAgent(userId: UserId, notes: string | null): void {
     if (this.type !== EventType.Tournament) {
@@ -725,7 +759,12 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new FreeAgentJoined(this.id, userId));
   }
 
-  /** Remove a free-agent signup. */
+  /**
+   * Remove a free-agent signup.
+   *
+   * @throws {NotFoundError} if the user is not currently signed up as a
+   *   free agent.
+   */
   leaveAsFreeAgent(userId: UserId): void {
     if (!this._freeAgents.delete(userId)) {
       throw new NotFoundError(
