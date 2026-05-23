@@ -118,7 +118,9 @@ export default function AdvancedDetailsPanel({
 
           {/* Registration closes */}
           <div>
-            <label className={labelClass}>Registration closes at</label>
+            <label htmlFor="registrationClosesAt" className={labelClass}>
+              Registration closes at
+            </label>
             <DateTimePicker
               name="registrationClosesAt"
               value={registrationClosesAt}
