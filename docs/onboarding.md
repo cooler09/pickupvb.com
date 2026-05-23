@@ -75,6 +75,7 @@ three first, then skim the rest as needed.
 | Sentry, Analytics, cron alerts                                    | [docs/monitoring.md](monitoring.md)                                                                                                 |
 | Deploy / rollback / migration recovery                            | [docs/runbook.md](runbook.md)                                                                                                       |
 | Stripe checkout + webhooks                                        | [docs/stripe-webhooks.md](stripe-webhooks.md), [ADR 0011](adr/0011-stripe-webhook-dedupe.md)                                        |
+| Who gets paid for an event (host vs. group)                       | [docs/payments.md](payments.md)                                                                                                     |
 | Standing up a staging env                                         | [docs/setup-dev-environment.md](setup-dev-environment.md)                                                                           |
 | Reset local fixtures                                              | [docs/reset-test-data.md](reset-test-data.md)                                                                                       |
 | Integrations + env vars                                           | [docs/integrations.md](integrations.md), [.env.example](../.env.example)                                                            |

@@ -301,6 +301,8 @@ Sentry-config change to verify the integration end-to-end.
   landmarks.
 - [docs/stripe-webhooks.md](stripe-webhooks.md) — Stripe webhook
   operational notes.
+- [docs/payments.md](payments.md) — payout routing (host user vs.
+  host group) for ticket / team / tip flows.
 - [docs/integrations.md](integrations.md) — third-party services we
   call out to.
 - [docs/runbook.md](runbook.md) — what to do when an endpoint starts

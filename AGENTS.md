@@ -411,3 +411,16 @@ events. The reference pattern is the `attachTeamToDivision` port on
 `EventRepository` (implemented by `SupabaseEventRepository`), driven from
 [team-signup-actions.ts](apps/web/src/app/events/[id]/team-signup-actions.ts).
 Don't try to insert into `event_teams` without it.
+
+### 7. All event payments route through `events.host_id` — not the host group
+
+Stripe Connect accounts are per-user only (`host_stripe_accounts.user_id`
+is the PK; there is no `group_stripe_accounts` table). `events.host_group_id`
+is authorization / display metadata — it never flows into ticket checkout,
+team checkout, or tips. The creating user's id becomes `events.host_id`
+and is the immutable payout destination for the life of the event.
+Stripe-readiness checks in
+[apps/web/src/app/events/new/actions.ts](apps/web/src/app/events/new/actions.ts)
+and [edit/actions.ts](apps/web/src/app/events/[id]/edit/actions.ts)
+gate on the host **user**, not the group. Full write-up:
+[docs/payments.md](docs/payments.md).
