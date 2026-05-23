@@ -150,13 +150,42 @@ const EMPTY_AD_HOC: AdHocBundle = {
  * Cached event-detail read model with `viewerId = null` — i.e. the
  * public, anonymous view. Used directly for anonymous viewers and from
  * `generateMetadata`. Throws `NotFoundError` if the event doesn't exist.
+ *
+ * `unstable_cache` JSON-serializes its return value, so every `Date` in
+ * the read model comes back as an ISO string on a cache hit (and even on
+ * the first miss — Next re-parses the JSON it just wrote). We revive the
+ * known date fields before handing the model to callers, otherwise the
+ * page crashes with `startsAt.getTime is not a function` for logged-out
+ * viewers (logged-in viewers skip this cache entirely and keep native
+ * `Date` objects, which is why the bug was anonymous-only).
  */
-export function loadEventReadModelPublic(id: string): Promise<EventDetailReadModel> {
-  return unstable_cache(
+export async function loadEventReadModelPublic(id: string): Promise<EventDetailReadModel> {
+  const cached = await unstable_cache(
     async () => handlers.getEventDetail.execute(new GetEventDetailQuery(id, null)),
     ['event-detail-public', id],
     { revalidate: 60, tags: [`event:${id}`] },
   )();
+  return reviveEventDetailDates(cached);
+}
+
+/** Re-hydrate every `Date` field that `unstable_cache` flattened to a string. */
+function reviveEventDetailDates(m: EventDetailReadModel): EventDetailReadModel {
+  const toDate = (v: unknown): Date => new Date(v as string);
+  const toDateOrNull = (v: unknown): Date | null => (v == null ? null : new Date(v as string));
+  return {
+    ...m,
+    startsAt: toDate(m.startsAt),
+    endsAt: toDate(m.endsAt),
+    registrationClosesAt: toDateOrNull(m.registrationClosesAt),
+    attendees: m.attendees.map((a) => ({ ...a, joinedAt: toDate(a.joinedAt) })),
+    freeAgents: m.freeAgents.map((f) => ({ ...f, joinedAt: toDate(f.joinedAt) })),
+    divisions: m.divisions.map((d) => ({
+      ...d,
+      startsAt: toDateOrNull(d.startsAt),
+      endsAt: toDateOrNull(d.endsAt),
+      winner: d.winner ? { ...d.winner, recordedAt: toDate(d.winner.recordedAt) } : null,
+    })),
+  };
 }
 
 function loadEventPricingCached(id: string): Promise<EventPricing | null> {
