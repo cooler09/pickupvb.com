@@ -1,6 +1,6 @@
 # Registration Workflow Audit
 
-_Last updated: 2026-05-23 (Bundle 62)_
+_Last updated: 2026-05-23 (Bundle 63)_
 
 Audit of the event registration flow after divisions landed (ADR
 [0006-event-divisions](../adr/0006-event-divisions.md)). Focus areas: how
@@ -12,6 +12,22 @@ Scope is the registration surface only — schema, domain rules, and the
 event-detail signup panels. Bracket/scoring, communications, and post-event
 flows are out of scope.
 
+> **Status (2026-05-23, Bundle 63):** **UX P3 — Free-agent list now
+> groups by division on multi-division events (partial close).**
+> Replaced the flat `<ul>` in
+> [free-agent-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/free-agent-signup-panel.tsx)
+> with one subsection per division (rendered in event-divisions order,
+> trailing **Unassigned** group for legacy null-`division_id` rows from
+> before Bundle 5 made the picker mandatory). Empty divisions still
+> render their header + a `No free agents in this division yet.` empty
+> state so captains can scan their bracket without inferring absence.
+> Single-division events keep the flat list — no behaviour change. The
+> per-row pill that Bundle 5 added is dropped inside grouped mode
+> (redundant once the section header carries the division label).
+> Captain-claim affordance — the second half of this UX P3 — stays
+> open: captains still pick free agents up out-of-band. See the
+> [Bundle 63 journal](../journal/2026-05-23-bundle-63.md).
+>
 > **Status (2026-05-23, Bundle 62):** **Model P2 ad-hoc live-vs-dead
 > audit — formally closed as ✅ Live (verified).** Re-traced the
 > ad-hoc path end-to-end and confirmed every layer is wired and
@@ -382,7 +398,7 @@ users want to register; the system should ask once how they want to play
 5. Pay (`per_team` → captain pays now; `per_player` → each player pays on
    their own RSVP).
 
-#### P3 — Free-agent list has no division context
+#### P3 — Free-agent list has no division context — ⚠️ Partial (2026-05-23, Bundle 63)
 
 Even before the model is fixed, the captain-facing list could be grouped
 by self-declared division text. Today notes are freeform; many free
@@ -391,6 +407,13 @@ agents say their division in the notes blob.
 **Fix:** parallel to the model fix, render free-agent rows grouped by
 division when divisions exist; let captains "claim" a free agent into a
 specific event team registration.
+
+**Bundle 63 (2026-05-23):** Grouping piece shipped — multi-division
+events now render one section per division with header + count + empty
+state; legacy null-`division_id` rows fall into a trailing **Unassigned**
+bucket. The captain-claim affordance is still missing — picking a free
+agent into an `EventTeamRegistration` slot needs new server-action +
+domain work and is left open.
 
 ### Payment policy gaps
 
@@ -471,6 +494,7 @@ Each step is independently shippable. Don't try to land them all at once.
 | 2026-05-23 | Model P3 — team format vs division format misclassified as `UnauthorizedError`                                                | Reclassified both the cross-event and cross-division format-mismatch throws in `RegisterTeamHandler` from `UnauthorizedError` to `ValidationError`, matching the documented intent from the 2026-05-22 remediation log row and routing the user to the wired-up `?team=invalid` → "Team format doesn't match the event." flash instead of the misleading `?team=forbidden` → "Only the team captain can do that." See [Bundle 52 journal](../journal/2026-05-23-bundle-52.md).                                                                                                                                                                                                                                                                                                                                                   | [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 2026-05-23 | Test coverage follow-up — `RegisterTeamHandler` had no unit tests after Bundle 52 reclassification                            | Added [team.handler.test.ts](../../packages/application/src/commands/team.handler.test.ts) (7 cases) with in-memory `TeamRepository` + `EventRepository` doubles. Covers: happy path (`attachTeamToDivision` invoked, aggregate not `save()`d — preserves the Bundle 52 / Bundle 2 doctrine that the division id lives only on the join row); `NotFoundError` for missing team / event / division; `UnauthorizedError` for non-captain requester; and **`ValidationError` for both cross-event and cross-division format mismatch** — locks in the Bundle 52 reclassification so future refactors can't quietly revert to `UnauthorizedError`. See [Bundle 55 journal](../journal/2026-05-23-bundle-55.md).                                                                                                                      | [packages/application/src/commands/team.handler.test.ts](../../packages/application/src/commands/team.handler.test.ts)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 2026-05-23 | Model P2 — Ad-hoc team registration: live vs. dead-code audit (open since Bundle 6 discovery note)                            | Re-traced the ad-hoc path end-to-end and formally closed as ✅ Live (verified). Every layer wired and reachable: schema (migration `20260606000000`), `team_registration_mode` selector in both new + edit event forms, detail-loader hydration of public + host rows when mode is `ad_hoc`, five server actions (register / rename / add-member / remove-member / withdraw) in `ad-hoc-team-actions.ts`, captain `AdHocTeamSignupPanel` slot inside `TournamentRegisterPanel`, host `HostAdHocTeamsPanel` inside the `Host tools` `<details>`, captain Stripe path via `team-checkout-actions.ts` branching on `TeamRegistrationMode.AdHoc`, post-event division-winner picker handling both FKs. No dead code surfaced; finding moves from "confirm" to "closed." See [Bundle 62 journal](../journal/2026-05-23-bundle-62.md). | [apps/web/src/app/events/%5Bid%5D/\_components/event-signup-area.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-signup-area.tsx), [apps/web/src/app/events/%5Bid%5D/\_components/host-tools-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/host-tools-section.tsx), [apps/web/src/app/events/%5Bid%5D/ad-hoc-team-actions.ts](../../apps/web/src/app/events/%5Bid%5D/ad-hoc-team-actions.ts), [apps/web/src/app/events/%5Bid%5D/\_loaders/load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts), [apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx), [supabase/migrations/20260606000000_team_registration_model.sql](../../supabase/migrations/20260606000000_team_registration_model.sql) |
+| 2026-05-23 | UX P3 — Free-agent list has no division grouping (partial close of "no division context")                                     | Replaced the flat free-agent `<ul>` with one section per division on multi-division events. Sections render in event-divisions order with header + count + empty state ("No free agents in this division yet."); legacy null-`division_id` rows fall into a trailing **Unassigned** bucket. Single-division events keep the flat list (no behaviour change). Added `groupFreeAgentsByDivision` helper + extracted `FreeAgentRow` co-located in the same file. Per-row division pill dropped inside grouped mode (now redundant with the section header). Captain-claim affordance — the other half of the original UX P3 — is still open. See [Bundle 63 journal](../journal/2026-05-23-bundle-63.md).                                                                                                                           | [apps/web/src/app/events/%5Bid%5D/\_components/free-agent-signup-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/free-agent-signup-panel.tsx)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## Still open
 
@@ -522,8 +546,9 @@ Each step is independently shippable. Don't try to land them all at once.
   Full division → mode → roster → pay wizard from ADR 0008 §6 still open;
   current panels are division-first internally (Bundles 1 + 5) so the
   wizard collapse is an additive UX bundle, not a model change.
-- **UX P3** — Free-agent list still has no division grouping or
-  captain-claim affordance.
+- **UX P3** — ~~Free-agent list still has no division grouping~~ (closed
+  by Bundle 63, 2026-05-23) or captain-claim affordance (still open —
+  captains pick free agents up out-of-band).
 - ~~**Payment policy P1** — The misconfigured combination
   `(team-led) + (per_player) + (!payments_off_platform)` is still accepted
   silently by the event editor.~~ — **closed** by `validateTeamPricing`

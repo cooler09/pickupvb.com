@@ -56,7 +56,6 @@ export function FreeAgentSignupPanel({
   resultCode,
 }: Props) {
   const result = resultCode ? RESULT_MESSAGES[resultCode] : undefined;
-  const divisionLabelById = new Map(divisions.map((d) => [d.id, d.label]));
 
   return (
     <section className="border-border-base space-y-4 rounded-lg border p-4">
@@ -80,7 +79,7 @@ export function FreeAgentSignupPanel({
         </div>
       )}
 
-      <div className="space-y-2">
+      <div className="space-y-4">
         <h3 className="text-muted text-sm font-semibold tracking-wide uppercase">
           Available ({freeAgents.length})
         </h3>
@@ -88,24 +87,36 @@ export function FreeAgentSignupPanel({
           <p className="border-border-base text-muted rounded-md border border-dashed p-4 text-center text-sm">
             No free agents yet.
           </p>
+        ) : divisions.length > 1 ? (
+          // Multi-division events: group free agents by division so captains
+          // scanning for a roster slot can see who's available in their bracket
+          // at a glance. Empty divisions are still rendered (so captains know
+          // nobody has signed up for that bracket yet); free agents with a
+          // legacy null `division_id` (pre-Bundle 5) fall into "Unassigned".
+          groupFreeAgentsByDivision(freeAgents, divisions).map((group) => (
+            <div key={group.key} className="space-y-2">
+              <h4 className="text-fg text-xs font-semibold">
+                {group.label}{' '}
+                <span className="text-muted font-normal">({group.agents.length})</span>
+              </h4>
+              {group.agents.length === 0 ? (
+                <p className="border-border-base text-muted rounded-md border border-dashed p-3 text-center text-xs">
+                  No free agents in this division yet.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {group.agents.map((f) => (
+                    <FreeAgentRow key={f.userId} agent={f} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))
         ) : (
           <ul className="space-y-2">
-            {freeAgents.map((f) => {
-              const divisionLabel = f.divisionId ? divisionLabelById.get(f.divisionId) : null;
-              return (
-                <li key={f.userId} className="border-border-base bg-surface rounded-md border p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-fg text-sm font-semibold">{f.profile.displayName}</p>
-                    {divisionLabel && divisions.length > 1 && (
-                      <span className="border-border-base text-muted rounded-full border px-2 py-0.5 text-xs">
-                        {divisionLabel}
-                      </span>
-                    )}
-                  </div>
-                  {f.notes && <p className="text-muted mt-1 text-xs">{f.notes}</p>}
-                </li>
-              );
-            })}
+            {freeAgents.map((f) => (
+              <FreeAgentRow key={f.userId} agent={f} />
+            ))}
           </ul>
         )}
       </div>
@@ -187,4 +198,48 @@ export function FreeAgentSignupPanel({
       )}
     </section>
   );
+}
+
+function FreeAgentRow({ agent }: { agent: FreeAgentEntry }) {
+  return (
+    <li className="border-border-base bg-surface rounded-md border p-3">
+      <p className="text-fg text-sm font-semibold">{agent.profile.displayName}</p>
+      {agent.notes && <p className="text-muted mt-1 text-xs">{agent.notes}</p>}
+    </li>
+  );
+}
+
+type FreeAgentGroup = {
+  key: string;
+  label: string;
+  agents: ReadonlyArray<FreeAgentEntry>;
+};
+
+/**
+ * Bucket free agents by `divisionId`, preserving division order. Empty
+ * divisions are kept (so captains can see "nobody is in 6v6 open yet"
+ * instead of inferring it from absence). Agents with a null `divisionId`
+ * — legacy rows from before Bundle 5 made the picker mandatory — fall
+ * into a trailing "Unassigned" group.
+ */
+function groupFreeAgentsByDivision(
+  freeAgents: ReadonlyArray<FreeAgentEntry>,
+  divisions: ReadonlyArray<FreeAgentDivision>,
+): ReadonlyArray<FreeAgentGroup> {
+  const byDivision = new Map<string, FreeAgentEntry[]>(divisions.map((d) => [d.id, []]));
+  const unassigned: FreeAgentEntry[] = [];
+  for (const agent of freeAgents) {
+    const bucket = agent.divisionId ? byDivision.get(agent.divisionId) : undefined;
+    if (bucket) bucket.push(agent);
+    else unassigned.push(agent);
+  }
+  const groups: FreeAgentGroup[] = divisions.map((d) => ({
+    key: d.id,
+    label: d.label,
+    agents: byDivision.get(d.id) ?? [],
+  }));
+  if (unassigned.length > 0) {
+    groups.push({ key: '__unassigned', label: 'Unassigned', agents: unassigned });
+  }
+  return groups;
 }
