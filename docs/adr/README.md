@@ -15,6 +15,7 @@ status to `Superseded by NNNN`.
 | [0006](0006-event-divisions.md)            | Event divisions, tournament series, external registration                     | Accepted |
 | [0007](0007-team-registration-model.md)    | Team registration model: ad-hoc vs. roster, division-aware, price-unit-driven | Accepted |
 | [0008](0008-team-registration-paradigm.md) | Team registration paradigm: per-event single mode, ad-hoc default             | Accepted |
+| [0009](0009-canonical-domain-apex.md)      | Canonical domain apex: `pickupvb.com`, no `www.`                              | Accepted |
 
 ## Template
 

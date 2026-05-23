@@ -1,5 +1,7 @@
 # Documentation audit — 2026-05-17
 
+> **Status (2026-05-22, Bundle 32):** **ADR backfill: canonical-domain-apex landed** as [ADR 0009](../adr/0009-canonical-domain-apex.md) (slots 0006–0008 were taken by `event-divisions` / `team-registration-model` / `team-registration-paradigm` after the audit was written, so the apex decision moved to 0009). Two stale P2s also flipped ✅: the **server-action error-handling pattern** is documented in [AGENTS.md “Server-action error handling”](../../AGENTS.md) (flash-redirect for plain `<form>`, typed `Result<T, DomainErrorCode>` for client-invoked actions); the **audits index row** for this audit has been present in [docs/audits/README.md](README.md) since 2026-05-17. Remaining: `CONTRIBUTING.md` (gated), P2 API reference / JSDoc / monitoring / testing-strategy / DB-ops docs, P3 onboarding / CHANGELOG / migration-preamble standard, and ADRs for OpenInNewTab + Stripe webhook dedupe. See the [Bundle 32 journal](../journal/2026-05-22-bundle-32.md).
+>
 > **Status (2026-05-22, Bundle 31):** **P1 package READMEs fully closed.** [apps/web/README.md](../../apps/web/README.md) landed — route-tree snapshot, library landmarks table (`handlers.ts`, `api-helpers.ts`, `supabase.ts`, `form-data.ts`, etc.), conventions cross-link to AGENTS.md, scripts, and the `--webpack` rationale pointer to the Bundle 29 journal. `CONTRIBUTING.md` and the ADR 0006 backfill are now the only remaining open items from this audit. See the [Bundle 31 journal](../journal/2026-05-22-bundle-31.md).
 >
 > **Status (2026-05-22, Bundle 30):** **P1 package READMEs closed.** Five new READMEs landed: [application](../../packages/application/README.md), [infrastructure](../../packages/infrastructure/README.md), [notifications](../../packages/notifications/README.md), [types](../../packages/types/README.md), [config](../../packages/config/README.md). Each follows the layout-snapshot + rules-of-the-layer shape pioneered by the domain README. Only `apps/web` README remains for the original P1, plus `CONTRIBUTING.md` and the ADR 0006 backfill. See the [Bundle 30 journal](../journal/2026-05-22-bundle-30.md).
@@ -64,11 +66,12 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 - **Issue:** Repo runs Next.js 16 (confirmed in recent audits and `apps/web/package.json`). Two of the first docs a contributor reads claim 14. Misleads anyone consulting Next.js docs.
 - **Fix:** Search/replace `Next.js 14` → `Next.js 16` in both files. Update the `typedRoutes: true` and other version-specific references if any flags moved between releases.
 
-### Domain flip (www → apex) is not captured in an ADR
+### Domain flip (www → apex) is not captured in an ADR ✅ Closed (2026-05-22, Bundle 32)
 
 - **Where:** ADR series stops at 0005; the canonical flip happened this session and was non-trivial (Stripe webhook URL, Vercel project setting, OG metadataBase implications).
 - **Issue:** The decision and its trade-offs (apex serves 200 directly, www now 307s, Stripe webhook URL must be apex) live only in chat history.
 - **Fix:** Add `docs/adr/0006-canonical-domain-apex.md` with Context / Decision / Consequences. Note the open question about whether the `www → apex` redirect is 301 or 307.
+- **Resolved (Bundle 32):** Authored as [ADR 0009](../adr/0009-canonical-domain-apex.md) — the 0006 slot was already taken by `event-divisions` when the backfill was scheduled. ADR covers the canonical apex (`pickupvb.com`, no `www.`), the `PROD_APP_URL` / `APP_URL` / `IS_PROD_HOST` split in [apps/web/src/lib/app-url.ts](../../apps/web/src/lib/app-url.ts), and the rejected alternatives. Notes that the `www → apex` redirect is 308 (Vercel default for permanent host-level redirects).
 
 ### Decisions made this session that should be ADRs
 
@@ -116,17 +119,19 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 - **Issue:** Operators, third-party integrators, and future maintainers have no single place to discover what endpoints exist, their auth model, payload, and response shape.
 - **Fix:** Add `docs/api-reference.md` with a table per endpoint family, or surface from JSDoc on each route handler.
 
-### Server-action error-handling pattern is undocumented (and inconsistent in practice)
+### Server-action error-handling pattern is undocumented (and inconsistent in practice) ✅ Closed (2026-05-22, Bundle 32)
 
 - **Where:** Architecture audit P2 cross-link: [docs/audits/architecture.md](docs/audits/architecture.md).
 - **Issue:** No doc explaining when to flash-redirect, when to return a `Result`, when to let it throw. Three patterns coexist in the codebase.
 - **Fix:** Add a short `docs/server-actions.md` (or a section in AGENTS.md) codifying the pattern. Reference the chosen pattern from the architecture audit findings.
+- **Resolved (Bundle 32):** The “Server-action error handling” section in [AGENTS.md](../../AGENTS.md) codifies the two-pattern rule (flash-param redirects for plain `<form action={...}>`; typed `Result<T, DomainErrorCode>` for client-invoked actions). The HTTP-boundary mapping rule (“throw typed `DomainError`, never add ad-hoc status mapping in route handlers”) is cross-referenced into [apps/web/src/lib/api-helpers.ts](../../apps/web/src/lib/api-helpers.ts). No separate `docs/server-actions.md` is needed.
 
-### Audits index missing this audit's row
+### Audits index missing this audit's row ✅ Closed (2026-05-22, Bundle 32)
 
 - **Where:** [docs/audits/README.md](docs/audits/README.md).
 - **Issue:** Table will need a Documentation row after this report lands.
 - **Fix:** Append `| [Documentation](documentation.md) | 2026-05-17 | Findings logged |` (will be done automatically as part of writing this audit).
+- **Resolved (Bundle 32):** The Documentation row has been present in the audits index since the audit was first published on 2026-05-17. The status cell has been kept current through Bundles 30 and 31. Flagging as ✅ for log completeness.
 
 ### JSDoc coverage gaps on core domain exports
 
@@ -238,6 +243,9 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 | 2026-05-17 | P1: package READMEs (5 missing)         | 🟡 Partial | [packages/supabase/README.md](../../packages/supabase/README.md) created — covers exports, `gen:types` regeneration flow with troubleshooting, conventions (nested joins, snake/camel boundary, anonymous-auth guard), and env vars. The four other missing READMEs (application, infrastructure, types, apps/web) are still open.                                                                                                                        |
 | 2026-05-22 | P1: package READMEs (Bundle 30)         | 🟡 Partial | Five new READMEs landed: [application](../../packages/application/README.md), [infrastructure](../../packages/infrastructure/README.md), [notifications](../../packages/notifications/README.md), [types](../../packages/types/README.md), [config](../../packages/config/README.md). Each follows the layout-snapshot + rules-of-the-layer shape from the domain README. Only `apps/web` README still pending.                                           |
 | 2026-05-22 | P1: package READMEs (Bundle 31)         | ✅ Fixed   | [apps/web/README.md](../../apps/web/README.md) landed — route-tree snapshot of `src/app/`, library-landmarks table for `src/lib/`, conventions cross-link to AGENTS.md, scripts, and `--webpack` rationale pointer. **P1 README sweep is now fully closed.**                                                                                                                                                                                              |
+| 2026-05-22 | ADR backfill: canonical-domain-apex     | ✅ Fixed   | [ADR 0009](../adr/0009-canonical-domain-apex.md) authored — `pickupvb.com` (apex) is canonical, `www` 308s to apex, `dev.pickupvb.com` is staging. Captures the `PROD_APP_URL` / `APP_URL` / `IS_PROD_HOST` split and the rejected `www.` and dual-apex alternatives. Slot moved from 0006 to 0009 because the original 0006 slot was taken by `event-divisions` after the audit was written.                                                             |
+| 2026-05-22 | P2: server-action error-handling doc    | ✅ Fixed   | Covered by the “Server-action error handling” section in [AGENTS.md](../../AGENTS.md) (flash-redirect for plain `<form>`, typed `Result<T, DomainErrorCode>` for client-invoked actions). HTTP-boundary mapping rule cross-referenced to [api-helpers.ts](../../apps/web/src/lib/api-helpers.ts). No standalone `docs/server-actions.md` needed.                                                                                                          |
+| 2026-05-22 | P2: audits index missing this row       | ✅ Fixed   | Documentation row has been in the [audits index](README.md) since the audit was first published (2026-05-17) and has been kept current through Bundles 30/31. Flagging closed for log completeness.                                                                                                                                                                                                                                                       |
 | 2026-05-22 | P2 (new): codify docs/audits convention | ✅ Done    | New **Audits** section in [AGENTS.md](../../AGENTS.md) explains: check the existing audit file before running a new pass; grade P1/P2/P3; every finding has a file link + concrete fix; updates land in the file (chat-only summaries must be called out as quick scans); update the [audits index](README.md). [.github/copilot-instructions.md](../../.github/copilot-instructions.md) gained a matching pointer with the write-into-the-file reminder. |
 
 ### Still open
@@ -245,7 +253,7 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 - **P1: CONTRIBUTING.md.** Not added — depends on the open-vs-closed question. If this stays a personal project, a one-line "this is a personal project, PRs welcome but ad-hoc" note is enough.
 - **P1: Missing `apps/web` README** — the per-package READMEs landed in Bundle 30 (2026-05-22), but the web-app overview is bigger (route-tree + composition conventions) and is deferred. Use [packages/domain/README.md](../../packages/domain/README.md) as the template.
   - **Resolved Bundle 31 (2026-05-22).** [apps/web/README.md](../../apps/web/README.md) landed.
-- **P2: API / route-handler reference, server-action pattern doc, JSDoc coverage on domain exports, monitoring doc, testing strategy doc, database operations guide.**
+- **P2: API / route-handler reference, JSDoc coverage on domain exports, monitoring doc, testing strategy doc, database operations guide.** (Server-action pattern doc and audits-index row ✅ closed in Bundle 32.)
 - **P3: Migration preamble standard, onboarding guide, CHANGELOG, flow diagrams, code-of-conduct.**
-- **ADR backfill:** 0006 (canonical-domain-apex), 0007 (server actions + new-tab pattern), 0008 (Stripe webhook dedupe). Deferred — author needs to capture decisions/context.
+- **ADR backfill:** ~~0006 (canonical-domain-apex)~~ landed as [ADR 0009](../adr/0009-canonical-domain-apex.md) in Bundle 32. Remaining: OpenInNewTab pattern, Stripe webhook dedupe. Deferred — author needs to capture decisions/context.
 - **TODO/FIXME scan** noted in the audit body — still pending.
