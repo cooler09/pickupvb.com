@@ -331,6 +331,23 @@ add a test in `packages/{domain,application}/src/**/*.test.ts`.
 - **Forgetting `revalidatePath()` after a server action mutates data.** The
   page won't refresh on the next render. Pass a `returnPath` arg through and
   call `revalidatePath(returnPath)` at the end of the action.
+- **`revalidatePath` does not evict `unstable_cache` entries.** It only
+  busts the page render cache. Anything wrapped in `unstable_cache(..., {
+tags: [...] })` must be invalidated by tag. In Next 16, **use
+  `updateTag(tag)` from a server action** (single-arg, read-your-own-writes
+  semantics) — _not_ `revalidateTag`, whose Next 16 signature now requires
+  a profile arg (`revalidateTag(tag, profile)`) and is intended for the new
+  `'use cache'` model, not legacy `unstable_cache`. Pair `updateTag` with
+  `revalidatePath` in the same action. Reference fix:
+  [apps/web/src/app/events/[id]/ad-hoc-team-actions.ts](apps/web/src/app/events/[id]/ad-hoc-team-actions.ts).
+- **Never call `cookies()` (transitively or otherwise) inside
+  `unstable_cache`.** Next 16 forbids it; the cached helper will throw or
+  return an empty payload. If a cached read is viewer-independent (RLS is
+  `using (true)` or the data is shared across viewers), use
+  `getAdminSupabase()` from [apps/web/src/lib/supabase-admin.ts](apps/web/src/lib/supabase-admin.ts)
+  via a dynamic `import()` inside the cache callback. Reference fix:
+  `loadAdHocRowsCached` in
+  [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts](apps/web/src/app/events/[id]/_loaders/load-event-detail.ts).
 - **Calling client-only Supabase APIs from a server component** (or vice
   versa). Stick to `getServerSupabase()` in `page.tsx` / actions and
   `createSupabaseBrowserClient()` inside `'use client'` files.
@@ -354,6 +371,16 @@ Every server action that writes to Supabase must end with
 `revalidatePath(returnPath)` (or the appropriate parent route). Pass
 `returnPath` as an argument from the page so the action knows what to
 evict.
+
+**If the page reads from `unstable_cache` with tags, also call
+`updateTag(tag)`.** `revalidatePath` only busts the page render cache,
+not tagged `unstable_cache` entries. Match the tag string used at the
+cache site (we use `` `event:${id}` `` for event-scoped helpers). In
+Next 16 use `updateTag(tag)` from `next/cache` — the new `revalidateTag`
+requires a profile arg and targets the `'use cache'` model. Reference
+fix: every mutator in
+[apps/web/src/app/events/[id]/ad-hoc-team-actions.ts](apps/web/src/app/events/[id]/ad-hoc-team-actions.ts)
+calls both `revalidatePath(returnPath)` and ``updateTag(`event:${eventId}`)``.
 
 **Exception — Stripe-redirecting actions:** when the action redirects to a
 Stripe Checkout session and the eventual revalidation is driven by a

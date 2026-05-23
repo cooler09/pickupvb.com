@@ -255,10 +255,16 @@ type AdHocRegRow = {
 };
 
 function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
+  // Viewer-independent: RLS on event_team_registrations is `using (true)`
+  // and the snapshot is shared across viewers, so use the admin client.
+  // Critically, `getServerSupabase()` reads `cookies()` which Next 16
+  // forbids inside `unstable_cache` — the lookup would throw and the
+  // page would render an empty registrations list, hiding teams that
+  // were just created.
   return unstable_cache(
     async () => {
-      const sb = await getServerSupabase();
-      const { data } = await sb
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data } = await getAdminSupabase()
         .from('event_team_registrations')
         .select(
           'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',

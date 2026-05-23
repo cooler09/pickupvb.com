@@ -12,7 +12,7 @@
  * [event-rsvp-flash.ts](apps/web/src/lib/event-rsvp-flash.ts).
  */
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import {
   AddAdHocTeamMemberCommand,
   RegisterAdHocTeamCommand,
@@ -94,6 +94,7 @@ export async function registerAdHocTeamFromForm(
   }
 
   revalidatePath(returnPath);
+  updateTag(`event:${eventId}`);
   redirectEventNotice(eventId, 'rsvp', 'team_registered');
 }
 
@@ -118,6 +119,7 @@ export async function renameAdHocTeamFromForm(
   }
 
   revalidatePath(returnPath);
+  updateTag(`event:${eventId}`);
   redirectEventNotice(eventId, 'rsvp', 'team_updated');
 }
 
@@ -150,6 +152,7 @@ export async function addAdHocTeamMemberFromForm(
   }
 
   revalidatePath(returnPath);
+  updateTag(`event:${eventId}`);
   redirectEventNotice(eventId, 'rsvp', 'team_updated');
 }
 
@@ -172,6 +175,7 @@ export async function removeAdHocTeamMemberFromForm(
   }
 
   revalidatePath(returnPath);
+  updateTag(`event:${eventId}`);
   redirectEventNotice(eventId, 'rsvp', 'team_updated');
 }
 
@@ -196,5 +200,6 @@ export async function withdrawAdHocTeamFromForm(
   }
 
   revalidatePath(returnPath);
+  updateTag(`event:${eventId}`);
   redirectEventNotice(eventId, 'rsvp', 'team_withdrawn');
 }

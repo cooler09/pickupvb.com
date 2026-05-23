@@ -120,6 +120,57 @@ the open question below).
 
 ---
 
+## Off-platform payments
+
+`events.payments_off_platform = true` is a product mode, not a degraded
+fallback. When a host opts in, **Stripe is never involved** for that
+event — collection, refunds, fees, and payouts are handled entirely
+outside the app (Venmo, cash at the door, club account, etc.). The app
+records that the host is opting out and then deliberately suppresses
+every Stripe-shaped affordance.
+
+**UI consequences (intentional):**
+
+- **Create form** ([apps/web/src/app/events/new/new-event-form.tsx](../apps/web/src/app/events/new/new-event-form.tsx))
+  — when `paymentsOffPlatform` is checked (or the creating user has no
+  Connect account at all), the on-platform-only inputs are hidden:
+  refund window, "host absorbs the 5% service fee."
+- **Edit form** ([apps/web/src/app/events/[id]/edit/edit-event-form.tsx](../apps/web/src/app/events/[id]/edit/edit-event-form.tsx))
+  — same gating. Toggling the checkbox client-side hides/shows the
+  fields without round-tripping.
+- **Paid ticket panel** — fee math (the platform 5% + Stripe processor
+  fee breakdown) is suppressed for off-platform paid events. We only
+  show the headline price; anything else would be a lie about who
+  collects and what is deducted.
+- **No "Stripe-readiness" gating.** Off-platform events are allowed to
+  set a price even if the host has no Connect account, because the
+  price is just a number to display to attendees — the app will not
+  attempt to charge anyone.
+
+**Product rationale.** Calculating and rendering Stripe processor /
+platform fees on an event the platform is not processing is misleading
+at best and false at worst. The number we'd display would have no
+relationship to the host's actual cost basis. We'd rather show nothing
+than show a wrong number, so the off-platform mode treats Stripe as
+genuinely absent for the event's whole lifecycle.
+
+**Known follow-ups** (not user-visible but worth tightening):
+
+- `EventPricing` ([apps/web/src/lib/event-pricing.ts](../apps/web/src/lib/event-pricing.ts))
+  does not yet carry `paymentsOffPlatform`, so
+  `attendeeChargeBreakdownAsync` still computes a platform-fee number
+  for off-platform paid events. The UI hides it, but the computation is
+  wasted (and a foot-gun if someone wires that value somewhere new).
+  Thread the flag through and short-circuit to
+  `{ ticketCents: priceCents, platformFeeCents: 0, totalCents: priceCents }`.
+- `startTicketCheckout`
+  ([apps/web/src/app/events/[id]/checkout-actions.ts](../apps/web/src/app/events/[id]/checkout-actions.ts))
+  doesn't guard against `paymentsOffPlatform === true`. There is no
+  current code path that calls it for an off-platform event, but defence
+  in depth: `backWithError(eventId, 'off_platform')` if the flag is set.
+
+---
+
 ## Edge cases
 
 - **Group is host, host user has no Stripe.** Paid registration is
