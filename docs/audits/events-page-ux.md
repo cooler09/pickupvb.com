@@ -10,6 +10,34 @@ from a share link, while keeping the page useful for hosts and attendees.
 > (2026-05-18). Remaining open items live in the "Won't-do / explicit
 > deferrals" section.
 
+> **Status update (2026-05-23, Bundle 66):** **2026-05-22 architectural
+> regression notes both verified-stale and cleared.** The two follow-ups
+> the prior note flagged for "the next page-diet pass" have already
+> landed in their parent audits:
+>
+> 1. **Page LOC regression (architecture P1).** [page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)
+>    is **296 LOC** today (was 837 when the 2026-05-22 note went in,
+>    against a ~520 baseline at the original audit). Closed by
+>    Architecture audit Bundles 23 + 24: Bundle 23 extracted data
+>    loading into [\_loaders/load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+>    (887 → 566 LOC); Bundle 24 followed with six render-branch
+>    components under [\_components/](../../apps/web/src/app/events/%5Bid%5D/_components/)
+>    (566 → 294 LOC). 64% cut overall; well under the ~150 LOC
+>    aspirational target the architecture audit asks for orchestrator
+>    pages.
+> 2. **`Date.now()` in render (performance P1 #0).** Grep for
+>    `Date.now()` across `apps/web/src` returns **zero** matches.
+>    Closed by Performance audit Bundle 2: introduced [render-now.ts](../../apps/web/src/lib/render-now.ts)
+>    (`renderNowMs()`) and lifted `EventHero`'s time-derived booleans
+>    to the page boundary as a `closingSoon` prop. The specific
+>    `page.tsx#L115` site the prior note named is gone with the
+>    page-diet refactor.
+>
+> No new UX work in this bundle — audit-doc reconciliation only.
+> The events page UX audit itself remains closed; remaining items are
+> the explicit Won't-do deferrals further down. See the
+> [Bundle 66 journal](../journal/2026-05-23-bundle-66.md).
+>
 > **Status update (2026-05-22):** UX findings still closed. Architectural
 > note: the page is now 837 LOC (was ~520 when this audit ran) — see the
 > [architecture audit](architecture.md) P1 regression and the
