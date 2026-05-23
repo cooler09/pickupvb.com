@@ -114,10 +114,23 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
         aria-expanded={open}
         aria-controls="address-suggestions"
         aria-autocomplete="list"
+        {...(open && activeIdx >= 0
+          ? { 'aria-activedescendant': `address-suggestion-${activeIdx}` }
+          : {})}
       />
       {loading && (
         <span className="text-fg/50 absolute top-1/2 right-3 -translate-y-1/2 text-xs">…</span>
       )}
+      {/* Live status — announced by screen readers as results arrive. */}
+      <p className="sr-only" aria-live="polite" role="status">
+        {loading
+          ? 'Searching…'
+          : open && suggestions.length === 0 && query.trim().length >= 3
+            ? 'No matches.'
+            : open && suggestions.length > 0
+              ? `${suggestions.length} ${suggestions.length === 1 ? 'suggestion' : 'suggestions'} available. Use arrow keys to navigate.`
+              : ''}
+      </p>
       {open && suggestions.length > 0 && (
         <ul
           id="address-suggestions"
@@ -127,6 +140,7 @@ export default function AddressAutocomplete({ onPick, inputClass }: Props) {
           {suggestions.map((s, idx) => (
             <li
               key={`${s.latitude},${s.longitude},${idx}`}
+              id={`address-suggestion-${idx}`}
               role="option"
               aria-selected={idx === activeIdx}
               onMouseDown={(e) => {
