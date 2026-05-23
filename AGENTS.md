@@ -268,6 +268,58 @@ and regenerate types so typecheck passes against the new schema.
 
 Never edit an applied migration. Add a follow-up migration instead.
 
+### Migration preamble
+
+Every new migration starts with a SQL-comment preamble so the file
+explains itself to whoever opens it six months from now. The format,
+codifying the convention already in use across the recent
+`supabase/migrations/` files:
+
+```sql
+-- ============================================================================
+-- <Title> — short imperative description (e.g. "Event divisions: child entity
+-- of events" or "ADR 0007: Team registration model — ad-hoc vs. roster").
+-- See docs/adr/000N-<slug>.md   ← only if this migration backs an ADR.
+--
+-- Context: why this change is happening — what problem in the app drove it,
+-- which earlier migration this builds on, and any non-obvious constraint
+-- (e.g. "backfill must run before NOT NULL is added" or "RLS policy depends
+-- on profiles.is_anonymous landing first").
+--
+-- Impact: what changes for callers — new columns / dropped columns / RPC
+-- signature changes / RLS posture shifts / view rebuilds. Flag anything
+-- that breaks existing reads or writes so app-layer changes can land in
+-- the same PR. Note backfill behaviour (additive vs. destructive) and
+-- whether old code paths keep working until a follow-up migration.
+-- ============================================================================
+```
+
+Conventions:
+
+- **Banner rule (`-- ====…`) top and bottom is optional but preferred** —
+  it makes the preamble visually distinct from the schema body when
+  scrolling.
+- **ADR link is required when the migration implements one.** Don't make
+  readers grep ADRs to find the why.
+- **Context + Impact are the two blocks that matter.** If the migration
+  is genuinely one-line trivial (e.g. fixing a typo'd default) a single
+  sentence is fine — the section names are scaffolding, not a checklist.
+- **Don't restate the file timestamp or the migration name.** Both are
+  in the filename.
+
+Exemplars to model from:
+
+- [supabase/migrations/20260513001100_anon_auth_pivot.sql](supabase/migrations/20260513001100_anon_auth_pivot.sql)
+  — long, hairy pivot with backfill + drop list.
+- [supabase/migrations/20260605000100_event_divisions.sql](supabase/migrations/20260605000100_event_divisions.sql)
+  — ADR-driven additive change.
+- [supabase/migrations/20260605000600_fix_fill_default_division_id.sql](supabase/migrations/20260605000600_fix_fill_default_division_id.sql)
+  — small bugfix; one paragraph is enough.
+
+Backfilling preambles on older migrations is optional — only do it if
+you're already touching the file in a follow-up migration's PR for some
+other reason. Never edit applied migrations just to add a preamble.
+
 ## Testing
 
 There's no end-to-end suite yet. Domain and application packages have unit
