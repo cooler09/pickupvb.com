@@ -1,5 +1,7 @@
 # Documentation audit — 2026-05-17
 
+> **Status (2026-05-22, Bundle 31):** **P1 package READMEs fully closed.** [apps/web/README.md](../../apps/web/README.md) landed — route-tree snapshot, library landmarks table (`handlers.ts`, `api-helpers.ts`, `supabase.ts`, `form-data.ts`, etc.), conventions cross-link to AGENTS.md, scripts, and the `--webpack` rationale pointer to the Bundle 29 journal. `CONTRIBUTING.md` and the ADR 0006 backfill are now the only remaining open items from this audit. See the [Bundle 31 journal](../journal/2026-05-22-bundle-31.md).
+>
 > **Status (2026-05-22, Bundle 30):** **P1 package READMEs closed.** Five new READMEs landed: [application](../../packages/application/README.md), [infrastructure](../../packages/infrastructure/README.md), [notifications](../../packages/notifications/README.md), [types](../../packages/types/README.md), [config](../../packages/config/README.md). Each follows the layout-snapshot + rules-of-the-layer shape pioneered by the domain README. Only `apps/web` README remains for the original P1, plus `CONTRIBUTING.md` and the ADR 0006 backfill. See the [Bundle 30 journal](../journal/2026-05-22-bundle-30.md).
 >
 > **Status (2026-05-17):** Quick-win bundle landed — primary-docs version refresh (P1), `LICENSE` (P1, MIT), [packages/supabase/README.md](../../packages/supabase/README.md) (P1), and [docs/runbook.md](../runbook.md) (P1). ADR 0006 (canonical-domain-apex), the four other missing package READMEs, and `CONTRIBUTING.md` are still open — see the Remediation log at the bottom.
@@ -23,34 +25,34 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 
 ## Doc inventory
 
-| Document                   | Path                                                                   | Status | Notes                                                       |
-| -------------------------- | ---------------------------------------------------------------------- | ------ | ----------------------------------------------------------- |
-| README                     | [README.md](README.md)                                                 | ✅     | ~180 LOC; **stale Next.js version**                         |
-| AGENTS                     | [AGENTS.md](AGENTS.md)                                                 | ✅     | ~185 LOC; **stale Next.js version**                         |
-| Copilot instructions       | [.github/copilot-instructions.md](.github/copilot-instructions.md)     | ✅     | mirrors AGENTS                                              |
-| LICENSE                    | —                                                                      | ❌     | Missing                                                     |
-| CONTRIBUTING               | —                                                                      | ❌     | Missing                                                     |
-| CHANGELOG                  | —                                                                      | ❌     | Missing                                                     |
-| Domain README              | [packages/domain/README.md](packages/domain/README.md)                 | ✅     | Exemplary aggregate cookbook                                |
-| Application README         | [packages/application/README.md](packages/application/README.md)       | ✅     | Layout + CQRS rules (Bundle 30, 2026-05-22)                 |
-| Infrastructure README      | [packages/infrastructure/README.md](packages/infrastructure/README.md) | ✅     | Adapter pattern + port-vs-adapter (Bundle 30, 2026-05-22)   |
-| Types README               | [packages/types/README.md](packages/types/README.md)                   | ✅     | Boundary schemas (Bundle 30, 2026-05-22)                    |
-| Supabase README            | [packages/supabase/](packages/supabase/)                               | ❌     | Missing (yet `gen:types` is the only way to regen DB types) |
-| Web app README             | [apps/web/](apps/web/)                                                 | ❌     | Missing                                                     |
-| ADRs                       | [docs/adr/](docs/adr/)                                                 | ✅     | 5 ADRs (0001–0005) + index README                           |
-| Features                   | [docs/features.md](docs/features.md)                                   | ✅     | ~270 LOC                                                    |
-| Integrations               | [docs/integrations.md](docs/integrations.md)                           | ✅     | ~280 LOC, links to env vars + degradation behavior          |
-| Stripe webhooks            | [docs/stripe-webhooks.md](docs/stripe-webhooks.md)                     | ✅     | ~60 LOC; covers event types + idempotency                   |
-| Reset test data            | [docs/reset-test-data.md](docs/reset-test-data.md)                     | ✅     | ~70 LOC                                                     |
-| Audits index               | [docs/audits/README.md](docs/audits/README.md)                         | ✅     | tracks 6 audits, P1/P2/P3 legend                            |
-| .env.example               | [.env.example](.env.example)                                           | ✅     | ~60 LOC, organized by integration                           |
-| Deployment runbook         | —                                                                      | ❌     | Missing                                                     |
-| Incident / on-call runbook | —                                                                      | ❌     | Missing                                                     |
-| Backup / restore           | —                                                                      | ❌     | Missing                                                     |
-| Monitoring / alerting      | —                                                                      | ❌     | Missing                                                     |
-| Testing strategy           | —                                                                      | ❌     | Missing (architecture audit flagged: no tests exist)        |
-| API reference              | —                                                                      | ⚠️     | Partial — only 6 endpoints listed in README                 |
-| Server-action pattern doc  | —                                                                      | ❌     | Missing (only embedded in AGENTS)                           |
+| Document                   | Path                                                                   | Status | Notes                                                     |
+| -------------------------- | ---------------------------------------------------------------------- | ------ | --------------------------------------------------------- |
+| README                     | [README.md](README.md)                                                 | ✅     | ~180 LOC; **stale Next.js version**                       |
+| AGENTS                     | [AGENTS.md](AGENTS.md)                                                 | ✅     | ~185 LOC; **stale Next.js version**                       |
+| Copilot instructions       | [.github/copilot-instructions.md](.github/copilot-instructions.md)     | ✅     | mirrors AGENTS                                            |
+| LICENSE                    | —                                                                      | ❌     | Missing                                                   |
+| CONTRIBUTING               | —                                                                      | ❌     | Missing                                                   |
+| CHANGELOG                  | —                                                                      | ❌     | Missing                                                   |
+| Domain README              | [packages/domain/README.md](packages/domain/README.md)                 | ✅     | Exemplary aggregate cookbook                              |
+| Application README         | [packages/application/README.md](packages/application/README.md)       | ✅     | Layout + CQRS rules (Bundle 30, 2026-05-22)               |
+| Infrastructure README      | [packages/infrastructure/README.md](packages/infrastructure/README.md) | ✅     | Adapter pattern + port-vs-adapter (Bundle 30, 2026-05-22) |
+| Types README               | [packages/types/README.md](packages/types/README.md)                   | ✅     | Boundary schemas (Bundle 30, 2026-05-22)                  |
+| Supabase README            | [packages/supabase/README.md](packages/supabase/README.md)             | ✅     | Client factories + `gen:types` flow (2026-05-17)          |
+| Web app README             | [apps/web/README.md](apps/web/README.md)                               | ✅     | Route tree + lib landmarks (Bundle 31, 2026-05-22)        |
+| ADRs                       | [docs/adr/](docs/adr/)                                                 | ✅     | 5 ADRs (0001–0005) + index README                         |
+| Features                   | [docs/features.md](docs/features.md)                                   | ✅     | ~270 LOC                                                  |
+| Integrations               | [docs/integrations.md](docs/integrations.md)                           | ✅     | ~280 LOC, links to env vars + degradation behavior        |
+| Stripe webhooks            | [docs/stripe-webhooks.md](docs/stripe-webhooks.md)                     | ✅     | ~60 LOC; covers event types + idempotency                 |
+| Reset test data            | [docs/reset-test-data.md](docs/reset-test-data.md)                     | ✅     | ~70 LOC                                                   |
+| Audits index               | [docs/audits/README.md](docs/audits/README.md)                         | ✅     | tracks 6 audits, P1/P2/P3 legend                          |
+| .env.example               | [.env.example](.env.example)                                           | ✅     | ~60 LOC, organized by integration                         |
+| Deployment runbook         | —                                                                      | ❌     | Missing                                                   |
+| Incident / on-call runbook | —                                                                      | ❌     | Missing                                                   |
+| Backup / restore           | —                                                                      | ❌     | Missing                                                   |
+| Monitoring / alerting      | —                                                                      | ❌     | Missing                                                   |
+| Testing strategy           | —                                                                      | ❌     | Missing (architecture audit flagged: no tests exist)      |
+| API reference              | —                                                                      | ⚠️     | Partial — only 6 endpoints listed in README               |
+| Server-action pattern doc  | —                                                                      | ❌     | Missing (only embedded in AGENTS)                         |
 
 ---
 
@@ -90,12 +92,13 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 - **Issue:** AGENTS says "Production migrations are applied automatically by CI/CD" and integrations.md says "Every push to `main` triggers a production build", but nothing documents: rollback procedure, who approves a deploy, what to do if a migration fails partway, how to bypass auto-deploy in an emergency. The Stripe-webhook incident earlier in this session is exactly the class of failure where a runbook would have saved time.
 - **Fix:** Add `docs/runbook.md` (or `docs/deployment.md`) covering: environments, deploy flow (PR → main → Vercel build → migration apply), rollback via Vercel UI + `git revert`, migration failure recovery, common alerts and triage steps.
 
-### Missing package READMEs 🟡 Partial (2026-05-22, Bundle 30)
+### Missing package READMEs ✅ Closed (2026-05-22, Bundle 31)
 
 - **Where:** [packages/application/](packages/application/), [packages/infrastructure/](packages/infrastructure/), [packages/types/](packages/types/), [packages/supabase/](packages/supabase/), [apps/web/](apps/web/).
 - **Issue:** Only [packages/domain/README.md](packages/domain/README.md) exists (and is excellent). Everything else expects the reader to infer purpose from AGENTS.md or source. Critical for `packages/supabase` because the `gen:types` command lives only in AGENTS.md prose.
 - **Fix:** One short README per package (~80–100 LOC each). Application: CQRS handler pattern + example. Infrastructure: adapter pattern + one example. Types: shared DTOs / Zod schemas. Supabase: how to regenerate types after a migration, where they live. apps/web: route-tree overview + page composition conventions.
-- **Resolved (Bundle 30):** Five READMEs landed today — [application](../../packages/application/README.md), [infrastructure](../../packages/infrastructure/README.md), [notifications](../../packages/notifications/README.md), [types](../../packages/types/README.md), and [config](../../packages/config/README.md). Each opens with a layout snapshot of `src/` and follows with the rules-of-the-layer that match this package's role in the dependency graph (framework-free, port-vs-adapter, etc.). Supabase README already shipped in 2026-05-17. **Only `apps/web` README still missing** — needs a route-tree overview which is bigger than the per-package READMEs and is deferred to its own bundle.
+- **Resolved (Bundle 30):** Five READMEs landed — [application](../../packages/application/README.md), [infrastructure](../../packages/infrastructure/README.md), [notifications](../../packages/notifications/README.md), [types](../../packages/types/README.md), and [config](../../packages/config/README.md). Each opens with a layout snapshot of `src/` and follows with the rules-of-the-layer that match this package's role in the dependency graph (framework-free, port-vs-adapter, etc.). Supabase README already shipped in 2026-05-17.
+- **Resolved (Bundle 31):** [apps/web/README.md](../../apps/web/README.md) landed. Route-tree snapshot of `src/app/`, library-landmarks table for `src/lib/` (composition root `handlers.ts`, HTTP boundary `api-helpers.ts`, server/admin Supabase factories, `form-data.ts` helpers, Stripe + notify + rate-limit shims), conventions cross-link to AGENTS.md, scripts, and a pointer to the [Bundle 29 journal](../journal/2026-05-22-bundle-29.md) explaining the `--webpack` flag. P1 finding now fully closed.
 
 ### Missing CONTRIBUTING and LICENSE 🟡 Partial 2026-05-17
 
@@ -234,12 +237,14 @@ Read-only audit of all documentation in the pickupvb.com monorepo: top-level doc
 | 2026-05-17 | P1: LICENSE                             | ✅ Fixed   | MIT, copyright Zachary Lockhart. Defaulted to MIT because the project is a personal-account web app with no patent surface; permissive license keeps options open if it ever opens to contributions.                                                                                                                                                                                                                                                      |
 | 2026-05-17 | P1: package READMEs (5 missing)         | 🟡 Partial | [packages/supabase/README.md](../../packages/supabase/README.md) created — covers exports, `gen:types` regeneration flow with troubleshooting, conventions (nested joins, snake/camel boundary, anonymous-auth guard), and env vars. The four other missing READMEs (application, infrastructure, types, apps/web) are still open.                                                                                                                        |
 | 2026-05-22 | P1: package READMEs (Bundle 30)         | 🟡 Partial | Five new READMEs landed: [application](../../packages/application/README.md), [infrastructure](../../packages/infrastructure/README.md), [notifications](../../packages/notifications/README.md), [types](../../packages/types/README.md), [config](../../packages/config/README.md). Each follows the layout-snapshot + rules-of-the-layer shape from the domain README. Only `apps/web` README still pending.                                           |
+| 2026-05-22 | P1: package READMEs (Bundle 31)         | ✅ Fixed   | [apps/web/README.md](../../apps/web/README.md) landed — route-tree snapshot of `src/app/`, library-landmarks table for `src/lib/`, conventions cross-link to AGENTS.md, scripts, and `--webpack` rationale pointer. **P1 README sweep is now fully closed.**                                                                                                                                                                                              |
 | 2026-05-22 | P2 (new): codify docs/audits convention | ✅ Done    | New **Audits** section in [AGENTS.md](../../AGENTS.md) explains: check the existing audit file before running a new pass; grade P1/P2/P3; every finding has a file link + concrete fix; updates land in the file (chat-only summaries must be called out as quick scans); update the [audits index](README.md). [.github/copilot-instructions.md](../../.github/copilot-instructions.md) gained a matching pointer with the write-into-the-file reminder. |
 
 ### Still open
 
 - **P1: CONTRIBUTING.md.** Not added — depends on the open-vs-closed question. If this stays a personal project, a one-line "this is a personal project, PRs welcome but ad-hoc" note is enough.
 - **P1: Missing `apps/web` README** — the per-package READMEs landed in Bundle 30 (2026-05-22), but the web-app overview is bigger (route-tree + composition conventions) and is deferred. Use [packages/domain/README.md](../../packages/domain/README.md) as the template.
+  - **Resolved Bundle 31 (2026-05-22).** [apps/web/README.md](../../apps/web/README.md) landed.
 - **P2: API / route-handler reference, server-action pattern doc, JSDoc coverage on domain exports, monitoring doc, testing strategy doc, database operations guide.**
 - **P3: Migration preamble standard, onboarding guide, CHANGELOG, flow diagrams, code-of-conduct.**
 - **ADR backfill:** 0006 (canonical-domain-apex), 0007 (server actions + new-tab pattern), 0008 (Stripe webhook dedupe). Deferred — author needs to capture decisions/context.
