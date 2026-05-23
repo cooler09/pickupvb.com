@@ -88,6 +88,12 @@ export type EventDetailViewModel = {
   // Side-loaded extras.
   viewerIsPro: boolean;
   tipTotalCents: number;
+  /**
+   * True when the primary host has a Stripe Connect account with
+   * `charges_enabled`. Used to gate the tip-jar UI — no point inviting
+   * a tip when the funds can't be routed anywhere.
+   */
+  hostCanCollectTips: boolean;
   primaryHostUserSocial: SocialHandles | null;
   eligibleTeamsByDivision: ReadonlyMap<string, EligibleTeamOption[]>;
   payments: Map<string, AttendeePaymentInfo> | undefined;
@@ -182,6 +188,23 @@ function loadPrimaryHostSocialCached(hostUserId: string): Promise<SocialHandles 
   )();
 }
 
+/**
+ * "Does the primary host have a Stripe account that can accept charges
+ * right now?" — cached per-host with the same 5-minute window as the
+ * social-handles loader. The host-stripe-account row only flips on
+ * webhook callbacks from Stripe, so a 5-minute lag is acceptable.
+ */
+function loadHostCanCollectTipsCached(hostUserId: string): Promise<boolean> {
+  return unstable_cache(
+    async () => {
+      const { getHostStripeAccount } = await import('@/lib/host-stripe-account');
+      return (await getHostStripeAccount(hostUserId)) !== null;
+    },
+    ['host-can-collect', hostUserId],
+    { revalidate: 300, tags: [`host-stripe:${hostUserId}`] },
+  )();
+}
+
 type AdHocMemberRow = {
   id: string;
   user_id: string | null;
@@ -260,6 +283,7 @@ export async function loadEventDetail(
     viewerIsPro,
     tipTotalCents,
     primaryHostUserSocial,
+    hostCanCollectTips,
     eligibleTeamsByDivision,
     adHocBundle,
   ] = await Promise.all([
@@ -271,6 +295,11 @@ export async function loadEventDetail(
     event.primaryHostUser
       ? loadPrimaryHostSocialCached(event.primaryHostUser.id)
       : Promise.resolve(null),
+    // Skip the lookup for hosts viewing their own event — the tip jar is
+    // hidden either way.
+    event.primaryHostUser && !isHostOfEvent
+      ? loadHostCanCollectTipsCached(event.primaryHostUser.id)
+      : Promise.resolve(false),
     loadEligibleTeamsByDivision(event),
     loadAdHocBundle(event, user),
   ]);
@@ -338,6 +367,7 @@ export async function loadEventDetail(
     viewerIsPro,
     tipTotalCents,
     primaryHostUserSocial,
+    hostCanCollectTips,
     eligibleTeamsByDivision,
     payments,
     viewerPaymentStatus,

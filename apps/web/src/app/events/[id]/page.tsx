@@ -95,6 +95,7 @@ export default async function EventDetailPage(props: {
     priceLabel,
     viewerIsPro,
     tipTotalCents,
+    hostCanCollectTips,
     primaryHostUserSocial,
     eligibleTeamsByDivision,
     payments,
@@ -287,6 +288,7 @@ export default async function EventDetailPage(props: {
           viewerIsRealUser={isRealUser}
           viewerHasSession={!!user}
           totalCents={tipTotalCents}
+          hostCanCollectTips={hostCanCollectTips}
         />
       )}
 

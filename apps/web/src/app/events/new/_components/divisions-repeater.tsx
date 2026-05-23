@@ -13,6 +13,7 @@
  */
 
 import { useState } from 'react';
+import { FieldError, fieldA11y } from '@/components/field-error';
 
 type Row = {
   // Stable client key; never sent to the server.
@@ -57,11 +58,20 @@ const inputClass =
 export default function DivisionsRepeater({
   defaultSurface,
   requireAtLeastOne = false,
+  fieldErrors,
 }: {
   defaultSurface?: string;
   /** When true, always render at least one row and hide its Remove button. */
   requireAtLeastOne?: boolean;
+  /**
+   * Server-side validation errors keyed by Zod path. Division errors arrive
+   * as `divisions.${idx}.${field}` (e.g. `divisions.0.label`) — those keys
+   * are looked up per-row and surfaced via `aria-invalid` + `<FieldError>`.
+   */
+  fieldErrors?: Record<string, string>;
 }) {
+  /** Errors arrive keyed by Zod path; build a per-row lookup helper. */
+  const rowErrorKey = (idx: number, field: string) => `divisions.${idx}.${field}`;
   const [rows, setRows] = useState<Row[]>(() =>
     requireAtLeastOne ? [blankRow(0, { surface: defaultSurface ?? 'indoor' })] : [],
   );
@@ -94,6 +104,7 @@ export default function DivisionsRepeater({
           ? "Add a row for each division you're running (e.g. Men's A, Women's BB, Coed Quads). Each division has its own skill tier, capacity, and entry price."
           : "Running a multi-format or multi-skill tournament? Add a row for each extra division (e.g. Men's A, Women's BB, Coed Quads). The fields above define your first division."}
       </p>
+      <FieldError name="divisions" errors={fieldErrors} />
 
       {rows.map((row, idx) => (
         <div
@@ -127,7 +138,9 @@ export default function DivisionsRepeater({
                 maxLength={60}
                 placeholder="e.g. Women's BB"
                 className={inputClass}
+                {...fieldA11y(rowErrorKey(idx, 'label'), fieldErrors)}
               />
+              <FieldError name={rowErrorKey(idx, 'label')} errors={fieldErrors} />
             </div>
             <div>
               <label className={labelClass}>Surface</label>
@@ -229,7 +242,9 @@ export default function DivisionsRepeater({
                   value={row.teamSize}
                   onChange={(e) => patch(row.key, { teamSize: e.target.value })}
                   className={inputClass}
+                  {...fieldA11y(rowErrorKey(idx, 'teamSize'), fieldErrors)}
                 />
+                <FieldError name={rowErrorKey(idx, 'teamSize')} errors={fieldErrors} />
               </div>
             )}
             <div>
@@ -256,7 +271,9 @@ export default function DivisionsRepeater({
                   value={row.maxSpots}
                   onChange={(e) => patch(row.key, { maxSpots: e.target.value })}
                   className={inputClass}
+                  {...fieldA11y(rowErrorKey(idx, 'maxSpots'), fieldErrors)}
                 />
+                <FieldError name={rowErrorKey(idx, 'maxSpots')} errors={fieldErrors} />
               </div>
             )}
             <div>
@@ -270,7 +287,9 @@ export default function DivisionsRepeater({
                 onChange={(e) => patch(row.key, { priceUsd: e.target.value })}
                 placeholder="0"
                 className={inputClass}
+                {...fieldA11y(rowErrorKey(idx, 'priceUsd'), fieldErrors)}
               />
+              <FieldError name={rowErrorKey(idx, 'priceUsd')} errors={fieldErrors} />
             </div>
             <div>
               <label className={labelClass}>Charge</label>
@@ -298,6 +317,10 @@ export default function DivisionsRepeater({
               />
             </div>
           </div>
+          {/* Row-level error \u2014 catches cross-field Zod refinements that
+              land on the row (path: ["divisions", idx]) rather than a
+              specific column. */}
+          <FieldError name={`divisions.${idx}`} errors={fieldErrors} />
         </div>
       ))}
 

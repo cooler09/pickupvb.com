@@ -179,8 +179,16 @@ function SegmentedControl<T extends string>({
 
 export default function NewEventForm({
   hostableGroups = [],
+  canCollectPayments = false,
 }: {
   hostableGroups?: { id: string; name: string }[];
+  /**
+   * True when the host has a Stripe Connect account with
+   * `charges_enabled`. When false, the form hides on-platform payment
+   * controls and forces off-platform mode, with a banner pointing to
+   * `/profile/billing` to finish onboarding.
+   */
+  canCollectPayments?: boolean;
 }) {
   const [state, formAction] = useFormState(createEventAction, initialState);
   const values = state.values;
@@ -189,6 +197,13 @@ export default function NewEventForm({
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
   const [isExternal, setIsExternal] = useState(chk(values, submitted, 'isExternal', false));
+  // When the host can't collect payments through Stripe we force the
+  // off-platform branch and hide the toggle entirely. Otherwise the
+  // checkbox is user-controlled (state lifted to the parent so it
+  // survives switching between OpenPlay and Tournament sections).
+  const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(
+    () => !canCollectPayments || chk(values, submitted, 'paymentsOffPlatform', false),
+  );
 
   // Capacity is a single 3-way selector now (Unlimited / Fixed / By position).
   // It's only meaningful for open-play, on-platform events.
@@ -558,7 +573,11 @@ export default function NewEventForm({
             submitted={submitted}
           />
         ) : (
-          <DivisionsRepeater defaultSurface="indoor" requireAtLeastOne />
+          <DivisionsRepeater
+            defaultSurface="indoor"
+            requireAtLeastOne
+            {...(state.fieldErrors ? { fieldErrors: state.fieldErrors } : {})}
+          />
         )}
 
         {showPricing && (
@@ -566,9 +585,20 @@ export default function NewEventForm({
             fieldErrors={state.fieldErrors}
             values={values}
             submitted={submitted}
+            canCollectPayments={canCollectPayments}
+            paymentsOffPlatform={paymentsOffPlatform}
+            setPaymentsOffPlatform={setPaymentsOffPlatform}
           />
         )}
-        {showPaymentSettings && <PaymentSettingsSubsection values={values} submitted={submitted} />}
+        {showPaymentSettings && (
+          <PaymentSettingsSubsection
+            values={values}
+            submitted={submitted}
+            canCollectPayments={canCollectPayments}
+            paymentsOffPlatform={paymentsOffPlatform}
+            setPaymentsOffPlatform={setPaymentsOffPlatform}
+          />
+        )}
       </section>
 
       {/* Hidden fields the server action expects. Top-level format/gender
@@ -792,39 +822,56 @@ function OpenPlayBody({
 function PaymentSettingsSubsection({
   values,
   submitted,
+  canCollectPayments,
+  paymentsOffPlatform,
+  setPaymentsOffPlatform,
 }: {
   values: Record<string, string> | undefined;
   submitted: boolean | undefined;
+  canCollectPayments: boolean;
+  paymentsOffPlatform: boolean;
+  setPaymentsOffPlatform: (v: boolean) => void;
 }) {
+  // Refund window + service-fee absorption only apply to on-platform
+  // (Stripe-mediated) charges. Hide them when payments are off-platform
+  // or the host can't accept on-platform payments at all.
+  const showOnPlatformControls = canCollectPayments && !paymentsOffPlatform;
   return (
     <div className="border-border-base space-y-3 border-t pt-4">
       <div>
         <p className={labelClass}>Payment settings</p>
         <p className="text-muted mt-1 text-xs">
-          Entry prices are set per division above. To charge on-platform, finish Stripe payout setup
-          at{' '}
-          <Link href="/profile/billing" className="text-primary hover:underline">
-            Payouts &amp; Stripe
-          </Link>
-          .
+          Entry prices are set per division above.
+          {canCollectPayments
+            ? ' Uncheck the off-platform option below to charge through Stripe.'
+            : ''}
         </p>
       </div>
-      <label className="flex items-start gap-2 text-xs">
-        <input
-          type="checkbox"
-          name="paymentsOffPlatform"
-          defaultChecked={chk(values, submitted, 'paymentsOffPlatform', false)}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="text-fg font-medium">
-            I&apos;ll collect payment myself (off-platform)
+      {canCollectPayments ? (
+        <label className="flex items-start gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="paymentsOffPlatform"
+            checked={paymentsOffPlatform}
+            onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="text-fg font-medium">
+              I&apos;ll collect payment myself (off-platform)
+            </span>
+            <span className="text-muted block">
+              Display the price but skip Stripe. Players RSVP without paying online.
+            </span>
           </span>
-          <span className="text-muted block">
-            Display the price but skip Stripe. Players RSVP without paying online.
-          </span>
-        </span>
-      </label>
+        </label>
+      ) : (
+        <StripeOnboardingBanner />
+      )}
+      {/* Always submit the boolean so the server doesn't have to infer it
+          from absence. When the toggle is hidden (no Stripe), we still
+          force off-platform mode. */}
+      {!canCollectPayments && <input type="hidden" name="paymentsOffPlatform" value="on" />}
       <div>
         <label htmlFor="paymentInstructionsTourney" className={labelClass}>
           Payment instructions <span className="text-fg/50">(optional)</span>
@@ -839,40 +886,42 @@ function PaymentSettingsSubsection({
           className={inputClass}
         />
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="refundWindowHours" className={labelClass}>
-            Refund window (h)
-          </label>
-          <input
-            id="refundWindowHours"
-            name="refundWindowHours"
-            type="number"
-            min="0"
-            max="720"
-            step="1"
-            defaultValue={val(values, 'refundWindowHours', '24')}
-            className={inputClass}
-          />
-          <p className="text-muted mt-1 text-xs">
-            Hours before start when self-cancel refunds work. 0 disables.
-          </p>
-        </div>
-        <div className="flex items-end">
-          <label className="flex items-start gap-2 text-xs">
+      {showOnPlatformControls && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="refundWindowHours" className={labelClass}>
+              Refund window (h)
+            </label>
             <input
-              type="checkbox"
-              name="hostAbsorbsFee"
-              defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
-              className="mt-0.5"
+              id="refundWindowHours"
+              name="refundWindowHours"
+              type="number"
+              min="0"
+              max="720"
+              step="1"
+              defaultValue={val(values, 'refundWindowHours', '24')}
+              className={inputClass}
             />
-            <span>
-              <span className="text-fg font-medium">Absorb the 5% service fee</span>
-              <span className="text-muted block">Otherwise added to ticket price.</span>
-            </span>
-          </label>
+            <p className="text-muted mt-1 text-xs">
+              Hours before start when self-cancel refunds work. 0 disables.
+            </p>
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                name="hostAbsorbsFee"
+                defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="text-fg font-medium">Absorb the 5% service fee</span>
+                <span className="text-muted block">Otherwise added to ticket price.</span>
+              </span>
+            </label>
+          </div>
         </div>
-      </div>
+      )}
       <div>
         <label htmlFor="teamRegistrationMode" className={labelClass}>
           Team registration
@@ -896,43 +945,77 @@ function PaymentSettingsSubsection({
   );
 }
 
+/**
+ * Inline banner shown when the host has no Stripe Connect account with
+ * charges enabled. Tells them payments are off-platform-only until they
+ * finish onboarding and links to the billing page.
+ */
+function StripeOnboardingBanner() {
+  return (
+    <div role="status" className="border-border-base bg-highlight/30 rounded-md border p-3 text-sm">
+      <p className="text-fg font-medium">On-platform payments aren&apos;t set up yet.</p>
+      <p className="text-muted mt-1 text-xs">
+        This event will display its price but won&apos;t collect payment online — players RSVP and
+        pay you directly using the instructions you provide below. To accept payments through
+        PickupVB instead, finish Stripe onboarding at{' '}
+        <Link href="/profile/billing" className="text-primary hover:underline">
+          Payouts &amp; Stripe
+        </Link>
+        .
+      </p>
+    </div>
+  );
+}
+
 function PricingSubsection({
   fieldErrors,
   values,
   submitted,
+  canCollectPayments,
+  paymentsOffPlatform,
+  setPaymentsOffPlatform,
 }: {
   fieldErrors: Record<string, string> | undefined;
   values: Record<string, string> | undefined;
   submitted: boolean | undefined;
+  canCollectPayments: boolean;
+  paymentsOffPlatform: boolean;
+  setPaymentsOffPlatform: (v: boolean) => void;
 }) {
+  const showOnPlatformControls = canCollectPayments && !paymentsOffPlatform;
   return (
     <div className="border-border-base space-y-3 border-t pt-4">
       <div>
         <p className={labelClass}>Pricing</p>
         <p className="text-muted mt-1 text-xs">
-          Leave at $0 for free. To charge on-platform, finish Stripe payout setup at{' '}
-          <Link href="/profile/billing" className="text-primary hover:underline">
-            Payouts &amp; Stripe
-          </Link>
-          .
+          Leave at $0 for free.
+          {canCollectPayments
+            ? ' Uncheck the off-platform option below to charge through Stripe.'
+            : ''}
         </p>
       </div>
-      <label className="flex items-start gap-2 text-xs">
-        <input
-          type="checkbox"
-          name="paymentsOffPlatform"
-          defaultChecked={chk(values, submitted, 'paymentsOffPlatform', false)}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="text-fg font-medium">
-            I&apos;ll collect payment myself (off-platform)
+      {canCollectPayments ? (
+        <label className="flex items-start gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="paymentsOffPlatform"
+            checked={paymentsOffPlatform}
+            onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="text-fg font-medium">
+              I&apos;ll collect payment myself (off-platform)
+            </span>
+            <span className="text-muted block">
+              Display the price but skip Stripe. Players RSVP without paying online.
+            </span>
           </span>
-          <span className="text-muted block">
-            Display the price but skip Stripe. Players RSVP without paying online.
-          </span>
-        </span>
-      </label>
+        </label>
+      ) : (
+        <StripeOnboardingBanner />
+      )}
+      {!canCollectPayments && <input type="hidden" name="paymentsOffPlatform" value="on" />}
       <div>
         <label htmlFor="paymentInstructionsOpen" className={labelClass}>
           Payment instructions <span className="text-fg/50">(optional)</span>
@@ -947,7 +1030,13 @@ function PricingSubsection({
           className={inputClass}
         />
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div
+        className={
+          showOnPlatformControls
+            ? 'grid grid-cols-1 gap-3 sm:grid-cols-3'
+            : 'grid grid-cols-1 gap-3 sm:max-w-xs'
+        }
+      >
         <div>
           <label htmlFor="priceUsd" className={labelClass}>
             Price (USD)
@@ -964,38 +1053,42 @@ function PricingSubsection({
             {...fieldA11y('priceCents', fieldErrors)}
           />
         </div>
-        <div>
-          <label htmlFor="refundWindowHours" className={labelClass}>
-            Refund window (h)
-          </label>
-          <input
-            id="refundWindowHours"
-            name="refundWindowHours"
-            type="number"
-            min="0"
-            max="720"
-            step="1"
-            defaultValue={val(values, 'refundWindowHours', '24')}
-            className={inputClass}
-          />
-          <p className="text-muted mt-1 text-xs">
-            Hours before start when self-cancel refunds work. 0 disables.
-          </p>
-        </div>
-        <div className="flex items-end">
-          <label className="flex items-start gap-2 text-xs">
-            <input
-              type="checkbox"
-              name="hostAbsorbsFee"
-              defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="text-fg font-medium">Absorb the 5% service fee</span>
-              <span className="text-muted block">Otherwise added to ticket price.</span>
-            </span>
-          </label>
-        </div>
+        {showOnPlatformControls && (
+          <>
+            <div>
+              <label htmlFor="refundWindowHours" className={labelClass}>
+                Refund window (h)
+              </label>
+              <input
+                id="refundWindowHours"
+                name="refundWindowHours"
+                type="number"
+                min="0"
+                max="720"
+                step="1"
+                defaultValue={val(values, 'refundWindowHours', '24')}
+                className={inputClass}
+              />
+              <p className="text-muted mt-1 text-xs">
+                Hours before start when self-cancel refunds work. 0 disables.
+              </p>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  name="hostAbsorbsFee"
+                  defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-fg font-medium">Absorb the 5% service fee</span>
+                  <span className="text-muted block">Otherwise added to ticket price.</span>
+                </span>
+              </label>
+            </div>
+          </>
+        )}
       </div>
       <FieldError name="priceCents" errors={fieldErrors} />
     </div>

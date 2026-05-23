@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
+import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import NewEventForm from './new-event-form';
 
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,12 @@ export default async function NewEventPage() {
     .map((r) => r.groups)
     .filter((g): g is { id: string; name: string } => g !== null);
 
+  // Stripe payout readiness drives whether on-platform payment controls
+  // are rendered at all. `getHostStripeAccount` returns the connected
+  // account id only when `charges_enabled` is true.
+  const stripeAccountId = await getHostStripeAccount(user.id);
+  const canCollectPayments = stripeAccountId !== null;
+
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-1">
@@ -37,7 +44,7 @@ export default async function NewEventPage() {
           Set up your pickup session or tournament. You can edit any of this later.
         </p>
       </header>
-      <NewEventForm hostableGroups={hostableGroups} />
+      <NewEventForm hostableGroups={hostableGroups} canCollectPayments={canCollectPayments} />
     </section>
   );
 }

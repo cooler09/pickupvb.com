@@ -16,18 +16,47 @@ type Props = {
   viewerHasSession: boolean;
   /** Existing total of paid tips, in cents. */
   totalCents: number;
+  /**
+   * True when the host has a Stripe Connect account with charges
+   * enabled. When false, online tipping isn't wired up and the section
+   * collapses to a short explanatory note.
+   */
+  hostCanCollectTips: boolean;
 };
 
 function formatUsd(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export function TipJar({ eventId, viewerIsRealUser, viewerHasSession, totalCents }: Props) {
+export function TipJar({
+  eventId,
+  viewerIsRealUser,
+  viewerHasSession,
+  totalCents,
+  hostCanCollectTips,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState<string>('5');
 
   const cents = Math.round(Number(amount) * 100);
   const validAmount = Number.isFinite(cents) && cents >= MIN_TIP_CENTS && cents <= MAX_TIP_CENTS;
+
+  if (!hostCanCollectTips) {
+    // Host hasn't finished Stripe onboarding (or has disabled charges),
+    // so we have nowhere to route the funds. Render a short note instead
+    // of the form so the section doesn't look broken or unresponsive.
+    return (
+      <section className="border-border-base rounded-lg border p-4">
+        <header className="flex items-baseline justify-between">
+          <h2 className="text-fg text-sm font-semibold">Tip the host</h2>
+        </header>
+        <p className="text-muted mt-1 text-xs">
+          Online tipping isn&apos;t set up for this host yet. If you&apos;d like to leave something
+          extra, ask them in person — they&apos;ll appreciate it!
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="border-border-base rounded-lg border p-4">
