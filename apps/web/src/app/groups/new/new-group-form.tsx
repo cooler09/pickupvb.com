@@ -3,7 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { Alert } from '@/components/alert';
 import { FieldError, fieldA11y } from '@/components/field-error';
-import { createGroupAction, type GroupFormState } from '../actions';
+import { createGroupAction, type GroupFormState } from '../group-form-actions';
 
 const initial: GroupFormState = {};
 const labelClass = 'block text-sm font-medium text-fg';

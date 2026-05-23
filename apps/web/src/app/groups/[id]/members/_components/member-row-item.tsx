@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { changeGroupMemberRole, removeGroupMember } from '@/app/groups/actions';
+import { changeGroupMemberRole, removeGroupMember } from '@/app/groups/member-actions';
 import { SubmitButton } from '@/components/submit-button';
 
 export type MemberListItem = {

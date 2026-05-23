@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
-import { followGroup, unfollowGroup } from '@/app/groups/actions';
+import { followGroup, unfollowGroup } from '@/app/groups/follow-actions';
 import { ShareLink } from '@/components/share-link';
 import { SubmitButton } from '@/components/submit-button';
 
