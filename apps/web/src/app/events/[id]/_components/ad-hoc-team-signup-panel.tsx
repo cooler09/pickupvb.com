@@ -65,6 +65,13 @@ type Props = {
   viewerRegistrations: ReadonlyArray<AdHocTeamRegistration>;
   /** All ad-hoc registrations on this event, for the public list. */
   allRegistrations: ReadonlyArray<AdHocTeamPublicEntry>;
+  /**
+   * True when the host can't (or won't) collect payment via Stripe —
+   * either `events.payments_off_platform` is set or the host has no
+   * charges-enabled Stripe Connect account. Suppresses the captain Pay
+   * button so we don't surface a CTA that would fail at checkout.
+   */
+  paymentsOffPlatform?: boolean;
   /** `?rsvp=` flash code. */
   resultCode?: string | undefined;
   /** Optional `?rsvp_msg=` echo. */
@@ -106,6 +113,7 @@ export function AdHocTeamSignupPanel({
   isRealUser,
   viewerRegistrations,
   allRegistrations,
+  paymentsOffPlatform = false,
   resultCode,
   resultMsg,
 }: Props) {
@@ -181,6 +189,7 @@ export function AdHocTeamSignupPanel({
               returnPath={returnPath}
               registration={reg}
               divisions={divisions}
+              paymentsOffPlatform={paymentsOffPlatform}
             />
           ))}
         </div>
@@ -315,11 +324,13 @@ function CaptainRegistrationCard({
   returnPath,
   registration,
   divisions,
+  paymentsOffPlatform,
 }: {
   eventId: string;
   returnPath: string;
   registration: AdHocTeamRegistration;
   divisions: ReadonlyArray<DivisionForRegistration>;
+  paymentsOffPlatform: boolean;
 }) {
   const isPaid = registration.paymentStatus === 'paid';
   const isPending = registration.paymentStatus === 'pending';
@@ -423,12 +434,17 @@ function CaptainRegistrationCard({
 
       {/* Pay / withdraw */}
       <div className="flex flex-wrap items-center gap-2">
-        {!isPaid && priceCents !== null && priceCents > 0 && (
+        {!isPaid && !paymentsOffPlatform && priceCents !== null && priceCents > 0 && (
           <form action={startTeamRegistrationCheckout.bind(null, registration.id)}>
             <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               {isPending ? 'Resume checkout' : `Pay — ${formatUsd(priceCents)}`}
             </SubmitButton>
           </form>
+        )}
+        {!isPaid && paymentsOffPlatform && priceCents !== null && priceCents > 0 && (
+          <p className="text-muted text-xs">
+            Pay the host {formatUsd(priceCents)} in person (cash, Venmo, etc.).
+          </p>
         )}
         {!isPaid && (
           <form action={withdrawAdHocTeamFromForm.bind(null, eventId, registration.id, returnPath)}>

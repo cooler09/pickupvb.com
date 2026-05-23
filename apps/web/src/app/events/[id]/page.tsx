@@ -95,7 +95,7 @@ export default async function EventDetailPage(props: {
     priceLabel,
     viewerIsPro,
     tipTotalCents,
-    hostCanCollectTips,
+    hostStripeReady,
     primaryHostUserSocial,
     eligibleTeamsByDivision,
     payments,
@@ -205,6 +205,7 @@ export default async function EventDetailPage(props: {
         isRealUser={isRealUser}
         user={user}
         returnPath={returnPath}
+        hostStripeReady={hostStripeReady}
         filledByPosition={filledByPosition}
         viewerPosition={viewerPosition}
         adHocViewerRegistrations={adHocViewerRegistrations}
@@ -288,7 +289,7 @@ export default async function EventDetailPage(props: {
           viewerIsRealUser={isRealUser}
           viewerHasSession={!!user}
           totalCents={tipTotalCents}
-          hostCanCollectTips={hostCanCollectTips}
+          hostCanCollectTips={hostStripeReady}
         />
       )}
 

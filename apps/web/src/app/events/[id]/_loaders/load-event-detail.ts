@@ -90,10 +90,12 @@ export type EventDetailViewModel = {
   tipTotalCents: number;
   /**
    * True when the primary host has a Stripe Connect account with
-   * `charges_enabled`. Used to gate the tip-jar UI — no point inviting
-   * a tip when the funds can't be routed anywhere.
+   * `charges_enabled`. Used to gate any on-platform payment CTA — tip
+   * jar, ticket checkout, team checkout, etc. If false the UI should
+   * fall back to off-platform copy ("pay the host") and not surface a
+   * Stripe button that would only fail at checkout time.
    */
-  hostCanCollectTips: boolean;
+  hostStripeReady: boolean;
   primaryHostUserSocial: SocialHandles | null;
   eligibleTeamsByDivision: ReadonlyMap<string, EligibleTeamOption[]>;
   payments: Map<string, AttendeePaymentInfo> | undefined;
@@ -223,7 +225,7 @@ function loadPrimaryHostSocialCached(hostUserId: string): Promise<SocialHandles 
  * social-handles loader. The host-stripe-account row only flips on
  * webhook callbacks from Stripe, so a 5-minute lag is acceptable.
  */
-function loadHostCanCollectTipsCached(hostUserId: string): Promise<boolean> {
+function loadHostStripeReadyCached(hostUserId: string): Promise<boolean> {
   return unstable_cache(
     async () => {
       const { getHostStripeAccount } = await import('@/lib/host-stripe-account');
@@ -318,7 +320,7 @@ export async function loadEventDetail(
     viewerIsPro,
     tipTotalCents,
     primaryHostUserSocial,
-    hostCanCollectTips,
+    hostStripeReady,
     eligibleTeamsByDivision,
     adHocBundle,
   ] = await Promise.all([
@@ -330,10 +332,11 @@ export async function loadEventDetail(
     event.primaryHostUser
       ? loadPrimaryHostSocialCached(event.primaryHostUser.id)
       : Promise.resolve(null),
-    // Skip the lookup for hosts viewing their own event — the tip jar is
-    // hidden either way.
-    event.primaryHostUser && !isHostOfEvent
-      ? loadHostCanCollectTipsCached(event.primaryHostUser.id)
+    // Always load — the flag now gates ticket / team Pay buttons too,
+    // which the host can also see on their own event. The tip-jar
+    // visibility separately gates on `!isHostOfEvent` at the render site.
+    event.primaryHostUser
+      ? loadHostStripeReadyCached(event.primaryHostUser.id)
       : Promise.resolve(false),
     loadEligibleTeamsByDivision(event),
     loadAdHocBundle(event, user),
@@ -402,7 +405,7 @@ export async function loadEventDetail(
     viewerIsPro,
     tipTotalCents,
     primaryHostUserSocial,
-    hostCanCollectTips,
+    hostStripeReady,
     eligibleTeamsByDivision,
     payments,
     viewerPaymentStatus,

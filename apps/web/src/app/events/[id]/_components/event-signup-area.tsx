@@ -35,6 +35,7 @@ export function EventSignupArea({
   isRealUser,
   user,
   returnPath,
+  hostStripeReady,
   filledByPosition,
   viewerPosition,
   adHocViewerRegistrations,
@@ -56,6 +57,13 @@ export function EventSignupArea({
   isRealUser: boolean;
   user: { id: string } | null;
   returnPath: string;
+  /**
+   * True when the host has a charges-enabled Stripe Connect account.
+   * When false, on-platform Pay CTAs are suppressed across panels (the
+   * checkout would fail downstream) and the off-platform copy is used
+   * instead.
+   */
+  hostStripeReady: boolean;
   filledByPosition: Partial<Record<string, number>>;
   viewerPosition: EventPosition | null;
   adHocViewerRegistrations: ReadonlyArray<AdHocTeamRegistration>;
@@ -65,6 +73,11 @@ export function EventSignupArea({
   team: string | undefined;
   fa: string | undefined;
 }) {
+  // The host either explicitly opted out of on-platform payments OR has
+  // no Stripe Connect account to receive them. Either way the UI must
+  // hide Stripe Checkout CTAs.
+  const effectiveOffPlatform = event.paymentsOffPlatform || !hostStripeReady;
+
   if (isExternal) {
     return (
       <SignupSection
@@ -107,7 +120,7 @@ export function EventSignupArea({
             ticketCents={breakdown.ticketCents}
             platformFeeCents={breakdown.platformFeeCents}
             refundWindowHours={pricing!.refundWindowHours}
-            paymentsOffPlatform={event.paymentsOffPlatform}
+            paymentsOffPlatform={effectiveOffPlatform}
             {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
           />
         ) : event.positionRoster ? (
@@ -164,6 +177,7 @@ export function EventSignupArea({
                 isRealUser={isRealUser}
                 viewerRegistrations={adHocViewerRegistrations}
                 allRegistrations={adHocAllRegistrations}
+                paymentsOffPlatform={effectiveOffPlatform}
                 {...(rsvp ? { resultCode: rsvp } : {})}
                 {...(rsvpMsg ? { resultMsg: rsvpMsg } : {})}
               />
@@ -183,7 +197,7 @@ export function EventSignupArea({
                 viewerId={user?.id ?? null}
                 isRealUser={isRealUser}
                 returnPath={returnPath}
-                paymentsOffPlatform={event.paymentsOffPlatform}
+                paymentsOffPlatform={effectiveOffPlatform}
                 {...(team || rsvp ? { resultCode: team ?? rsvp } : {})}
               />
             )
