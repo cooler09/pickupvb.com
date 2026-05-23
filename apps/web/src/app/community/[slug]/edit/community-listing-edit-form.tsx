@@ -5,6 +5,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
+import { FieldError, fieldA11y } from '@/components/field-error';
 import { editCommunityListingAction, type EditCommunityListingState } from './actions';
 
 export type EditFormInitialValues = {
@@ -34,19 +35,6 @@ const cardClass = 'border-border-base bg-surface space-y-5 rounded-lg border p-5
 const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-const errorClass = 'mt-1 text-xs text-red-600';
-
-function FieldError({
-  name,
-  errors,
-}: {
-  name: string;
-  errors: Record<string, string> | undefined;
-}) {
-  const msg = errors?.[name];
-  if (!msg) return null;
-  return <p className={errorClass}>{msg}</p>;
-}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -126,6 +114,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
             maxLength={200}
             defaultValue={initial.title}
             className={inputClass}
+            {...fieldA11y('title', state.fieldErrors)}
           />
           <FieldError name="title" errors={state.fieldErrors} />
         </div>
@@ -140,6 +129,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
             maxLength={4000}
             defaultValue={initial.description}
             className={inputClass}
+            {...fieldA11y('description', state.fieldErrors)}
           />
           <FieldError name="description" errors={state.fieldErrors} />
         </div>
@@ -161,6 +151,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
             required
             defaultValue={initial.externalUrl}
             className={inputClass}
+            {...fieldA11y('externalUrl', state.fieldErrors)}
           />
           <FieldError name="externalUrl" errors={state.fieldErrors} />
         </div>
@@ -174,6 +165,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
             maxLength={120}
             defaultValue={initial.externalHostName ?? ''}
             className={inputClass}
+            {...fieldA11y('externalHostName', state.fieldErrors)}
           />
           <FieldError name="externalHostName" errors={state.fieldErrors} />
         </div>
@@ -222,6 +214,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
             onChange={(e) => setAddressLine(e.target.value)}
             placeholder="Street address"
             className={inputClass}
+            {...fieldA11y('location.addressLine', state.fieldErrors)}
           />
           <FieldError name="location.addressLine" errors={state.fieldErrors} />
           {!addressOpen ? (
@@ -245,6 +238,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   className={inputClass}
+                  {...fieldA11y('location.city', state.fieldErrors)}
                 />
                 <FieldError name="location.city" errors={state.fieldErrors} />
               </div>
@@ -259,6 +253,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
                   className={inputClass}
+                  {...fieldA11y('location.region', state.fieldErrors)}
                 />
                 <FieldError name="location.region" errors={state.fieldErrors} />
               </div>
@@ -273,6 +268,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
                   value={postalCode}
                   onChange={(e) => setPostalCode(e.target.value)}
                   className={inputClass}
+                  {...fieldA11y('location.postalCode', state.fieldErrors)}
                 />
                 <FieldError name="location.postalCode" errors={state.fieldErrors} />
               </div>
@@ -287,6 +283,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
                   className={inputClass}
+                  {...fieldA11y('location.country', state.fieldErrors)}
                 />
                 <FieldError name="location.country" errors={state.fieldErrors} />
               </div>

@@ -9,6 +9,7 @@ import AdvancedDetailsPanel, {
   type AdvancedDetailsInitial,
 } from '@/components/event-advanced-details-panel';
 import { Alert } from '@/components/alert';
+import { FieldError, fieldA11y } from '@/components/field-error';
 import { editEventAction, type EditEventState } from './actions';
 
 const initialState: EditEventState = {};
@@ -16,19 +17,6 @@ const initialState: EditEventState = {};
 const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-const errorClass = 'mt-1 text-xs text-red-600';
-
-function FieldError({
-  name,
-  errors,
-}: {
-  name: string;
-  errors: Record<string, string> | undefined;
-}) {
-  const msg = errors?.[name];
-  if (!msg) return null;
-  return <p className={errorClass}>{msg}</p>;
-}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -118,6 +106,7 @@ export default function EditEventForm({
             maxLength={120}
             defaultValue={initial.title}
             className={inputClass}
+            {...fieldA11y('title', state.fieldErrors)}
           />
           <FieldError name="title" errors={state.fieldErrors} />
         </div>
@@ -233,6 +222,7 @@ export default function EditEventForm({
                 min={1}
                 defaultValue={initial.maxSpots ?? ''}
                 className={inputClass}
+                {...fieldA11y('maxSpots', state.fieldErrors)}
               />
               <FieldError name="maxSpots" errors={state.fieldErrors} />
               <p className="text-muted mt-1 text-xs">Cannot drop below current attendee count.</p>
@@ -453,6 +443,7 @@ export default function EditEventForm({
             value={addressLine}
             onChange={(e) => setAddressLine(e.target.value)}
             className={inputClass}
+            {...fieldA11y('addressLine', state.fieldErrors)}
           />
           <FieldError name="addressLine" errors={state.fieldErrors} />
         </div>

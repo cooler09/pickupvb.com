@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
+import { FieldError, fieldA11y } from '@/components/field-error';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { createEventAction, type CreateEventState } from './actions';
 import AdvancedDetailsPanel from '@/components/event-advanced-details-panel';
@@ -28,22 +29,9 @@ type CapacityKind = 'unlimited' | 'fixed' | 'by_position';
 const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-const errorClass = 'mt-1 text-xs text-red-600';
 const cardClass = 'border-border-base bg-surface space-y-5 rounded-lg border p-5 sm:p-6';
 const cardTitleClass = 'text-fg text-base font-semibold';
 const cardSubClass = 'text-muted text-sm';
-
-function FieldError({
-  name,
-  errors,
-}: {
-  name: string;
-  errors: Record<string, string> | undefined;
-}) {
-  const msg = errors?.[name];
-  if (!msg) return null;
-  return <p className={errorClass}>{msg}</p>;
-}
 
 /** Lookup a previously-submitted form value (echoed back on action error) */
 function val(values: Record<string, string> | undefined, name: string, fallback = ''): string {
@@ -79,6 +67,7 @@ function SkillTierSelect({
         name="skillTier"
         defaultValue={val(values, 'skillTier', 'bb')}
         className={inputClass}
+        {...fieldA11y('skillLevel', fieldErrors)}
       >
         <optgroup label="Beginner">
           <option value="c">C</option>
@@ -333,6 +322,7 @@ export default function NewEventForm({
             defaultValue={val(values, 'title')}
             placeholder="Tuesday night open gym"
             className={inputClass}
+            {...fieldA11y('title', state.fieldErrors)}
           />
           <FieldError name="title" errors={state.fieldErrors} />
         </div>
@@ -348,6 +338,7 @@ export default function NewEventForm({
             defaultValue={val(values, 'description')}
             placeholder="Indoor 6's, all levels welcome. Bring kneepads — we'll rotate teams every set."
             className={inputClass}
+            {...fieldA11y('description', state.fieldErrors)}
           />
           <FieldError name="description" errors={state.fieldErrors} />
         </div>
@@ -435,6 +426,7 @@ export default function NewEventForm({
             onChange={(e) => setAddressLine(e.target.value)}
             placeholder="123 Main St"
             className={inputClass}
+            {...fieldA11y('location.addressLine', state.fieldErrors)}
           />
           <FieldError name="location.addressLine" errors={state.fieldErrors} />
         </div>
@@ -470,6 +462,7 @@ export default function NewEventForm({
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.city', state.fieldErrors)}
               />
               <FieldError name="location.city" errors={state.fieldErrors} />
             </div>
@@ -484,6 +477,7 @@ export default function NewEventForm({
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.region', state.fieldErrors)}
               />
               <FieldError name="location.region" errors={state.fieldErrors} />
             </div>
@@ -498,6 +492,7 @@ export default function NewEventForm({
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.postalCode', state.fieldErrors)}
               />
               <FieldError name="location.postalCode" errors={state.fieldErrors} />
             </div>
@@ -513,6 +508,7 @@ export default function NewEventForm({
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.country', state.fieldErrors)}
               />
               <FieldError name="location.country" errors={state.fieldErrors} />
             </div>
@@ -611,6 +607,7 @@ export default function NewEventForm({
             name="visibility"
             defaultValue={val(values, 'visibility', 'public')}
             className={inputClass}
+            {...fieldA11y('visibility', state.fieldErrors)}
           >
             <option value="public">Public — anyone can find it</option>
             <option value="invite_only">Invite only</option>
@@ -631,6 +628,7 @@ export default function NewEventForm({
             defaultValue={val(values, 'rules')}
             placeholder="Rally scoring to 25, win by 2. Captain's choice on lets."
             className={inputClass}
+            {...fieldA11y('rules', state.fieldErrors)}
           />
           <FieldError name="rules" errors={state.fieldErrors} />
         </div>
@@ -690,6 +688,7 @@ function OpenPlayBody({
             name="surface"
             defaultValue={val(values, 'surface', 'indoor')}
             className={inputClass}
+            {...fieldA11y('surface', fieldErrors)}
           >
             <option value="indoor">Indoor</option>
             <option value="grass">Grass</option>
@@ -727,6 +726,7 @@ function OpenPlayBody({
               min={1}
               defaultValue={val(values, 'maxSpots')}
               className={inputClass}
+              {...fieldA11y('capacity', fieldErrors)}
             />
             <FieldError name="capacity" errors={fieldErrors} />
           </div>
@@ -961,6 +961,7 @@ function PricingSubsection({
             step="0.01"
             defaultValue={val(values, 'priceUsd', '0')}
             className={inputClass}
+            {...fieldA11y('priceCents', fieldErrors)}
           />
         </div>
         <div>
@@ -1022,6 +1023,7 @@ function ExternalFields({
             name="surface"
             defaultValue={val(values, 'surface', 'indoor')}
             className={inputClass}
+            {...fieldA11y('surface', fieldErrors)}
           >
             <option value="indoor">Indoor</option>
             <option value="grass">Grass</option>
@@ -1041,6 +1043,7 @@ function ExternalFields({
                 name="format"
                 defaultValue={val(values, 'format', 'sixes')}
                 className={inputClass}
+                {...fieldA11y('format', fieldErrors)}
               >
                 <option value="sixes">Sixes</option>
                 <option value="quads">Quads</option>
@@ -1058,6 +1061,7 @@ function ExternalFields({
                 name="gender"
                 defaultValue={val(values, 'gender', 'coed')}
                 className={inputClass}
+                {...fieldA11y('gender', fieldErrors)}
               >
                 <option value="coed">Coed</option>
                 <option value="mens">Men&apos;s</option>
