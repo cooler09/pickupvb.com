@@ -12,9 +12,11 @@ hexagonal layering rules, and the page-decomposition pattern.
 
 ## Code of Conduct
 
-Be decent. No harassment, no slurs, no bad-faith engagement. I will
-close issues and PRs from anyone who can't manage that without further
-warning.
+Participation in this project is governed by
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1).
+Be decent. Report abusive behavior via a GitHub private security
+advisory on the repo — that's the only private channel currently
+available and it works fine for conduct reports.
 
 ## Before you start work
 
