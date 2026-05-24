@@ -9,6 +9,8 @@ import { LocalDateTime } from '@/components/local-datetime';
 import { SubmitButton } from '@/components/submit-button';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
+import { getServerSupabase } from '@/lib/supabase';
+import { loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { externalLinkHref } from '@/lib/external-link';
 import {
   claimListingFromForm,
@@ -131,6 +133,17 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   const showHiddenWarning =
     (detail.status === 'hidden' || detail.status === 'removed') && detail.canManage;
 
+  // For the claim section: surface the viewer's upcoming hosted events so
+  // they can pick one from a dropdown instead of pasting a UUID. Only load
+  // when the section will actually render (logged-in, active listing, not
+  // already manageable by viewer).
+  const showClaimSection = !!user && detail.status === 'active' && !detail.canManage;
+  const claimableEvents = showClaimSection
+    ? await loadVisibleHostedEvents(await getServerSupabase(), user.id, {
+        startsAfter: new Date(),
+      })
+    : [];
+
   return (
     <article className="mx-auto max-w-3xl space-y-6">
       <nav className="text-muted text-sm">
@@ -223,32 +236,77 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         <p className="text-muted text-xs break-all">{detail.externalUrl}</p>
       </section>
 
-      {user && detail.status === 'active' && !detail.canManage && (
+      {showClaimSection && (
         <section className="border-border-base bg-surface space-y-3 rounded-md border p-4 text-sm">
-          <p className="font-semibold">Host this event on PickupVB?</p>
-          <p className="text-muted text-xs">
-            If you&rsquo;re the organizer and you&rsquo;ve already created the matching event on
-            PickupVB, link it here. We&rsquo;ll mark this listing as claimed and point everyone at
-            your event page. You can only claim a listing with an event you host.
-          </p>
-          <form
-            action={claimListingFromForm.bind(null, detail.id, detail.slug)}
-            className="flex flex-wrap items-center gap-2"
-          >
-            <label htmlFor="event_id" className="sr-only">
-              Your event ID
-            </label>
-            <input
-              id="event_id"
-              name="event_id"
-              required
-              placeholder="Your event UUID"
-              className="border-border-base bg-surface w-72 max-w-full rounded-md border px-2 py-1 font-mono text-xs"
-            />
-            <SubmitButton className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
-              Claim listing
-            </SubmitButton>
-          </form>
+          <div className="space-y-1">
+            <p className="font-semibold">Is this your event?</p>
+            <p className="text-muted text-xs">
+              If you&rsquo;re the organizer, claim this listing and link it to your PickupVB event.
+              We&rsquo;ll point visitors at your event page (where they can RSVP, pay, and message
+              you) instead of the external site.
+            </p>
+          </div>
+
+          {claimableEvents.length === 0 ? (
+            <div className="border-border-base bg-fg/5 space-y-2 rounded-md border border-dashed p-3 text-xs">
+              <p className="font-semibold">Two steps to claim this listing:</p>
+              <ol className="text-muted ml-4 list-decimal space-y-1">
+                <li>
+                  Create the matching event on PickupVB —{' '}
+                  <Link
+                    href={'/events/new' as Route}
+                    className="text-primary font-medium hover:underline"
+                  >
+                    create event
+                  </Link>
+                  .
+                </li>
+                <li>Come back to this page and pick it from the list to claim.</li>
+              </ol>
+              <p className="text-muted">
+                You don&rsquo;t have any upcoming events on PickupVB yet, so there&rsquo;s nothing
+                to link.
+              </p>
+            </div>
+          ) : (
+            <form
+              action={claimListingFromForm.bind(null, detail.id, detail.slug)}
+              className="space-y-2"
+            >
+              <label htmlFor="event_id" className="text-fg block text-xs font-medium">
+                Pick the PickupVB event that matches this listing
+              </label>
+              <select
+                id="event_id"
+                name="event_id"
+                required
+                defaultValue=""
+                className="border-border-base bg-surface w-full max-w-md rounded-md border px-2 py-1.5 text-sm"
+              >
+                <option value="" disabled>
+                  Select one of your events…
+                </option>
+                {claimableEvents.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.title} — {new Date(e.starts_at).toLocaleDateString()} · {e.city}, {e.region}
+                  </option>
+                ))}
+              </select>
+              <p className="text-muted text-xs">
+                Only events you host (or co-host) are shown. Don&rsquo;t see the right one?{' '}
+                <Link
+                  href={'/events/new' as Route}
+                  className="text-primary font-medium hover:underline"
+                >
+                  Create it on PickupVB
+                </Link>{' '}
+                first.
+              </p>
+              <SubmitButton className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+                Claim listing
+              </SubmitButton>
+            </form>
+          )}
         </section>
       )}
 
