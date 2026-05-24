@@ -6,7 +6,7 @@ import { ZodError } from 'zod';
 import { CreateEventSchema } from '@pickupvb/types';
 import { CreateEventCommand, JoinEventCommand } from '@pickupvb/application';
 import { EVENT_POSITIONS, EventType, SkillTier, skillTierBand } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { handlers, analytics } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
@@ -391,6 +391,26 @@ export async function createEventAction(
       // Swallow — the event exists; auto-join is a convenience.
     }
   }
+
+  // Capture `event_published` after the row is durable (including any
+  // pricing / division updates above). Fire-and-forget; the adapter
+  // swallows network errors so analytics can't break the create flow.
+  // See docs/audits/analytics.md (P1 #1/#2).
+  analytics.capture(
+    {
+      name: 'event_published',
+      props: {
+        eventId: result.id,
+        hostId: user.id,
+        eventType: isTournament ? 'tournament' : 'open_play',
+        byPosition,
+        priceCents,
+        metroId: city ?? null,
+        capacity: dto.capacity?.kind === 'fixed' ? (dto.capacity.maxSpots as number) : null,
+      },
+    },
+    user.id,
+  );
 
   revalidatePath('/events');
   redirect(`/events/${result.id}?created=1`);

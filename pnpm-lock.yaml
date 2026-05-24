@@ -205,6 +205,9 @@ importers:
       '@pickupvb/supabase':
         specifier: workspace:*
         version: link:../supabase
+      posthog-node:
+        specifier: ^5.35.1
+        version: 5.35.1
     devDependencies:
       '@pickupvb/config':
         specifier: workspace:*
@@ -1412,6 +1415,18 @@ packages:
       }
     engines: { node: '>=18' }
     hasBin: true
+
+  '@posthog/core@1.29.9':
+    resolution:
+      {
+        integrity: sha512-DjvuIyBZ2Z/gBhtZlITlM2D8PlnMsHSQ1D78dbUYoVsgGguvanpJTobZObjLlFkybyvfZFYkpoJkFNI/2Pw4IQ==,
+      }
+
+  '@posthog/types@1.376.0':
+    resolution:
+      {
+        integrity: sha512-gbFfxCuZDs/D4QZMwdE+smD1jsuqgGpS6yKGHZZ19foxMy8RYHsU1E47iG1b88n/uN02fAabLibVwuxLtq8juw==,
+      }
 
   '@prisma/instrumentation@7.6.0':
     resolution:
@@ -5118,6 +5133,18 @@ packages:
       }
     engines: { node: '>=0.10.0' }
 
+  posthog-node@5.35.1:
+    resolution:
+      {
+        integrity: sha512-F9S3pEIYfGEVjLYIFHKaqfTIhn5IpS02Dkp7C/f1rqr4Z67Iqbt4jbKO8raWsT0veEI3rUp+DKuXLW1hN07FQA==,
+      }
+    engines: { node: ^20.20.0 || >=22.22.0 }
+    peerDependencies:
+      rxjs: ^7.0.0
+    peerDependenciesMeta:
+      rxjs:
+        optional: true
+
   prelude-ls@1.2.1:
     resolution:
       {
@@ -6952,6 +6979,12 @@ snapshots:
   '@playwright/test@1.60.0':
     dependencies:
       playwright: 1.60.0
+
+  '@posthog/core@1.29.9':
+    dependencies:
+      '@posthog/types': 1.376.0
+
+  '@posthog/types@1.376.0': {}
 
   '@prisma/instrumentation@7.6.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -9281,6 +9314,10 @@ snapshots:
   postgres-interval@1.2.0:
     dependencies:
       xtend: 4.0.2
+
+  posthog-node@5.35.1:
+    dependencies:
+      '@posthog/core': 1.29.9
 
   prelude-ls@1.2.1: {}
 
