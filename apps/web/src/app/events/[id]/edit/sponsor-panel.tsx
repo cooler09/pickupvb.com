@@ -115,7 +115,6 @@ export function SponsorPanel({
             maxLength={80}
             defaultValue={sponsor?.name ?? ''}
             className={inputClass}
-            disabled={!canUseSponsors}
           />
         </div>
 
@@ -129,7 +128,6 @@ export function SponsorPanel({
             maxLength={140}
             defaultValue={sponsor?.blurb ?? ''}
             className={inputClass}
-            disabled={!canUseSponsors}
           />
         </div>
 
@@ -145,7 +143,6 @@ export function SponsorPanel({
               maxLength={300}
               defaultValue={sponsor?.linkUrl ?? ''}
               className={inputClass}
-              disabled={!canUseSponsors}
             />
           </div>
           <div>
@@ -159,7 +156,6 @@ export function SponsorPanel({
               maxLength={300}
               defaultValue={sponsor?.logoUrl ?? ''}
               className={inputClass}
-              disabled={!canUseSponsors}
             />
           </div>
         </div>
@@ -174,7 +170,6 @@ export function SponsorPanel({
             maxLength={32}
             defaultValue={sponsor?.discountCode ?? ''}
             className={inputClass}
-            disabled={!canUseSponsors}
           />
         </div>
 

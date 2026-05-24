@@ -109,9 +109,15 @@ export default async function HostAnalyticsPage() {
   const repeatAttendees = Array.from(attendeeEventCountByUser.values()).filter((n) => n > 1).length;
   const repeatRate = uniqueAttendees > 0 ? repeatAttendees / uniqueAttendees : 0;
 
-  const totalCapacity = divisions.reduce((sum, d) => sum + (d.max_spots ?? 0), 0);
   const totalRegistrations = attendees.length;
-  const fillRate = totalCapacity > 0 ? totalRegistrations / totalCapacity : null;
+  const eventIdsWithCapacity = new Set(
+    divisions.filter((d) => d.max_spots !== null).map((d) => d.event_id),
+  );
+  const totalCapacity = divisions.reduce((sum, d) => sum + (d.max_spots ?? 0), 0);
+  const registrationsWithCapacity = attendees.filter((a) =>
+    eventIdsWithCapacity.has(a.event_id),
+  ).length;
+  const fillRate = totalCapacity > 0 ? registrationsWithCapacity / totalCapacity : null;
 
   const grossCents = audits
     .filter((a) => a.action === 'paid')
@@ -209,7 +215,7 @@ export default async function HostAnalyticsPage() {
               hint={
                 fillRate == null
                   ? 'Set max spots to track'
-                  : `${totalRegistrations}/${totalCapacity} spots filled`
+                  : `${registrationsWithCapacity}/${totalCapacity} spots (capacity-set events)`
               }
             />
           </section>
