@@ -24,7 +24,10 @@ a vendor SDK.
   `utmCampaign` traits). Bundle 78 closed P2 #7 first-pass: SQL views
   `metro_health_weekly` + `host_activity_monthly` and the public
   `/about/numbers` ISR page (30-min revalidate, RLS-respecting via
-  `security_invoker=on`). Open: `signup_completed` with
+  `security_invoker=on`). Bundle 79 closed P2 #8 (web-vitals →
+  product-analytics bridge: client `useReportWebVitals` →
+  `/api/web-vitals` beacon → server-side `analytics.capture('web_vitals',
+...)` with masked route templates). Open: `signup_completed` with
   `method: 'anon_claim'`, multi-touch / last-touch attribution,
   `position_demand_weekly` view (blocked on schema — no position
   column on `event_free_agents`), press-kit CSV download, and the
@@ -239,6 +242,10 @@ Build a `/about/numbers` page that reads these via a single RPC, ISR
 30 minutes. Include a "press kit" download with the same numbers as CSV.
 
 ### 8. No web-vitals → product-analytics bridge
+
+**Status (2026-05-24):** Bundle 79 ships the bridge. Vercel Speed
+Insights is left mounted alongside for parity-validation; retire once
+PostHog dashboards confirm comparable numbers (P3 #12).
 
 **File:**
 [apps/web/src/app/layout.tsx](../../apps/web/src/app/layout.tsx) — wires
@@ -461,3 +468,29 @@ visibility='public'` event by `(city, date_trunc('week', starts_at))`
   view re-evaluated every 30 minutes is fine. The host-self dashboard
   UI consumer of `host_activity_monthly` is also deferred (view is in
   place, no consumer yet).
+
+- **2026-05-24, Bundle 79** — Closes P2 #8 (web-vitals → product
+  analytics). New `web_vitals` variant on the `AnalyticsEvent` union
+  in [analytics-port.ts](../../packages/domain/src/shared/analytics-port.ts)
+  carries `metric` (LCP / CLS / INP / FCP / TTFB / FID), `value`,
+  `rating`, `route`, `navigationType` — no PII, all bounded
+  enums / numerics. New client component
+  [web-vitals-client.tsx](../../apps/web/src/components/web-vitals-client.tsx)
+  uses Next's `useReportWebVitals` hook (no new dependency) and
+  `navigator.sendBeacon` (with `fetch keepalive` fallback) to POST
+  each sample to a new route
+  [apps/web/src/app/api/web-vitals/route.ts](../../apps/web/src/app/api/web-vitals/route.ts)
+  which zod-validates the payload, resolves the viewer via
+  `getViewer()` (anon users capture without an actor id), and calls
+  `analytics.capture({ name: 'web_vitals', ... })`. Mounted in
+  [layout.tsx](../../apps/web/src/app/layout.tsx) next to
+  `AnalyticsClient` + `SpeedInsights`. Route templates collapse
+  UUID-shaped and numeric segments back to `[id]` so PostHog rolls
+  vitals up by route pattern rather than per-record URL. WebDriver
+  is filtered to match `AnalyticsClient`'s `beforeSend` guard.
+  Vercel Speed Insights is intentionally left mounted alongside — we
+  want a parity window before P3 #12 (drop Speed Insights) lands.
+  No client-side PostHog SDK: keeping all capture behind the
+  server-side port means the PII guardrail test in
+  [analytics-port.test.ts](../../packages/domain/src/shared/analytics-port.test.ts)
+  stays the single source of truth for what reaches the vendor.

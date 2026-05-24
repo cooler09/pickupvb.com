@@ -6,6 +6,7 @@ import { SiteFooter } from '@/components/site-footer';
 import { ToastProvider } from '@/components/toast';
 import { EnvBanner } from '@/components/env-banner';
 import { AnalyticsClient } from '@/components/analytics-client';
+import { WebVitalsClient } from '@/components/web-vitals-client';
 import { getCurrentUser } from '@/lib/server-auth';
 import { DEFAULT_THEME, isTheme, THEME_COOKIE, type Theme } from '@/lib/theme';
 import './globals.css';
@@ -136,6 +137,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </ToastProvider>
         <SiteFooter />
         <AnalyticsClient />
+        <WebVitalsClient />
         <SpeedInsights />
       </body>
     </html>

@@ -81,6 +81,31 @@ export interface HostPayoutSetupCompletedProps {
   hostId: AnalyticsActorId;
 }
 
+/** Core Web Vitals + a couple of supporting paint/network metrics. The
+ * names mirror the lowercase metric ids the browser exposes through
+ * `next/web-vitals`. */
+export type WebVitalMetric = 'LCP' | 'CLS' | 'INP' | 'FCP' | 'TTFB' | 'FID';
+
+export interface WebVitalsProps {
+  /** Which metric this sample is for. */
+  metric: WebVitalMetric;
+  /** Numeric value in metric-native units (ms for timing metrics,
+   * unitless score for CLS). Rounded to the nearest integer for
+   * timing metrics and to four decimals for CLS by the client
+   * before being sent. */
+  value: number;
+  /** Google's `good` / `needs-improvement` / `poor` bucket if the
+   * browser provided one. */
+  rating: 'good' | 'needs-improvement' | 'poor' | null;
+  /** Pathname the sample was collected on (no query string, no
+   * fragment, no PII). Dynamic segments are template-style:
+   * `/events/[id]` rather than `/events/abc-123`. */
+  route: string;
+  /** Page-load navigation type: `navigate` | `reload` | `back-forward`
+   * | `prerender` | `restore`. Null when the browser doesn't expose it. */
+  navigationType: string | null;
+}
+
 /**
  * Discriminated union of every event the platform captures. Add new
  * variants here before instrumenting a call site.
@@ -92,7 +117,8 @@ export type AnalyticsEvent =
   | { name: 'checkout_started'; props: CheckoutProps }
   | { name: 'checkout_completed'; props: CheckoutCompletedProps }
   | { name: 'signup_completed'; props: SignupCompletedProps }
-  | { name: 'host_payout_setup_completed'; props: HostPayoutSetupCompletedProps };
+  | { name: 'host_payout_setup_completed'; props: HostPayoutSetupCompletedProps }
+  | { name: 'web_vitals'; props: WebVitalsProps };
 
 export type AnalyticsEventName = AnalyticsEvent['name'];
 
