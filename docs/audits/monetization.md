@@ -561,6 +561,14 @@ hosts get fee discount + sponsor slot).
 
 ## Remediation log
 
+- **2026-05-24 — Validation gate requested** — Pause feature expansion and
+  run an **Opas audit** for Bundles 84–87 after the 8pm EST rate-limit
+  reset. Scope: verify implementation correctness and regression risk for
+  Bundle 84 (sponsor slot core), Bundle 85 (a-la-carte sponsor unlock),
+  Bundle 86 (saved templates), and Bundle 87 (host analytics dashboard).
+  Treat this as a required sign-off checkpoint before resuming higher-impact
+  monetization features.
+
 - **2026-05-24** — Audit authored. No remediation yet — next bundle
   will pick up P1 #2 (Stripe fee pass-through) or P2 #4 (host-owned
   sponsor slot) depending on user direction.
