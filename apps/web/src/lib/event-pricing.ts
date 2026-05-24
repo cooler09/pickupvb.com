@@ -18,8 +18,15 @@ export type EventPricing = {
 export async function getEventPricing(eventId: string): Promise<EventPricing | null> {
   const supabase = await getServerSupabase();
   // Pricing now lives on `event_divisions` (ADR 0006 Phase 9a). We use the
-  // first division (sort_order asc) as the canonical event price — checkout
-  // is still single-division. Per-division checkout is future scope.
+  // first division (sort_order asc) as the canonical event price for the
+  // per-player individual-signup checkout flow. Per-team divisions have
+  // their own checkout path (see `team-checkout-actions.ts`) that loads
+  // the specific division's `price_cents` directly — this helper is not
+  // on that path. Multi-division per-player checkout (each division
+  // priced differently for individual attendees) is still future scope;
+  // today the create/edit boundary enforces that team-led tournaments
+  // with multiple divisions either all use `per_team` pricing or set
+  // `payments_off_platform` (ADR 0007 §3).
   const [eventRes, divRes] = await Promise.all([
     supabase
       .from('events')

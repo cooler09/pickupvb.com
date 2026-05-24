@@ -123,6 +123,12 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
   }
 
   // ---- Factories -----------------------------------------------------------
+  /**
+   * Validate and produce a new `CommunityListing` in `active` status with
+   * zero votes. Throws via `normalizeTitle` / `assertTimeOrder` /
+   * `normalizeLocation` when title is empty / too long, the time range is
+   * inverted, or the location is malformed.
+   */
   static create(props: CreateCommunityListingProps): CommunityListing {
     const title = normalizeTitle(props.title);
     assertTimeOrder(props.startsAt, props.endsAt);
@@ -149,6 +155,11 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     );
   }
 
+  /**
+   * Rebuild a `CommunityListing` from already-persisted state. Skips the
+   * create-time invariants — only call from repository adapters reading
+   * already-validated rows.
+   */
   static fromPersistence(props: {
     id: CommunityListingId;
     submitterUserId: UserId;

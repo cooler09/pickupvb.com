@@ -1,4 +1,5 @@
 import { BRACKET_FORMATS } from '@pickupvb/domain';
+import { SubmitButton } from '@/components/submit-button';
 import { createBracketFromForm } from '../actions';
 import { FORMAT_LABEL } from './labels';
 
@@ -67,13 +68,12 @@ export function NoBracketView(props: {
             ))}
           </select>
         </label>
-        <button
-          type="submit"
+        <SubmitButton
           disabled={props.teamCount < 2}
           className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50"
         >
           Create
-        </button>
+        </SubmitButton>
         {props.teamCount < 2 && (
           <span className="text-muted text-xs">
             Need at least 2 registered teams to create a bracket.

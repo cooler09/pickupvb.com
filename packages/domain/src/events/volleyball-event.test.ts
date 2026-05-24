@@ -2,14 +2,19 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { VolleyballEvent, type EventId, type UserId, type TeamId } from './volleyball-event.js';
 import { Capacity } from './capacity.js';
 import { Location } from './location.js';
+import { Division, type DivisionId } from './division.js';
 import {
   EventPosition,
   EventStatus,
   EventType,
   Format,
   Gender,
+  PriceUnit,
   SkillLevel,
+  SkillTier,
   Surface,
+  TeamComposition,
+  TeamRegistrationMode,
   Visibility,
 } from './enums.js';
 import {
@@ -358,5 +363,176 @@ describe('free agent (tournament only)', () => {
     const open = makeOpenPlay();
     open.publish();
     expect(() => open.joinAsFreeAgent(ALICE, null)).toThrow(InvariantViolation);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR 0012 — canonical registration-config matrix
+// (event type × team_registration_mode × team_composition × price_unit)
+// ---------------------------------------------------------------------------
+
+function pricedDivision(props: {
+  id?: string;
+  priceCents: number | null;
+  priceUnit: PriceUnit;
+  sortOrder?: number;
+  teamComposition?: TeamComposition;
+}): Division {
+  return Division.create({
+    id: (props.id ?? 'div-1') as DivisionId,
+    sortOrder: props.sortOrder ?? 0,
+    label: 'Open',
+    surface: Surface.Sand,
+    format: Format.Quads,
+    gender: Gender.Coed,
+    skillTier: SkillTier.BB,
+    teamComposition: props.teamComposition ?? TeamComposition.Team,
+    priceCents: props.priceCents,
+    priceUnit: props.priceUnit,
+  });
+}
+
+function makeTournamentWith(opts: {
+  divisions: ReadonlyArray<Division>;
+  teamRegistrationMode?: TeamRegistrationMode | null;
+  paymentsOffPlatform?: boolean;
+}): VolleyballEvent {
+  return VolleyballEvent.create({
+    id: 'tourney-pc' as EventId,
+    hostId: HOST,
+    title: 'Tournament',
+    description: '',
+    rules: '',
+    surface: Surface.Sand,
+    format: Format.Quads,
+    gender: Gender.Coed,
+    skillLevel: SkillLevel.Advanced,
+    type: EventType.Tournament,
+    visibility: Visibility.Public,
+    location: LOCATION,
+    startsAt: tomorrow(),
+    endsAt: tomorrow(8),
+    divisions: opts.divisions,
+    extensions: {
+      ...(opts.teamRegistrationMode !== undefined
+        ? { teamRegistrationMode: opts.teamRegistrationMode }
+        : {}),
+      ...(opts.paymentsOffPlatform !== undefined
+        ? { paymentsOffPlatform: opts.paymentsOffPlatform }
+        : {}),
+    },
+  });
+}
+
+describe('VolleyballEvent registration-config invariant (ADR 0012)', () => {
+  it('defaults tournaments to ad-hoc team registration', () => {
+    const evt = makeTournament();
+    expect(evt.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
+  });
+
+  // Rule 2 — team-led events require team composition + per-team pricing
+  it('rejects ad-hoc team event with per-player priced division', () => {
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 2500, priceUnit: PriceUnit.PerPlayer })],
+      }),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects ad-hoc team event with per-player priced division even when paymentsOffPlatform (no escape hatch)', () => {
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 2500, priceUnit: PriceUnit.PerPlayer })],
+        paymentsOffPlatform: true,
+      }),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects ad-hoc team event with a free (price 0) per-player division', () => {
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerPlayer })],
+      }),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects ad-hoc team event with a solo-composition division', () => {
+    expect(() =>
+      makeTournamentWith({
+        divisions: [
+          pricedDivision({
+            priceCents: 10000,
+            priceUnit: PriceUnit.PerTeam,
+            teamComposition: TeamComposition.Solo,
+          }),
+        ],
+      }),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('accepts ad-hoc team event with per-team priced team-composition division', () => {
+    const evt = makeTournamentWith({
+      divisions: [pricedDivision({ priceCents: 10000, priceUnit: PriceUnit.PerTeam })],
+    });
+    expect(evt.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
+  });
+
+  // Rule 3 — individual-signup events require solo + per-player
+  it('rejects individual-signup tournament with per-team priced division', () => {
+    expect(() =>
+      makeTournamentWith({
+        teamRegistrationMode: null,
+        divisions: [
+          pricedDivision({
+            priceCents: 10000,
+            priceUnit: PriceUnit.PerTeam,
+            teamComposition: TeamComposition.Solo,
+          }),
+        ],
+      }),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects individual-signup tournament with a non-solo composition division', () => {
+    expect(() =>
+      makeTournamentWith({
+        teamRegistrationMode: null,
+        divisions: [pricedDivision({ priceCents: 2500, priceUnit: PriceUnit.PerPlayer })],
+      }),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('accepts individual-signup tournament with solo + per-player division', () => {
+    const evt = makeTournamentWith({
+      teamRegistrationMode: null,
+      divisions: [
+        pricedDivision({
+          priceCents: 2500,
+          priceUnit: PriceUnit.PerPlayer,
+          teamComposition: TeamComposition.Solo,
+        }),
+      ],
+    });
+    expect(evt.teamRegistrationMode).toBeNull();
+  });
+
+  // Rule 1 — open-play is individual-only
+  it('open-play events default to individual signup (null mode)', () => {
+    const open = makeOpenPlay();
+    expect(open.teamRegistrationMode).toBeNull();
+  });
+
+  // Defence-in-depth — addDivision re-runs invariants
+  it('addDivision rejects a division that creates an invalid combo', () => {
+    const evt = makeTournamentWith({
+      divisions: [pricedDivision({ priceCents: 10000, priceUnit: PriceUnit.PerTeam })],
+    });
+    const bad = pricedDivision({
+      id: 'div-bad',
+      sortOrder: 1,
+      priceCents: 2500,
+      priceUnit: PriceUnit.PerPlayer,
+    });
+    expect(() => evt.addDivision(bad)).toThrow(InvariantViolation);
   });
 });

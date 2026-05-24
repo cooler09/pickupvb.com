@@ -76,6 +76,12 @@ export class Division {
     public readonly endsAt: Date | null,
   ) {}
 
+  /**
+   * Validate inputs and produce a new `Division`. Throws
+   * {@link InvariantViolation} on empty / too-long label or invalid
+   * `sortOrder`, and rejects via `assertFormatAllowedForSurface` when
+   * surface and format are incompatible.
+   */
   static create(props: CreateDivisionProps): Division {
     const label = props.label.trim();
     if (!label) {

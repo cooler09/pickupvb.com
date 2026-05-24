@@ -5,12 +5,17 @@ import {
   SKILL_LABEL,
   SKILL_TIER_LABEL,
   AGE_GROUP_LABEL,
+  FORMAT_LABEL,
+  GENDER_LABEL,
 } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
 
 export type EventCardDivision = {
   id: string;
   label: string;
+  surface?: string;
+  format?: string | null;
+  gender?: string | null;
   skillTier: string;
   tierLabel: string | null;
   ageGroup: string;
@@ -109,30 +114,67 @@ export function EventCard({ event, friendNameById }: Props) {
         <span className="bg-primary/15 text-primary rounded px-1.5 py-0.5">
           {TYPE_LABEL[event.type] ?? event.type}
         </span>
-        <span className="bg-fg/5 rounded px-1.5 py-0.5">
-          {SURFACE_LABEL[event.surface] ?? event.surface}
-        </span>
-        <span className="bg-fg/5 rounded px-1.5 py-0.5">
-          {(() => {
-            const primary = divisions[0];
-            if (primary) {
-              return primary.tierLabel ?? SKILL_TIER_LABEL[primary.skillTier] ?? primary.skillTier;
-            }
-            return SKILL_LABEL[event.skillLevel] ?? event.skillLevel;
-          })()}
-        </span>
+        {(() => {
+          // Surface: show event-level by default, but if divisions disagree
+          // (a tournament that mixes indoor + sand) call it out as "varies".
+          const divSurfaces = new Set(
+            divisions.map((d) => d.surface).filter((s): s is string => Boolean(s)),
+          );
+          if (divSurfaces.size > 1) {
+            return (
+              <span className="bg-fg/5 rounded px-1.5 py-0.5">
+                {Array.from(divSurfaces)
+                  .map((s) => SURFACE_LABEL[s] ?? s)
+                  .join(' · ')}
+              </span>
+            );
+          }
+          return (
+            <span className="bg-fg/5 rounded px-1.5 py-0.5">
+              {SURFACE_LABEL[event.surface] ?? event.surface}
+            </span>
+          );
+        })()}
+        {divisions.length > 1 ? (
+          <span className="bg-fg/5 rounded px-1.5 py-0.5">{divisions.length} divisions</span>
+        ) : (
+          <span className="bg-fg/5 rounded px-1.5 py-0.5">
+            {(() => {
+              const primary = divisions[0];
+              if (primary) {
+                return (
+                  primary.tierLabel ?? SKILL_TIER_LABEL[primary.skillTier] ?? primary.skillTier
+                );
+              }
+              return SKILL_LABEL[event.skillLevel] ?? event.skillLevel;
+            })()}
+          </span>
+        )}
         {event.isFundraiser && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Fundraiser</span>
         )}
       </div>
       {divisions.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1 text-[11px]">
-          {divisions.slice(0, 4).map((d) => (
-            <li key={d.id} className="bg-fg/5 rounded px-1.5 py-0.5">
-              {d.tierLabel ?? SKILL_TIER_LABEL[d.skillTier] ?? d.skillTier}
-              {d.ageGroup !== 'adult' && ` · ${AGE_GROUP_LABEL[d.ageGroup] ?? d.ageGroup}`}
-            </li>
-          ))}
+          {divisions.slice(0, 4).map((d) => {
+            const parts: string[] = [];
+            parts.push(d.tierLabel ?? SKILL_TIER_LABEL[d.skillTier] ?? d.skillTier);
+            // For multi-division (tournaments), include format/gender so users
+            // can see what's offered without clicking through. Open-play has
+            // a single division and these duplicate the top-row chips.
+            if (divisions.length > 1) {
+              if (d.format) parts.push(FORMAT_LABEL[d.format] ?? d.format);
+              if (d.gender) parts.push(GENDER_LABEL[d.gender] ?? d.gender);
+            }
+            if (d.ageGroup !== 'adult') {
+              parts.push(AGE_GROUP_LABEL[d.ageGroup] ?? d.ageGroup);
+            }
+            return (
+              <li key={d.id} className="bg-fg/5 rounded px-1.5 py-0.5">
+                {parts.join(' · ')}
+              </li>
+            );
+          })}
           {divisions.length > 4 && (
             <li className="text-muted px-1.5 py-0.5">+{divisions.length - 4} more</li>
           )}

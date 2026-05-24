@@ -15,6 +15,7 @@
 
 import { useState } from 'react';
 import type { DivisionLite } from '@pickupvb/domain';
+import { SubmitButton } from '@/components/submit-button';
 import { addDivisionFromForm, updateDivisionFromForm, removeDivision } from '../division-actions';
 
 type Props = {
@@ -44,10 +45,6 @@ function DivisionForm({
   const [teamComposition, setTeamComposition] = useState<string>(
     initial?.teamComposition ?? 'solo',
   );
-  const needsTeamSize =
-    teamComposition === 'team' ||
-    teamComposition === 'pair_draw' ||
-    teamComposition === 'partner_required';
   return (
     <form action={action} className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -128,19 +125,6 @@ function DivisionForm({
             <option value="partner_required">Bring partner(s)</option>
           </select>
         </div>
-        {needsTeamSize && (
-          <div>
-            <label className={labelClass}>Team size</label>
-            <input
-              type="number"
-              name="teamSize"
-              min={1}
-              max={24}
-              defaultValue={initial?.teamSize ?? ''}
-              className={inputClass}
-            />
-          </div>
-        )}
         <div>
           <label className={labelClass}>Capacity</label>
           <select
@@ -177,6 +161,17 @@ function DivisionForm({
             className={inputClass}
           />
         </div>
+        <div>
+          <label className={labelClass}>Charge</label>
+          <select
+            name="priceUnit"
+            defaultValue={initial?.priceUnit ?? 'per_player'}
+            className={inputClass}
+          >
+            <option value="per_player">Per player</option>
+            <option value="per_team">Per team</option>
+          </select>
+        </div>
         <div className="sm:col-span-2">
           <label className={labelClass}>Prize</label>
           <input
@@ -196,12 +191,9 @@ function DivisionForm({
         >
           Cancel
         </button>
-        <button
-          type="submit"
-          className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium"
-        >
+        <SubmitButton className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50">
           {submitLabel}
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );

@@ -18,19 +18,38 @@ import { timeZoneForCoords } from '@/lib/timezone';
 import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
+import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 
 export type CreateEventState = {
   error?: string;
   fieldErrors?: Record<string, string>;
+  /** True once any submission has been attempted (success or failure). */
+  submitted?: boolean;
+  /** Snapshot of submitted form values, echoed back so uncontrolled inputs
+   *  can restore the user's entries when the action returns an error. */
+  values?: Record<string, string>;
 };
+
+/** Collect string entries from a FormData for echo-on-error. */
+function snapshot(formData: FormData): { submitted: true; values: Record<string, string> } {
+  const values: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) {
+    if (typeof v === 'string') values[k] = v;
+  }
+  return { submitted: true, values };
+}
 
 export async function createEventAction(
   _prev: CreateEventState,
   formData: FormData,
 ): Promise<CreateEventState> {
   const viewer = await getViewer();
-  if (!viewer) return { error: 'You must be signed in to host an event.' };
-  if (viewer.isAnonymous) return { error: 'Finish claiming your account before hosting an event.' };
+  if (!viewer) return { ...snapshot(formData), error: 'You must be signed in to host an event.' };
+  if (viewer.isAnonymous)
+    return {
+      ...snapshot(formData),
+      error: 'Finish claiming your account before hosting an event.',
+    };
   const { supabase, user } = viewer;
 
   const type = field(formData, 'type');
@@ -57,7 +76,11 @@ export async function createEventAction(
     coords = await geocodeAddress({ addressLine, city, region, postalCode, country });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Could not geocode address.';
-    return { error: message, fieldErrors: { 'location.addressLine': message } };
+    return {
+      ...snapshot(formData),
+      error: message,
+      fieldErrors: { 'location.addressLine': message },
+    };
   }
 
   // ---- ADR 0006 event-level extensions ------------------------------------
@@ -113,6 +136,22 @@ export async function createEventAction(
             ? { paymentInstructions: fieldOrUndefined(formData, 'paymentInstructions') }
             : {}),
         }
+      : {
+          ...(fieldOrUndefined(formData, 'paymentInstructions')
+            ? { paymentInstructions: fieldOrUndefined(formData, 'paymentInstructions') }
+            : {}),
+          ...(field(formData, 'paymentsOffPlatform') === 'on' ? { paymentsOffPlatform: true } : {}),
+        }),
+    // ADR 0007 — only meaningful for tournaments; aggregate ignores it for
+    // open-play. `none` = individual signups only.
+    ...(type === EventType.Tournament
+      ? (() => {
+          const raw = fieldOrUndefined(formData, 'teamRegistrationMode');
+          if (raw === 'ad_hoc') return { teamRegistrationMode: 'ad_hoc' as const };
+          if (raw === 'roster') return { teamRegistrationMode: 'roster' as const };
+          if (raw === 'none') return { teamRegistrationMode: null };
+          return {} as const; // unset → aggregate default (ad_hoc)
+        })()
       : {}),
   };
 
@@ -123,10 +162,11 @@ export async function createEventAction(
     const label = fieldOrUndefined(formData, `div_${i}_label`);
     if (!label) continue; // user added a row then cleared it
     const teamComposition = fieldOrUndefined(formData, `div_${i}_teamComposition`) || 'solo';
-    const teamSizeRaw = fieldOrUndefined(formData, `div_${i}_teamSize`);
     const capKind = fieldOrUndefined(formData, `div_${i}_capacityKind`) || 'unlimited';
     const maxSpots = fieldOrUndefined(formData, `div_${i}_maxSpots`);
     const priceUsd = fieldOrUndefined(formData, `div_${i}_priceUsd`);
+    const priceUnitRaw = fieldOrUndefined(formData, `div_${i}_priceUnit`);
+    const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
     const prizeText = fieldOrUndefined(formData, `div_${i}_prizeText`);
     divisions.push({
       label,
@@ -136,29 +176,77 @@ export async function createEventAction(
       skillTier: fieldOrUndefined(formData, `div_${i}_skillTier`) || 'bb',
       ageGroup: fieldOrUndefined(formData, `div_${i}_ageGroup`) || 'adult',
       teamComposition,
-      ...(teamSizeRaw ? { teamSize: Number(teamSizeRaw) } : {}),
       capacity:
         capKind === 'fixed' && maxSpots
           ? { kind: 'fixed' as const, maxSpots: Number(maxSpots) }
           : { kind: 'unlimited' as const },
       ...(priceUsd ? { priceCents: parsePriceCents(priceUsd) } : {}),
+      ...(priceUsd ? { priceUnit } : {}),
       ...(prizeText ? { prizeText } : {}),
     });
   }
+
+  const isTournament = type === EventType.Tournament;
+  if (isTournament && !isExternal && divisions.length === 0) {
+    return {
+      ...snapshot(formData),
+      error: 'Add at least one division for your tournament.',
+      fieldErrors: { divisions: 'Add at least one division.' },
+    };
+  }
+
+  // ADR 0012 — canonical registration-config invariants (event type × team
+  // mode × division composition × price unit).
+  if (isTournament && !isExternal) {
+    const submittedMode = fieldOrUndefined(formData, 'teamRegistrationMode');
+    const resolvedMode: 'ad_hoc' | 'roster' | null =
+      submittedMode === 'roster' ? 'roster' : submittedMode === 'none' ? null : 'ad_hoc'; // default when unset, matching the aggregate
+    const teamPricing = validateTeamPricing({
+      type: 'tournament',
+      teamRegistrationMode: resolvedMode,
+      paymentsOffPlatform: field(formData, 'paymentsOffPlatform') === 'on',
+      divisions: divisions.map((d) => ({
+        label: (d.label as string) ?? '',
+        teamComposition: ((d.teamComposition as string) ?? 'solo') as
+          | 'solo'
+          | 'team'
+          | 'pair_draw'
+          | 'partner_required',
+        priceUnit: ((d.priceUnit as string) ?? 'per_player') as 'per_player' | 'per_team',
+        priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
+      })),
+    });
+    if (!teamPricing.ok) {
+      return { ...snapshot(formData), error: teamPricing.error };
+    }
+  }
+
+  // For tournaments the per-division grid is the single source of truth for
+  // surface/format/gender/skill. Fall back to division[0] so the legacy
+  // top-level columns on `events` (still required by the schema) stay
+  // populated. Open-play and external still submit them directly.
+  const primaryDiv = isTournament && divisions.length > 0 ? divisions[0]! : undefined;
+  const topSurface = (primaryDiv?.surface as string | undefined) ?? field(formData, 'surface');
+  const topFormat =
+    (primaryDiv?.format as string | undefined) ?? fieldOrUndefined(formData, 'format');
+  const topGender =
+    (primaryDiv?.gender as string | undefined) ?? fieldOrUndefined(formData, 'gender');
+  const topSkillTier =
+    (primaryDiv?.skillTier as SkillTier | undefined) ??
+    (fieldOrUndefined(formData, 'skillTier') as SkillTier | undefined) ??
+    SkillTier.BB;
 
   const raw = {
     title: field(formData, 'title'),
     description: field(formData, 'description'),
     rules: field(formData, 'rules'),
-    surface: field(formData, 'surface'),
-    format: fieldOrUndefined(formData, 'format'),
-    gender: fieldOrUndefined(formData, 'gender'),
+    surface: topSurface,
+    format: topFormat,
+    gender: topGender,
     // The form submits the precise SkillTier (matching the per-division
     // selects); the create command still takes the legacy 4-bucket band, so
     // derive it. Falls back to 'bb' (intermediate) if the field is missing.
-    skillLevel: skillTierBand(
-      (fieldOrUndefined(formData, 'skillTier') as SkillTier) ?? SkillTier.BB,
-    ),
+    skillLevel: skillTierBand(topSkillTier),
     type,
     visibility: field(formData, 'visibility'),
     location: {
@@ -196,9 +284,9 @@ export async function createEventAction(
         const path = issue.path.join('.');
         if (!fieldErrors[path]) fieldErrors[path] = issue.message;
       }
-      return { error: 'Please fix the highlighted fields.', fieldErrors };
+      return { ...snapshot(formData), error: 'Please fix the highlighted fields.', fieldErrors };
     }
-    return { error: 'Could not parse form input.' };
+    return { ...snapshot(formData), error: 'Could not parse form input.' };
   }
 
   let result: { id: string };
@@ -206,7 +294,7 @@ export async function createEventAction(
     result = await handlers.createEvent.execute(new CreateEventCommand(user.id, dto));
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to create event.';
-    return { error: message };
+    return { ...snapshot(formData), error: message };
   }
 
   // If the user chose to host on behalf of a group, attach it to the row.
@@ -218,15 +306,25 @@ export async function createEventAction(
       .update({ host_group_id: hostGroupId } as never)
       .eq('id', result.id);
     if (groupErr) {
-      return { error: `Event created, but couldn't set group host: ${groupErr.message}` };
+      return {
+        ...snapshot(formData),
+        error: `Event created, but couldn't set group host: ${groupErr.message}`,
+      };
     }
   }
 
-  // Pricing: if the host set a non-zero price, gate it behind a connected
-  // Stripe account that's actually able to receive charges. Free events
-  // (price = 0) skip Stripe entirely.
-  const priceCents = parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
-  if (priceCents > 0) {
+  // Pricing: open-play uses the top-level priceUsd input. Tournaments price
+  // per-division (already collected above); for Stripe gating we treat the
+  // highest division price as the event price. Free events (price = 0) skip
+  // Stripe entirely.
+  const priceCents = isTournament
+    ? divisions.reduce(
+        (max, d) => Math.max(max, typeof d.priceCents === 'number' ? (d.priceCents as number) : 0),
+        0,
+      )
+    : parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
+  const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
+  if (priceCents > 0 && !paymentsOffPlatform) {
     // Free hosts are capped at 1 paid event per 30 days. Pro hosts have
     // no cap. Check BEFORE creating Stripe Checkout, so we can roll back
     // the event row cleanly. Count already includes the row we just
@@ -234,14 +332,14 @@ export async function createEventAction(
     const cap = await validateHostPaidEventCap(user.id, { includesCurrentEvent: true });
     if (!cap.ok) {
       await supabase.from('events').delete().eq('id', result.id);
-      return { error: cap.reason };
+      return { ...snapshot(formData), error: cap.reason };
     }
     const stripe = await requireHostChargesEnabled(user.id);
     if (!stripe.ok) {
       // Roll back the event so the host doesn't end up with a free
       // event they thought was paid.
       await supabase.from('events').delete().eq('id', result.id);
-      return { error: stripe.reason };
+      return { ...snapshot(formData), error: stripe.reason };
     }
     const refundWindowHours = parseRefundWindowHours(
       fieldOrUndefined(formData, 'refundWindowHours'),
@@ -255,18 +353,26 @@ export async function createEventAction(
       } as never)
       .eq('id', result.id);
     if (priceErr) {
-      return { error: `Event created, but pricing failed: ${priceErr.message}` };
+      return {
+        ...snapshot(formData),
+        error: `Event created, but pricing failed: ${priceErr.message}`,
+      };
     }
-    // Pricing now lives on event_divisions (ADR 0006 Phase 9a). Update
-    // the first (default) division — created either by the create handler
-    // or by the events_create_default_division DB trigger.
-    const { error: divPriceErr } = await supabase
-      .from('event_divisions')
-      .update({ price_cents: priceCents } as never)
-      .eq('event_id', result.id)
-      .eq('sort_order', 0);
-    if (divPriceErr) {
-      return { error: `Event created, but pricing failed: ${divPriceErr.message}` };
+    // Pricing now lives on event_divisions (ADR 0006 Phase 9a). For
+    // open-play we update the first (default) division here. Tournaments
+    // already supplied per-division priceCents through the create handler.
+    if (!isTournament) {
+      const { error: divPriceErr } = await supabase
+        .from('event_divisions')
+        .update({ price_cents: priceCents } as never)
+        .eq('event_id', result.id)
+        .eq('sort_order', 0);
+      if (divPriceErr) {
+        return {
+          ...snapshot(formData),
+          error: `Event created, but pricing failed: ${divPriceErr.message}`,
+        };
+      }
     }
   }
 

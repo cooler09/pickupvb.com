@@ -1,9 +1,19 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { skillTierBand, type SkillTier } from '@pickupvb/domain';
-import { getServerSupabase } from '@/lib/supabase';
+import type { Database } from '@pickupvb/supabase';
 import { SURFACE_LABEL, TYPE_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
+
+/**
+ * Supabase client shape accepted by the loaders below. Works with both
+ * the cookie-bound server client (`getServerSupabase`) and the sessionless
+ * anon client (`createSupabaseAnonClient`). The anon client returns only
+ * publicly-visible events; the server client returns events visible to
+ * the viewer per RLS.
+ */
+export type HostedEventsLoaderClient = SupabaseClient<Database>;
 
 export type HostedEventRow = {
   id: string;
@@ -28,7 +38,7 @@ export type HostedEventRow = {
  * values off the legacy event columns onto event_divisions.
  */
 export async function hydratePrimaryDivision(
-  supabase: Awaited<ReturnType<typeof getServerSupabase>>,
+  supabase: HostedEventsLoaderClient,
   rows: HostedEventRow[],
 ): Promise<HostedEventRow[]> {
   if (rows.length === 0) return rows;
@@ -72,11 +82,10 @@ export async function hydratePrimaryDivision(
  * SQL so we don't pull the entire history just to drop half of it client-side.
  */
 export async function loadVisibleHostedEvents(
+  supabase: HostedEventsLoaderClient,
   hostId: string,
   opts: { startsAfter?: Date; startsBefore?: Date } = {},
 ): Promise<HostedEventRow[]> {
-  const supabase = await getServerSupabase();
-
   const applyDateFilters = <
     T extends {
       gte: (col: string, val: string) => T;

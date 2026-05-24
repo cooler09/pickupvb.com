@@ -9,6 +9,7 @@ import AdvancedDetailsPanel, {
   type AdvancedDetailsInitial,
 } from '@/components/event-advanced-details-panel';
 import { Alert } from '@/components/alert';
+import { FieldError, fieldA11y } from '@/components/field-error';
 import { editEventAction, type EditEventState } from './actions';
 
 const initialState: EditEventState = {};
@@ -16,19 +17,6 @@ const initialState: EditEventState = {};
 const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-const errorClass = 'mt-1 text-xs text-red-600';
-
-function FieldError({
-  name,
-  errors,
-}: {
-  name: string;
-  errors: Record<string, string> | undefined;
-}) {
-  const msg = errors?.[name];
-  if (!msg) return null;
-  return <p className={errorClass}>{msg}</p>;
-}
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -65,6 +53,9 @@ export type EditEventFormProps = {
     priceUsd: string;
     refundWindowHours: number;
     hostAbsorbsFee: boolean;
+    paymentsOffPlatform: boolean;
+    /** ADR 0007 — tournaments only. `null` for open-play. */
+    teamRegistrationMode: 'ad_hoc' | 'roster' | null;
     extensions: AdvancedDetailsInitial;
   };
 };
@@ -86,6 +77,11 @@ export default function EditEventForm({
   const [country, setCountry] = useState(initial.country);
   const [startsAt, setStartsAt] = useState<Date | null>(initial.startsAt);
   const [endsAt, setEndsAt] = useState<Date | null>(initial.endsAt);
+  // Controlled so we can hide on-platform-only controls (refund window,
+  // service-fee absorption) when the host opts out of Stripe entirely.
+  // Matches the gating in apps/web/src/app/events/new/new-event-form.tsx.
+  const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(initial.paymentsOffPlatform);
+  const showOnPlatformControls = !paymentsOffPlatform;
 
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
@@ -115,6 +111,7 @@ export default function EditEventForm({
             maxLength={120}
             defaultValue={initial.title}
             className={inputClass}
+            {...fieldA11y('title', state.fieldErrors)}
           />
           <FieldError name="title" errors={state.fieldErrors} />
         </div>
@@ -145,33 +142,35 @@ export default function EditEventForm({
           />
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="skillTier" className={labelClass}>
-              Skill tier
-            </label>
-            <select
-              id="skillTier"
-              name="skillTier"
-              defaultValue={initial.skillTier}
-              className={inputClass}
-            >
-              <optgroup label="Beginner">
-                <option value="c">C</option>
-                <option value="b">B</option>
-              </optgroup>
-              <optgroup label="Intermediate">
-                <option value="bb">BB</option>
-                <option value="bb3">BB-3</option>
-              </optgroup>
-              <optgroup label="Advanced">
-                <option value="a">A</option>
-              </optgroup>
-              <optgroup label="Competitive">
-                <option value="aa">AA</option>
-                <option value="open">Open</option>
-              </optgroup>
-            </select>
-          </div>
+          {isOpenPlay && (
+            <div>
+              <label htmlFor="skillTier" className={labelClass}>
+                Skill tier
+              </label>
+              <select
+                id="skillTier"
+                name="skillTier"
+                defaultValue={initial.skillTier}
+                className={inputClass}
+              >
+                <optgroup label="Beginner">
+                  <option value="c">C</option>
+                  <option value="b">B</option>
+                </optgroup>
+                <optgroup label="Intermediate">
+                  <option value="bb">BB</option>
+                  <option value="bb3">BB-3</option>
+                </optgroup>
+                <optgroup label="Advanced">
+                  <option value="a">A</option>
+                </optgroup>
+                <optgroup label="Competitive">
+                  <option value="aa">AA</option>
+                  <option value="open">Open</option>
+                </optgroup>
+              </select>
+            </div>
+          )}
           <div>
             <label htmlFor="visibility" className={labelClass}>
               Visibility
@@ -228,6 +227,7 @@ export default function EditEventForm({
                 min={1}
                 defaultValue={initial.maxSpots ?? ''}
                 className={inputClass}
+                {...fieldA11y('maxSpots', state.fieldErrors)}
               />
               <FieldError name="maxSpots" errors={state.fieldErrors} />
               <p className="text-muted mt-1 text-xs">Cannot drop below current attendee count.</p>
@@ -236,64 +236,182 @@ export default function EditEventForm({
         </fieldset>
       )}
 
-      <fieldset className="border-border-base space-y-3 rounded-md border p-4">
-        <legend className="text-fg px-1 text-sm font-semibold">Pricing</legend>
-        {pricingLocked && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-            Pricing is locked because at least one ticket has been sold. Refund all attendees first
-            to change price, fee, or refund window.
-          </div>
-        )}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div>
-            <label htmlFor="priceUsd" className={labelClass}>
-              Price (USD)
-            </label>
-            <input
-              id="priceUsd"
-              name="priceUsd"
-              type="number"
-              min="0"
-              max="10000"
-              step="0.01"
-              defaultValue={initial.priceUsd}
-              disabled={pricingLocked}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="refundWindowHours" className={labelClass}>
-              Refund window (hours)
-            </label>
-            <input
-              id="refundWindowHours"
-              name="refundWindowHours"
-              type="number"
-              min="0"
-              max="720"
-              step="1"
-              defaultValue={initial.refundWindowHours}
-              disabled={pricingLocked}
-              className={inputClass}
-            />
-          </div>
-          <div className="flex items-end">
-            <label className="flex items-start gap-2 text-xs">
+      {isOpenPlay ? (
+        <fieldset className="border-border-base space-y-3 rounded-md border p-4">
+          <legend className="text-fg px-1 text-sm font-semibold">Pricing</legend>
+          {pricingLocked && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+              Pricing is locked because at least one ticket has been sold. Refund all attendees
+              first to change price, fee, or refund window.
+            </div>
+          )}
+          <div
+            className={`grid grid-cols-1 gap-3 ${showOnPlatformControls ? 'sm:grid-cols-3' : ''}`}
+          >
+            <div>
+              <label htmlFor="priceUsd" className={labelClass}>
+                Price (USD)
+              </label>
               <input
-                type="checkbox"
-                name="hostAbsorbsFee"
-                defaultChecked={initial.hostAbsorbsFee}
+                id="priceUsd"
+                name="priceUsd"
+                type="number"
+                min="0"
+                max="10000"
+                step="0.01"
+                defaultValue={initial.priceUsd}
                 disabled={pricingLocked}
-                className="mt-0.5"
+                className={inputClass}
               />
-              <span>
-                <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
-                <span className="text-muted block">Otherwise added on top of ticket price.</span>
-              </span>
-            </label>
+            </div>
+            {showOnPlatformControls && (
+              <>
+                <div>
+                  <label htmlFor="refundWindowHours" className={labelClass}>
+                    Refund window (hours)
+                  </label>
+                  <input
+                    id="refundWindowHours"
+                    name="refundWindowHours"
+                    type="number"
+                    min="0"
+                    max="720"
+                    step="1"
+                    defaultValue={initial.refundWindowHours}
+                    disabled={pricingLocked}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-start gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      name="hostAbsorbsFee"
+                      defaultChecked={initial.hostAbsorbsFee}
+                      disabled={pricingLocked}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
+                      <span className="text-muted block">
+                        Otherwise added on top of ticket price.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </>
+            )}
           </div>
-        </div>
-      </fieldset>
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="paymentsOffPlatform"
+              checked={paymentsOffPlatform}
+              onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+              disabled={pricingLocked}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-fg font-medium">
+                I&apos;ll collect payment myself (off-platform)
+              </span>
+              <span className="text-muted block">
+                Display the price but skip Stripe. Players RSVP without paying online.
+              </span>
+            </span>
+          </label>
+        </fieldset>
+      ) : (
+        <fieldset className="border-border-base space-y-3 rounded-md border p-4">
+          <legend className="text-fg px-1 text-sm font-semibold">Payment settings</legend>
+          {pricingLocked && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+              Payment settings are locked because at least one ticket has been sold.
+            </div>
+          )}
+          <p className="text-muted text-xs">
+            Entry prices are managed per division on the{' '}
+            <Link href={`/events/${eventId}`} className="text-primary hover:underline">
+              event page
+            </Link>
+            .
+          </p>
+          {showOnPlatformControls && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="refundWindowHours" className={labelClass}>
+                  Refund window (hours)
+                </label>
+                <input
+                  id="refundWindowHours"
+                  name="refundWindowHours"
+                  type="number"
+                  min="0"
+                  max="720"
+                  step="1"
+                  defaultValue={initial.refundWindowHours}
+                  disabled={pricingLocked}
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    name="hostAbsorbsFee"
+                    defaultChecked={initial.hostAbsorbsFee}
+                    disabled={pricingLocked}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
+                    <span className="text-muted block">
+                      Otherwise added on top of ticket price.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="paymentsOffPlatform"
+              checked={paymentsOffPlatform}
+              onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+              disabled={pricingLocked}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-fg font-medium">
+                I&apos;ll collect payment myself (off-platform)
+              </span>
+              <span className="text-muted block">
+                Display the price but skip Stripe. Players RSVP without paying online.
+              </span>
+            </span>
+          </label>
+          <div>
+            <label htmlFor="teamRegistrationMode" className={labelClass}>
+              Team registration
+            </label>
+            <select
+              id="teamRegistrationMode"
+              name="teamRegistrationMode"
+              defaultValue={initial.teamRegistrationMode ?? 'none'}
+              className={inputClass}
+            >
+              <option value="ad_hoc">Ad-hoc — captains create a team at signup</option>
+              <option value="roster">Roster — captains pick an existing team</option>
+              <option value="none">None — individual signups only</option>
+            </select>
+            <p className="text-muted mt-1 text-xs">
+              Tournaments only. Switching modes after registrations exist may strand existing
+              signups; change with care.
+            </p>
+          </div>
+        </fieldset>
+      )}
 
       <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <legend className="text-fg col-span-full text-lg font-semibold">When</legend>
@@ -344,6 +462,7 @@ export default function EditEventForm({
             value={addressLine}
             onChange={(e) => setAddressLine(e.target.value)}
             className={inputClass}
+            {...fieldA11y('addressLine', state.fieldErrors)}
           />
           <FieldError name="addressLine" errors={state.fieldErrors} />
         </div>

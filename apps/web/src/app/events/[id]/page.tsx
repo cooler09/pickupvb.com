@@ -1,38 +1,24 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import type { Metadata } from 'next/types';
-import { notFound } from 'next/navigation';
-import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
-import { getViewer, isAnonymousUser } from '@/lib/server-auth';
-import { getServerSupabase } from '@/lib/supabase';
-import type { SocialHandles } from '@/lib/social-handles';
+import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { LocalDateTime } from '@/components/local-datetime';
-import { getEventPricing, attendeeChargeBreakdownAsync, isPaidEvent } from '@/lib/event-pricing';
-import { AttendeeList } from '@/components/attendee-list';
-import { Alert } from '@/components/alert';
-import { EventJsonLd } from './_components/event-jsonld';
-import { EventHero, type EventHeroCta } from './_components/event-hero';
-import { EventClosedState } from './_components/event-closed-state';
+import { EventHero } from './_components/event-hero';
 import { EventStickyCta } from './_components/event-sticky-cta';
 import { HostsSection } from './_components/hosts-section';
-import { PaidTicketPanel } from './_components/paid-ticket-panel';
-import { PositionRsvpPanel } from './_components/position-rsvp-panel';
-import { RsvpPanel } from './_components/rsvp-panel';
-import { TournamentSignupPanel } from './_components/tournament-signup-panel';
-import { FreeAgentSignupPanel } from './_components/free-agent-signup-panel';
-import { TournamentRegistrationTabs } from './_components/tournament-registration-tabs';
 import { TeamsRegisteredSection } from './_components/teams-registered-section';
-import EventMap from './_components/event-map-lazy';
 import { TipJar } from './_components/tip-jar';
-import { HostBroadcastPanel } from './_components/host-broadcast-panel';
 import { DivisionsSection } from './_components/divisions-section';
-import { ExternalRegistrationCard } from './_components/external-registration-card';
 import { EventMetaSection } from './_components/event-meta-section';
-import { HostDivisionsManager } from './_components/host-divisions-manager';
-import { SignupSection } from './_components/signup-section';
+import { EventStructuredData } from './_components/event-structured-data';
+import { EventFlashBanners } from './_components/event-flash-banners';
+import { EventLocationSection } from './_components/event-location-section';
+import { EventSignupArea } from './_components/event-signup-area';
+import { HostToolsSection } from './_components/host-tools-section';
+import { AttendeesPanel } from './_components/attendees-panel';
+import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -40,8 +26,9 @@ export async function generateMetadata(props: {
   const { id } = await props.params;
   let event;
   try {
-    event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, null));
-  } catch {
+    event = await loadEventReadModelPublic(id);
+  } catch (err) {
+    if (err instanceof NotFoundError) return { title: 'Event — PickupVB' };
     return { title: 'Event — PickupVB' };
   }
   // Don't expose non-public events to crawlers.
@@ -90,230 +77,52 @@ export default async function EventDetailPage(props: {
   // Resolve the viewer first so the detail query can return viewer-specific
   // bits (RSVP state, manage permission, friend ids, hostable groups).
   const viewer = await getViewer();
-  const user = viewer?.user ?? null;
-  const isRealUser = !!user && !isAnonymousUser(user);
-
-  let event;
-  try {
-    event = await handlers.getEventDetail.execute(
-      new GetEventDetailQuery(params.id, user?.id ?? null),
-    );
-  } catch (err) {
-    if (err instanceof NotFoundError) notFound();
-    throw err;
-  }
-
-  const friendIds = new Set(event.viewerFriendIds);
-  const returnPath = `/events/${event.id}`;
-  const hasStarted = event.startsAt.getTime() <= Date.now();
-  const isExternal = event.registrationMode === 'external';
-  // External-registration events suppress all on-platform signup panels.
-  const signupsOpen = event.status === 'published' && !hasStarted && !isExternal;
-
-  // Pricing is read separately from the aggregate — see lib/event-pricing.ts.
-  const pricing = await getEventPricing(event.id);
-  const paid = isPaidEvent(pricing);
-
-  // Side-loads below are all independent of each other. Run in parallel.
-  const isHostOfEvent = !!user && event.canManage;
-  const needsViewerPayment = paid && !!user && event.isAttending;
-  const needsManagePayments = paid && event.canManage;
-
-  const [breakdown, viewerIsPro, tipTotalCents, payments, viewerPaymentStatus] = await Promise.all([
-    pricing && paid ? attendeeChargeBreakdownAsync(pricing) : Promise.resolve(null),
-    event.canManage && user
-      ? (await import('@/lib/admin')).hasProBenefits(user.id)
-      : Promise.resolve(false),
-    // Tip-jar totals (cheap RPC). Hidden from the host themselves.
-    isHostOfEvent
-      ? Promise.resolve(0)
-      : (async () => {
-          const { getAdminSupabase } = await import('@/lib/supabase-admin');
-          const { data: tipTotal } = await getAdminSupabase().rpc('event_tip_total_cents', {
-            p_event_id: event.id,
-          } as never);
-          return Number(tipTotal ?? 0);
-        })(),
-    // For paid events, side-load per-attendee payment status (admin client —
-    // visibility is host-only). Free events get undefined.
-    needsManagePayments
-      ? (async () => {
-          const { getAdminSupabase } = await import('@/lib/supabase-admin');
-          const { data: payRows } = await getAdminSupabase()
-            .from('event_attendees')
-            .select('user_id, payment_status, payment_intent_id')
-            .eq('event_id', event.id);
-          type PayRow = {
-            user_id: string;
-            payment_status: string;
-            payment_intent_id: string | null;
-          };
-          const map = new Map<string, { status: string; viaStripe: boolean }>();
-          for (const r of (payRows as PayRow[] | null) ?? []) {
-            map.set(r.user_id, {
-              status: r.payment_status,
-              viaStripe: !!r.payment_intent_id,
-            });
-          }
-          return map;
-        })()
-      : Promise.resolve(undefined),
-    // For paid events, also look up the viewer's own payment status so the
-    // RSVP panel can show "paid / pending / due" badges.
-    needsViewerPayment
-      ? (async () => {
-          const supabaseForViewer = await (await import('@/lib/supabase')).getServerSupabase();
-          const { data: row } = await supabaseForViewer
-            .from('event_attendees')
-            .select('payment_status')
-            .eq('event_id', event.id)
-            .eq('user_id', user!.id)
-            .maybeSingle();
-          const raw = (row as { payment_status?: string } | null)?.payment_status;
-          return raw === 'paid' || raw === 'pending' || raw === 'none' ? raw : undefined;
-        })()
-      : Promise.resolve(undefined),
-  ]);
-
-  // Primary host's social handles — small extra fetch, kept outside the
-  // domain read model since it's purely cosmetic. Renders nothing when the
-  // host hasn't set any handles.
-  let primaryHostUserSocial: SocialHandles | null = null;
-  if (event.primaryHostUser) {
-    const supabaseForSocial = await getServerSupabase();
-    const { data: socialRow } = await supabaseForSocial
-      .from('profiles')
-      .select(
-        'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
-      )
-      .eq('id', event.primaryHostUser.id)
-      .maybeSingle();
-    const r = socialRow as {
-      instagram_handle: string | null;
-      tiktok_handle: string | null;
-      twitter_handle: string | null;
-      facebook_handle: string | null;
-      youtube_handle: string | null;
-      website_url: string | null;
-    } | null;
-    if (r) {
-      primaryHostUserSocial = {
-        instagramHandle: r.instagram_handle,
-        tiktokHandle: r.tiktok_handle,
-        twitterHandle: r.twitter_handle,
-        facebookHandle: r.facebook_handle,
-        youtubeHandle: r.youtube_handle,
-        websiteUrl: r.website_url,
-      };
-    }
-  }
-
-  // The AttendeeList component still expects the snake_case Supabase shape.
-  // Map the read model to it inline to keep the component unchanged.
-  const attendeesForList = event.attendees.map((a) => ({
-    user_id: a.userId,
-    joined_at: a.joinedAt.toISOString(),
-    position: a.position,
-    waitlist: a.waitlist,
-    handle: a.profile.handle,
-    profiles: {
-      display_name: a.profile.displayName,
-      first_name: a.profile.firstName,
-      last_name: a.profile.lastName,
-      avatar_url: a.profile.avatarUrl,
-    },
-  }));
-
-  // Per-position fill counts for the positional RSVP panel.
-  const filledByPosition: Partial<Record<string, number>> = {};
-  for (const a of event.attendees) {
-    if (!a.position) continue;
-    filledByPosition[a.position] = (filledByPosition[a.position] ?? 0) + 1;
-  }
-  const viewerPosition = user
-    ? (event.attendees.find((a) => a.userId === user.id)?.position ?? null)
-    : null;
-
-  // Primary call-to-action shown in the hero (and mirrored in the mobile
-  // sticky bar). Falls through to `null` when there's nothing actionable
-  // (draft, cancelled, etc.); the closed-state pivot picks up the slack.
-  const priceLabel = paid && breakdown ? `$${(breakdown.ticketCents / 100).toFixed(2)}` : 'Free';
-  const cta: EventHeroCta = (() => {
-    if (event.status === 'cancelled' || event.status === 'draft') return null;
-    if (isExternal && signupsOpen && event.externalRegistrationUrl) {
-      return {
-        kind: 'external',
-        href: event.externalRegistrationUrl,
-        label: 'Register externally',
-      };
-    }
-    if (event.type === 'tournament' && (hasStarted || event.status === 'completed')) {
-      return {
-        kind: 'internal',
-        href: `/events/${event.id}/bracket` as Route,
-        label: 'Open bracket',
-      };
-    }
-    if (event.type === 'open_play' && (hasStarted || event.status === 'completed')) {
-      return { kind: 'anchor', hash: '#attendees', label: 'View attendees' };
-    }
-    if (!signupsOpen) return null;
-    if (event.isAttending) {
-      return { kind: 'anchor', hash: '#signup', label: "You're in — view details" };
-    }
-    if (event.spotsRemaining === 0) {
-      return { kind: 'anchor', hash: '#signup', label: 'Join waitlist' };
-    }
-    if (event.type === 'tournament') {
-      return { kind: 'anchor', hash: '#signup', label: 'Register' };
-    }
-    if (paid) return { kind: 'anchor', hash: '#signup', label: 'Buy ticket' };
-    return { kind: 'anchor', hash: '#signup', label: 'RSVP' };
-  })();
+  const vm = await loadEventDetail(params.id, viewer);
+  const {
+    event,
+    user,
+    isRealUser,
+    isHostOfEvent,
+    friendIds,
+    returnPath,
+    hasStarted,
+    closingSoon,
+    isExternal,
+    signupsOpen,
+    pricing,
+    paid,
+    breakdown,
+    priceLabel,
+    viewerIsPro,
+    tipTotalCents,
+    hostStripeReady,
+    primaryHostUserSocial,
+    eligibleTeamsByDivision,
+    payments,
+    viewerPaymentStatus,
+    adHocViewerRegistrations,
+    adHocAllRegistrations,
+    adHocHostRows,
+    attendeesForList,
+    filledByPosition,
+    viewerPosition,
+    cta,
+  } = vm;
 
   return (
     <article className="mx-auto max-w-3xl space-y-8">
-      {event.visibility === 'public' && (
-        <EventJsonLd
-          id={event.id}
-          title={event.title}
-          description={event.description}
-          startsAt={event.startsAt}
-          endsAt={event.endsAt}
-          visibility={event.visibility}
-          status={event.status}
-          spotsRemaining={event.spotsRemaining}
-          attendeeCount={event.attendeeCount}
-          location={event.location}
-          organizerName={event.primaryHostGroup?.name ?? event.primaryHostUser?.displayName ?? null}
-          ticketCents={breakdown?.ticketCents ?? null}
-        />
-      )}
+      <EventStructuredData event={event} ticketCents={breakdown?.ticketCents ?? null} />
       <Link href="/events" className="text-primary text-sm hover:underline">
         ← Back to events
       </Link>
 
-      {pickQuery(searchParams, 'created') === '1' && (
-        <Alert variant="success" title="Event created!">
-          Share the link above or invite co-hosts so players can find your event.
-        </Alert>
-      )}
-
-      {pickQuery(searchParams, 'tip') === 'thanks' && (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
-          Thanks for tipping the host!
-        </div>
-      )}
-      {pickQuery(searchParams, 'tip') === 'cancel' && (
-        <div className="border-border-base bg-surface rounded-lg border p-3 text-sm">
-          Tip cancelled.
-        </div>
-      )}
-      {pickQuery(searchParams, 'tip') === 'error' && (
-        <div className="border-secondary bg-secondary/10 rounded-lg border p-3 text-sm">
-          {pickQuery(searchParams, 'tip_msg') ?? 'Could not process tip.'}
-        </div>
-      )}
+      <EventFlashBanners
+        created={pickQuery(searchParams, 'created')}
+        tip={pickQuery(searchParams, 'tip')}
+        tipMsg={pickQuery(searchParams, 'tip_msg')}
+        cohost={pickQuery(searchParams, 'cohost')}
+        cohostMsg={pickQuery(searchParams, 'cohost_msg')}
+      />
 
       <header className="space-y-2">
         <EventHero
@@ -337,6 +146,8 @@ export default async function EventDetailPage(props: {
           registrationClosesAt={event.registrationClosesAt}
           canManage={event.canManage}
           cta={cta}
+          divisionCount={event.divisions.length}
+          closingSoon={closingSoon}
         />
       </header>
 
@@ -381,125 +192,29 @@ export default async function EventDetailPage(props: {
 
       <DivisionsSection divisions={event.divisions} />
 
-      {isExternal ? (
-        <SignupSection
-          title="Register"
-          badge={{ tone: 'external', label: 'Off-platform' }}
-          subline="Sign-ups are handled on the host's site."
-        >
-          <ExternalRegistrationCard
-            externalRegistrationUrl={event.externalRegistrationUrl}
-            externalRegistrationInstructions={event.externalRegistrationInstructions}
-            paymentInstructions={event.paymentInstructions}
-          />
-        </SignupSection>
-      ) : signupsOpen && event.type === 'open_play' ? (
-        <SignupSection
-          title="Sign up"
-          badge={
-            paid && breakdown
-              ? { tone: 'paid', label: priceLabel }
-              : { tone: 'free', label: 'Free' }
-          }
-          subline={
-            event.positionRoster
-              ? 'Pick a position below.'
-              : event.spotsRemaining === null
-                ? 'Unlimited spots.'
-                : event.spotsRemaining === 0
-                  ? 'Full — join the waitlist below.'
-                  : `${event.spotsRemaining} ${event.spotsRemaining === 1 ? 'spot' : 'spots'} left.`
-          }
-        >
-          {paid && breakdown ? (
-            <PaidTicketPanel
-              eventId={event.id}
-              eventTitle={event.title}
-              isAttending={event.isAttending}
-              isRealUser={isRealUser}
-              ticketCents={breakdown.ticketCents}
-              platformFeeCents={breakdown.platformFeeCents}
-              refundWindowHours={pricing!.refundWindowHours}
-              {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
-            />
-          ) : event.positionRoster ? (
-            <PositionRsvpPanel
-              eventId={event.id}
-              eventTitle={event.title}
-              isAttending={event.isAttending}
-              isRealUser={isRealUser}
-              positionRoster={event.positionRoster}
-              filledByPosition={filledByPosition}
-              viewerPosition={viewerPosition}
-              rsvp={pickQuery(searchParams, 'rsvp')}
-              rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
-            />
-          ) : (
-            <RsvpPanel
-              eventId={event.id}
-              eventTitle={event.title}
-              isAttending={event.isAttending}
-              isRealUser={isRealUser}
-              rsvp={pickQuery(searchParams, 'rsvp')}
-              rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
-            />
-          )}
-        </SignupSection>
-      ) : signupsOpen && event.type === 'tournament' ? (
-        <SignupSection
-          title="Register"
-          badge={{ tone: 'neutral', label: 'Tournament' }}
-          subline={`${event.teams.length} ${event.teams.length === 1 ? 'team' : 'teams'} · ${event.freeAgents.length} free ${event.freeAgents.length === 1 ? 'agent' : 'agents'}`}
-        >
-          <TournamentRegistrationTabs
-            teamCount={event.teams.length}
-            freeAgentCount={event.freeAgents.length}
-            teamPanel={
-              <TournamentSignupPanel
-                eventId={event.id}
-                eventFormat={event.format}
-                teams={event.teams}
-                viewerCaptainedTeams={event.viewerCaptainedTeams}
-                viewerId={user?.id ?? null}
-                isRealUser={isRealUser}
-                returnPath={returnPath}
-                {...(pickQuery(searchParams, 'team')
-                  ? { resultCode: pickQuery(searchParams, 'team') }
-                  : {})}
-              />
-            }
-            freeAgentPanel={
-              <FreeAgentSignupPanel
-                eventId={event.id}
-                freeAgents={event.freeAgents.map((f) => ({
-                  userId: f.userId,
-                  notes: f.notes,
-                  profile: {
-                    displayName: f.profile.displayName,
-                    avatarUrl: f.profile.avatarUrl,
-                  },
-                }))}
-                isFreeAgent={event.isFreeAgent}
-                viewerId={user?.id ?? null}
-                isRealUser={isRealUser}
-                returnPath={returnPath}
-                {...(pickQuery(searchParams, 'fa')
-                  ? { resultCode: pickQuery(searchParams, 'fa') }
-                  : {})}
-              />
-            }
-          />
-        </SignupSection>
-      ) : (
-        <EventClosedState
-          eventId={event.id}
-          eventType={event.type}
-          status={event.status}
-          hasStarted={hasStarted}
-          attendeeCount={event.attendeeCount}
-          isHost={event.canManage}
-        />
-      )}
+      <EventSignupArea
+        event={event}
+        isExternal={isExternal}
+        signupsOpen={signupsOpen}
+        hasStarted={hasStarted}
+        paid={paid}
+        pricing={pricing}
+        breakdown={breakdown}
+        priceLabel={priceLabel}
+        viewerPaymentStatus={viewerPaymentStatus}
+        isRealUser={isRealUser}
+        user={user}
+        returnPath={returnPath}
+        hostStripeReady={hostStripeReady}
+        filledByPosition={filledByPosition}
+        viewerPosition={viewerPosition}
+        adHocViewerRegistrations={adHocViewerRegistrations}
+        adHocAllRegistrations={adHocAllRegistrations}
+        rsvp={pickQuery(searchParams, 'rsvp')}
+        rsvpMsg={pickQuery(searchParams, 'rsvp_msg')}
+        team={pickQuery(searchParams, 'team')}
+        fa={pickQuery(searchParams, 'fa')}
+      />
 
       {event.description && (
         <section>
@@ -534,29 +249,7 @@ export default async function EventDetailPage(props: {
         </section>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-fg text-lg font-semibold">Where</h2>
-        {event.venueName && <p className="text-fg font-medium">{event.venueName}</p>}
-        <p className="text-fg/90">{event.location.addressLine}</p>
-        <p className="text-muted text-sm">
-          {event.location.city}, {event.location.region} {event.location.postalCode}
-        </p>
-        <EventMap
-          latitude={event.location.latitude}
-          longitude={event.location.longitude}
-          title={event.title}
-          addressLine={event.location.addressLine}
-        />
-        <a
-          href={`https://www.openstreetmap.org/?mlat=${event.location.latitude}&mlon=${event.location.longitude}#map=16/${event.location.latitude}/${event.location.longitude}`}
-          target="_blank"
-          rel="noreferrer"
-          className="text-primary text-sm hover:underline"
-        >
-          Open in map <span aria-hidden="true">↗</span>
-          <span className="sr-only"> (opens in new tab)</span>
-        </a>
-      </section>
+      <EventLocationSection event={event} />
 
       <HostsSection
         eventId={event.id}
@@ -570,67 +263,31 @@ export default async function EventDetailPage(props: {
         {...(primaryHostUserSocial ? { primaryHostUserSocial } : {})}
       />
 
-      {event.canManage && (
-        <details className="border-border-base group rounded-lg border p-3 open:p-4">
-          <summary className="text-fg cursor-pointer text-sm font-semibold select-none">
-            Host tools
-          </summary>
-          <div className="mt-4 space-y-6">
-            <HostDivisionsManager
-              eventId={event.id}
-              returnPath={returnPath}
-              divisions={event.divisions}
-            />
-            <HostBroadcastPanel
-              eventId={event.id}
-              attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
-            />
-          </div>
-        </details>
-      )}
+      <HostToolsSection
+        event={event}
+        returnPath={returnPath}
+        adHocHostRows={adHocHostRows}
+        eligibleTeamsByDivision={eligibleTeamsByDivision}
+      />
 
-      {event.type === 'open_play' && (
-        <section id="attendees">
-          <h2 className="text-fg mb-3 text-lg font-semibold">
-            Players signed up{' '}
-            <span className="text-muted text-sm font-normal">({event.attendees.length})</span>
-          </h2>
-          <AttendeeList
-            attendees={attendeesForList}
-            currentUserId={user?.id ?? null}
-            friendIds={friendIds}
-            returnPath={returnPath}
-            eventId={event.id}
-            {...(payments ? { payments } : {})}
-            canManagePayments={paid && event.canManage}
-          />
-          {event.canManage && (
-            <p className="text-muted mt-3 text-xs">
-              {viewerIsPro ? (
-                <a
-                  href={`/api/events/${event.id}/attendees.csv`}
-                  className="text-primary hover:underline"
-                >
-                  Export attendees as CSV
-                </a>
-              ) : (
-                <>
-                  CSV attendee export is a{' '}
-                  <Link
-                    href={'/profile/billing/pro' as Route}
-                    className="text-primary hover:underline"
-                  >
-                    Pro
-                  </Link>{' '}
-                  feature.
-                </>
-              )}
-            </p>
-          )}
-        </section>
-      )}
+      <AttendeesPanel
+        event={event}
+        attendees={attendeesForList}
+        currentUserId={user?.id ?? null}
+        friendIds={friendIds}
+        returnPath={returnPath}
+        payments={payments}
+        paid={paid}
+        viewerIsPro={viewerIsPro}
+      />
 
-      {event.type === 'tournament' && <TeamsRegisteredSection teams={event.teams} />}
+      {event.type === 'tournament' && (
+        <TeamsRegisteredSection
+          teams={event.teams}
+          adHocRegistrations={adHocAllRegistrations}
+          divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
+        />
+      )}
 
       {!isHostOfEvent && (
         <TipJar
@@ -638,6 +295,7 @@ export default async function EventDetailPage(props: {
           viewerIsRealUser={isRealUser}
           viewerHasSession={!!user}
           totalCents={tipTotalCents}
+          hostCanCollectTips={hostStripeReady}
         />
       )}
 

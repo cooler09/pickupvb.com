@@ -13,6 +13,7 @@ import {
   SkillTier,
   Surface,
   TeamComposition,
+  TeamRegistrationMode,
   Visibility,
   VolleyballEvent,
   isEventPosition,
@@ -83,6 +84,8 @@ type EventRow = {
   external_registration_url: string | null;
   external_registration_instructions: string | null;
   payment_instructions: string | null;
+  payments_off_platform: boolean | null;
+  team_registration_mode: TeamRegistrationMode | null;
 };
 
 type DivisionRow = {
@@ -106,6 +109,9 @@ type DivisionRow = {
   prize_purse_cents: number | null;
   starts_at: string | null;
   ends_at: string | null;
+  winner_team_id: string | null;
+  winner_team_registration_id: string | null;
+  winner_recorded_at: string | null;
 };
 
 function rowToCapacity(row: EventRow): Capacity | null {
@@ -151,15 +157,6 @@ function rowToPositionRoster(row: EventRow): Map<EventPosition, number> | null {
   return out.size > 0 ? out : null;
 }
 
-function rosterToJson(
-  roster: ReadonlyMap<EventPosition, number> | null,
-): Record<string, number> | null {
-  if (!roster) return null;
-  const obj: Record<string, number> = {};
-  for (const [k, v] of roster) obj[k] = v;
-  return obj;
-}
-
 function divisionRowToCapacity(row: DivisionRow): Capacity | null {
   if (row.capacity_kind === 'unlimited') return Capacity.unlimited();
   if (row.capacity_kind === 'fixed' && row.max_spots !== null) return Capacity.fixed(row.max_spots);
@@ -189,7 +186,11 @@ function divisionRowToDomain(row: DivisionRow): Division {
   });
 }
 
-function divisionRowToLite(row: DivisionRow): DivisionLite {
+function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): DivisionLite {
+  const winner =
+    winnerLabel !== null && row.winner_recorded_at !== null
+      ? { label: winnerLabel, recordedAt: new Date(row.winner_recorded_at) }
+      : null;
   return {
     id: row.id,
     sortOrder: row.sort_order,
@@ -210,6 +211,7 @@ function divisionRowToLite(row: DivisionRow): DivisionLite {
     prizePurseCents: row.prize_purse_cents,
     startsAt: row.starts_at ? new Date(row.starts_at) : null,
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
+    winner,
   };
 }
 
@@ -253,6 +255,8 @@ function rowToExtensions(row: EventRow) {
     externalRegistrationUrl: row.external_registration_url,
     externalRegistrationInstructions: row.external_registration_instructions,
     paymentInstructions: row.payment_instructions,
+    paymentsOffPlatform: row.payments_off_platform ?? false,
+    teamRegistrationMode: row.team_registration_mode ?? null,
   };
 }
 
@@ -379,61 +383,163 @@ export class SupabaseEventRepository implements EventRepository {
       external_registration_url: event.externalRegistrationUrl,
       external_registration_instructions: event.externalRegistrationInstructions,
       payment_instructions: event.paymentInstructions,
+      payments_off_platform: event.paymentsOffPlatform,
+      team_registration_mode: event.teamRegistrationMode,
       updated_at: new Date().toISOString(),
     };
 
     const { error } = await this.client.from('events').upsert(row as never, { onConflict: 'id' });
     if (error) throw new Error(`save(${event.id}) failed: ${error.message}`);
 
-    // Reconcile attendees: clear then re-insert (sets are small enough).
-    const attendeeRows = Array.from(event.attendees.entries()).map(([u, position]) => ({
-      event_id: String(event.id),
-      user_id: String(u),
-      position,
-    }));
-    const { error: delErr } = await this.client
+    // Reconcile attendees by delta. The aggregate's `_attendees` Map carries
+    // (userId, position) but NOT `division_id` — that's chosen at signup
+    // time and stored on the DB row. A naive delete-all-then-reinsert
+    // would clobber `division_id` on every save, which (since the
+    // `team_registration_model` migration made `division_id` NOT NULL on
+    // event_attendees / event_teams / event_free_agents) trips the
+    // `fill_default_division_id` trigger and fails for any multi-division
+    // event whenever an unrelated save happens (e.g. another player
+    // joining triggers a re-save of the whole aggregate). So:
+    //
+    //   * Read the current rows.
+    //   * Delete only rows no longer in the aggregate.
+    //   * Insert only rows newly added — division_id stays null and the
+    //     trigger fills it when the event has exactly one division;
+    //     multi-division joins go through dedicated handlers that write
+    //     event_attendees directly with the chosen division_id.
+    //   * UPDATE rows whose position changed.
+    const eventIdForChildren = String(event.id);
+    const { data: existingAttendeeRows, error: selAErr } = await this.client
       .from('event_attendees')
-      .delete()
-      .eq('event_id', String(event.id));
-    if (delErr) throw new Error(`save attendees clear failed: ${delErr.message}`);
-    if (attendeeRows.length > 0) {
+      .select('user_id, position')
+      .eq('event_id', eventIdForChildren);
+    if (selAErr) throw new Error(`save attendees load failed: ${selAErr.message}`);
+    const existingAttendees = new Map<string, string | null>(
+      (
+        (existingAttendeeRows as Array<{ user_id: string; position: string | null }> | null) ?? []
+      ).map((r) => [r.user_id, r.position]),
+    );
+    const desiredAttendees = new Map<string, string | null>(
+      Array.from(event.attendees.entries()).map(([u, position]) => [String(u), position]),
+    );
+    const attendeesToDelete: string[] = [];
+    for (const userId of existingAttendees.keys()) {
+      if (!desiredAttendees.has(userId)) attendeesToDelete.push(userId);
+    }
+    const attendeesToInsert: Array<{
+      event_id: string;
+      user_id: string;
+      position: string | null;
+    }> = [];
+    const attendeesToUpdate: Array<{ user_id: string; position: string | null }> = [];
+    for (const [userId, position] of desiredAttendees.entries()) {
+      if (!existingAttendees.has(userId)) {
+        attendeesToInsert.push({ event_id: eventIdForChildren, user_id: userId, position });
+      } else if (existingAttendees.get(userId) !== position) {
+        attendeesToUpdate.push({ user_id: userId, position });
+      }
+    }
+    if (attendeesToDelete.length > 0) {
+      const { error: delErr } = await this.client
+        .from('event_attendees')
+        .delete()
+        .eq('event_id', eventIdForChildren)
+        .in('user_id', attendeesToDelete);
+      if (delErr) throw new Error(`save attendees delete failed: ${delErr.message}`);
+    }
+    if (attendeesToInsert.length > 0) {
       const { error: insErr } = await this.client
         .from('event_attendees')
-        .insert(attendeeRows as never);
+        .insert(attendeesToInsert as never);
       if (insErr) throw new Error(`save attendees insert failed: ${insErr.message}`);
     }
+    for (const row of attendeesToUpdate) {
+      const { error: updErr } = await this.client
+        .from('event_attendees')
+        .update({ position: row.position } as never)
+        .eq('event_id', eventIdForChildren)
+        .eq('user_id', row.user_id);
+      if (updErr) throw new Error(`save attendees update failed: ${updErr.message}`);
+    }
 
-    // Same pattern for teams.
-    const teamIds = Array.from(event.teams).map((t) => String(t));
-    const { error: delTErr } = await this.client
+    // Same delta pattern for event_teams. Aggregate's `_teams` Set has no
+    // division_id, so we MUST avoid blowing away existing rows.
+    const desiredTeams = new Set(Array.from(event.teams).map((t) => String(t)));
+    const { data: existingTeamRows, error: selTErr } = await this.client
       .from('event_teams')
-      .delete()
-      .eq('event_id', String(event.id));
-    if (delTErr) throw new Error(`save teams clear failed: ${delTErr.message}`);
-    if (teamIds.length > 0) {
+      .select('team_id')
+      .eq('event_id', eventIdForChildren);
+    if (selTErr) throw new Error(`save teams load failed: ${selTErr.message}`);
+    const existingTeams = new Set(
+      ((existingTeamRows as Array<{ team_id: string }> | null) ?? []).map((r) => r.team_id),
+    );
+    const teamsToDelete = Array.from(existingTeams).filter((t) => !desiredTeams.has(t));
+    const teamsToInsert = Array.from(desiredTeams).filter((t) => !existingTeams.has(t));
+    if (teamsToDelete.length > 0) {
+      const { error: delTErr } = await this.client
+        .from('event_teams')
+        .delete()
+        .eq('event_id', eventIdForChildren)
+        .in('team_id', teamsToDelete);
+      if (delTErr) throw new Error(`save teams delete failed: ${delTErr.message}`);
+    }
+    if (teamsToInsert.length > 0) {
       const { error: insTErr } = await this.client
         .from('event_teams')
-        .insert(teamIds.map((team_id) => ({ event_id: String(event.id), team_id })) as never);
+        .insert(
+          teamsToInsert.map((team_id) => ({ event_id: eventIdForChildren, team_id })) as never,
+        );
       if (insTErr) throw new Error(`save teams insert failed: ${insTErr.message}`);
     }
 
-    // Free agents — same reconcile pattern, including each row's optional
-    // notes blurb (carried on the aggregate so save() round-trips it).
-    const freeAgentRows = Array.from(event.freeAgents.entries()).map(([u, notes]) => ({
-      event_id: String(event.id),
-      user_id: String(u),
-      notes,
-    }));
-    const { error: delFErr } = await this.client
+    // Free agents — delta on membership + notes update.
+    const { data: existingFaRows, error: selFErr } = await this.client
       .from('event_free_agents')
-      .delete()
-      .eq('event_id', String(event.id));
-    if (delFErr) throw new Error(`save free agents clear failed: ${delFErr.message}`);
-    if (freeAgentRows.length > 0) {
+      .select('user_id, notes')
+      .eq('event_id', eventIdForChildren);
+    if (selFErr) throw new Error(`save free agents load failed: ${selFErr.message}`);
+    const existingFa = new Map<string, string | null>(
+      ((existingFaRows as Array<{ user_id: string; notes: string | null }> | null) ?? []).map(
+        (r) => [r.user_id, r.notes],
+      ),
+    );
+    const desiredFa = new Map<string, string | null>(
+      Array.from(event.freeAgents.entries()).map(([u, notes]) => [String(u), notes]),
+    );
+    const faToDelete: string[] = [];
+    for (const userId of existingFa.keys()) {
+      if (!desiredFa.has(userId)) faToDelete.push(userId);
+    }
+    const faToInsert: Array<{ event_id: string; user_id: string; notes: string | null }> = [];
+    const faToUpdate: Array<{ user_id: string; notes: string | null }> = [];
+    for (const [userId, notes] of desiredFa.entries()) {
+      if (!existingFa.has(userId)) {
+        faToInsert.push({ event_id: eventIdForChildren, user_id: userId, notes });
+      } else if (existingFa.get(userId) !== notes) {
+        faToUpdate.push({ user_id: userId, notes });
+      }
+    }
+    if (faToDelete.length > 0) {
+      const { error: delFErr } = await this.client
+        .from('event_free_agents')
+        .delete()
+        .eq('event_id', eventIdForChildren)
+        .in('user_id', faToDelete);
+      if (delFErr) throw new Error(`save free agents delete failed: ${delFErr.message}`);
+    }
+    if (faToInsert.length > 0) {
       const { error: insFErr } = await this.client
         .from('event_free_agents')
-        .insert(freeAgentRows as never);
+        .insert(faToInsert as never);
       if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
+    }
+    for (const row of faToUpdate) {
+      const { error: updErr } = await this.client
+        .from('event_free_agents')
+        .update({ notes: row.notes } as never)
+        .eq('event_id', eventIdForChildren)
+        .eq('user_id', row.user_id);
+      if (updErr) throw new Error(`save free agents update failed: ${updErr.message}`);
     }
 
     // Reconcile divisions: upsert current set by id, delete any id no
@@ -471,6 +577,9 @@ export class SupabaseEventRepository implements EventRepository {
     type DivisionJson = {
       id: string;
       label: string;
+      surface: Surface;
+      format: Format | null;
+      gender: Gender | null;
       skillTier: SkillTier;
       tierLabel: string | null;
       ageGroup: AgeGroup;
@@ -546,6 +655,9 @@ export class SupabaseEventRepository implements EventRepository {
       divisions: (r.divisions ?? []).map((d) => ({
         id: d.id,
         label: d.label,
+        surface: d.surface,
+        format: d.format,
+        gender: d.gender,
         skillTier: d.skillTier,
         tierLabel: d.tierLabel,
         ageGroup: d.ageGroup,
@@ -592,7 +704,12 @@ export class SupabaseEventRepository implements EventRepository {
         )
         .eq('event_id', id)
         .order('joined_at', { ascending: true }),
-      this.client.from('event_co_hosts').select('host_user_id, host_group_id').eq('event_id', id),
+      this.client
+        .from('event_co_hosts')
+        .select(
+          'host_user_id, host_group_id, profiles:profiles(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
+        )
+        .eq('event_id', id),
       row.host_id
         ? this.client
             .from('profiles')
@@ -609,13 +726,15 @@ export class SupabaseEventRepository implements EventRepository {
         : Promise.resolve({ data: null, error: null }),
       this.client
         .from('event_teams')
-        .select('team_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id)')
+        .select(
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url))',
+        )
         .eq('event_id', id)
         .order('registered_at', { ascending: true }),
       this.client
         .from('event_free_agents')
         .select(
-          'user_id, notes, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)',
+          'user_id, notes, division_id, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)',
         )
         .eq('event_id', id)
         .order('joined_at', { ascending: true }),
@@ -630,6 +749,49 @@ export class SupabaseEventRepository implements EventRepository {
     // columns are null (ADR 0006 Phase 9b).
     const divisionRowsForDetail = (divisionRowsRes.data as DivisionRow[] | null) ?? [];
     const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
+
+    // Resolve winner labels per division. Each division stores at most one
+    // of `winner_team_id` (roster mode -> teams.name) or
+    // `winner_team_registration_id` (ad-hoc -> event_team_registrations.name).
+    // We batch both lookups and build a single id → label map keyed by
+    // division id for the DivisionLite mapping below.
+    const winnerLabelsByDivision = new Map<string, string>();
+    const teamWinnerIds = divisionRowsForDetail
+      .map((d) => d.winner_team_id)
+      .filter((v): v is string => !!v);
+    const regWinnerIds = divisionRowsForDetail
+      .map((d) => d.winner_team_registration_id)
+      .filter((v): v is string => !!v);
+    if (teamWinnerIds.length > 0) {
+      const { data: teamRows } = await this.client
+        .from('teams')
+        .select('id, name')
+        .in('id', teamWinnerIds);
+      const byId = new Map<string, string>(
+        ((teamRows as Array<{ id: string; name: string }> | null) ?? []).map((r) => [r.id, r.name]),
+      );
+      for (const d of divisionRowsForDetail) {
+        if (d.winner_team_id) {
+          const label = byId.get(d.winner_team_id);
+          if (label) winnerLabelsByDivision.set(d.id, label);
+        }
+      }
+    }
+    if (regWinnerIds.length > 0) {
+      const { data: regRows } = await this.client
+        .from('event_team_registrations')
+        .select('id, name')
+        .in('id', regWinnerIds);
+      const byId = new Map<string, string>(
+        ((regRows as Array<{ id: string; name: string }> | null) ?? []).map((r) => [r.id, r.name]),
+      );
+      for (const d of divisionRowsForDetail) {
+        if (d.winner_team_registration_id) {
+          const label = byId.get(d.winner_team_registration_id);
+          if (label) winnerLabelsByDivision.set(d.id, label);
+        }
+      }
+    }
 
     type AttendeeRow = {
       user_id: string;
@@ -647,16 +809,21 @@ export class SupabaseEventRepository implements EventRepository {
     const positionRoster = rowToPositionRoster(row);
     // Attendees arrive ordered by joined_at; mark waitlist when, in
     // chronological order, the per-position count exceeds the configured
-    // roster value. Earliest signups keep their seat.
+    // roster value. Earliest signups keep their seat. The per-position
+    // running count is also surfaced on the read model
+    // (`filledByPosition`) so the UI doesn't have to re-walk attendees
+    // to render `filled / target` per slot.
     const filledByPosition = new Map<EventPosition, number>();
     const attendees: AttendeeLite[] = attRows.map((a) => {
       const pos = isEventPosition(a.position) ? a.position : null;
       let waitlist = false;
-      if (pos && positionRoster) {
-        const target = positionRoster.get(pos) ?? 0;
+      if (pos) {
         const next = (filledByPosition.get(pos) ?? 0) + 1;
         filledByPosition.set(pos, next);
-        waitlist = next > target;
+        if (positionRoster) {
+          const target = positionRoster.get(pos) ?? 0;
+          waitlist = next > target;
+        }
       }
       return {
         userId: a.user_id,
@@ -674,45 +841,52 @@ export class SupabaseEventRepository implements EventRepository {
       };
     });
 
-    const coHostRows =
-      (coHostRowsRes.data as
-        | { host_user_id: string | null; host_group_id: string | null }[]
-        | null) ?? [];
-    const coUserIds = coHostRows.map((c) => c.host_user_id).filter((v): v is string => !!v);
+    type ProfileRow = {
+      id: string;
+      handle: string;
+      display_name: string;
+      first_name: string | null;
+      last_name: string | null;
+      avatar_url: string | null;
+    };
+    type GroupRow = { id: string; slug: string; name: string; avatar_url: string | null };
+
+    type CoHostJoinRow = {
+      host_user_id: string | null;
+      host_group_id: string | null;
+      profiles: ProfileRow | null;
+      groups: GroupRow | null;
+    };
+    const coHostRows = (coHostRowsRes.data as CoHostJoinRow[] | null) ?? [];
     const coGroupIds = coHostRows.map((c) => c.host_group_id).filter((v): v is string => !!v);
 
-    // Registered tournament teams. Captain id only here — we batch-fetch
-    // captain profiles + roster sizes in the next parallel block.
+    // Registered tournament teams. Captain profile arrives nested via the
+    // teams!inner join; we still batch-fetch roster sizes + payments in the
+    // next parallel block.
     type TeamJoinRow = {
       team_id: string;
-      teams: { id: string; slug: string; name: string; format: Format; captain_id: string } | null;
+      division_id: string | null;
+      teams: {
+        id: string;
+        slug: string;
+        name: string;
+        format: Format;
+        captain_id: string;
+        captain: ProfileRow | null;
+      } | null;
     };
     const teamJoinRows = (teamRowsRes.data as TeamJoinRow[] | null) ?? [];
     const registeredTeamIds = teamJoinRows.map((r) => r.teams?.id).filter((v): v is string => !!v);
-    const registeredCaptainIds = teamJoinRows
-      .map((r) => r.teams?.captain_id)
-      .filter((v): v is string => !!v);
 
-    // Co-host detail fetch + viewer-specific fetches in parallel.
+    // Viewer-specific fetches + team roster sizes/payments in parallel.
     const [
-      coHostUsersRes,
-      coHostGroupsRes,
       viewerFriendsRes,
       viewerRoleRes,
       viewerHostableGroupsRes,
-      teamCaptainsRes,
       teamMemberCountsRes,
+      teamPaymentsRes,
       viewerCaptainedTeamsRes,
     ] = await Promise.all([
-      coUserIds.length
-        ? this.client
-            .from('profiles')
-            .select('id, handle, display_name, first_name, last_name, avatar_url')
-            .in('id', coUserIds)
-        : Promise.resolve({ data: [], error: null }),
-      coGroupIds.length
-        ? this.client.from('groups').select('id, slug, name, avatar_url').in('id', coGroupIds)
-        : Promise.resolve({ data: [], error: null }),
       viewerId
         ? this.client.from('friendships').select('friend_id').eq('user_id', viewerId)
         : Promise.resolve({ data: [], error: null }),
@@ -731,14 +905,15 @@ export class SupabaseEventRepository implements EventRepository {
             .eq('user_id', viewerId)
             .in('role', ['owner', 'admin'])
         : Promise.resolve({ data: [], error: null }),
-      registeredCaptainIds.length
-        ? this.client
-            .from('profiles')
-            .select('id, handle, display_name, first_name, last_name, avatar_url')
-            .in('id', registeredCaptainIds)
-        : Promise.resolve({ data: [], error: null }),
       registeredTeamIds.length
         ? this.client.from('team_members').select('team_id').in('team_id', registeredTeamIds)
+        : Promise.resolve({ data: [], error: null }),
+      registeredTeamIds.length
+        ? this.client
+            .from('event_team_payments')
+            .select('team_id, payment_status, amount_paid_cents')
+            .eq('event_id', id)
+            .in('team_id', registeredTeamIds)
         : Promise.resolve({ data: [], error: null }),
       // Teams the viewer captains in this event's format. Only meaningful
       // for tournaments; we still issue it for any logged-in viewer to
@@ -752,15 +927,6 @@ export class SupabaseEventRepository implements EventRepository {
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-    type ProfileRow = {
-      id: string;
-      handle: string;
-      display_name: string;
-      first_name: string | null;
-      last_name: string | null;
-      avatar_url: string | null;
-    };
-    type GroupRow = { id: string; slug: string; name: string; avatar_url: string | null };
     const toProfile = (p: ProfileRow): ProfileLite => ({
       id: p.id,
       handle: p.handle,
@@ -782,8 +948,14 @@ export class SupabaseEventRepository implements EventRepository {
     const primaryHostGroup = primaryHostGroupRes.data
       ? toGroup(primaryHostGroupRes.data as GroupRow)
       : null;
-    const coHostUsers = ((coHostUsersRes.data as ProfileRow[] | null) ?? []).map(toProfile);
-    const coHostGroups = ((coHostGroupsRes.data as GroupRow[] | null) ?? []).map(toGroup);
+    const coHostUsers = coHostRows
+      .map((r) => r.profiles)
+      .filter((p): p is ProfileRow => p !== null)
+      .map(toProfile);
+    const coHostGroups = coHostRows
+      .map((r) => r.groups)
+      .filter((g): g is GroupRow => g !== null)
+      .map(toGroup);
 
     const viewerFriendIds = ((viewerFriendsRes.data as { friend_id: string }[] | null) ?? []).map(
       (r) => r.friend_id,
@@ -795,6 +967,7 @@ export class SupabaseEventRepository implements EventRepository {
     type FreeAgentRow = {
       user_id: string;
       notes: string | null;
+      division_id: string | null;
       joined_at: string;
       profiles: {
         handle: string;
@@ -808,6 +981,7 @@ export class SupabaseEventRepository implements EventRepository {
     const freeAgents: FreeAgentLite[] = faRows.map((f) => ({
       userId: f.user_id,
       notes: f.notes,
+      divisionId: f.division_id,
       joinedAt: new Date(f.joined_at),
       profile: {
         id: f.user_id,
@@ -836,35 +1010,60 @@ export class SupabaseEventRepository implements EventRepository {
       .filter((g) => g.id !== row.host_group_id && !coGroupIds.includes(g.id));
 
     // ---- Build registered-team list (TeamLite[]) --------------------
-    const captainProfiles = new Map<string, ProfileLite>();
-    for (const p of (teamCaptainsRes.data as ProfileRow[] | null) ?? []) {
-      captainProfiles.set(p.id, toProfile(p));
-    }
+    // Captain profile is already attached to each team row via the JOIN.
     const memberCounts = new Map<string, number>();
     for (const m of (teamMemberCountsRes.data as { team_id: string }[] | null) ?? []) {
       memberCounts.set(m.team_id, (memberCounts.get(m.team_id) ?? 0) + 1);
     }
+    type PaymentRow = {
+      team_id: string;
+      payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+      amount_paid_cents: number | null;
+    };
+    const paymentsByTeam = new Map<string, PaymentRow>();
+    for (const p of (teamPaymentsRes.data as PaymentRow[] | null) ?? []) {
+      paymentsByTeam.set(p.team_id, p);
+    }
+    const teamDivisionByTeam = new Map<string, string | null>();
+    for (const r of teamJoinRows) {
+      if (r.teams) teamDivisionByTeam.set(r.teams.id, r.division_id);
+    }
     const teams: TeamLite[] = teamJoinRows
       .map((r) => r.teams)
       .filter(
-        (t): t is { id: string; slug: string; name: string; format: Format; captain_id: string } =>
-          !!t,
+        (
+          t,
+        ): t is {
+          id: string;
+          slug: string;
+          name: string;
+          format: Format;
+          captain_id: string;
+          captain: ProfileRow | null;
+        } => !!t,
       )
-      .map((t) => ({
-        teamId: t.id,
-        slug: t.slug,
-        name: t.name,
-        format: t.format,
-        captainId: t.captain_id,
-        captain: captainProfiles.get(t.captain_id) ?? null,
-        memberCount: memberCounts.get(t.id) ?? 0,
-      }));
+      .map((t) => {
+        const pay = paymentsByTeam.get(t.id);
+        return {
+          teamId: t.id,
+          slug: t.slug,
+          name: t.name,
+          format: t.format,
+          captainId: t.captain_id,
+          captain: t.captain ? toProfile(t.captain) : null,
+          memberCount: memberCounts.get(t.id) ?? 0,
+          divisionId: teamDivisionByTeam.get(t.id) ?? null,
+          payment: pay
+            ? { status: pay.payment_status, amountPaidCents: pay.amount_paid_cents }
+            : null,
+        };
+      });
 
     // ---- Build viewer's captained teams (CaptainedTeamLite[]) -------
     type ViewerTeamRow = { id: string; name: string; format: Format };
     const viewerTeamRows = (viewerCaptainedTeamsRes.data as ViewerTeamRow[] | null) ?? [];
     const viewerTeamIds = viewerTeamRows.map((t) => t.id);
-    let viewerTeamMemberCounts = new Map<string, number>();
+    const viewerTeamMemberCounts = new Map<string, number>();
     if (viewerTeamIds.length) {
       const { data: vtm } = await this.client
         .from('team_members')
@@ -918,6 +1117,9 @@ export class SupabaseEventRepository implements EventRepository {
       spotsRemaining,
       attendeeCount: row.attendee_count,
       positionRoster: positionRosterOut,
+      filledByPosition: Object.fromEntries(filledByPosition) as Partial<
+        Record<EventPosition, number>
+      >,
       location: {
         addressLine: row.address_line,
         city: row.city,
@@ -943,7 +1145,9 @@ export class SupabaseEventRepository implements EventRepository {
       viewerHostableGroups,
       viewerCaptainedTeams,
       ...rowToExtensions(row),
-      divisions: divisionRowsForDetail.map(divisionRowToLite),
+      divisions: divisionRowsForDetail.map((d) =>
+        divisionRowToLite(d, winnerLabelsByDivision.get(d.id) ?? null),
+      ),
     };
   }
 
@@ -1033,7 +1237,10 @@ export class SupabaseEventRepository implements EventRepository {
       const { data: divRows, error: dErr } = await this.client
         .from('event_divisions')
         .select('event_id')
-        .in('skill_tier', tiers as unknown as string[]);
+        .in(
+          'skill_tier',
+          tiers as unknown as readonly ('c' | 'b' | 'bb' | 'bb3' | 'a' | 'aa' | 'open')[],
+        );
       if (dErr) throw new Error(`searchFollowingFeed divisions failed: ${dErr.message}`);
       const skillEventIds = Array.from(
         new Set(((divRows ?? []) as { event_id: string }[]).map((r) => r.event_id)),
@@ -1122,5 +1329,37 @@ export class SupabaseEventRepository implements EventRepository {
     if (party.groupId) q = q.eq('host_group_id', party.groupId);
     const { error } = await q;
     if (error) throw new Error(`removeCoHost failed: ${error.message}`);
+  }
+
+  async attachTeamToDivision(eventId: string, teamId: string, divisionId: string): Promise<void> {
+    // Upsert on the natural key (event_id, team_id). If the team is already
+    // attached to the event we just update its division_id (the captain may
+    // be re-classifying themselves into a different division).
+    const { error } = await this.client
+      .from('event_teams')
+      .upsert({ event_id: eventId, team_id: teamId, division_id: divisionId } as never, {
+        onConflict: 'event_id,team_id',
+      });
+    if (error) {
+      throw new Error(`attachTeamToDivision failed: ${error.message}`);
+    }
+  }
+
+  async attachFreeAgentToDivision(
+    eventId: string,
+    userId: string,
+    divisionId: string,
+  ): Promise<void> {
+    // Upsert on the natural key (event_id, user_id). The aggregate has
+    // already inserted the row via `save(event)`; this update fills in the
+    // `division_id` column. Mirrors `attachTeamToDivision`.
+    const { error } = await this.client
+      .from('event_free_agents')
+      .update({ division_id: divisionId } as never)
+      .eq('event_id', eventId)
+      .eq('user_id', userId);
+    if (error) {
+      throw new Error(`attachFreeAgentToDivision failed: ${error.message}`);
+    }
   }
 }

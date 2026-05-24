@@ -1,7 +1,7 @@
 import next from 'eslint-config-next';
 import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
 
-export default [
+const config = [
   {
     ignores: [
       '.next/**',
@@ -14,6 +14,7 @@ export default [
       '.playwright/**',
       'playwright-report/**',
       'test-results/**',
+      'coverage/**',
     ],
   },
   ...next,
@@ -28,3 +29,5 @@ export default [
     },
   },
 ];
+
+export default config;

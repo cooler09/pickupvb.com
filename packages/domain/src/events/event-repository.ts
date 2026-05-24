@@ -14,6 +14,7 @@ import type {
   TeamComposition,
   PriceUnit,
   RegistrationMode,
+  TeamRegistrationMode,
 } from './enums.js';
 
 /**
@@ -49,6 +50,24 @@ export interface EventRepository {
   // ---- Co-host management (separate sub-resource) ----
   addCoHost(eventId: string, party: CoHostParty, addedBy: string): Promise<void>;
   removeCoHost(eventId: string, party: CoHostParty): Promise<void>;
+
+  /**
+   * Idempotently attach a team to a division on the event. Sidesteps the
+   * `VolleyballEvent` aggregate because its `_teams` set carries only
+   * team ids — it has no place for the division id, and `event_teams`
+   * requires `division_id` (NOT NULL). Use this from the registration
+   * handler instead of `event.registerTeam(...)` + `save(event)`.
+   */
+  attachTeamToDivision(eventId: string, teamId: string, divisionId: string): Promise<void>;
+
+  /**
+   * Idempotently attach a free agent to a division on the event. Sidesteps
+   * the `VolleyballEvent` aggregate for the same reason as
+   * `attachTeamToDivision`: its `_freeAgents` map stores only userId → notes
+   * and has no place for the chosen division. Use this from
+   * `JoinEventAsFreeAgentHandler` after `event.joinAsFreeAgent(...)` + save.
+   */
+  attachFreeAgentToDivision(eventId: string, userId: string, divisionId: string): Promise<void>;
 }
 
 // ---- Read-model shapes ----
@@ -88,6 +107,8 @@ export interface FreeAgentLite {
   userId: string;
   joinedAt: Date;
   notes: string | null;
+  /** Division the free agent is signed up for. Null on legacy rows. */
+  divisionId: string | null;
   profile: ProfileLite;
 }
 
@@ -102,6 +123,18 @@ export interface TeamLite {
   captain: ProfileLite | null;
   /** Roster size (members count). */
   memberCount: number;
+  /** Division the team is registered for. Null on legacy rows. */
+  divisionId: string | null;
+  /**
+   * Sidecar per-team payment state (ADR 0007, Bundle 4). Null when the
+   * team owes nothing or hasn't started checkout — UI infers "owed" from
+   * the division's price_unit + price_cents and shows the Pay button when
+   * `payment === null || payment.status !== 'paid'`.
+   */
+  payment: {
+    status: 'none' | 'pending' | 'paid' | 'refunded';
+    amountPaidCents: number | null;
+  } | null;
 }
 
 /** Team the viewer captains — used for the "Register a team" picker. */
@@ -138,6 +171,13 @@ export interface DivisionLite {
   prizePurseCents: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
+  /**
+   * Winning team for this division, set by the host after play wraps up.
+   * Null when no winner has been recorded yet. The label is the team's
+   * display name (roster-mode `teams.name` or ad-hoc
+   * `event_team_registrations.name`).
+   */
+  winner: { label: string; recordedAt: Date } | null;
 }
 
 export interface EventDetailReadModel {
@@ -165,6 +205,13 @@ export interface EventDetailReadModel {
    * positional sign-up. `null` when the host hasn't configured one.
    */
   positionRoster: Partial<Record<EventPosition, number>> | null;
+  /**
+   * Count of attendees per position, including waitlisted entries. Empty
+   * when no attendees have a position set. Mirrors the shape of
+   * `positionRoster` so the UI can render `filled / target` per slot
+   * without re-walking the attendees array on the consumer side.
+   */
+  filledByPosition: Partial<Record<EventPosition, number>>;
   location: {
     addressLine: string;
     city: string;
@@ -211,6 +258,9 @@ export interface EventDetailReadModel {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
+  paymentsOffPlatform: boolean;
+  /** ADR 0007 — null on open-play. Tournaments default to RosterTeams. */
+  teamRegistrationMode: TeamRegistrationMode | null;
 
   /** Divisions on this event (ADR 0006). Empty array when not yet split. */
   divisions: ReadonlyArray<DivisionLite>;
@@ -282,6 +332,9 @@ export interface EventSearchQuery {
 export interface EventSearchDivision {
   id: string;
   label: string;
+  surface: Surface;
+  format: Format | null;
+  gender: Gender | null;
   skillTier: SkillTier;
   tierLabel: string | null;
   ageGroup: AgeGroup;

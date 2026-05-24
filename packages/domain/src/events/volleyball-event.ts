@@ -14,9 +14,12 @@ import {
   EventType,
   Format,
   Gender,
+  PriceUnit,
   RegistrationMode,
   SkillLevel,
   Surface,
+  TeamComposition,
+  TeamRegistrationMode,
   Visibility,
   isEventPosition,
 } from './enums.js';
@@ -116,6 +119,19 @@ export interface EventExtensionsInput {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
+  /**
+   * When true, the host collects entry payment off-platform (cash, Venmo,
+   * etc.). Platform skips Stripe Connect gating and Checkout; players still
+   * RSVP on-platform. Defaults to false.
+   */
+  paymentsOffPlatform: boolean;
+  /**
+   * ADR 0007 team paradigm. `null` for open-play / individual-signup
+   * events; `ad_hoc` for events where the captain assembles a one-off
+   * roster (default for tournaments); `roster` for events that register
+   * an existing persistent {@link Team}.
+   */
+  teamRegistrationMode: TeamRegistrationMode | null;
 }
 
 interface EventExtensions {
@@ -132,6 +148,8 @@ interface EventExtensions {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
+  paymentsOffPlatform: boolean;
+  teamRegistrationMode: TeamRegistrationMode | null;
 }
 
 const MAX_VENUE_NAME_LEN = 200;
@@ -245,6 +263,8 @@ function resolveExtensions(
     externalRegistrationUrl,
     externalRegistrationInstructions,
     paymentInstructions,
+    paymentsOffPlatform: input?.paymentsOffPlatform ?? false,
+    teamRegistrationMode: input?.teamRegistrationMode ?? null,
   };
 }
 
@@ -289,6 +309,16 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   // ---- Factory ---------------------------------------------------------
+  /**
+   * Validate inputs and produce a new `VolleyballEvent` in `Draft` status.
+   * Raises an `EventCreated` domain event on success.
+   *
+   * @throws {InvariantViolation} for invalid time range, missing title,
+   *   missing open-play capacity, invalid payment config, or any other
+   *   broken aggregate invariant.
+   * @throws {ValidationError} from `assertFormatAllowedForSurface` when
+   *   `surface` and `format` are incompatible.
+   */
   static create(props: CreateEventProps): VolleyballEvent {
     if (props.format !== null) {
       assertFormatAllowedForSurface(props.surface, props.format);
@@ -318,6 +348,15 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     }
 
     const extensions = resolveExtensions(props.extensions, props.endsAt);
+    // ADR 0007 / 0012: tournaments default to ad-hoc team registration when
+    // the host did not specify a mode at all. An explicit `null` from the
+    // host (= "individual signup tournament") is respected.
+    if (
+      props.type === EventType.Tournament &&
+      props.extensions?.teamRegistrationMode === undefined
+    ) {
+      extensions.teamRegistrationMode = TeamRegistrationMode.AdHoc;
+    }
     const divisions = (props.divisions ?? []).slice();
 
     const evt = new VolleyballEvent(
@@ -345,6 +384,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       extensions,
       divisions,
     );
+    evt.assertRegistrationConfigValid();
     evt.raise(new EventCreated(evt.id));
     return evt;
   }
@@ -507,6 +547,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   get paymentInstructions(): string | null {
     return this._extensions.paymentInstructions;
   }
+  get paymentsOffPlatform(): boolean {
+    return this._extensions.paymentsOffPlatform;
+  }
+  /** ADR 0007 team paradigm. Null for open-play / individual-signup events. */
+  get teamRegistrationMode(): TeamRegistrationMode | null {
+    return this._extensions.teamRegistrationMode;
+  }
 
   /** Total spots — derived from positionRoster when set, else from capacity. */
   get totalSpots(): number | null {
@@ -559,7 +606,14 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new EventCancelled(this.id, reason));
   }
 
-  /** Open-play signup. */
+  /**
+   * Open-play signup.
+   *
+   * @throws {InvariantViolation} if the event is not OpenPlay, uses
+   *   position-based signup, is not Published, or has already started.
+   * @throws {ConflictError} if the user is already signed up.
+   * @throws {CapacityExceededError} if the event is at capacity.
+   */
   joinAsPlayer(userId: UserId): void {
     if (this.type !== EventType.OpenPlay) {
       throw new InvariantViolation('Tournaments require team signup.');
@@ -590,6 +644,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * Open-play signup at a specific position. Available only when the host
    * configured a `positionRoster`. Over-fill is allowed (waitlist style):
    * we don't reject when the position is full, we just flag the event.
+   *
+   * @throws {InvariantViolation} if the event is not OpenPlay, has no
+   *   position roster, is not Published, has already started, or the
+   *   requested position is not part of this event.
+   * @throws {ConflictError} if the user is already signed up.
    */
   joinAsPlayerWithPosition(userId: UserId, position: EventPosition): void {
     if (this.type !== EventType.OpenPlay) {
@@ -620,6 +679,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new SpotFilled(this.id, userId, this.spotsRemaining, position, waitlist));
   }
 
+  /**
+   * Remove an open-play signup.
+   *
+   * @throws {NotFoundError} if the user is not currently signed up.
+   */
   leave(userId: UserId): void {
     if (!this._attendees.delete(userId)) {
       throw new NotFoundError('attendee', userId, 'User is not signed up for this event.');
@@ -627,7 +691,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new SpotReleased(this.id, userId));
   }
 
-  /** Tournament signup. */
+  /**
+   * Tournament signup.
+   *
+   * @throws {InvariantViolation} if the event is not a Tournament, is not
+   *   Published, or has already started.
+   * @throws {ConflictError} if the team is already registered.
+   */
   registerTeam(teamId: TeamId): void {
     if (this.type !== EventType.Tournament) {
       throw new InvariantViolation('Open-play events require player signup.');
@@ -648,7 +718,11 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new TeamRegistered(this.id, teamId));
   }
 
-  /** Tournament withdraw. */
+  /**
+   * Tournament withdraw.
+   *
+   * @throws {NotFoundError} if the team is not currently registered.
+   */
   withdrawTeam(teamId: TeamId): void {
     if (!this._teams.delete(teamId)) {
       throw new NotFoundError('team', String(teamId), 'Team is not registered for this event.');
@@ -660,6 +734,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * Free-agent signup for a tournament. Lets a player advertise that
    * they want to be picked up by a team that's short. Independent of
    * team registration — a captain can be both.
+   *
+   * @throws {InvariantViolation} if the event is not a Tournament, is not
+   *   Published, has already started, or notes exceed 280 characters.
+   * @throws {ConflictError} if the user is already signed up as a free agent.
    */
   joinAsFreeAgent(userId: UserId, notes: string | null): void {
     if (this.type !== EventType.Tournament) {
@@ -685,7 +763,12 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     this.raise(new FreeAgentJoined(this.id, userId));
   }
 
-  /** Remove a free-agent signup. */
+  /**
+   * Remove a free-agent signup.
+   *
+   * @throws {NotFoundError} if the user is not currently signed up as a
+   *   free agent.
+   */
   leaveAsFreeAgent(userId: UserId): void {
     if (!this._freeAgents.delete(userId)) {
       throw new NotFoundError(
@@ -711,6 +794,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       });
     }
     this._divisions.push(division);
+    this.assertRegistrationConfigValid();
   }
 
   /** Replace an existing division by id. */
@@ -720,6 +804,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       throw new NotFoundError('division', String(division.id));
     }
     this._divisions[idx] = division;
+    this.assertRegistrationConfigValid();
   }
 
   /** Remove a division by id. */
@@ -729,5 +814,73 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       throw new NotFoundError('division', String(divisionId));
     }
     this._divisions.splice(idx, 1);
+  }
+
+  /**
+   * ADR 0012 — canonical registration-config matrix. Enforces the
+   * interlocking rules across {@link EventType}, `teamRegistrationMode`,
+   * `team_composition`, and `price_unit`:
+   *
+   *   1. Open-play events must use individual signup
+   *      (`teamRegistrationMode === null`) and solo divisions only.
+   *   2. Team-led events (`teamRegistrationMode ∈ {ad_hoc, roster}`)
+   *      require every division to use a non-solo composition and
+   *      `priceUnit === per_team`. The captain pays for the team;
+   *      per-player pricing is rejected because the platform does not
+   *      split a captain's payment across teammates.
+   *   3. Individual-signup events (`teamRegistrationMode === null`)
+   *      require every division to use `TeamComposition.Solo` and
+   *      `priceUnit === per_player`.
+   *   4. `payments_off_platform` does not relax any of the above —
+   *      off-platform changes who handles the money, not what shape
+   *      of registration the platform accepts.
+   *
+   * Invoked from {@link create} and from division mutations so a bad
+   * combination can't sneak in by adding a division later.
+   */
+  private assertRegistrationConfigValid(): void {
+    const mode = this._extensions.teamRegistrationMode;
+    const isTeamLed = mode === TeamRegistrationMode.AdHoc || mode === TeamRegistrationMode.Roster;
+    const isIndividual = mode === null;
+
+    // Rule 1: open-play is individual-only.
+    if (this.type === EventType.OpenPlay && !isIndividual) {
+      throw new InvariantViolation(
+        'Open-play events must use individual signup (team registration mode must be "none").',
+      );
+    }
+
+    for (const d of this._divisions) {
+      const composition = d.teamComposition;
+      const priceUnit = d.priceUnit;
+
+      // Rule 2: team-led events require team composition + per-team price.
+      if (isTeamLed) {
+        if (composition === TeamComposition.Solo) {
+          throw new InvariantViolation(
+            `Team-registered events cannot have a solo-composition division. Division "${d.label}" must use team, pair_draw, or partner_required.`,
+          );
+        }
+        if (priceUnit === PriceUnit.PerPlayer) {
+          throw new InvariantViolation(
+            `Team-registered events require per-team pricing. Division "${d.label}" is priced per-player — the captain pays for the team. Switch the division to per-team pricing or disable team registration on the event.`,
+          );
+        }
+      }
+
+      // Rule 3: individual events require solo composition + per-player price.
+      if (isIndividual) {
+        if (composition !== TeamComposition.Solo) {
+          throw new InvariantViolation(
+            `Individual-signup events must use solo divisions. Division "${d.label}" has team composition "${composition}" — enable team registration on the event or switch the division to solo.`,
+          );
+        }
+        if (priceUnit === PriceUnit.PerTeam) {
+          throw new InvariantViolation(
+            `Individual-signup events cannot use per-team pricing. Division "${d.label}" must be priced per-player, or enable team registration on the event.`,
+          );
+        }
+      }
+    }
   }
 }

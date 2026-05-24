@@ -47,6 +47,18 @@ jobs:
           retention-days: 14
 
       - name: Build
+        # The Supabase env vars below are deliberate placeholders, not real
+        # secrets. `next build` validates that `NEXT_PUBLIC_SUPABASE_URL` /
+        # `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` are present at build time
+        # (the Supabase browser client throws on import otherwise), but no
+        # request actually hits Supabase during the build. Real-Supabase
+        # validation is intentionally deferred to `smoke-prod.yml`, which
+        # runs Playwright against the deployed Vercel preview/prod URL after
+        # deploy — that's where any actual schema or auth regression would
+        # surface. Wiring a real CI Supabase here would cost shared quota
+        # and a service-role secret without catching anything the post-deploy
+        # smoke doesn't already catch. See docs/audits/organization.md
+        # "CI uses hardcoded Supabase placeholder keys" (closed Bundle 58).
         run: pnpm build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co

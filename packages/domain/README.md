@@ -47,10 +47,10 @@ src/
 
 The repository interface mixes **two concerns** intentionally:
 
-| Method shape | Purpose | Returns |
-|---|---|---|
-| `findById(id)` / `save(agg)` | Write side — load → mutate → save the aggregate | `VolleyballEvent` |
-| `search(...)` / `getDetail(...)` | Read side — denormalized for the UI | `*Summary`, `*Detail`, `*Item` |
+| Method shape                     | Purpose                                         | Returns                        |
+| -------------------------------- | ----------------------------------------------- | ------------------------------ |
+| `findById(id)` / `save(agg)`     | Write side — load → mutate → save the aggregate | `VolleyballEvent`              |
+| `search(...)` / `getDetail(...)` | Read side — denormalized for the UI             | `*Summary`, `*Detail`, `*Item` |
 
 **Don't load an aggregate just to render it.** Use a read model. Aggregates
 are for state changes; read models are for queries.
@@ -91,6 +91,10 @@ Adding a new state-changing operation to `VolleyballEvent`:
 3. Brand the id: `export type FooId = Brand<string, 'FooId'>`.
 4. Add a `<thing>-repository.ts` port in the same folder.
 5. Re-export from `src/index.ts`.
+
+## Exports
+
+`src/index.ts` is a transparent barrel: it re-exports **everything** from each subfolder's own `index.ts` (`shared/`, `events/`, `users/`, `teams/`, `brackets/`, `payments/`, `community-listings/`). Aggregates, value objects, branded ids, repository ports, the `DomainError` hierarchy, and the domain-event base types all flow up unchanged so consumers can `import { VolleyballEvent, NotFoundError, EventId } from '@pickupvb/domain'` without knowing the folder layout. Add new public exports to the relevant subfolder `index.ts` — the top-level barrel needs no edit unless you introduce a brand-new subfolder.
 
 ## Testing
 

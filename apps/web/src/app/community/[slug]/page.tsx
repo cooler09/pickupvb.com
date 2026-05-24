@@ -6,6 +6,7 @@ import { GetCommunityListingDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
+import { SubmitButton } from '@/components/submit-button';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import {
@@ -244,12 +245,9 @@ export default async function CommunityListingDetailPage(props: PageProps) {
               placeholder="Your event UUID"
               className="border-border-base bg-surface w-72 max-w-full rounded-md border px-2 py-1 font-mono text-xs"
             />
-            <button
-              type="submit"
-              className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-xs font-semibold"
-            >
+            <SubmitButton className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
               Claim listing
-            </button>
+            </SubmitButton>
           </form>
         </section>
       )}
@@ -268,12 +266,9 @@ export default async function CommunityListingDetailPage(props: PageProps) {
               action={reportListingFromForm.bind(null, detail.id, detail.slug)}
               className="mt-3"
             >
-              <button
-                type="submit"
-                className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-200"
-              >
+              <SubmitButton className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-200">
                 Report listing
-              </button>
+              </SubmitButton>
             </form>
           )}
         </section>
@@ -296,21 +291,15 @@ export default async function CommunityListingDetailPage(props: PageProps) {
             )}
             {detail.status === 'active' ? (
               <form action={hideListingFromForm.bind(null, detail.id, detail.slug)}>
-                <button
-                  type="submit"
-                  className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold"
-                >
+                <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
                   Hide
-                </button>
+                </SubmitButton>
               </form>
             ) : detail.status === 'hidden' ? (
               <form action={unhideListingFromForm.bind(null, detail.id, detail.slug)}>
-                <button
-                  type="submit"
-                  className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold"
-                >
+                <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
                   Unhide
-                </button>
+                </SubmitButton>
               </form>
             ) : null}
             <form
@@ -321,12 +310,9 @@ export default async function CommunityListingDetailPage(props: PageProps) {
                 <input type="checkbox" name="confirm" />
                 Confirm
               </label>
-              <button
-                type="submit"
-                className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-200"
-              >
+              <SubmitButton className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-200">
                 Delete
-              </button>
+              </SubmitButton>
             </form>
           </div>
           {detail.reportCount > 0 && (

@@ -1,0 +1,21 @@
+# CODEOWNERS — auto-request review on PRs.
+
+#
+
+# Solo-maintained project today, so every path falls back to the owner. This
+
+# file exists so GitHub's "code review assignment" surface is wired and so
+
+# new contributors land on a clear ownership boundary instead of guessing.
+
+#
+
+# When the project takes on additional regular contributors, narrow these
+
+# globs — e.g. give domain experts ownership of `packages/domain/` and
+
+# infra-touching folks ownership of `supabase/migrations/` — rather than
+
+# leaving the catch-all in place.
+
+- @cooler09

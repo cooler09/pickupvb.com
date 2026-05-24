@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import type { Route } from 'next';
+import { InvariantViolation, UnauthorizedError } from '@pickupvb/domain';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
 import { getHostStripeCustomerId, seedHostStripeCustomer } from '@/lib/pro';
@@ -24,103 +25,104 @@ import { log } from '@/lib/log';
  */
 
 function priceIdFor(plan: 'monthly' | 'yearly'): string | null {
-    const id =
-        plan === 'monthly'
-            ? process.env['STRIPE_PRO_MONTHLY_PRICE_ID']
-            : process.env['STRIPE_PRO_YEARLY_PRICE_ID'];
-    return id ?? null;
+  const id =
+    plan === 'monthly'
+      ? process.env['STRIPE_PRO_MONTHLY_PRICE_ID']
+      : process.env['STRIPE_PRO_YEARLY_PRICE_ID'];
+  return id ?? null;
 }
 
-async function getOrCreateCustomerId(
-    userId: string,
-    email: string | null,
-): Promise<string> {
-    const stripe = getStripe();
-    const existingId = await getHostStripeCustomerId(userId);
-    if (existingId) return existingId;
+async function getOrCreateCustomerId(userId: string, email: string | null): Promise<string> {
+  const stripe = getStripe();
+  const existingId = await getHostStripeCustomerId(userId);
+  if (existingId) return existingId;
 
-    const customer = await stripe.customers.create({
-        ...(email ? { email } : {}),
-        metadata: { user_id: userId },
-    });
-    // Pre-seed the row with status='incomplete' so the webhook upsert path
-    // is simpler; it'll get overwritten on subscription.created.
-    try {
-        await seedHostStripeCustomer(userId, customer.id);
-    } catch (error) {
-        await log.error('[pro] seed host_subscriptions failed', error);
-    }
-    return customer.id;
+  const customer = await stripe.customers.create({
+    ...(email ? { email } : {}),
+    metadata: { user_id: userId },
+  });
+  // Pre-seed the row with status='incomplete' so the webhook upsert path
+  // is simpler; it'll get overwritten on subscription.created.
+  try {
+    await seedHostStripeCustomer(userId, customer.id);
+  } catch (error) {
+    await log.error('[pro] seed host_subscriptions failed', error);
+  }
+  return customer.id;
 }
 
 export async function startProCheckout(plan: 'monthly' | 'yearly'): Promise<void> {
-    if (!isStripeConfigured()) {
-        throw new Error('Stripe is not configured on the server.');
-    }
-    const priceId = priceIdFor(plan);
-    if (!priceId) {
-        throw new Error(
-            `Missing STRIPE_PRO_${plan.toUpperCase()}_PRICE_ID env var. ` +
-            `Create the price in Stripe Dashboard and set the id.`,
-        );
-    }
+  if (!isStripeConfigured()) {
+    throw new InvariantViolation('Stripe is not configured on the server.');
+  }
+  const priceId = priceIdFor(plan);
+  if (!priceId) {
+    throw new InvariantViolation(
+      `Missing STRIPE_PRO_${plan.toUpperCase()}_PRICE_ID env var. ` +
+        `Create the price in Stripe Dashboard and set the id.`,
+    );
+  }
 
-    const supabase = await getServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect('/login?next=/profile/billing/pro');
-    if (user.is_anonymous) {
-        redirect('/profile/billing/pro?error=anonymous' as Route);
-    }
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login?next=/profile/billing/pro');
+  if (user.is_anonymous) {
+    redirect('/profile/billing/pro?error=anonymous' as Route);
+  }
 
-    const customerId = await getOrCreateCustomerId(user.id, user.email ?? null);
+  const customerId = await getOrCreateCustomerId(user.id, user.email ?? null);
 
-    const origin = await buildOrigin();
+  const origin = await buildOrigin();
 
-    const session = await getStripe().checkout.sessions.create({
-        mode: 'subscription',
-        customer: customerId,
-        line_items: [{ price: priceId, quantity: 1 }],
-        subscription_data: {
-            trial_period_days: 14,
-            metadata: { user_id: user.id },
-        },
-        // Lets Stripe attach the payment method back to the customer for the
-        // trial without charging; we still capture once the trial ends.
-        payment_method_collection: 'always',
-        allow_promotion_codes: true,
-        success_url: `${origin}/profile/billing/pro?status=success`,
-        cancel_url: `${origin}/profile/billing/pro?status=cancel`,
-        metadata: { user_id: user.id, plan },
-    });
+  const session = await getStripe().checkout.sessions.create({
+    mode: 'subscription',
+    customer: customerId,
+    line_items: [{ price: priceId, quantity: 1 }],
+    subscription_data: {
+      trial_period_days: 14,
+      metadata: { user_id: user.id },
+    },
+    // Lets Stripe attach the payment method back to the customer for the
+    // trial without charging; we still capture once the trial ends.
+    payment_method_collection: 'always',
+    allow_promotion_codes: true,
+    success_url: `${origin}/profile/billing/pro?status=success`,
+    cancel_url: `${origin}/profile/billing/pro?status=cancel`,
+    metadata: { user_id: user.id, plan },
+  });
 
-    if (!session.url) {
-        throw new Error('Stripe did not return a checkout URL.');
-    }
-    redirect(session.url as Route);
+  if (!session.url) {
+    throw new InvariantViolation('Stripe did not return a checkout URL.');
+  }
+  redirect(session.url as Route);
 }
 
 export async function openBillingPortal(): Promise<void> {
-    if (!isStripeConfigured()) {
-        throw new Error('Stripe is not configured on the server.');
-    }
+  if (!isStripeConfigured()) {
+    throw new InvariantViolation('Stripe is not configured on the server.');
+  }
 
-    const supabase = await getServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect('/login?next=/profile/billing/pro');
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login?next=/profile/billing/pro');
 
-    const customerId = await getHostStripeCustomerId(user.id);
-    if (!customerId) {
-        redirect('/profile/billing/pro?error=no_customer' as Route);
-    }
+  const customerId = await getHostStripeCustomerId(user.id);
+  if (!customerId) {
+    redirect('/profile/billing/pro?error=no_customer' as Route);
+  }
 
-    const origin = await buildOrigin();
+  const origin = await buildOrigin();
 
-    const portal = await getStripe().billingPortal.sessions.create({
-        customer: customerId,
-        return_url: `${origin}/profile/billing/pro`,
-    });
+  const portal = await getStripe().billingPortal.sessions.create({
+    customer: customerId,
+    return_url: `${origin}/profile/billing/pro`,
+  });
 
-    redirect(portal.url as Route);
+  redirect(portal.url as Route);
 }
 
 /**
@@ -129,23 +131,25 @@ export async function openBillingPortal(): Promise<void> {
  * (Server Actions can't honor `target="_blank"`).
  */
 export async function getBillingPortalUrl(): Promise<string> {
-    if (!isStripeConfigured()) {
-        throw new Error('Stripe is not configured on the server.');
-    }
+  if (!isStripeConfigured()) {
+    throw new InvariantViolation('Stripe is not configured on the server.');
+  }
 
-    const supabase = await getServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not signed in.');
+  const supabase = await getServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new UnauthorizedError('Not signed in.');
 
-    const customerId = await getHostStripeCustomerId(user.id);
-    if (!customerId) throw new Error('No Stripe customer for this account.');
+  const customerId = await getHostStripeCustomerId(user.id);
+  if (!customerId) throw new InvariantViolation('No Stripe customer for this account.');
 
-    const origin = await buildOrigin();
+  const origin = await buildOrigin();
 
-    const portal = await getStripe().billingPortal.sessions.create({
-        customer: customerId,
-        return_url: `${origin}/profile/billing/pro`,
-    });
+  const portal = await getStripe().billingPortal.sessions.create({
+    customer: customerId,
+    return_url: `${origin}/profile/billing/pro`,
+  });
 
-    return portal.url;
+  return portal.url;
 }

@@ -42,6 +42,7 @@ export default function AdvancedDetailsPanel({
   initial,
   defaultOpen,
   hideExternal,
+  isExternal: externalOverride,
 }: {
   onExternalChange?: (external: boolean) => void;
   initial?: AdvancedDetailsInitial;
@@ -53,6 +54,13 @@ export default function AdvancedDetailsPanel({
    * duplicating the input names.
    */
   hideExternal?: boolean;
+  /**
+   * When `hideExternal` is true the parent form owns the external-mode
+   * toggle. Pass its current value here so this panel can hide
+   * sub-fields that don't apply off-platform (e.g. on-platform
+   * registration close date).
+   */
+  isExternal?: boolean;
 }) {
   const hasInitialAdvanced = Boolean(
     initial &&
@@ -68,6 +76,10 @@ export default function AdvancedDetailsPanel({
   const [isFundraiser, setIsFundraiser] = useState(Boolean(initial?.isFundraiser));
   const [isSeries, setIsSeries] = useState(Boolean(initial?.seriesName));
   const [isExternal, setIsExternal] = useState(initial?.registrationMode === 'external');
+  // When the parent owns the external toggle (hideExternal=true) prefer its
+  // value so sub-fields gated on "on-platform registration" hide/show in
+  // sync with the parent's checkbox.
+  const effectiveExternal = externalOverride ?? isExternal;
   const [registrationClosesAt, setRegistrationClosesAt] = useState<Date | null>(
     initial?.registrationClosesAt ?? null,
   );
@@ -116,20 +128,26 @@ export default function AdvancedDetailsPanel({
             </p>
           </div>
 
-          {/* Registration closes */}
-          <div>
-            <label className={labelClass}>Registration closes at</label>
-            <DateTimePicker
-              name="registrationClosesAt"
-              value={registrationClosesAt}
-              onChange={setRegistrationClosesAt}
-              minDate={new Date()}
-              inputClass={inputClass}
-            />
-            <p className="text-muted mt-1 text-xs">
-              Leave blank to let players join right up to the start time.
-            </p>
-          </div>
+          {/* Registration closes — only relevant for on-platform signups;
+              off-platform registrars (AES, Eventbrite, …) manage their own
+              deadlines, so hide the field entirely when external. */}
+          {!effectiveExternal && (
+            <div>
+              <label htmlFor="registrationClosesAt" className={labelClass}>
+                Registration closes at
+              </label>
+              <DateTimePicker
+                name="registrationClosesAt"
+                value={registrationClosesAt}
+                onChange={setRegistrationClosesAt}
+                minDate={new Date()}
+                inputClass={inputClass}
+              />
+              <p className="text-muted mt-1 text-xs">
+                Leave blank to let players join right up to the start time.
+              </p>
+            </div>
+          )}
 
           {/* Series */}
           <label className="flex items-start gap-2 text-sm">

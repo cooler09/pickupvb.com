@@ -5,7 +5,7 @@
   "description": "PickupVB.com – create, find, and manage volleyball events.",
   "packageManager": "pnpm@9.12.0",
   "engines": {
-    "node": ">=20.11.0",
+    "node": ">=22.11.0",
     "pnpm": ">=9.0.0"
   },
   "scripts": {
@@ -22,16 +22,29 @@
     "supabase:reset": "supabase db reset",
     "db:migrate": "supabase migration up",
     "db:diff": "supabase db diff",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^25.8.0",
     "@vitest/coverage-v8": "^2",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.5",
     "prettier": "^3.3.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "supabase": "^2.98.2",
     "turbo": "^2.9.14",
     "typescript": "^6.0.3",
     "vitest": "^2.1.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.10"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,yml,yaml}": [
+      "prettier --write"
+    ]
   }
 }

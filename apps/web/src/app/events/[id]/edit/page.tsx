@@ -81,6 +81,8 @@ export default async function EditEventPage(props: { params: Promise<{ id: strin
           priceUsd: pricing ? (pricing.priceCents / 100).toFixed(2) : '0.00',
           refundWindowHours: pricing?.refundWindowHours ?? 24,
           hostAbsorbsFee: pricing?.hostAbsorbsFee ?? false,
+          paymentsOffPlatform: event.paymentsOffPlatform,
+          teamRegistrationMode: event.teamRegistrationMode,
           extensions: {
             venueName: event.venueName,
             registrationClosesAt: event.registrationClosesAt,

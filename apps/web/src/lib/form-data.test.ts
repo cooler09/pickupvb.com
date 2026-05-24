@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bool, field, fieldOrNull, fieldOrUndefined } from './form-data';
+import { bool, field, fieldOrNull, fieldOrUndefined, FIELD_HARD_MAX } from './form-data';
 
 function fd(entries: Record<string, string>): FormData {
   const f = new FormData();
@@ -65,5 +65,27 @@ describe('bool', () => {
 
   it('respects slot-prefixed keys', () => {
     expect(bool(fd({ '1_ok': 'on' }), 'ok')).toBe(true);
+  });
+});
+
+describe('FIELD_HARD_MAX', () => {
+  it('truncates oversized bare keys', () => {
+    const huge = 'a'.repeat(FIELD_HARD_MAX + 500);
+    expect(field(fd({ x: huge }), 'x')).toHaveLength(FIELD_HARD_MAX);
+  });
+
+  it('truncates oversized slot-prefixed keys', () => {
+    const huge = 'b'.repeat(FIELD_HARD_MAX * 2);
+    expect(field(fd({ '1_x': huge }), 'x')).toHaveLength(FIELD_HARD_MAX);
+  });
+
+  it('caps fieldOrNull even when a larger maxLen is passed', () => {
+    const huge = 'c'.repeat(FIELD_HARD_MAX + 1000);
+    expect(fieldOrNull(fd({ x: huge }), 'x', FIELD_HARD_MAX + 1000)).toHaveLength(FIELD_HARD_MAX);
+  });
+
+  it('still honors a smaller per-call maxLen', () => {
+    const huge = 'd'.repeat(FIELD_HARD_MAX);
+    expect(fieldOrNull(fd({ x: huge }), 'x', 10)).toHaveLength(10);
   });
 });

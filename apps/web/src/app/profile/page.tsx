@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
 import { FriendsList } from '@/components/friends-list';
+import { loadFriendEdges } from '@/lib/mappers/friend';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 import { HandleEditor } from './_components/handle-editor';
@@ -35,16 +36,6 @@ type ProfileRow = {
   facebook_handle: string | null;
   youtube_handle: string | null;
   website_url: string | null;
-};
-
-type FriendProfile = {
-  id: string;
-  handle: string;
-  display_name: string;
-  first_name: string | null;
-  last_name: string | null;
-  avatar_url: string | null;
-  home_city: string | null;
 };
 
 const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
@@ -86,28 +77,14 @@ export default async function ProfilePage() {
     website_url: row?.website_url ?? null,
   };
 
-  // Outgoing friend edges (people you've added).
-  const { data: outRows } = await supabase
-    .from('friendships')
-    .select(
-      'friend_id, profiles:profiles!friendships_friend_id_fkey(id, handle, display_name, first_name, last_name, avatar_url, home_city)',
-    )
-    .eq('user_id', user.id);
+  // Outgoing friend edges (people you've added) + incoming-edge user-id
+  // set, used to flag mutual friendships in the FriendsList UI. Shared
+  // mapper also used by /friends.
+  const { friends, mutualIds } = await loadFriendEdges(supabase, user.id);
 
-  type OutRow = { friend_id: string; profiles: FriendProfile | null };
-  const out = (outRows as OutRow[] | null) ?? [];
-  const friends: FriendProfile[] = out
-    .map((r) => r.profiles)
-    .filter((p): p is FriendProfile => p !== null);
-
-  // Incoming edges (people who've added you) → used to flag mutual friendships.
-  const { data: inRows } = await supabase
-    .from('friendships')
-    .select('user_id')
-    .eq('friend_id', user.id);
-  const mutualIds = new Set(((inRows as { user_id: string }[] | null) ?? []).map((r) => r.user_id));
-
-  const hostedEvents = await loadVisibleHostedEvents(user.id, { startsAfter: new Date() });
+  const hostedEvents = await loadVisibleHostedEvents(supabase, user.id, {
+    startsAfter: new Date(),
+  });
   const upcomingHosted = hostedEvents;
   const [viewerIsPro, viewerIsAdmin] = await Promise.all([
     isPro(user.id),

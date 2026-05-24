@@ -45,6 +45,9 @@ export class JoinEventAsFreeAgentCommand {
     public readonly userId: string,
     /** Optional captain-facing blurb (e.g. "setter, can play Sat morning"). */
     public readonly notes: string | null,
+    /** Division the free agent is signing up for. Required — every
+     * tournament has at least one (default) division. */
+    public readonly divisionId: string,
   ) {}
 }
 
@@ -150,6 +153,13 @@ export class RegisterTeamCommand {
     public readonly eventId: string,
     public readonly teamId: string,
     public readonly requesterId: string,
+    /**
+     * Division the captain is registering the team into. Required because
+     * `event_teams.division_id` is NOT NULL and multi-division events need
+     * the captain's choice (the `fill_default_division_id` trigger only
+     * covers single-division events).
+     */
+    public readonly divisionId: string,
   ) {}
 }
 
@@ -157,6 +167,59 @@ export class WithdrawTeamCommand {
   constructor(
     public readonly eventId: string,
     public readonly teamId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+// ---- Ad-hoc team registration (ADR 0007) --------------------------------
+/** Input for a single roster slot when (un)registering an ad-hoc team. */
+export interface AdHocRegistrationMemberInput {
+  /** Linked account, when the player exists on-platform. */
+  userId?: string | null;
+  /** Free-text display name, used when the player has no account. */
+  displayName?: string | null;
+  /** Optional contact email for off-platform players. */
+  email?: string | null;
+}
+
+export class RegisterAdHocTeamCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly divisionId: string,
+    /** Caller; becomes the registration's captain. */
+    public readonly captainId: string,
+    public readonly name: string,
+    public readonly members: ReadonlyArray<AdHocRegistrationMemberInput>,
+  ) {}
+}
+
+export class RenameAdHocTeamRegistrationCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+    public readonly name: string,
+  ) {}
+}
+
+export class AddAdHocTeamMemberCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+    public readonly member: AdHocRegistrationMemberInput,
+  ) {}
+}
+
+export class RemoveAdHocTeamMemberCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+    public readonly memberId: string,
+  ) {}
+}
+
+export class WithdrawAdHocTeamRegistrationCommand {
+  constructor(
+    public readonly registrationId: string,
     public readonly requesterId: string,
   ) {}
 }

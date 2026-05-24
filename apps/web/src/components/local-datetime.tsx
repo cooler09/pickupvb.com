@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
 import {
   formatDateShort,
   formatEventDateLong,
   formatEventStart,
   formatTime,
 } from '@/lib/date-formats';
+import { useIsMounted } from '@/lib/use-is-mounted';
 
 type Variant = 'eventStart' | 'eventDateLong' | 'time' | 'dateShort';
 
@@ -42,10 +41,7 @@ export function LocalDateTime({
   fallback?: string;
   className?: string;
 }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useIsMounted();
 
   const date = iso instanceof Date ? iso : new Date(iso);
   const isoAttr = date.toISOString();

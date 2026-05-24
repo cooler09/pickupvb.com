@@ -101,10 +101,9 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
   // Untyped accessor for tables not yet in the generated Database types.
   // After `pnpm --filter @pickupvb/supabase gen:types`, these `as never` casts
   // can be removed.
-  private table(name: string): ReturnType<SupabaseClient['from']> {
-    return (
-      this.client as unknown as { from: (n: string) => ReturnType<SupabaseClient['from']> }
-    ).from(name);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private table(name: string): any {
+    return (this.client as unknown as { from: (n: string) => unknown }).from(name);
   }
 
   async findById(id: string): Promise<CommunityListing | null> {
@@ -168,11 +167,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
   }
 
   async countByUserSince(userId: string, since: Date): Promise<number> {
-    const { count, error } = await (
-      this.table('community_listings').select('id', { count: 'exact', head: true }) as ReturnType<
-        ReturnType<SupabaseClient['from']>['select']
-      >
-    )
+    const { count, error } = await this.table('community_listings')
+      .select('id', { count: 'exact', head: true })
       .eq('submitter_user_id', userId)
       .gte('created_at', since.toISOString());
     if (error) throw new Error(`CommunityListing.countByUserSince failed: ${error.message}`);
@@ -341,11 +337,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         .eq('id', row.submitter_user_id)
         .maybeSingle(),
       viewerId
-        ? (this.client as unknown as { from: (n: string) => ReturnType<SupabaseClient['from']> })
-            .from('profiles')
-            .select('is_platform_admin')
-            .eq('id', viewerId)
-            .maybeSingle()
+        ? this.table('profiles').select('is_platform_admin').eq('id', viewerId).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       viewerId
         ? this.table('community_listing_reports')
@@ -403,10 +395,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
   }
 
   async isPlatformAdmin(userId: string): Promise<boolean> {
-    const { data, error } = await (
-      this.client as unknown as { from: (n: string) => ReturnType<SupabaseClient['from']> }
-    )
-      .from('profiles')
+    const { data, error } = await this.table('profiles')
       .select('is_platform_admin')
       .eq('id', userId)
       .maybeSingle();

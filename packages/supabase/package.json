@@ -9,13 +9,14 @@
     ".": "./src/index.ts",
     "./browser": "./src/browser.ts",
     "./server": "./src/server.ts",
-    "./admin": "./src/admin.ts"
+    "./admin": "./src/admin.ts",
+    "./anon": "./src/anon.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "lint": "echo 'lint: no rules yet' && exit 0",
-    "test": "echo no-tests",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests",
     "gen:types": "supabase gen types typescript --local > src/database.types.ts.tmp && mv src/database.types.ts.tmp src/database.types.ts",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
@@ -24,11 +25,12 @@
     "@supabase/supabase-js": "^2.45.4"
   },
   "devDependencies": {
-    "@types/node": "25",
+    "@pickupvb/config": "workspace:*",
+    "@types/node": "^25.8.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
-    "next": ">=14.0.0"
+    "next": ">=15.5.16"
   },
   "peerDependenciesMeta": {
     "next": {

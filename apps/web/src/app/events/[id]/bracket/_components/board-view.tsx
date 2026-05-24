@@ -8,6 +8,7 @@ import {
 import { generatePlayoff, resetBracket } from '../actions';
 import { MatchCard } from './match-card';
 import type { TeamLite } from './labels';
+import { SubmitButton } from '@/components/submit-button';
 
 export function BoardView(props: {
   eventId: string;
@@ -86,12 +87,9 @@ export function BoardView(props: {
                 Any entered match results will be discarded.
               </p>
               <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
-                <button
-                  type="submit"
-                  className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
-                >
+                <SubmitButton className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50">
                   Reset and re-seed
-                </button>
+                </SubmitButton>
               </form>
             </div>
           </details>
@@ -118,12 +116,9 @@ export function BoardView(props: {
               className="flex items-center justify-between gap-2"
             >
               <span>Pool play is complete. Generate the playoff bracket?</span>
-              <button
-                type="submit"
-                className="bg-primary text-primary-fg rounded px-3 py-1 text-xs"
-              >
+              <SubmitButton className="bg-primary text-primary-fg rounded px-3 py-1 text-xs disabled:opacity-50">
                 Generate playoff
-              </button>
+              </SubmitButton>
             </form>
           ) : (
             <span className="text-muted">

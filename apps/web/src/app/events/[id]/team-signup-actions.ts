@@ -29,11 +29,15 @@ export async function registerTeamFromForm(
 ): Promise<void> {
   const teamId = field(formData, 'team_id');
   if (!teamId) redirect(`${returnPath}?team=missing` as Route);
+  const divisionId = field(formData, 'division_id');
+  if (!divisionId) redirect(`${returnPath}?team=division_required` as Route);
 
   const { user } = await requireRealUser(returnPath);
 
   try {
-    await handlers.registerTeam.execute(new RegisterTeamCommand(eventId, teamId, user.id));
+    await handlers.registerTeam.execute(
+      new RegisterTeamCommand(eventId, teamId, user.id, divisionId),
+    );
   } catch (err) {
     if (err instanceof ConflictError) {
       redirect(`${returnPath}?team=already` as Route);
@@ -45,6 +49,11 @@ export async function registerTeamFromForm(
       redirect(`${returnPath}?team=closed` as Route);
     }
     if (err instanceof NotFoundError) {
+      // Distinguish "team not found" from "division not found" so the panel
+      // can show a more useful message.
+      if (err.message.toLowerCase().includes('division')) {
+        redirect(`${returnPath}?team=division_missing` as Route);
+      }
       redirect(`${returnPath}?team=missing` as Route);
     }
     if (err instanceof ValidationError) {

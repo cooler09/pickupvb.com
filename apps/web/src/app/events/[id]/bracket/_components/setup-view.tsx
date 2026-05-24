@@ -1,4 +1,5 @@
 import type { BracketFormat } from '@pickupvb/domain';
+import { SubmitButton } from '@/components/submit-button';
 import {
   generateBracket,
   randomizeSeedFromForm,
@@ -84,21 +85,17 @@ export function SetupView(props: {
 
       <div className="flex flex-wrap gap-2">
         <form action={generateBracket.bind(null, props.eventId, props.divisionId)}>
-          <button
-            type="submit"
+          <SubmitButton
             disabled={!canGenerate}
             className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50"
           >
             Generate bracket
-          </button>
+          </SubmitButton>
         </form>
         <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
-          <button
-            type="submit"
-            className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm"
-          >
+          <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm disabled:opacity-50">
             Discard bracket
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </section>
@@ -127,18 +124,17 @@ function SeedingForm(props: {
       </p>
       <SeedingList orderedTeams={props.orderedTeams} />
       <div className="flex flex-wrap gap-2 pt-2">
-        <button type="submit" className="bg-primary text-primary-fg rounded px-3 py-1 text-sm">
+        <SubmitButton className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50">
           Save seeding
-        </button>
-        <button
-          type="submit"
+        </SubmitButton>
+        <SubmitButton
           name="randomize"
           value="1"
-          className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm"
+          className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm disabled:opacity-50"
           formAction={randomizeSeedFromForm.bind(null, props.eventId, props.divisionId)}
         >
           Randomize
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );

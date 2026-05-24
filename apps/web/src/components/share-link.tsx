@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useIsMounted } from '@/lib/use-is-mounted';
 
 type Props = {
   /** Absolute or origin-relative path (e.g. `/e/ABC23XYZ`, `/groups/42`). */
@@ -25,16 +26,12 @@ type Props = {
  * handling — no portal or focus-trap library required.
  */
 export function ShareLink({ path, title, code, label = 'Share' }: Props) {
-  const [origin, setOrigin] = useState<string | null>(null);
-  const [canShare, setCanShare] = useState(false);
+  const mounted = useIsMounted();
+  const origin = mounted ? window.location.origin : null;
+  const canShare =
+    mounted && typeof navigator !== 'undefined' && typeof navigator.share === 'function';
   const [status, setStatus] = useState<'idle' | 'copied' | 'shared'>('idle');
   const detailsRef = useRef<HTMLDetailsElement>(null);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    setOrigin(window.location.origin);
-    setCanShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
-  }, []);
 
   // Close the popover when the user clicks anywhere outside.
   useEffect(() => {
@@ -95,9 +92,7 @@ export function ShareLink({ path, title, code, label = 'Share' }: Props) {
       >
         <ShareIcon />
         {label}
-        {code && (
-          <span className="text-muted ml-0.5 font-mono text-xs">{code}</span>
-        )}
+        {code && <span className="text-muted ml-0.5 font-mono text-xs">{code}</span>}
       </summary>
 
       <div
@@ -190,6 +185,7 @@ function QuickShareButton({
       className="border-border-base hover:bg-fg/5 text-fg/80 flex items-center justify-center rounded-md border px-2 py-1.5 text-xs font-medium"
     >
       {label}
+      {external && <span className="sr-only"> (opens in new tab)</span>}
     </a>
   );
 }

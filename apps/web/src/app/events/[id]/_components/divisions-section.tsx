@@ -15,6 +15,7 @@ type Props = {
 
 function formatPrice(cents: number | null, unit: string): string | null {
   if (cents === null) return null;
+  if (cents === 0) return 'Free';
   const usd = (cents / 100).toFixed(2);
   return `$${usd} ${PRICE_UNIT_LABEL[unit] ?? ''}`.trim();
 }
@@ -73,7 +74,6 @@ export function DivisionsSection({ divisions }: Props) {
                 )}
                 <span className="bg-fg/5 text-fg/80 rounded-full px-2 py-0.5">
                   {TEAM_COMPOSITION_LABEL[d.teamComposition] ?? d.teamComposition}
-                  {d.teamSize ? ` · ${d.teamSize}` : ''}
                 </span>
               </div>
               {(price || d.prizeText) && (
@@ -91,6 +91,11 @@ export function DivisionsSection({ divisions }: Props) {
                     </div>
                   )}
                 </dl>
+              )}
+              {d.winner && (
+                <p className="text-primary text-sm font-medium">
+                  Winner: <span className="text-fg">{d.winner.label}</span>
+                </p>
               )}
             </li>
           );

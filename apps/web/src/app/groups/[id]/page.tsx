@@ -1,11 +1,23 @@
 import { notFound } from 'next/navigation';
-import { getServerSupabase } from '@/lib/supabase';
-import { getCurrentUser } from '@/lib/server-auth';
+import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
 import { Pagination } from '@/components/pagination';
 import { GroupHeader } from './_components/group-header';
+import { GroupViewerActions, GroupManageMembersLink } from './_components/group-viewer-actions';
 import { MembersSection, type GroupMember } from './_components/members-section';
+import { GroupJsonLd } from './_components/group-jsonld';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+
+/**
+ * ISR cache for anonymous traffic. The public group profile (header,
+ * stats, description, member roster, hosted events) is fully cacheable.
+ * Viewer-conditional chrome (follow / unfollow, Host event / Edit /
+ * Manage members CTAs) is rendered by client islands that fetch the
+ * viewer's session after hydration. See `docs/audits/performance.md`
+ * P1 #1.
+ */
+export const revalidate = 60;
 
 const PAST_EVENTS_PER_PAGE = 10;
 const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
@@ -35,7 +47,7 @@ type MemberRow = {
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = await getServerSupabase();
+  const supabase = createSupabaseAnonClient();
   const { data } = await supabase
     .from('groups')
     .select('slug, name, description, home_city, region')
@@ -77,23 +89,19 @@ export default async function GroupProfilePage(props: {
   );
   const mpage = Math.max(1, Number.parseInt(searchParams.mpage ?? '1', 10) || 1);
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
-  const supabase = await getServerSupabase();
+  const supabase = createSupabaseAnonClient();
 
-  // Group lookup and viewer resolution are independent.
-  const [{ data: groupData }, { user }] = await Promise.all([
-    supabase
-      .from('groups')
-      .select('id, slug, name, description, avatar_url, home_city, region, created_by')
-      .eq('slug', params.id)
-      .maybeSingle(),
-    getCurrentUser(),
-  ]);
+  const { data: groupData } = await supabase
+    .from('groups')
+    .select('id, slug, name, description, avatar_url, home_city, region, created_by')
+    .eq('slug', params.id)
+    .maybeSingle();
   const group = groupData as GroupRow | null;
   if (!group) notFound();
 
-  // Members, follow-edge, and hosted events (upcoming + past split at SQL) are independent.
+  // Members and hosted events (upcoming + past split at SQL) are independent.
   const now = new Date();
-  const [{ data: memberRows }, followRowResult, upcoming, past] = await Promise.all([
+  const [{ data: memberRows }, upcoming, past] = await Promise.all([
     supabase
       .from('group_members')
       .select(
@@ -101,23 +109,14 @@ export default async function GroupProfilePage(props: {
       )
       .eq('group_id', group.id)
       .order('joined_at', { ascending: true }),
-    user
-      ? supabase
-          .from('group_followers')
-          .select('group_id')
-          .eq('group_id', group.id)
-          .eq('user_id', user.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    loadVisibleGroupHostedEvents(group.id, { startsAfter: now }),
-    loadVisibleGroupHostedEvents(group.id, { startsBefore: now }),
+    loadVisibleGroupHostedEvents(supabase, group.id, { startsAfter: now }),
+    loadVisibleGroupHostedEvents(supabase, group.id, { startsBefore: now }),
   ]);
   const memberRowsTyped = (memberRows as MemberRow[] | null) ?? [];
 
-  const myMembership = user ? memberRowsTyped.find((m) => m.user_id === user.id) ?? null : null;
-  const canManage = myMembership?.role === 'owner' || myMembership?.role === 'admin';
-
-  const isFollowing = Boolean(followRowResult.data);
+  const managerIds = memberRowsTyped
+    .filter((m) => m.role === 'owner' || m.role === 'admin')
+    .map((m) => m.user_id);
 
   const returnPath = `/groups/${group.slug}`;
 
@@ -138,6 +137,21 @@ export default async function GroupProfilePage(props: {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: 'https://pickupvb.com/' },
+          { name: 'Groups', url: 'https://pickupvb.com/groups' },
+          { name: group.name, url: `https://pickupvb.com/groups/${group.slug}` },
+        ]}
+      />
+      <GroupJsonLd
+        slug={group.slug}
+        name={group.name}
+        description={group.description}
+        homeCity={group.home_city}
+        region={group.region}
+        avatarUrl={group.avatar_url}
+      />
       <GroupHeader
         group={{
           id: group.id,
@@ -148,11 +162,16 @@ export default async function GroupProfilePage(props: {
           homeCity: group.home_city,
           region: group.region,
         }}
-        canManage={canManage}
-        isSignedIn={!!user}
-        isFollowing={isFollowing}
-        returnPath={returnPath}
         stats={{ members: members.length, upcoming: upcoming.length }}
+        actions={
+          <GroupViewerActions
+            groupId={group.id}
+            groupSlug={group.slug}
+            groupName={group.name}
+            returnPath={returnPath}
+            managerIds={managerIds}
+          />
+        }
       />
 
       <section className={`${cardClass} space-y-4`}>
@@ -176,7 +195,7 @@ export default async function GroupProfilePage(props: {
       <MembersSection
         groupSlug={group.slug}
         members={members}
-        canManage={canManage}
+        manageSlot={<GroupManageMembersLink groupSlug={group.slug} managerIds={managerIds} />}
         page={mpage}
         searchParams={searchParams}
       />
@@ -184,8 +203,7 @@ export default async function GroupProfilePage(props: {
       {past.length > 0 && (
         <section id="past-events" className={`${cardClass} space-y-4`}>
           <h2 className="text-fg text-lg font-semibold">
-            Past events{' '}
-            <span className="text-muted text-sm font-normal">({past.length})</span>
+            Past events <span className="text-muted text-sm font-normal">({past.length})</span>
           </h2>
           <HostedEventsList
             events={past.slice((ppage - 1) * PAST_EVENTS_PER_PAGE, ppage * PAST_EVENTS_PER_PAGE)}

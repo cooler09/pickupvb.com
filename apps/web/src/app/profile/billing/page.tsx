@@ -11,6 +11,7 @@ import {
   refreshStripeAccountStatus,
 } from './actions';
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
+import { SubmitButton } from '@/components/submit-button';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -20,8 +21,7 @@ export const metadata = {
 
 type SearchParams = Promise<{ onboarding?: string; error?: string }>;
 
-const cardClass =
-  'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
+const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
 
 type StepState = 'done' | 'current' | 'todo';
 
@@ -89,11 +89,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
 
   // Three-step onboarding checklist state.
   const step1: StepState = account ? 'done' : 'current';
-  const step2: StepState = account?.detailsSubmitted
-    ? 'done'
-    : account
-      ? 'current'
-      : 'todo';
+  const step2: StepState = account?.detailsSubmitted ? 'done' : account ? 'current' : 'todo';
   const step3: StepState = ready ? 'done' : account?.detailsSubmitted ? 'current' : 'todo';
 
   return (
@@ -105,8 +101,8 @@ export default async function BillingPage(props: { searchParams: SearchParams })
         </Link>
         <h1 className="text-fg text-3xl font-bold">Payouts</h1>
         <p className="text-muted text-sm">
-          Connect Stripe to sell tickets or accept tips on your events. Free pickups don&apos;t
-          need this.
+          Connect Stripe to sell tickets or accept tips on your events. Free pickups don&apos;t need
+          this.
         </p>
       </div>
 
@@ -121,8 +117,8 @@ export default async function BillingPage(props: { searchParams: SearchParams })
 
       {sp.error === 'anonymous' && (
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-800 dark:text-amber-200">
-          You need a permanent account (with email) to receive payouts. Finish claiming your
-          account first.
+          You need a permanent account (with email) to receive payouts. Finish claiming your account
+          first.
         </div>
       )}
 
@@ -183,21 +179,21 @@ export default async function BillingPage(props: { searchParams: SearchParams })
           {!ready && (
             <div className="border-border-base flex flex-wrap items-center gap-3 border-t pt-4">
               <form action={startStripeOnboarding}>
-                <button
-                  type="submit"
-                  className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold hover:opacity-90"
+                <SubmitButton
+                  className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-60"
+                  pendingChildren="Connecting…"
                 >
                   {inProgress ? 'Continue onboarding →' : 'Connect with Stripe →'}
-                </button>
+                </SubmitButton>
               </form>
               {inProgress && (
                 <form action={refreshStripeAccountStatus}>
-                  <button
-                    type="submit"
-                    className="border-border-base text-fg hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
+                  <SubmitButton
+                    className="border-border-base text-fg hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-60"
+                    pendingChildren="Refreshing…"
                   >
                     Refresh status
-                  </button>
+                  </SubmitButton>
                 </form>
               )}
             </div>
@@ -227,12 +223,12 @@ export default async function BillingPage(props: { searchParams: SearchParams })
                 Stripe dashboard ↗
               </OpenInNewTabButton>
               <form action={refreshStripeAccountStatus}>
-                <button
-                  type="submit"
-                  className="border-border-base hover:bg-fg/5 w-full rounded-md border px-3 py-2 text-sm"
+                <SubmitButton
+                  className="border-border-base hover:bg-fg/5 w-full rounded-md border px-3 py-2 text-sm disabled:opacity-60"
+                  pendingChildren="Refreshing…"
                 >
                   Refresh status
-                </button>
+                </SubmitButton>
               </form>
             </div>
           </section>
@@ -265,8 +261,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
             </dl>
             {!pro && (
               <p className="text-muted text-xs">
-                Pro is ${PRO_MONTHLY_PRICE_USD}/mo and cuts the platform fee in half (5% →
-                2.5%).
+                Pro is ${PRO_MONTHLY_PRICE_USD}/mo and cuts the platform fee in half (5% → 2.5%).
               </p>
             )}
           </section>
@@ -275,13 +270,13 @@ export default async function BillingPage(props: { searchParams: SearchParams })
           <section className={`${cardClass} space-y-3`}>
             <h2 className="text-fg text-lg font-semibold">Tax forms (1099-K)</h2>
             <p className="text-muted text-sm">
-              Stripe (not PickupVB) issues your 1099-K. Forms post to your Stripe dashboard in
-              late January for the prior calendar year.
+              Stripe (not PickupVB) issues your 1099-K. Forms post to your Stripe dashboard in late
+              January for the prior calendar year.
             </p>
             <p className="text-muted text-sm">
-              US federal threshold for tax year 2026:{' '}
-              <strong className="text-fg">$2,500</strong>. Some states are lower (MA / VT / VA:
-              $600). Stripe picks the right one based on your address.
+              US federal threshold for tax year 2026: <strong className="text-fg">$2,500</strong>.
+              Some states are lower (MA / VT / VA: $600). Stripe picks the right one based on your
+              address.
             </p>
             <div>
               <OpenInNewTabButton

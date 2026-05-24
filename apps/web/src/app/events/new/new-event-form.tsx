@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
+import { FieldError, fieldA11y } from '@/components/field-error';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { createEventAction, type CreateEventState } from './actions';
 import AdvancedDetailsPanel from '@/components/event-advanced-details-panel';
@@ -28,33 +29,46 @@ type CapacityKind = 'unlimited' | 'fixed' | 'by_position';
 const labelClass = 'block text-sm font-medium text-fg';
 const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-const errorClass = 'mt-1 text-xs text-red-600';
 const cardClass = 'border-border-base bg-surface space-y-5 rounded-lg border p-5 sm:p-6';
 const cardTitleClass = 'text-fg text-base font-semibold';
 const cardSubClass = 'text-muted text-sm';
 
-function FieldError({
-  name,
-  errors,
-}: {
-  name: string;
-  errors: Record<string, string> | undefined;
-}) {
-  const msg = errors?.[name];
-  if (!msg) return null;
-  return <p className={errorClass}>{msg}</p>;
+/** Lookup a previously-submitted form value (echoed back on action error) */
+function val(values: Record<string, string> | undefined, name: string, fallback = ''): string {
+  return values?.[name] ?? fallback;
+}
+function chk(
+  values: Record<string, string> | undefined,
+  submitted: boolean | undefined,
+  name: string,
+  fallback = false,
+): boolean {
+  if (!submitted) return fallback;
+  return values?.[name] === 'on';
 }
 
 // Renders the SkillTier ladder used by every division (incl. the implicit
 // division #1 that the top-level form represents). Grouped by SkillBand so
 // the labels still line up with the legacy band buckets.
-function SkillTierSelect({ fieldErrors }: { fieldErrors: Record<string, string> | undefined }) {
+function SkillTierSelect({
+  fieldErrors,
+  values,
+}: {
+  fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
+}) {
   return (
     <div>
       <label htmlFor="skillTier" className={labelClass}>
         Skill tier
       </label>
-      <select id="skillTier" name="skillTier" defaultValue="bb" className={inputClass}>
+      <select
+        id="skillTier"
+        name="skillTier"
+        defaultValue={val(values, 'skillTier', 'bb')}
+        className={inputClass}
+        {...fieldA11y('skillLevel', fieldErrors)}
+      >
         <optgroup label="Beginner">
           <option value="c">C</option>
           <option value="b">B</option>
@@ -165,32 +179,86 @@ function SegmentedControl<T extends string>({
 
 export default function NewEventForm({
   hostableGroups = [],
+  canCollectPayments = false,
 }: {
   hostableGroups?: { id: string; name: string }[];
+  /**
+   * True when the host has a Stripe Connect account with
+   * `charges_enabled`. When false, the form hides on-platform payment
+   * controls and forces off-platform mode, with a banner pointing to
+   * `/profile/billing` to finish onboarding.
+   */
+  canCollectPayments?: boolean;
 }) {
   const [state, formAction] = useFormState(createEventAction, initialState);
-  const [type, setType] = useState<EventType>(EventType.OpenPlay);
-  const [isExternal, setIsExternal] = useState(false);
+  const values = state.values;
+  const submitted = state.submitted;
+  const [type, setType] = useState<EventType>(
+    (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
+  );
+  const [isExternal, setIsExternal] = useState(chk(values, submitted, 'isExternal', false));
+  // The off-platform checkbox is always user-controlled (state lifted to
+  // the parent so it survives switching between OpenPlay and Tournament
+  // sections). When the host has no Stripe Connect account we still show
+  // the toggle alongside a `StripeOnboardingBanner` so they can either
+  // (a) explicitly opt into off-platform collection or (b) finish
+  // Stripe onboarding before continuing. The server-side gate in
+  // `actions.ts` (`requireHostChargesEnabled`) rejects paid + on-platform
+  // submissions without Stripe so the host can't sneak past.
+  const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(() =>
+    chk(values, submitted, 'paymentsOffPlatform', false),
+  );
+  // Team registration mode is lifted to the parent so the DivisionsRepeater
+  // can react to it (per ADR 0012: team-led modes hide solo composition +
+  // per-player pricing; individual mode hides team compositions +
+  // per-team pricing).
+  const [teamRegistrationMode, setTeamRegistrationMode] = useState<'ad_hoc' | 'roster' | 'none'>(
+    () => {
+      const raw = val(values, 'teamRegistrationMode', 'ad_hoc');
+      return raw === 'roster' || raw === 'none' ? raw : 'ad_hoc';
+    },
+  );
 
   // Capacity is a single 3-way selector now (Unlimited / Fixed / By position).
   // It's only meaningful for open-play, on-platform events.
-  const [capacityKind, setCapacityKind] = useState<CapacityKind>('unlimited');
+  const [capacityKind, setCapacityKind] = useState<CapacityKind>(() => {
+    if (chk(values, submitted, 'byPosition', false)) return 'by_position';
+    const raw = val(values, 'capacityKind', 'unlimited');
+    return raw === 'fixed' ? 'fixed' : 'unlimited';
+  });
   const byPosition = capacityKind === 'by_position';
-  const [positionCounts, setPositionCounts] =
-    useState<Record<EventPosition, number>>(DEFAULT_POSITION_ROSTER);
+  const [positionCounts, setPositionCounts] = useState<Record<EventPosition, number>>(() => {
+    if (!submitted) return DEFAULT_POSITION_ROSTER;
+    const out = { ...DEFAULT_POSITION_ROSTER };
+    for (const pos of EVENT_POSITIONS) {
+      const raw = values?.[`position_${pos}`];
+      if (raw !== undefined) out[pos] = Math.max(0, Math.floor(Number(raw) || 0));
+    }
+    return out;
+  });
   const positionTotal = Object.values(positionCounts).reduce((a, b) => a + b, 0);
 
   // Address (autocomplete fills these; user can edit any of them).
-  const [addressLine, setAddressLine] = useState('');
-  const [city, setCity] = useState('');
-  const [region, setRegion] = useState('');
-  const [postalCode, setPostalCode] = useState('');
-  const [country, setCountry] = useState('USA');
+  const [addressLine, setAddressLine] = useState(val(values, 'addressLine', ''));
+  const [city, setCity] = useState(val(values, 'city', ''));
+  const [region, setRegion] = useState(val(values, 'region', ''));
+  const [postalCode, setPostalCode] = useState(val(values, 'postalCode', ''));
+  const [country, setCountry] = useState(val(values, 'country', 'USA'));
   const hasAddress = addressLine.trim().length > 0;
   const [addressOpen, setAddressOpen] = useState(false);
 
-  const [startsAt, setStartsAt] = useState<Date | null>(null);
-  const [endsAt, setEndsAt] = useState<Date | null>(null);
+  const [startsAt, setStartsAt] = useState<Date | null>(() => {
+    const raw = values?.startsAt;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  });
+  const [endsAt, setEndsAt] = useState<Date | null>(() => {
+    const raw = values?.endsAt;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  });
 
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
@@ -201,7 +269,10 @@ export default function NewEventForm({
     setAddressOpen(true);
   }
 
-  const showPricing = !isExternal;
+  const showPricing = !isExternal && type === EventType.OpenPlay;
+  // Tournament divisions collect their own per-division price below; keep the
+  // event-level payment settings (refund window, fee absorption) separate.
+  const showPaymentSettings = !isExternal && type === EventType.Tournament;
   const showCapacity = type === EventType.OpenPlay && !isExternal;
 
   return (
@@ -277,8 +348,10 @@ export default function NewEventForm({
             required
             minLength={3}
             maxLength={120}
+            defaultValue={val(values, 'title')}
             placeholder="Tuesday night open gym"
             className={inputClass}
+            {...fieldA11y('title', state.fieldErrors)}
           />
           <FieldError name="title" errors={state.fieldErrors} />
         </div>
@@ -291,8 +364,10 @@ export default function NewEventForm({
             name="description"
             rows={3}
             maxLength={4000}
+            defaultValue={val(values, 'description')}
             placeholder="Indoor 6's, all levels welcome. Bring kneepads — we'll rotate teams every set."
             className={inputClass}
+            {...fieldA11y('description', state.fieldErrors)}
           />
           <FieldError name="description" errors={state.fieldErrors} />
         </div>
@@ -300,7 +375,12 @@ export default function NewEventForm({
           <label htmlFor="hostGroupId" className={labelClass}>
             Host as
           </label>
-          <select id="hostGroupId" name="hostGroupId" defaultValue="" className={inputClass}>
+          <select
+            id="hostGroupId"
+            name="hostGroupId"
+            defaultValue={val(values, 'hostGroupId', '')}
+            className={inputClass}
+          >
             <option value="">Yourself</option>
             {hostableGroups.map((g) => (
               <option key={g.id} value={g.id}>
@@ -375,6 +455,7 @@ export default function NewEventForm({
             onChange={(e) => setAddressLine(e.target.value)}
             placeholder="123 Main St"
             className={inputClass}
+            {...fieldA11y('location.addressLine', state.fieldErrors)}
           />
           <FieldError name="location.addressLine" errors={state.fieldErrors} />
         </div>
@@ -410,6 +491,7 @@ export default function NewEventForm({
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.city', state.fieldErrors)}
               />
               <FieldError name="location.city" errors={state.fieldErrors} />
             </div>
@@ -424,6 +506,7 @@ export default function NewEventForm({
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.region', state.fieldErrors)}
               />
               <FieldError name="location.region" errors={state.fieldErrors} />
             </div>
@@ -438,6 +521,7 @@ export default function NewEventForm({
                 value={postalCode}
                 onChange={(e) => setPostalCode(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.postalCode', state.fieldErrors)}
               />
               <FieldError name="location.postalCode" errors={state.fieldErrors} />
             </div>
@@ -453,6 +537,7 @@ export default function NewEventForm({
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
                 className={inputClass}
+                {...fieldA11y('location.country', state.fieldErrors)}
               />
               <FieldError name="location.country" errors={state.fieldErrors} />
             </div>
@@ -483,12 +568,12 @@ export default function NewEventForm({
               ? "Where players go to sign up. We'll link out from your event page."
               : type === EventType.OpenPlay
                 ? 'Surface, skill level, how many spots, and what it costs.'
-                : 'Set up your first division — add more below for multi-format or multi-skill events.'}
+                : 'Add one or more divisions — each gets its own skill tier, capacity, and entry price.'}
           </p>
         </div>
 
         {isExternal ? (
-          <ExternalFields type={type} fieldErrors={state.fieldErrors} />
+          <ExternalFields type={type} fieldErrors={state.fieldErrors} values={values} />
         ) : type === EventType.OpenPlay ? (
           <OpenPlayBody
             capacityKind={capacityKind}
@@ -498,12 +583,43 @@ export default function NewEventForm({
             setPositionCounts={setPositionCounts}
             positionTotal={positionTotal}
             fieldErrors={state.fieldErrors}
+            values={values}
+            submitted={submitted}
           />
         ) : (
-          <TournamentBody fieldErrors={state.fieldErrors} />
+          <>
+            <TeamRegistrationModeSelect
+              value={teamRegistrationMode}
+              onChange={setTeamRegistrationMode}
+            />
+            <DivisionsRepeater
+              defaultSurface="indoor"
+              requireAtLeastOne
+              teamRegistrationMode={teamRegistrationMode}
+              {...(state.fieldErrors ? { fieldErrors: state.fieldErrors } : {})}
+            />
+          </>
         )}
 
-        {showPricing && <PricingSubsection fieldErrors={state.fieldErrors} />}
+        {showPricing && (
+          <PricingSubsection
+            fieldErrors={state.fieldErrors}
+            values={values}
+            submitted={submitted}
+            canCollectPayments={canCollectPayments}
+            paymentsOffPlatform={paymentsOffPlatform}
+            setPaymentsOffPlatform={setPaymentsOffPlatform}
+          />
+        )}
+        {showPaymentSettings && (
+          <PaymentSettingsSubsection
+            values={values}
+            submitted={submitted}
+            canCollectPayments={canCollectPayments}
+            paymentsOffPlatform={paymentsOffPlatform}
+            setPaymentsOffPlatform={setPaymentsOffPlatform}
+          />
+        )}
       </section>
 
       {/* Hidden fields the server action expects. Top-level format/gender
@@ -537,7 +653,13 @@ export default function NewEventForm({
           <label htmlFor="visibility" className={labelClass}>
             Who can see this event?
           </label>
-          <select id="visibility" name="visibility" defaultValue="public" className={inputClass}>
+          <select
+            id="visibility"
+            name="visibility"
+            defaultValue={val(values, 'visibility', 'public')}
+            className={inputClass}
+            {...fieldA11y('visibility', state.fieldErrors)}
+          >
             <option value="public">Public — anyone can find it</option>
             <option value="invite_only">Invite only</option>
             <option value="friends_of_host">People the host follows</option>
@@ -554,12 +676,14 @@ export default function NewEventForm({
             name="rules"
             rows={2}
             maxLength={4000}
+            defaultValue={val(values, 'rules')}
             placeholder="Rally scoring to 25, win by 2. Captain's choice on lets."
             className={inputClass}
+            {...fieldA11y('rules', state.fieldErrors)}
           />
           <FieldError name="rules" errors={state.fieldErrors} />
         </div>
-        <AdvancedDetailsPanel hideExternal />
+        <AdvancedDetailsPanel hideExternal isExternal={isExternal} />
       </section>
 
       {/* ──────────────────────────────────────────────────────────────────
@@ -590,6 +714,8 @@ function OpenPlayBody({
   setPositionCounts,
   positionTotal,
   fieldErrors,
+  values,
+  submitted,
 }: {
   capacityKind: CapacityKind;
   setCapacityKind: (k: CapacityKind) => void;
@@ -598,6 +724,8 @@ function OpenPlayBody({
   setPositionCounts: React.Dispatch<React.SetStateAction<Record<EventPosition, number>>>;
   positionTotal: number;
   fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
 }) {
   return (
     <>
@@ -606,14 +734,20 @@ function OpenPlayBody({
           <label htmlFor="surface" className={labelClass}>
             Surface
           </label>
-          <select id="surface" name="surface" defaultValue="indoor" className={inputClass}>
+          <select
+            id="surface"
+            name="surface"
+            defaultValue={val(values, 'surface', 'indoor')}
+            className={inputClass}
+            {...fieldA11y('surface', fieldErrors)}
+          >
             <option value="indoor">Indoor</option>
             <option value="grass">Grass</option>
             <option value="sand">Sand</option>
           </select>
           <FieldError name="surface" errors={fieldErrors} />
         </div>
-        <SkillTierSelect fieldErrors={fieldErrors} />
+        <SkillTierSelect fieldErrors={fieldErrors} values={values} />
       </div>
 
       <div>
@@ -636,7 +770,15 @@ function OpenPlayBody({
             <label htmlFor="maxSpots" className={labelClass}>
               Max spots
             </label>
-            <input id="maxSpots" name="maxSpots" type="number" min={1} className={inputClass} />
+            <input
+              id="maxSpots"
+              name="maxSpots"
+              type="number"
+              min={1}
+              defaultValue={val(values, 'maxSpots')}
+              className={inputClass}
+              {...fieldA11y('capacity', fieldErrors)}
+            />
             <FieldError name="capacity" errors={fieldErrors} />
           </div>
         )}
@@ -680,7 +822,12 @@ function OpenPlayBody({
       </div>
 
       <label className="bg-highlight/40 flex items-start gap-2 rounded-md p-3 text-sm">
-        <input type="checkbox" name="joinAsHost" defaultChecked className="mt-0.5" />
+        <input
+          type="checkbox"
+          name="joinAsHost"
+          defaultChecked={chk(values, submitted, 'joinAsHost', true)}
+          className="mt-0.5"
+        />
         <span>
           <span className="text-fg font-medium">Sign me up as a player too</span>
           <span className="text-muted block text-xs">
@@ -693,74 +840,229 @@ function OpenPlayBody({
   );
 }
 
-function TournamentBody({ fieldErrors }: { fieldErrors: Record<string, string> | undefined }) {
+function PaymentSettingsSubsection({
+  values,
+  submitted,
+  canCollectPayments,
+  paymentsOffPlatform,
+  setPaymentsOffPlatform,
+}: {
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
+  canCollectPayments: boolean;
+  paymentsOffPlatform: boolean;
+  setPaymentsOffPlatform: (v: boolean) => void;
+}) {
+  // Refund window + service-fee absorption only apply to on-platform
+  // (Stripe-mediated) charges. Hide them when payments are off-platform
+  // or the host can't accept on-platform payments at all.
+  const showOnPlatformControls = canCollectPayments && !paymentsOffPlatform;
   return (
-    <>
-      <div className="border-border-base bg-fg/[0.02] space-y-4 rounded-md border p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-muted text-xs font-semibold tracking-wide uppercase">
-            Division 1
-          </span>
-          <span className="text-muted text-xs">Primary division</span>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="surface" className={labelClass}>
-              Surface
-            </label>
-            <select id="surface" name="surface" defaultValue="indoor" className={inputClass}>
-              <option value="indoor">Indoor</option>
-              <option value="grass">Grass</option>
-              <option value="sand">Sand</option>
-            </select>
-            <FieldError name="surface" errors={fieldErrors} />
-          </div>
-          <div>
-            <label htmlFor="format" className={labelClass}>
-              Format
-            </label>
-            <select id="format" name="format" defaultValue="sixes" className={inputClass}>
-              <option value="sixes">Sixes</option>
-              <option value="quads">Quads</option>
-              <option value="triples">Triples</option>
-              <option value="doubles">Doubles</option>
-            </select>
-            <FieldError name="format" errors={fieldErrors} />
-          </div>
-          <div>
-            <label htmlFor="gender" className={labelClass}>
-              Gender
-            </label>
-            <select id="gender" name="gender" defaultValue="coed" className={inputClass}>
-              <option value="coed">Coed</option>
-              <option value="mens">Men&apos;s</option>
-              <option value="womens">Women&apos;s</option>
-            </select>
-            <FieldError name="gender" errors={fieldErrors} />
-          </div>
-          <SkillTierSelect fieldErrors={fieldErrors} />
-        </div>
+    <div className="border-border-base space-y-3 border-t pt-4">
+      <div>
+        <p className={labelClass}>Payment settings</p>
+        <p className="text-muted mt-1 text-xs">
+          Entry prices are set per division above.
+          {canCollectPayments
+            ? ' Uncheck the off-platform option below to charge through Stripe.'
+            : ''}
+        </p>
       </div>
-
-      <DivisionsRepeater defaultSurface="indoor" />
-    </>
+      {!canCollectPayments && <StripeOnboardingBanner />}
+      <label className="flex items-start gap-2 text-xs">
+        <input
+          type="checkbox"
+          name="paymentsOffPlatform"
+          checked={paymentsOffPlatform}
+          onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="text-fg font-medium">
+            I&apos;ll collect payment myself (off-platform)
+          </span>
+          <span className="text-muted block">
+            Display the price but skip Stripe. Players RSVP without paying online.
+          </span>
+        </span>
+      </label>
+      <div>
+        <label htmlFor="paymentInstructionsTourney" className={labelClass}>
+          Payment instructions <span className="text-fg/50">(optional)</span>
+        </label>
+        <textarea
+          id="paymentInstructionsTourney"
+          name="paymentInstructions"
+          rows={2}
+          maxLength={2000}
+          defaultValue={val(values, 'paymentInstructions')}
+          placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
+          className={inputClass}
+        />
+      </div>
+      {showOnPlatformControls && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="refundWindowHours" className={labelClass}>
+              Refund window (h)
+            </label>
+            <input
+              id="refundWindowHours"
+              name="refundWindowHours"
+              type="number"
+              min="0"
+              max="720"
+              step="1"
+              defaultValue={val(values, 'refundWindowHours', '24')}
+              className={inputClass}
+            />
+            <p className="text-muted mt-1 text-xs">
+              Hours before start when self-cancel refunds work. 0 disables.
+            </p>
+          </div>
+          <div className="flex items-end">
+            <label className="flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                name="hostAbsorbsFee"
+                defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="text-fg font-medium">Absorb the 5% service fee</span>
+                <span className="text-muted block">Otherwise added to ticket price.</span>
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
-function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string> | undefined }) {
+/**
+ * Team-registration mode picker. Rendered above the DivisionsRepeater so
+ * the choice gates which composition + price-unit options appear per
+ * division (per ADR 0012).
+ */
+function TeamRegistrationModeSelect({
+  value,
+  onChange,
+}: {
+  value: 'ad_hoc' | 'roster' | 'none';
+  onChange: (next: 'ad_hoc' | 'roster' | 'none') => void;
+}) {
+  return (
+    <div>
+      <label htmlFor="teamRegistrationMode" className={labelClass}>
+        Team registration
+      </label>
+      <select
+        id="teamRegistrationMode"
+        name="teamRegistrationMode"
+        value={value}
+        onChange={(e) => onChange(e.target.value as 'ad_hoc' | 'roster' | 'none')}
+        className={inputClass}
+      >
+        <option value="ad_hoc">Ad-hoc — captains create a team at signup</option>
+        <option value="roster">Roster — captains pick an existing team</option>
+        <option value="none">None — individual signups only</option>
+      </select>
+      <p className="text-muted mt-1 text-xs">
+        Team-led modes charge the captain per team. &ldquo;None&rdquo; means each player signs up
+        individually and pays per player.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Inline banner shown when the host has no Stripe Connect account with
+ * charges enabled. Tells them payments are off-platform-only until they
+ * finish onboarding and links to the billing page.
+ */
+function StripeOnboardingBanner() {
+  return (
+    <div role="status" className="border-border-base bg-highlight/30 rounded-md border p-3 text-sm">
+      <p className="text-fg font-medium">On-platform payments aren&apos;t set up yet.</p>
+      <p className="text-muted mt-1 text-xs">
+        To accept online payments through PickupVB, finish Stripe onboarding at{' '}
+        <Link href="/profile/billing" className="text-primary hover:underline">
+          Payouts &amp; Stripe
+        </Link>
+        . Otherwise, check the off-platform option below to collect payment yourself (cash, Venmo,
+        etc.) — paid events without Stripe will be rejected at submit.
+      </p>
+    </div>
+  );
+}
+
+function PricingSubsection({
+  fieldErrors,
+  values,
+  submitted,
+  canCollectPayments,
+  paymentsOffPlatform,
+  setPaymentsOffPlatform,
+}: {
+  fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
+  canCollectPayments: boolean;
+  paymentsOffPlatform: boolean;
+  setPaymentsOffPlatform: (v: boolean) => void;
+}) {
+  const showOnPlatformControls = canCollectPayments && !paymentsOffPlatform;
   return (
     <div className="border-border-base space-y-3 border-t pt-4">
       <div>
         <p className={labelClass}>Pricing</p>
         <p className="text-muted mt-1 text-xs">
-          Leave at $0 for free. To charge, finish Stripe payout setup at{' '}
-          <Link href="/profile/billing" className="text-primary hover:underline">
-            Payouts &amp; Stripe
-          </Link>
-          .
+          Leave at $0 for free.
+          {canCollectPayments
+            ? ' Uncheck the off-platform option below to charge through Stripe.'
+            : ''}
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {!canCollectPayments && <StripeOnboardingBanner />}
+      <label className="flex items-start gap-2 text-xs">
+        <input
+          type="checkbox"
+          name="paymentsOffPlatform"
+          checked={paymentsOffPlatform}
+          onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="text-fg font-medium">
+            I&apos;ll collect payment myself (off-platform)
+          </span>
+          <span className="text-muted block">
+            Display the price but skip Stripe. Players RSVP without paying online.
+          </span>
+        </span>
+      </label>
+      <div>
+        <label htmlFor="paymentInstructionsOpen" className={labelClass}>
+          Payment instructions <span className="text-fg/50">(optional)</span>
+        </label>
+        <textarea
+          id="paymentInstructionsOpen"
+          name="paymentInstructions"
+          rows={2}
+          maxLength={2000}
+          defaultValue={val(values, 'paymentInstructions')}
+          placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
+          className={inputClass}
+        />
+      </div>
+      <div
+        className={
+          showOnPlatformControls
+            ? 'grid grid-cols-1 gap-3 sm:grid-cols-3'
+            : 'grid grid-cols-1 gap-3 sm:max-w-xs'
+        }
+      >
         <div>
           <label htmlFor="priceUsd" className={labelClass}>
             Price (USD)
@@ -772,37 +1074,47 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
             min="0"
             max="10000"
             step="0.01"
-            defaultValue="0"
+            defaultValue={val(values, 'priceUsd', '0')}
             className={inputClass}
+            {...fieldA11y('priceCents', fieldErrors)}
           />
         </div>
-        <div>
-          <label htmlFor="refundWindowHours" className={labelClass}>
-            Refund window (h)
-          </label>
-          <input
-            id="refundWindowHours"
-            name="refundWindowHours"
-            type="number"
-            min="0"
-            max="720"
-            step="1"
-            defaultValue="24"
-            className={inputClass}
-          />
-          <p className="text-muted mt-1 text-xs">
-            Hours before start when self-cancel refunds work. 0 disables.
-          </p>
-        </div>
-        <div className="flex items-end">
-          <label className="flex items-start gap-2 text-xs">
-            <input type="checkbox" name="hostAbsorbsFee" className="mt-0.5" />
-            <span>
-              <span className="text-fg font-medium">Absorb the 5% service fee</span>
-              <span className="text-muted block">Otherwise added to ticket price.</span>
-            </span>
-          </label>
-        </div>
+        {showOnPlatformControls && (
+          <>
+            <div>
+              <label htmlFor="refundWindowHours" className={labelClass}>
+                Refund window (h)
+              </label>
+              <input
+                id="refundWindowHours"
+                name="refundWindowHours"
+                type="number"
+                min="0"
+                max="720"
+                step="1"
+                defaultValue={val(values, 'refundWindowHours', '24')}
+                className={inputClass}
+              />
+              <p className="text-muted mt-1 text-xs">
+                Hours before start when self-cancel refunds work. 0 disables.
+              </p>
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  name="hostAbsorbsFee"
+                  defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-fg font-medium">Absorb the 5% service fee</span>
+                  <span className="text-muted block">Otherwise added to ticket price.</span>
+                </span>
+              </label>
+            </div>
+          </>
+        )}
       </div>
       <FieldError name="priceCents" errors={fieldErrors} />
     </div>
@@ -812,9 +1124,11 @@ function PricingSubsection({ fieldErrors }: { fieldErrors: Record<string, string
 function ExternalFields({
   type,
   fieldErrors,
+  values,
 }: {
   type: EventType;
   fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
 }) {
   return (
     <div className="space-y-4">
@@ -823,21 +1137,33 @@ function ExternalFields({
           <label htmlFor="surface" className={labelClass}>
             Surface
           </label>
-          <select id="surface" name="surface" defaultValue="indoor" className={inputClass}>
+          <select
+            id="surface"
+            name="surface"
+            defaultValue={val(values, 'surface', 'indoor')}
+            className={inputClass}
+            {...fieldA11y('surface', fieldErrors)}
+          >
             <option value="indoor">Indoor</option>
             <option value="grass">Grass</option>
             <option value="sand">Sand</option>
           </select>
           <FieldError name="surface" errors={fieldErrors} />
         </div>
-        <SkillTierSelect fieldErrors={fieldErrors} />
+        <SkillTierSelect fieldErrors={fieldErrors} values={values} />
         {type === EventType.Tournament && (
           <>
             <div>
               <label htmlFor="format" className={labelClass}>
                 Format
               </label>
-              <select id="format" name="format" defaultValue="sixes" className={inputClass}>
+              <select
+                id="format"
+                name="format"
+                defaultValue={val(values, 'format', 'sixes')}
+                className={inputClass}
+                {...fieldA11y('format', fieldErrors)}
+              >
                 <option value="sixes">Sixes</option>
                 <option value="quads">Quads</option>
                 <option value="triples">Triples</option>
@@ -849,7 +1175,13 @@ function ExternalFields({
               <label htmlFor="gender" className={labelClass}>
                 Gender
               </label>
-              <select id="gender" name="gender" defaultValue="coed" className={inputClass}>
+              <select
+                id="gender"
+                name="gender"
+                defaultValue={val(values, 'gender', 'coed')}
+                className={inputClass}
+                {...fieldA11y('gender', fieldErrors)}
+              >
                 <option value="coed">Coed</option>
                 <option value="mens">Men&apos;s</option>
                 <option value="womens">Women&apos;s</option>
@@ -868,6 +1200,7 @@ function ExternalFields({
           name="externalRegistrationUrl"
           type="url"
           maxLength={2048}
+          defaultValue={val(values, 'externalRegistrationUrl')}
           placeholder="https://…"
           className={inputClass}
         />
@@ -881,6 +1214,7 @@ function ExternalFields({
           name="externalRegistrationInstructions"
           rows={2}
           maxLength={2000}
+          defaultValue={val(values, 'externalRegistrationInstructions')}
           placeholder="e.g. Register via AES by Friday. Bring photo ID to check-in."
           className={inputClass}
         />
@@ -894,6 +1228,7 @@ function ExternalFields({
           name="paymentInstructions"
           rows={2}
           maxLength={2000}
+          defaultValue={val(values, 'paymentInstructions')}
           placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
           className={inputClass}
         />

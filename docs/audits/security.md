@@ -9,9 +9,64 @@ RLS policies, third-party integrations, secrets handling, logging.
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
+**Status update (2026-05-23, Bundle 53):** All three remaining P3
+findings closed in audit text. #9 (FormData hard cap) and #10
+(Turnstile freshness) were code-closed in Bundle 17 (2026-05-24) but
+the finding headers still read as open — flipped to ✅ with status
+lines pointing at the resolved code. #11 (file-upload hardening)
+closed as **wontfix-preemptive** with an explicit re-open trigger
+(any new `apps/web/src/app/api/` upload route or Supabase Storage
+`upload()` call). The only open security items remaining are P2 #3b
+(nonce-based CSP hardening) and P3 #8 (audit-log coverage gaps).
+
+**Status update (2026-05-23):** CSP allowlist extended to cover
+Vercel Live's preview-deployment feedback widget — `vercel.live`
+(script/style/img/font/frame), `assets.vercel.com` (font),
+`vercel.com` (img), and `wss://ws-us3.pusher.com` (Pusher realtime
+that backs the widget's comments). Preview builds were emitting a
+console-blocking CSP violation on every page load. Widget is not
+injected on production builds; allowlisting is harmless either way.
+See [apps/web/next.config.mjs](../../apps/web/next.config.mjs).
+
+**Status update (2026-05-22, Bundle 27):** P2 #3a closed — CSP promoted
+from `Content-Security-Policy-Report-Only` to enforcing
+`Content-Security-Policy` in [next.config.mjs](../../apps/web/next.config.mjs).
+Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24)
+without producing real violations. Browsers now block any script/style/
+connect/img/frame/font/worker target that isn't explicitly allowed.
+
+**Status update (2026-05-22):** New P1 — `pnpm audit --prod` reports **15
+vulnerabilities** in `next` (2 low / 8 moderate / 5 high), all resolved by
+upgrading from the installed `next@14.2.35` to `>=15.5.16`. Details below.
+No other security shipments this pass; CSP, admin-client refactor, and
+rate-limiting remain open.
+
 ---
 
 ## P1 — fix before next deploy
+
+### 0. Outdated `next` with 15 known vulnerabilities (5 high) 🆕 2026-05-22
+
+**Files:** [apps/web/package.json](../../apps/web/package.json), [packages/supabase/package.json](../../packages/supabase/package.json), [packages/infrastructure/package.json](../../packages/infrastructure/package.json)
+**Category:** Dependency vulnerabilities
+
+`pnpm audit --prod` reports **15 advisories** against `next@14.2.35`, all
+fixed by `>=15.5.16`. High-severity items include:
+
+- HTTP request deserialization → DoS via insecure RSC ([GHSA-h25m-26qc-wcjf](https://github.com/advisories/GHSA-h25m-26qc-wcjf))
+- Two distinct DoS via Server Components ([GHSA-q4gf-8mx6-v5v3](https://github.com/advisories/GHSA-q4gf-8mx6-v5v3), [GHSA-8h8q-6873-q5fj](https://github.com/advisories/GHSA-8h8q-6873-q5fj))
+- SSRF via WebSocket upgrade ([GHSA-c4j6-fc7j-m34r](https://github.com/advisories/GHSA-c4j6-fc7j-m34r))
+- Middleware / proxy bypass in Pages Router with i18n (not exercised here — we're App Router only — but the advisory still applies to the package)
+
+This disagrees with the README's claim of Next 16.2.6; the installed
+version is what matters. The mismatch likely came from the `--webpack`
+flag rollback noted in the [organization audit](organization.md).
+
+**Fix:** bump to the latest 15.x (or 16.x) across `apps/web`,
+`packages/supabase`, and `packages/infrastructure`, run `pnpm install`,
+then verify `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
+Re-evaluate the `--webpack` flag at the same time — Turbopack defaults
+are back on 15.x and 16.x.
 
 ### 1. Open redirect in `auth/callback`
 
@@ -60,12 +115,16 @@ exploit, no commit-history scrub needed.
 
 ### 3. Missing security headers
 
-**Status:** 🟡 _Partially resolved 2026-05-17_ — baseline headers (HSTS,
-`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`,
-`Permissions-Policy`) added via `async headers()` in
-[apps/web/next.config.mjs](../../apps/web/next.config.mjs). CSP still open
-— needs an allowlist for Stripe.js, Supabase, Sentry, OSM tiles, fonts, and
-images, rolled out behind `Content-Security-Policy-Report-Only` first.
+**Status:** ✅ _Resolved 2026-05-22 (Bundle 27, enforcement milestone)_ —
+baseline headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`,
+`X-Frame-Options`, `Permissions-Policy`) added 2026-05-17. CSP shipped
+2026-05-24 as `Content-Security-Policy-Report-Only` with the full
+third-party allowlist (Supabase REST/Realtime, Cloudflare Turnstile,
+OSM tiles); see the [Bundle 15 journal](../journal/2026-05-24-bundle-15.md).
+Bundle 27 (2026-05-22) promoted the same policy to enforcing
+`Content-Security-Policy` after a clean soak window. Nonce-based
+hardening of `'unsafe-inline'` on `script-src` / `style-src` (to drop
+the JSON-LD + Tailwind escape hatches) is tracked as **P2 #3b** below.
 
 **Files:** [apps/web/next.config.mjs](../../apps/web/next.config.mjs), [apps/web/vercel.json](../../apps/web/vercel.json)
 **Category:** Security headers / CSP
@@ -87,7 +146,18 @@ Supabase, Sentry, Turnstile, OSM tiles, fonts, images) — roll it out behind
 
 ### 4. Admin Supabase client used for user-driven writes
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 14)_ — all three call sites
+now use `getServerSupabase()` (RLS-enforced). New migration
+[20260609000000_self_writes_attendees_tips.sql](../../supabase/migrations/20260609000000_self_writes_attendees_tips.sql)
+adds self-service policies for `event_attendees` /
+`event_tips` (own pending row only — caller can't self-promote to
+`paid`) plus host-update policies for the manage-payments flow and a
+host-insert policy for `event_payment_audit`. Stripe webhook handlers
+continue to use the admin client (correct — they run with no user
+session). See the [Bundle 14 journal](../journal/2026-05-24-bundle-14.md).
+
 **Files:**
+
 - [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts#L65) — admin `INSERT` into `event_attendees` for the calling user.
 - [apps/web/src/app/events/[id]/tip-actions.ts](../../apps/web/src/app/events/[id]/tip-actions.ts#L89) — admin write to `event_tips`.
 - [apps/web/src/app/events/[id]/manage-payments-actions.ts](../../apps/web/src/app/events/[id]/manage-payments-actions.ts#L45) — admin `UPDATE` on attendee payment status, with auth derived from `detail.canManage`.
@@ -113,6 +183,7 @@ directly include the email field; left as-is, but worth a follow-up to
 truncate Supabase error messages in case they echo the address.
 
 **Files:**
+
 - [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts#L94) — `log.error('[claim] updateUser(email) failed', emailErr, { email })`
 - [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts#L210)
 
@@ -125,11 +196,19 @@ them indefinitely. The stack trace is sufficient for debugging.
 
 ### 6. No rate limiting on email-sending paths
 
+**Status:** ✅ _Resolved 2026-05-24_ (Bundle 16). Postgres-backed fixed-window
+limiter (`public.rate_limits` + `public.consume_rate_limit()`) gates the
+three user-facing email paths (`claimAccount`, `signupAsGuest`,
+`startGuestTicketCheckout`) at 20 requests/hour per IP and 5/hour per
+email. Cron-driven `api/notifications/worker/route.ts` was intentionally
+skipped — it's `CRON_SECRET`-guarded with no user-driven trigger surface.
+
 **Files:**
+
 - [apps/web/src/app/api/notifications/worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts)
 - [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts)
-- [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts)
-- [apps/web/src/app/events/[id]/guest-actions.ts](../../apps/web/src/app/events/[id]/guest-actions.ts)
+- [apps/web/src/app/events/%5Bid%5D/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts)
+- [apps/web/src/app/events/%5Bid%5D/guest-actions.ts](../../apps/web/src/app/events/%5Bid%5D/guest-actions.ts)
 
 **Category:** Rate limiting / abuse
 
@@ -179,6 +258,12 @@ but the pattern isn't extended to:
 
 ### 9. FormData hard max-size
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 17)_ — `FIELD_HARD_MAX = 4096`
+enforced inside `rawValue()`, so every helper (`field`, `fieldOrNull`,
+`fieldOrUndefined`, `bool`) inherits the cap. Per-call `maxLen` can
+narrow but never raise the ceiling. Test coverage in
+[form-data.test.ts](../../apps/web/src/lib/form-data.test.ts).
+
 **File:** [apps/web/src/lib/form-data.ts](../../apps/web/src/lib/form-data.ts)
 
 `field()` / `fieldOrNull()` take a per-field `max` arg. There's no global
@@ -189,6 +274,13 @@ limited by Next.js body-parsing defaults.
 
 ### 10. Turnstile token freshness
 
+**Status:** ✅ _Resolved 2026-05-24 (Bundle 17)_ —
+`verifyTurnstileToken` rejects tokens whose `challenge_ts` is older
+than `TURNSTILE_MAX_AGE_MS = 2 * 60 * 1000`. Replays return
+`{ ok: false, error: 'Verification expired. Please try again.' }`.
+Test coverage in
+[turnstile.test.ts](../../apps/web/src/lib/turnstile.test.ts).
+
 **File:** [apps/web/src/lib/turnstile.ts](../../apps/web/src/lib/turnstile.ts#L20-L46)
 
 Cloudflare's `verify` endpoint returns `challenge_ts`. We don't assert it's
@@ -196,7 +288,17 @@ recent. A bot could pre-generate a token and replay it later.
 
 **Fix:** reject tokens older than ~2 min.
 
-### 11. File-upload hardening (preemptive)
+### 11. File-upload hardening (preemptive) — ✅ Closed (2026-05-23, Bundle 53) (Wontfix until uploads exist)
+
+**Decision:** No file-upload endpoints exist in the app today. Closing
+as preemptive — re-open when the first upload endpoint lands (likely
+avatars or broadcast images) with concrete requirements (`Content-Type`
+allowlist, `Content-Length` cap, storage-bucket policy, virus-scan path
+if needed). Keeping a vague "validate something someday" P3 on the
+backlog adds noise without action.
+
+**Re-open trigger:** any new route under `apps/web/src/app/api/` or any
+client code that calls Supabase Storage `upload()` / `createSignedUploadUrl()`.
 
 No file uploads in the app today. If/when added (avatars, broadcast
 images), validate `Content-Type` and `Content-Length` at the API boundary,
@@ -250,27 +352,139 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-05-23 — Bundle 53: Security P3 audit-text closure (#9, #10, #11)
+
+| Item                                                                      | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P3 #9 FormData hard cap — header flipped to ✅ (code closed Bundle 17)    | ✅ Done | Finding header now carries an inline `Status: ✅ Resolved 2026-05-24 (Bundle 17)` line pointing at `FIELD_HARD_MAX = 4096` in [form-data.ts](../../apps/web/src/lib/form-data.ts) and the existing test coverage. Bundle 17 shipped the code but left the audit text untagged, so the finding still read as open in scans. No code change.                                                                    |
+| P3 #10 Turnstile freshness — header flipped to ✅ (code closed Bundle 17) | ✅ Done | Same situation as #9 — code-closed in Bundle 17, audit text untagged until this bundle. Header now points at `TURNSTILE_MAX_AGE_MS` in [turnstile.ts](../../apps/web/src/lib/turnstile.ts) and the matching test. No code change.                                                                                                                                                                             |
+| P3 #11 File-upload hardening — closed as wontfix-preemptive               | ✅ Done | No upload endpoints exist; keeping a vague "validate something someday" P3 on the backlog adds noise without action. Closed with explicit **re-open trigger** in the finding body: any new route under `apps/web/src/app/api/` or any client call to Supabase Storage `upload()` / `createSignedUploadUrl()`. Concrete requirements (allowlist, size cap, virus-scan path) will be specified at re-open time. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(no code change, all cached).
+
+**Open security items after this bundle:** P2 #3b (nonce-based CSP
+hardening — drops `'unsafe-inline'` on `script-src` / `style-src`,
+requires nonce threading through middleware) and P3 #8 (audit-log
+coverage gaps — extend `event_payment_audit` or add `audit_log` to
+cover group role changes, co-host add/remove, Stripe account mutations,
+subscription state changes).
+
+### 2026-05-24 — Bundle 17: FormData hard cap + Turnstile freshness (P3 #9, #10)
+
+| Item                               | Status  | Notes                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Global 4 KB cap on form fields     | ✅ Done | [apps/web/src/lib/form-data.ts](../../apps/web/src/lib/form-data.ts) — `FIELD_HARD_MAX = 4096` applied inside `rawValue()`, so `field()` / `fieldOrNull()` / `fieldOrUndefined()` / `bool()` all inherit the ceiling. Per-call `maxLen` still narrows; it can never raise the ceiling.                  |
+| Turnstile `challenge_ts` freshness | ✅ Done | [apps/web/src/lib/turnstile.ts](../../apps/web/src/lib/turnstile.ts#L13-L84) — reject tokens whose `challenge_ts` is older than 2 min. Replays return `{ ok: false, error: 'Verification expired. Please try again.' }`. Missing `challenge_ts` is accepted (Cloudflare always returns one on success). |
+| Tests                              | ✅ Done | [form-data.test.ts](../../apps/web/src/lib/form-data.test.ts) — bare/slot-prefixed truncation, `fieldOrNull` cap precedence. [turnstile.test.ts](../../apps/web/src/lib/turnstile.test.ts) — fresh success, omitted `challenge_ts`, stale token rejection, error-codes path, empty token.               |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+**Follow-ups:**
+
+- P3 #11 (file-upload hardening) is still preemptive — re-evaluate when
+  the first upload endpoint lands.
+- P3 #8 (audit-log coverage) is the largest open security P3 and the
+  natural next bundle: extend `event_payment_audit` (or a sibling
+  `audit_log` table) to cover group role changes, co-host add/remove,
+  Stripe account mutations, and subscription state changes.
+
+### 2026-05-24 — Bundle 16: rate limiting on email-sending paths (P2 #6)
+
+| Item                                | Status  | Notes                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Postgres-backed limiter migration   | ✅ Done | [20260610000000_rate_limits.sql](../../supabase/migrations/20260610000000_rate_limits.sql) — `public.rate_limits(key, count, window_start)` + `consume_rate_limit(p_key, p_limit, p_window_seconds)` `security definer` RPC. Atomic via `insert … on conflict do update`. Table locked down (RLS on, no policies); service role only via the function. |
+| `consumeRateLimit()` helper         | ✅ Done | [apps/web/src/lib/rate-limit.ts](../../apps/web/src/lib/rate-limit.ts) — admin-client RPC wrapper, fail-open on infra error (logged via `log.warn`). `getClientIp()` reads `x-forwarded-for` (Vercel) with `x-real-ip` fallback.                                                                                                                       |
+| `claimAccount` gated                | ✅ Done | [apps/web/src/app/claim/actions.ts](../../apps/web/src/app/claim/actions.ts) — 20/h per IP, 5/h per email; blocks `updateUser({ email })` (Supabase confirmation send) when over.                                                                                                                                                                      |
+| `signupAsGuest` gated               | ✅ Done | [apps/web/src/app/events/%5Bid%5D/guest-actions.ts](../../apps/web/src/app/events/%5Bid%5D/guest-actions.ts) — same limits, only when an email is supplied (the abuse vector for P2 #6).                                                                                                                                                               |
+| `startGuestTicketCheckout` gated    | ✅ Done | [apps/web/src/app/events/%5Bid%5D/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts) — same limits; `backWithError(eventId, 'rate_limited', …)` flash to surface the error.                                                                                                                                              |
+| `rate_limited` banner               | ✅ Done | [apps/web/src/lib/event-rsvp-flash.ts](../../apps/web/src/lib/event-rsvp-flash.ts) — new `rate_limited` entry, `error` tone.                                                                                                                                                                                                                           |
+| `api/notifications/worker/route.ts` | ⏭ Skip | Listed by the audit but cron-only and `CRON_SECRET`-guarded. No user-driven abuse surface; per-IP / per-email keys would be meaningless. Documented in the [Bundle 16 journal](../journal/2026-05-24-bundle-16.md).                                                                                                                                    |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+**Follow-ups:**
+
+- Generated `database.types.ts` doesn't yet include the new RPC — the
+  `consumeRateLimit` helper casts the rpc handle. Run
+  `pnpm --filter @pickupvb/supabase gen:types` after applying the
+  migration locally to drop the cast.
+- A periodic prune of stale `public.rate_limits` rows is not yet scheduled.
+  Volume is tiny (one row per active key, naturally collapses on next hit)
+  but a nightly `delete from public.rate_limits where window_start < now() - interval '1 day'`
+  would keep the table tidy.
+- If traffic ever makes Postgres write contention visible on this path,
+  swap the helper's backend to Upstash / Vercel KV behind the same
+  `consumeRateLimit()` signature.
+
+### 2026-05-22 — Bundle 27: CSP enforcement (P2 #3a)
+
+| Item                                     | Status  | Notes                                                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Swap header to `Content-Security-Policy` | ✅ Done | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) — single one-line swap from `Content-Security-Policy-Report-Only`. Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24); no policy changes. Browsers now block any script / style / connect / img / frame / font / worker target that isn't on the allowlist.                    |
+| Comment refresh                          | ✅ Done | Updated the inline policy-rationale comment in `next.config.mjs` to reflect enforcement mode and re-pointed the nonce follow-up at the new **P2 #3b** entry.                                                                                                                                                                                                      |
+| Nonce-based hardening                    | 🔴 Open | `'unsafe-inline'` is still required on `script-src` (JSON-LD `<script type="application/ld+json">` in [layout.tsx](../../apps/web/src/app/layout.tsx) + [event-jsonld.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-jsonld.tsx)) and `style-src` (Tailwind utility classes). Tracked as **P2 #3b** — requires nonce threading through middleware. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+### 2026-05-24 — Bundle 15: CSP Report-Only (P2 #3)
+
+| Item                             | Status  | Notes                                                                                                                                                                                                                                                                                                                  |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CSP allowlist + Report-Only ship | ✅ Done | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) `async headers()`. Directives: `default-src 'self'`; `script-src` adds Turnstile; `connect-src` adds Supabase (https/wss) + Turnstile siteverify origin; `img-src` adds Supabase storage + OSM tiles; `frame-src` Turnstile only; `frame-ancestors 'none'`. |
+| Inline-script accommodation      | ✅ Done | `'unsafe-inline'` retained on `script-src` to support JSON-LD `<script type="application/ld+json">` in [layout.tsx](../../apps/web/src/app/layout.tsx) + [event-jsonld.tsx](../../apps/web/src/app/events/[id]/_components/event-jsonld.tsx). Nonce-based hardening tracked as P2 #3a follow-up.                       |
+| Inline-style accommodation       | ✅ Done | `'unsafe-inline'` retained on `style-src` (Tailwind + inline `style` attrs). Standard for Tailwind apps without a CSS-hash pipeline.                                                                                                                                                                                   |
+| Sentry coverage                  | ✅ Done | Existing `tunnelRoute: '/monitoring'` keeps Sentry traffic same-origin, so no `*.ingest.sentry.io` allowlist entry needed.                                                                                                                                                                                             |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅. CSP
+is Report-Only — violations log to the devtools console / Reporting API but do not
+block requests.
+
+### 2026-05-24 — Bundle 14: admin-client refactor (P2 #4)
+
+| Item                                             | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New RLS migration                                | ✅ Done | [20260609000000_self_writes_attendees_tips.sql](../../supabase/migrations/20260609000000_self_writes_attendees_tips.sql). Adds `event_attendees_update_own_pending`, `event_attendees_update_host`, `event_tips_{select,insert,update,delete}_own[_pending]`, `event_payment_audit_insert_host`. `is_event_host()` (added in 20260514000400) reused for host policies. |
+| `checkout-actions.ts` swap admin → server        | ✅ Done | INSERT, the SELECT-existing lookup, the rollback DELETE, and the `checkout_session_id` stash UPDATE all run as the caller. Self-promote to 'paid' blocked by RLS (row must stay 'pending').                                                                                                                                                                            |
+| `tip-actions.ts` swap admin → server             | ✅ Done | `loadEvent` now takes the server client; pending insert / session-id stash / rollback delete all RLS-enforced.                                                                                                                                                                                                                                                         |
+| `manage-payments-actions.ts` swap admin → server | ✅ Done | Host UPDATE on `event_attendees` + audit INSERT both RLS-enforced via `is_event_host()`. Existing `canManage` app-layer check kept as belt-and-suspenders.                                                                                                                                                                                                             |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+### 2026-05-22 — Bundle 2: postcss override
+
+| Item                             | Status  | Notes                                                                                                                                                                                            |
+| -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P2 transitive `postcss` advisory | ✅ Done | Added `pnpm.overrides.postcss: ">=8.5.10"` to root `package.json`. `pnpm install`; `pnpm audit --prod` now reports 0 vulnerabilities. See [Bundle 2 journal](../journal/2026-05-22-bundle-2.md). |
+
+### 2026-05-22 — Quick-win bundle landed
+
+| Item                               | Status  | Notes                                                                                                                                                                                                                                                                                           |
+| ---------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1 #0 `next` advisories (15 vulns) | ✅ Done | Root cause was `packages/supabase/package.json` `"next": ">=14.0.0"` peer floor, which pnpm satisfied with a phantom `next@14.2.35`. Bumped peer to `>=15.5.16`; `pnpm install`; `pnpm audit --prod` now reports 1 moderate (transitive `postcss` via `@sentry/nextjs`) instead of 15 (5 high). |
+
 ### 2026-05-17 — Quick-win bundle landed
 
-| Item | Status | Notes |
-|---|---|---|
-| P1 #1 open redirect in `auth/callback` | ✅ Done | `next` validated; falls back to `/events`. |
-| P2 #3 missing security headers | 🟡 Partial | Baseline 5 headers added via `next.config.mjs`. CSP still open. |
-| P2 #5 PII in logs | 🟡 Partial | Removed `{ email }` from `claim/actions.ts`. `checkout-actions.ts:210` already logs only `emailErr.message`; flagged for follow-up review. |
-| P2 #7 Stripe metadata cross-check | ✅ Done | Mismatch detection added to both checkout and subscription handlers. |
+| Item                                   | Status     | Notes                                                                                                                                      |
+| -------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| P1 #1 open redirect in `auth/callback` | ✅ Done    | `next` validated; falls back to `/events`.                                                                                                 |
+| P2 #3 missing security headers         | 🟡 Partial | Baseline 5 headers added via `next.config.mjs`. CSP still open.                                                                            |
+| P2 #5 PII in logs                      | 🟡 Partial | Removed `{ email }` from `claim/actions.ts`. `checkout-actions.ts:210` already logs only `emailErr.message`; flagged for follow-up review. |
+| P2 #7 Stripe metadata cross-check      | ✅ Done    | Mismatch detection added to both checkout and subscription handlers.                                                                       |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
 
 **Still open** (not in quick-win scope):
 
-- **P2 #3** — CSP rollout (report-only first), once an allowlist is
-  inventoried.
-- **P2 #4** — admin-Supabase-client refactor across user-driven write
-  paths.
-- **P2 #6** — rate limiting on email-sending paths (needs a KV backend
-  decision first).
-- All **P3** items (audit-log coverage, FormData global cap, Turnstile
-  freshness, upload hardening).
+- ~~**P2 #3a**~~ — resolved 2026-05-22 (Bundle 27). CSP now enforced.
+  Optional follow-up (**P2 #3b**): wire a nonce through middleware to
+  drop `'unsafe-inline'` from `script-src` / `style-src`.
+- ~~**P2 #4**~~ — resolved 2026-05-24 (Bundle 14).
+- ~~**P2 #6**~~ — resolved 2026-05-24 (Bundle 16).
+- ~~**P3 #9** (FormData global cap)~~ — resolved 2026-05-24 (Bundle 17).
+- ~~**P3 #10** (Turnstile freshness)~~ — resolved 2026-05-24 (Bundle 17).
+- **P3 #8** (audit-log coverage) and **P3 #11** (preemptive upload
+  hardening) remain open.
 
 ---
 
@@ -283,5 +497,5 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm build` ✅.
    rate-limit state?
 3. Any secrets we should rotate proactively because of past local exposure
    (shared drives, old machines, etc.)?
-</content>
-</invoke>
+   </content>
+   </invoke>

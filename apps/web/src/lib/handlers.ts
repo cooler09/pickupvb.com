@@ -7,12 +7,15 @@ import {
   SupabaseBracketRepository,
   SupabaseCommunityListingRepository,
   SupabaseEventRepository,
+  SupabaseEventTeamPaymentRepository,
+  SupabaseEventTeamRegistrationRepository,
   SupabaseHostStripeAccountRepository,
   SupabaseHostSubscriptionRepository,
   SupabaseTeamRepository,
 } from '@pickupvb/infrastructure';
 import {
   AcceptTeamInviteHandler,
+  AddAdHocTeamMemberHandler,
   AddEventCoHostHandler,
   AddEventDivisionHandler,
   AddTeamMemberHandler,
@@ -36,10 +39,13 @@ import {
   LeaveEventAsFreeAgentHandler,
   LeaveEventHandler,
   RecordMatchResultHandler,
+  RegisterAdHocTeamHandler,
   RegisterTeamHandler,
   RemoveEventCoHostHandler,
   RemoveEventDivisionHandler,
+  RemoveAdHocTeamMemberHandler,
   RemoveTeamMemberHandler,
+  RenameAdHocTeamRegistrationHandler,
   ReportCommunityListingHandler,
   ResetBracketHandler,
   ResetMatchHandler,
@@ -50,12 +56,15 @@ import {
   UnhideCommunityListingHandler,
   UpdateCommunityListingHandler,
   UpdateEventDivisionHandler,
+  WithdrawAdHocTeamRegistrationHandler,
   WithdrawTeamHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
 
 const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
+const eventTeamRegistrationRepo = new SupabaseEventTeamRegistrationRepository();
+const eventTeamPaymentRepo = new SupabaseEventTeamPaymentRepository();
 const bracketRepo = new SupabaseBracketRepository();
 const hostStripeAccountRepo = new SupabaseHostStripeAccountRepository();
 const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
@@ -94,6 +103,14 @@ export const handlers = {
   setTeamExtraMembers: new SetTeamExtraMembersHandler(teamRepo),
   registerTeam: new RegisterTeamHandler(eventRepo, teamRepo),
   withdrawTeam: new WithdrawTeamHandler(eventRepo, teamRepo),
+  // ADR 0007 ad-hoc team registrations
+  registerAdHocTeam: new RegisterAdHocTeamHandler(eventRepo, eventTeamRegistrationRepo),
+  renameAdHocTeamRegistration: new RenameAdHocTeamRegistrationHandler(eventTeamRegistrationRepo),
+  addAdHocTeamMember: new AddAdHocTeamMemberHandler(eventTeamRegistrationRepo),
+  removeAdHocTeamMember: new RemoveAdHocTeamMemberHandler(eventTeamRegistrationRepo),
+  withdrawAdHocTeamRegistration: new WithdrawAdHocTeamRegistrationHandler(
+    eventTeamRegistrationRepo,
+  ),
   createBracket: new CreateBracketHandler(eventRepo, bracketRepo),
   seedBracket: new SeedBracketHandler(eventRepo, bracketRepo),
   generateBracket: new GenerateBracketHandler(eventRepo, bracketRepo),
@@ -116,6 +133,8 @@ export const handlers = {
 export const repositories = {
   bracketRepo,
   eventRepo,
+  eventTeamPaymentRepo,
+  eventTeamRegistrationRepo,
   hostStripeAccountRepo,
   hostSubscriptionRepo,
   communityListingRepo,

@@ -8,11 +8,8 @@ import { redirect } from 'next/navigation';
  * header is present.
  */
 export async function buildOrigin(): Promise<string> {
-    const h = await headers();
-    return (
-        h.get('origin') ??
-        (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000')
-    );
+  const h = await headers();
+  return h.get('origin') ?? (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
 }
 
 /**
@@ -21,17 +18,18 @@ export async function buildOrigin(): Promise<string> {
  * outcomes via querystring — the page renders a banner from these params.
  *
  * Keys in use:
- *   - 'rsvp'  → RSVP / checkout outcomes
- *   - 'tip'   → tip-jar outcomes
- *   - 'fa'    → free-agent signup outcomes
+ *   - 'rsvp'   → RSVP / checkout outcomes
+ *   - 'tip'    → tip-jar outcomes
+ *   - 'fa'     → free-agent signup outcomes
+ *   - 'cohost' → add/remove co-host outcomes
  */
 export function redirectEventNotice(
-    eventId: string,
-    key: 'rsvp' | 'tip' | 'fa',
-    code: string,
-    msg?: string,
+  eventId: string,
+  key: 'rsvp' | 'tip' | 'fa' | 'cohost',
+  code: string,
+  msg?: string,
 ): never {
-    const params = new URLSearchParams({ [key]: code });
-    if (msg) params.set(`${key}_msg`, msg);
-    redirect(`/events/${eventId}?${params.toString()}`);
+  const params = new URLSearchParams({ [key]: code });
+  if (msg) params.set(`${key}_msg`, msg);
+  redirect(`/events/${eventId}?${params.toString()}`);
 }
