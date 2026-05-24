@@ -503,7 +503,6 @@ use the view) remains open as a follow-up.
 
 **Open from this bundle:**
 
-- P1 #5 step 3 (app-layer): `loadAdHocRowsCached` public projection
 - Soft-delete application path: `DeletionRequestAggregate`, cron, profile scrub UI
 
 ### 2026-05-24 — P1 #4 steps 2 + 3: migrate public queries to profiles_public + tighten RLS
@@ -539,6 +538,24 @@ drops the permissive `using (true)` SELECT policy and replaces it with
 re-entering RLS. `profiles_public` continues to serve all public reads
 regardless of this change because the view runs as the view owner (not
 `security_invoker`).
+
+### 2026-05-24 — P1 #5 step 3: switch loadAdHocRowsCached public projection to view
+
+[apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts) —
+split `loadAdHocRowsCached` into two cached loaders:
+
+- `loadAdHocPublicRowsCached` — reads `event_team_registrations` (name,
+  division_id, captain_id, payment_status), `event_team_registration_members_public`
+  (id, registration_id, display_name, sort_order), and `profiles_public`
+  (captain display names). Contains no `email` or `user_id`. Used exclusively
+  for the `allRegistrations` public projection.
+- `loadAdHocRowsCached` — unchanged admin-client query with full member
+  fields including `email` and `user_id`. Now fetched only when the viewer
+  is signed in (`viewerRegistrations`) or is managing the event (`hostRows`).
+
+Anonymous visitors — including SEO crawlers and logged-out users — hit only
+the public cache. The sensitive fields never enter the shared in-memory result
+for public reads.
 
 ### 2026-05-24 — P2 #5: notification_outbox purge cron
 
