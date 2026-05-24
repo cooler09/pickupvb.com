@@ -208,12 +208,18 @@ export default async function BillingPage(props: { searchParams: SearchParams })
             <h2 className="text-muted mb-3 text-xs font-semibold tracking-wide uppercase">
               Quick actions
             </h2>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-4">
               <Link
                 href={'/profile/billing/earnings' as Route}
                 className="bg-primary text-primary-fg rounded-md px-3 py-2 text-center text-sm font-medium hover:opacity-90"
               >
                 View earnings →
+              </Link>
+              <Link
+                href={'/profile/billing/analytics' as Route}
+                className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-center text-sm font-medium"
+              >
+                Host analytics →
               </Link>
               <OpenInNewTabButton
                 getUrl={getStripeDashboardUrl}

@@ -187,11 +187,11 @@ per-event programmatic. See P2 #6 below.
 
 ### 1. Pro feature set doesn't earn $10/mo for sub-$400-GMV hosts
 
-> **Status (2026-05-24, Bundle 86): PARTIALLY SHIPPED.**
-> P1 #1 sub-item #1 (**Saved event templates**) is now live as a
-> Pro-gated host feature in `/events/new` (template save + apply).
-> Remaining P1 #1 sub-items still open: host analytics dashboard,
-> custom refund policy gating, and invite-only/private event flow.
+> **Status (2026-05-24, Bundle 87): PARTIALLY SHIPPED.**
+> P1 #1 sub-item #1 (**Saved event templates**) and sub-item #2
+> (**Host analytics dashboard**) are now live as Pro-gated host
+> features. Remaining P1 #1 sub-items still open: custom refund
+> policy gating and invite-only/private event flow.
 
 **File:** [apps/web/src/app/pricing/page.tsx#L38-L45](../../apps/web/src/app/pricing/page.tsx#L38-L45),
 [apps/web/src/lib/pro.ts](../../apps/web/src/lib/pro.ts).
@@ -233,7 +233,7 @@ Ranked by build cost vs perceived value:
    (2026-05-24): not pursuing.** Pro will be fattened by net-new
    features only; no clawback from existing free users.
 
-Ship **#2 + #3** as the next monetization bundle. That moves
+Ship **#3** as the next monetization bundle. That moves
 Pro from "tax break" to "host operating system" — the framing the
 pricing page already wants to make.
 
@@ -516,13 +516,16 @@ Concrete sequencing, smallest valuable first:
 3. **Bundle: saved event templates (P1 #1 sub-item).** One bundle.
    Shipped in Bundle 86 (Pro-gated save/apply in `/events/new`).
 4. **Bundle: host analytics dashboard (P1 #1 sub-item).** One to
-   two bundles. Justifies $10/mo on its own for any serial host.
-5. **Bundle: trial-to-paid funnel capture (P2 #5).** Half a bundle.
+   two bundles. Shipped in Bundle 87 (`/profile/billing/analytics`,
+   Pro-gated) with fill-rate, repeat-attendee, and GMV trend metrics.
+5. **Bundle: custom refund policy gating (P1 #1 sub-item).** Half a
+   bundle. Gate custom `refund_window_hours` behind Pro.
+6. **Bundle: trial-to-paid funnel capture (P2 #5).** Half a bundle.
    Required to evaluate everything above.
-6. **ADR + journal entry: monetization strategy (P1 #3).** Half a
+7. **ADR + journal entry: monetization strategy (P1 #3).** Half a
    bundle. Lock in the rationale so the lever isn't churned.
 
-Bundles 1–5 together earn Pro its $10 sticker price for both ends of
+Bundles 1–6 together earn Pro its $10 sticker price for both ends of
 the host distribution (low-volume hosts get features; high-volume
 hosts get fee discount + sponsor slot).
 
@@ -587,3 +590,10 @@ hosts get fee discount + sponsor slot).
   server action, and `/events/new` apply/save UI with template prefill.
   This closes one of the three primary Pro-feature expansion tracks;
   host analytics and custom refund-policy gating remain open.
+- **2026-05-24 — Bundle 87** — P1 #1 sub-item #2 shipped.
+  Added Pro-gated host analytics dashboard at
+  `/profile/billing/analytics`, wired from billing quick actions.
+  v1 includes hosted-event counts, repeat-attendee rate, fill-rate
+  (capacity-backed where configured), GMV/revenue trend, and a recent
+  events snapshot. Custom refund-policy gating remains the next P1 #1
+  monetization track.
