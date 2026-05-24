@@ -20,7 +20,14 @@ import type { AnalyticsTraits } from './analytics-port';
  */
 describe('AnalyticsTraits', () => {
   it('only allows the allowlisted, non-PII keys', () => {
-    type AllowedKeys = 'metroId' | 'skillTier' | 'accountAgeDays' | 'isAnonymous';
+    type AllowedKeys =
+      | 'metroId'
+      | 'skillTier'
+      | 'accountAgeDays'
+      | 'isAnonymous'
+      | 'utmSource'
+      | 'utmMedium'
+      | 'utmCampaign';
     // Mutually exhaustive: if any new key is added, this fails.
     expectTypeOf<keyof AnalyticsTraits>().toEqualTypeOf<AllowedKeys>();
   });

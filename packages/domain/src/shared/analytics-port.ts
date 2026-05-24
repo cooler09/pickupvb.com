@@ -103,6 +103,13 @@ export interface AnalyticsTraits {
   accountAgeDays?: number;
   /** Whether the actor is currently signed in via anonymous auth. */
   isAnonymous?: boolean;
+  /** First-touch marketing attribution. Mirrors the four `utm_*`
+   * dimensions PostHog displays natively. Captured at signup from
+   * the `pickupvb_attr` cookie; never overwritten on subsequent
+   * `identify` calls (per docs/audits/analytics.md P1 #3). */
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
 }
 
 /**

@@ -1405,6 +1405,53 @@ export type Database = {
           },
         ];
       };
+      marketing_attribution: {
+        Row: {
+          attached_at: string;
+          campaign: string | null;
+          captured_at: string;
+          content: string | null;
+          landing_path: string | null;
+          medium: string | null;
+          referrer: string | null;
+          source: string | null;
+          term: string | null;
+          user_id: string;
+        };
+        Insert: {
+          attached_at?: string;
+          campaign?: string | null;
+          captured_at: string;
+          content?: string | null;
+          landing_path?: string | null;
+          medium?: string | null;
+          referrer?: string | null;
+          source?: string | null;
+          term?: string | null;
+          user_id: string;
+        };
+        Update: {
+          attached_at?: string;
+          campaign?: string | null;
+          captured_at?: string;
+          content?: string | null;
+          landing_path?: string | null;
+          medium?: string | null;
+          referrer?: string | null;
+          source?: string | null;
+          term?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'marketing_attribution_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: true;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       notification_outbox: {
         Row: {
           attempts: number;

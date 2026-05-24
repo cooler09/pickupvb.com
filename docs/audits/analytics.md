@@ -17,9 +17,13 @@ a vendor SDK.
   test in `packages/domain`) and completed the server-side capture
   set for `event_left`, `checkout_started`, `checkout_completed`,
   `host_payout_setup_completed`, and `signup_completed`
-  (email / oauth). Open: P1 #3 (UTM attribution), `signup_completed`
-  with `method: 'anon_claim'`, and all P2 / P3 items. See remediation
-  log.
+  (email / oauth). Bundle 77 closed P1 #3 (first-touch UTM /
+  off-domain-referrer attribution: edge cookie stamping in
+  `apps/web/src/proxy.ts`, `marketing_attribution` table, signup-time
+  upsert + PostHog identify with `utmSource` / `utmMedium` /
+  `utmCampaign` traits). Open: `signup_completed` with
+  `method: 'anon_claim'`, multi-touch / last-touch attribution, and
+  all P2 / P3 items. See remediation log.
 
 ## Headline
 
@@ -106,6 +110,9 @@ the port (closes the door on string drift). **Initial taxonomy lands in
 Bundle 75.**
 
 ### 3. No UTM capture / attribution
+
+**Status (2026-05-24):** First-touch closed in Bundle 77 — see remediation
+log. Multi-touch / last-touch attribution remains deferred.
 
 **Files:** none — no middleware, no DB table.
 
@@ -385,3 +392,29 @@ Adapter call sites land at the **server-action layer** in Bundle 75
   filter to first occurrence per actor; tightening would require
   comparing prior mirror state; (b) `event_left` reports
   `byPosition: false` until a leave-by-position UI exists.
+- **2026-05-24, Bundle 77** — Closes P1 #3 (first-touch attribution).
+  New migration
+  [20260614000000_marketing_attribution.sql](../../supabase/migrations/20260614000000_marketing_attribution.sql)
+  adds a one-row-per-user table (PK = `user_id` FK profiles, columns
+  `source / medium / campaign / content / term / referrer /
+landing_path / captured_at / attached_at`) with own-row RLS.
+  [apps/web/src/proxy.ts](../../apps/web/src/proxy.ts) stamps a
+  `pickupvb_attr` HttpOnly cookie (30-day max-age, JSON payload, fields
+  truncated to 256 chars) on requests carrying `utm_*` params or an
+  off-domain `Referer`, but only when no prior cookie exists — first
+  touch wins. [auth/callback/route.ts](../../apps/web/src/app/auth/callback/route.ts)
+  reads the cookie inside the same `ageMs < 60_000` new-account branch
+  that fires `signup_completed`, upserts into `marketing_attribution`
+  with `onConflict: 'user_id', ignoreDuplicates: true`, calls
+  `analytics.identify(user.id, { utmSource, utmMedium, utmCampaign })`
+  to attach the UTM trio as PostHog person traits, and clears the
+  cookie on the response. `AnalyticsTraits` in
+  [analytics-port.ts](../../packages/domain/src/shared/analytics-port.ts)
+  is extended with the three UTM keys and the PII guardrail test
+  ([analytics-port.test.ts](../../packages/domain/src/shared/analytics-port.test.ts))
+  is updated in lockstep. Scope deliberately limited to first-touch:
+  multi-touch / last-touch attribution would require either a per-touch
+  log table or last-write-wins on the existing row, both with thornier
+  semantics around "did the second touch actually convert?" — deferred.
+  The `anon_claim` signup method also still needs cross-request state
+  tracking and remains open.
