@@ -38,7 +38,10 @@ a vendor SDK.
   `ConsentGatedAnalytics` decorator + server-rendered banner; GPC
   honored as default-deny for analytics; client-side
   AnalyticsClient/WebVitalsClient/SpeedInsights mounts gated on
-  decision; privacy policy §4 + §5 updated. Open:
+  decision; privacy policy §4 + §5 updated. Bundle 82 closed P3 #12
+  (pre-launch retire of Vercel Analytics + Speed Insights): packages
+  removed, components deleted, docs updated; `<WebVitalsClient />`
+  kept as the PostHog bridge. Open:
   `signup_completed` with
   `method: 'anon_claim'`, multi-touch / last-touch attribution,
   `position_demand_weekly` view (blocked on schema — no position
@@ -346,6 +349,18 @@ experiment.
 
 ### 12. Vercel Analytics + PostHog overlap
 
+**Status (2026-05-24):** Bundle 82 retires Vercel Analytics + Speed
+Insights pre-launch. `@vercel/analytics` and `@vercel/speed-insights`
+removed from
+[apps/web/package.json](../../apps/web/package.json);
+`<AnalyticsClient />` + `<SpeedInsights />` dropped from
+[layout.tsx](../../apps/web/src/app/layout.tsx);
+[`analytics-client.tsx`](../../apps/web/src/components/analytics-client.tsx)
+deleted. `<WebVitalsClient />` stays (it bridges into PostHog via
+`/api/web-vitals`). Page-view capture is currently unwired — pre-launch
+there's no traffic to lose, and a `$pageview` beacon through the
+existing pattern is the obvious follow-up once real traffic lands.
+
 **File:**
 [apps/web/src/components/analytics-client.tsx](../../apps/web/src/components/analytics-client.tsx).
 
@@ -621,3 +636,19 @@ visibility='public'` event by `(city, date_trunc('week', starts_at))`
   (marketing axis is denied-only today), footer "Manage cookies"
   reopen link, and persisting consent into authenticated profiles
   so the decision follows across devices.
+- **2026-05-24, Bundle 82** — Closes P3 #12 (Vercel Analytics +
+  PostHog overlap) pre-launch. Removed `@vercel/analytics` and
+  `@vercel/speed-insights` from
+  [apps/web/package.json](../../apps/web/package.json); deleted
+  `apps/web/src/components/analytics-client.tsx`; dropped both
+  client components from
+  [layout.tsx](../../apps/web/src/app/layout.tsx). `<WebVitalsClient />`
+  stays — it bridges into PostHog via the `/api/web-vitals` beacon
+  added in Bundle 79.
+  [docs/monitoring.md](../monitoring.md) replaces the "Vercel
+  Analytics + Speed Insights" section with "Product analytics
+  (PostHog)" and flags the unwired page-view capture as the next
+  obvious follow-up; [docs/integrations.md](../integrations.md)
+  Vercel section updated to point at PostHog. Deferred: a
+  `$pageview` capture through the existing beacon pattern once
+  real traffic lands.

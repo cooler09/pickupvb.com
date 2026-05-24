@@ -1,11 +1,9 @@
-import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from 'next/types';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
 import { ToastProvider } from '@/components/toast';
 import { EnvBanner } from '@/components/env-banner';
-import { AnalyticsClient } from '@/components/analytics-client';
 import { WebVitalsClient } from '@/components/web-vitals-client';
 import { ConsentBanner } from '@/components/consent-banner';
 import { getCurrentUser } from '@/lib/server-auth';
@@ -142,13 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
         </ToastProvider>
         <SiteFooter />
-        {analyticsAllowed ? (
-          <>
-            <AnalyticsClient />
-            <WebVitalsClient />
-            <SpeedInsights />
-          </>
-        ) : null}
+        {analyticsAllowed ? <WebVitalsClient /> : null}
         {decided ? null : <ConsentBanner />}
       </body>
     </html>

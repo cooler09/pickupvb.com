@@ -289,12 +289,11 @@ Speed Insights.
 | `/api/notifications/worker`    | every minute | Flushes queued notifications (email/SMS/push/in-app) |
 | `/api/notifications/reminders` | every 15 min | Generates 24h / 2h reminder notifications            |
 
-**Analytics + Speed Insights.** Mounted in
-[apps/web/src/app/layout.tsx](../apps/web/src/app/layout.tsx) via
-`@vercel/analytics/next` and `@vercel/speed-insights/next`. No env
-vars; data flows to the Vercel project dashboard. Slated for
-retirement once PostHog covers page-view + Web Vitals capture (audit
-P3 #12).
+**Analytics.** Product analytics is handled by PostHog
+(server-side via `posthog-node`) — see
+[docs/monitoring.md](monitoring.md#product-analytics-posthog).
+Vercel Analytics and Speed Insights were retired pre-launch (audit
+P3 #12, Bundle 82).
 
 **Auto-deploy.** Every push to `main` triggers a production build.
 Migrations are picked up automatically — see [AGENTS.md](../AGENTS.md).
