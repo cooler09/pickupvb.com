@@ -75,7 +75,7 @@ function noticeBanner(code: string | undefined): React.ReactNode {
     },
     claimfail: {
       tone: 'err',
-      text: "That event couldn't be linked. You can only claim a listing with an event you host on PickupVB.",
+      text: "That event couldn't be linked. The PickupVB event must be on the same day and in the same city as this listing, and you must host (or co-host) it.",
     },
     notallow: { tone: 'err', text: "You don't have permission to do that." },
     notfound: { tone: 'err', text: 'This listing no longer exists.' },
@@ -102,6 +102,25 @@ function externalHostFromUrl(url: string): string {
     return u.hostname.replace(/^www\./, '');
   } catch {
     return url;
+  }
+}
+
+/**
+ * Format a `Date` as `YYYY-MM-DD` in the given IANA timezone, for "same
+ * calendar day" comparisons. Falls back to UTC if the runtime rejects the
+ * zone. Mirrors the application-layer helper used by
+ * `ClaimCommunityListingHandler`.
+ */
+function formatDayKey(d: Date, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
   }
 }
 
@@ -143,6 +162,23 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         startsAfter: new Date(),
       })
     : [];
+
+  // Filter to events that actually match this listing's day + city. The
+  // application handler enforces the same rule server-side as a security
+  // check (preventing a host from claiming arbitrary listings); the UI
+  // filter is purely UX so the dropdown isn't full of mismatched options.
+  const listingCityNormalized = detail.location?.city?.trim().toLowerCase() ?? null;
+  const listingDayKey = listingCityNormalized
+    ? formatDayKey(detail.startsAt, detail.timeZone ?? 'UTC')
+    : null;
+  const eligibleEvents =
+    listingCityNormalized && listingDayKey
+      ? claimableEvents.filter((e) => {
+          if (e.city.trim().toLowerCase() !== listingCityNormalized) return false;
+          const eventTz = e.time_zone ?? detail.timeZone ?? 'UTC';
+          return formatDayKey(new Date(e.starts_at), eventTz) === listingDayKey;
+        })
+      : [];
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
@@ -247,7 +283,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
             </p>
           </div>
 
-          {claimableEvents.length === 0 ? (
+          {eligibleEvents.length === 0 ? (
             <div className="border-border-base bg-fg/5 space-y-2 rounded-md border border-dashed p-3 text-xs">
               <p className="font-semibold">Two steps to claim this listing:</p>
               <ol className="text-muted ml-4 list-decimal space-y-1">
@@ -264,8 +300,9 @@ export default async function CommunityListingDetailPage(props: PageProps) {
                 <li>Come back to this page and pick it from the list to claim.</li>
               </ol>
               <p className="text-muted">
-                You don&rsquo;t have any upcoming events on PickupVB yet, so there&rsquo;s nothing
-                to link.
+                {claimableEvents.length === 0
+                  ? "You don't have any upcoming events on PickupVB yet, so there's nothing to link."
+                  : 'None of your upcoming PickupVB events match this listing. The event you link must be on the same day and in the same city as the listing.'}
               </p>
             </div>
           ) : (
@@ -286,14 +323,15 @@ export default async function CommunityListingDetailPage(props: PageProps) {
                 <option value="" disabled>
                   Select one of your events…
                 </option>
-                {claimableEvents.map((e) => (
+                {eligibleEvents.map((e) => (
                   <option key={e.id} value={e.id}>
                     {e.title} — {new Date(e.starts_at).toLocaleDateString()} · {e.city}, {e.region}
                   </option>
                 ))}
               </select>
               <p className="text-muted text-xs">
-                Only events you host (or co-host) are shown. Don&rsquo;t see the right one?{' '}
+                Only your events on the same day and in the same city as this listing are shown.
+                Don&rsquo;t see the right one?{' '}
                 <Link
                   href={'/events/new' as Route}
                   className="text-primary font-medium hover:underline"
