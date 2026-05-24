@@ -561,6 +561,15 @@ hosts get fee discount + sponsor slot).
 
 ## Remediation log
 
+- **2026-05-24 — Bundle 88** — Opas audit of Bundles 84–87 completed.
+  Five fixes shipped: (1) sponsor form inputs no longer disabled for
+  non-Pro users — the $3 à-la-carte checkout flow now works end-to-end;
+  (2) fill-rate numerator scoped to capacity-set events only, preventing
+  rates > 100%; (3) analytics page early-returns for non-Pro users,
+  skipping all DB queries; (4) merged duplicate import in sponsor-actions.ts;
+  (5) removed spurious `as never` upsert casts in both action files.
+  Validation gate cleared. See [docs/journal/2026-05-24-bundle-88.md](../journal/2026-05-24-bundle-88.md).
+
 - **2026-05-24 — Validation gate requested** — Pause feature expansion and
   run an **Opas audit** for Bundles 84–87 after the 8pm EST rate-limit
   reset. Scope: verify implementation correctness and regression risk for
