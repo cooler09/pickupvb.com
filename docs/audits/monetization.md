@@ -223,8 +223,9 @@ Ranked by build cost vs perceived value:
    **Estimate: half a bundle.**
 5. **Co-host invite cap** — Free = 1 co-host, Pro = unlimited.
    _Caveat:_ the co-host feature exists today and is uncapped, so
-   this is a takeaway from existing free users. Defer unless
-   shipped alongside a no-cost compensating feature.
+   this is a takeaway from existing free users. **Decision
+   (2026-05-24): not pursuing.** Pro will be fattened by net-new
+   features only; no clawback from existing free users.
 
 Ship **#1 + #2 + #3** as the next monetization bundle. That moves
 Pro from "tax break" to "host operating system" — the framing the
@@ -512,18 +513,29 @@ hosts get fee discount + sponsor slot).
 
 ## Open questions for the user (require input I can't infer)
 
+> **Answered 2026-05-24.** Responses inlined below; downstream
+> findings updated accordingly.
+
 1. **What's the actual Vercel / Supabase / Sentry / Resend monthly
-   spend today?** The cost-floor table above is list-price. Real
-   numbers would let us replace "~$70–$110" with a hard target.
-2. **What's the target audience size for v1 launch?** "One metro,
-   one league" vs "five metros, ten leagues" changes the cover-
-   cost math by an order of magnitude.
+   spend today?**
+   _Answer:_ list-price estimates ($70–$110/mo) are fine for now.
+   Revisit once real invoices accumulate post-launch.
+2. **What's the target audience size for v1 launch?**
+   _Answer:_ **two–three metros — Pittsburgh, Erie, Cleveland.**
+   Sizing implication: medium scale. Pro doesn't need to break
+   even at launch but should be pointed at the right host
+   archetype (serial host running weekly paid sessions across
+   one of the three metros). Use this as the target persona for
+   the Pro fattening tracks (templates, host analytics).
 3. **Is there an existing sponsor relationship for a launch metro?**
-   If yes, ship the metro-level sponsor inventory (P2 #6) first;
-   if no, host-owned sponsor (P2 #4) is the better leading edge.
+   _Answer:_ **no.** Decision: **ship host-owned sponsor slot
+   (P2 #4) first**; metro-level sponsor inventory (P2 #6) stays
+   deferred until a metro has a real anchor advertiser to design
+   around. P2 #4 is now the next bundle in flight after P1 #2.
 4. **Are we willing to gate co-hosts behind Pro (P1 #1 item 5)?**
-   Pro takeaway from existing free users is rare to land cleanly;
-   I'd lean no.
+   _Answer:_ **no.** P1 #1 item 5 is removed from the Pro
+   fattening plan. Pro grows via net-new features only — no
+   clawback from existing free users.
 
 ---
 
@@ -532,6 +544,10 @@ hosts get fee discount + sponsor slot).
 - **2026-05-24** — Audit authored. No remediation yet — next bundle
   will pick up P1 #2 (Stripe fee pass-through) or P2 #4 (host-owned
   sponsor slot) depending on user direction.
+- **2026-05-24** — Open questions answered. Launch scope: 2–3 metros
+  (Pittsburgh, Erie, Cleveland). No existing sponsor relationships
+  → host-owned slot (P2 #4) confirmed as next bundle. Co-host
+  gating (P1 #1 item 5) dropped. Vendor-cost numbers deferred.
 - **2026-05-24 — Bundle 83** — P1 #2 shipped. New `events.pass_processing_fee_to_buyer`
   column (default true for new events, backfilled false for existing
   rows). Three checkout-action paths emit a "Processing fee" line
