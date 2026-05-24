@@ -51,7 +51,8 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
         </div>
         <h1 className="text-3xl font-bold">Pro Host</h1>
         <p className="text-muted">
-          Upgrade to unlock unlimited paid events, a lower platform fee, and CSV attendee exports.
+          Upgrade for unlimited paid events, half the platform fee, saved templates, host analytics,
+          sponsor slots, and more.
         </p>
       </header>
 
@@ -79,15 +80,41 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       )}
 
       <section className="border-border-base rounded-lg border p-6">
-        <h2 className="text-xl font-semibold">Perks</h2>
-        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
-          <li>
-            <strong className="text-fg">2.5%</strong> platform fee on paid events (free hosts pay
-            5%).
-          </li>
+        <h2 className="text-xl font-semibold">What you get</h2>
+        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm">
           <li>
             <strong className="text-fg">Unlimited paid events.</strong> Free hosts are capped at 1
             paid event per 30 days.
+          </li>
+          <li>
+            <strong className="text-fg">2.5% platform fee</strong> on tickets and tips — half what
+            free hosts pay.
+          </li>
+          <li>
+            <strong className="text-fg">Saved event templates.</strong> Save any event as a
+            template; apply it when creating a new one to prefill date, venue, pricing, and
+            description in one click.
+          </li>
+          <li>
+            <strong className="text-fg">Host analytics dashboard.</strong> Fill rate,
+            repeat-attendee rate, GMV trend, and a recent-events snapshot — all at{' '}
+            <a href="/profile/billing/analytics" className="text-primary hover:underline">
+              /profile/billing/analytics
+            </a>
+            .
+          </li>
+          <li>
+            <strong className="text-fg">Sponsor slot included</strong> on every event. Add a local
+            sponsor (logo, one-line message, optional discount code) at no extra charge. Free hosts
+            pay $3 per event.
+          </li>
+          <li>
+            <strong className="text-fg">Custom refund policy.</strong> Configure your own refund
+            window (1 hour to 30 days) instead of the default.
+          </li>
+          <li>
+            <strong className="text-fg">Invite-only / private events.</strong> Keep events off the
+            public listing and share via direct link or invite.
           </li>
           <li>CSV attendee export with payment status.</li>
         </ul>

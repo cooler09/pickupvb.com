@@ -15,11 +15,12 @@ import { SubmitButton } from '@/components/submit-button';
 export const metadata = {
   title: 'Pricing',
   description:
-    'PickupVB is free for hosts who run free pickup events. Upgrade to Pro for unlimited paid events, a lower platform fee, and host tools.',
+    'PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events, half the platform fee, saved templates, analytics, sponsor slots, and more.',
   alternates: { canonical: '/pricing' },
   openGraph: {
     title: 'Pricing · PickupVB',
-    description: 'Free for free events. Pro for unlimited paid events and a lower platform fee.',
+    description:
+      'Free for free events. Pro for unlimited paid events, lower fees, and the full host toolkit.',
     url: '/pricing',
     type: 'website',
   },
@@ -27,20 +28,23 @@ export const metadata = {
 
 const FREE_TIER_FEATURES = [
   'Unlimited free events',
-  `${FREE_PAID_EVENT_CAP_30D} paid event every 30 days (rolling)`,
-  '5% platform fee on paid tickets',
-  'Tip jar (5% platform fee)',
+  `${FREE_PAID_EVENT_CAP_30D} paid event per 30 days (rolling)`,
+  '5% platform fee on tickets and tips',
+  'Sponsor slot — $3/event à-la-carte',
   'Group pages, co-hosts, free-agent signups',
   'Event check-in & roster management',
 ];
 
 const PRO_TIER_FEATURES = [
   'Unlimited paid events',
-  '2.5% platform fee on paid tickets (half of free)',
-  '2.5% platform fee on tips',
+  '2.5% platform fee on tickets and tips (half of free)',
+  'Saved event templates — publish new dates in one click',
+  'Host analytics — fill rate, GMV trend, repeat-attendee rate',
+  'Sponsor slot included on every event',
+  'Custom refund policy (1 hour to 30 days)',
+  'Invite-only / private events',
   'CSV attendee export with payment status',
   '14-day free trial — cancel anytime',
-  'Everything in Free',
 ];
 
 export default async function PricingPage() {
@@ -61,8 +65,8 @@ export default async function PricingPage() {
       <header className="mx-auto max-w-2xl space-y-3 text-center">
         <h1 className="text-4xl font-bold">Simple, host-friendly pricing</h1>
         <p className="text-muted">
-          PickupVB stays free for hosts who only run free pickup events. Upgrade to Pro when you
-          start charging for tickets and want a lower platform fee.
+          PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events,
+          half the platform fee, templates, analytics, and the full host toolkit.
         </p>
       </header>
 
@@ -214,12 +218,16 @@ export default async function PricingPage() {
                 free={`${FREE_PAID_EVENT_CAP_30D} (rolling window)`}
                 pro="Unlimited"
               />
-              <Row label="Platform fee — ticket sales" free="5%" pro="2.5%" />
-              <Row label="Platform fee — tips" free="5%" pro="2.5%" />
+              <Row label="Platform fee — tickets & tips" free="5%" pro="2.5%" />
               <Row label="Stripe processing fee" free="~2.9% + 30¢" pro="~2.9% + 30¢" />
-              <Row label="Tip jar" free="✓" pro="✓" />
-              <Row label="Co-hosts & group pages" free="✓" pro="✓" />
+              <Row label="Saved event templates" free="—" pro="✓" />
+              <Row label="Host analytics dashboard" free="—" pro="✓" />
+              <Row label="Sponsor slot" free="$3 / event" pro="Included" />
+              <Row label="Custom refund policy" free="—" pro="✓" />
+              <Row label="Private / invite-only events" free="—" pro="✓" />
               <Row label="CSV attendee export" free="—" pro="✓" />
+              <Row label="Co-hosts & group pages" free="✓" pro="✓" />
+              <Row label="Event check-in & roster" free="✓" pro="✓" />
             </tbody>
           </table>
         </div>
@@ -234,15 +242,23 @@ export default async function PricingPage() {
         <h2 className="text-2xl font-semibold">FAQ</h2>
         <Faq
           q="Do I need to pay to host free events?"
-          a="No. Free events have no platform fee and no subscription required."
+          a="No. Free events have no platform fee and no subscription required. You also get co-hosts, group pages, waitlists, broadcasts, and check-in tools at no cost."
         />
         <Faq
-          q={`What does "${FREE_PAID_EVENT_CAP_30D} paid event every 30 days" actually mean?`}
-          a={`Free hosts can have ${FREE_PAID_EVENT_CAP_30D} paid event in any rolling 30-day window. If you create a paid event today, you'll be able to create another one 30 days from today — not at the start of the next calendar month. Cancelling a paid event before it runs doesn't free up the slot. Upgrade to Pro for unlimited paid events.`}
+          q={`What does "${FREE_PAID_EVENT_CAP_30D} paid event per 30 days" actually mean?`}
+          a={`Free hosts can have ${FREE_PAID_EVENT_CAP_30D} paid event active in any rolling 30-day window. If you create a paid event today, you can create another one 30 days from today — not at the start of the next calendar month. Cancelling a paid event before it runs doesn't free up the slot. Upgrade to Pro for unlimited paid events.`}
         />
         <Faq
           q="How does the platform fee work?"
-          a={`Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings. Stripe's processing fee always comes out of your payout.`}
+          a="Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings. Stripe's processing fee (~2.9% + 30¢) always comes out of your payout — it goes to Stripe, not PickupVB."
+        />
+        <Faq
+          q="What are event templates?"
+          a="Pro hosts can save any event as a template and apply it when creating a new one — the title, venue, format, pricing, and description all prefill. Change the date and publish. Useful for recurring open play sessions, weekly leagues, or annual tournaments."
+        />
+        <Faq
+          q="What does the sponsor slot do?"
+          a="You can add one sponsor block per event — your local sporting-goods store, gym, or brewery. It shows a logo, a one-line message, and an optional discount code below the event details. Pro hosts get it included; free hosts can unlock it for $3 per event."
         />
         <Faq
           q="What happens after the 14-day trial?"

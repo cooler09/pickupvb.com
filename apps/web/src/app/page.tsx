@@ -259,7 +259,7 @@ export default async function HomePage(props: {
               </li>
               <li className="flex items-center gap-2">
                 <Icon name="check" size={16} className="text-primary shrink-0" />
-                Pro tier: 2.5% platform fee
+                Pro: templates, analytics, sponsor slots &amp; lower fees
               </li>
             </ul>
           </div>

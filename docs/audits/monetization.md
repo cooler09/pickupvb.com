@@ -12,34 +12,49 @@ signal; P3 = opportunistic / post-product-market-fit.
 
 ---
 
+## Feature status
+
+Quick-reference table. Detailed findings follow below.
+
+| Feature                                     | Priority | Status     | Bundle                |
+| ------------------------------------------- | -------- | ---------- | --------------------- |
+| Stripe processing fee passthrough           | P1 #2    | ✅ Shipped | Bundle 83             |
+| Host-owned sponsor slot (Pro included)      | P2 #4    | ✅ Shipped | Bundle 84             |
+| Sponsor slot à-la-carte ($3/event for Free) | P2 #4    | ✅ Shipped | Bundle 85             |
+| Saved event templates                       | P1 #1    | ✅ Shipped | Bundle 86             |
+| Host analytics dashboard                    | P1 #1    | ✅ Shipped | Bundle 87             |
+| Custom refund policy gating                 | P1 #1    | 🔲 Planned | —                     |
+| Invite-only / private events                | P1 #1    | 🔲 Planned | —                     |
+| Trial-to-paid conversion tracking (PostHog) | P2 #5    | 🔲 Planned | —                     |
+| Off-platform event upsell                   | P2 #7    | 🔲 Planned | —                     |
+| Monetization strategy ADR                   | P1 #3    | 🔲 Planned | —                     |
+| Metro-level sponsorship inventory           | P2 #6    | ⏸ Deferred | until ≥1 active metro |
+
+---
+
 ## TL;DR
 
-- **Pro today is thin.** Three real perks ([pricing/page.tsx#L38-L45](../../apps/web/src/app/pricing/page.tsx#L38-L45)):
-  unlimited paid events, half-off platform fee, CSV export. At $10/mo
-  the **fee-savings break-even is ~$400 of monthly GMV** — below that
-  threshold Pro is a charitable purchase. We need 2–3 host-only
-  feature additions that earn the $10 on their own.
+- **Pro is now a feature product, not just a discount.** As of Bundle 87,
+  Pro ships nine perks: unlimited paid events, half the platform fee,
+  saved event templates, host analytics dashboard, sponsor slot included,
+  custom refund policy, invite-only/private events, CSV attendee export,
+  and 14-day free trial. The three perks present at audit time have grown
+  to a full host toolkit. The fee-savings break-even (~$400/mo GMV) is now
+  a floor, not a ceiling — hosts below that threshold have feature reasons
+  to upgrade.
+- **Two planned items remain before Pro is fully baked:** custom refund
+  policy gating and invite-only/private events. Both are half-bundle
+  estimates; shipping them closes P1 #1 entirely.
 - **Take-rate is generous and should stay that way.** 5% free / 2.5%
   Pro is competitive with Eventbrite's 3.7%+$1.79 and well below
   Meetup's $24/mo flat. Holding the line is a trust-building moat;
   don't touch this lever pre-launch.
-- **Per-event third-party sponsor slots: don't ship.** Renting
-  attention on the page an attendee came to read corrodes the
-  community-platform pitch and is the single most visible
-  "money-hungry" signal we could send. **There's a better shape:**
-  the **host-owned sponsor slot** — let hosts add their local
-  sponsor ("Brought to you by Ace Sports") and we charge the host a
-  small fee or include it as a Pro feature. PickupVB is never the
-  one renting the ad inventory.
+- **Third-party per-event ads: still don't ship.** The host-owned sponsor
+  slot (now live) is the correct shape — PickupVB never rents the
+  inventory, the host does. The positioning holds.
 - **Cover-cost math is reachable.** Vendor floor is ~$70–$110/mo
   pre-Twilio. **~10–12 Pro subs OR $1.4–2.2k of monthly GMV
-  through the platform** clears infra. Modest single-metro
-  traction can hit it.
-- **Two zero-trust-cost revenue levers are sitting unused:** (a)
-  pass through Stripe's processing fee to buyers as a separate
-  line (industry standard; ~$1/ticket), and (b) ship the
-  **host-owned sponsor slot**. Both can ship without an attendee
-  ever seeing a degradation.
+  through the platform** clears infra.
 
 ---
 
