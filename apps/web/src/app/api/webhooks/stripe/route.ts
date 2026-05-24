@@ -11,7 +11,7 @@ import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { mirrorStripeAccountUpdate } from '@/lib/host-stripe-account';
 import { findHostByStripeCustomerId, upsertHostSubscriptionFromStripe } from '@/lib/pro';
-import { repositories } from '@/lib/handlers';
+import { repositories, analytics } from '@/lib/handlers';
 import { log } from '@/lib/log';
 import { notify } from '@/lib/notify';
 
@@ -175,6 +175,25 @@ async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
   );
   // Repo returns false (no row) silently — host hasn't onboarded through
   // our flow yet, so there's nothing to mirror.
+
+  // Fire host_payout_setup_completed whenever the account is currently
+  // charges-enabled. Stripe re-sends account.updated on every change
+  // (re-verification, capability shifts), so PostHog will see repeats —
+  // dashboards filter to first occurrence per actor. Acceptable for now;
+  // tightening to first-transition would require comparing prior mirror
+  // state (deferred).
+  if (account.charges_enabled) {
+    const admin = getAdminSupabase();
+    const { data } = await admin
+      .from('host_stripe_accounts')
+      .select('user_id')
+      .eq('stripe_account_id', account.id)
+      .maybeSingle();
+    const hostId = (data as { user_id: string } | null)?.user_id ?? null;
+    if (hostId) {
+      analytics.capture({ name: 'host_payout_setup_completed', props: { hostId } }, hostId);
+    }
+  }
 }
 
 // ============================================================================
@@ -250,6 +269,23 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       amount_cents: amountTotal,
       payment_intent_id: piId,
     } as never);
+
+    const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
+    if (hostId) {
+      analytics.capture(
+        {
+          name: 'checkout_completed',
+          props: {
+            eventId: meta.event_id,
+            hostId,
+            amountCents: amountTotal,
+            kind: 'ticket',
+            paymentIntentId: piId ?? '',
+          },
+        },
+        meta.user_id,
+      );
+    }
   }
 
   if (meta.kind === 'tip' && meta.tip_id) {
@@ -262,6 +298,23 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       } as never)
       .eq('id', meta.tip_id);
     if (error) throw new Error(`mark tip paid failed: ${error.message}`);
+
+    const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
+    if (hostId && meta.user_id) {
+      analytics.capture(
+        {
+          name: 'checkout_completed',
+          props: {
+            eventId: meta.event_id,
+            hostId,
+            amountCents: amountTotal,
+            kind: 'tip',
+            paymentIntentId: piId ?? '',
+          },
+        },
+        meta.user_id,
+      );
+    }
   }
 
   if (meta.kind === 'team_registration' && meta.registration_id) {
@@ -277,6 +330,22 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       amountCents: amountTotal,
       paidAt: new Date(paidAt),
     });
+    const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
+    if (hostId && meta.captain_id) {
+      analytics.capture(
+        {
+          name: 'checkout_completed',
+          props: {
+            eventId: meta.event_id,
+            hostId,
+            amountCents: amountTotal,
+            kind: 'team',
+            paymentIntentId: piId,
+          },
+        },
+        meta.captain_id,
+      );
+    }
   }
 
   if (meta.kind === 'roster_team_payment' && meta.payment_id) {
@@ -292,7 +361,34 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
       amountCents: amountTotal,
       paidAt: new Date(paidAt),
     });
+    const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
+    if (hostId && meta.captain_id) {
+      analytics.capture(
+        {
+          name: 'checkout_completed',
+          props: {
+            eventId: meta.event_id,
+            hostId,
+            amountCents: amountTotal,
+            kind: 'team',
+            paymentIntentId: piId,
+          },
+        },
+        meta.captain_id,
+      );
+    }
   }
+}
+
+/**
+ * Look up the host_id for an event. Used by webhook capture sites that
+ * don't have it in metadata. Returns null silently if the event has been
+ * deleted between checkout creation and webhook delivery.
+ */
+async function lookupHostId(eventId: string): Promise<string | null> {
+  const admin = getAdminSupabase();
+  const { data } = await admin.from('events').select('host_id').eq('id', eventId).maybeSingle();
+  return (data as { host_id: string } | null)?.host_id ?? null;
 }
 
 /**

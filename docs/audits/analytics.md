@@ -10,6 +10,17 @@ a vendor SDK.
 **Method:** read-only static review of `apps/web/`, `packages/*`, and
 `docs/monitoring.md`. No live dashboards inspected.
 
+## Status updates
+
+- **2026-05-24** — Bundle 75 closed P1 #1 + P1 #2 (port, adapter,
+  taxonomy, first two captures). Bundle 76 closed P1 #4 (PII guardrail
+  test in `packages/domain`) and completed the server-side capture
+  set for `event_left`, `checkout_started`, `checkout_completed`,
+  `host_payout_setup_completed`, and `signup_completed`
+  (email / oauth). Open: P1 #3 (UTM attribution), `signup_completed`
+  with `method: 'anon_claim'`, and all P2 / P3 items. See remediation
+  log.
+
 ## Headline
 
 - The product has **no product analytics**. Vercel Analytics
@@ -345,3 +356,32 @@ Adapter call sites land at the **server-action layer** in Bundle 75
   `event_joined` from
   [events/[id]/rsvp-actions.ts](../../apps/web/src/app/events/%5Bid%5D/rsvp-actions.ts)).
   P1 #3 / #4 and all P2 / P3 items remain open.
+- **2026-05-24, Bundle 76** — Completed the server-side capture set
+  from P1 #2. New call sites: `event_left` in
+  [events/[id]/rsvp-actions.ts](../../apps/web/src/app/events/%5Bid%5D/rsvp-actions.ts)
+  (both refund-success and unpaid-leave paths); `checkout_started`
+  in [events/[id]/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts),
+  [tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts),
+  [team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/team-checkout-actions.ts),
+  and [roster-team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/roster-team-checkout-actions.ts);
+  `checkout_completed` for all four payment kinds and
+  `host_payout_setup_completed` in the Stripe webhook
+  ([api/webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts));
+  `signup_completed` (email + oauth methods) in
+  [auth/callback/route.ts](../../apps/web/src/app/auth/callback/route.ts).
+  Closes P1 #4 with a domain-layer Vitest
+  ([analytics-port.test.ts](../../packages/domain/src/shared/analytics-port.test.ts))
+  that pins `AnalyticsTraits` to the four-key allowlist
+  (`metroId`, `skillTier`, `accountAgeDays`, `isAnonymous`) and uses
+  `@ts-expect-error` to reject six common PII field names — adding a
+  new trait or relaxing the interface to an index signature will fail
+  compilation. Deferred to a follow-up bundle: `signup_completed` with
+  `method: 'anon_claim'` (anon → email upgrade) needs prior-state
+  tracking through the conversion flow; P1 #3 (UTM attribution) and
+  all P2 / P3 items remain open. Two minor leniencies worth flagging:
+  (a) `host_payout_setup_completed` fires on every `account.updated`
+  event where `charges_enabled === true` rather than only on the
+  false → true transition, so PostHog sees repeats — dashboards
+  filter to first occurrence per actor; tightening would require
+  comparing prior mirror state; (b) `event_left` reports
+  `byPosition: false` until a leave-by-position UI exists.

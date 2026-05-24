@@ -19,6 +19,7 @@ import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { platformFeeCentsFor } from '@/lib/event-pricing';
 import { repositories } from '@/lib/handlers';
+import { analytics } from '@/lib/handlers';
 import { log } from '@/lib/log';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
@@ -202,5 +203,17 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
   }
 
   // Webhook revalidates after `checkout.session.completed`.
+  analytics.capture(
+    {
+      name: 'checkout_started',
+      props: {
+        eventId,
+        hostId,
+        amountCents: priceCents,
+        kind: 'team',
+      },
+    },
+    user.id,
+  );
   redirect(session.url as Route);
 }

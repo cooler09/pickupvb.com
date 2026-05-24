@@ -12,6 +12,7 @@ import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
+import { analytics } from '@/lib/handlers';
 import { MIN_TIP_CENTS, MAX_TIP_CENTS } from './tip-constants';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
@@ -159,6 +160,18 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
   // No `revalidatePath` here: payment hasn't completed yet. The Stripe
   // `checkout.session.completed` webhook handles revalidation once the
   // tip is recorded.
+  analytics.capture(
+    {
+      name: 'checkout_started',
+      props: {
+        eventId,
+        hostId: event.host_id,
+        amountCents: amountCents!,
+        kind: 'tip',
+      },
+    },
+    user.id,
+  );
   redirect(session.url as Route);
 }
 

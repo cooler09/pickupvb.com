@@ -123,6 +123,7 @@ export async function leaveEvent(eventId: string): Promise<void> {
   if (outcome.kind === 'refunded') {
     // Webhook handles row deletion + audit; bounce optimistically.
     revalidatePath(`/events/${eventId}`);
+    await captureEventLeft(eventId, userId);
     back(eventId, 'left');
   }
   if (outcome.kind === 'window_closed' || outcome.kind === 'failed') {
@@ -141,6 +142,7 @@ export async function leaveEvent(eventId: string): Promise<void> {
     back(eventId, 'error', m);
   }
   revalidatePath(`/events/${eventId}`);
+  await captureEventLeft(eventId, userId);
   back(eventId, 'left');
 }
 
@@ -176,17 +178,15 @@ export async function joinEventAtPosition(eventId: string, position: string): Pr
 }
 
 /**
- * Best-effort capture of the `event_joined` analytics event. Loads the
- * minimum event metadata needed to populate the typed event taxonomy
- * (host id, metro, default-division price). Swallows all errors —
- * analytics must never break a request. See
- * [docs/audits/analytics.md](../../../../../docs/audits/analytics.md).
+ * Loads the minimum event metadata needed to populate the typed event
+ * analytics props (host id, metro, default-division price). Returns
+ * `null` if the event isn't visible to the current viewer; callers
+ * should treat that as "skip capture" (analytics must not break the
+ * request). Shared between `captureEventJoined` and `captureEventLeft`.
  */
-async function captureEventJoined(
+async function loadEventAnalyticsContext(
   eventId: string,
-  userId: string,
-  extras: { byPosition: boolean; position: string | null },
-): Promise<void> {
+): Promise<{ hostId: string; priceCents: number; metroId: string | null } | null> {
   try {
     const supabase = await getServerSupabase();
     const { data } = await supabase
@@ -199,21 +199,72 @@ async function captureEventJoined(
       location_city: string | null;
       event_divisions: Array<{ price_cents: number | null; sort_order: number }> | null;
     } | null;
-    if (!row) return;
+    if (!row) return null;
     const defaultDivision = (row.event_divisions ?? []).find((d) => d.sort_order === 0);
-    const priceCents = defaultDivision?.price_cents ?? 0;
+    return {
+      hostId: row.host_id,
+      priceCents: defaultDivision?.price_cents ?? 0,
+      metroId: row.location_city ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Best-effort capture of the `event_joined` analytics event. Swallows
+ * all errors — analytics must never break a request. See
+ * [docs/audits/analytics.md](../../../../../docs/audits/analytics.md).
+ */
+async function captureEventJoined(
+  eventId: string,
+  userId: string,
+  extras: { byPosition: boolean; position: string | null },
+): Promise<void> {
+  const ctx = await loadEventAnalyticsContext(eventId);
+  if (!ctx) return;
+  try {
     analytics.capture(
       {
         name: 'event_joined',
         props: {
           eventId,
-          hostId: row.host_id,
+          hostId: ctx.hostId,
           eventType: 'open_play',
           byPosition: extras.byPosition,
-          priceCents,
-          metroId: row.location_city ?? null,
+          priceCents: ctx.priceCents,
+          metroId: ctx.metroId,
           waitlist: false,
           position: extras.position,
+        },
+      },
+      userId,
+    );
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Best-effort capture of the `event_left` analytics event. Fires from
+ * both the refund-success path and the unpaid-leave fall-through.
+ * `byPosition` is reported as `false` — we don't track positional
+ * leaves separately yet; revisit when leave-by-position UI exists.
+ */
+async function captureEventLeft(eventId: string, userId: string): Promise<void> {
+  const ctx = await loadEventAnalyticsContext(eventId);
+  if (!ctx) return;
+  try {
+    analytics.capture(
+      {
+        name: 'event_left',
+        props: {
+          eventId,
+          hostId: ctx.hostId,
+          eventType: 'open_play',
+          byPosition: false,
+          priceCents: ctx.priceCents,
+          metroId: ctx.metroId,
         },
       },
       userId,
