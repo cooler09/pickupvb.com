@@ -27,6 +27,12 @@ site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/auth/callback", "https://pickupvb.com/auth/callback"]
 jwt_expiry = 3600
 enable_signup = true
+# Required for the guest RSVP / guest ticket-checkout / anonymous tip flows
+# (supabase.auth.signInAnonymously() in guest-actions.ts, checkout-actions.ts,
+# tip-actions.ts). Without this the call returns "Anonymous sign-ins are
+# disabled" and every guest signup path fails. Mirror this toggle in the
+# Supabase dashboard for staging + prod (Auth → Providers → Anonymous).
+enable_anonymous_sign_ins = true
 
 [auth.email]
 enable_signup = true
