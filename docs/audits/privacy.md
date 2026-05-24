@@ -32,6 +32,12 @@ DB inspection.
   so any form that errors mid-fill (login, signup, RSVP, profile edit,
   guest RSVP with email/phone) **records the visible PII into session
   replay**.
+- The ad-hoc team roster public projection falls back to a teammate's
+  email as their `displayName` when the captain didn't supply one, so
+  emails could surface on the event detail page to every viewer.
+  Compounded by an unrestricted `using (true)` SELECT policy on the
+  underlying member table, which exposes `email` and `user_id` to any
+  authenticated client regardless of what the React layer renders.
 
 ## P1 — fix before adding any "Delete account" feature
 
@@ -176,6 +182,53 @@ pattern is:
 
 `first_name`, `last_name`, `business_*`, `tax_id` then become
 owner-only at the row level even if a join sneaks them in.
+
+### 5. Ad-hoc team roster leaks teammate emails to event viewers
+
+**Files:**
+
+- [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts#L555](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts#L555)
+  — public `allRegistrations` projection: `displayName: m.display_name ?? m.email ?? 'Player'`
+  (partially fixed 2026-05-24 — see remediation log).
+- [supabase/migrations/20260606000000_team_registration_model.sql#L153-L154](../../supabase/migrations/20260606000000_team_registration_model.sql#L153-L154)
+  — `event_team_registration_members` SELECT policy is `using (true)`,
+  so even after the loader is fixed any authenticated client can
+  query the table directly and read every member's `email` and
+  `user_id`.
+
+**Category:** PII leak via public read path
+
+The ad-hoc team registration roster is rendered to every event viewer
+(see [\_components/ad-hoc-team-list.tsx](../../apps/web/src/app/events/[id]/_components/ad-hoc-team-list.tsx)
+— `AdHocTeamPublicEntry`). The loader was projecting
+`displayName: m.display_name ?? m.email ?? 'Player'`, which meant a
+teammate added by email with no display name had their email rendered
+as their public name. Captain (`viewerRegistrations`) and host
+(`hostRows`) projections keep `email` as a separate field by design —
+those audiences are authorized to see it.
+
+Even with the loader fixed, the underlying `event_team_registration_members`
+table has an unrestricted SELECT policy, so a determined caller can
+read `email` directly via the Supabase JS client.
+
+**Recommended fix:**
+
+1. ✅ Drop the `?? m.email` fallback from `allRegistrations` so the
+   public surface never falls through to email.
+2. Replace the `using (true)` SELECT policy on
+   `event_team_registration_members` with a captain-or-host-or-self
+   policy (mirror the UPDATE/DELETE policies that already exist on
+   the same table). Public reads then go through a new view
+   `event_team_registration_members_public` that projects only
+   `(id, registration_id, display_name, sort_order)` — no `email`,
+   no `user_id`.
+3. Switch `loadAdHocRowsCached` to read from the view for the public
+   projection and from the base table (admin client) only when
+   constructing the captain / host projections.
+
+Until step 2 ships, the leak surface is narrower (anyone calling the
+Supabase REST API directly with an anon key, not anyone loading the
+event page) but it's still a real exposure.
 
 ## P2 — schedule into the next sprint
 
@@ -409,4 +462,12 @@ RLS than UI.
 
 ## Remediation log
 
-_None yet — this is the initial audit pass._
+### 2026-05-24 — P1 #5 step 1: drop email-as-displayName fallback in public roster
+
+[apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts#L549-L562](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts#L549-L562) —
+the public `allRegistrations` projection now falls back to `'Player'`
+directly instead of leaking the teammate email. Captain
+(`viewerRegistrations`) and host (`hostRows`) projections are
+unchanged — those audiences need the email and are gated by membership
+in the registration. Steps 2 + 3 (tighten SELECT RLS and add the
+`*_public` view) still open.
