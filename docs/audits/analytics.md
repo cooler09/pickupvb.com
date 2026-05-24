@@ -21,9 +21,14 @@ a vendor SDK.
   off-domain-referrer attribution: edge cookie stamping in
   `apps/web/src/proxy.ts`, `marketing_attribution` table, signup-time
   upsert + PostHog identify with `utmSource` / `utmMedium` /
-  `utmCampaign` traits). Open: `signup_completed` with
-  `method: 'anon_claim'`, multi-touch / last-touch attribution, and
-  all P2 / P3 items. See remediation log.
+  `utmCampaign` traits). Bundle 78 closed P2 #7 first-pass: SQL views
+  `metro_health_weekly` + `host_activity_monthly` and the public
+  `/about/numbers` ISR page (30-min revalidate, RLS-respecting via
+  `security_invoker=on`). Open: `signup_completed` with
+  `method: 'anon_claim'`, multi-touch / last-touch attribution,
+  `position_demand_weekly` view (blocked on schema — no position
+  column on `event_free_agents`), press-kit CSV download, and the
+  remaining P2 / P3 items. See remediation log.
 
 ## Headline
 
@@ -210,6 +215,11 @@ grows. Out of scope for Bundle 75 — initial captures land at the action
 layer.
 
 ### 7. No marketable / sponsorable public surface
+
+**Status (2026-05-24):** Bundle 78 ships the views and the
+`/about/numbers` page. Press-kit CSV download deferred —
+methodology footer says "available on request" until we have a
+sponsor actually asking.
 
 **Files:** none — no `/about/numbers` page, no SQL views.
 
@@ -418,3 +428,36 @@ landing_path / captured_at / attached_at`) with own-row RLS.
   semantics around "did the second touch actually convert?" — deferred.
   The `anon_claim` signup method also still needs cross-request state
   tracking and remains open.
+
+- **2026-05-24, Bundle 78** — Closes P2 #7 first-pass (marketable /
+  sponsorable public surface). New migration
+  [20260615000000_public_numbers_views.sql](../../supabase/migrations/20260615000000_public_numbers_views.sql)
+  adds two read-only views with `security_invoker=on` so the RLS of the
+  underlying tables continues to apply. `metro_health_weekly` (granted
+  to `anon, authenticated`) buckets every `status='published' AND
+visibility='public'` event by `(city, date_trunc('week', starts_at))`
+  and emits `events_count`, `attendees_count` (sum of paid+none
+  `event_attendees` rows plus registered `event_teams`), `gmv_cents`
+  (sum of paid `event_attendees.amount_paid_cents`,
+  `event_team_payments.amount_paid_cents`, and `event_tips.amount_cents`),
+  and `avg_fill_rate` (fill of the primary `event_divisions` row,
+  `sort_order=0`, when `capacity_kind='fixed'`). `host_activity_monthly`
+  (granted to `authenticated` only) filters by `auth.uid() = host_id`
+  inside the view body and returns per-host monthly rollups for an
+  eventual self-serve "is my hosting working?" dashboard. New
+  [apps/web/src/app/about/numbers/page.tsx](../../apps/web/src/app/about/numbers/page.tsx)
+  consumes `metro_health_weekly` with a 30-minute ISR
+  (`export const revalidate = 1800`) — server component, uses
+  `getAdminSupabase()` so the page stays statically renderable (no
+  `cookies()`), aggregates the last 12 weeks into headline stat cards
+  (events, attendees, GMV, cities) and a per-city table sorted by
+  event count. Added to [sitemap.ts](../../apps/web/src/app/sitemap.ts).
+  Methodology footer says press-kit CSV "available on request" —
+  deferred until a sponsor actually asks. `position_demand_weekly`
+  was scoped out: `event_free_agents` doesn't carry a "position
+  requested" column today, so the supply/demand join the audit asked
+  for would require a schema change first. Materialized-view refresh
+  cron deferred until traffic warrants — at current volume a regular
+  view re-evaluated every 30 minutes is fine. The host-self dashboard
+  UI consumer of `host_activity_monthly` is also deferred (view is in
+  place, no consumer yet).

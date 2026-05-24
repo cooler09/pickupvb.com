@@ -2099,6 +2099,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      host_activity_monthly: {
+        Row: {
+          avg_fill_rate: number | null;
+          events_count: number | null;
+          gmv_cents: number | null;
+          host_id: string | null;
+          month_start: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'events_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      metro_health_weekly: {
+        Row: {
+          attendees_count: number | null;
+          avg_fill_rate: number | null;
+          events_count: number | null;
+          gmv_cents: number | null;
+          metro: string | null;
+          week_start: string | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       _postgis_deprecate: {
