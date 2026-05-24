@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   EventTeamRegistration,
   EventType,
+  ConflictError,
   NotFoundError,
   RegistrationMember,
   TeamRegistrationMode,
@@ -67,6 +68,19 @@ export class RegisterAdHocTeamHandler {
     }
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
+
+    // One team per division per captain. Withdrawing the prior
+    // registration first is the intended escape hatch.
+    const dup = await this.registrations.existsForCaptainInDivision(
+      eventId,
+      String(captainId),
+      String(division.id),
+    );
+    if (dup) {
+      throw new ConflictError(
+        'You already have a team registered in this division. Withdraw it first if you need to start over.',
+      );
+    }
 
     const registration = EventTeamRegistration.create({
       id: randomUUID() as never as EventTeamRegistrationId,

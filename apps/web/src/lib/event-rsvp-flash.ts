@@ -106,6 +106,10 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
     tone: 'error',
     text: 'Pick a division to continue.',
   },
+  team_division_dup: {
+    tone: 'error',
+    text: 'You already have a team registered in that division. Withdraw it first to start over.',
+  },
   team_name_required: {
     tone: 'error',
     text: 'Please name your team.',

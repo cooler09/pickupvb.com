@@ -40,7 +40,7 @@ function backWithError(eventId: string, code: string, msg?: string): never {
 function mapDomainErrorToCode(err: unknown): string | null {
   if (err instanceof UnauthorizedError) return 'team_forbidden';
   if (err instanceof NotFoundError) return 'event_not_found';
-  if (err instanceof ConflictError) return 'already';
+  if (err instanceof ConflictError) return 'team_division_dup';
   if (err instanceof ValidationError) return 'error';
   if (err instanceof InvariantViolation) {
     return 'error';

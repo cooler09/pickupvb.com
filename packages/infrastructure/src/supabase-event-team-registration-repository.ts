@@ -64,6 +64,25 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     return this.loadOne('payment_intent_id', paymentIntentId);
   }
 
+  async existsForCaptainInDivision(
+    eventId: string,
+    captainId: string,
+    divisionId: string,
+  ): Promise<boolean> {
+    const { count, error } = await this.client
+      .from('event_team_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .eq('captain_id', captainId)
+      .eq('division_id', divisionId);
+    if (error) {
+      throw new Error(
+        `EventTeamRegistration.existsForCaptainInDivision(${eventId}, ${captainId}, ${divisionId}) failed: ${error.message}`,
+      );
+    }
+    return (count ?? 0) > 0;
+  }
+
   async save(registration: EventTeamRegistration): Promise<void> {
     const row = {
       id: String(registration.id),

@@ -14,6 +14,16 @@ export interface EventTeamRegistrationRepository {
   findByCheckoutSessionId(sessionId: string): Promise<EventTeamRegistration | null>;
   /** Lookup by Stripe PaymentIntent id (set on markPaid) for refund webhooks. */
   findByPaymentIntentId(paymentIntentId: string): Promise<EventTeamRegistration | null>;
+  /**
+   * True when {@link captainId} already has a registration on this event in
+   * the given division. Used at register-time to enforce the "one team per
+   * division per captain" rule (ADR 0007).
+   */
+  existsForCaptainInDivision(
+    eventId: string,
+    captainId: string,
+    divisionId: string,
+  ): Promise<boolean>;
   save(registration: EventTeamRegistration): Promise<void>;
   /** Removes the registration and cascades its roster members. */
   delete(id: EventTeamRegistrationId): Promise<void>;

@@ -230,10 +230,43 @@ export function AdHocTeamSignupPanel({
         </p>
       )}
 
-      {/* New team form (captain only) */}
-      {viewerId && isRealUser && hasRegisterable && (
-        <NewTeamForm eventId={eventId} returnPath={returnPath} divisions={perTeamDivisions} />
-      )}
+      {/* New team form (captain only). One team per division per captain
+          (enforced server-side too), so filter the dropdown to divisions
+          the viewer hasn't already entered. Collapsed when the viewer
+          already has at least one team — most captains stop at one
+          division, so we shrink the "register another" affordance to a
+          disclosure that they can expand for a second entry. */}
+      {viewerId &&
+        isRealUser &&
+        hasRegisterable &&
+        (() => {
+          const takenDivisionIds = new Set(viewerRegistrations.map((r) => r.divisionId));
+          const availableDivisions = perTeamDivisions.filter((d) => !takenDivisionIds.has(d.id));
+          if (availableDivisions.length === 0) return null;
+          if (viewerRegistrations.length === 0) {
+            return (
+              <NewTeamForm
+                eventId={eventId}
+                returnPath={returnPath}
+                divisions={availableDivisions}
+              />
+            );
+          }
+          return (
+            <details className="border-border-base rounded-md border">
+              <summary className="text-fg cursor-pointer px-3 py-2 text-sm font-medium select-none">
+                Register another team
+              </summary>
+              <div className="border-border-base border-t p-3">
+                <NewTeamForm
+                  eventId={eventId}
+                  returnPath={returnPath}
+                  divisions={availableDivisions}
+                />
+              </div>
+            </details>
+          );
+        })()}
 
       {viewerId && isRealUser && !hasRegisterable && (
         <p className="border-border-base text-muted rounded-md border border-dashed p-3 text-sm">
