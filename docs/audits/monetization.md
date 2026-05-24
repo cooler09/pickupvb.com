@@ -187,6 +187,12 @@ per-event programmatic. See P2 #6 below.
 
 ### 1. Pro feature set doesn't earn $10/mo for sub-$400-GMV hosts
 
+> **Status (2026-05-24, Bundle 86): PARTIALLY SHIPPED.**
+> P1 #1 sub-item #1 (**Saved event templates**) is now live as a
+> Pro-gated host feature in `/events/new` (template save + apply).
+> Remaining P1 #1 sub-items still open: host analytics dashboard,
+> custom refund policy gating, and invite-only/private event flow.
+
 **File:** [apps/web/src/app/pricing/page.tsx#L38-L45](../../apps/web/src/app/pricing/page.tsx#L38-L45),
 [apps/web/src/lib/pro.ts](../../apps/web/src/lib/pro.ts).
 
@@ -227,7 +233,7 @@ Ranked by build cost vs perceived value:
    (2026-05-24): not pursuing.** Pro will be fattened by net-new
    features only; no clawback from existing free users.
 
-Ship **#1 + #2 + #3** as the next monetization bundle. That moves
+Ship **#2 + #3** as the next monetization bundle. That moves
 Pro from "tax break" to "host operating system" — the framing the
 pricing page already wants to make.
 
@@ -508,7 +514,7 @@ Concrete sequencing, smallest valuable first:
    Bundle 84 shipped schema/UI/render; Bundle 85 shipped free-tier
    one-time checkout unlock and webhook fulfillment. Closed.
 3. **Bundle: saved event templates (P1 #1 sub-item).** One bundle.
-   The most-requested host feature in every analogous platform.
+   Shipped in Bundle 86 (Pro-gated save/apply in `/events/new`).
 4. **Bundle: host analytics dashboard (P1 #1 sub-item).** One to
    two bundles. Justifies $10/mo on its own for any serial host.
 5. **Bundle: trial-to-paid funnel capture (P2 #5).** Half a bundle.
@@ -575,8 +581,9 @@ hosts get fee discount + sponsor slot).
   Stripe webhook fulfillment for sponsor payments, and sponsor payment
   metadata columns (`access_kind`, `paid_at`, checkout/payment ids).
   P2 #4 is now closed for v1.
-- **2026-05-24 — Bundle 84** — P2 #4 v1 core shipped. Added
-  `event_sponsors` table + RLS migration, Pro-gated sponsor authoring
-  actions/UI on event edit, attendee-side sponsor render at the bottom
-  of event detail, and cache invalidation for sponsor writes. Follow-up
-  a-la-carte charging path deferred.
+- **2026-05-24 — Bundle 86** — P1 #1 sub-item #1 shipped.
+  Added host-saved event templates with Pro gating: new
+  `host_event_templates` table + RLS, `saveEventTemplateFromForm`
+  server action, and `/events/new` apply/save UI with template prefill.
+  This closes one of the three primary Pro-feature expansion tracks;
+  host analytics and custom refund-policy gating remain open.
