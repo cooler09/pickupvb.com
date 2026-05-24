@@ -12,6 +12,10 @@
     {
       "path": "/api/notifications/reminders",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/notifications/outbox-purge",
+      "schedule": "0 4 * * *"
     }
   ]
 }

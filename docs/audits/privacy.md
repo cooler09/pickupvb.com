@@ -510,3 +510,20 @@ use the view) remains open as a follow-up.
 - P1 #4 steps 2 + 3: app-wide query migration to `profiles_public` + policy tighten
 - P1 #5 step 3 (app-layer): `loadAdHocRowsCached` public projection
 - Soft-delete application path: `DeletionRequestAggregate`, cron, profile scrub UI
+
+### 2026-05-24 — P2 #5: notification_outbox purge cron
+
+[apps/web/src/app/api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts) —
+daily cron (04:00 UTC, registered in `vercel.json`) that deletes
+`notification_outbox` rows where `status in ('sent', 'skipped')` and
+`sent_at < now() - 30 days`, and `status = 'failed'` rows where
+`created_at < now() - 90 days`. Both deletes run concurrently via
+`Promise.all`. Pattern mirrors the existing reminders cron route.
+
+### 2026-05-24 — P2 #6: mask Sentry session replay
+
+[apps/web/instrumentation-client.ts](../../apps/web/instrumentation-client.ts) —
+set `maskAllText: true` and `blockAllMedia: true` on `replayIntegration`.
+Session replays on error no longer capture visible DOM text (form field
+values, display names, addresses) or media. Use `data-sentry-unmask`
+on specific elements if high-signal debugging needs a targeted opt-in.
