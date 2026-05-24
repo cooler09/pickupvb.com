@@ -164,60 +164,64 @@ export function AdHocTeamSignupPanel({
         </div>
       )}
 
-      {/* Public list of registered teams */}
-      <div className="space-y-2">
-        <h3 className="text-muted text-sm font-semibold tracking-wide uppercase">
-          Registered ({allRegistrations.length})
-        </h3>
-        {allRegistrations.length === 0 ? (
-          <p className="border-border-base text-muted rounded-md border border-dashed p-4 text-center text-sm">
-            No teams registered yet — be the first.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {allRegistrations.map((t) => {
-              const rosterSize = 1 + t.members.length;
-              const captainLabel = t.isViewerCaptain ? 'You' : (t.captainName ?? 'Captain');
-              return (
-                <li key={t.id} className="border-border-base bg-surface rounded-md border p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{t.name}</p>
-                      <p className="text-muted text-xs">
-                        {divisionLabel(divisions, t.divisionId)} · Captain: {captainLabel} ·{' '}
-                        {rosterSize} player{rosterSize === 1 ? '' : 's'}
-                      </p>
+      {/* Public list of registered teams — suppressed on off-platform events
+          because signups may also be happening externally, making the
+          on-platform roster a misleadingly partial view. */}
+      {!paymentsOffPlatform && (
+        <div className="space-y-2">
+          <h3 className="text-muted text-sm font-semibold tracking-wide uppercase">
+            Registered ({allRegistrations.length})
+          </h3>
+          {allRegistrations.length === 0 ? (
+            <p className="border-border-base text-muted rounded-md border border-dashed p-4 text-center text-sm">
+              No teams registered yet — be the first.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {allRegistrations.map((t) => {
+                const rosterSize = 1 + t.members.length;
+                const captainLabel = t.isViewerCaptain ? 'You' : (t.captainName ?? 'Captain');
+                return (
+                  <li key={t.id} className="border-border-base bg-surface rounded-md border p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{t.name}</p>
+                        <p className="text-muted text-xs">
+                          {divisionLabel(divisions, t.divisionId)} · Captain: {captainLabel} ·{' '}
+                          {rosterSize} player{rosterSize === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[t.paymentStatus].cls}`}
+                      >
+                        {PAYMENT_PILL[t.paymentStatus].label}
+                      </span>
                     </div>
-                    <span
-                      className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[t.paymentStatus].cls}`}
-                    >
-                      {PAYMENT_PILL[t.paymentStatus].label}
-                    </span>
-                  </div>
-                  {rosterSize > 1 && (
-                    <details className="group mt-2">
-                      <summary className="text-muted hover:text-fg cursor-pointer text-xs font-medium select-none">
-                        <span className="group-open:hidden">Show roster</span>
-                        <span className="hidden group-open:inline">Hide roster</span>
-                      </summary>
-                      <ul className="border-border-base mt-2 space-y-1 border-l pl-3 text-sm">
-                        <li className="text-fg">
-                          {captainLabel} <span className="text-muted text-xs">(captain)</span>
-                        </li>
-                        {t.members.map((m) => (
-                          <li key={m.id} className="text-fg truncate">
-                            {m.displayName}
+                    {rosterSize > 1 && (
+                      <details className="group mt-2">
+                        <summary className="text-muted hover:text-fg cursor-pointer text-xs font-medium select-none">
+                          <span className="group-open:hidden">Show roster</span>
+                          <span className="hidden group-open:inline">Hide roster</span>
+                        </summary>
+                        <ul className="border-border-base mt-2 space-y-1 border-l pl-3 text-sm">
+                          <li className="text-fg">
+                            {captainLabel} <span className="text-muted text-xs">(captain)</span>
                           </li>
-                        ))}
-                      </ul>
-                    </details>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+                          {t.members.map((m) => (
+                            <li key={m.id} className="text-fg truncate">
+                              {m.displayName}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* Captain's own registrations: edit + pay */}
       {viewerRegistrations.length > 0 && (
