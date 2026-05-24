@@ -76,6 +76,18 @@ const communityListingRepo = new SupabaseCommunityListingRepository();
 const isPlatformAdmin = (userId: string) => communityListingRepo.isPlatformAdmin(userId);
 
 /**
+ * Server-side analytics adapter (PostHog when configured, noop otherwise).
+ * Resolved once at module load so the PostHog client is reused across
+ * requests in the same serverless instance. Call sites should `await
+ * analytics.shutdown()` from a `finally` block in long-running scripts
+ * (worker cron) but **not** in per-request handlers — the adapter
+ * flushes synchronously (`flushAt: 1`).
+ *
+ * See [docs/audits/analytics.md](../../../../docs/audits/analytics.md).
+ */
+export const analytics = analyticsFromEnv();
+
+/**
  * Loads the minimum event metadata `ClaimCommunityListingHandler` needs to
  * authorize a community-listing claim: who owns the event (primary host +
  * co-hosts) and the date/city it happens, for the "same-day + same-city"
@@ -124,9 +136,9 @@ const loadEventClaimFacts = async (
 
 export const handlers = {
   createEvent: new CreateEventHandler(eventRepo),
-  joinEvent: new JoinEventHandler(eventRepo),
-  joinEventWithPosition: new JoinEventWithPositionHandler(eventRepo),
-  leaveEvent: new LeaveEventHandler(eventRepo),
+  joinEvent: new JoinEventHandler(eventRepo, analytics),
+  joinEventWithPosition: new JoinEventWithPositionHandler(eventRepo, analytics),
+  leaveEvent: new LeaveEventHandler(eventRepo, analytics),
   joinEventAsFreeAgent: new JoinEventAsFreeAgentHandler(eventRepo),
   leaveEventAsFreeAgent: new LeaveEventAsFreeAgentHandler(eventRepo),
   searchEvents: new SearchEventsHandler(eventRepo),
@@ -193,15 +205,3 @@ export const repositories = {
   hostSubscriptionRepo,
   communityListingRepo,
 };
-
-/**
- * Server-side analytics adapter (PostHog when configured, noop otherwise).
- * Resolved once at module load so the PostHog client is reused across
- * requests in the same serverless instance. Call sites should `await
- * analytics.shutdown()` from a `finally` block in long-running scripts
- * (worker cron) but **not** in per-request handlers — the adapter
- * flushes synchronously (`flushAt: 1`).
- *
- * See [docs/audits/analytics.md](../../../../docs/audits/analytics.md).
- */
-export const analytics = analyticsFromEnv();

@@ -27,7 +27,15 @@ a vendor SDK.
   `security_invoker=on`). Bundle 79 closed P2 #8 (web-vitals →
   product-analytics bridge: client `useReportWebVitals` →
   `/api/web-vitals` beacon → server-side `analytics.capture('web_vitals',
-...)` with masked route templates). Open: `signup_completed` with
+...)` with masked route templates). Bundle 80 closed P2 #6 (server-side
+  outbox at the handler boundary): new `packages/application/src/analytics/`
+  with a pure mapper (`SpotFilled` → `event_joined`, `SpotReleased` →
+  `event_left`) and `dispatchAnalyticsOutbox()`, wired into
+  `JoinEventHandler` / `JoinEventWithPositionHandler` /
+  `LeaveEventHandler`. Duplicate captures stripped from
+  `events/[id]/rsvp-actions.ts` (the refund path keeps its inline
+  capture because the Stripe webhook bypasses the handler). Open:
+  `signup_completed` with
   `method: 'anon_claim'`, multi-touch / last-touch attribution,
   `position_demand_weekly` view (blocked on schema — no position
   column on `event_free_agents`), press-kit CSV download, and the
@@ -192,6 +200,17 @@ ad-tech pixel we add later. Pair with a privacy-policy entry that
 lists every analytics destination.
 
 ### 6. No server-side capture from domain events
+
+**Status (2026-05-24):** Bundle 80 ships the outbox at the application
+handler boundary. `JoinEventHandler` / `JoinEventWithPositionHandler` /
+`LeaveEventHandler` now `pullEvents()` after `repo.save(...)` and
+dispatch through a pure mapper in
+[packages/application/src/analytics/](../../packages/application/src/analytics/).
+`event_published`, the checkout / payout captures, and `signup_completed`
+remain at their call sites — they carry context not on the aggregate
+(Stripe payment ids, anon-claim transitions). Mapper returns `null`
+for those domain events; promote when the taxonomy entries gain a
+form that can be derived from aggregate state.
 
 **Files:**
 
@@ -368,7 +387,13 @@ The adapter responsibilities (PostHog implementation):
 Adapter call sites land at the **server-action layer** in Bundle 75
 (`events/new/actions.ts` for `event_published`,
 `events/[id]/rsvp-actions.ts` for `event_joined`); the outbox refactor
-(P2 #6) moves them to the handler boundary in a later bundle.
+(P2 #6) moved the join/leave captures to the handler boundary in
+Bundle 80. `event_published` and the checkout / payout / signup
+captures still live at their original call sites — they depend on
+context the aggregate doesn't carry (Stripe payment ids, anon-claim
+transitions, etc.) so promoting them to the outbox would require
+either carrying that context through the aggregate or extending the
+outbox to take side-channel data.
 
 ## Remediation log
 
@@ -494,3 +519,49 @@ visibility='public'` event by `(city, date_trunc('week', starts_at))`
   server-side port means the PII guardrail test in
   [analytics-port.test.ts](../../packages/domain/src/shared/analytics-port.test.ts)
   stays the single source of truth for what reaches the vendor.
+
+- **2026-05-24, Bundle 80** — Closes P2 #6 (server-side capture from
+  domain events). New
+  [packages/application/src/analytics/](../../packages/application/src/analytics/)
+  ships a pure mapper
+  ([event-analytics-mapper.ts](../../packages/application/src/analytics/event-analytics-mapper.ts))
+  that turns `SpotFilled` into `event_joined` and `SpotReleased` into
+  `event_left`, with `eventScopedProps()` reading host id, type, metro,
+  default-division price, and `byPosition` straight off the
+  `VolleyballEvent` aggregate. Mapper returns `null` for every other
+  `DomainEvent` so we can grow the taxonomy without touching the
+  dispatcher. New
+  [dispatch-outbox.ts](../../packages/application/src/analytics/dispatch-outbox.ts)
+  calls `aggregate.pullEvents()` and forwards each mapped capture to
+  `AnalyticsPort.capture()` inside a per-event try/catch (analytics
+  must never break a request).
+  [JoinEventHandler / JoinEventWithPositionHandler / LeaveEventHandler](../../packages/application/src/commands/join-event.handler.ts)
+  now take an optional `AnalyticsPort` and call
+  `dispatchAnalyticsOutbox(event, this.analytics)` after `repo.save(...)`.
+  [apps/web/src/lib/handlers.ts](../../apps/web/src/lib/handlers.ts)
+  hoists a single `analyticsFromEnv()` instance and passes it into the
+  three handler constructors (previously the env factory ran three
+  times per request in the action layer). Duplicate inline captures
+  removed from
+  [events/[id]/rsvp-actions.ts](../../apps/web/src/app/events/%5Bid%5D/rsvp-actions.ts):
+  `joinEvent`, `joinEventAtPosition`, and the unpaid-leave branch of
+  `leaveEvent` all rely on the outbox now. The refund-success path
+  keeps its inline `captureEventLeft` because the Stripe
+  `charge.refunded` webhook deletes the `event_attendees` row directly
+  via the admin client (it never traverses `LeaveEventHandler`).
+  Coverage in
+  [event-analytics-mapper.test.ts](../../packages/application/src/analytics/event-analytics-mapper.test.ts)
+  pins the SpotFilled / SpotReleased props (price, metro, `byPosition`,
+  waitlist + position propagation) and asserts the mapper returns
+  `null` for `EventCreated`, `EventPublished`, `EventCancelled`,
+  `TeamRegistered`, and `FreeAgentJoined`. Out of scope (deferred):
+  `event_published` stays at the create-event action because the
+  aggregate doesn't carry the publish-time pricing / division data
+  the analytics payload needs; checkout / payout / signup captures
+  stay at their original call sites because they depend on Stripe
+  side-channel data; refund-driven `event_left` will move to the
+  outbox the next time the webhook is refactored to dispatch through
+  `LeaveEventCommand`. One instrumentation upgrade comes for free:
+  positional join overflow now reports `waitlist: true` because the
+  aggregate raises `SpotFilled` with the truthful waitlist flag
+  whereas the previous action-layer capture hard-coded `false`.

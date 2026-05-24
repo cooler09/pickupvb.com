@@ -1,5 +1,6 @@
-import type { EventRepository } from '@pickupvb/domain';
+import type { AnalyticsPort, EventRepository } from '@pickupvb/domain';
 import { NotFoundError, isEventPosition, ValidationError } from '@pickupvb/domain';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   JoinEventAsFreeAgentCommand,
   JoinEventCommand,
@@ -9,18 +10,25 @@ import {
 } from '../messages';
 
 export class JoinEventHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(
+    private readonly repo: EventRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, userId }: JoinEventCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     event.joinAsPlayer(userId as never);
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
 export class JoinEventWithPositionHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(
+    private readonly repo: EventRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, userId, position }: JoinEventWithPositionCommand): Promise<void> {
     if (!isEventPosition(position)) {
@@ -30,17 +38,22 @@ export class JoinEventWithPositionHandler {
     if (!event) throw new NotFoundError('event', eventId);
     event.joinAsPlayerWithPosition(userId as never, position);
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
 export class LeaveEventHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(
+    private readonly repo: EventRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, userId }: LeaveEventCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     event.leave(userId as never);
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 

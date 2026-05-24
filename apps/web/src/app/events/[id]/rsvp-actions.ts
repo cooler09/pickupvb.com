@@ -106,7 +106,6 @@ export async function joinEvent(eventId: string): Promise<void> {
   }
 
   revalidatePath(`/events/${eventId}`);
-  await captureEventJoined(eventId, userId, { byPosition: false, position: null });
   back(eventId, 'joined');
 }
 
@@ -142,7 +141,6 @@ export async function leaveEvent(eventId: string): Promise<void> {
     back(eventId, 'error', m);
   }
   revalidatePath(`/events/${eventId}`);
-  await captureEventLeft(eventId, userId);
   back(eventId, 'left');
 }
 
@@ -173,7 +171,6 @@ export async function joinEventAtPosition(eventId: string, position: string): Pr
     back(eventId, 'error', m);
   }
   revalidatePath(`/events/${eventId}`);
-  await captureEventJoined(eventId, userId, { byPosition: true, position });
   back(eventId, 'joined');
 }
 
@@ -182,7 +179,9 @@ export async function joinEventAtPosition(eventId: string, position: string): Pr
  * analytics props (host id, metro, default-division price). Returns
  * `null` if the event isn't visible to the current viewer; callers
  * should treat that as "skip capture" (analytics must not break the
- * request). Shared between `captureEventJoined` and `captureEventLeft`.
+ * request). Used by the refund-path `captureEventLeft` — the unpaid
+ * leave and the two `joinEvent*` paths now emit through the
+ * application-layer outbox (Bundle 80).
  */
 async function loadEventAnalyticsContext(
   eventId: string,
@@ -212,44 +211,13 @@ async function loadEventAnalyticsContext(
 }
 
 /**
- * Best-effort capture of the `event_joined` analytics event. Swallows
- * all errors — analytics must never break a request. See
- * [docs/audits/analytics.md](../../../../../docs/audits/analytics.md).
- */
-async function captureEventJoined(
-  eventId: string,
-  userId: string,
-  extras: { byPosition: boolean; position: string | null },
-): Promise<void> {
-  const ctx = await loadEventAnalyticsContext(eventId);
-  if (!ctx) return;
-  try {
-    analytics.capture(
-      {
-        name: 'event_joined',
-        props: {
-          eventId,
-          hostId: ctx.hostId,
-          eventType: 'open_play',
-          byPosition: extras.byPosition,
-          priceCents: ctx.priceCents,
-          metroId: ctx.metroId,
-          waitlist: false,
-          position: extras.position,
-        },
-      },
-      userId,
-    );
-  } catch {
-    // best-effort
-  }
-}
-
-/**
- * Best-effort capture of the `event_left` analytics event. Fires from
- * both the refund-success path and the unpaid-leave fall-through.
- * `byPosition` is reported as `false` — we don't track positional
- * leaves separately yet; revisit when leave-by-position UI exists.
+ * Best-effort capture of the `event_left` analytics event from the
+ * refund-success path only. The Stripe webhook deletes the
+ * `event_attendees` row out-of-band, so this path never runs through
+ * {@link handlers.leaveEvent} — the application-layer outbox added in
+ * Bundle 80 doesn't see it. Capture here so refund-driven leaves still
+ * land in PostHog; revisit when the webhook starts dispatching through
+ * `LeaveEventCommand`.
  */
 async function captureEventLeft(eventId: string, userId: string): Promise<void> {
   const ctx = await loadEventAnalyticsContext(eventId);

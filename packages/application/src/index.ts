@@ -10,3 +10,4 @@ export * from './queries/event-queries.handler';
 export * from './queries/event-detail.handler';
 export * from './commands/community-listing.handler';
 export * from './queries/community-listing-queries.handler';
+export * from './analytics/index';
