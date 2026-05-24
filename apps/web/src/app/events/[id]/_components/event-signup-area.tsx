@@ -19,6 +19,7 @@ import type { ViewerPaymentStatus } from '../_loaders/load-event-detail';
 type Breakdown = {
   ticketCents: number;
   platformFeeCents: number;
+  processingFeeCents: number;
   totalCents: number;
 };
 
@@ -126,6 +127,7 @@ export function EventSignupArea({
             isRealUser={isRealUser}
             ticketCents={breakdown.ticketCents}
             platformFeeCents={breakdown.platformFeeCents}
+            processingFeeCents={breakdown.processingFeeCents}
             refundWindowHours={pricing!.refundWindowHours}
             paymentsOffPlatform={effectiveOffPlatform}
             {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}

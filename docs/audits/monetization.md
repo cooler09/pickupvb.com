@@ -232,6 +232,13 @@ pricing page already wants to make.
 
 ### 2. Stripe processing fee is silently absorbed by host
 
+> **Status (2026-05-24, Bundle 83): SHIPPED.** New
+> `events.pass_processing_fee_to_buyer` column defaults `true` for
+> new events; existing rows backfilled `false`. Three checkout-action
+> paths emit a "Processing fee" line; create + edit forms expose the
+> toggle (gated by `host_absorbs_fee` and by `isPricingLocked`).
+> See [docs/journal/2026-05-24-bundle-83.md](../journal/2026-05-24-bundle-83.md).
+
 **File:** [apps/web/src/lib/event-pricing.ts](../../apps/web/src/lib/event-pricing.ts),
 [apps/web/src/lib/checkout-session.ts](../../apps/web/src/lib/checkout-session.ts).
 
@@ -525,3 +532,10 @@ hosts get fee discount + sponsor slot).
 - **2026-05-24** — Audit authored. No remediation yet — next bundle
   will pick up P1 #2 (Stripe fee pass-through) or P2 #4 (host-owned
   sponsor slot) depending on user direction.
+- **2026-05-24 — Bundle 83** — P1 #2 shipped. New `events.pass_processing_fee_to_buyer`
+  column (default true for new events, backfilled false for existing
+  rows). Three checkout-action paths emit a "Processing fee" line
+  item when set; create + edit forms expose the toggle. Hosts now
+  receive the full advertised ticket + service-fee subtotal on
+  payout instead of silently absorbing Stripe's ~2.9% + 30¢. See
+  [docs/journal/2026-05-24-bundle-83.md](../journal/2026-05-24-bundle-83.md).

@@ -341,10 +341,12 @@ export async function createEventAction(
       fieldOrUndefined(formData, 'refundWindowHours'),
     );
     const hostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
+    const passProcessingFeeToBuyer = field(formData, 'passProcessingFeeToBuyer') === 'on';
     const { error: priceErr } = await supabase
       .from('events')
       .update({
         host_absorbs_fee: hostAbsorbsFee,
+        pass_processing_fee_to_buyer: passProcessingFeeToBuyer,
         refund_window_hours: refundWindowHours,
       } as never)
       .eq('id', result.id);

@@ -53,6 +53,7 @@ export type EditEventFormProps = {
     priceUsd: string;
     refundWindowHours: number;
     hostAbsorbsFee: boolean;
+    passProcessingFeeToBuyer: boolean;
     paymentsOffPlatform: boolean;
     /** ADR 0007 — tournaments only. `null` for open-play. */
     teamRegistrationMode: 'ad_hoc' | 'roster' | null;
@@ -299,6 +300,27 @@ export default function EditEventForm({
                     </span>
                   </label>
                 </div>
+                <div className="sm:col-span-2">
+                  <label className="flex items-start gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      name="passProcessingFeeToBuyer"
+                      defaultChecked={initial.passProcessingFeeToBuyer}
+                      disabled={pricingLocked}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="text-fg font-medium">
+                        Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
+                      </span>
+                      <span className="text-muted block">
+                        Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you
+                        receive the full advertised price. Ignored if you absorb the service fee
+                        above.
+                      </span>
+                    </span>
+                  </label>
+                </div>
               </>
             )}
           </div>
@@ -367,6 +389,27 @@ export default function EditEventForm({
                     <span className="text-fg font-medium">Host absorbs the 5% service fee</span>
                     <span className="text-muted block">
                       Otherwise added on top of ticket price.
+                    </span>
+                  </span>
+                </label>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    name="passProcessingFeeToBuyer"
+                    defaultChecked={initial.passProcessingFeeToBuyer}
+                    disabled={pricingLocked}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="text-fg font-medium">
+                      Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
+                    </span>
+                    <span className="text-muted block">
+                      Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you
+                      receive the full advertised price. Ignored if you absorb the service fee
+                      above.
                     </span>
                   </span>
                 </label>

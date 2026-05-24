@@ -126,6 +126,7 @@ export async function editEventAction(
     fieldOrUndefined(formData, 'refundWindowHours'),
   );
   const newHostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
+  const newPassProcessingFeeToBuyer = field(formData, 'passProcessingFeeToBuyer') === 'on';
   const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
 
   // ADR 0007 — `team_registration_mode` is editable on tournaments. Open-play
@@ -176,7 +177,7 @@ export async function editEventAction(
     admin
       .from('events')
       .select(
-        'host_absorbs_fee, refund_window_hours, host_id, title, starts_at, address_line, city',
+        'host_absorbs_fee, pass_processing_fee_to_buyer, refund_window_hours, host_id, title, starts_at, address_line, city',
       )
       .eq('id', eventId)
       .maybeSingle(),
@@ -190,6 +191,7 @@ export async function editEventAction(
   ]);
   type CurRow = {
     host_absorbs_fee: boolean;
+    pass_processing_fee_to_buyer: boolean;
     refund_window_hours: number;
     host_id: string;
     title: string;
@@ -206,6 +208,7 @@ export async function editEventAction(
     ? false
     : priceChanged ||
       c.host_absorbs_fee !== newHostAbsorbsFee ||
+      c.pass_processing_fee_to_buyer !== newPassProcessingFeeToBuyer ||
       c.refund_window_hours !== newRefundWindowHours;
 
   if (pricingChanged) {
@@ -338,6 +341,7 @@ export async function editEventAction(
       .from('events')
       .update({
         host_absorbs_fee: newHostAbsorbsFee,
+        pass_processing_fee_to_buyer: newPassProcessingFeeToBuyer,
         refund_window_hours: newRefundWindowHours,
       } as never)
       .eq('id', eventId);

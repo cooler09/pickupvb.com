@@ -120,6 +120,47 @@ the open question below).
 
 ---
 
+## Buyer-paid processing fee
+
+Stripe's processing fee (2.9% + 30¢ on US online cards) is taken
+off the destination charge before the host's payout. By default,
+**new events opt the buyer into paying that fee as a separate
+"Processing fee" line item at checkout** so the host receives the
+full advertised ticket + service-fee subtotal. The column is
+`events.pass_processing_fee_to_buyer` (added in migration
+[20260616000000_events_pass_processing_fee_to_buyer.sql](../supabase/migrations/20260616000000_events_pass_processing_fee_to_buyer.sql));
+events created before that migration are backfilled `false` so
+already-advertised prices don't shift under buyers.
+
+The rule is in
+[apps/web/src/lib/event-pricing.ts](../apps/web/src/lib/event-pricing.ts)
+via `buyerProcessingFeeCents()`:
+
+```
+if (hostAbsorbsFee || !passProcessingFeeToBuyer) return 0;
+return ceil(0.029 * subtotal) + 30;   // subtotal = ticket + platformFee
+```
+
+`host_absorbs_fee = true` **always** wins: a host who already opted
+into "what you see is what you pay" pricing doesn't get a
+processing-fee line stacked on top. The toggle lives next to the
+existing pricing controls on both the create and edit forms and is
+gated by the same `isPricingLocked()` check as
+`host_absorbs_fee` (locks once a ticket has sold).
+
+We use the **simple one-pass formula** (`ceil(2.9%) + 30¢` on the
+pre-processing subtotal) rather than solving the fee-on-fee fixed
+point. The host loses a sub-cent on every ticket compared to an
+exact gross-up; that matches Eventbrite/Stripe industry practice.
+
+**Refund asymmetry:** Stripe does not return the processing fee
+on a refund regardless of who paid it on the front end. A refunded
+$20 ticket still costs the host ~$0.91 either way. This is not new
+behavior — the buyer-paid mode just means the host doesn't eat the
+fee on the **non-refunded** path either.
+
+---
+
 ## Off-platform payments
 
 `events.payments_off_platform = true` is a product mode, not a degraded

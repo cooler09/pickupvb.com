@@ -936,6 +936,28 @@ function PaymentSettingsSubsection({
           </div>
         </div>
       )}
+      {showOnPlatformControls && (
+        <div>
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="passProcessingFeeToBuyer"
+              defaultChecked={chk(values, submitted, 'passProcessingFeeToBuyer', true)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-fg font-medium">
+                Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
+              </span>
+              <span className="text-muted block">
+                Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you receive
+                the full advertised price. Disable to absorb it yourself. Ignored if you absorb the
+                service fee above.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
     </div>
   );
 }
@@ -1110,6 +1132,26 @@ function PricingSubsection({
                 <span>
                   <span className="text-fg font-medium">Absorb the 5% service fee</span>
                   <span className="text-muted block">Otherwise added to ticket price.</span>
+                </span>
+              </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  name="passProcessingFeeToBuyer"
+                  defaultChecked={chk(values, submitted, 'passProcessingFeeToBuyer', true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-fg font-medium">
+                    Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
+                  </span>
+                  <span className="text-muted block">
+                    Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you
+                    receive the full advertised price. Disable to absorb it yourself. Ignored if you
+                    absorb the service fee above.
+                  </span>
                 </span>
               </label>
             </div>

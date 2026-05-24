@@ -117,6 +117,7 @@ export type EventDetailViewModel = {
   breakdown: {
     ticketCents: number;
     platformFeeCents: number;
+    processingFeeCents: number;
     totalCents: number;
   } | null;
   priceLabel: string;

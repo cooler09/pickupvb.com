@@ -1044,6 +1044,7 @@ export type Database = {
           host_id: string;
           id: string;
           is_fundraiser: boolean;
+          pass_processing_fee_to_buyer: boolean;
           payment_instructions: string | null;
           payments_off_platform: boolean;
           postal_code: string;
@@ -1085,6 +1086,7 @@ export type Database = {
           host_id: string;
           id?: string;
           is_fundraiser?: boolean;
+          pass_processing_fee_to_buyer?: boolean;
           payment_instructions?: string | null;
           payments_off_platform?: boolean;
           postal_code: string;
@@ -1126,6 +1128,7 @@ export type Database = {
           host_id?: string;
           id?: string;
           is_fundraiser?: boolean;
+          pass_processing_fee_to_buyer?: boolean;
           payment_instructions?: string | null;
           payments_off_platform?: boolean;
           postal_code?: string;
