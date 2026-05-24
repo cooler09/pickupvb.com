@@ -283,19 +283,15 @@ unmasking (button labels, status text). Alternatively use the
 
 **File:** [supabase/migrations/20260513000800_event_guests.sql](../../supabase/migrations/20260513000800_event_guests.sql)
 **Category:** data retention
+**Status:** ✅ resolved — table dropped in anon auth pivot
 
-`event_guests` captures display_name + email + phone + notes from
-anonymous RSVPers. There is no FK to `auth.users` (intentional — the
-guest is unauthenticated) and no retention policy. Rows persist
-indefinitely after the event is over.
-
-**Recommended fix:** add a daily cron route that scrubs
-`event_guests` rows where the parent event ended >180 days ago — set
-`email = null, phone = null, notes = null` while keeping `display_name`
-
-- `created_at` + the FK to `event_id` so attendance counts remain
-  accurate. The 180-day window is long enough for refund / dispute
-  workflows; tighten if regulatory advice says so.
+`event_guests` was dropped in
+[20260513001100_anon_auth_pivot.sql](../../supabase/migrations/20260513001100_anon_auth_pivot.sql).
+Anonymous RSVPers now sign in via `supabase.auth.signInAnonymously()`,
+getting a real `auth.users` row (`is_anonymous = true`), a `profiles`
+row, and a normal `event_attendees` row. No separate email/phone/notes
+table exists anymore; the soft-delete path from P1 #2 covers anonymous
+profiles the same as regular ones.
 
 ### 8. `community_listing_reports.reason` is freeform with no PII filter
 
