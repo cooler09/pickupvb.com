@@ -25,6 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/teams`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
     { url: `${BASE}/groups`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
     { url: `${BASE}/pricing`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${BASE}/about/numbers`, lastModified: now, changeFrequency: 'daily', priority: 0.4 },
   ];
 
   let dynamicRoutes: MetadataRoute.Sitemap = [];

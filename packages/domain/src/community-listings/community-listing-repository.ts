@@ -96,6 +96,7 @@ export interface CommunityListingDetailReadModel {
     avatarUrl: string | null;
   };
   claimedEventId: string | null;
+  claimedByUserId: string | null;
   claimedAt: Date | null;
   createdAt: Date;
   // Viewer-specific

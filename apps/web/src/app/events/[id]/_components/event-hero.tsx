@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { LocalDateTime } from '@/components/local-datetime';
 import { formatEventDateLong } from '@/lib/date-formats';
+import { externalLinkHref } from '@/lib/external-link';
 import { EventTags } from './event-tags';
 import { EventShareLink } from './event-share-link';
 
@@ -169,13 +170,11 @@ export function EventHero({
           )}
           {cta?.kind === 'external' && (
             <a
-              href={cta.href}
-              target="_blank"
-              rel="noreferrer"
+              href={externalLinkHref(cta.href)}
+              rel="noopener noreferrer"
               className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold"
             >
               {cta.label} <span aria-hidden="true">↗</span>
-              <span className="sr-only"> (opens in new tab)</span>
             </a>
           )}
           {priceLabel && (

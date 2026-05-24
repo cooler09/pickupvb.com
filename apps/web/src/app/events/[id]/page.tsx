@@ -281,7 +281,7 @@ export default async function EventDetailPage(props: {
         viewerIsPro={viewerIsPro}
       />
 
-      {event.type === 'tournament' && (
+      {event.type === 'tournament' && !event.paymentsOffPlatform && (
         <TeamsRegisteredSection
           teams={event.teams}
           adHocRegistrations={adHocAllRegistrations}

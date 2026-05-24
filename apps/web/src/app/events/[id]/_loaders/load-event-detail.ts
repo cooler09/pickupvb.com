@@ -544,6 +544,10 @@ async function loadAdHocBundle(
   const rows = await loadAdHocRowsCached(event.id);
   const sortedMembers = (r: AdHocRegRow): AdHocMemberRow[] =>
     (r.members ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
+  // Public projection — never fall back to `email` for `displayName`,
+  // that would leak a captain-supplied teammate email to every event
+  // viewer. Captain + host projections below keep the email field
+  // intact because those audiences are authorized to see it.
   const allRegistrations: AdHocTeamPublicEntry[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -552,7 +556,7 @@ async function loadAdHocBundle(
     captainName: r.captain?.display_name ?? null,
     members: sortedMembers(r).map((m) => ({
       id: m.id,
-      displayName: m.display_name ?? m.email ?? 'Player',
+      displayName: m.display_name ?? 'Player',
     })),
     isViewerCaptain: !!user && r.captain_id === user.id,
   }));

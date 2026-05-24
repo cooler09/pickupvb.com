@@ -16,6 +16,7 @@ import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp } from '@/lib/rate-limit';
+import { analytics } from '@/lib/handlers';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
   redirectEventNotice(eventId, 'rsvp', code, msg);
@@ -158,6 +159,18 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   // No `revalidatePath` here: payment hasn't completed yet. The Stripe
   // `checkout.session.completed` webhook revalidates once the attendee
   // is marked paid.
+  analytics.capture(
+    {
+      name: 'checkout_started',
+      props: {
+        eventId,
+        hostId: pricing.hostId,
+        amountCents: breakdown.ticketCents,
+        kind: 'ticket',
+      },
+    },
+    user.id,
+  );
   redirect(session.url as Route);
 }
 

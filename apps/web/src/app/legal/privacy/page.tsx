@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description: 'How PickupVB collects, uses, and protects your information.',
 };
 
-const LAST_UPDATED = 'May 18, 2026';
+const LAST_UPDATED = 'May 24, 2026';
 const COMPANY = 'Zachary Lockhart Consulting, LLC';
 const BRAND = 'PickupVB';
 const PRIVACY_EMAIL = 'privacy@pickupvb.com';
@@ -133,6 +133,7 @@ export default function PrivacyPage() {
           <ul>
             <li>Supabase (managed Postgres, authentication)</li>
             <li>Vercel (hosting, edge compute, web analytics)</li>
+            <li>PostHog (product analytics, server-side capture only)</li>
             <li>Stripe (payments, payouts, billing portal)</li>
             <li>Resend (transactional email)</li>
             <li>Sentry (error monitoring)</li>
@@ -161,9 +162,22 @@ export default function PrivacyPage() {
       <h2>5. Cookies and tracking</h2>
       <p>
         We use first-party cookies for authentication, security (CSRF protection), and saving
-        preferences (e.g. theme). We use Vercel Analytics, which collects aggregate, anonymized
-        page-view data without using third-party tracking cookies. You can disable cookies in your
-        browser settings, but the Service may not function properly without authentication cookies.
+        preferences (e.g. theme). We use Vercel Analytics and PostHog for first-party, aggregate
+        product analytics &mdash; PostHog captures happen server-side only, so no third-party
+        tracking script runs in your browser. PostHog distinct ids are derived from a salted hash of
+        your account id; the raw id never leaves our servers.
+      </p>
+      <p>
+        The first time you visit the Service you&apos;ll see a consent banner with two choices:{' '}
+        <strong>Accept</strong> (first-party analytics on) or <strong>Decline</strong>
+        (analytics suppressed at the server adapter). Your choice is stored in a
+        <code> pickupvb_consent</code> cookie for 180 days; you can change it at any time by
+        clearing site cookies, and we honor the <em>Global Privacy Control</em> (GPC) signal as a
+        default-deny for analytics until you explicitly accept.
+      </p>
+      <p>
+        You can also disable cookies in your browser settings, but the Service may not function
+        properly without authentication cookies.
       </p>
 
       <h2>6. Data retention</h2>

@@ -79,6 +79,49 @@ pnpm --filter @pickupvb/supabase gen:types   # regenerate DB types
 
 Copy the printed `anon key` and `service_role key` into `.env`.
 
+### Google OAuth provider (optional)
+
+The "Continue with Google" button on `/login` requires a Google OAuth
+client. Skip this if you only need email/password + anonymous auth locally.
+
+1. **Google Cloud Console** → _APIs & Services → Credentials_ →
+   **Create credentials → OAuth client ID** (type: _Web application_).
+   - Authorized JavaScript origins: `http://localhost:3000`,
+     `http://127.0.0.1:54321`, plus your hosted Supabase + app origins.
+   - Authorized redirect URIs (point at **Supabase**, not the app):
+     - `http://127.0.0.1:54321/auth/v1/callback` (local)
+     - `https://<project-ref>.supabase.co/auth/v1/callback` (hosted)
+2. **Local dev**: put the Client ID + secret in `supabase/.env` (auto-loaded
+   by `supabase start`; already gitignored):
+
+   ```bash
+   # supabase/.env
+   SUPABASE_AUTH_GOOGLE_CLIENT_ID=xxxxxxxxxxxx-yyy.apps.googleusercontent.com
+   SUPABASE_AUTH_GOOGLE_SECRET=GOCSPX-xxxxxxxxxxxxxxxx
+   ```
+
+   Then `supabase stop && supabase start` to apply the
+   `[auth.external.google]` stanza in [supabase/config.toml](supabase/config.toml).
+
+3. **Staging / prod**: mirror the toggle in the Supabase dashboard —
+   _Authentication → Providers → Google_ — paste the same credentials, and
+   add `https://pickupvb.com/auth/callback` to _Authentication → URL
+   Configuration → Redirect URLs_. `config.toml` is local-only.
+
+The app side is already wired: see
+[GoogleButton](apps/web/src/app/login/_components/google-button.tsx) and
+[/auth/callback/route.ts](apps/web/src/app/auth/callback/route.ts).
+
+### Anonymous sign-ins
+
+The guest RSVP, guest ticket checkout, and anonymous-tip flows call
+`supabase.auth.signInAnonymously()`. The local stack opts in via
+`enable_anonymous_sign_ins = true` in
+[supabase/config.toml](supabase/config.toml). For hosted environments,
+enable _Authentication → Providers → Anonymous_ in the Supabase dashboard —
+without that flag every guest path returns _"Anonymous sign-ins are
+disabled"_.
+
 ### Run everything
 
 ```bash

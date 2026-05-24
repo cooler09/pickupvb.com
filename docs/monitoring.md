@@ -101,18 +101,26 @@ config change (also covered in
 
 ---
 
-## Vercel Analytics + Speed Insights
+## Product analytics (PostHog)
 
-Real-user metrics (page views, route popularity, web vitals). Wired in
-[apps/web/src/app/layout.tsx](../apps/web/src/app/layout.tsx) via
-[`AnalyticsClient`](../apps/web/src/components/analytics-client.tsx)
-and `@vercel/speed-insights`. Both opt out for WebDriver-controlled
-browsers via the same `navigator.webdriver` check as Sentry.
+Custom events (`event_joined`, `checkout_completed`, `signup_completed`,
+etc.) and web vitals flow through the server-side `AnalyticsPort`
+([apps/web/src/lib/analytics.ts](../apps/web/src/lib/analytics.ts))
+into PostHog via the `posthog-node` adapter. Web vitals are bridged
+from [apps/web/src/components/web-vitals-client.tsx](../apps/web/src/components/web-vitals-client.tsx)
+through the `/api/web-vitals` beacon. The client component opts out
+for WebDriver-controlled browsers via the same `navigator.webdriver`
+check as Sentry.
 
-**Dashboards:** Vercel project → **Analytics** (traffic + page-view
-funnels) and **Speed Insights** (LCP / CLS / INP per route).
+**Page-view coverage is currently not wired.** Vercel Analytics was
+retired pre-launch (audit P3 #12, Bundle 82); a `$pageview` capture
+through the existing beacon pattern is the obvious follow-up once
+real traffic lands.
 
-**No alerting wired** — Vercel Analytics is for trend-watching, not
+**Dashboards:** PostHog project. Funnels for join → checkout,
+retention by metro, web-vitals trends per route.
+
+**No alerting wired** — product analytics is for trend-watching, not
 incident response. If a perf regression matters, capture the metric
 in Sentry as a transaction and alert from there.
 

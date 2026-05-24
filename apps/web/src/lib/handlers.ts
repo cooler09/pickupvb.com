@@ -20,6 +20,8 @@ import {
   AddEventDivisionHandler,
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
+  ApproveCommunityListingClaimHandler,
+  RejectCommunityListingClaimHandler,
   CreateBracketHandler,
   CreateCommunityListingHandler,
   CreateEventHandler,
@@ -60,6 +62,9 @@ import {
   WithdrawTeamHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
+import { analytics } from './analytics';
+
+export { analytics };
 
 const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
@@ -72,18 +77,58 @@ const communityListingRepo = new SupabaseCommunityListingRepository();
 
 const isPlatformAdmin = (userId: string) => communityListingRepo.isPlatformAdmin(userId);
 
-const isHostOfEvent = async (userId: string, eventId: string): Promise<boolean> => {
+/**
+ * Loads the minimum event metadata `ClaimCommunityListingHandler` needs to
+ * authorize a community-listing claim: who owns the event (primary host +
+ * co-hosts) and the date/city it happens, for the "same-day + same-city"
+ * match check.
+ */
+const loadEventClaimFacts = async (
+  eventId: string,
+): Promise<{
+  hostId: string;
+  coHostIds: string[];
+  startsAt: Date;
+  city: string | null;
+  timeZone: string | null;
+} | null> => {
   const supabase = await getServerSupabase();
-  const { data } = await supabase.from('events').select('host_id').eq('id', eventId).maybeSingle();
-  if (!data) return false;
-  return (data as { host_id: string }).host_id === userId;
+  const [eventResult, coHostResult] = await Promise.all([
+    supabase
+      .from('events')
+      .select('host_id, starts_at, city, time_zone')
+      .eq('id', eventId)
+      .maybeSingle(),
+    supabase
+      .from('event_co_hosts')
+      .select('host_user_id')
+      .eq('event_id', eventId)
+      .not('host_user_id', 'is', null),
+  ]);
+  const row = eventResult.data as {
+    host_id: string;
+    starts_at: string;
+    city: string | null;
+    time_zone: string | null;
+  } | null;
+  if (!row) return null;
+  const coHostIds = ((coHostResult.data as { host_user_id: string | null }[] | null) ?? [])
+    .map((r) => r.host_user_id)
+    .filter((id): id is string => !!id);
+  return {
+    hostId: row.host_id,
+    coHostIds,
+    startsAt: new Date(row.starts_at),
+    city: row.city,
+    timeZone: row.time_zone,
+  };
 };
 
 export const handlers = {
   createEvent: new CreateEventHandler(eventRepo),
-  joinEvent: new JoinEventHandler(eventRepo),
-  joinEventWithPosition: new JoinEventWithPositionHandler(eventRepo),
-  leaveEvent: new LeaveEventHandler(eventRepo),
+  joinEvent: new JoinEventHandler(eventRepo, analytics),
+  joinEventWithPosition: new JoinEventWithPositionHandler(eventRepo, analytics),
+  leaveEvent: new LeaveEventHandler(eventRepo, analytics),
   joinEventAsFreeAgent: new JoinEventAsFreeAgentHandler(eventRepo),
   leaveEventAsFreeAgent: new LeaveEventAsFreeAgentHandler(eventRepo),
   searchEvents: new SearchEventsHandler(eventRepo),
@@ -125,7 +170,18 @@ export const handlers = {
   reportCommunityListing: new ReportCommunityListingHandler(communityListingRepo),
   hideCommunityListing: new HideCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   unhideCommunityListing: new UnhideCommunityListingHandler(communityListingRepo, isPlatformAdmin),
-  claimCommunityListing: new ClaimCommunityListingHandler(communityListingRepo, isHostOfEvent),
+  claimCommunityListing: new ClaimCommunityListingHandler(
+    communityListingRepo,
+    loadEventClaimFacts,
+  ),
+  approveCommunityListingClaim: new ApproveCommunityListingClaimHandler(
+    communityListingRepo,
+    isPlatformAdmin,
+  ),
+  rejectCommunityListingClaim: new RejectCommunityListingClaimHandler(
+    communityListingRepo,
+    isPlatformAdmin,
+  ),
   searchCommunityListings: new SearchCommunityListingsHandler(communityListingRepo),
   getCommunityListingDetail: new GetCommunityListingDetailHandler(communityListingRepo),
 };

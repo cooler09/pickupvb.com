@@ -4,13 +4,9 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
 import { CreateEventSchema } from '@pickupvb/types';
-import {
-  CreateEventCommand,
-  JoinEventCommand,
-  JoinEventWithPositionCommand,
-} from '@pickupvb/application';
+import { CreateEventCommand, JoinEventCommand } from '@pickupvb/application';
 import { EVENT_POSITIONS, EventType, SkillTier, skillTierBand } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { handlers, analytics } from '@/lib/handlers';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
@@ -380,29 +376,41 @@ export async function createEventAction(
   // only — tournaments use team signup). Best-effort: a failure here
   // shouldn't block the redirect to the event the host just created;
   // they can always click Join from the detail page. Skipped for paid
-  // events (host shouldn't have to buy a ticket to their own event).
+  // events (host shouldn't have to buy a ticket to their own event) and
+  // for by-position events (the host picks their position from the event
+  // page — see the joinAsHost label copy in new-event-form.tsx).
   if (
     priceCents === 0 &&
     dto.type === EventType.OpenPlay &&
+    !byPosition &&
     field(formData, 'joinAsHost') === 'on'
   ) {
     try {
-      if (byPosition && Object.keys(positionRoster).length > 0) {
-        // Pick the first configured position with the smallest count
-        // > 0; the host can swap from the event page.
-        const firstPos = EVENT_POSITIONS.find((p) => (positionRoster[p] ?? 0) > 0);
-        if (firstPos) {
-          await handlers.joinEventWithPosition.execute(
-            new JoinEventWithPositionCommand(result.id, user.id, firstPos),
-          );
-        }
-      } else {
-        await handlers.joinEvent.execute(new JoinEventCommand(result.id, user.id));
-      }
+      await handlers.joinEvent.execute(new JoinEventCommand(result.id, user.id));
     } catch {
       // Swallow — the event exists; auto-join is a convenience.
     }
   }
+
+  // Capture `event_published` after the row is durable (including any
+  // pricing / division updates above). Fire-and-forget; the adapter
+  // swallows network errors so analytics can't break the create flow.
+  // See docs/audits/analytics.md (P1 #1/#2).
+  analytics.capture(
+    {
+      name: 'event_published',
+      props: {
+        eventId: result.id,
+        hostId: user.id,
+        eventType: isTournament ? 'tournament' : 'open_play',
+        byPosition,
+        priceCents,
+        metroId: city ?? null,
+        capacity: dto.capacity?.kind === 'fixed' ? (dto.capacity.maxSpots as number) : null,
+      },
+    },
+    user.id,
+  );
 
   revalidatePath('/events');
   redirect(`/events/${result.id}?created=1`);

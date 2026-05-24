@@ -8,18 +8,20 @@ gracefully so local dev works without secrets).
 > adding a new integration, document it here **and** add the env keys to
 > [.env.example](../.env.example) — never paste real secrets into either.
 
-| Service | Purpose | Required for prod? | Degrades locally? |
-|---|---|---|---|
-| [Supabase](#supabase) | Postgres, Auth, Realtime, Storage | Yes | No (local CLI stack) |
-| [Stripe](#stripe) | Checkout, Connect payouts, Pro subscriptions | Paid events / Pro only | Yes (paid UI hides) |
-| [Resend](#resend) | Transactional email | Yes | Yes (log-only) |
-| [Cloudflare Turnstile](#cloudflare-turnstile) | Bot gate for guest signup | Yes | Yes (verification skipped) |
-| [Sentry](#sentry) | Error monitoring | Recommended | Yes (no-op SDK) |
-| [Vercel](#vercel) | Hosting, Cron, Analytics, Speed Insights | Yes | N/A |
-| [Web Push (VAPID)](#web-push-vapid) | Browser push notifications | Optional | Yes (no push sent) |
-| [Photon (Komoot)](#photon-komoot) | Geocoding autocomplete (primary) | No (free, no key) | Works |
-| [Nominatim (OSM)](#nominatim-osm) | Geocoding autocomplete (fallback) | No (free, no key) | Works |
-| [Leaflet + OSM tiles](#leaflet--osm-tiles) | Map rendering | No (free, no key) | Works |
+| Service                                       | Purpose                                            | Required for prod?     | Degrades locally?                  |
+| --------------------------------------------- | -------------------------------------------------- | ---------------------- | ---------------------------------- |
+| [Supabase](#supabase)                         | Postgres, Auth, Realtime, Storage                  | Yes                    | No (local CLI stack)               |
+| [Google OAuth](#google-oauth)                 | "Continue with Google" sign-in (via Supabase Auth) | Optional               | Yes (button hides if unconfigured) |
+| [Stripe](#stripe)                             | Checkout, Connect payouts, Pro subscriptions       | Paid events / Pro only | Yes (paid UI hides)                |
+| [Resend](#resend)                             | Transactional email                                | Yes                    | Yes (log-only)                     |
+| [Cloudflare Turnstile](#cloudflare-turnstile) | Bot gate for guest signup                          | Yes                    | Yes (verification skipped)         |
+| [Sentry](#sentry)                             | Error monitoring                                   | Recommended            | Yes (no-op SDK)                    |
+| [PostHog](#posthog)                           | Product analytics (server-side)                    | Recommended            | Yes (no-op adapter)                |
+| [Vercel](#vercel)                             | Hosting, Cron, Analytics, Speed Insights           | Yes                    | N/A                                |
+| [Web Push (VAPID)](#web-push-vapid)           | Browser push notifications                         | Optional               | Yes (no push sent)                 |
+| [Photon (Komoot)](#photon-komoot)             | Geocoding autocomplete (primary)                   | No (free, no key)      | Works                              |
+| [Nominatim (OSM)](#nominatim-osm)             | Geocoding autocomplete (fallback)                  | No (free, no key)      | Works                              |
+| [Leaflet + OSM tiles](#leaflet--osm-tiles)    | Map rendering                                      | No (free, no key)      | Works                              |
 
 ---
 
@@ -31,12 +33,12 @@ everything.
 
 **Env vars.**
 
-| Var | Where used | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Browser + server | Project URL |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser | `sb_publishable_…` — safe to expose |
-| `SUPABASE_URL` | Server only | Same URL, kept separate for clarity |
-| `SUPABASE_SECRET_KEY` | Server only | `sb_secret_…` — replaces legacy `service_role` JWT |
+| Var                                    | Where used       | Notes                                              |
+| -------------------------------------- | ---------------- | -------------------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Browser + server | Project URL                                        |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser          | `sb_publishable_…` — safe to expose                |
+| `SUPABASE_URL`                         | Server only      | Same URL, kept separate for clarity                |
+| `SUPABASE_SECRET_KEY`                  | Server only      | `sb_secret_…` — replaces legacy `service_role` JWT |
 
 These are the new Supabase API keys
 ([supabase discussion #29260](https://github.com/orgs/supabase/discussions/29260)).
@@ -62,6 +64,44 @@ live spot counts (`useEventAttendees` hook).
 
 ---
 
+## Google OAuth
+
+**What it does.** Backs the "Continue with Google" button on `/login`.
+Google is the only external IdP wired in today; all other auth flows
+(email/password, anonymous, magic link) are handled directly by
+Supabase Auth.
+
+**Env vars.**
+
+| Var                              | Where used              | Notes                                         |
+| -------------------------------- | ----------------------- | --------------------------------------------- |
+| `SUPABASE_AUTH_GOOGLE_CLIENT_ID` | Local Supabase CLI only | OAuth 2.0 Client ID from Google Cloud Console |
+| `SUPABASE_AUTH_GOOGLE_SECRET`    | Local Supabase CLI only | Matching client secret                        |
+
+These are **local-only**. The Supabase CLI reads them via
+`env(...)` refs in [supabase/config.toml](../supabase/config.toml)
+(`[auth.external.google]` block) and the CLI auto-loads
+`supabase/.env`. For hosted (staging / prod) the Google provider is
+configured in the Supabase dashboard (Auth → Providers → Google), not
+from env. Leaving both blank is the right default for any environment
+that doesn't run Google auth locally.
+
+**Google Console setup.** Create an OAuth 2.0 Client ID at
+<https://console.cloud.google.com/apis/credentials> (type: Web
+application) and authorize the Supabase callback URLs:
+
+- `http://127.0.0.1:54321/auth/v1/callback` (local CLI stack)
+- `https://<project-ref>.supabase.co/auth/v1/callback` (hosted)
+
+**Where it's wired in.** Provider config in
+[supabase/config.toml](../supabase/config.toml); button rendered in
+the login page; callback handled by Supabase's `/auth/v1/callback`
+endpoint (not a route in this repo) which then hits our
+[apps/web/src/app/auth/callback/route.ts](../apps/web/src/app/auth/callback/route.ts)
+exchange.
+
+---
+
 ## Stripe
 
 **What it does.** Three independent surfaces:
@@ -73,14 +113,14 @@ live spot counts (`useEventAttendees` hook).
 
 **Env vars.**
 
-| Var | Where used | Notes |
-|---|---|---|
-| `STRIPE_SECRET_KEY` | Server only | `sk_test_…` in dev, `sk_live_…` in prod |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Browser | `pk_…` |
-| `STRIPE_WEBHOOK_SECRET` | Server only | `whsec_…` from the webhook endpoint |
-| `STRIPE_PRO_MONTHLY_PRICE_ID` | Server only | `price_…` for Pro monthly ($10) |
-| `STRIPE_PRO_YEARLY_PRICE_ID` | Server only | `price_…` for Pro yearly ($100) |
-| `STRIPE_CONNECT_CLIENT_ID` | Unused | Only needed for OAuth Connect; we use Express links |
+| Var                                  | Where used  | Notes                                               |
+| ------------------------------------ | ----------- | --------------------------------------------------- |
+| `STRIPE_SECRET_KEY`                  | Server only | `sk_test_…` in dev, `sk_live_…` in prod             |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Browser     | `pk_…`                                              |
+| `STRIPE_WEBHOOK_SECRET`              | Server only | `whsec_…` from the webhook endpoint                 |
+| `STRIPE_PRO_MONTHLY_PRICE_ID`        | Server only | `price_…` for Pro monthly ($10)                     |
+| `STRIPE_PRO_YEARLY_PRICE_ID`         | Server only | `price_…` for Pro yearly ($100)                     |
+| `STRIPE_CONNECT_CLIENT_ID`           | Unused      | Only needed for OAuth Connect; we use Express links |
 
 When `STRIPE_SECRET_KEY` is blank, `isStripeConfigured()` returns false
 and the paid-event UI hides itself.
@@ -111,10 +151,10 @@ emails via its built-in SMTP — Resend handles everything else.
 
 **Env vars.**
 
-| Var | Notes |
-|---|---|
-| `RESEND_API_KEY` | `re_…` from <https://resend.com/api-keys> |
-| `RESEND_FROM` | e.g. `PickupVB <noreply@pickupvb.com>` — must be a verified domain |
+| Var              | Notes                                                              |
+| ---------------- | ------------------------------------------------------------------ |
+| `RESEND_API_KEY` | `re_…` from <https://resend.com/api-keys>                          |
+| `RESEND_FROM`    | e.g. `PickupVB <noreply@pickupvb.com>` — must be a verified domain |
 
 When blank, the worker logs payloads instead of sending. Safe default for
 local dev.
@@ -137,10 +177,10 @@ gate.
 
 **Env vars.**
 
-| Var | Where used | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Browser | Widget render key |
-| `TURNSTILE_SECRET_KEY` | Server only | Token verification |
+| Var                              | Where used  | Notes              |
+| -------------------------------- | ----------- | ------------------ |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Browser     | Widget render key  |
+| `TURNSTILE_SECRET_KEY`           | Server only | Token verification |
 
 Provision both at <https://dash.cloudflare.com/?to=/:account/turnstile>.
 When the secret is unset, server-side verification is skipped (with a
@@ -161,12 +201,12 @@ maps uploaded at build time.
 
 **Env vars.**
 
-| Var | Where used | Notes |
-|---|---|---|
-| `NEXT_PUBLIC_SENTRY_DSN` | Browser | DSN is public, not a secret |
-| `SENTRY_ORG` | CI/build only | Org slug |
-| `SENTRY_PROJECT` | CI/build only | Defaults to `pickupvb-web` |
-| `SENTRY_AUTH_TOKEN` | CI/build only | Org auth token for source-map upload |
+| Var                      | Where used    | Notes                                |
+| ------------------------ | ------------- | ------------------------------------ |
+| `NEXT_PUBLIC_SENTRY_DSN` | Browser       | DSN is public, not a secret          |
+| `SENTRY_ORG`             | CI/build only | Org slug                             |
+| `SENTRY_PROJECT`         | CI/build only | Defaults to `pickupvb-web`           |
+| `SENTRY_AUTH_TOKEN`      | CI/build only | Org auth token for source-map upload |
 
 DSN blank = SDK no-ops. Auth token only needed in CI (Vercel build env);
 local builds skip source-map upload.
@@ -178,6 +218,56 @@ local builds skip source-map upload.
 
 ---
 
+## PostHog
+
+**What it does.** First-party product analytics. Currently **server-side
+only** — `posthog-node` captures business events (`event_published`,
+`event_joined`, …) from server actions. The browser SDK (`posthog-js`)
+is not yet wired in; blocked on a consent banner (audit P2 #5).
+
+**Env vars.**
+
+| Var                        | Where used  | Notes                                                                                                             |
+| -------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `POSTHOG_API_KEY`          | Server only | Project API key (`phc_…`) — write-only, safe on the server                                                        |
+| `POSTHOG_DISTINCT_ID_SALT` | Server only | Secret salt used to sha256-hash Supabase user ids before they leave the box. Generate with `openssl rand -hex 32` |
+| `POSTHOG_HOST`             | Server only | Optional. Defaults to `https://us.i.posthog.com`. Use `https://eu.i.posthog.com` for EU projects                  |
+
+When `POSTHOG_API_KEY` or `POSTHOG_DISTINCT_ID_SALT` is missing,
+`analyticsFromEnv()` returns `NoopAnalytics` — no network calls, no
+console noise. **Recommended posture: enabled in Production only;
+leave blank in Preview, dev, and local.**
+
+**Where it's wired in.**
+
+- Port: [packages/domain/src/shared/analytics-port.ts](../packages/domain/src/shared/analytics-port.ts).
+- Adapters:
+  [noop-analytics.ts](../packages/infrastructure/src/noop-analytics.ts)
+  and
+  [posthog-analytics.ts](../packages/infrastructure/src/posthog-analytics.ts)
+  (the latter exports `analyticsFromEnv()`).
+- Composition root: `analytics` export in
+  [apps/web/src/lib/handlers.ts](../apps/web/src/lib/handlers.ts).
+- Capture sites today:
+  [events/new/actions.ts](../apps/web/src/app/events/new/actions.ts)
+  (`event_published`) and
+  [events/[id]/rsvp-actions.ts](../apps/web/src/app/events/%5Bid%5D/rsvp-actions.ts)
+  (`event_joined`).
+
+**Privacy.** Distinct ids are sha256-hashed with
+`POSTHOG_DISTINCT_ID_SALT` so the raw Supabase id never crosses the
+network. Traits are an allowlist (`metroId`, `skillTier`,
+`accountAgeDays`, `isAnonymous`) — no email, no display name.
+Rotating the salt re-anonymizes every existing actor (intentional).
+
+**Webhooks.** None inbound.
+
+**Setup runbook.** Step-by-step in
+[docs/analytics-setup.md](analytics-setup.md). Audit and roadmap in
+[docs/audits/analytics.md](audits/analytics.md).
+
+---
+
 ## Vercel
 
 **What it does.** Production hosting for the Next.js app, scheduled
@@ -186,23 +276,24 @@ Speed Insights.
 
 **Env vars.**
 
-| Var | Notes |
-|---|---|
-| `CRON_SECRET` | Random hex. Vercel sends it as `Authorization: Bearer <secret>`; cron routes reject calls without it. Generate with `openssl rand -hex 32`. |
-| `NEXT_PUBLIC_APP_URL` | Public site origin used by templates to build CTA URLs |
+| Var                   | Notes                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CRON_SECRET`         | Random hex. Vercel sends it as `Authorization: Bearer <secret>`; cron routes reject calls without it. Generate with `openssl rand -hex 32`. |
+| `NEXT_PUBLIC_APP_URL` | Public site origin used by templates to build CTA URLs                                                                                      |
 
 **Cron schedule.** Defined in
 [apps/web/vercel.json](../apps/web/vercel.json):
 
-| Path | Schedule | What |
-|---|---|---|
-| `/api/notifications/worker` | every minute | Flushes queued notifications (email/SMS/push/in-app) |
-| `/api/notifications/reminders` | every 15 min | Generates 24h / 2h reminder notifications |
+| Path                           | Schedule     | What                                                 |
+| ------------------------------ | ------------ | ---------------------------------------------------- |
+| `/api/notifications/worker`    | every minute | Flushes queued notifications (email/SMS/push/in-app) |
+| `/api/notifications/reminders` | every 15 min | Generates 24h / 2h reminder notifications            |
 
-**Analytics + Speed Insights.** Mounted in
-[apps/web/src/app/layout.tsx](../apps/web/src/app/layout.tsx) via
-`@vercel/analytics/next` and `@vercel/speed-insights/next`. No env
-vars; data flows to the Vercel project dashboard.
+**Analytics.** Product analytics is handled by PostHog
+(server-side via `posthog-node`) — see
+[docs/monitoring.md](monitoring.md#product-analytics-posthog).
+Vercel Analytics and Speed Insights were retired pre-launch (audit
+P3 #12, Bundle 82).
 
 **Auto-deploy.** Every push to `main` triggers a production build.
 Migrations are picked up automatically — see [AGENTS.md](../AGENTS.md).
@@ -217,12 +308,12 @@ does delivery, signed by our VAPID keys.
 
 **Env vars.**
 
-| Var | Where used | Notes |
-|---|---|---|
-| `VAPID_PUBLIC_KEY` | Server only | Public half of the keypair |
-| `VAPID_PRIVATE_KEY` | Server only | **Secret** — signs push payloads |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Browser | Same public key, exposed for subscribe |
-| `VAPID_SUBJECT` | Server only | `mailto:ops@pickupvb.com` |
+| Var                            | Where used  | Notes                                  |
+| ------------------------------ | ----------- | -------------------------------------- |
+| `VAPID_PUBLIC_KEY`             | Server only | Public half of the keypair             |
+| `VAPID_PRIVATE_KEY`            | Server only | **Secret** — signs push payloads       |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Browser     | Same public key, exposed for subscribe |
+| `VAPID_SUBJECT`                | Server only | `mailto:ops@pickupvb.com`              |
 
 Generate a keypair once:
 

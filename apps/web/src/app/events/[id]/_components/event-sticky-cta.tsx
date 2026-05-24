@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
+import { externalLinkHref } from '@/lib/external-link';
 import type { EventHeroCta } from './event-hero';
 
 type Props = {
@@ -61,9 +62,8 @@ export function EventStickyCta({ cta, observeSelector }: Props) {
           </a>
         )}
         {cta.kind === 'external' && (
-          <a href={cta.href} target="_blank" rel="noreferrer" className={baseClass}>
+          <a href={externalLinkHref(cta.href)} rel="noopener noreferrer" className={baseClass}>
             {cta.label} <span aria-hidden="true">↗</span>
-            <span className="sr-only"> (opens in new tab)</span>
           </a>
         )}
       </div>

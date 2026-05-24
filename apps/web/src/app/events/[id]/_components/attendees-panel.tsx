@@ -24,6 +24,10 @@ export function AttendeesPanel({
   viewerIsPro: boolean;
 }) {
   if (event.type !== 'open_play') return null;
+  // Off-platform events may have signups happening outside the platform
+  // (cash at the door, host's own form, etc.). The on-platform roster is
+  // partial at best, so suppress it to avoid presenting a misleading list.
+  if (event.paymentsOffPlatform) return null;
   return (
     <section id="attendees">
       <h2 className="text-fg mb-3 text-lg font-semibold">

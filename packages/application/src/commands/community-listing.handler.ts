@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   CommunityListing,
+  ConflictError,
   ExternalUrl,
   NotFoundError,
   RateLimitError,
@@ -9,10 +10,12 @@ import {
   type ListingLocation,
 } from '@pickupvb/domain';
 import {
+  ApproveCommunityListingClaimCommand,
   ClaimCommunityListingCommand,
   CreateCommunityListingCommand,
   DeleteCommunityListingCommand,
   HideCommunityListingCommand,
+  RejectCommunityListingClaimCommand,
   ReportCommunityListingCommand,
   UnhideCommunityListingCommand,
   UpdateCommunityListingCommand,
@@ -201,19 +204,128 @@ export class UnhideCommunityListingHandler {
 export class ClaimCommunityListingHandler {
   constructor(
     private readonly repo: CommunityListingRepository,
-    private readonly isHostOfEvent: (userId: string, eventId: string) => Promise<boolean>,
+    private readonly loadEventClaimFacts: (eventId: string) => Promise<{
+      hostId: string;
+      coHostIds: string[];
+      startsAt: Date;
+      city: string | null;
+      timeZone: string | null;
+    } | null>,
   ) {}
 
   async execute({ listingId, requesterId, eventId }: ClaimCommunityListingCommand): Promise<void> {
     const listing = await this.repo.findById(listingId);
     if (!listing) throw new NotFoundError('CommunityListing', listingId);
-    const isHost = await this.isHostOfEvent(requesterId, eventId);
+
+    const facts = await this.loadEventClaimFacts(eventId);
+    if (!facts) throw new NotFoundError('Event', eventId);
+
+    const isHost = facts.hostId === requesterId || facts.coHostIds.includes(requesterId);
     if (!isHost) {
       throw new UnauthorizedError(
         'You can only claim a listing with an event you host on PickupVB.',
       );
     }
-    listing.markClaimed(eventId as never, requesterId as never, new Date());
+
+    // Match check: prevent a host from pointing an unrelated event at any
+    // community listing. We require the event to start on the same calendar
+    // day (in the venue's timezone) and have the same city as the listing.
+    // Loose enough that time-of-day discrepancies between the external post
+    // and the host's PickupVB event don't bite; strict enough that random
+    // claims are blocked.
+    if (!matchesByDateAndCity(listing, facts)) {
+      throw new ConflictError(
+        'That event does not match this listing. The PickupVB event must be on the same day and in the same city.',
+      );
+    }
+
+    listing.proposeClaim(eventId as never, requesterId as never, new Date());
     await this.repo.save(listing);
+  }
+}
+
+export class ApproveCommunityListingClaimHandler {
+  constructor(
+    private readonly repo: CommunityListingRepository,
+    private readonly isPlatformAdmin: (userId: string) => Promise<boolean>,
+  ) {}
+
+  async execute({ listingId, approverId }: ApproveCommunityListingClaimCommand): Promise<void> {
+    const listing = await this.repo.findById(listingId);
+    if (!listing) throw new NotFoundError('CommunityListing', listingId);
+
+    const admin = await this.isPlatformAdmin(approverId);
+    // Original submitter OR a platform admin can approve. The claimant
+    // themselves cannot self-approve even if they happen to be admin of
+    // some unrelated surface — platform admin is an explicit role.
+    if (String(listing.submitterUserId) !== approverId && !admin) {
+      throw new UnauthorizedError(
+        'Only the original submitter or a platform admin can approve this claim.',
+      );
+    }
+
+    listing.approveClaim(new Date());
+    await this.repo.save(listing);
+  }
+}
+
+export class RejectCommunityListingClaimHandler {
+  constructor(
+    private readonly repo: CommunityListingRepository,
+    private readonly isPlatformAdmin: (userId: string) => Promise<boolean>,
+  ) {}
+
+  async execute({ listingId, rejecterId }: RejectCommunityListingClaimCommand): Promise<void> {
+    const listing = await this.repo.findById(listingId);
+    if (!listing) throw new NotFoundError('CommunityListing', listingId);
+
+    const admin = await this.isPlatformAdmin(rejecterId);
+    if (String(listing.submitterUserId) !== rejecterId && !admin) {
+      throw new UnauthorizedError(
+        'Only the original submitter or a platform admin can reject this claim.',
+      );
+    }
+
+    listing.rejectClaim();
+    await this.repo.save(listing);
+  }
+}
+
+/**
+ * "Same calendar day, same city." The day comparison uses the listing's
+ * timezone when available (falls back to the event's timezone, then UTC) so
+ * that an event scheduled `7pm Pacific` and a listing posted `10pm Pacific`
+ * on the same evening match correctly. City comparison is case-insensitive
+ * and ignores surrounding whitespace; null on either side fails closed.
+ */
+function matchesByDateAndCity(
+  listing: CommunityListing,
+  facts: { startsAt: Date; city: string | null; timeZone: string | null },
+): boolean {
+  const listingCity = listing.location?.city?.trim().toLowerCase() ?? null;
+  const eventCity = facts.city?.trim().toLowerCase() ?? null;
+  if (!listingCity || !eventCity || listingCity !== eventCity) return false;
+
+  const tz = listing.timeZone ?? facts.timeZone ?? 'UTC';
+  return sameCalendarDayInZone(listing.startsAt, facts.startsAt, tz);
+}
+
+/**
+ * Compare two `Date`s for "same calendar day in `timeZone`" using the
+ * `en-CA` locale's `YYYY-MM-DD` format. Falls back to UTC comparison if
+ * the runtime rejects the timezone (defensive — Node's ICU should accept
+ * any IANA name).
+ */
+function sameCalendarDayInZone(a: Date, b: Date, timeZone: string): boolean {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return fmt.format(a) === fmt.format(b);
+  } catch {
+    return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
   }
 }

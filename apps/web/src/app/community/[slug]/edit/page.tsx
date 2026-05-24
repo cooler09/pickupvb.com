@@ -35,7 +35,11 @@ export default async function EditCommunityListingPage(props: PageProps) {
   if (!detail) notFound();
 
   if (!detail.canManage) redirect(`/community/${slug}?notice=notallow`);
-  if (detail.status === 'claimed' || detail.status === 'removed') {
+  if (
+    detail.status === 'claimed' ||
+    detail.status === 'removed' ||
+    detail.status === 'claim_pending'
+  ) {
     redirect(`/community/${slug}?notice=notallow`);
   }
 

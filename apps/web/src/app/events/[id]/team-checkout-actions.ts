@@ -16,6 +16,7 @@ import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { platformFeeCentsFor } from '@/lib/event-pricing';
 import { repositories } from '@/lib/handlers';
+import { analytics } from '@/lib/handlers';
 import { log } from '@/lib/log';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
@@ -187,5 +188,17 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
   // No `revalidatePath` here: payment hasn't completed yet. The Stripe
   // `checkout.session.completed` webhook revalidates once the team
   // registration is marked paid.
+  analytics.capture(
+    {
+      name: 'checkout_started',
+      props: {
+        eventId,
+        hostId: event.hostId as unknown as string,
+        amountCents: priceCents,
+        kind: 'team',
+      },
+    },
+    user.id,
+  );
   redirect(session.url as Route);
 }
