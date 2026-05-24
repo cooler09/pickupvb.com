@@ -7,7 +7,9 @@ import { ToastProvider } from '@/components/toast';
 import { EnvBanner } from '@/components/env-banner';
 import { AnalyticsClient } from '@/components/analytics-client';
 import { WebVitalsClient } from '@/components/web-vitals-client';
+import { ConsentBanner } from '@/components/consent-banner';
 import { getCurrentUser } from '@/lib/server-auth';
+import { hasAnalyticsConsent, isConsentDecided } from '@/lib/consent';
 import { DEFAULT_THEME, isTheme, THEME_COOKIE, type Theme } from '@/lib/theme';
 import './globals.css';
 
@@ -114,7 +116,11 @@ async function resolveTheme(): Promise<Theme> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const theme = await resolveTheme();
+  const [theme, analyticsAllowed, decided] = await Promise.all([
+    resolveTheme(),
+    hasAnalyticsConsent(),
+    isConsentDecided(),
+  ]);
   return (
     <html lang="en" data-theme={theme}>
       <body className="flex min-h-dvh flex-col">
@@ -136,9 +142,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
         </ToastProvider>
         <SiteFooter />
-        <AnalyticsClient />
-        <WebVitalsClient />
-        <SpeedInsights />
+        {analyticsAllowed ? (
+          <>
+            <AnalyticsClient />
+            <WebVitalsClient />
+            <SpeedInsights />
+          </>
+        ) : null}
+        {decided ? null : <ConsentBanner />}
       </body>
     </html>
   );

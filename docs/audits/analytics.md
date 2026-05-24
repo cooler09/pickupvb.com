@@ -12,8 +12,7 @@ a vendor SDK.
 
 ## Status updates
 
-- **2026-05-24** — Bundle 75 closed P1 #1 + P1 #2 (port, adapter,
-  taxonomy, first two captures). Bundle 76 closed P1 #4 (PII guardrail
+- **2026-05-24** — Bundle 75 closed P1 #1 + P1 #2 (port, adapter, first two captures). Bundle 76 closed P1 #4 (PII guardrail
   test in `packages/domain`) and completed the server-side capture
   set for `event_left`, `checkout_started`, `checkout_completed`,
   `host_payout_setup_completed`, and `signup_completed`
@@ -34,7 +33,12 @@ a vendor SDK.
   `JoinEventHandler` / `JoinEventWithPositionHandler` /
   `LeaveEventHandler`. Duplicate captures stripped from
   `events/[id]/rsvp-actions.ts` (the refund path keeps its inline
-  capture because the Stripe webhook bypasses the handler). Open:
+  capture because the Stripe webhook bypasses the handler). Bundle 81
+  closed P2 #5 (consent affordance): `pickupvb_consent` cookie +
+  `ConsentGatedAnalytics` decorator + server-rendered banner; GPC
+  honored as default-deny for analytics; client-side
+  AnalyticsClient/WebVitalsClient/SpeedInsights mounts gated on
+  decision; privacy policy §4 + §5 updated. Open:
   `signup_completed` with
   `method: 'anon_claim'`, multi-touch / last-touch attribution,
   `position_demand_weekly` view (blocked on schema — no position
@@ -181,6 +185,24 @@ contributor adding an event has a one-screen reference.
 ## P2 — schedule alongside paid acquisition
 
 ### 5. Anonymous-auth users have no consent affordance
+
+**Status (2026-05-24):** Bundle 81 ships the consent affordance.
+New `pickupvb_consent` cookie + server-rendered
+[ConsentBanner](../../apps/web/src/components/consent-banner.tsx)
+mounted from the root layout when the user hasn't decided. The
+consent gate lives in
+[apps/web/src/lib/analytics.ts](../../apps/web/src/lib/analytics.ts)
+(decorator over the `AnalyticsPort` singleton) and
+[apps/web/src/lib/consent.ts](../../apps/web/src/lib/consent.ts)
+(per-request memoized cookie read). When analytics is denied, the
+layout drops `<AnalyticsClient />` / `<WebVitalsClient />` /
+`<SpeedInsights />` and the server-side adapter no-ops every
+`capture` / `identify` call. `Sec-GPC: 1` flips the default to
+`analytics: denied` until the user explicitly accepts. Per-category
+toggles (the audit asked for two) deferred until we have an
+actual marketing pixel — today the marketing axis would only ever
+be denied, and the privacy policy now states no third-party ad-tech
+is used.
 
 **File:** none — no banner exists.
 
@@ -565,3 +587,37 @@ visibility='public'` event by `(city, date_trunc('week', starts_at))`
   positional join overflow now reports `waitlist: true` because the
   aggregate raises `SpotFilled` with the truthful waitlist flag
   whereas the previous action-layer capture hard-coded `false`.
+- **2026-05-24, Bundle 81** — Closes P2 #5 (anonymous-auth consent
+  affordance). New [apps/web/src/lib/consent.ts](../../apps/web/src/lib/consent.ts)
+  defines the `pickupvb_consent` cookie (180-day max-age, JSON
+  payload `{ v, analytics, marketing, ts }`), the
+  `defaultState(gpc)` policy (analytics = `gpc ? 'denied' :
+'granted'`, marketing = `'denied'` until a third-party pixel
+  arrives), and a `cache()`-memoized `readConsent()` that reads
+  cookies + `Sec-GPC` once per request. New
+  [apps/web/src/lib/analytics.ts](../../apps/web/src/lib/analytics.ts)
+  wraps the `analyticsFromEnv()` singleton in a
+  `ConsentGatedAnalytics` decorator that fire-and-forget gates every
+  `capture` / `identify` call on `hasAnalyticsConsent()`; the port
+  contract stays sync-void so the 15+ existing call sites (handler
+  outbox, action-layer captures, web-vitals beacon, Stripe webhooks)
+  are auto-gated without per-site refactor. Outside request scope
+  (cron, no `cookies()` available) the gate falls through to `allow
+= true`. New
+  [consent-banner.tsx](../../apps/web/src/components/consent-banner.tsx)
+  is server-mounted from
+  [layout.tsx](../../apps/web/src/app/layout.tsx) only when
+  `isConsentDecided()` is false (no SSR hydration flash), with
+  Accept / Decline buttons that call the
+  [consent-banner-actions.ts](../../apps/web/src/components/consent-banner-actions.ts)
+  server action to set the cookie + `revalidatePath('/')`. The same
+  layout gates `<AnalyticsClient />` / `<WebVitalsClient />` /
+  `<SpeedInsights />` mounts on `analyticsAllowed` so a declining
+  user gets no client-side capture either. Privacy policy
+  ([legal/privacy/page.tsx](../../apps/web/src/app/legal/privacy/page.tsx))
+  adds PostHog to the §4 subprocessor list and rewrites §5 to
+  describe the banner, the cookie, and GPC honoring; `LAST_UPDATED`
+  bumped to May 24, 2026. Deferred: per-category modal toggles
+  (marketing axis is denied-only today), footer "Manage cookies"
+  reopen link, and persisting consent into authenticated profiles
+  so the decision follows across devices.

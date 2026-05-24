@@ -12,7 +12,6 @@ import {
   SupabaseHostStripeAccountRepository,
   SupabaseHostSubscriptionRepository,
   SupabaseTeamRepository,
-  analyticsFromEnv,
 } from '@pickupvb/infrastructure';
 import {
   AcceptTeamInviteHandler,
@@ -63,6 +62,9 @@ import {
   WithdrawTeamHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
+import { analytics } from './analytics';
+
+export { analytics };
 
 const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
@@ -74,18 +76,6 @@ const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
 const communityListingRepo = new SupabaseCommunityListingRepository();
 
 const isPlatformAdmin = (userId: string) => communityListingRepo.isPlatformAdmin(userId);
-
-/**
- * Server-side analytics adapter (PostHog when configured, noop otherwise).
- * Resolved once at module load so the PostHog client is reused across
- * requests in the same serverless instance. Call sites should `await
- * analytics.shutdown()` from a `finally` block in long-running scripts
- * (worker cron) but **not** in per-request handlers — the adapter
- * flushes synchronously (`flushAt: 1`).
- *
- * See [docs/audits/analytics.md](../../../../docs/audits/analytics.md).
- */
-export const analytics = analyticsFromEnv();
 
 /**
  * Loads the minimum event metadata `ClaimCommunityListingHandler` needs to
