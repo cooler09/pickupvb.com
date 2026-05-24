@@ -11,6 +11,7 @@ import { SocialLinks } from '@/components/social-links';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
+import { HeroImage } from '@/components/hero-image';
 
 /**
  * ISR cache for anonymous traffic. The public player profile (identity
@@ -57,6 +58,7 @@ type PlayerProfile = {
   handle: string;
   display_name: string;
   avatar_url: string | null;
+  hero_image_url: string | null;
   home_city: string | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -95,7 +97,7 @@ export default async function PlayerProfilePage(props: {
   const { data: profileRow } = await supabase
     .from('profiles_public')
     .select(
-      'id, handle, display_name, avatar_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'id, handle, display_name, avatar_url, hero_image_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('handle', params.id)
     .maybeSingle();
@@ -133,6 +135,8 @@ export default async function PlayerProfilePage(props: {
           { name, url: `https://pickupvb.com/players/${profile.handle}` },
         ]}
       />
+      <HeroImage url={profile.hero_image_url} alt={name} priority />
+
       {/* ── Identity card ─────────────────────────────────────── */}
       <header className="border-border-base bg-surface rounded-lg border p-5">
         <div className="flex items-start gap-4">

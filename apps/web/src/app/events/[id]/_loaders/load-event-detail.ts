@@ -159,6 +159,9 @@ export type EventDetailViewModel = {
   // Optional host-owned sponsor block (Bundle 84).
   sponsor: EventSponsorView | null;
 
+  // Wide banner image uploaded by the host (nullable — fallback gradient shown).
+  heroImageUrl: string | null;
+
   // Hero / sticky call-to-action.
   cta: EventHeroCta;
 };
@@ -418,6 +421,22 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
   )();
 }
 
+function loadHeroImageCached(eventId: string): Promise<string | null> {
+  return unstable_cache(
+    async () => {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data } = await getAdminSupabase()
+        .from('events')
+        .select('hero_image_url')
+        .eq('id', eventId)
+        .maybeSingle();
+      return (data as { hero_image_url: string | null } | null)?.hero_image_url ?? null;
+    },
+    ['event-hero-image', eventId],
+    { revalidate: 60, tags: [`event:${eventId}`] },
+  )();
+}
+
 function loadEventSponsorCached(eventId: string): Promise<EventSponsorView | null> {
   return unstable_cache(
     async () => {
@@ -487,6 +506,7 @@ export async function loadEventDetail(
     eligibleTeamsByDivision,
     adHocBundle,
     sponsor,
+    heroImageUrl,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -505,6 +525,7 @@ export async function loadEventDetail(
     loadEligibleTeamsByDivision(event),
     loadAdHocBundle(event, user),
     loadEventSponsorCached(event.id),
+    loadHeroImageCached(event.id),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -586,6 +607,7 @@ export async function loadEventDetail(
     filledByPosition,
     viewerPosition,
     sponsor,
+    heroImageUrl,
     cta,
   };
 }

@@ -8,6 +8,7 @@ import { GroupViewerActions, GroupManageMembersLink } from './_components/group-
 import { MembersSection, type GroupMember } from './_components/members-section';
 import { GroupJsonLd } from './_components/group-jsonld';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { HeroImage } from '@/components/hero-image';
 
 /**
  * ISR cache for anonymous traffic. The public group profile (header,
@@ -28,6 +29,7 @@ type GroupRow = {
   name: string;
   description: string;
   avatar_url: string | null;
+  hero_image_url: string | null;
   home_city: string | null;
   region: string | null;
   created_by: string;
@@ -93,7 +95,9 @@ export default async function GroupProfilePage(props: {
 
   const { data: groupData } = await supabase
     .from('groups')
-    .select('id, slug, name, description, avatar_url, home_city, region, created_by')
+    .select(
+      'id, slug, name, description, avatar_url, hero_image_url, home_city, region, created_by',
+    )
     .eq('slug', params.id)
     .maybeSingle();
   const group = groupData as GroupRow | null;
@@ -167,6 +171,8 @@ export default async function GroupProfilePage(props: {
         region={group.region}
         avatarUrl={group.avatar_url}
       />
+      <HeroImage url={group.hero_image_url} alt={group.name} priority />
+
       <GroupHeader
         group={{
           id: group.id,

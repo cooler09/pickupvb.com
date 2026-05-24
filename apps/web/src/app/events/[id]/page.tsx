@@ -20,6 +20,7 @@ import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
+import { HeroImage } from '@/components/hero-image';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -108,6 +109,7 @@ export default async function EventDetailPage(props: {
     filledByPosition,
     viewerPosition,
     sponsor,
+    heroImageUrl,
     cta,
   } = vm;
 
@@ -125,6 +127,8 @@ export default async function EventDetailPage(props: {
         cohost={pickQuery(searchParams, 'cohost')}
         cohostMsg={pickQuery(searchParams, 'cohost_msg')}
       />
+
+      <HeroImage url={heroImageUrl} alt={event.title} priority />
 
       <header className="space-y-2">
         <EventHero

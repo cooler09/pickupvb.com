@@ -1206,6 +1206,7 @@ export type Database = {
           title: string;
           type: Database['public']['Enums']['event_type'];
           updated_at: string;
+          hero_image_url: string | null;
           venue_name: string | null;
           visibility: Database['public']['Enums']['visibility'];
         };
@@ -1220,6 +1221,7 @@ export type Database = {
           external_registration_url?: string | null;
           fundraiser_beneficiary?: string | null;
           geo: unknown;
+          hero_image_url?: string | null;
           host_absorbs_fee?: boolean;
           host_group_id?: string | null;
           host_id?: string | null;
@@ -1262,6 +1264,7 @@ export type Database = {
           external_registration_url?: string | null;
           fundraiser_beneficiary?: string | null;
           geo?: unknown;
+          hero_image_url?: string | null;
           host_absorbs_fee?: boolean;
           host_group_id?: string | null;
           host_id?: string | null;
@@ -1453,6 +1456,7 @@ export type Database = {
           created_at: string;
           created_by: string | null;
           description: string;
+          hero_image_url: string | null;
           home_city: string | null;
           id: string;
           name: string;
@@ -1465,6 +1469,7 @@ export type Database = {
           created_at?: string;
           created_by?: string | null;
           description?: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string;
           name: string;
@@ -1477,6 +1482,7 @@ export type Database = {
           created_at?: string;
           created_by?: string | null;
           description?: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string;
           name?: string;
@@ -1835,6 +1841,7 @@ export type Database = {
           facebook_handle: string | null;
           first_name: string | null;
           handle: string;
+          hero_image_url: string | null;
           home_city: string | null;
           id: string;
           instagram_handle: string | null;
@@ -1864,6 +1871,7 @@ export type Database = {
           facebook_handle?: string | null;
           first_name?: string | null;
           handle: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id: string;
           instagram_handle?: string | null;
@@ -1893,6 +1901,7 @@ export type Database = {
           facebook_handle?: string | null;
           first_name?: string | null;
           handle?: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string;
           instagram_handle?: string | null;
@@ -2433,6 +2442,7 @@ export type Database = {
           display_name: string | null;
           facebook_handle: string | null;
           handle: string | null;
+          hero_image_url: string | null;
           home_city: string | null;
           id: string | null;
           instagram_handle: string | null;
@@ -2452,6 +2462,7 @@ export type Database = {
           display_name?: string | null;
           facebook_handle?: string | null;
           handle?: string | null;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string | null;
           instagram_handle?: string | null;
@@ -2471,6 +2482,7 @@ export type Database = {
           display_name?: string | null;
           facebook_handle?: string | null;
           handle?: string | null;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string | null;
           instagram_handle?: string | null;

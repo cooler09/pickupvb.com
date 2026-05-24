@@ -4,6 +4,7 @@ import type { Route } from 'next';
 import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
+import { HeroImagePanel } from '@/components/hero-image-panel';
 import { FriendsList } from '@/components/friends-list';
 import { loadFriendEdges } from '@/lib/mappers/friend';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
@@ -25,6 +26,7 @@ type ProfileRow = {
   last_name: string | null;
   display_name: string;
   home_city: string | null;
+  hero_image_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -52,7 +54,7 @@ export default async function ProfilePage() {
   const { data } = await supabase
     .from('profiles')
     .select(
-      'handle, first_name, last_name, display_name, home_city, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'handle, first_name, last_name, display_name, home_city, hero_image_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -275,6 +277,14 @@ export default async function ProfilePage() {
           <ProfileForm profile={profile} email={user.email ?? ''} isPro={viewerIsPro} />
         </div>
       </details>
+
+      <HeroImagePanel
+        entityType="profiles"
+        entityId={user.id}
+        userId={user.id}
+        currentUrl={row?.hero_image_url ?? null}
+        returnPath={`/players/${profile.handle}`}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import EditEventForm from './edit-event-form';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { CancelEventPanel } from './cancel-event-panel';
 import { SponsorPanel } from './sponsor-panel';
+import { HeroImagePanel } from '@/components/hero-image-panel';
 
 function pickQuery(
   searchParams: Record<string, string | string[] | undefined> | undefined,
@@ -55,11 +56,14 @@ export default async function EditEventPage(props: {
   const pricingLocked = await isPricingLocked(id);
   const viewerHasProBenefits = await hasProBenefits(user.id);
 
-  const { data: sponsorRow } = await admin
-    .from('event_sponsors')
-    .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
-    .eq('event_id', id)
-    .maybeSingle();
+  const [{ data: sponsorRow }, { data: heroRow }] = await Promise.all([
+    admin
+      .from('event_sponsors')
+      .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
+      .eq('event_id', id)
+      .maybeSingle(),
+    admin.from('events').select('hero_image_url').eq('id', id).maybeSingle(),
+  ]);
 
   const sponsor = sponsorRow
     ? {
@@ -135,6 +139,14 @@ export default async function EditEventPage(props: {
             paymentInstructions: event.paymentInstructions,
           },
         }}
+      />
+
+      <HeroImagePanel
+        entityType="events"
+        entityId={id}
+        userId={user.id}
+        currentUrl={(heroRow as { hero_image_url: string | null } | null)?.hero_image_url ?? null}
+        returnPath={`/events/${id}`}
       />
 
       <SponsorPanel
