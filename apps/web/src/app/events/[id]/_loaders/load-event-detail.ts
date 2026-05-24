@@ -506,7 +506,7 @@ export async function loadEventDetail(
 async function loadPrimaryHostSocialFresh(hostUserId: string): Promise<SocialHandles | null> {
   const sb = await getServerSupabase();
   const { data: socialRow } = await sb
-    .from('profiles')
+    .from('profiles_public')
     .select(
       'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )

@@ -188,7 +188,11 @@ export default async function CommunityListingDetailPage(props: PageProps) {
     const sb = await getServerSupabase();
     const [evRes, profileRes] = await Promise.all([
       sb.from('events').select('id, title, slug').eq('id', detail.claimedEventId).maybeSingle(),
-      sb.from('profiles').select('display_name').eq('id', detail.claimedByUserId).maybeSingle(),
+      sb
+        .from('profiles_public')
+        .select('display_name')
+        .eq('id', detail.claimedByUserId)
+        .maybeSingle(),
     ]);
     pendingClaim = {
       eventId: detail.claimedEventId,

@@ -72,12 +72,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     }));
 
-    const { data: playerRows } = await supabase.from('profiles').select('handle, updated_at');
-    type PlayerRow = { handle: string; updated_at: string | null };
+    const { data: playerRows } = await supabase
+      .from('profiles_public')
+      .select('handle, created_at');
+    type PlayerRow = { handle: string; created_at: string | null };
     const players = (playerRows as PlayerRow[] | null) ?? [];
     const playerEntries: MetadataRoute.Sitemap = players.map((p) => ({
       url: `${BASE}/players/${p.handle}`,
-      lastModified: p.updated_at ? new Date(p.updated_at) : now,
+      lastModified: p.created_at ? new Date(p.created_at) : now,
       changeFrequency: 'weekly',
       priority: 0.4,
     }));

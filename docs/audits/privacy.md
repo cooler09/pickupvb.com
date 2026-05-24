@@ -503,9 +503,42 @@ use the view) remains open as a follow-up.
 
 **Open from this bundle:**
 
-- P1 #4 steps 2 + 3: app-wide query migration to `profiles_public` + policy tighten
 - P1 #5 step 3 (app-layer): `loadAdHocRowsCached` public projection
 - Soft-delete application path: `DeletionRequestAggregate`, cron, profile scrub UI
+
+### 2026-05-24 — P1 #4 steps 2 + 3: migrate public queries to profiles_public + tighten RLS
+
+**Step 2 — app-layer query migration:**
+
+All public-facing `profiles` reads switched to `profiles_public`. Because
+PostgREST FK-join syntax (`profiles!fk_name(...)`) does not work on views,
+the 4 FK-join queries (groups/[id]/page.tsx, groups/[id]/members/page.tsx,
+teams/page.tsx, teams/[id]/page.tsx, lib/mappers/friend.ts) were split into
+two queries each: the parent-table query runs as before, profiles are fetched
+separately via `profiles_public` by collected IDs, and results are merged in JS.
+
+`profiles_public` exposes only: `id, handle, display_name, avatar_url, home_city,
+primary_position, secondary_position, tertiary_position, instagram_handle,
+tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url,
+show_pro_badge, theme_preference, created_at`. `first_name`, `last_name`,
+`business_name`, `business_address`, `tax_id` are deliberately excluded.
+
+Two reads that needed non-public fields (not in the view) were switched to admin
+client: `profile/receipts/[paymentIntentId]/page.tsx` (host's
+`business_name/business_address` for the receipt) and `teams/actions.ts`
+(invitee's `auto_accept_team_invites` preference). The health-check probe at
+`api/health/deep/route.ts` and the annual statement CSV at
+`api/receipts/[year]/statement.csv/route.ts` also moved to `profiles_public`.
+
+**Step 3 — RLS tighten:**
+
+[20260623000000_pii_p1_profiles_rls_owner_only.sql](../../supabase/migrations/20260623000000_pii_p1_profiles_rls_owner_only.sql) —
+drops the permissive `using (true)` SELECT policy and replaces it with
+`auth.uid() = id OR public.is_platform_admin()`. `is_platform_admin()` is
+`SECURITY DEFINER` so it reads the `is_platform_admin` column without
+re-entering RLS. `profiles_public` continues to serve all public reads
+regardless of this change because the view runs as the view owner (not
+`security_invoker`).
 
 ### 2026-05-24 — P2 #5: notification_outbox purge cron
 
