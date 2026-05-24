@@ -1,4 +1,5 @@
 import { socialUrl, type SocialHandles } from '@/lib/social-handles';
+import { externalLinkHref } from '@/lib/external-link';
 
 type Props = {
   handles: SocialHandles;
@@ -82,7 +83,7 @@ export function SocialLinks({ handles, className }: Props) {
       {items.map((it) => (
         <li key={it.key}>
           <a
-            href={it.href}
+            href={externalLinkHref(it.href)}
             target="_blank"
             rel="noopener noreferrer me"
             aria-label={it.label}

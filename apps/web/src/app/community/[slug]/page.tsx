@@ -9,6 +9,7 @@ import { LocalDateTime } from '@/components/local-datetime';
 import { SubmitButton } from '@/components/submit-button';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
+import { externalLinkHref } from '@/lib/external-link';
 import {
   claimListingFromForm,
   deleteListingFromForm,
@@ -213,8 +214,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
           handle signups for community listings.
         </p>
         <a
-          href={detail.externalUrl}
-          target="_blank"
+          href={externalLinkHref(detail.externalUrl)}
           rel="noopener noreferrer nofollow"
           className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white"
         >
