@@ -95,6 +95,14 @@ export type AttendeePaymentInfo = {
 
 export type ViewerPaymentStatus = 'paid' | 'pending' | 'none';
 
+export type EventSponsorView = {
+  name: string;
+  blurb: string | null;
+  linkUrl: string | null;
+  logoUrl: string | null;
+  discountCode: string | null;
+};
+
 export type EventDetailViewModel = {
   event: EventDetailReadModel;
   user: ViewerSession['user'] | null;
@@ -147,6 +155,9 @@ export type EventDetailViewModel = {
   attendeesForList: AttendeeListRow[];
   filledByPosition: Partial<Record<string, number>>;
   viewerPosition: EventPosition | null;
+
+  // Optional host-owned sponsor block (Bundle 84).
+  sponsor: EventSponsorView | null;
 
   // Hero / sticky call-to-action.
   cta: EventHeroCta;
@@ -316,6 +327,30 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
   )();
 }
 
+function loadEventSponsorCached(eventId: string): Promise<EventSponsorView | null> {
+  return unstable_cache(
+    async () => {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data } = await getAdminSupabase()
+        .from('event_sponsors')
+        .select('name, blurb, link_url, logo_url, discount_code')
+        .eq('event_id', eventId)
+        .maybeSingle();
+
+      if (!data) return null;
+      return {
+        name: data.name,
+        blurb: data.blurb,
+        linkUrl: data.link_url,
+        logoUrl: data.logo_url,
+        discountCode: data.discount_code,
+      };
+    },
+    ['event-sponsor', eventId],
+    { revalidate: 60, tags: [`event:${eventId}`] },
+  )();
+}
+
 /**
  * Load and hydrate the full event detail view model. Calls `notFound()`
  * when the event doesn't exist; other domain errors propagate.
@@ -360,6 +395,7 @@ export async function loadEventDetail(
     hostStripeReady,
     eligibleTeamsByDivision,
     adHocBundle,
+    sponsor,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -377,6 +413,7 @@ export async function loadEventDetail(
       : Promise.resolve(false),
     loadEligibleTeamsByDivision(event),
     loadAdHocBundle(event, user),
+    loadEventSponsorCached(event.id),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -457,6 +494,7 @@ export async function loadEventDetail(
     attendeesForList,
     filledByPosition,
     viewerPosition,
+    sponsor,
     cta,
   };
 }

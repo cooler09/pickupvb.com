@@ -18,6 +18,7 @@ import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
 import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
+import { EventSponsorSection } from './_components/event-sponsor-section';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 
 export async function generateMetadata(props: {
@@ -106,6 +107,7 @@ export default async function EventDetailPage(props: {
     attendeesForList,
     filledByPosition,
     viewerPosition,
+    sponsor,
     cta,
   } = vm;
 
@@ -298,6 +300,8 @@ export default async function EventDetailPage(props: {
           hostCanCollectTips={hostStripeReady}
         />
       )}
+
+      <EventSponsorSection sponsor={sponsor} />
 
       <EventStickyCta cta={cta} observeSelector="#signup" />
     </article>

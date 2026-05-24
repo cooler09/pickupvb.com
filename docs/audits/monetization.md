@@ -302,7 +302,17 @@ doesn't churn the lever based on a bad week.
 
 ### 4. Host-owned sponsor slot (the answer to the sponsorship question)
 
-**File:** none — does not exist.
+> **Status (2026-05-24, Bundle 84): PARTIALLY SHIPPED (v1 core).**
+> Landed: `event_sponsors` schema + RLS, Pro-gated host edit actions/UI,
+> attendee-side sponsor block render on event detail, cache-tag
+> invalidation (`event:{id}`), and regenerated Supabase types. Deferred:
+> the optional free-tier a-la-carte charging path; current behavior is
+> Pro-only entitlement for sponsor authoring.
+
+**File:**
+[supabase/migrations/20260617000000_event_sponsors.sql](../../supabase/migrations/20260617000000_event_sponsors.sql),
+[apps/web/src/app/events/[id]/edit/sponsor-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx),
+[apps/web/src/app/events/[id]/\_components/event-sponsor-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-sponsor-section.tsx).
 
 **Category:** revenue / community alignment.
 
@@ -353,16 +363,21 @@ infrastructure rather than ads.
 - Sponsor's link gets `rel="sponsored noopener nofollow"` per
   current SEO posture.
 
-**Recommended fix:** schema for `event_sponsors` (event_id FK,
-logo_url, name, blurb, link_url, discount_code?, paid_at),
-host-side UI under
+**Recommended fix:** v1 core is now in place (schema + host UI +
+event-page render, Pro-gated). Remaining follow-up is optional
+free-tier a-la-carte charging if we choose to monetize sponsor slots
+outside Pro. If we ship that path, extend `event_sponsors` with
+charging metadata (for example `paid_at` / `payment_intent_id`) and
+reuse the existing event checkout-session patterns.
+
+Host-side UI lives under
 [apps/web/src/app/events/[id]/edit/](../../apps/web/src/app/events/%5Bid%5D/edit/),
 attendee-side render at the bottom of
 [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx).
-Charging logic reuses
+Charging follow-up can reuse
 [apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts)
-pattern. **Estimate: 2 bundles** (schema + host UI; render +
-charging).
+pattern. **Estimate:** v1 complete in Bundle 84; a-la-carte charging
+would be one additional bundle.
 
 ### 5. Trial-to-paid conversion isn't tracked
 
@@ -493,9 +508,10 @@ Concrete sequencing, smallest valuable first:
 
 1. **Bundle: pass Stripe processing fee to buyer (P1 #2).** Half a
    day, no UX downside, biggest host-trust win.
-2. **Bundle: host-owned sponsor slot v1 (P2 #4, Pro-only).** Two
-   bundles. Ships the strongest answer to the "should we add sponsor
-   spots" question and adds a Pro feature simultaneously.
+2. **Bundle: host-owned sponsor slot v1 (P2 #4, Pro-only).** Bundle 84
+   shipped the schema + host UI + attendee render. Remaining work is an
+   optional follow-up bundle for free-tier a-la-carte charging if we
+   decide to monetize outside Pro.
 3. **Bundle: saved event templates (P1 #1 sub-item).** One bundle.
    The most-requested host feature in every analogous platform.
 4. **Bundle: host analytics dashboard (P1 #1 sub-item).** One to
@@ -555,3 +571,8 @@ hosts get fee discount + sponsor slot).
   receive the full advertised ticket + service-fee subtotal on
   payout instead of silently absorbing Stripe's ~2.9% + 30¢. See
   [docs/journal/2026-05-24-bundle-83.md](../journal/2026-05-24-bundle-83.md).
+- **2026-05-24 — Bundle 84** — P2 #4 v1 core shipped. Added
+  `event_sponsors` table + RLS migration, Pro-gated sponsor authoring
+  actions/UI on event edit, attendee-side sponsor render at the bottom
+  of event detail, and cache invalidation for sponsor writes. Follow-up
+  a-la-carte charging path deferred.

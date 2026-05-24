@@ -735,6 +735,57 @@ export type Database = {
           },
         ];
       };
+      event_sponsors: {
+        Row: {
+          blurb: string | null;
+          created_at: string;
+          discount_code: string | null;
+          event_id: string;
+          id: string;
+          link_url: string | null;
+          logo_url: string | null;
+          name: string;
+          updated_at: string;
+        };
+        Insert: {
+          blurb?: string | null;
+          created_at?: string;
+          discount_code?: string | null;
+          event_id: string;
+          id?: string;
+          link_url?: string | null;
+          logo_url?: string | null;
+          name: string;
+          updated_at?: string;
+        };
+        Update: {
+          blurb?: string | null;
+          created_at?: string;
+          discount_code?: string | null;
+          event_id?: string;
+          id?: string;
+          link_url?: string | null;
+          logo_url?: string | null;
+          name?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_sponsors_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_sponsors_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events_view';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_team_payments: {
         Row: {
           amount_paid_cents: number | null;
