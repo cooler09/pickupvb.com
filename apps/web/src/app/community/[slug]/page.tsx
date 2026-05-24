@@ -13,9 +13,11 @@ import { getServerSupabase } from '@/lib/supabase';
 import { loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { externalLinkHref } from '@/lib/external-link';
 import {
+  approveListingClaimFromForm,
   claimListingFromForm,
   deleteListingFromForm,
   hideListingFromForm,
+  rejectListingClaimFromForm,
   reportListingFromForm,
   unhideListingFromForm,
 } from './listing-actions';
@@ -54,7 +56,10 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
       url: `/community/${detail.slug}`,
       type: 'article',
     },
-    robots: detail.status === 'active' ? undefined : { index: false, follow: false },
+    robots:
+      detail.status === 'active' || detail.status === 'claim_pending'
+        ? undefined
+        : { index: false, follow: false },
   };
 }
 
@@ -72,6 +77,18 @@ function noticeBanner(code: string | undefined): React.ReactNode {
     claimed: {
       tone: 'ok',
       text: 'Listing claimed and linked to your event.',
+    },
+    claimproposed: {
+      tone: 'ok',
+      text: 'Claim submitted. The original submitter (or a platform admin) will review it before the listing redirects to your event.',
+    },
+    claimapproved: {
+      tone: 'ok',
+      text: 'Claim approved. The listing now points to the PickupVB event.',
+    },
+    claimrejected: {
+      tone: 'ok',
+      text: 'Claim rejected. The listing is active again.',
     },
     claimfail: {
       tone: 'err',
@@ -156,6 +173,35 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   // they can pick one from a dropdown instead of pasting a UUID. Only load
   // when the section will actually render (logged-in, active listing, not
   // already manageable by viewer).
+  // Pending-claim metadata: when the listing is in `claim_pending`, fetch
+  // the proposed event title/slug and the claimant's display name so the
+  // submitter/admin can review the request in-place. Single round trip;
+  // skipped entirely for any other status.
+  let pendingClaim: {
+    eventId: string;
+    eventTitle: string | null;
+    eventSlug: string | null;
+    claimantId: string;
+    claimantName: string;
+  } | null = null;
+  if (detail.status === 'claim_pending' && detail.claimedEventId && detail.claimedByUserId) {
+    const sb = await getServerSupabase();
+    const [evRes, profileRes] = await Promise.all([
+      sb.from('events').select('id, title, slug').eq('id', detail.claimedEventId).maybeSingle(),
+      sb.from('profiles').select('display_name').eq('id', detail.claimedByUserId).maybeSingle(),
+    ]);
+    pendingClaim = {
+      eventId: detail.claimedEventId,
+      eventTitle: (evRes.data as { title?: string } | null)?.title ?? null,
+      eventSlug: (evRes.data as { slug?: string | null } | null)?.slug ?? null,
+      claimantId: detail.claimedByUserId,
+      claimantName: (profileRes.data as { display_name?: string } | null)?.display_name ?? 'A host',
+    };
+  }
+
+  const viewerIsClaimant =
+    !!user && detail.status === 'claim_pending' && user.id === detail.claimedByUserId;
+
   const showClaimSection = !!user && detail.status === 'active' && !detail.canManage;
   const claimableEvents = showClaimSection
     ? await loadVisibleHostedEvents(await getServerSupabase(), user.id, {
@@ -189,6 +235,52 @@ export default async function CommunityListingDetailPage(props: PageProps) {
       </nav>
 
       {noticeBanner(notice)}
+
+      {pendingClaim && detail.canManage && (
+        <section className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="space-y-1">
+            <p className="font-semibold text-amber-900 dark:text-amber-100">
+              Pending claim — review required
+            </p>
+            <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
+              <strong>{pendingClaim.claimantName}</strong> has claimed this listing and asked to
+              link it to their PickupVB event:{' '}
+              {pendingClaim.eventSlug ? (
+                <Link
+                  href={`/events/${pendingClaim.eventSlug}` as Route}
+                  className="font-medium underline"
+                >
+                  {pendingClaim.eventTitle ?? pendingClaim.eventId}
+                </Link>
+              ) : (
+                <span className="font-medium">
+                  {pendingClaim.eventTitle ?? pendingClaim.eventId}
+                </span>
+              )}
+              . Approve to redirect this listing to that event, or reject to leave it as-is.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <form action={approveListingClaimFromForm.bind(null, detail.id, detail.slug)}>
+              <SubmitButton className="rounded-md border border-green-300 bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-200 disabled:opacity-50 dark:bg-green-900/40 dark:text-green-100">
+                Approve claim
+              </SubmitButton>
+            </form>
+            <form action={rejectListingClaimFromForm.bind(null, detail.id, detail.slug)}>
+              <SubmitButton className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-200">
+                Reject claim
+              </SubmitButton>
+            </form>
+          </div>
+        </section>
+      )}
+
+      {viewerIsClaimant && !detail.canManage && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          Your claim is awaiting review by the original submitter or a platform admin. Until
+          it&rsquo;s approved, the listing still links to the external page.
+        </div>
+      )}
 
       {showHiddenWarning && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -377,14 +469,16 @@ export default async function CommunityListingDetailPage(props: PageProps) {
             <p className="text-muted text-xs">(visible to you as a platform admin)</p>
           )}
           <div className="flex flex-wrap gap-2">
-            {detail.status !== 'claimed' && detail.status !== 'removed' && (
-              <Link
-                href={`/community/${detail.slug}/edit` as Route}
-                className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold"
-              >
-                Edit
-              </Link>
-            )}
+            {detail.status !== 'claimed' &&
+              detail.status !== 'removed' &&
+              detail.status !== 'claim_pending' && (
+                <Link
+                  href={`/community/${detail.slug}/edit` as Route}
+                  className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold"
+                >
+                  Edit
+                </Link>
+              )}
             {detail.status === 'active' ? (
               <form action={hideListingFromForm.bind(null, detail.id, detail.slug)}>
                 <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">

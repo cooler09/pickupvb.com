@@ -20,6 +20,8 @@ import {
   AddEventDivisionHandler,
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
+  ApproveCommunityListingClaimHandler,
+  RejectCommunityListingClaimHandler,
   CreateBracketHandler,
   CreateCommunityListingHandler,
   CreateEventHandler,
@@ -168,6 +170,14 @@ export const handlers = {
   claimCommunityListing: new ClaimCommunityListingHandler(
     communityListingRepo,
     loadEventClaimFacts,
+  ),
+  approveCommunityListingClaim: new ApproveCommunityListingClaimHandler(
+    communityListingRepo,
+    isPlatformAdmin,
+  ),
+  rejectCommunityListingClaim: new RejectCommunityListingClaimHandler(
+    communityListingRepo,
+    isPlatformAdmin,
   ),
   searchCommunityListings: new SearchCommunityListingsHandler(communityListingRepo),
   getCommunityListingDetail: new GetCommunityListingDetailHandler(communityListingRepo),

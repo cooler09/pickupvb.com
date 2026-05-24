@@ -7,7 +7,7 @@ import { ExternalUrl } from './external-url.js';
 
 export type CommunityListingId = Brand<string, 'CommunityListingId'>;
 
-export type CommunityListingStatus = 'active' | 'hidden' | 'claimed' | 'removed';
+export type CommunityListingStatus = 'active' | 'hidden' | 'claim_pending' | 'claimed' | 'removed';
 
 /**
  * Optional location for a listing. All fields move together: either every
@@ -255,8 +255,14 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
 
   // ---- Mutations ----------------------------------------------------------
   update(props: UpdateCommunityListingProps): void {
-    if (this._status === 'claimed' || this._status === 'removed') {
-      throw new ConflictError('Cannot update a claimed or removed listing.');
+    if (
+      this._status === 'claimed' ||
+      this._status === 'removed' ||
+      this._status === 'claim_pending'
+    ) {
+      // Block edits while a claim is in review so the submitter can't
+      // bait-and-switch the listing on a claimant mid-flight.
+      throw new ConflictError('Cannot update a listing while a claim is pending or finalized.');
     }
     const nextStarts = props.startsAt ?? this._startsAt;
     const nextEnds = props.endsAt !== undefined ? props.endsAt : this._endsAt;
@@ -297,16 +303,59 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     this._status = 'removed';
   }
 
-  markClaimed(eventId: EventId, byUserId: UserId, at: Date): void {
+  /**
+   * File a claim against this listing. The listing moves to `claim_pending`
+   * and the proposed event/claimant are recorded in the `claimed_*` columns
+   * (they double as "proposed claim" while pending, then "approved claim"
+   * once `approveClaim` runs). The submitter or a platform admin must then
+   * call `approveClaim` for the claim to take effect.
+   */
+  proposeClaim(eventId: EventId, byUserId: UserId, at: Date): void {
+    if (this._status === 'claim_pending') {
+      throw new ConflictError('Listing already has a pending claim under review.');
+    }
     if (this._status === 'claimed') {
       throw new ConflictError('Listing has already been claimed.');
     }
     if (this._status === 'removed') {
       throw new ConflictError('Removed listings cannot be claimed.');
     }
-    this._status = 'claimed';
+    if (this._status === 'hidden') {
+      throw new ConflictError('Hidden listings cannot be claimed.');
+    }
+    this._status = 'claim_pending';
     this._claimedEventId = eventId;
     this._claimedByUserId = byUserId;
     this._claimedAt = at;
+  }
+
+  /**
+   * Approve a pending claim. Transitions `claim_pending → claimed` and
+   * updates `claimedAt` to the approval timestamp. Caller is responsible
+   * for authorizing the approver (must be the submitter or a platform
+   * admin) before invoking.
+   */
+  approveClaim(at: Date): void {
+    if (this._status !== 'claim_pending') {
+      throw new ConflictError('Only listings with a pending claim can be approved.');
+    }
+    this._status = 'claimed';
+    this._claimedAt = at;
+  }
+
+  /**
+   * Reject a pending claim. Transitions `claim_pending → active` and clears
+   * the proposed event/claimant so a fresh claim can be filed. Caller is
+   * responsible for authorizing the rejecter (must be the submitter or a
+   * platform admin) before invoking.
+   */
+  rejectClaim(): void {
+    if (this._status !== 'claim_pending') {
+      throw new ConflictError('Only listings with a pending claim can be rejected.');
+    }
+    this._status = 'active';
+    this._claimedEventId = null;
+    this._claimedByUserId = null;
+    this._claimedAt = null;
   }
 }

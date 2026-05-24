@@ -386,6 +386,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
         avatarUrl: submitter?.avatar_url ?? null,
       },
       claimedEventId: row.claimed_event_id,
+      claimedByUserId: row.claimed_by_user_id,
       claimedAt: row.claimed_at ? new Date(row.claimed_at) : null,
       createdAt: new Date(row.created_at),
       canManage,

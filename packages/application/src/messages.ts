@@ -307,6 +307,20 @@ export class ClaimCommunityListingCommand {
   ) {}
 }
 
+export class ApproveCommunityListingClaimCommand {
+  constructor(
+    public readonly listingId: string,
+    public readonly approverId: string,
+  ) {}
+}
+
+export class RejectCommunityListingClaimCommand {
+  constructor(
+    public readonly listingId: string,
+    public readonly rejecterId: string,
+  ) {}
+}
+
 // ---- Community listings queries -----------------------------------------
 export class SearchCommunityListingsQuery {
   constructor(

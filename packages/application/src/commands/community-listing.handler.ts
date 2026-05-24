@@ -10,10 +10,12 @@ import {
   type ListingLocation,
 } from '@pickupvb/domain';
 import {
+  ApproveCommunityListingClaimCommand,
   ClaimCommunityListingCommand,
   CreateCommunityListingCommand,
   DeleteCommunityListingCommand,
   HideCommunityListingCommand,
+  RejectCommunityListingClaimCommand,
   ReportCommunityListingCommand,
   UnhideCommunityListingCommand,
   UpdateCommunityListingCommand,
@@ -237,7 +239,54 @@ export class ClaimCommunityListingHandler {
       );
     }
 
-    listing.markClaimed(eventId as never, requesterId as never, new Date());
+    listing.proposeClaim(eventId as never, requesterId as never, new Date());
+    await this.repo.save(listing);
+  }
+}
+
+export class ApproveCommunityListingClaimHandler {
+  constructor(
+    private readonly repo: CommunityListingRepository,
+    private readonly isPlatformAdmin: (userId: string) => Promise<boolean>,
+  ) {}
+
+  async execute({ listingId, approverId }: ApproveCommunityListingClaimCommand): Promise<void> {
+    const listing = await this.repo.findById(listingId);
+    if (!listing) throw new NotFoundError('CommunityListing', listingId);
+
+    const admin = await this.isPlatformAdmin(approverId);
+    // Original submitter OR a platform admin can approve. The claimant
+    // themselves cannot self-approve even if they happen to be admin of
+    // some unrelated surface — platform admin is an explicit role.
+    if (String(listing.submitterUserId) !== approverId && !admin) {
+      throw new UnauthorizedError(
+        'Only the original submitter or a platform admin can approve this claim.',
+      );
+    }
+
+    listing.approveClaim(new Date());
+    await this.repo.save(listing);
+  }
+}
+
+export class RejectCommunityListingClaimHandler {
+  constructor(
+    private readonly repo: CommunityListingRepository,
+    private readonly isPlatformAdmin: (userId: string) => Promise<boolean>,
+  ) {}
+
+  async execute({ listingId, rejecterId }: RejectCommunityListingClaimCommand): Promise<void> {
+    const listing = await this.repo.findById(listingId);
+    if (!listing) throw new NotFoundError('CommunityListing', listingId);
+
+    const admin = await this.isPlatformAdmin(rejecterId);
+    if (String(listing.submitterUserId) !== rejecterId && !admin) {
+      throw new UnauthorizedError(
+        'Only the original submitter or a platform admin can reject this claim.',
+      );
+    }
+
+    listing.rejectClaim();
     await this.repo.save(listing);
   }
 }
