@@ -469,5 +469,44 @@ the public `allRegistrations` projection now falls back to `'Player'`
 directly instead of leaking the teammate email. Captain
 (`viewerRegistrations`) and host (`hostRows`) projections are
 unchanged — those audiences need the email and are gated by membership
-in the registration. Steps 2 + 3 (tighten SELECT RLS and add the
-`*_public` view) still open.
+in the registration. Steps 2 + 3 shipped in Bundle 89 (see below).
+
+### 2026-05-24 — Bundle 89: P1 #1 + #2 + #3 + #4 step 1 + #5 steps 2 + 3
+
+**P1 #2** — `profiles.deleted_at` (timestamptz) and `deletion_reason`
+(text, check-constrained enum) added in
+[20260620000000_pii_p1_soft_delete_and_fk_nullability.sql](../../supabase/migrations/20260620000000_pii_p1_soft_delete_and_fk_nullability.sql).
+Partial index on `deleted_at` for efficient soft-delete filtering.
+
+**P1 #1** — `events.host_id`, `groups.created_by`, `broadcasts.sender_id`
+flipped from RESTRICT / NO ACTION to `ON DELETE SET NULL`, columns made
+nullable. Same migration as P1 #2.
+
+**P1 #3** — Six CASCADE FKs flipped to `ON DELETE SET NULL` with
+nullable columns: `event_tips.host_id`, `host_stripe_accounts.user_id`
+(+ surrogate PK added), `host_subscriptions.user_id` (+ surrogate PK
+added), `event_attendees.user_id` (+ surrogate UUID PK replacing
+composite PK, partial unique index `WHERE user_id IS NOT NULL`),
+`event_team_payments.captain_id`, `community_listings.submitter_user_id`.
+Same migration as P1 #2.
+
+**P1 #4 step 1** — `profiles_public` view created in
+[20260621000000_pii_p1_profiles_public_view.sql](../../supabase/migrations/20260621000000_pii_p1_profiles_public_view.sql)
+projecting safe public columns only; filters `deleted_at IS NULL`.
+Granted to `anon, authenticated`. Base-table policy unchanged — steps
+2 + 3 (app query migration + policy tighten) remain open.
+
+**P1 #5 steps 2 + 3** —
+[20260622000000_pii_p1_team_members_rls.sql](../../supabase/migrations/20260622000000_pii_p1_team_members_rls.sql)
+drops the `using (true)` SELECT policy on `event_team_registration_members`,
+replaces it with captain-or-host-or-self, and creates
+`event_team_registration_members_public` view `(id, registration_id,
+display_name, sort_order)` granted to `anon, authenticated`.
+App-layer loader step (switch `loadAdHocRowsCached` public projection to
+use the view) remains open as a follow-up.
+
+**Open from this bundle:**
+
+- P1 #4 steps 2 + 3: app-wide query migration to `profiles_public` + policy tighten
+- P1 #5 step 3 (app-layer): `loadAdHocRowsCached` public projection
+- Soft-delete application path: `DeletionRequestAggregate`, cron, profile scrub UI
