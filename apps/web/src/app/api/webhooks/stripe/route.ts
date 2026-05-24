@@ -164,15 +164,11 @@ async function dispatch(event: Stripe.Event): Promise<void> {
  * gate the "publish a paid event" UI.
  */
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
-  await mirrorStripeAccountUpdate(
-    account.id,
-    {
-      chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
-      detailsSubmitted: account.details_submitted,
-    },
-    account as unknown as Record<string, unknown>,
-  );
+  await mirrorStripeAccountUpdate(account.id, {
+    chargesEnabled: account.charges_enabled,
+    payoutsEnabled: account.payouts_enabled,
+    detailsSubmitted: account.details_submitted,
+  });
   // Repo returns false (no row) silently — host hasn't onboarded through
   // our flow yet, so there's nothing to mirror.
 

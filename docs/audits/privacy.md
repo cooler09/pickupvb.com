@@ -313,18 +313,20 @@ location", "other") so the freeform path is the exception.
 
 **File:** [supabase/migrations/20260515000000_stripe_foundation.sql#L24-L50](../../supabase/migrations/20260515000000_stripe_foundation.sql#L24)
 **Category:** PII via third-party payload
+**Status:** ✅ resolved — column dropped (2026-05-24)
 
-`host_stripe_accounts` retains the most recent `account.updated`
+`host_stripe_accounts` retained the most recent `account.updated`
 webhook payload as JSON for debugging. That payload from Stripe
 includes the host's legal name, DOB (verification), address, last4 of
 SSN/EIN for US accounts, and the bank account last4 for payouts.
 
-**Recommended fix:** either (a) stop persisting the full payload and
-keep only the fields we explicitly need (`charges_enabled`,
-`payouts_enabled`, `details_submitted`, `requirements.currently_due`),
-or (b) gate the column behind owner-only RLS even from service-role
-clients used in non-payment code paths, and add a 30-day purge so it's
-only available for incident debugging.
+**Fix applied:** column dropped in
+[20260624000000_pii_p2_drop_last_event_payload.sql](../../supabase/migrations/20260624000000_pii_p2_drop_last_event_payload.sql).
+`lastEventPayload` parameter removed from `updateStatusByAccountId`
+(domain port + infrastructure adapter), `mirrorStripeAccountUpdate`
+(facade), and the `account.updated` webhook handler — the raw `account`
+object is no longer passed or persisted. Only `charges_enabled`,
+`payouts_enabled`, and `details_submitted` are written.
 
 ## P3 — nice-to-have
 

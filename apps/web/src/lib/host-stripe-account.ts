@@ -11,9 +11,9 @@ import { repositories } from './handlers';
  * or a different payments backend.
  */
 export async function getHostStripeAccount(hostId: string): Promise<string | null> {
-    const account = await repositories.hostStripeAccountRepo.findByHostId(hostId);
-    if (!account || !account.chargesEnabled) return null;
-    return account.accountId;
+  const account = await repositories.hostStripeAccountRepo.findByHostId(hostId);
+  if (!account || !account.chargesEnabled) return null;
+  return account.accountId;
 }
 
 /**
@@ -22,32 +22,27 @@ export async function getHostStripeAccount(hostId: string): Promise<string | nul
  * details_submitted).
  */
 export async function getHostStripeAccountStatus(
-    hostId: string,
+  hostId: string,
 ): Promise<HostStripeAccount | null> {
-    return repositories.hostStripeAccountRepo.findByHostId(hostId);
+  return repositories.hostStripeAccountRepo.findByHostId(hostId);
 }
 
 export async function createHostStripeAccount(account: HostStripeAccount): Promise<void> {
-    await repositories.hostStripeAccountRepo.create(account);
+  await repositories.hostStripeAccountRepo.create(account);
 }
 
 export async function updateHostStripeAccountStatus(
-    hostId: string,
-    status: HostStripeAccountStatus,
+  hostId: string,
+  status: HostStripeAccountStatus,
 ): Promise<void> {
-    await repositories.hostStripeAccountRepo.updateStatusByHostId(hostId, status);
+  await repositories.hostStripeAccountRepo.updateStatusByHostId(hostId, status);
 }
 
 export async function mirrorStripeAccountUpdate(
-    accountId: string,
-    status: HostStripeAccountStatus,
-    lastEventPayload?: Record<string, unknown>,
+  accountId: string,
+  status: HostStripeAccountStatus,
 ): Promise<boolean> {
-    return repositories.hostStripeAccountRepo.updateStatusByAccountId(
-        accountId,
-        status,
-        lastEventPayload,
-    );
+  return repositories.hostStripeAccountRepo.updateStatusByAccountId(accountId, status);
 }
 
 /**
@@ -56,13 +51,12 @@ export async function mirrorStripeAccountUpdate(
  * a user-facing message when the host isn't ready.
  */
 export async function requireHostChargesEnabled(
-    hostId: string,
+  hostId: string,
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
-    const accountId = await getHostStripeAccount(hostId);
-    if (accountId) return { ok: true };
-    return {
-        ok: false,
-        reason:
-            'You need to finish Stripe setup at /profile/billing before charging for events.',
-    };
+  const accountId = await getHostStripeAccount(hostId);
+  if (accountId) return { ok: true };
+  return {
+    ok: false,
+    reason: 'You need to finish Stripe setup at /profile/billing before charging for events.',
+  };
 }

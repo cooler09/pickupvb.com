@@ -1534,7 +1534,6 @@ export type Database = {
           created_at: string;
           details_submitted: boolean;
           id: string;
-          last_event_payload: Json | null;
           payouts_enabled: boolean;
           stripe_account_id: string;
           updated_at: string;
@@ -1545,7 +1544,6 @@ export type Database = {
           created_at?: string;
           details_submitted?: boolean;
           id?: string;
-          last_event_payload?: Json | null;
           payouts_enabled?: boolean;
           stripe_account_id: string;
           updated_at?: string;
@@ -1556,7 +1554,6 @@ export type Database = {
           created_at?: string;
           details_submitted?: boolean;
           id?: string;
-          last_event_payload?: Json | null;
           payouts_enabled?: boolean;
           stripe_account_id?: string;
           updated_at?: string;
