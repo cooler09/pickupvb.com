@@ -737,6 +737,7 @@ export type Database = {
       };
       event_sponsors: {
         Row: {
+          access_kind: string;
           blurb: string | null;
           created_at: string;
           discount_code: string | null;
@@ -745,9 +746,14 @@ export type Database = {
           link_url: string | null;
           logo_url: string | null;
           name: string;
+          paid_at: string | null;
+          purchased_by_user_id: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
           updated_at: string;
         };
         Insert: {
+          access_kind?: string;
           blurb?: string | null;
           created_at?: string;
           discount_code?: string | null;
@@ -756,9 +762,14 @@ export type Database = {
           link_url?: string | null;
           logo_url?: string | null;
           name: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
           updated_at?: string;
         };
         Update: {
+          access_kind?: string;
           blurb?: string | null;
           created_at?: string;
           discount_code?: string | null;
@@ -767,6 +778,10 @@ export type Database = {
           link_url?: string | null;
           logo_url?: string | null;
           name?: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
           updated_at?: string;
         };
         Relationships: [

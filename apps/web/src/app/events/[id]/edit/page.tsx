@@ -57,7 +57,7 @@ export default async function EditEventPage(props: {
 
   const { data: sponsorRow } = await admin
     .from('event_sponsors')
-    .select('name, blurb, link_url, logo_url, discount_code')
+    .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
     .eq('event_id', id)
     .maybeSingle();
 
@@ -70,6 +70,8 @@ export default async function EditEventPage(props: {
         discountCode: sponsorRow.discount_code,
       }
     : null;
+  const sponsorEntitledByPayment =
+    sponsorRow?.access_kind === 'ala_carte' && sponsorRow?.paid_at !== null;
   const sponsorFlash = pickQuery(searchParams, 'sponsor');
   const sponsorMsg = pickQuery(searchParams, 'sponsor_msg');
 
@@ -139,7 +141,7 @@ export default async function EditEventPage(props: {
         eventId={id}
         returnPath={`/events/${id}/edit`}
         sponsor={sponsor}
-        canUseSponsors={viewerHasProBenefits}
+        canUseSponsors={viewerHasProBenefits || sponsorEntitledByPayment}
         {...(sponsorFlash ? { sponsorFlash } : {})}
         {...(sponsorMsg ? { sponsorMsg } : {})}
       />

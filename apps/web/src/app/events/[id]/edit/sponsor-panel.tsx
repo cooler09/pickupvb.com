@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { Alert } from '@/components/alert';
-import { removeSponsor, upsertSponsorFromForm } from './sponsor-actions';
+import {
+  removeSponsor,
+  startSponsorSlotCheckoutFromForm,
+  upsertSponsorFromForm,
+} from './sponsor-actions';
 
 type Sponsor = {
   name: string;
@@ -30,6 +34,7 @@ export function SponsorPanel({
   sponsorMsg?: string;
 }) {
   const saveAction = upsertSponsorFromForm.bind(null, eventId, returnPath);
+  const unlockAction = startSponsorSlotCheckoutFromForm.bind(null, eventId, returnPath);
   const removeAction = removeSponsor.bind(null, eventId, returnPath);
 
   return (
@@ -53,11 +58,21 @@ export function SponsorPanel({
       )}
       {sponsorFlash === 'pro' && (
         <Alert variant="warning" title="Pro required">
-          Sponsor slots are a Pro feature.{' '}
+          Sponsor slots are included with Pro, or unlockable as a one-time purchase.{' '}
           <Link href="/pricing" className="underline">
             See pricing
           </Link>
           .
+        </Alert>
+      )}
+      {sponsorFlash === 'checkout_success' && (
+        <Alert variant="info" title="Payment received">
+          Sponsor payment succeeded. We&apos;re finalizing your sponsor block now.
+        </Alert>
+      )}
+      {sponsorFlash === 'checkout_cancel' && (
+        <Alert variant="warning" title="Checkout canceled">
+          Sponsor unlock checkout was canceled.
         </Alert>
       )}
       {sponsorFlash === 'unauthorized' && (
@@ -82,13 +97,12 @@ export function SponsorPanel({
       )}
 
       {!canUseSponsors && (
-        <Alert variant="info" title="Upgrade for sponsor slots">
-          Sponsor slots are available to Pro hosts. Existing sponsor data is preserved, but editing
-          requires Pro.
+        <Alert variant="info" title="Unlock sponsor slot">
+          Upgrade to Pro for included sponsor slots, or pay a one-time $3 unlock for this event.
         </Alert>
       )}
 
-      <form action={saveAction} className="space-y-4">
+      <form action={canUseSponsors ? saveAction : unlockAction} className="space-y-4">
         <div>
           <label htmlFor="sponsor-name" className={labelClass}>
             Sponsor name
@@ -167,13 +181,13 @@ export function SponsorPanel({
         <div className="flex flex-wrap gap-3">
           <button
             type="submit"
-            disabled={!canUseSponsors}
+            disabled={false}
             className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
           >
-            Save sponsor
+            {canUseSponsors ? 'Save sponsor' : 'Unlock sponsor slot ($3)'}
           </button>
 
-          {sponsor && (
+          {sponsor && canUseSponsors && (
             <button
               type="submit"
               formAction={removeAction}

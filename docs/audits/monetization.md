@@ -302,12 +302,13 @@ doesn't churn the lever based on a bad week.
 
 ### 4. Host-owned sponsor slot (the answer to the sponsorship question)
 
-> **Status (2026-05-24, Bundle 84): PARTIALLY SHIPPED (v1 core).**
-> Landed: `event_sponsors` schema + RLS, Pro-gated host edit actions/UI,
-> attendee-side sponsor block render on event detail, cache-tag
-> invalidation (`event:{id}`), and regenerated Supabase types. Deferred:
-> the optional free-tier a-la-carte charging path; current behavior is
-> Pro-only entitlement for sponsor authoring.
+> **Status (2026-05-24, Bundle 85): SHIPPED (v1 + a-la-carte).**
+> Bundle 84 landed schema + RLS + Pro-gated host UI + attendee render.
+> Bundle 85 added free-tier one-time a-la-carte checkout unlock
+> (`$3/event`) with Stripe Checkout + webhook fulfillment, plus
+> `event_sponsors` payment metadata (`access_kind`, `paid_at`,
+> `stripe_payment_intent_id`, etc.). Sponsor authoring now works for
+> Pro hosts and for free hosts who unlock the slot for that event.
 
 **File:**
 [supabase/migrations/20260617000000_event_sponsors.sql](../../supabase/migrations/20260617000000_event_sponsors.sql),
@@ -363,21 +364,16 @@ infrastructure rather than ads.
 - Sponsor's link gets `rel="sponsored noopener nofollow"` per
   current SEO posture.
 
-**Recommended fix:** v1 core is now in place (schema + host UI +
-event-page render, Pro-gated). Remaining follow-up is optional
-free-tier a-la-carte charging if we choose to monetize sponsor slots
-outside Pro. If we ship that path, extend `event_sponsors` with
-charging metadata (for example `paid_at` / `payment_intent_id`) and
-reuse the existing event checkout-session patterns.
+**Recommended fix:** core + a-la-carte unlock are now in place. Next
+follow-up (optional) is tuning the unlock price and deciding whether to
+promote this to a dedicated host monetization dashboard/reporting view.
 
 Host-side UI lives under
 [apps/web/src/app/events/[id]/edit/](../../apps/web/src/app/events/%5Bid%5D/edit/),
 attendee-side render at the bottom of
 [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx).
-Charging follow-up can reuse
-[apps/web/src/app/events/[id]/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts)
-pattern. **Estimate:** v1 complete in Bundle 84; a-la-carte charging
-would be one additional bundle.
+Charging path reuses Stripe Checkout + webhook patterns already used by
+ticket/tip flows. **Estimate:** P2 #4 sponsor slot is complete for v1.
 
 ### 5. Trial-to-paid conversion isn't tracked
 
@@ -508,10 +504,9 @@ Concrete sequencing, smallest valuable first:
 
 1. **Bundle: pass Stripe processing fee to buyer (P1 #2).** Half a
    day, no UX downside, biggest host-trust win.
-2. **Bundle: host-owned sponsor slot v1 (P2 #4, Pro-only).** Bundle 84
-   shipped the schema + host UI + attendee render. Remaining work is an
-   optional follow-up bundle for free-tier a-la-carte charging if we
-   decide to monetize outside Pro.
+2. **Bundle: host-owned sponsor slot v1 (P2 #4, Pro + a-la-carte).**
+   Bundle 84 shipped schema/UI/render; Bundle 85 shipped free-tier
+   one-time checkout unlock and webhook fulfillment. Closed.
 3. **Bundle: saved event templates (P1 #1 sub-item).** One bundle.
    The most-requested host feature in every analogous platform.
 4. **Bundle: host analytics dashboard (P1 #1 sub-item).** One to
@@ -571,6 +566,15 @@ hosts get fee discount + sponsor slot).
   receive the full advertised ticket + service-fee subtotal on
   payout instead of silently absorbing Stripe's ~2.9% + 30¢. See
   [docs/journal/2026-05-24-bundle-83.md](../journal/2026-05-24-bundle-83.md).
+- **2026-05-24 — Bundle 84** — P2 #4 v1 core shipped.
+  `event_sponsors` table + RLS, Pro-gated host sponsor authoring on
+  event edit, attendee-side sponsor block render on event detail.
+  See [docs/journal/2026-05-24-bundle-84.md](../journal/2026-05-24-bundle-84.md).
+- **2026-05-24 — Bundle 85** — P2 #4 follow-up shipped.
+  Added free-tier one-time a-la-carte sponsor unlock checkout,
+  Stripe webhook fulfillment for sponsor payments, and sponsor payment
+  metadata columns (`access_kind`, `paid_at`, checkout/payment ids).
+  P2 #4 is now closed for v1.
 - **2026-05-24 — Bundle 84** — P2 #4 v1 core shipped. Added
   `event_sponsors` table + RLS migration, Pro-gated sponsor authoring
   actions/UI on event edit, attendee-side sponsor render at the bottom
