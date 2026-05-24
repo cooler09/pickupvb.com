@@ -452,8 +452,18 @@ export default async function CommunityListingDetailPage(props: PageProps) {
           ) : (
             <form
               action={reportListingFromForm.bind(null, detail.id, detail.slug)}
-              className="mt-3"
+              className="mt-3 space-y-2"
             >
+              <select
+                name="reason"
+                className="border-border-base bg-surface text-fg w-full rounded-md border px-2 py-1.5 text-xs"
+              >
+                <option value="spam">Spam or misleading</option>
+                <option value="broken_link">Broken or incorrect link</option>
+                <option value="duplicate">Duplicate listing</option>
+                <option value="wrong_location">Wrong location or region</option>
+                <option value="other">Other</option>
+              </select>
               <SubmitButton className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-200">
                 Report listing
               </SubmitButton>

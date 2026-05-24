@@ -516,6 +516,21 @@ daily cron (04:00 UTC, registered in `vercel.json`) that deletes
 `created_at < now() - 90 days`. Both deletes run concurrently via
 `Promise.all`. Pattern mirrors the existing reminders cron route.
 
+### 2026-05-24 — P2 #8: community_listing_reports reason dropdown + purge
+
+**Reason dropdown** —
+[apps/web/src/app/community/[slug]/page.tsx](../../apps/web/src/app/community/%5Bslug%5D/page.tsx):
+replaced the bare submit button in the report form with a `<select name="reason">` dropdown
+(spam, broken link, duplicate, wrong location, other) so freeform text is never
+collected. [listing-actions.ts](../../apps/web/src/app/community/%5Bslug%5D/listing-actions.ts):
+`reportListingFromForm` now reads `reason` from FormData; `reportListing` accepts
+and truncates it to 500 chars before passing to the command.
+
+**Report purge** — added to the daily maintenance cron in
+[apps/web/src/app/api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts):
+deletes `community_listing_reports` rows older than 180 days. Reporter `user_id`
+and reason have no moderation value past the initial review window.
+
 ### 2026-05-24 — P2 #6: mask Sentry session replay
 
 [apps/web/instrumentation-client.ts](../../apps/web/instrumentation-client.ts) —

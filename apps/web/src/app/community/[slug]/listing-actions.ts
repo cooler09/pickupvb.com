@@ -37,11 +37,16 @@ function back(slug: string, code: string): never {
   redirect(`/community/${slug}?notice=${code}`);
 }
 
-export async function reportListing(listingId: string, slug: string): Promise<void> {
+export async function reportListing(
+  listingId: string,
+  slug: string,
+  reason: string | null,
+): Promise<void> {
   const { user } = await requireRealUser(`/community/${slug}`);
+  const truncatedReason = reason ? reason.slice(0, 500) : null;
   try {
     await handlers.reportCommunityListing.execute(
-      new ReportCommunityListingCommand(listingId, user.id, null),
+      new ReportCommunityListingCommand(listingId, user.id, truncatedReason),
     );
   } catch (err) {
     if (err instanceof ConflictError) back(slug, 'already');
@@ -108,9 +113,10 @@ export async function deleteListing(listingId: string, slug: string): Promise<vo
 export async function reportListingFromForm(
   listingId: string,
   slug: string,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<void> {
-  await reportListing(listingId, slug);
+  const reason = field(formData, 'reason') ?? null;
+  await reportListing(listingId, slug, reason);
 }
 
 export async function hideListingFromForm(

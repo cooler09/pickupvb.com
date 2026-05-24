@@ -1,11 +1,13 @@
 /**
- * Outbox purge cron. Deletes terminal notification_outbox rows to prevent
- * indefinite accumulation of rendered email/SMS bodies and recipient
- * addresses (PII audit P2 #5).
+ * Daily maintenance cron — two PII retention tasks (PII audit P2 #5 + #8):
  *
- * Retention windows:
- *   sent / skipped — 30 days  (normal delivery; enough for dispute lookups)
- *   failed         — 90 days  (enough retry / incident investigation window)
+ * 1. Outbox purge: deletes terminal notification_outbox rows.
+ *    sent / skipped — 30 days  (enough for dispute lookups)
+ *    failed         — 90 days  (enough for retry / incident investigation)
+ *
+ * 2. Listing report purge: deletes community_listing_reports rows older than
+ *    180 days. The reporter user_id + freeform reason have no moderation
+ *    value past the initial review window.
  *
  * Schedule: once daily at 04:00 UTC (see vercel.json).
  */
@@ -34,24 +36,34 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   const cutoff30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const cutoff90 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff180 = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    const [{ count: purgedTerminal }, { count: purgedFailed }] = await Promise.all([
-      admin
-        .from('notification_outbox')
-        .delete({ count: 'exact' })
-        .in('status', ['sent', 'skipped'])
-        .lt('sent_at', cutoff30),
-      admin
-        .from('notification_outbox')
-        .delete({ count: 'exact' })
-        .eq('status', 'failed')
-        .lt('created_at', cutoff90),
-    ]);
+    const [{ count: purgedTerminal }, { count: purgedFailed }, { count: purgedReports }] =
+      await Promise.all([
+        admin
+          .from('notification_outbox')
+          .delete({ count: 'exact' })
+          .in('status', ['sent', 'skipped'])
+          .lt('sent_at', cutoff30),
+        admin
+          .from('notification_outbox')
+          .delete({ count: 'exact' })
+          .eq('status', 'failed')
+          .lt('created_at', cutoff90),
+        admin
+          .from('community_listing_reports')
+          .delete({ count: 'exact' })
+          .lt('created_at', cutoff180),
+      ]);
 
     return NextResponse.json({
       ok: true,
-      purged: { terminal: purgedTerminal ?? 0, failed: purgedFailed ?? 0 },
+      purged: {
+        outbox_terminal: purgedTerminal ?? 0,
+        outbox_failed: purgedFailed ?? 0,
+        listing_reports: purgedReports ?? 0,
+      },
     });
   } catch (err) {
     await log.error('[outbox-purge-cron] failed', err);
