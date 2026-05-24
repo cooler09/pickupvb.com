@@ -39,5 +39,20 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
 
+# Google OAuth — used by the "Continue with Google" button on /login.
+# Client ID / secret come from Google Cloud Console (APIs & Services →
+# Credentials → OAuth 2.0 Client IDs). Authorized redirect URI on the
+# Google side must be http://127.0.0.1:54321/auth/v1/callback for local
+# and https://<project-ref>.supabase.co/auth/v1/callback for hosted.
+# Mirror this provider in the Supabase dashboard (Auth → Providers →
+# Google) for staging + prod.
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+redirect_uri = "http://127.0.0.1:54321/auth/v1/callback"
+# Leave skip_nonce_check at default (false) unless you hit nonce errors
+# during PKCE — Supabase handles the nonce for us.
+
 [realtime]
 enabled = true
