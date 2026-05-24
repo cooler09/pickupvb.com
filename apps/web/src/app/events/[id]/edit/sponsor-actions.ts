@@ -6,14 +6,13 @@ import type { Route } from 'next';
 import type Stripe from 'stripe';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError, UnauthorizedError } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { handlers, analytics } from '@/lib/handlers';
 import { field, fieldOrNull } from '@/lib/form-data';
 import { hasProBenefits } from '@/lib/admin';
 import { getServerSupabase } from '@/lib/supabase';
 import { requireSession } from '@/lib/server-auth';
 import { buildOrigin } from '@/lib/server-redirects';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
-import { analytics } from '@/lib/handlers';
 
 const SPONSOR_SLOT_UNLOCK_CENTS = 300;
 
@@ -127,7 +126,7 @@ export async function upsertSponsorFromForm(
       logo_url: draft.logoUrl,
       discount_code: draft.discountCode,
       ...(pro ? { access_kind: 'pro' as const } : {}),
-    } as never,
+    },
     { onConflict: 'event_id' },
   );
 

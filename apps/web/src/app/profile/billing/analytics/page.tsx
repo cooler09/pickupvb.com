@@ -67,6 +67,29 @@ export default async function HostAnalyticsPage() {
 
   const entitled = await hasProBenefits(user.id);
 
+  if (!entitled) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 py-4">
+        <PageHeader />
+        <section className="border-border-base bg-surface space-y-4 rounded-lg border p-5 sm:p-6">
+          <h2 className="text-fg text-lg font-semibold">Pro feature</h2>
+          <p className="text-muted text-sm">
+            Host analytics is included with Pro. Upgrade to unlock fill-rate and repeat-attendee
+            insights for your events.
+          </p>
+          <div>
+            <Link
+              href={'/profile/billing/pro' as Route}
+              className="bg-primary text-primary-fg inline-flex rounded-md px-4 py-2 text-sm font-semibold hover:opacity-90"
+            >
+              Upgrade to Pro →
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   const { data: rawEvents } = await supabase
     .from('events')
     .select('id, title, starts_at')
@@ -159,35 +182,9 @@ export default async function HostAnalyticsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
-      <div className="space-y-2">
-        <Link href={'/profile/billing' as Route} className="text-primary text-sm hover:underline">
-          ← Payouts
-        </Link>
-        <h1 className="text-fg text-3xl font-bold">Host analytics</h1>
-        <p className="text-muted text-sm">
-          Snapshot of hosted-event performance: fill rate, repeat attendees, and payment trend.
-        </p>
-      </div>
+      <PageHeader />
 
-      {!entitled && (
-        <section className="border-border-base bg-surface space-y-4 rounded-lg border p-5 sm:p-6">
-          <h2 className="text-fg text-lg font-semibold">Pro feature</h2>
-          <p className="text-muted text-sm">
-            Host analytics is included with Pro. Upgrade to unlock fill-rate and repeat-attendee
-            insights for your events.
-          </p>
-          <div>
-            <Link
-              href={'/profile/billing/pro' as Route}
-              className="bg-primary text-primary-fg inline-flex rounded-md px-4 py-2 text-sm font-semibold hover:opacity-90"
-            >
-              Upgrade to Pro →
-            </Link>
-          </div>
-        </section>
-      )}
-
-      {entitled && events.length === 0 && (
+      {events.length === 0 && (
         <section className="border-border-base bg-surface rounded-lg border p-5 sm:p-6">
           <p className="text-muted text-sm">
             No hosted events yet. Publish your first event to start building analytics history.
@@ -195,7 +192,7 @@ export default async function HostAnalyticsPage() {
         </section>
       )}
 
-      {entitled && events.length > 0 && (
+      {events.length > 0 && (
         <>
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Hosted events" value={String(events.length)} hint="Across all time" />
@@ -292,6 +289,20 @@ export default async function HostAnalyticsPage() {
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+function PageHeader() {
+  return (
+    <div className="space-y-2">
+      <Link href={'/profile/billing' as Route} className="text-primary text-sm hover:underline">
+        ← Payouts
+      </Link>
+      <h1 className="text-fg text-3xl font-bold">Host analytics</h1>
+      <p className="text-muted text-sm">
+        Snapshot of hosted-event performance: fill rate, repeat attendees, and payment trend.
+      </p>
     </div>
   );
 }

@@ -33,7 +33,7 @@ export async function saveEventTemplateFromForm(formData: FormData): Promise<nev
       user_id: user.id,
       name: name.slice(0, 80),
       payload,
-    } as never)
+    })
     .select('id')
     .single();
 
