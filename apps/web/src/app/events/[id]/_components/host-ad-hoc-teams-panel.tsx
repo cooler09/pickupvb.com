@@ -9,6 +9,13 @@ import {
  * Host-facing row for the ad-hoc team management panel. Built from the
  * page's side-load — captain display name comes from a `profiles` join.
  */
+export type HostAdHocTeamRowMember = {
+  id: string;
+  userId: string | null;
+  displayName: string;
+  email: string | null;
+};
+
 export type HostAdHocTeamRow = {
   id: string;
   name: string;
@@ -21,6 +28,8 @@ export type HostAdHocTeamRow = {
     id: string;
     displayName: string | null;
   } | null;
+  /** Roster excluding the captain, sorted by `sort_order`. */
+  members: ReadonlyArray<HostAdHocTeamRowMember>;
 };
 
 type DivisionLabel = {
@@ -140,6 +149,27 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                     </form>
                   )}
                 </div>
+
+                <details className="group">
+                  <summary className="text-muted hover:text-fg cursor-pointer text-xs font-medium select-none">
+                    <span className="group-open:hidden">Show roster ({r.rosterSize})</span>
+                    <span className="hidden group-open:inline">Hide roster</span>
+                  </summary>
+                  <ul className="border-border-base mt-2 space-y-1 border-l pl-3 text-sm">
+                    <li className="text-fg flex flex-wrap items-baseline gap-x-2">
+                      <span className="font-medium">{r.captain?.displayName ?? 'Captain'}</span>
+                      <span className="text-muted text-xs">(captain)</span>
+                    </li>
+                    {r.members.map((m) => (
+                      <li key={m.id} className="text-fg flex flex-wrap items-baseline gap-x-2">
+                        <span className="truncate">{m.displayName}</span>
+                        {m.email && m.email !== m.displayName && (
+                          <span className="text-muted truncate text-xs">{m.email}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               </li>
             );
           })}

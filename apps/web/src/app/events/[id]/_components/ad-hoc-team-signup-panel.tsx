@@ -34,16 +34,27 @@ export type AdHocTeamRegistration = {
 };
 
 /**
- * Public-facing summary for the "Teams registered" list. Captain + members
- * are masked — only the team name, division, payment status and roster
- * size are shown.
+ * Public-facing summary for the "Teams registered" list. Roster names
+ * are shown (display name only — no emails), so viewers can scan who
+ * has signed up. Emails / user ids are masked here; the captain's own
+ * card and the host panel use richer shapes.
  */
+export type AdHocTeamPublicMember = {
+  id: string;
+  displayName: string;
+};
+
 export type AdHocTeamPublicEntry = {
   id: string;
   name: string;
   divisionId: string;
   paymentStatus: 'none' | 'pending' | 'paid' | 'refunded';
-  memberCount: number;
+  captainName: string | null;
+  /**
+   * Roster excluding the captain (captain is rendered separately so the
+   * "Captain: X" line is always present even before extras are added).
+   */
+  members: ReadonlyArray<AdHocTeamPublicMember>;
   isViewerCaptain: boolean;
 };
 
@@ -164,26 +175,46 @@ export function AdHocTeamSignupPanel({
           </p>
         ) : (
           <ul className="space-y-2">
-            {allRegistrations.map((t) => (
-              <li
-                key={t.id}
-                className="border-border-base bg-surface flex items-center justify-between gap-3 rounded-md border p-3"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{t.name}</p>
-                  <p className="text-muted text-xs">
-                    {divisionLabel(divisions, t.divisionId)} · {t.memberCount} player
-                    {t.memberCount === 1 ? '' : 's'}
-                    {t.isViewerCaptain ? ' · captain: you' : ''}
-                  </p>
-                </div>
-                <span
-                  className={`rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[t.paymentStatus].cls}`}
-                >
-                  {PAYMENT_PILL[t.paymentStatus].label}
-                </span>
-              </li>
-            ))}
+            {allRegistrations.map((t) => {
+              const rosterSize = 1 + t.members.length;
+              const captainLabel = t.isViewerCaptain ? 'You' : (t.captainName ?? 'Captain');
+              return (
+                <li key={t.id} className="border-border-base bg-surface rounded-md border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{t.name}</p>
+                      <p className="text-muted text-xs">
+                        {divisionLabel(divisions, t.divisionId)} · Captain: {captainLabel} ·{' '}
+                        {rosterSize} player{rosterSize === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[t.paymentStatus].cls}`}
+                    >
+                      {PAYMENT_PILL[t.paymentStatus].label}
+                    </span>
+                  </div>
+                  {rosterSize > 1 && (
+                    <details className="group mt-2">
+                      <summary className="text-muted hover:text-fg cursor-pointer text-xs font-medium select-none">
+                        <span className="group-open:hidden">Show roster</span>
+                        <span className="hidden group-open:inline">Hide roster</span>
+                      </summary>
+                      <ul className="border-border-base mt-2 space-y-1 border-l pl-3 text-sm">
+                        <li className="text-fg">
+                          {captainLabel} <span className="text-muted text-xs">(captain)</span>
+                        </li>
+                        {t.members.map((m) => (
+                          <li key={m.id} className="text-fg truncate">
+                            {m.displayName}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

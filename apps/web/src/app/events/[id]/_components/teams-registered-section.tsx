@@ -65,25 +65,49 @@ export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisio
               </div>
             </li>
           ))}
-          {adHocRegistrations.map((r) => (
-            <li
-              key={`adhoc-${r.id}`}
-              className="border-border-base bg-surface flex items-center justify-between gap-3 rounded-md border p-3"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{r.name}</p>
-                <p className="text-muted text-xs">
-                  {divisionLabel(r.divisionId)} · {r.memberCount} player
-                  {r.memberCount === 1 ? '' : 's'}
-                </p>
-              </div>
-              <span
-                className={`rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[r.paymentStatus].cls}`}
+          {adHocRegistrations.map((r) => {
+            const rosterSize = 1 + r.members.length;
+            const captainLabel = r.captainName ?? 'Captain';
+            return (
+              <li
+                key={`adhoc-${r.id}`}
+                className="border-border-base bg-surface rounded-md border p-3"
               >
-                {PAYMENT_PILL[r.paymentStatus].label}
-              </span>
-            </li>
-          ))}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{r.name}</p>
+                    <p className="text-muted text-xs">
+                      {divisionLabel(r.divisionId)} · Captain: {captainLabel} · {rosterSize} player
+                      {rosterSize === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[r.paymentStatus].cls}`}
+                  >
+                    {PAYMENT_PILL[r.paymentStatus].label}
+                  </span>
+                </div>
+                {rosterSize > 1 && (
+                  <details className="group mt-2">
+                    <summary className="text-muted hover:text-fg cursor-pointer text-xs font-medium select-none">
+                      <span className="group-open:hidden">Show roster</span>
+                      <span className="hidden group-open:inline">Hide roster</span>
+                    </summary>
+                    <ul className="border-border-base mt-2 space-y-1 border-l pl-3 text-sm">
+                      <li className="text-fg">
+                        {captainLabel} <span className="text-muted text-xs">(captain)</span>
+                      </li>
+                      {r.members.map((m) => (
+                        <li key={m.id} className="text-fg truncate">
+                          {m.displayName}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

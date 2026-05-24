@@ -542,12 +542,18 @@ async function loadAdHocBundle(
   // viewer projections (viewerRegistrations, hostRows, isViewerCaptain
   // flag) are derived here against the cached snapshot.
   const rows = await loadAdHocRowsCached(event.id);
+  const sortedMembers = (r: AdHocRegRow): AdHocMemberRow[] =>
+    (r.members ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
   const allRegistrations: AdHocTeamPublicEntry[] = rows.map((r) => ({
     id: r.id,
     name: r.name,
     divisionId: r.division_id,
     paymentStatus: r.payment_status,
-    memberCount: 1 + (r.members?.length ?? 0),
+    captainName: r.captain?.display_name ?? null,
+    members: sortedMembers(r).map((m) => ({
+      id: m.id,
+      displayName: m.display_name ?? m.email ?? 'Player',
+    })),
     isViewerCaptain: !!user && r.captain_id === user.id,
   }));
   const viewerRegistrations: AdHocTeamRegistration[] = user
@@ -558,16 +564,13 @@ async function loadAdHocBundle(
           name: r.name,
           divisionId: r.division_id,
           paymentStatus: r.payment_status,
-          members: (r.members ?? [])
-            .slice()
-            .sort((a, b) => a.sort_order - b.sort_order)
-            .map((m) => ({
-              id: m.id,
-              userId: m.user_id,
-              displayName: m.display_name,
-              email: m.email,
-              sortOrder: m.sort_order,
-            })),
+          members: sortedMembers(r).map((m) => ({
+            id: m.id,
+            userId: m.user_id,
+            displayName: m.display_name,
+            email: m.email,
+            sortOrder: m.sort_order,
+          })),
         }))
     : [];
   const hostRows: HostAdHocTeamRow[] =
@@ -584,6 +587,12 @@ async function loadAdHocBundle(
             id: r.captain_id,
             displayName: r.captain?.display_name ?? null,
           },
+          members: sortedMembers(r).map((m) => ({
+            id: m.id,
+            userId: m.user_id,
+            displayName: m.display_name ?? m.email ?? 'Player',
+            email: m.email,
+          })),
         }))
       : [];
   return { viewerRegistrations, allRegistrations, hostRows };
