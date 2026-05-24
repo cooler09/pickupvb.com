@@ -33,8 +33,9 @@ type ListingRow = {
   region: string | null;
   postal_code: string | null;
   country: string | null;
-  latitude: number | null;
-  longitude: number | null;
+  geo: unknown;
+  latitude?: number | null;
+  longitude?: number | null;
   surface: Surface | null;
   format: Format | null;
   skill_level: SkillLevel | null;
@@ -47,13 +48,54 @@ type ListingRow = {
   updated_at: string;
 };
 
-function rowToLocation(row: ListingRow): ListingLocation | null {
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function parsePointFromGeo(geo: unknown): {
+  latitude: number;
+  longitude: number;
+} | null {
+  // PostgREST may return geography as GeoJSON-like `{ type, coordinates }`.
   if (
-    row.city === null ||
-    row.country === null ||
-    row.latitude === null ||
-    row.longitude === null
+    typeof geo === 'object' &&
+    geo !== null &&
+    'type' in geo &&
+    'coordinates' in geo &&
+    (geo as { type?: unknown }).type === 'Point'
   ) {
+    const coords = (geo as { coordinates?: unknown }).coordinates;
+    if (Array.isArray(coords) && coords.length >= 2) {
+      const [lng, lat] = coords;
+      if (isFiniteNumber(lat) && isFiniteNumber(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+  }
+
+  // Defensive fallback for text payloads such as "SRID=4326;POINT(lng lat)"
+  // or "POINT(lng lat)".
+  if (typeof geo === 'string') {
+    const m = geo.match(/POINT\s*\(\s*([-+\d.]+)\s+([-+\d.]+)\s*\)/i);
+    if (m) {
+      const lng = Number(m[1]);
+      const lat = Number(m[2]);
+      if (isFiniteNumber(lat) && isFiniteNumber(lng)) {
+        return { latitude: lat, longitude: lng };
+      }
+    }
+  }
+
+  return null;
+}
+
+function rowToLocation(row: ListingRow): ListingLocation | null {
+  const latitude = isFiniteNumber(row.latitude) ? row.latitude : null;
+  const longitude = isFiniteNumber(row.longitude) ? row.longitude : null;
+  const point =
+    latitude !== null && longitude !== null ? { latitude, longitude } : parsePointFromGeo(row.geo);
+
+  if (row.city === null || row.country === null || point === null) {
     return null;
   }
   return {
@@ -62,8 +104,8 @@ function rowToLocation(row: ListingRow): ListingLocation | null {
     region: row.region,
     postalCode: row.postal_code,
     country: row.country,
-    latitude: row.latitude,
-    longitude: row.longitude,
+    latitude: point.latitude,
+    longitude: point.longitude,
   };
 }
 
@@ -128,7 +170,8 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
 
   async save(listing: CommunityListing): Promise<void> {
     const loc = listing.location;
-    const wkt = loc ? `SRID=4326;POINT(${loc.longitude} ${loc.latitude})` : null;
+    const hasValidCoords = !!loc && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude);
+    const wkt = hasValidCoords ? `SRID=4326;POINT(${loc.longitude} ${loc.latitude})` : null;
 
     const row = {
       id: String(listing.id),
