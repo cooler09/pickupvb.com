@@ -105,6 +105,16 @@ function divisionPrice(
   return divisions.find((d) => d.id === divisionId)?.priceCents ?? null;
 }
 
+function divisionUnitSuffix(
+  divisions: ReadonlyArray<DivisionForRegistration>,
+  divisionId: string,
+): string {
+  const unit = divisions.find((d) => d.id === divisionId)?.priceUnit;
+  if (unit === 'per_team') return ' per team';
+  if (unit === 'per_player') return ' per player';
+  return '';
+}
+
 export function AdHocTeamSignupPanel({
   eventId,
   returnPath,
@@ -335,6 +345,7 @@ function CaptainRegistrationCard({
   const isPaid = registration.paymentStatus === 'paid';
   const isPending = registration.paymentStatus === 'pending';
   const priceCents = divisionPrice(divisions, registration.divisionId);
+  const unitSuffix = divisionUnitSuffix(divisions, registration.divisionId);
   const pill = PAYMENT_PILL[registration.paymentStatus];
 
   return (
@@ -437,13 +448,14 @@ function CaptainRegistrationCard({
         {!isPaid && !paymentsOffPlatform && priceCents !== null && priceCents > 0 && (
           <form action={startTeamRegistrationCheckout.bind(null, registration.id)}>
             <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              {isPending ? 'Resume checkout' : `Pay — ${formatUsd(priceCents)}`}
+              {isPending ? 'Resume checkout' : `Pay — ${formatUsd(priceCents)}${unitSuffix}`}
             </SubmitButton>
           </form>
         )}
         {!isPaid && paymentsOffPlatform && priceCents !== null && priceCents > 0 && (
           <p className="text-muted text-xs">
-            Pay the host {formatUsd(priceCents)} in person (cash, Venmo, etc.).
+            Pay the host {formatUsd(priceCents)}
+            {unitSuffix} in person (cash, Venmo, etc.).
           </p>
         )}
         {!isPaid && (
