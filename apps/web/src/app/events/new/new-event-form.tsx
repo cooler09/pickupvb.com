@@ -303,69 +303,68 @@ export default function NewEventForm({
         </div>
       )}
 
-      {templateStatus === 'saved' && (
+      {viewerHasProBenefits && templateStatus === 'saved' && (
         <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
           Template saved.
         </div>
       )}
-      {templateStatus === 'invalid' && (
+      {viewerHasProBenefits && templateStatus === 'invalid' && (
         <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           Enter a template name before saving.
         </div>
       )}
-      {templateStatus === 'pro' && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          Saved templates are a Pro feature.
-        </div>
-      )}
-      {templateStatus === 'error' && (
+      {viewerHasProBenefits && templateStatus === 'error' && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
           Could not save template.
         </div>
       )}
 
-      <section className={cardClass}>
-        <div>
-          <h2 className={cardTitleClass}>Saved templates</h2>
-          <p className={cardSubClass}>Apply a saved setup, then tweak anything before creating.</p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
+      {viewerHasProBenefits ? (
+        <section className={cardClass}>
           <div>
-            <label htmlFor="template" className={labelClass}>
-              Template
-            </label>
-            <select
-              id="template"
-              name="template"
-              defaultValue={selectedTemplateId ?? ''}
-              className={inputClass}
-            >
-              <option value="">Choose saved template</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="submit"
-            formAction="/events/new"
-            formMethod="get"
-            className="border-border-base text-fg rounded-md border px-4 py-2 text-sm font-semibold"
-          >
-            Apply
-          </button>
-          {!viewerHasProBenefits && (
-            <p className="text-muted text-xs">
-              Save templates with Pro.{' '}
-              <Link href="/pricing" className="underline">
-                See pricing
-              </Link>
+            <h2 className={cardTitleClass}>Saved templates</h2>
+            <p className={cardSubClass}>
+              Apply a saved setup, then tweak anything before creating.
             </p>
-          )}
-        </div>
-      </section>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label htmlFor="template" className={labelClass}>
+                Template
+              </label>
+              <select
+                id="template"
+                name="template"
+                defaultValue={selectedTemplateId ?? ''}
+                className={inputClass}
+              >
+                <option value="">Choose saved template</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              formAction="/events/new"
+              formMethod="get"
+              className="border-border-base text-fg rounded-md border px-4 py-2 text-sm font-semibold"
+            >
+              Apply
+            </button>
+          </div>
+        </section>
+      ) : (
+        <p className="text-muted text-sm">
+          Save and reuse event templates with{' '}
+          <Link href="/pricing" className="text-primary underline">
+            Pro
+          </Link>
+          .
+        </p>
+      )}
 
       {/* ──────────────────────────────────────────────────────────────────
          1 — Event type
@@ -776,19 +775,23 @@ export default function NewEventForm({
             Cancel
           </Link>
           <div className="flex items-center gap-2">
-            <input
-              type="text"
-              name="templateName"
-              placeholder="Template name"
-              className="border-border-base bg-surface text-fg w-40 rounded-md border px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              formAction={saveEventTemplateFromForm}
-              className="border-border-base text-fg rounded-md border px-3 py-2 text-sm font-semibold"
-            >
-              Save template
-            </button>
+            {viewerHasProBenefits && (
+              <>
+                <input
+                  type="text"
+                  name="templateName"
+                  placeholder="Template name"
+                  className="border-border-base bg-surface text-fg w-40 rounded-md border px-3 py-2 text-sm"
+                />
+                <button
+                  type="submit"
+                  formAction={saveEventTemplateFromForm}
+                  className="border-border-base text-fg rounded-md border px-3 py-2 text-sm font-semibold"
+                >
+                  Save template
+                </button>
+              </>
+            )}
             <SubmitButton />
           </div>
         </div>
