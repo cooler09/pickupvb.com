@@ -157,15 +157,21 @@ export function EventSignupArea({
   }
 
   if (signupsOpen && event.type === 'tournament') {
+    // Tournament team registrations live in two places depending on mode:
+    // roster-mode teams come back on `event.teams`; ad-hoc registrations
+    // come from `adHocAllRegistrations`. Surface the combined count so
+    // the picker badge + subline match what users see in the panels.
+    const teamCount = event.teams.length + adHocAllRegistrations.length;
+    const freeAgentCount = event.freeAgents.length;
     return (
       <SignupSection
         title="Register"
         badge={{ tone: 'neutral', label: 'Tournament' }}
-        subline={`${event.teams.length} ${event.teams.length === 1 ? 'team' : 'teams'} · ${event.freeAgents.length} free ${event.freeAgents.length === 1 ? 'agent' : 'agents'}`}
+        subline={`${teamCount} ${teamCount === 1 ? 'team' : 'teams'} · ${freeAgentCount} free ${freeAgentCount === 1 ? 'agent' : 'agents'}`}
       >
         <TournamentRegisterPanel
-          teamCount={event.teams.length}
-          freeAgentCount={event.freeAgents.length}
+          teamCount={teamCount}
+          freeAgentCount={freeAgentCount}
           teamEnabled={event.teamRegistrationMode !== null}
           defaultMode={event.isFreeAgent ? 'free-agent' : 'team'}
           teamPanel={

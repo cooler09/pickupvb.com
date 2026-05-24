@@ -24,6 +24,7 @@ import {
   isPaidEvent,
   type EventPricing,
 } from '@/lib/event-pricing';
+import { PRICE_UNIT_LABEL } from '@/lib/enum-labels';
 import type { SocialHandles } from '@/lib/social-handles';
 import type { EventHeroCta } from '../_components/event-hero';
 import type {
@@ -37,6 +38,41 @@ export type EligibleTeamOption = {
   id: string;
   label: string;
 };
+
+/**
+ * Hero price chip label for a multi-division event. Per the rule in
+ * AGENTS.md (Patterns surfaced by audits — multi-division pricing):
+ *
+ * - all free                                  → `Free`
+ * - all paid the same with one shared unit    → `$X.XX per team`
+ * - mixed prices, all paid, one shared unit   → `From $X.XX per team`
+ * - mixed prices, all paid, mixed units       → `From $X.XX`
+ * - mix of free + paid                        → `From $X.XX [unit?]`
+ *   (uses the cheapest non-zero floor; the free option is surfaced in
+ *   the per-division section below the hero)
+ *
+ * Single-division events bypass this and use the resolved
+ * `breakdown.ticketCents` so the chip matches what checkout charges.
+ */
+function multiDivisionPriceLabel(
+  divisions: ReadonlyArray<{ priceCents: number | null; priceUnit: string }>,
+): string {
+  if (divisions.length === 0) return 'Free';
+  const prices = divisions.map((d) => d.priceCents ?? 0);
+  if (prices.every((c) => c === 0)) return 'Free';
+  const paidPrices = prices.filter((c) => c > 0);
+  const min = Math.min(...paidPrices);
+  const max = Math.max(...paidPrices);
+  const paidUnits = new Set(
+    divisions.filter((d) => (d.priceCents ?? 0) > 0).map((d) => d.priceUnit),
+  );
+  const unitLabel =
+    paidUnits.size === 1 ? ` ${PRICE_UNIT_LABEL[[...paidUnits][0]!] ?? ''}`.trimEnd() : '';
+  const hasFree = prices.some((c) => c === 0);
+  const allPaidSame = min === max && !hasFree;
+  const prefix = allPaidSame ? '' : 'From ';
+  return `${prefix}$${(min / 100).toFixed(2)}${unitLabel}`;
+}
 
 export type AttendeeListRow = {
   user_id: string;
@@ -377,7 +413,12 @@ export async function loadEventDetail(
     ? (event.attendees.find((a) => a.userId === user.id)?.position ?? null)
     : null;
 
-  const priceLabel = paid && breakdown ? `$${(breakdown.ticketCents / 100).toFixed(2)}` : 'Free';
+  const priceLabel =
+    event.divisions.length > 1
+      ? multiDivisionPriceLabel(event.divisions)
+      : paid && breakdown
+        ? `$${(breakdown.ticketCents / 100).toFixed(2)}`
+        : 'Free';
   const cta = buildCta({
     event,
     isExternal,
