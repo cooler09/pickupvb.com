@@ -48,10 +48,23 @@ test.describe('submit and delete a listing', () => {
     await page.locator('#externalUrl').fill('https://www.facebook.com/groups/vbtest');
     await page.locator('#externalHostName').fill('E2E Test Club');
 
+    // Set the required "Starts" date via the hidden input that DateTimePicker
+    // uses for form submission — avoids fighting the calendar popover UI.
+    const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await page.locator('input[name="startsAt"]').evaluate((el: HTMLInputElement, val: string) => {
+      el.value = val;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, futureDate);
+
     await page.getByRole('button', { name: /submit listing/i }).click();
 
-    // Expect redirect to /community/<slug>.
-    await page.waitForURL(/\/community\/[^/]+$/, { timeout: 15_000 });
+    // Wait for navigation away from /community/new to a slug page.
+    // The simple regex /\/community\/[^/]+$/ also matches /community/new itself,
+    // so use a predicate that explicitly excludes it.
+    await page.waitForURL(
+      (url) => /\/community\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
+      { timeout: 15_000 },
+    );
     const listingUrl = page.url();
     expect(listingUrl).toMatch(/\/community\//);
 
@@ -59,22 +72,19 @@ test.describe('submit and delete a listing', () => {
     await expect(page.locator('main')).toContainText(uniqueTitle, { timeout: 10_000 });
 
     // Cleanup — delete the listing.
-    const deleteBtn = page.getByRole('button', { name: /delete/i }).first();
+    // The delete UI requires checking a "Confirm" checkbox before the button
+    // becomes active — check it first if present.
+    const confirmCheckbox = page.getByRole('checkbox', { name: /confirm/i }).first();
+    if ((await confirmCheckbox.count()) > 0) {
+      await confirmCheckbox.check();
+    }
+    const deleteBtn = page.getByRole('button', { name: /^delete$/i }).first();
     await expect(deleteBtn).toBeVisible({ timeout: 10_000 });
     await deleteBtn.click();
 
-    // Some delete flows show a confirmation dialog — handle it if present.
-    const confirmBtn = page
-      .getByRole('button', { name: /confirm|yes|delete/i })
-      .filter({ hasNotText: /cancel/i })
-      .first();
-    if (await confirmBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
-      await confirmBtn.click();
-    }
-
-    // Expect redirect back to /community after deletion.
-    await page.waitForURL(/\/community$/, { timeout: 15_000 });
-    expect(page.url()).toMatch(/\/community$/);
+    // Expect redirect back to /community after deletion (may include a ?notice= query param).
+    await page.waitForURL((url) => url.pathname === '/community', { timeout: 15_000 });
+    expect(new URL(page.url()).pathname).toBe('/community');
   });
 
   test('deleted listing slug returns 404 or not found', async ({ page }) => {
