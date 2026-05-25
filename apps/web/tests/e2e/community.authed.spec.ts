@@ -187,7 +187,9 @@ test.describe('rate limiting and moderation (placeholders)', () => {
       await page.waitForURL((url) => url.searchParams.get('notice') === 'reported', {
         timeout: 10_000,
       });
-      await expect(page.locator('[role="status"]')).toContainText(/report.*recorded|thank/i, {
+      // Scope to main — the dev-environment banner at page top also carries
+      // role="status" and would cause a strict-mode violation on the full document.
+      await expect(page.locator('main [role="status"]')).toContainText(/report.*recorded|thank/i, {
         timeout: 10_000,
       });
     } finally {

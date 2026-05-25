@@ -158,16 +158,9 @@ test.describe('capacity limit', () => {
 
       await hostPage.locator('#title').fill(`E2E Capacity Test ${Date.now()}`);
 
-      // Set startsAt via direct input evaluation.
-      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-      await hostPage
-        .locator('input[name="startsAt"]')
-        .evaluate((el: HTMLInputElement, val: string) => {
-          el.value = val;
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        }, futureDate);
-
-      // Switch capacity to "Fixed spots" and set max = 1.
+      // Switch capacity to "Fixed spots" and set max = 1 BEFORE setting the date.
+      // Clicking the radio changes React state (setCapacityKind), which triggers a
+      // re-render that would reset the hidden startsAt input if set first.
       const fixedSpotsRadio = hostPage.getByRole('radio', { name: /fixed spots/i }).first();
       if ((await fixedSpotsRadio.count()) > 0) {
         await fixedSpotsRadio.click();
@@ -175,6 +168,27 @@ test.describe('capacity limit', () => {
         await expect(maxSpotsInput).toBeVisible({ timeout: 5_000 });
         await maxSpotsInput.fill('1');
       }
+
+      // Set startsAt via the DateTimePicker UI AFTER all React state changes.
+      // The hidden input is React-controlled; the evaluate/dispatchEvent hack is
+      // reset on re-render. Going through the UI triggers onChange properly.
+      const startsAtTrigger = hostPage.locator('button[id="startsAt"][aria-haspopup="dialog"]');
+      await expect(startsAtTrigger).toBeVisible({ timeout: 5_000 });
+      await startsAtTrigger.click();
+      const calendarDialog = hostPage.locator('[role="dialog"]').first();
+      await calendarDialog.waitFor({ state: 'visible', timeout: 5_000 });
+      // Navigate to next month so all days are guaranteed to be in the future.
+      // showOutsideDays=true means previous-month days appear and are not disabled
+      // even when they are in the past — the server rejects past startsAt values.
+      const nextMonthBtn = calendarDialog.getByRole('button', { name: /next/i }).first();
+      if ((await nextMonthBtn.count()) > 0) {
+        await nextMonthBtn.click();
+      }
+      // Scope to the calendar table grid to avoid matching the Done button.
+      const dayBtn = calendarDialog.locator('table button:not([disabled])').first();
+      await dayBtn.click();
+      await calendarDialog.getByRole('button', { name: /done/i }).click();
+      await calendarDialog.waitFor({ state: 'hidden', timeout: 5_000 });
 
       await hostPage
         .getByRole('button', { name: /create event|publish|save/i })

@@ -86,11 +86,15 @@ test.describe('external registration', () => {
       const calendarDialog = page.locator('[role="dialog"]').first();
       await calendarDialog.waitFor({ state: 'visible', timeout: 5_000 });
 
-      // react-day-picker renders each day as a <button>; click any enabled one.
-      const dayBtn = calendarDialog
-        .locator('button:not([disabled])')
-        .filter({ hasText: /^\d+$/ })
-        .first();
+      // Navigate to next month so all days are guaranteed to be in the future.
+      // showOutsideDays=true means previous-month days appear and are not disabled
+      // even when they are in the past — the server rejects past startsAt values.
+      const nextMonthBtn = calendarDialog.getByRole('button', { name: /next/i }).first();
+      if ((await nextMonthBtn.count()) > 0) {
+        await nextMonthBtn.click();
+      }
+      // Scope to the calendar table grid to avoid matching the Done button.
+      const dayBtn = calendarDialog.locator('table button:not([disabled])').first();
       await dayBtn.click();
 
       // Click Done to commit the selection and close the popover.
