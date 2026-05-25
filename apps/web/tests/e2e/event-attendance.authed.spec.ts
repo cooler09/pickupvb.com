@@ -190,14 +190,60 @@ test.describe('capacity limit', () => {
       await calendarDialog.getByRole('button', { name: /done/i }).click();
       await calendarDialog.waitFor({ state: 'hidden', timeout: 5_000 });
 
+      // Set endsAt to satisfy `endsAt > startsAt`.
+      const endsAtTrigger = hostPage.locator('button[id="endsAt"][aria-haspopup="dialog"]');
+      await expect(endsAtTrigger).toBeVisible({ timeout: 5_000 });
+      await endsAtTrigger.click();
+      const endsCalendar = hostPage.locator('[role="dialog"]').first();
+      await endsCalendar.waitFor({ state: 'visible', timeout: 5_000 });
+      const endsNextMonthBtn = endsCalendar.getByRole('button', { name: /next/i }).first();
+      if ((await endsNextMonthBtn.count()) > 0) {
+        await endsNextMonthBtn.click();
+      }
+      const endsDayBtns = endsCalendar.locator('table button:not([disabled])');
+      const endsDayCount = await endsDayBtns.count();
+      await endsDayBtns.nth(endsDayCount > 1 ? 1 : 0).click();
+      await endsCalendar.getByRole('button', { name: /done/i }).click();
+      await endsCalendar.waitFor({ state: 'hidden', timeout: 5_000 });
+
+      // Required address fields. Fill addressLine first — that flips
+      // `hasAddress=true` and collapses the city/region/postal/country
+      // subfield panel out of the DOM. We then click "Edit address details"
+      // to re-expand the panel so the subfields are submitted in FormData.
+      await hostPage.locator('input[name="addressLine"]').fill('1000 Atlantic Ave');
+      const editAddressBtn = hostPage.getByRole('button', { name: /edit address details/i });
+      if ((await editAddressBtn.count()) > 0) {
+        await editAddressBtn.click();
+      }
+      await hostPage.locator('input[name="city"]').fill('Virginia Beach');
+      await hostPage.locator('input[name="region"]').fill('Virginia');
+      await hostPage.locator('input[name="postalCode"]').fill('23451');
+      await hostPage.locator('input[name="country"]').fill('United States');
+
       await hostPage
         .getByRole('button', { name: /create event|publish|save/i })
         .last()
         .click();
-      await hostPage.waitForURL(
-        (url) => /\/events\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
-        { timeout: 20_000 },
-      );
+      try {
+        await hostPage.waitForURL(
+          (url) => /\/events\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
+          { timeout: 20_000 },
+        );
+      } catch (err) {
+        const alertText = await hostPage
+          .locator('[role="alert"]')
+          .allTextContents()
+          .catch(() => [] as string[]);
+        const fieldErrors = await hostPage
+          .locator('[id$="-error"]')
+          .evaluateAll((els) => els.map((el) => `${el.id}: ${el.textContent?.trim() ?? ''}`))
+          .catch(() => [] as string[]);
+        throw new Error(
+          `Event create did not navigate. URL=${hostPage.url()} alerts=${JSON.stringify(
+            alertText,
+          )} fieldErrors=${JSON.stringify(fieldErrors)}\nOriginal: ${(err as Error).message}`,
+        );
+      }
       eventUrl = hostPage.url();
 
       // ── attendee-a joins the event (fills the only spot) ─────────────

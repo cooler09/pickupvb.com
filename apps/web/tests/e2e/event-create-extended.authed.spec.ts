@@ -101,20 +101,93 @@ test.describe('external registration', () => {
       await calendarDialog.getByRole('button', { name: /done/i }).click();
       await calendarDialog.waitFor({ state: 'hidden', timeout: 5_000 });
 
+      // Set endsAt to the same future month, day-after to satisfy `endsAt > startsAt`.
+      const endsAtTrigger = page.locator('button[id="endsAt"][aria-haspopup="dialog"]');
+      await expect(endsAtTrigger).toBeVisible({ timeout: 5_000 });
+      await endsAtTrigger.click();
+      const endsCalendar = page.locator('[role="dialog"]').first();
+      await endsCalendar.waitFor({ state: 'visible', timeout: 5_000 });
+      const endsNextMonthBtn = endsCalendar.getByRole('button', { name: /next/i }).first();
+      if ((await endsNextMonthBtn.count()) > 0) {
+        await endsNextMonthBtn.click();
+      }
+      // Pick the second available day (after startsAt).
+      const endsDayBtns = endsCalendar.locator('table button:not([disabled])');
+      const endsDayCount = await endsDayBtns.count();
+      await endsDayBtns.nth(endsDayCount > 1 ? 1 : 0).click();
+      await endsCalendar.getByRole('button', { name: /done/i }).click();
+      await endsCalendar.waitFor({ state: 'hidden', timeout: 5_000 });
+
+      // Required address fields. Fill addressLine first — that flips
+      // `hasAddress=true` and collapses the city/region/postal/country
+      // subfield panel out of the DOM. We then click "Edit address details"
+      // to re-expand the panel so the subfields are submitted in FormData.
+      await page.locator('input[name="addressLine"]').fill('1000 Atlantic Ave');
+      const editAddressBtn = page.getByRole('button', { name: /edit address details/i });
+      if ((await editAddressBtn.count()) > 0) {
+        await editAddressBtn.click();
+      }
+      await page.locator('input[name="city"]').fill('Virginia Beach');
+      await page.locator('input[name="region"]').fill('Virginia');
+      await page.locator('input[name="postalCode"]').fill('23451');
+      await page.locator('input[name="country"]').fill('United States');
+
       // Fill the external registration URL (visible after toggle).
       const externalUrlInput = page.locator('input[name="externalRegistrationUrl"]');
       await expect(externalUrlInput).toBeVisible({ timeout: 5_000 });
       await externalUrlInput.fill('https://www.facebook.com/groups/vbtest');
+
+      // Capture the server-action response body so we can read the JSON
+      // result (error + fieldErrors) if validation fails.
+      const responseBodies: string[] = [];
+      page.on('response', async (resp) => {
+        try {
+          const url = resp.url();
+          if (url.includes('/events/new') && resp.request().method() === 'POST') {
+            const body = await resp.text().catch(() => '');
+            if (body) responseBodies.push(`STATUS=${resp.status()} BODY=${body.slice(0, 2000)}`);
+          }
+        } catch {
+          /* ignore */
+        }
+      });
 
       // Submit the form.
       await page
         .getByRole('button', { name: /create event|publish|save/i })
         .last()
         .click();
-      await page.waitForURL(
-        (url) => /\/events\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
-        { timeout: 20_000 },
-      );
+      try {
+        await page.waitForURL(
+          (url) => /\/events\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
+          { timeout: 20_000 },
+        );
+      } catch (err) {
+        // Server returned a validation/geocode error and re-rendered the form.
+        // Surface the alert text so we can diagnose what's actually failing.
+        await page.evaluate(() => window.scrollTo(0, 0));
+        const alertText = await page
+          .locator('[role="alert"]')
+          .evaluateAll((els) =>
+            els.map((el) => `${el.id || '(no-id)'}|${el.textContent?.trim() ?? ''}`),
+          )
+          .catch(() => [] as string[]);
+        const invalidInputs = await page
+          .locator('[aria-invalid="true"]')
+          .evaluateAll((els) =>
+            els.map((el) => `${(el as HTMLElement).getAttribute('name') ?? el.id}`),
+          )
+          .catch(() => [] as string[]);
+        const fieldErrors = await page
+          .locator('[id$="-error"]')
+          .evaluateAll((els) => els.map((el) => `${el.id}: ${el.textContent?.trim() ?? ''}`))
+          .catch(() => [] as string[]);
+        throw new Error(
+          `Event create did not navigate. URL=${page.url()} alerts=${JSON.stringify(
+            alertText,
+          )} invalid=${JSON.stringify(invalidInputs)} fieldErrors=${JSON.stringify(fieldErrors)} responseBodies=${JSON.stringify(responseBodies)}\nOriginal: ${(err as Error).message}`,
+        );
+      }
       eventUrl = page.url();
 
       // Verify the external registration card is shown ("How to register").

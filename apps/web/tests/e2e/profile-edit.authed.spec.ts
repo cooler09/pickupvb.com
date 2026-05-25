@@ -50,8 +50,10 @@ test.describe('profile form', () => {
 
     const uniqueName = `E2ETest${Date.now()}`;
     await displayNameInput.fill(uniqueName);
-    await page.getByRole('button', { name: /save profile/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /save changes/i }).click();
+    // Wait for the server action to actually persist — networkidle alone
+    // doesn't guarantee the React server action round-trip completed.
+    await expect(page.getByText(/profile updated/i).first()).toBeVisible({ timeout: 10_000 });
 
     // Reload and verify persistence.
     await page.goto('/profile');
@@ -62,8 +64,8 @@ test.describe('profile form', () => {
 
     // Cleanup — restore original display name.
     await page.locator('input[name="display_name"]').first().fill(originalValue);
-    await page.getByRole('button', { name: /save profile/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /save changes/i }).click();
+    await expect(page.getByText(/profile updated/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('edit home_city: fill Virginia Beach, save, reload, verify persisted', async ({ page }) => {
@@ -75,7 +77,7 @@ test.describe('profile form', () => {
     const originalValue = (await cityInput.inputValue()) ?? '';
 
     await cityInput.fill('Virginia Beach');
-    await page.getByRole('button', { name: /save profile/i }).click();
+    await page.getByRole('button', { name: /save changes/i }).click();
     await page.waitForLoadState('networkidle');
 
     await page.goto('/profile');
@@ -86,7 +88,7 @@ test.describe('profile form', () => {
 
     // Cleanup.
     await page.locator('input[name="home_city"]').first().fill(originalValue);
-    await page.getByRole('button', { name: /save profile/i }).click();
+    await page.getByRole('button', { name: /save changes/i }).click();
     await page.waitForLoadState('networkidle');
   });
 
@@ -101,7 +103,7 @@ test.describe('profile form', () => {
     const originalValue = (await igInput.inputValue()) ?? '';
 
     await igInput.fill('e2etestuser');
-    await page.getByRole('button', { name: /save profile/i }).click();
+    await page.getByRole('button', { name: /save changes/i }).click();
     await page.waitForLoadState('networkidle');
 
     await page.goto('/profile');
@@ -113,7 +115,7 @@ test.describe('profile form', () => {
 
     // Cleanup — restore original value.
     await page.locator('input[name="instagram_handle"]').first().fill(originalValue);
-    await page.getByRole('button', { name: /save profile/i }).click();
+    await page.getByRole('button', { name: /save changes/i }).click();
     await page.waitForLoadState('networkidle');
   });
 });
@@ -121,10 +123,18 @@ test.describe('profile form', () => {
 test.describe('handle editor', () => {
   test('handle editor is present on profile page', async ({ page }) => {
     await page.goto('/profile');
-    // The handle editor may render as an input with name="handle" or a button/trigger.
+    // The handle editor renders the URL "/players/<handle>" with a "Change"
+    // trigger that swaps the row for an <input name="handle">.
     const handleInput = page.locator('input[name="handle"]').first();
-    const handleButton = page.getByRole('button', { name: /change handle|edit handle|@/i }).first();
-    const handleVisible = (await handleInput.count()) > 0 || (await handleButton.count()) > 0;
+    const playersUrlText = page.getByText(/\/players\//).first();
+    const changeBtn = page
+      .getByRole('button', { name: /^change$/i })
+      .or(page.getByRole('button', { name: /change handle|edit handle/i }))
+      .first();
+    const handleVisible =
+      (await handleInput.count()) > 0 ||
+      (await changeBtn.count()) > 0 ||
+      (await playersUrlText.count()) > 0;
     expect(handleVisible).toBe(true);
   });
 
@@ -163,9 +173,9 @@ test.describe('notification preferences', () => {
     const response = await page.goto('/profile/notifications');
     expect(response?.ok()).toBeTruthy();
     // At least one notification toggle should be present.
-    const inAppToggle = page.locator('input[name="in_app_enabled"]').first();
-    const emailToggle = page.locator('input[name="email_enabled"]').first();
-    const anyToggle = inAppToggle.or(emailToggle);
+    const anyToggle = page
+      .locator('input[name="in_app_enabled"], input[name="email_enabled"]')
+      .first();
     await expect(anyToggle).toBeVisible({ timeout: 10_000 });
   });
 

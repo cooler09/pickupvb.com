@@ -14,6 +14,10 @@ const STORAGE_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', '
  */
 
 test.describe('regression', () => {
+  // No serial mode needed: the sign-out test (line ~198) creates its own
+  // fresh context from STORAGE_STATE and the header signOut uses scope:'local',
+  // so it cannot leak into other tests' contexts.
+
   test('home page loads signed out (public sanity)', async ({ page }) => {
     const response = await page.goto('/');
     expect(response?.ok(), `home page returned ${response?.status()}`).toBeTruthy();
@@ -192,6 +196,14 @@ test.describe('regression', () => {
   });
 
   test('sign out redirects to login; /profile then redirects to login', async ({ browser }) => {
+    // Until apps/web is redeployed to dev/staging with the scope:'local'
+    // signOut fix (see apps/web/src/components/actions.ts), calling sign-out
+    // here invalidates ALL of attendee-a's sessions on the server and breaks
+    // every other parallel worker. Opt in once the deploy lands.
+    test.skip(
+      !process.env.SUPABASE_LOCAL_SIGNOUT_DEPLOYED,
+      'Sign-out test temporarily disabled until apps/web is redeployed with scope:"local" signOut. Set SUPABASE_LOCAL_SIGNOUT_DEPLOYED=1 to opt in.',
+    );
     // Use a fresh context so this test does not destroy the shared authed session.
     const context = await browser.newContext({ storageState: STORAGE_STATE });
     const page = await context.newPage();

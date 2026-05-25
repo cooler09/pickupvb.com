@@ -29,7 +29,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Workers vs. shared-account auth: all `authed` specs read the same
+  // storageState (attendee-a). Supabase rotates refresh tokens on use —
+  // when several parallel workers each trigger a token refresh, the
+  // first rotation invalidates the others' refresh tokens and the rest
+  // of the suite starts redirecting to /login mid-run. CI runs serial.
+  // Locally against a remote env, cap at 2 to keep some parallelism
+  // without provoking the race; against localhost, leave Playwright to
+  // pick (most local devs run a fresh DB and the refresh path is rare).
+  workers: process.env.CI ? 1 : IS_LOCAL ? undefined : 2,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: BASE_URL,

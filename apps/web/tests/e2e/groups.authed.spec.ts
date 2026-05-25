@@ -131,7 +131,7 @@ test.describe('group edit', () => {
 
   test('non-member is redirected from /groups/<slug>/members', async ({ page }) => {
     await page.goto('/groups');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const groupLinks = page.locator('a[href*="/groups/"]');
     const count = await groupLinks.count();
@@ -150,7 +150,7 @@ test.describe('group edit', () => {
       if (!slug) continue;
 
       await page.goto(`/groups/${slug}/members`);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const finalUrl = page.url();
       if (!finalUrl.includes('/members')) {
@@ -165,7 +165,7 @@ test.describe('group edit', () => {
 
       // Members page loaded — we may be a member of this group; try the next.
       await page.goto('/groups');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
 
     test.skip(

@@ -34,6 +34,43 @@ async function findCaptainedTeamUrl(page: Page): Promise<string | null> {
 }
 
 /**
+ * Ensures the page (already signed in) has a known unique display_name set on
+ * its profile and returns the resulting display_name. The UserPicker typeahead
+ * matches against `profiles_public.display_name`; without an explicit value
+ * the seeded test users may have an email-prefix or empty display_name that
+ * isn't searchable.
+ *
+ * Idempotent: if the existing display_name already starts with the desired
+ * prefix, the helper returns it as-is without re-saving.
+ */
+async function ensureSearchableDisplayName(page: Page, prefix: string): Promise<string> {
+  await page.goto('/profile');
+  await page.waitForLoadState('networkidle');
+  const dnInput = page.locator('input[name="display_name"]').first();
+  await expect(dnInput).toBeVisible({ timeout: 10_000 });
+  const current = await dnInput.inputValue();
+  if (current && current.startsWith(prefix)) return current;
+
+  const next = `${prefix} ${Math.random().toString(36).slice(2, 7)}`;
+  await dnInput.fill(next);
+  await page
+    .getByRole('button', { name: /save changes|save profile|update profile/i })
+    .first()
+    .click();
+  // Wait for the success Alert ("Profile updated.") or for the input value to
+  // be persisted after the server action returns.
+  await page
+    .getByText(/profile updated/i)
+    .first()
+    .waitFor({ timeout: 10_000 })
+    .catch(() => {
+      /* tolerate no alert; we re-check value below */
+    });
+  await page.waitForLoadState('networkidle');
+  return next;
+}
+
+/**
  * Tournament team (roster) flows (Section 8 of the test plan).
  *
  * Section 8.1 (create team) has a runnable page-load check and a @destructive creation test.
@@ -125,24 +162,19 @@ test.describe('team invites', () => {
       );
     }
 
-    // Get attendee-b's display name or handle for the UserPicker search.
     const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
     const bPage = await bContext.newPage();
-    let bDisplayName: string | null = null;
-    let bHandle: string | null = null;
+    let searchTerm: string | null = null;
     try {
-      await bPage.goto('/profile');
-      await bPage.waitForLoadState('networkidle');
-      const dnInput = bPage.locator('input[name="display_name"]').first();
-      bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
-      const hInput = bPage.locator('input[name="handle"]').first();
-      bHandle = (await hInput.count()) > 0 ? await hInput.inputValue() : null;
+      // Ensure attendee-b has a unique, searchable display_name. Seeded test
+      // users may have an email-prefix or empty display_name that the
+      // UserPicker's ilike search doesn't reliably hit.
+      searchTerm = await ensureSearchableDisplayName(bPage, 'E2E Attendee B');
     } catch {
       await bContext.close();
       test.skip(true, 'Could not load attendee-b profile; skipping');
     }
 
-    const searchTerm = bDisplayName || bHandle;
     if (!searchTerm) {
       await bContext.close();
       test.skip(true, 'Could not determine attendee-b name; skipping');
@@ -152,6 +184,27 @@ test.describe('team invites', () => {
       // Navigate to the team page and use "Add a teammate" UserPicker.
       await page.goto(teamUrl!);
       await page.waitForLoadState('networkidle');
+
+      // Pre-cleanup: if attendee-b is already on the roster or has a pending
+      // invite (e.g. from a previous failed run), remove them first. The
+      // UserPicker excludes existing members, so we'd get zero search results.
+      const existingRow = page.locator('li, tr').filter({ hasText: searchTerm! }).first();
+      if ((await existingRow.count()) > 0) {
+        const cleanupBtn = existingRow
+          .getByRole('button', { name: /remove|cancel invite|revoke/i })
+          .first();
+        if ((await cleanupBtn.count()) > 0) {
+          await cleanupBtn.click();
+          // Confirm dialog if present.
+          const confirmBtn = page.getByRole('button', { name: /confirm|remove|yes/i }).first();
+          if (await confirmBtn.isVisible().catch(() => false)) {
+            await confirmBtn.click();
+          }
+          await page.waitForLoadState('networkidle');
+          await page.reload();
+          await page.waitForLoadState('networkidle');
+        }
+      }
 
       const combobox = page.getByRole('combobox').first();
       if ((await combobox.count()) === 0) {
@@ -163,7 +216,21 @@ test.describe('team invites', () => {
       const listbox = page.getByRole('listbox').first();
       await expect(listbox).toBeVisible({ timeout: 10_000 });
       const option = listbox.getByRole('option').first();
-      await expect(option).toBeVisible({ timeout: 5_000 });
+      try {
+        await expect(option).toBeVisible({ timeout: 5_000 });
+      } catch (err) {
+        const listboxText = await listbox.textContent().catch(() => '(unreadable)');
+        const mainText = await page
+          .locator('main')
+          .textContent()
+          .then((t) => (t ?? '').slice(0, 500))
+          .catch(() => '(unreadable)');
+        throw new Error(
+          `UserPicker returned no options for "${searchTerm}". listbox=${JSON.stringify(
+            listboxText,
+          )} mainSnippet=${JSON.stringify(mainText)}\nOriginal: ${(err as Error).message}`,
+        );
+      }
       await option.click();
 
       const addTeammateBtn = page.getByRole('button', { name: /add teammate|add member/i }).first();
@@ -218,21 +285,14 @@ test.describe('team invites', () => {
 
     const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
     const bPage = await bContext.newPage();
-    let bDisplayName: string | null = null;
-    let bHandle: string | null = null;
+    let searchTerm: string | null = null;
     try {
-      await bPage.goto('/profile');
-      await bPage.waitForLoadState('networkidle');
-      const dnInput = bPage.locator('input[name="display_name"]').first();
-      bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
-      const hInput = bPage.locator('input[name="handle"]').first();
-      bHandle = (await hInput.count()) > 0 ? await hInput.inputValue() : null;
+      searchTerm = await ensureSearchableDisplayName(bPage, 'E2E Attendee B');
     } catch {
       await bContext.close();
       test.skip(true, 'Could not load attendee-b profile; skipping');
     }
 
-    const searchTerm = bDisplayName || bHandle;
     if (!searchTerm) {
       await bContext.close();
       test.skip(true, 'Could not determine attendee-b name; skipping');
@@ -340,21 +400,14 @@ test.describe('team broadcast', () => {
 
     const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
     const bPage = await bContext.newPage();
-    let bDisplayName: string | null = null;
-    let bHandle: string | null = null;
+    let searchTerm: string | null = null;
     try {
-      await bPage.goto('/profile');
-      await bPage.waitForLoadState('networkidle');
-      const dnInput = bPage.locator('input[name="display_name"]').first();
-      bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
-      const hInput = bPage.locator('input[name="handle"]').first();
-      bHandle = (await hInput.count()) > 0 ? await hInput.inputValue() : null;
+      searchTerm = await ensureSearchableDisplayName(bPage, 'E2E Attendee B');
     } catch {
       await bContext.close();
       test.skip(true, 'Could not load attendee-b profile; skipping');
     }
 
-    const searchTerm = bDisplayName || bHandle;
     if (!searchTerm) {
       await bContext.close();
       test.skip(true, 'Could not determine attendee-b name; skipping');
