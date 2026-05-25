@@ -97,12 +97,21 @@ pnpm --filter @pickupvb/web e2e
 
 ## Layout
 
-- `*.public.spec.ts` — anonymous, read-only smoke (home, events, login,
-  sitemap, 404).
+- `smoke.public.spec.ts` — anonymous baseline: home, events list/filter, login form, sitemap, 404, protected redirect.
+- `auth.public.spec.ts` — auth form edge cases: sign-up toggle, wrong-password error, forgot-password, `?next=` redirect.
+- `navigation.public.spec.ts` — public route reachability (pricing, community, groups, players), auth guards, external interstitial.
+- `players.public.spec.ts` — player directory search and public profile load.
+- `groups.public.spec.ts` — group directory search and public group profile load.
+- `accessibility.public.spec.ts` — mobile viewport layout, keyboard focus, theme toggle.
 - `auth.setup.ts` — one-time sign-in that caches the session under
   `apps/web/.playwright/.auth/user.json`. Required by authed specs.
-- `*.authed.spec.ts` — runs with the cached session (profile, billing
-  checklist, host-event entry, sign out).
+- `profile.authed.spec.ts` — profile page, billing checklist, host event entry, sign out.
+- `events.authed.spec.ts` — `/events/new` form, template name validation (Pro guard), RSVP join/leave. Placeholder `test.fixme` entries cover Stripe and multi-user flows.
+- `groups.authed.spec.ts` — follow/unfollow a group. Group creation is tagged `@destructive` (no UI delete; data persists in dev).
+
+### Placeholder tests (`test.fixme`)
+
+Tests that need Stripe, multi-user scenarios, or complex UI interactions (date picker, geocoding) are marked `test.fixme`. They appear in the source as documentation of intended coverage but are skipped at runtime. Graduate a `test.fixme` to a full test as the blocking dependency is resolved.
 
 The cached session and any HTML report / trace artifacts are gitignored at the
 repo root.
