@@ -350,6 +350,12 @@ export default function NewEventForm({
                   type="submit"
                   formAction="/events/new"
                   formMethod="get"
+                  // The Apply button lives inside the main createEventAction form,
+                  // which has `required` fields (title, etc.). Without
+                  // formNoValidate the browser runs HTML5 constraint validation
+                  // on submit and blocks the GET navigation when those fields
+                  // are empty — which is the common case on a fresh /events/new.
+                  formNoValidate
                   disabled={!pickedTemplate}
                   className="border-border-base text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-40"
                 >
