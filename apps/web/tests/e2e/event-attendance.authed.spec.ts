@@ -1,4 +1,17 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs';
+
+const FREE_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'free-host.json');
+const ATTENDEE_B_STATE = path.join(
+  __dirname,
+  '..',
+  '..',
+  '.playwright',
+  '.auth',
+  'attendee-b.json',
+);
+const ATTENDEE_A_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
 
 /**
  * Event attendance flows (Section 5 of the test plan).
@@ -100,27 +113,137 @@ test.describe('position RSVP', () => {
 });
 
 test.describe('paid event attendance', () => {
-  test.fixme(
-    'RSVP to paid event → Stripe Checkout with correct amount → redirected back with user on roster',
-  );
+  test.fixme('RSVP to paid event → Stripe Checkout with correct amount → redirected back with user on roster', async () => {});
 
-  test.fixme('declined card (4000 0000 0000 0002) → Stripe shows decline → user NOT on roster');
+  test.fixme('declined card (4000 0000 0000 0002) → Stripe shows decline → user NOT on roster', async () => {});
 
-  test.fixme('abandon Stripe Checkout → return to event → user NOT on roster');
+  test.fixme('abandon Stripe Checkout → return to event → user NOT on roster', async () => {});
 });
 
 test.describe('leave paid event / refund', () => {
-  test.fixme('leave within refund window → removed from roster → refund initiated in Stripe');
+  test.fixme('leave within refund window → removed from roster → refund initiated in Stripe', async () => {});
 
-  test.fixme('leave outside refund window → removed from roster OR leave blocked per event policy');
+  test.fixme('leave outside refund window → removed from roster OR leave blocked per event policy', async () => {});
 });
 
 test.describe('capacity limit', () => {
-  test.fixme(
-    'event full: attendee-b (TEST_ATTENDEE_B_EMAIL) tries to join at capacity — sees "Event is full" and is not added',
-  );
+  test('event full: attendee-b tries to join a capacity-1 event that attendee-a already filled — sees "event is full"', async ({
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+
+    if (!fs.existsSync(FREE_HOST_STATE)) {
+      test.skip(true, 'free-host auth not set up (TEST_FREE_HOST_EMAIL missing); skipping');
+    }
+    if (!fs.existsSync(ATTENDEE_A_STATE)) {
+      test.skip(true, 'attendee-a auth not set up; skipping');
+    }
+    if (!fs.existsSync(ATTENDEE_B_STATE)) {
+      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
+    }
+
+    // ── free-host creates an event with capacity = 1 ────────────────────
+    const hostCtx = await browser.newContext({ storageState: FREE_HOST_STATE });
+    const hostPage = await hostCtx.newPage();
+    let eventUrl: string | null = null;
+
+    try {
+      await hostPage.goto('/events/new');
+      await hostPage.waitForLoadState('networkidle');
+
+      const creationResp = await hostPage.request.get('/events/new');
+      if (!creationResp.ok()) {
+        test.skip(true, '/events/new not reachable for free-host; skipping');
+      }
+
+      await hostPage.locator('#title').fill(`E2E Capacity Test ${Date.now()}`);
+
+      // Set startsAt via direct input evaluation.
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      await hostPage
+        .locator('input[name="startsAt"]')
+        .evaluate((el: HTMLInputElement, val: string) => {
+          el.value = val;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, futureDate);
+
+      // Switch capacity to "Fixed spots" and set max = 1.
+      const fixedSpotsRadio = hostPage.getByRole('radio', { name: /fixed spots/i }).first();
+      if ((await fixedSpotsRadio.count()) > 0) {
+        await fixedSpotsRadio.click();
+        const maxSpotsInput = hostPage.locator('input[name="maxSpots"]');
+        await expect(maxSpotsInput).toBeVisible({ timeout: 5_000 });
+        await maxSpotsInput.fill('1');
+      }
+
+      await hostPage
+        .getByRole('button', { name: /create event|publish|save/i })
+        .last()
+        .click();
+      await hostPage.waitForURL(
+        (url) => /\/events\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
+        { timeout: 20_000 },
+      );
+      eventUrl = hostPage.url();
+
+      // ── attendee-a joins the event (fills the only spot) ─────────────
+      const aCtx = await browser.newContext({ storageState: ATTENDEE_A_STATE });
+      const aPage = await aCtx.newPage();
+      try {
+        await aPage.goto(eventUrl);
+        await aPage.waitForLoadState('networkidle');
+        const joinBtn = aPage.getByRole('button', { name: /^join$/i }).first();
+        if ((await joinBtn.count()) > 0) {
+          await joinBtn.click();
+          await aPage.waitForLoadState('networkidle');
+        }
+      } finally {
+        await aCtx.close();
+      }
+
+      // ── attendee-b tries to join — should see "this event is full" ───
+      const bCtx = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+      const bPage = await bCtx.newPage();
+      try {
+        await bPage.goto(eventUrl);
+        await bPage.waitForLoadState('networkidle');
+
+        const joinBtn = bPage.getByRole('button', { name: /^join$/i }).first();
+        if ((await joinBtn.count()) > 0) {
+          await joinBtn.click();
+          await bPage.waitForLoadState('networkidle');
+        }
+
+        // The page should show the "full" flash banner or "Event is full" state.
+        await expect(bPage.locator('body')).toContainText(
+          /this event is full|sorry.*full|event.*full|no.*spots/i,
+          { timeout: 10_000 },
+        );
+      } finally {
+        await bCtx.close();
+      }
+    } finally {
+      // Cleanup — cancel the event.
+      if (eventUrl) {
+        await hostPage.goto(eventUrl + '/edit');
+        await hostPage.waitForLoadState('networkidle');
+        const cancelBtn = hostPage.getByRole('button', { name: /cancel event/i }).first();
+        if ((await cancelBtn.count()) > 0) {
+          await cancelBtn.click();
+          const confirmBtn = hostPage
+            .getByRole('button', { name: /yes.*cancel|cancel event/i })
+            .last();
+          if (await confirmBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+            await confirmBtn.click();
+            await hostPage.waitForLoadState('networkidle');
+          }
+        }
+      }
+      await hostCtx.close();
+    }
+  });
 });
 
 test.describe('tip jar', () => {
-  test.fixme('tip jar: enter amount → Stripe Checkout → tip recorded → host sees tip in earnings');
+  test.fixme('tip jar: enter amount → Stripe Checkout → tip recorded → host sees tip in earnings', async () => {});
 });

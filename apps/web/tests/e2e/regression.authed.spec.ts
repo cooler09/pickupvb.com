@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+
+const STORAGE_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
 
 /**
  * Regression checklist (Section 19) — a targeted smoke pass that should
@@ -188,9 +191,37 @@ test.describe('regression', () => {
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
   });
 
-  test.fixme(
-    'sign out redirects to login — covered in profile.authed.spec.ts; skipped here to avoid destroying the session for subsequent tests',
-  );
+  test('sign out redirects to login; /profile then redirects to login', async ({ browser }) => {
+    // Use a fresh context so this test does not destroy the shared authed session.
+    const context = await browser.newContext({ storageState: STORAGE_STATE });
+    const page = await context.newPage();
+    try {
+      await page.goto('/profile');
+      await expect(page).toHaveURL(/\/profile/, { timeout: 10_000 });
+
+      const signOutBtn = page
+        .getByRole('button', { name: /sign out|log out/i })
+        .or(page.getByRole('link', { name: /sign out|log out/i }))
+        .first();
+
+      if ((await signOutBtn.count()) === 0) {
+        test.skip(true, 'No sign-out button found on /profile; skipping');
+      }
+
+      await signOutBtn.click();
+      await page.waitForLoadState('networkidle');
+
+      // After signing out the user should NOT still be on /profile.
+      expect(page.url()).not.toMatch(/\/profile/);
+
+      // Visiting /profile while signed out must redirect to /login.
+      await page.goto('/profile');
+      await page.waitForLoadState('networkidle');
+      await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
+    } finally {
+      await context.close();
+    }
+  });
 
   test('theme toggle persists across navigation', async ({ page }) => {
     await page.goto('/');

@@ -63,11 +63,45 @@ export default defineConfig({
       testMatch: /auth\.setup\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
-    // Authed flows reuse the cached storageState.
+    // Secondary account setups — each skips gracefully if the env var is absent.
+    // Authed tests check for the file with fs.existsSync before opening a context.
+    {
+      name: 'setup-attendee-b',
+      testMatch: /auth\.attendee-b\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'setup-free-host',
+      testMatch: /auth\.free-host\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'setup-pro-host',
+      testMatch: /auth\.pro-host\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'setup-stripe-host',
+      testMatch: /auth\.stripe-host\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'setup-admin',
+      testMatch: /auth\.admin\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Authed flows reuse the cached storageState (attendee-a).
     {
       name: 'authed',
       testMatch: /.*\.authed\.spec\.ts/,
-      dependencies: ['setup'],
+      dependencies: [
+        'setup',
+        'setup-attendee-b',
+        'setup-free-host',
+        'setup-pro-host',
+        'setup-stripe-host',
+        'setup-admin',
+      ],
       use: { ...devices['Desktop Chrome'], storageState: STORAGE_STATE },
     },
   ],

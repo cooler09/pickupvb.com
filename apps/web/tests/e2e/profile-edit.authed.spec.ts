@@ -14,17 +14,20 @@ import { test, expect, type Page } from '@playwright/test';
  * This helper expands it if needed so form inputs become visible.
  */
 async function openEditForm(page: Page) {
-  const summary = page.locator('details summary').filter({ hasText: /edit profile/i });
-  if ((await summary.count()) > 0) {
-    const details = page.locator('details').filter({ has: summary });
-    const isOpen = await details.evaluate((el) => (el as HTMLDetailsElement).open);
-    if (!isOpen) await summary.click();
-    // Wait for the form to become visible after expanding.
-    await page
-      .locator('input[name="display_name"]')
-      .first()
-      .waitFor({ state: 'visible', timeout: 5_000 });
-  }
+  const summary = page
+    .locator('details summary')
+    .filter({ hasText: /edit profile/i })
+    .first();
+  if ((await summary.count()) === 0) return;
+  // Read open state via the summary's parent <details> — avoids the nested
+  // locator bug where filter({ has: summaryLocator }) evaluates "details summary"
+  // relative to each <details> candidate (two levels deep, always zero matches).
+  const isOpen = await summary.evaluate((el) => (el.parentElement as HTMLDetailsElement).open);
+  if (!isOpen) await summary.click();
+  await page
+    .locator('input[name="display_name"]')
+    .first()
+    .waitFor({ state: 'visible', timeout: 5_000 });
 }
 
 test.describe('profile form', () => {

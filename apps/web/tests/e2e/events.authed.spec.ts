@@ -60,9 +60,7 @@ test.describe('saved event templates (Pro feature)', () => {
     await expect(templateNameInput).not.toBeVisible();
   });
 
-  test.fixme(
-    'Pro user: save template, verify in dropdown, apply pre-fills form, then remove template',
-  );
+  // Covered by event-create-extended.authed.spec.ts: "Pro: save template, verify in dropdown, apply pre-fills form, then remove"
 });
 
 test.describe('RSVP — join and leave a free event', () => {
@@ -123,15 +121,48 @@ test.describe('RSVP — join and leave a free event', () => {
 });
 
 test.describe('event edit', () => {
-  test.fixme(
-    'Host can edit event title and changes appear on detail page — requires owning an event',
-  );
+  // "Host can edit event title" is covered by event-host.authed.spec.ts: "change title, save, verify new title on detail page"
 
-  test.fixme('Non-host is redirected away from /events/<id>/edit');
+  test('non-host is redirected away from /events/<id>/edit', async ({ page }) => {
+    await page.goto('/events');
+    await page.waitForLoadState('networkidle');
+
+    const eventLinks = page.locator('a[href*="/events/"]');
+    const count = await eventLinks.count();
+    if (count === 0) {
+      test.skip(true, 'No events in this environment; skipping non-host redirect test');
+    }
+
+    // Scan the first few events looking for one not owned by the test user.
+    for (let i = 0; i < Math.min(count, 5); i++) {
+      const href = await eventLinks.nth(i).getAttribute('href');
+      if (!href || href.includes('/new')) continue;
+
+      const editUrl = href.replace(/\/$/, '') + '/edit';
+      await page.goto(editUrl);
+      await page.waitForLoadState('networkidle');
+
+      const finalUrl = page.url();
+      if (!finalUrl.includes('/edit')) {
+        // Redirected — the guard is working.
+        expect(finalUrl).not.toMatch(/\/events\/[^/]+\/edit/);
+        return;
+      }
+
+      // We own this event; try the next one.
+      await page.goto('/events');
+      await page.waitForLoadState('networkidle');
+    }
+
+    test.skip(
+      true,
+      'All sampled events are owned by the test user; cannot verify non-host redirect',
+    );
+  });
 });
 
 test.describe('host controls', () => {
-  test.fixme('Cancel event — requires owning an event in the dev environment');
+  // "Cancel event" is covered by event-host.authed.spec.ts afterAll, which cancels the test event via edit page.
 
   test.fixme('Broadcast to attendees — requires owning an event with at least one RSVP');
 });

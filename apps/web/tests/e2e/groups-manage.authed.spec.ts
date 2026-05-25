@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
+import fs from 'node:fs';
 
 /**
  * Group management flows (Sections 7.2–7.6 of the test plan).
@@ -13,6 +14,14 @@ import path from 'node:path';
  */
 
 const STORAGE_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
+const ATTENDEE_B_STATE = path.join(
+  __dirname,
+  '..',
+  '..',
+  '.playwright',
+  '.auth',
+  'attendee-b.json',
+);
 
 /**
  * Finds an owned group by navigating to /profile and following any group admin link.
@@ -202,13 +211,152 @@ test.describe('hero image on group', () => {
 });
 
 test.describe('group members', () => {
-  test.fixme('owner can add a member by handle — use attendee-b (TEST_ATTENDEE_B_EMAIL)');
+  test('owner can add attendee-b, promote to admin, then remove', async ({ page, browser }) => {
+    test.setTimeout(60_000);
 
-  test.fixme('owner can promote a member to admin — use attendee-b (TEST_ATTENDEE_B_EMAIL)');
+    if (!fs.existsSync(ATTENDEE_B_STATE)) {
+      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
+    }
 
-  test.fixme('owner can remove a member — use attendee-b (TEST_ATTENDEE_B_EMAIL)');
+    const groupUrl = await findOwnedGroupUrl(page);
+    if (!groupUrl) {
+      test.skip(true, 'Test user does not own a group; skipping');
+    }
 
-  test.fixme('non-member is redirected from /groups/<slug>/members');
+    // Get attendee-b's display name for the UserPicker search.
+    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bPage = await bContext.newPage();
+    let bDisplayName: string | null = null;
+    let bHandle: string | null = null;
+    try {
+      await bPage.goto('/profile');
+      await bPage.waitForLoadState('networkidle');
+      const dnInput = bPage.locator('input[name="display_name"]').first();
+      bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
+      const hInput = bPage.locator('input[name="handle"]').first();
+      bHandle = (await hInput.count()) > 0 ? await hInput.inputValue() : null;
+    } finally {
+      await bContext.close();
+    }
+
+    const searchTerm = bDisplayName || bHandle;
+    if (!searchTerm) {
+      test.skip(true, 'Could not determine attendee-b display name or handle; skipping');
+    }
+
+    const membersUrl = `${groupUrl.replace(/\/$/, '')}/members`;
+    await page.goto(membersUrl);
+    await page.waitForLoadState('networkidle');
+
+    if (!page.url().includes('/members')) {
+      test.skip(true, 'Cannot access group members page; skipping');
+    }
+
+    // Use the UserPicker to search for attendee-b.
+    const combobox = page.getByRole('combobox').first();
+    if ((await combobox.count()) === 0) {
+      test.skip(true, 'No UserPicker combobox found on members page; skipping');
+    }
+    await combobox.fill(searchTerm!);
+    await page.waitForLoadState('networkidle');
+
+    // Wait for the listbox to appear and click the matching option.
+    const listbox = page.getByRole('listbox').first();
+    await expect(listbox).toBeVisible({ timeout: 10_000 });
+    const option = listbox.getByRole('option').first();
+    await expect(option).toBeVisible({ timeout: 5_000 });
+    await option.click();
+
+    // Submit "Add member".
+    const addBtn = page.getByRole('button', { name: /add member/i }).first();
+    await expect(addBtn).toBeVisible({ timeout: 5_000 });
+    await addBtn.click();
+    await page.waitForLoadState('networkidle');
+
+    // Attendee-b should now appear in the member list.
+    await expect(page.locator('main')).toContainText(searchTerm!, { timeout: 10_000 });
+
+    // Find attendee-b's row and promote to admin.
+    const memberRow = page.locator('li, tr').filter({ hasText: searchTerm! }).first();
+    const promoteBtn = memberRow
+      .getByRole('button', { name: /→\s*admin/i })
+      .or(memberRow.getByRole('button', { name: /make admin|promote/i }))
+      .first();
+    if ((await promoteBtn.count()) > 0) {
+      await promoteBtn.click();
+      await page.waitForLoadState('networkidle');
+      // Verify role changed.
+      await expect(page.locator('main')).toContainText(/admin/i, { timeout: 10_000 });
+    }
+
+    // Remove attendee-b from the group.
+    const updatedRow = page.locator('li, tr').filter({ hasText: searchTerm! }).first();
+    const removeBtn = updatedRow.getByRole('button', { name: /remove/i }).first();
+    await expect(removeBtn).toBeVisible({ timeout: 10_000 });
+    await removeBtn.click();
+    await page.waitForLoadState('networkidle');
+
+    // Member should no longer appear in the Current members list.
+    // The UserPicker preview pane retains the search term in the DOM after removal —
+    // scope to the members list (last <ul> in main) to avoid a false failure.
+    await expect(page.locator('main').getByRole('list').last()).not.toContainText(searchTerm!, {
+      timeout: 10_000,
+    });
+  });
+
+  test('non-member is redirected from /groups/<slug>/members', async ({ page }) => {
+    // Start from the groups directory and find a group the test user did not create.
+    // Owned groups appear in /profile; any group NOT linked there is likely non-member.
+    await page.goto('/profile');
+    await page.waitForLoadState('networkidle');
+
+    const profileGroupHrefs = new Set<string>();
+    const profileLinks = page.locator('a[href*="/groups/"]');
+    const profileCount = await profileLinks.count();
+    for (let i = 0; i < profileCount; i++) {
+      const href = await profileLinks.nth(i).getAttribute('href');
+      if (href) profileGroupHrefs.add(href);
+    }
+
+    await page.goto('/groups');
+    await page.waitForLoadState('networkidle');
+
+    const groupLinks = page.locator('a[href*="/groups/"]');
+    const count = await groupLinks.count();
+    if (count === 0) {
+      test.skip(true, 'No groups in this environment; skipping non-member redirect test');
+    }
+
+    for (let i = 0; i < Math.min(count, 8); i++) {
+      const href = await groupLinks.nth(i).getAttribute('href');
+      if (!href || href.includes('/edit') || href.includes('/members') || href.includes('/new'))
+        continue;
+      if (profileGroupHrefs.has(href)) continue; // likely owned/member
+
+      const slug = href.split('/groups/')[1]?.replace(/\/$/, '');
+      if (!slug) continue;
+
+      await page.goto(`/groups/${slug}/members`);
+      await page.waitForLoadState('networkidle');
+
+      const finalUrl = page.url();
+      if (!finalUrl.includes('/members')) {
+        // Redirected — access guard is working.
+        const safe =
+          finalUrl.includes('/login') ||
+          finalUrl.includes(`/groups/${slug}`) ||
+          finalUrl === new URL('/', finalUrl).href;
+        expect(safe).toBe(true);
+        return;
+      }
+
+      // Members page loaded — may be a member; try another group.
+      await page.goto('/groups');
+      await page.waitForLoadState('networkidle');
+    }
+
+    test.skip(true, 'Could not find a group the test user is not a member of; skipping');
+  });
 });
 
 test.describe('host event as group', () => {

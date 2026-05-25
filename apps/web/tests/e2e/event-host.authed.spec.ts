@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
+import fs from 'node:fs';
 
 /**
  * Host-only event management flows.
@@ -14,6 +15,14 @@ import path from 'node:path';
 
 // Reuse the same storageState that the authed project applies to each test.
 const STORAGE_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
+const ATTENDEE_B_STATE = path.join(
+  __dirname,
+  '..',
+  '..',
+  '.playwright',
+  '.auth',
+  'attendee-b.json',
+);
 
 let eventUrl: string | null = null;
 let testEventTitle: string;
@@ -260,7 +269,177 @@ test.describe('event host flows', () => {
 
   test.fixme('sponsor panel — requires Pro or sponsor add-on');
 
-  test.fixme('co-host section — requires a second test user');
+  test('co-host section: add attendee-b, verify listed, remove', async ({ page, browser }) => {
+    test.setTimeout(60_000);
 
-  test.fixme('broadcast to attendees — requires at least one RSVP');
+    if (!eventUrl) {
+      test.skip(true, 'Test event was not created; skipping');
+    }
+    if (!fs.existsSync(ATTENDEE_B_STATE)) {
+      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
+    }
+
+    // Get attendee-b's display name for the UserPicker search.
+    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bPage = await bContext.newPage();
+    let bDisplayName: string | null = null;
+    let bHandle: string | null = null;
+    try {
+      await bPage.goto('/profile');
+      await bPage.waitForLoadState('networkidle');
+      const dnInput = bPage.locator('input[name="display_name"]').first();
+      bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
+      const hInput = bPage.locator('input[name="handle"]').first();
+      bHandle = (await hInput.count()) > 0 ? await hInput.inputValue() : null;
+    } finally {
+      await bContext.close();
+    }
+
+    const searchTerm = bDisplayName || bHandle;
+    if (!searchTerm) {
+      test.skip(true, 'Could not determine attendee-b name; skipping');
+    }
+
+    await page.goto(eventUrl!);
+    await page.waitForLoadState('networkidle');
+
+    // Open the "+ Add co-host" details panel.
+    const addCoHostSummary = page
+      .locator('details summary')
+      .filter({ hasText: /add co-host/i })
+      .first();
+    if ((await addCoHostSummary.count()) === 0) {
+      test.skip(true, '"+ Add co-host" panel not found on this event; skipping');
+    }
+    await addCoHostSummary.click();
+
+    // Use the UserPicker combobox to search for attendee-b.
+    const combobox = page.getByRole('combobox').first();
+    await expect(combobox).toBeVisible({ timeout: 5_000 });
+    await combobox.fill(searchTerm!);
+    await page.waitForLoadState('networkidle');
+
+    const listbox = page.getByRole('listbox').first();
+    await expect(listbox).toBeVisible({ timeout: 10_000 });
+    const option = listbox.getByRole('option').first();
+    await expect(option).toBeVisible({ timeout: 5_000 });
+    await option.click();
+
+    // Submit "Add user".
+    const addUserBtn = page.getByRole('button', { name: /add user/i }).first();
+    await expect(addUserBtn).toBeVisible({ timeout: 5_000 });
+    await addUserBtn.click();
+    await page.waitForLoadState('networkidle');
+
+    // Attendee-b should now appear in the hosts section.
+    await expect(page.locator('main')).toContainText(searchTerm!, { timeout: 10_000 });
+
+    // Remove attendee-b as co-host.
+    const removeBtn = page
+      .getByRole('button', { name: new RegExp(`Remove co-host ${searchTerm}`, 'i') })
+      .or(page.getByRole('button', { name: /remove co-host/i }).first())
+      .first();
+    await expect(removeBtn).toBeVisible({ timeout: 10_000 });
+    await removeBtn.click();
+    await page.waitForLoadState('networkidle');
+
+    // Attendee-b should no longer appear as a co-host.
+    const coHostSection = page
+      .locator('section')
+      .filter({ hasText: /hosted by|co-host/i })
+      .first();
+    if ((await coHostSection.count()) > 0) {
+      await expect(coHostSection).not.toContainText(searchTerm!, { timeout: 10_000 });
+    }
+  });
+
+  test('broadcast to attendees: attendee-b RSVPs, host sends broadcast', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(90_000);
+
+    if (!eventUrl) {
+      test.skip(true, 'Test event was not created; skipping');
+    }
+    if (!fs.existsSync(ATTENDEE_B_STATE)) {
+      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
+    }
+
+    // Attendee-b RSVPs to the test event.
+    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bPage = await bContext.newPage();
+    try {
+      await bPage.goto(eventUrl!);
+      await bPage.waitForLoadState('networkidle');
+
+      const joinBtn = bPage.getByRole('button', { name: /join this event/i }).first();
+      if ((await joinBtn.count()) === 0) {
+        test.skip(true, 'Attendee-b cannot join this event (full, paid, or already joined)');
+      }
+      await joinBtn.click();
+      await bPage.waitForLoadState('networkidle');
+      await expect(bPage.getByRole('button', { name: /leave event/i }).first()).toBeVisible({
+        timeout: 15_000,
+      });
+
+      // Host (attendee-a) navigates to event and sends a broadcast.
+      await page.goto(eventUrl!);
+      await page.waitForLoadState('networkidle');
+
+      // Open "Host tools" details.
+      const hostToolsSummary = page
+        .locator('details summary')
+        .filter({ hasText: /host tools/i })
+        .first();
+      if ((await hostToolsSummary.count()) === 0) {
+        test.skip(true, '"Host tools" section not found; skipping');
+      }
+      await hostToolsSummary.click();
+
+      // Open "Message attendees" details.
+      const messageSummary = page
+        .locator('details summary')
+        .filter({ hasText: /message attendees/i })
+        .first();
+      await expect(messageSummary).toBeVisible({ timeout: 10_000 });
+      await messageSummary.click();
+
+      // Fill the broadcast body and send.
+      const bodyTextarea = page.locator('textarea[name="body"], #broadcast-body').first();
+      await expect(bodyTextarea).toBeVisible({ timeout: 5_000 });
+      await bodyTextarea.fill('E2E broadcast test message');
+
+      const sendBtn = page.getByRole('button', { name: /send message/i }).first();
+      await expect(sendBtn).toBeVisible({ timeout: 5_000 });
+      await sendBtn.click();
+      await page.waitForLoadState('networkidle');
+
+      // Success: the form resets or a success message appears.
+      const success = await page
+        .getByText(/sent|delivered|message sent/i)
+        .first()
+        .isVisible({ timeout: 10_000 })
+        .catch(() => false);
+      const formReset = await bodyTextarea.inputValue().catch(() => '');
+      expect(success || formReset === '', 'Broadcast should send without error').toBe(true);
+    } finally {
+      // Cleanup: attendee-b leaves the event.
+      await bPage.goto(eventUrl!);
+      await bPage.waitForLoadState('networkidle');
+      const leaveBtn = bPage.getByRole('button', { name: /leave event/i }).first();
+      if ((await leaveBtn.count()) > 0) {
+        await leaveBtn.click();
+        const confirmLeave = bPage
+          .getByRole('button', { name: /confirm|yes|leave/i })
+          .filter({ hasNotText: /cancel/i })
+          .first();
+        if (await confirmLeave.isVisible().catch(() => false)) {
+          await confirmLeave.click();
+        }
+        await bPage.waitForLoadState('networkidle');
+      }
+      await bContext.close();
+    }
+  });
 });

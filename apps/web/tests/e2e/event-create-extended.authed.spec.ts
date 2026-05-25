@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs';
+
+const FREE_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'free-host.json');
 
 /**
  * Extended event creation flows beyond what events.authed.spec.ts covers.
@@ -39,9 +43,104 @@ test.describe('external registration', () => {
     await expect(externalUrlInput).toBeVisible({ timeout: 5_000 });
   });
 
-  test.fixme(
-    'create event with external registration — event page shows "Register externally →" link, no on-platform RSVP',
-  );
+  test('create event with external registration — event page shows "How to register" card, no on-platform RSVP', async ({
+    browser,
+  }) => {
+    test.setTimeout(60_000);
+
+    if (!fs.existsSync(FREE_HOST_STATE)) {
+      test.skip(true, 'free-host auth not set up (TEST_FREE_HOST_EMAIL missing); skipping');
+    }
+
+    const ctx = await browser.newContext({ storageState: FREE_HOST_STATE });
+    const page = await ctx.newPage();
+    let eventUrl: string | null = null;
+
+    try {
+      await page.goto('/events/new');
+      await page.waitForLoadState('networkidle');
+
+      const response = await page.request.get('/events/new');
+      if (!response.ok()) {
+        test.skip(true, '/events/new not reachable; skipping');
+      }
+
+      // Toggle external registration ("Registration happens off-platform" checkbox).
+      const externalCheckbox = page.locator('input[name="isExternal"]');
+      if ((await externalCheckbox.count()) === 0) {
+        test.skip(true, 'No isExternal checkbox found; skipping');
+      }
+      await externalCheckbox.check();
+
+      // Fill required fields.
+      await page.locator('#title').fill(`E2E External Reg ${Date.now()}`);
+
+      // Open the DateTimePicker for startsAt and pick any available day.
+      // The hidden input is React-controlled (value={reactState}), so the
+      // evaluate/dispatchEvent hack is unreliable — interact with the UI instead
+      // so onChange fires and React state is properly updated.
+      const startsAtTrigger = page.locator('button[id="startsAt"][aria-haspopup="dialog"]');
+      await expect(startsAtTrigger).toBeVisible({ timeout: 5_000 });
+      await startsAtTrigger.click();
+
+      const calendarDialog = page.locator('[role="dialog"]').first();
+      await calendarDialog.waitFor({ state: 'visible', timeout: 5_000 });
+
+      // react-day-picker renders each day as a <button>; click any enabled one.
+      const dayBtn = calendarDialog
+        .locator('button:not([disabled])')
+        .filter({ hasText: /^\d+$/ })
+        .first();
+      await dayBtn.click();
+
+      // Click Done to commit the selection and close the popover.
+      await calendarDialog.getByRole('button', { name: /done/i }).click();
+      await calendarDialog.waitFor({ state: 'hidden', timeout: 5_000 });
+
+      // Fill the external registration URL (visible after toggle).
+      const externalUrlInput = page.locator('input[name="externalRegistrationUrl"]');
+      await expect(externalUrlInput).toBeVisible({ timeout: 5_000 });
+      await externalUrlInput.fill('https://www.facebook.com/groups/vbtest');
+
+      // Submit the form.
+      await page
+        .getByRole('button', { name: /create event|publish|save/i })
+        .last()
+        .click();
+      await page.waitForURL(
+        (url) => /\/events\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
+        { timeout: 20_000 },
+      );
+      eventUrl = page.url();
+
+      // Verify the external registration card is shown ("How to register").
+      await expect(page.locator('main')).toContainText(/How to register/i, { timeout: 10_000 });
+      // Verify the on-platform RSVP / join button is absent.
+      const joinBtn = page.getByRole('button', { name: /^join$/i });
+      expect(await joinBtn.count()).toBe(0);
+    } finally {
+      // Cleanup — cancel the event so it does not pollute the dev database.
+      if (eventUrl) {
+        const editUrl = eventUrl + '/edit';
+        await page.goto(editUrl);
+        await page.waitForLoadState('networkidle');
+        // Click "Cancel event…" to open the panel, then confirm.
+        const cancelBtn = page.getByRole('button', { name: /cancel event/i }).first();
+        if ((await cancelBtn.count()) > 0) {
+          await cancelBtn.click();
+          const confirmBtn = page
+            .getByRole('button', { name: /yes.*cancel|cancel event/i })
+            .filter({ hasNotText: /^\.\.\.$/ })
+            .last();
+          if (await confirmBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+            await confirmBtn.click();
+            await page.waitForLoadState('networkidle');
+          }
+        }
+      }
+      await ctx.close();
+    }
+  });
 });
 
 test.describe('template full flow (Pro)', () => {

@@ -1,4 +1,15 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs';
+
+const ATTENDEE_B_STATE = path.join(
+  __dirname,
+  '..',
+  '..',
+  '.playwright',
+  '.auth',
+  'attendee-b.json',
+);
 
 /**
  * Authenticated community-directory flows.
@@ -115,7 +126,86 @@ test.describe('external link warning', () => {
 test.describe('rate limiting and moderation (placeholders)', () => {
   test.fixme('6th submission in a day returns rate-limit error', async () => {});
 
-  test.fixme("report listing — requires another user's listing", async () => {});
+  test('report listing — attendee-b submits a listing, attendee-a reports it, success notice shown', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(60_000);
+
+    if (!fs.existsSync(ATTENDEE_B_STATE)) {
+      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
+    }
+
+    // attendee-b creates a throwaway listing.
+    const bCtx = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bPage = await bCtx.newPage();
+    let listingUrl: string | null = null;
+
+    try {
+      const listingTitle = `E2E Report Test ${Date.now()}`;
+      await bPage.goto('/community/new');
+
+      const creationResp = await bPage.request.get('/community/new');
+      if (!creationResp.ok()) {
+        test.skip(true, '/community/new not reachable for attendee-b; skipping');
+      }
+
+      await bPage.locator('#title').fill(listingTitle);
+      await bPage.locator('#description').fill('E2E report test listing — safe to delete');
+      await bPage.locator('#externalUrl').fill('https://www.facebook.com/groups/vbtest');
+      await bPage.locator('#externalHostName').fill('E2E Report Test Club');
+
+      const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      await bPage
+        .locator('input[name="startsAt"]')
+        .evaluate((el: HTMLInputElement, val: string) => {
+          el.value = val;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }, futureDate);
+
+      await bPage.getByRole('button', { name: /submit listing/i }).click();
+      await bPage.waitForURL(
+        (url) => /\/community\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith('/new'),
+        { timeout: 15_000 },
+      );
+      listingUrl = bPage.url();
+
+      // attendee-a (main page fixture) navigates to the listing and reports it.
+      await page.goto(listingUrl);
+      await page.waitForLoadState('networkidle');
+
+      // "See a problem?" section with a reason select + "Report listing" button.
+      const reasonSelect = page.locator('select[name="reason"]').first();
+      await expect(reasonSelect).toBeVisible({ timeout: 10_000 });
+      await reasonSelect.selectOption('spam');
+
+      const reportBtn = page.getByRole('button', { name: /report listing/i }).first();
+      await expect(reportBtn).toBeVisible({ timeout: 5_000 });
+      await reportBtn.click();
+
+      // Server redirects back to the listing with ?notice=reported.
+      await page.waitForURL((url) => url.searchParams.get('notice') === 'reported', {
+        timeout: 10_000,
+      });
+      await expect(page.locator('[role="status"]')).toContainText(/report.*recorded|thank/i, {
+        timeout: 10_000,
+      });
+    } finally {
+      // Cleanup — attendee-b deletes the listing.
+      if (listingUrl) {
+        await bPage.goto(listingUrl);
+        await bPage.waitForLoadState('networkidle');
+        const confirmCheckbox = bPage.getByRole('checkbox', { name: /confirm/i }).first();
+        if ((await confirmCheckbox.count()) > 0) await confirmCheckbox.check();
+        const deleteBtn = bPage.getByRole('button', { name: /^delete$/i }).first();
+        if ((await deleteBtn.count()) > 0) {
+          await deleteBtn.click();
+          await bPage.waitForLoadState('networkidle');
+        }
+      }
+      await bCtx.close();
+    }
+  });
 
   test.fixme('admin moderation — requires admin role on the test account', async () => {});
 });

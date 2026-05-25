@@ -1,4 +1,15 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs';
+
+const ATTENDEE_B_STATE = path.join(
+  __dirname,
+  '..',
+  '..',
+  '.playwright',
+  '.auth',
+  'attendee-b.json',
+);
 
 /**
  * Authenticated player social flows: own public profile, player directory,
@@ -186,11 +197,99 @@ test.describe('friends and following', () => {
     '/events?when=following loads — covered in profile.authed.spec.ts; marked fixme to avoid duplication',
   );
 
-  test.fixme(
-    'mutual follow shown on /friends — sign in as attendee-b (TEST_ATTENDEE_B_EMAIL) and follow back',
-  );
+  // Notification badge test covered by notifications.authed.spec.ts.
 
-  test.fixme(
-    'notification bell shows unread badge when another user follows — use attendee-b (TEST_ATTENDEE_B_EMAIL) to trigger',
-  );
+  test('mutual follow shown on /friends when attendee-b follows back', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(60_000);
+
+    if (!fs.existsSync(ATTENDEE_B_STATE)) {
+      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
+    }
+
+    // Determine attendee-a's own handle.
+    await page.goto('/profile');
+    await page.waitForLoadState('networkidle');
+    const aHandleInput = page.locator('input[name="handle"]').first();
+    const aHandle = (await aHandleInput.count()) > 0 ? await aHandleInput.inputValue() : null;
+    if (!aHandle) {
+      test.skip(true, 'Could not determine own handle from /profile; skipping');
+    }
+
+    // Determine attendee-b's handle (declared outside try so cleanup can reference it).
+    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bPage = await bContext.newPage();
+    let bHandle: string | null = null;
+    try {
+      await bPage.goto('/profile');
+      await bPage.waitForLoadState('networkidle');
+      const bHandleInput = bPage.locator('input[name="handle"]').first();
+      bHandle = (await bHandleInput.count()) > 0 ? await bHandleInput.inputValue() : null;
+      if (!bHandle) {
+        test.skip(true, 'Could not determine attendee-b handle; skipping');
+      }
+
+      // Attendee-a follows attendee-b.
+      await page.goto(`/players/${bHandle}`);
+      await page.waitForLoadState('networkidle');
+      const aFollowBtn = page.getByRole('button', { name: /\+\s*follow|^follow$/i }).first();
+      if ((await aFollowBtn.count()) > 0) {
+        await aFollowBtn.click();
+        await page.waitForLoadState('networkidle');
+        await expect(page.getByRole('button', { name: /following|unfollow/i }).first()).toBeVisible(
+          { timeout: 10_000 },
+        );
+      }
+
+      // Attendee-b follows attendee-a back.
+      await bPage.goto(`/players/${aHandle}`);
+      await bPage.waitForLoadState('networkidle');
+      const bFollowBtn = bPage.getByRole('button', { name: /\+\s*follow|^follow$/i }).first();
+      if ((await bFollowBtn.count()) > 0) {
+        await bFollowBtn.click();
+        await bPage.waitForLoadState('networkidle');
+        await expect(
+          bPage.getByRole('button', { name: /following|unfollow/i }).first(),
+        ).toBeVisible({ timeout: 10_000 });
+      }
+
+      // /friends should now list attendee-b as a mutual connection.
+      await page.goto('/friends');
+      await page.waitForLoadState('networkidle');
+      await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
+      // Accept any mutual-follow indicator: "Friends", "Mutual", or bHandle appearing in the list.
+      const hasMutual = await page
+        .locator('main')
+        .getByText(new RegExp(`${bHandle}|friends|mutual`, 'i'))
+        .first()
+        .isVisible({ timeout: 10_000 })
+        .catch(() => false);
+      expect(hasMutual, '/friends should show attendee-b as a mutual connection').toBe(true);
+    } finally {
+      // Cleanup: attendee-b unfollows attendee-a.
+      if (aHandle) {
+        await bPage.goto(`/players/${aHandle}`);
+        await bPage.waitForLoadState('networkidle');
+        const bUnfollowBtn = bPage.getByRole('button', { name: /following|unfollow/i }).first();
+        if ((await bUnfollowBtn.count()) > 0) {
+          await bUnfollowBtn.click();
+          await bPage.waitForLoadState('networkidle');
+        }
+      }
+      await bContext.close();
+
+      // Attendee-a unfollows attendee-b.
+      if (bHandle) {
+        await page.goto(`/players/${bHandle}`);
+        await page.waitForLoadState('networkidle');
+        const aUnfollowBtn = page.getByRole('button', { name: /following|unfollow/i }).first();
+        if ((await aUnfollowBtn.count()) > 0) {
+          await aUnfollowBtn.click();
+          await page.waitForLoadState('networkidle');
+        }
+      }
+    }
+  });
 });

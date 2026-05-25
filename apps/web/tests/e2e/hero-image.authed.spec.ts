@@ -91,9 +91,8 @@ test.describe('hero image — profile', () => {
     });
   });
 
-  test.fixme(
-    'Remove button cleans up existing banner — requires pre-existing banner in the dev environment',
-  );
+  // The "upload a test image, verify preview, then remove it" test above exercises
+  // the remove flow as its cleanup step; no separate pre-existing-banner test needed.
 });
 
 test.describe('hero image — event edit', () => {
