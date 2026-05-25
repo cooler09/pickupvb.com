@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs';
 
 /**
  * Authenticated event flows.
@@ -27,26 +29,39 @@ test.describe('event creation form', () => {
 });
 
 test.describe('saved event templates (Pro feature)', () => {
-  test('clicking Save template with an empty name shows inline error', async ({ page }) => {
-    await page.goto('/events/new');
+  // Pro tests run against the pro-host storage state via a secondary browser
+  // context. The default attendee-a session does not have Pro; the
+  // setup-pro-host project (driven by TEST_PRO_HOST_EMAIL) writes
+  // .playwright/.auth/pro-host.json which we open here. Mirrors the pattern
+  // in billing-stripe.authed.spec.ts.
+  const PRO_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'pro-host.json');
 
-    // The template card is only shown to Pro users. Skip if it's not present.
-    const templateNameInput = page.getByPlaceholder(/template name/i);
-    const isProUser = (await templateNameInput.count()) > 0;
-    if (!isProUser) {
-      test.skip(true, 'Test user does not have Pro — template card not shown; skipping');
+  test('clicking Save template with an empty name shows inline error', async ({ browser }) => {
+    if (!fs.existsSync(PRO_HOST_STATE)) {
+      test.skip(true, 'pro-host auth not set up (TEST_PRO_HOST_EMAIL missing); skipping');
     }
+    const ctx = await browser.newContext({ storageState: PRO_HOST_STATE });
+    const page = await ctx.newPage();
+    try {
+      await page.goto('/events/new');
 
-    // Click "Save template" without entering a name.
-    const saveBtn = page.getByRole('button', { name: /save template/i });
-    await expect(saveBtn).toBeVisible();
-    await saveBtn.click();
+      // Pro user should see the template name input.
+      const templateNameInput = page.getByPlaceholder(/template name/i);
+      await expect(templateNameInput).toBeVisible({ timeout: 10_000 });
 
-    // Inline validation error should appear.
-    await expect(page.locator('body')).toContainText(/enter a name|name required|name first/i);
+      // Click "Save template" without entering a name.
+      const saveBtn = page.getByRole('button', { name: /save template/i });
+      await expect(saveBtn).toBeVisible();
+      await saveBtn.click();
 
-    // The form should NOT have navigated away.
-    await expect(page).toHaveURL(/\/events\/new/);
+      // Inline validation error should appear.
+      await expect(page.locator('body')).toContainText(/enter a name|name required|name first/i);
+
+      // The form should NOT have navigated away.
+      await expect(page).toHaveURL(/\/events\/new/);
+    } finally {
+      await ctx.close().catch(() => {});
+    }
   });
 
   test('non-Pro user sees no template card on /events/new', async ({ page }) => {

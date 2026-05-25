@@ -83,6 +83,13 @@ export default async function NewEventPage(props: {
         </p>
       </header>
       <NewEventForm
+        // Remount when the applied template changes so `useFormState`
+        // re-seeds its initialState from the new `templateValues`. React's
+        // `useFormState` only reads initialState on first mount, and Next.js
+        // App Router preserves client components across same-route soft
+        // navigations — without this key, applying a template via the GET
+        // submit (?template=<id>) leaves the form fields blank.
+        key={selectedTemplateId ?? 'no-template'}
         hostableGroups={hostableGroups}
         canCollectPayments={canCollectPayments}
         templates={templates}

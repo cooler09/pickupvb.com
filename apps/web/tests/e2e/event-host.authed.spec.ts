@@ -26,143 +26,103 @@ const ATTENDEE_B_STATE = path.join(
 
 let eventUrl: string | null = null;
 let testEventTitle: string;
+let beforeAllError: string | null = null;
+
+/**
+ * The DateTimePicker exposes the visible trigger as `<button id={name}>` and
+ * the hidden form value as `<input type="hidden" name={name}>`. So `#startsAt`
+ * targets the trigger and `input[type=hidden][name="startsAt"]` carries the
+ * ISO string the server reads.
+ *
+ * Opens the picker for `name`, picks the LAST visible non-disabled day in
+ * the calendar grid (deep in the month → safely in the future even on early-
+ * month runs and after `minDate` clamps), fills the time, and closes.
+ */
+async function pickFutureDateTime(
+  page: import('@playwright/test').Page,
+  name: 'startsAt' | 'endsAt',
+  timeHhmm: string,
+): Promise<void> {
+  const trigger = page.locator(`button#${name}`);
+  await trigger.click();
+
+  const dialog = page.locator('[role="dialog"]').last();
+  await dialog.waitFor({ state: 'visible', timeout: 5_000 });
+
+  // LAST non-disabled day in the visible month — pushes the date several
+  // days ahead so server-side "starts in the past" validation can't reject.
+  const day = dialog.locator('[role="gridcell"] button:not([disabled])').last();
+  await day.click();
+
+  const timeInput = dialog.locator('input[type="time"]').first();
+  await timeInput.fill(timeHhmm);
+
+  // Trigger handleTime → onChange → hidden input updates.
+  await timeInput.blur();
+  await page.keyboard.press('Escape');
+
+  // Verify the hidden ISO input now has a value.
+  const hiddenIso = await page
+    .locator(`input[type="hidden"][name="${name}"]`)
+    .inputValue()
+    .catch(() => '');
+  if (!hiddenIso) throw new Error(`DateTimePicker for ${name} did not populate hidden input`);
+}
 
 test.beforeAll(async ({ browser }) => {
+  test.setTimeout(60_000);
   const context = await browser.newContext({ storageState: STORAGE_STATE });
   const page = await context.newPage();
   testEventTitle = `E2E Host Test ${Date.now()}`;
 
   try {
     await page.goto('/events/new');
-    const newPageOk = !(page.url().includes('/login') || page.url().includes('/upgrade'));
-    if (!newPageOk) {
-      await page.close();
+    if (page.url().includes('/login') || page.url().includes('/upgrade')) {
+      beforeAllError = `redirected to ${new URL(page.url()).pathname} — event creation gated`;
       return;
     }
 
-    // Fill the title.
     await page.locator('#title').fill(testEventTitle);
 
-    // Fill "Starts at" via DateTimePicker.
-    // Click the trigger button (placeholder "Pick a date and time" or the formatted date text).
-    const startsAtTrigger = page
-      .locator('[data-testid="starts-at-trigger"]')
-      .or(page.getByRole('button', { name: /pick a date|starts at/i }))
-      .or(
-        page
-          .locator('button')
-          .filter({ hasText: /pick a date and time/i })
-          .first(),
-      )
-      .first();
+    await pickFutureDateTime(page, 'startsAt', '18:00');
+    await pickFutureDateTime(page, 'endsAt', '20:00');
 
-    // Try to find the DateTimePicker trigger near the "Starts at" label.
-    const startsAtLabel = page.getByText(/starts at/i).first();
-    let startsAtBtn = startsAtLabel
-      .locator('xpath=following::button[1]')
-      .or(startsAtTrigger)
-      .first();
-
-    // Fallback: look for any button with date-picker-like text.
-    if ((await startsAtBtn.count()) === 0) {
-      startsAtBtn = page
-        .locator('button')
-        .filter({ hasText: /pick a date/i })
-        .first();
+    await page.locator('#addressLine').fill('1000 19th St');
+    // City/region/postal/country are visible only while no address detail has
+    // been entered yet (hasAddress=false). Fill them BEFORE the conditional
+    // collapses; if addressLine already triggered the collapse, click the
+    // "Edit address details" button to reopen.
+    const editDetailsBtn = page.getByRole('button', { name: /edit address details/i });
+    if (await editDetailsBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await editDetailsBtn.click();
     }
-
-    if ((await startsAtBtn.count()) === 0) {
-      await page.close();
-      return;
-    }
-
-    await startsAtBtn.click();
-
-    // Calendar should now be open. Find a clickable non-disabled day button.
-    // Pick the first non-disabled day in the calendar.
-    const dayButtons = page.locator('[role="gridcell"] button:not([disabled])');
-    const dayCount = await dayButtons.count();
-    if (dayCount === 0) {
-      await page.close();
-      return;
-    }
-    // Click the first available day.
-    await dayButtons.first().click();
-
-    // Fill time input that appears after day selection.
-    const timeInput = page.locator('input[type="time"]').first();
-    if ((await timeInput.count()) > 0) {
-      await timeInput.fill('18:00');
-    }
-
-    // Close the calendar / confirm selection — click outside or press Escape.
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-
-    // Fill "Ends at" — same approach.
-    const endsAtLabel = page.getByText(/ends at/i).first();
-    let endsAtBtn = endsAtLabel.locator('xpath=following::button[1]').first();
-    if ((await endsAtBtn.count()) === 0) {
-      endsAtBtn = page
-        .locator('button')
-        .filter({ hasText: /pick a date/i })
-        .nth(1);
-    }
-    if ((await endsAtBtn.count()) === 0) {
-      await page.close();
-      return;
-    }
-
-    await endsAtBtn.click();
-
-    // Pick next available day (2nd non-disabled day or same as starts-at but different).
-    const endDayButtons = page.locator('[role="gridcell"] button:not([disabled])');
-    const endDayCount = await endDayButtons.count();
-    if (endDayCount === 0) {
-      await page.close();
-      return;
-    }
-    // Pick a later day if possible.
-    const endDayIndex = Math.min(1, endDayCount - 1);
-    await endDayButtons.nth(endDayIndex).click();
-
-    const timeInputEnd = page.locator('input[type="time"]').first();
-    if ((await timeInputEnd.count()) > 0) {
-      await timeInputEnd.fill('20:00');
-    }
-
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
-
-    // Fill address fields.
-    await page.locator('#addressLine').fill('123 Main St');
     await page.locator('#city').fill('Virginia Beach');
     await page.locator('#region').fill('VA');
+    await page.locator('#postalCode').fill('23451');
+    await page.locator('#country').fill('US');
 
-    const postalInput = page.locator('#postalCode');
-    if ((await postalInput.count()) > 0) await postalInput.fill('23451');
-
-    const countryInput = page.locator('#country');
-    if ((await countryInput.count()) > 0) await countryInput.fill('US');
-
-    // Verify the hidden startsAt input was populated (DateTimePicker writes it).
-    const startsAtHidden = page.locator('input[name="startsAt"]');
-    const startsAtValue = (await startsAtHidden.inputValue().catch(() => '')) ?? '';
-    if (!startsAtValue) {
-      // DateTimePicker did not populate the hidden input — cannot submit.
-      await page.close();
-      return;
-    }
-
-    // Submit the form.
     await page.getByRole('button', { name: /create event/i }).click();
 
-    // Wait for redirect to the event detail page.
-    await page.waitForURL(/\/events\/[^/]+$/, { timeout: 15_000 });
-    eventUrl = page.url();
-  } catch {
-    // Creation failed — tests will skip.
-    eventUrl = null;
+    await page.waitForURL(/\/events\/[0-9a-f-]{36}(\?|$)/, { timeout: 20_000 }).catch(async () => {
+      // Surface why submission didn't redirect — usually a server-side
+      // validation error rerendered the form.
+      const currentUrl = page.url();
+      const errors = await page
+        .locator('[role="alert"], .text-error, [class*="error"]')
+        .allTextContents()
+        .catch(() => [] as string[]);
+      throw new Error(
+        `submit did not redirect (stayed on ${currentUrl}); visible errors: ${JSON.stringify(errors.slice(0, 5))}`,
+      );
+    });
+    // Strip the `?created=1` flash param so `${eventUrl}/edit` builds cleanly.
+    eventUrl = page.url().replace(/\?.*$/, '');
+  } catch (err) {
+    beforeAllError = err instanceof Error ? err.message : String(err);
+    // Surface the failure so the next agent can see WHY creation failed
+    // instead of every test silently skipping with the same message.
+    // eslint-disable-next-line no-console
+    console.error('[event-host beforeAll] event creation failed:', beforeAllError);
   } finally {
     await context.close();
   }
@@ -195,7 +155,7 @@ test.afterAll(async ({ browser }) => {
 test.describe('event host flows', () => {
   test('event detail page loads with the test title', async ({ page }) => {
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     const response = await page.goto(eventUrl!);
     expect(response?.ok()).toBeTruthy();
@@ -204,7 +164,7 @@ test.describe('event host flows', () => {
 
   test('event edit page loads with title field pre-filled', async ({ page }) => {
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     const response = await page.goto(`${eventUrl}/edit`);
     expect(response?.ok()).toBeTruthy();
@@ -216,7 +176,7 @@ test.describe('event host flows', () => {
 
   test('change title, save, verify new title on detail page', async ({ page }) => {
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     await page.goto(`${eventUrl}/edit`);
     const newTitle = `${testEventTitle} — edited`;
@@ -237,7 +197,7 @@ test.describe('event host flows', () => {
 
   test('event detail shows host section', async ({ page }) => {
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     await page.goto(eventUrl!);
     // The host section should mention the host in some form.
@@ -246,7 +206,7 @@ test.describe('event host flows', () => {
 
   test('analytics or attendance section is visible to host', async ({ page }) => {
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     await page.goto(eventUrl!);
     // Hosts see an attendance count or analytics panel on their own event.
@@ -260,20 +220,22 @@ test.describe('event host flows', () => {
 
   test('cancel event panel is present on edit page', async ({ page }) => {
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     await page.goto(`${eventUrl}/edit`);
     const cancelEventBtn = page.getByRole('button', { name: /cancel event…/i }).first();
     await expect(cancelEventBtn).toBeVisible({ timeout: 10_000 });
   });
 
-  test.fixme('sponsor panel — requires Pro or sponsor add-on');
+  test.fixme('sponsor panel — requires Pro or sponsor add-on', async () => {
+    // TODO: requires Pro user with sponsor add-on. See README group #2 (Stripe).
+  });
 
   test('co-host section: add attendee-b, verify listed, remove', async ({ page, browser }) => {
     test.setTimeout(60_000);
 
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     if (!fs.existsSync(ATTENDEE_B_STATE)) {
       test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
@@ -360,7 +322,7 @@ test.describe('event host flows', () => {
     test.setTimeout(90_000);
 
     if (!eventUrl) {
-      test.skip(true, 'Test event was not created; skipping');
+      test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     if (!fs.existsSync(ATTENDEE_B_STATE)) {
       test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');

@@ -8,65 +8,76 @@ import { test, expect } from '@playwright/test';
  *   - Multiple test accounts
  *   - Stripe Connect for paid team registration
  *
- * Runnable tests verify that tournament-adjacent pages and UI elements load
- * without errors. All interactive flows are fixme until the above prerequisites
- * can be set up reliably.
+ * Read-only tests run against the persistent fixture seeded by
+ * supabase/snippets/seed-tournament-fixture.sql (short codes E2ETFA /
+ * E2ETFR — see apps/web/tests/e2e/README.md group #4). Mutating tests
+ * remain `test.fixme` to avoid polluting the persistent seed; converting
+ * them needs a per-test create+cleanup strategy or a dedicated
+ * disposable fixture.
  */
 
-test.describe('tournament event page', () => {
-  test('a tournament event page loads without error', async ({ page }) => {
-    await page.goto('/events');
-    await page.waitForLoadState('networkidle');
+// Short codes from supabase/snippets/seed-tournament-fixture.sql.
+const ADHOC_CODE = 'E2ETFA';
+const ROSTER_CODE = 'E2ETFR';
 
-    // Look for a tournament-type event link.
-    // Tournament events often display "Tournament" in their title or type badge.
-    const eventLinks = page.locator('a[href*="/events/"]');
-    const count = await eventLinks.count();
+async function resolveEventId(
+  page: import('@playwright/test').Page,
+  shortCode: string,
+): Promise<string> {
+  const response = await page.goto(`/e/${shortCode}`);
+  expect(response?.ok(), `/e/${shortCode} did not resolve — is the seed applied?`).toBeTruthy();
+  await page.waitForURL(/\/events\/[0-9a-f-]+(\?|$)/, { timeout: 10_000 });
+  const match = /\/events\/([0-9a-f-]+)/.exec(page.url());
+  expect(
+    match?.[1],
+    `expected canonical /events/<uuid> after /e/${shortCode} redirect`,
+  ).toBeTruthy();
+  return match![1]!;
+}
 
-    let tournamentUrl: string | null = null;
-    for (let i = 0; i < count; i++) {
-      const text = await eventLinks.nth(i).textContent();
-      if (/tournament|bracket/i.test(text ?? '')) {
-        tournamentUrl = await eventLinks.nth(i).getAttribute('href');
-        break;
-      }
-    }
-
-    if (!tournamentUrl) {
-      test.skip(true, 'No tournament events in this environment; skipping');
-    }
-
-    const response = await page.goto(tournamentUrl!);
-    expect(response?.ok()).toBeTruthy();
+test.describe('tournament event page (seeded fixture)', () => {
+  test('roster fixture /e/E2ETFR loads and lists the four seeded teams', async ({ page }) => {
+    await resolveEventId(page, ROSTER_CODE);
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('body')).not.toContainText(/500|internal server error/i);
+    await expect(page.locator('body')).not.toContainText(/internal server error/i);
+
+    // Title comes from the seed.
+    await expect(page.locator('body')).toContainText(/Roster Tournament Fixture/i);
+
+    // All four persistent team names from the seed should be present.
+    for (const teamName of ['[E2E] Spikers', '[E2E] Diggers', '[E2E] Setters', '[E2E] Blockers']) {
+      await expect(page.locator('body')).toContainText(teamName);
+    }
   });
 
-  test('bracket page loads for a tournament event if one exists', async ({ page }) => {
-    await page.goto('/events');
-    await page.waitForLoadState('networkidle');
+  test('roster fixture bracket page loads with division summary and team count', async ({
+    page,
+  }) => {
+    const eventId = await resolveEventId(page, ROSTER_CODE);
 
-    const eventLinks = page.locator('a[href*="/events/"]');
-    const count = await eventLinks.count();
+    const response = await page.goto(`/events/${eventId}/bracket`);
+    expect(response?.ok()).toBeTruthy();
+    await expect(page.locator('body')).not.toContainText(/internal server error/i);
 
-    for (let i = 0; i < count; i++) {
-      const text = await eventLinks.nth(i).textContent();
-      if (/tournament|bracket/i.test(text ?? '')) {
-        const href = await eventLinks.nth(i).getAttribute('href');
-        if (!href) continue;
+    // Bracket page header: "Bracket — <event title>"
+    await expect(
+      page.getByRole('heading', { level: 1, name: /Bracket\s+—\s+\[E2E\] Roster/i }),
+    ).toBeVisible({ timeout: 10_000 });
 
-        // Try loading the bracket sub-page.
-        const bracketUrl = `${href.replace(/\/$/, '')}/bracket`;
-        const response = await page.goto(bracketUrl);
-        // Bracket page may 404 if no bracket exists yet — that's acceptable.
-        const status = response?.status() ?? 0;
-        expect(status === 200 || status === 404 || status === 302).toBe(true);
-        await expect(page.locator('body')).not.toContainText(/500|internal server error/i);
-        return;
-      }
-    }
+    // Each division in the seed has 2 registered teams.
+    await expect(page.locator('body')).toContainText(/2 registered teams?/i);
+  });
 
-    test.skip(true, 'No tournament events in this environment; skipping bracket page test');
+  test('ad-hoc fixture /e/E2ETFA loads with no pre-registered teams', async ({ page }) => {
+    await resolveEventId(page, ADHOC_CODE);
+    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('body')).not.toContainText(/internal server error/i);
+
+    // Title from the seed.
+    await expect(page.locator('body')).toContainText(/Ad-Hoc Tournament Fixture/i);
+
+    // No persistent team names should be on this fixture.
+    await expect(page.locator('body')).not.toContainText('[E2E] Spikers');
   });
 });
 

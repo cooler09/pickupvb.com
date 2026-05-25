@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
+import fs from 'node:fs';
 
 const STORAGE_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
+const PRO_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'pro-host.json');
 
 /**
  * Regression checklist (Section 19) — a targeted smoke pass that should
@@ -108,26 +110,32 @@ test.describe('regression', () => {
     expect(hasAdd || hasChange, 'Hero image upload widget must be visible on /profile').toBe(true);
   });
 
-  test('template save validation shows error for empty name', async ({ page }) => {
-    await page.goto('/events/new');
-
-    // The template card is a Pro-only feature.
-    const templateNameInput = page.getByPlaceholder(/template name/i);
-    const isProUser = (await templateNameInput.count()) > 0;
-    if (!isProUser) {
-      test.skip(true, 'Test user does not have Pro — template card not shown; skipping');
+  test('template save validation shows error for empty name', async ({ browser }) => {
+    // Pro-only feature — run against the pro-host storage state.
+    if (!fs.existsSync(PRO_HOST_STATE)) {
+      test.skip(true, 'pro-host auth not set up (TEST_PRO_HOST_EMAIL missing); skipping');
     }
+    const ctx = await browser.newContext({ storageState: PRO_HOST_STATE });
+    const page = await ctx.newPage();
+    try {
+      await page.goto('/events/new');
 
-    const saveTemplateBtn = page.getByRole('button', { name: /save template/i });
-    await expect(saveTemplateBtn).toBeVisible({ timeout: 10_000 });
+      const templateNameInput = page.getByPlaceholder(/template name/i);
+      await expect(templateNameInput).toBeVisible({ timeout: 10_000 });
 
-    // Click without filling the template name.
-    await saveTemplateBtn.click();
+      const saveTemplateBtn = page.getByRole('button', { name: /save template/i });
+      await expect(saveTemplateBtn).toBeVisible({ timeout: 10_000 });
 
-    await expect(page.locator('body')).toContainText(/enter a name|name required|name first/i, {
-      timeout: 10_000,
-    });
-    await expect(page).toHaveURL(/\/events\/new/);
+      // Click without filling the template name.
+      await saveTemplateBtn.click();
+
+      await expect(page.locator('body')).toContainText(/enter a name|name required|name first/i, {
+        timeout: 10_000,
+      });
+      await expect(page).toHaveURL(/\/events\/new/);
+    } finally {
+      await ctx.close().catch(() => {});
+    }
   });
 
   test('event edit title change is verifiable', async ({ page }) => {

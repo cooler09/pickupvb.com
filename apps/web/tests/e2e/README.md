@@ -199,45 +199,58 @@ playbook for each:
   confirmation/notification link. Reference: the existing
   `RESEND_FROM_EMAIL` config in [docs/integrations.md](../../../../../docs/integrations.md).
 
-#### 4. Tournament / divisions / brackets
+#### 4. Tournament / divisions / brackets ✅ unblocked on dev
 
 - **Files:** all of [tournament.authed.spec.ts:74-120](../../../tests/e2e/tournament.authed.spec.ts),
   plus [events.authed.spec.ts:26](../../../tests/e2e/events.authed.spec.ts)
   (multi-division creation).
-- **Blocker:** dev currently has no seeded tournament event with divisions,
-  registrations, and bracket state. Most of these tests need a multi-stage
-  fixture (event → divisions → captains → rosters → seeded matches).
-- **Unblock:** apply [supabase/snippets/seed-tournament-fixture.sql](../../../../../supabase/snippets/seed-tournament-fixture.sql)
-  against the target DB. It is idempotent and creates two published
-  tournaments hosted by `TEST_FREE_HOST_EMAIL` — `[E2E] Ad-Hoc Tournament Fixture`
-  (short code `E2ETFA`, 2 divisions, no pre-registered teams; use for
-  ad-hoc captain-builds-a-team flows) and `[E2E] Roster Tournament Fixture`
-  (short code `E2ETFR`, 2 divisions × 2 persistent teams each captained
-  by attendee-a / attendee-b / free-host / pro-host, plus a
-  single-elimination bracket with seeded round-1 matches). Apply with
+- **Status:** [supabase/snippets/seed-tournament-fixture.sql](../../../../../supabase/snippets/seed-tournament-fixture.sql)
+  has been applied to dev. Two published tournaments hosted by
+  `TEST_FREE_HOST_EMAIL` are live there:
+  - `[E2E] Ad-Hoc Tournament Fixture` (short code `E2ETFA`, `/e/E2ETFA`)
+    — ad-hoc registration mode, 2 divisions, no pre-registered teams;
+    target for ad-hoc captain-builds-a-team fixmes
+    ([tournament.authed.spec.ts:74-84](../../../tests/e2e/tournament.authed.spec.ts#L74-L84)).
+  - `[E2E] Roster Tournament Fixture` (short code `E2ETFR`, `/e/E2ETFR`)
+    — roster mode, 2 divisions × 2 persistent teams captained by
+    attendee-a / attendee-b / free-host / pro-host, plus a
+    single-elimination bracket per division with seeded round-1
+    matches; target for roster / withdraw / bracket fixmes
+    ([tournament.authed.spec.ts:88-120](../../../tests/e2e/tournament.authed.spec.ts#L88-L120)).
+- **Re-apply** (idempotent, safe to re-run) locally with
   `psql "$(supabase status -o env | grep DB_URL | cut -d= -f2)" -f supabase/snippets/seed-tournament-fixture.sql`
-  locally, or against dev/preview with `psql "$SUPABASE_DB_URL" -f ...`.
-  Tests can then address the events by short code (`/e/E2ETFA`, `/e/E2ETFR`)
-  or look them up by the `[E2E]` title prefix.
+  or against dev/preview with `psql "$SUPABASE_DB_URL" -f ...`.
+- **Remaining work:** the 14 mutating `test.fixme` entries in
+  [tournament.authed.spec.ts](../../../tests/e2e/tournament.authed.spec.ts)
+  (team register / withdraw / rename, free-agent signup, bracket result
+  recording, etc.) are still pending. They need a per-test create+cleanup
+  strategy or a disposable fixture so they don't pollute the persistent
+  seed. The two previously skip-graceful read-only tests at the top of
+  the file have been converted to direct addressing against `/e/E2ETFR`
+  and `/e/E2ETFA`, plus three new read-only assertions cover team-name
+  visibility, bracket-page rendering, and the ad-hoc empty-roster state.
 
-#### 5. Pro-only template / sponsor / analytics flows
+#### 5. Pro-only template / sponsor / analytics flows ✅ partially unblocked
 
-- **Files:** [events.authed.spec.ts:37,57](../../../tests/e2e/events.authed.spec.ts),
-  [event-create-extended.authed.spec.ts:231](../../../tests/e2e/event-create-extended.authed.spec.ts),
+- **Files:** [events.authed.spec.ts](../../../tests/e2e/events.authed.spec.ts)
+  (template save validation), [event-create-extended.authed.spec.ts:224](../../../tests/e2e/event-create-extended.authed.spec.ts)
+  (full template flow), [regression.authed.spec.ts:117](../../../tests/e2e/regression.authed.spec.ts)
+  (template empty-name check), and [event-host.authed.spec.ts:270](../../../tests/e2e/event-host.authed.spec.ts)
+  (sponsor panel — still `test.fixme`).
+- **Status:** the three template tests now open a secondary browser
+  context against `pro-host.json` (matching the pattern in
+  [billing-stripe.authed.spec.ts](../../../tests/e2e/billing-stripe.authed.spec.ts))
+  so they run as the Pro test account without affecting the default
+  `[authed]` session. They skip gracefully when
+  `TEST_PRO_HOST_EMAIL` (and therefore the setup-pro-host storage state)
+  is absent. Inverse non-Pro check in
+  [events.authed.spec.ts](../../../tests/e2e/events.authed.spec.ts)
+  remains on attendee-a.
+- **Remaining:** the sponsor panel fixme at
   [event-host.authed.spec.ts:270](../../../tests/e2e/event-host.authed.spec.ts)
-  (sponsor panel fixme), [regression.authed.spec.ts:118](../../../tests/e2e/regression.authed.spec.ts).
-- **Blocker:** the default test user (attendee-a) is not Pro. The suite
-  already has a `pro-host` storage state
-  ([auth.pro-host.setup.ts](../../../tests/e2e/auth.pro-host.setup.ts))
-  driven by `TEST_PRO_HOST_EMAIL`, but most of these specs run with the
-  shared `[authed]` project and never switch.
-- **Unblock:** either (a) add a `[authed-pro]` Playwright project in
-  [playwright.config.ts](../../../playwright.config.ts) that loads
-  `pro-host.json` storage state, and move the Pro-gated tests there, or
-  (b) within each test do
-  `await page.context().addCookies(...)` after loading the pro-host state
-  manually. Option (a) is cleaner — the existing `setup-pro-host`
-  dependency already produces the state file.
+  still needs an actual test body — open a pro-host context, navigate
+  to a hosted event's manage page, and assert the sponsor card / add
+  flow renders.
 
 #### 6. Multi-actor admin / claim-approval flows
 
@@ -285,7 +298,7 @@ hand-creating the row in dev, unblocks them on the next run.
   rendered, no action needed unless the affordance is supposed to be
   there.
 
-#### 8. `TEST_ATTENDEE_B_EMAIL` not set
+#### 8. `TEST_ATTENDEE_B_EMAIL` not set ✅ unblocked on dev
 
 - **Files:** invite/accept/decline/broadcast paths in
   [teams.authed.spec.ts](../../../tests/e2e/teams.authed.spec.ts),
@@ -293,13 +306,62 @@ hand-creating the row in dev, unblocks them on the next run.
   [groups-manage.authed.spec.ts](../../../tests/e2e/groups-manage.authed.spec.ts),
   [community.authed.spec.ts](../../../tests/e2e/community.authed.spec.ts),
   [player-social.authed.spec.ts](../../../tests/e2e/player-social.authed.spec.ts),
-  [event-attendance.authed.spec.ts](../../../tests/e2e/event-attendance.authed.spec.ts).
-- **Blocker:** the second test account is not provisioned for the runner.
-- **Unblock:** export `TEST_ATTENDEE_B_EMAIL=<email>` (and reuse
-  `TEST_USER_PASSWORD`). The setup project
-  [auth.attendee-b.setup.ts](../../../tests/e2e/auth.attendee-b.setup.ts)
-  will sign in and produce `.playwright/.auth/attendee-b.json`, which
-  every dependent test reads.
+  [event-attendance.authed.spec.ts](../../../tests/e2e/event-attendance.authed.spec.ts),
+  [event-host.authed.spec.ts](../../../tests/e2e/event-host.authed.spec.ts),
+  [notifications.authed.spec.ts](../../../tests/e2e/notifications.authed.spec.ts).
+- **Status:** `TEST_ATTENDEE_B_EMAIL=zacharyjordan82+attendee-b@gmail.com`
+  is wired into the standard runner invocation (see the snippet at the
+  top of this README). The `[setup-attendee-b]` project signs in and
+  produces `.playwright/.auth/attendee-b.json`, and the dev run
+  confirms it: cross-context attendee-b tests now execute and pass
+  (e.g. community report, capacity-limit "event is full", groups
+  add/promote/remove member, groups-manage members flow).
+- **Remaining work:** the still-skipping attendee-b-flagged tests
+  (notifications unread badge, teams invite/decline/broadcast,
+  player friends mutual follow) skip
+  for **other** reasons now — most cascade off group #1 (dynamic
+  discovery couldn't find a captained team / hosted event).
+  The event-host co-host + broadcast cascade off the same
+  `beforeAll` event creation, which has since been fixed (see the
+  callout below). Unblock the upstream group #1 and these tests will
+  start running too.
+
+##### Sub-callout: `event-host.authed.spec.ts` "Test event was not created" ✅ fixed
+
+The `beforeAll` hook in
+[event-host.authed.spec.ts](../../../tests/e2e/event-host.authed.spec.ts)
+used to swallow every failure into `eventUrl = null`, which made all
+7 host-flow tests + 2 attendee-b cross-context tests silently skip
+with "Test event was not created; skipping". Three concrete bugs were
+found and fixed:
+
+1. A bare `test.fixme('sponsor panel — requires Pro or sponsor add-on');`
+   call (one string arg) was interpreted by Playwright as
+   `test.fixme(condition: truthy)` and poisoned the **entire
+   `describe`** as fixme — every test was reported as `fixme` regardless
+   of `beforeAll` outcome. Replaced with the proper two-arg form.
+2. Filling `#addressLine` collapsed the city/region/postal/country
+   fields (the form's "edit address details" disclosure). Reordered to
+   fill the optional address fields after click-to-reopen if needed.
+3. The post-submit redirect URL is `/events/<uuid>?created=1` — the
+   waitForURL regex required end-of-string and missed the query suffix.
+4. The address `123 Main St, Virginia Beach, VA 23451` failed
+   server-side geocoding. Switched to a real Virginia Beach landmark
+   (`1000 19th St` — convention center).
+
+Result on dev: 6 host-flow tests now pass (event detail/edit, host
+section, cancel panel, etc.), 1 sponsor test legitimately fixme'd
+(Stripe gate), and 4 tests fail with **real** downstream test-logic
+bugs (changed-title cache race, attendance copy mismatch, UserPicker
+selector drift, broadcast leave-event affordance) — a separate
+cleanup pass.
+
+**Cleanup note:** debugging iterations created a handful of orphan
+`E2E Host Test <timestamp>` events on dev because each beforeAll
+attempt created one but only the successful path cancels it in
+`afterAll`. Manual cleanup via the dev `/admin/events` view or a
+`DELETE FROM events WHERE title LIKE 'E2E Host Test %' AND created_at < now() - interval '1 hour'`
+is fine.
 
 #### Verifying what's still skipping
 

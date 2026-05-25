@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 
 const FREE_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'free-host.json');
+const PRO_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'pro-host.json');
 
 /**
  * Extended event creation flows beyond what events.authed.spec.ts covers.
@@ -222,79 +223,86 @@ test.describe('external registration', () => {
 
 test.describe('template full flow (Pro)', () => {
   test('Pro: save template, verify in dropdown, apply pre-fills form, then remove', async ({
-    page,
+    browser,
   }) => {
-    await page.goto('/events/new');
-
-    const templateNameInput = page.getByPlaceholder(/template name/i);
-    if ((await templateNameInput.count()) === 0) {
-      test.skip(true, 'Test user does not have Pro — template card not visible; skipping');
+    if (!fs.existsSync(PRO_HOST_STATE)) {
+      test.skip(true, 'pro-host auth not set up (TEST_PRO_HOST_EMAIL missing); skipping');
     }
+    const ctx = await browser.newContext({ storageState: PRO_HOST_STATE });
+    const page = await ctx.newPage();
+    try {
+      await page.goto('/events/new');
 
-    const templateTitle = `E2E Template ${Date.now()}`;
+      const templateNameInput = page.getByPlaceholder(/template name/i);
+      await expect(templateNameInput).toBeVisible({ timeout: 10_000 });
 
-    // Fill title and save a template.
-    await page.locator('#title').fill('Template Test Event');
-    await templateNameInput.fill(templateTitle);
+      const templateTitle = `E2E Template ${Date.now()}`;
 
-    const saveTemplateBtn = page.getByRole('button', { name: /save template/i });
-    await expect(saveTemplateBtn).toBeVisible();
-    await saveTemplateBtn.click();
+      // Fill title and save a template.
+      await page.locator('#title').fill('Template Test Event');
+      await templateNameInput.fill(templateTitle);
 
-    // Confirmation banner should appear.
-    await expect(page.locator('body')).toContainText(/template saved|saved successfully/i, {
-      timeout: 10_000,
-    });
+      const saveTemplateBtn = page.getByRole('button', { name: /save template/i });
+      await expect(saveTemplateBtn).toBeVisible();
+      await saveTemplateBtn.click();
 
-    // Template should appear in the dropdown.
-    const templateSelect = page
-      .getByRole('combobox', { name: /template/i })
-      .or(page.locator('select[name*="template"]'))
-      .first();
-
-    if ((await templateSelect.count()) > 0) {
-      const options = await templateSelect.locator('option').allTextContents();
-      const found = options.some((o) => o.includes(templateTitle));
-      expect(found).toBe(true);
-    }
-
-    // Navigate to /events/new fresh; apply the saved template.
-    await page.goto('/events/new');
-
-    const applySelect = page
-      .getByRole('combobox', { name: /template/i })
-      .or(page.locator('select[name*="template"]'))
-      .first();
-
-    if ((await applySelect.count()) > 0) {
-      await applySelect.selectOption({ label: templateTitle });
-      const applyBtn = page.getByRole('button', { name: /apply/i }).first();
-      if ((await applyBtn.count()) > 0) {
-        await applyBtn.click();
-        await page.waitForLoadState('networkidle');
-      }
-
-      // Form should be pre-filled with the saved event title.
-      await expect(page.locator('#title')).toHaveValue(/Template Test Event/i, {
-        timeout: 5_000,
+      // Confirmation banner should appear.
+      await expect(page.locator('body')).toContainText(/template saved|saved successfully/i, {
+        timeout: 10_000,
       });
-    }
 
-    // Cleanup — remove the template.
-    const removeBtn = page
-      .getByRole('button', { name: /remove|delete/i })
-      .filter({ hasText: /template/i })
-      .first();
-    if ((await removeBtn.count()) === 0) {
-      // Try inline remove button next to the template in a list.
-      const anyRemoveBtn = page.getByRole('button', { name: /remove/i }).first();
-      if ((await anyRemoveBtn.count()) > 0) {
-        await anyRemoveBtn.click();
+      // Template should appear in the dropdown.
+      const templateSelect = page
+        .getByRole('combobox', { name: /template/i })
+        .or(page.locator('select[name*="template"]'))
+        .first();
+
+      if ((await templateSelect.count()) > 0) {
+        const options = await templateSelect.locator('option').allTextContents();
+        const found = options.some((o) => o.includes(templateTitle));
+        expect(found).toBe(true);
+      }
+
+      // Navigate to /events/new fresh; apply the saved template.
+      await page.goto('/events/new');
+
+      const applySelect = page
+        .getByRole('combobox', { name: /template/i })
+        .or(page.locator('select[name*="template"]'))
+        .first();
+
+      if ((await applySelect.count()) > 0) {
+        await applySelect.selectOption({ label: templateTitle });
+        const applyBtn = page.getByRole('button', { name: /apply/i }).first();
+        if ((await applyBtn.count()) > 0) {
+          await applyBtn.click();
+          await page.waitForLoadState('networkidle');
+        }
+
+        // Form should be pre-filled with the saved event title.
+        await expect(page.locator('#title')).toHaveValue(/Template Test Event/i, {
+          timeout: 5_000,
+        });
+      }
+
+      // Cleanup — remove the template.
+      const removeBtn = page
+        .getByRole('button', { name: /remove|delete/i })
+        .filter({ hasText: /template/i })
+        .first();
+      if ((await removeBtn.count()) === 0) {
+        // Try inline remove button next to the template in a list.
+        const anyRemoveBtn = page.getByRole('button', { name: /remove/i }).first();
+        if ((await anyRemoveBtn.count()) > 0) {
+          await anyRemoveBtn.click();
+          await page.waitForLoadState('networkidle');
+        }
+      } else {
+        await removeBtn.click();
         await page.waitForLoadState('networkidle');
       }
-    } else {
-      await removeBtn.click();
-      await page.waitForLoadState('networkidle');
+    } finally {
+      await ctx.close().catch(() => {});
     }
   });
 });
