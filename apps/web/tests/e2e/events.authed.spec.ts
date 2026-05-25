@@ -163,6 +163,6 @@ test.describe('event edit', () => {
 
 test.describe('host controls', () => {
   // "Cancel event" is covered by event-host.authed.spec.ts afterAll, which cancels the test event via edit page.
-
-  test.fixme('Broadcast to attendees — requires owning an event with at least one RSVP');
+  // "Broadcast to attendees" is covered by event-host.authed.spec.ts:
+  //   "broadcast to attendees: attendee-b RSVPs, host sends broadcast".
 });

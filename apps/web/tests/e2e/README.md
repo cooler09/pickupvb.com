@@ -147,6 +147,171 @@ Test accounts are pre-seeded in the dev Supabase project. All share `TEST_USER_P
 
 Tests that need Stripe, multi-user scenarios, or complex UI interactions (date picker, geocoding) are marked `test.fixme`. They appear in the source as documentation of intended coverage but are skipped at runtime. Graduate a `test.fixme` to a full test as the blocking dependency is resolved.
 
+### Unblocking skipped tests
+
+Most skips on dev are intentional — the test couldn't find required fixture
+state. Grouped by what would need to change to make them run, with the
+playbook for each:
+
+#### 1. `SUPABASE_LOCAL_SIGNOUT_DEPLOYED=1` — sign-out tests
+
+- **Files:** [profile.authed.spec.ts:52](../../../tests/e2e/profile.authed.spec.ts), [regression.authed.spec.ts:203](../../../tests/e2e/regression.authed.spec.ts).
+- **Blocker:** the test signs out via `signOut({ scope: 'local' })`, which
+  was added to `components/actions.ts` but has not been redeployed to
+  preview/dev yet.
+- **Unblock:** redeploy `apps/web` to the dev environment, then export
+  `SUPABASE_LOCAL_SIGNOUT_DEPLOYED=1` in the test env (or add it to
+  `apps/web/.env.local` alongside the other `TEST_*` vars).
+
+#### 2. Stripe Checkout / Connect / webhook-driven tests
+
+- **Files:** [event-attendance.authed.spec.ts:116-126,308](../../../tests/e2e/event-attendance.authed.spec.ts),
+  [event-create-extended.authed.spec.ts:303-309](../../../tests/e2e/event-create-extended.authed.spec.ts),
+  [events.authed.spec.ts:24,114](../../../tests/e2e/events.authed.spec.ts),
+  [billing-stripe.authed.spec.ts](../../../tests/e2e/billing-stripe.authed.spec.ts) (paid-event/Connect fixmes).
+- **Blocker:** require driving Stripe Checkout (test card flow,
+  `4000 0000 0000 0002` decline card, abandon, refund window), Connect
+  onboarding, or `customer.subscription.*` webhook delivery — none of
+  which Playwright can do unaided.
+- **Unblock:** stand up a Stripe test-mode fixture suite. Minimum pieces:
+  - A `stripe-host` account that has completed Stripe Connect onboarding
+    (`TEST_STRIPE_HOST_EMAIL` already wired in
+    [auth.stripe-host.setup.ts](../../../tests/e2e/auth.stripe-host.setup.ts)).
+  - Helpers that fill the Stripe-hosted Checkout iframe (Playwright can
+    drive `https://checkout.stripe.com/...` once the iframe URL is captured
+    from the redirect). See Stripe's Playwright cookbook for selectors.
+  - For webhook-driven assertions, forward Stripe events to dev via
+    `stripe listen --forward-to https://dev.pickupvb.com/api/stripe/webhook`
+    while the test runs, then poll the DB row that the webhook mutates.
+  - Refund window flows additionally need an event-creation helper that
+    sets `refund_window_hours` to a known value.
+
+#### 3. Email-inbox-dependent tests
+
+- **Files:** [auth-extended.public.spec.ts:126-130](../../../tests/e2e/auth-extended.public.spec.ts)
+  (email confirmation flow), [notifications.authed.spec.ts](../../../tests/e2e/notifications.authed.spec.ts)
+  (email notification fixmes), team-broadcast email delivery hooks.
+- **Blocker:** asserting that a real email was sent and clickable.
+- **Unblock:** provision a Mailtrap / Mailosaur sandbox and route Resend
+  output to it for the test environment. Add an env var
+  (`TEST_INBOX_API_TOKEN`) and a helper that polls the sandbox API for a
+  message matching `to:` and a subject regex, then extracts the
+  confirmation/notification link. Reference: the existing
+  `RESEND_FROM_EMAIL` config in [docs/integrations.md](../../../../../docs/integrations.md).
+
+#### 4. Tournament / divisions / brackets
+
+- **Files:** all of [tournament.authed.spec.ts:74-120](../../../tests/e2e/tournament.authed.spec.ts),
+  plus [events.authed.spec.ts:26](../../../tests/e2e/events.authed.spec.ts)
+  (multi-division creation).
+- **Blocker:** dev currently has no seeded tournament event with divisions,
+  registrations, and bracket state. Most of these tests need a multi-stage
+  fixture (event → divisions → captains → rosters → seeded matches).
+- **Unblock:** apply [supabase/snippets/seed-tournament-fixture.sql](../../../../../supabase/snippets/seed-tournament-fixture.sql)
+  against the target DB. It is idempotent and creates two published
+  tournaments hosted by `TEST_FREE_HOST_EMAIL` — `[E2E] Ad-Hoc Tournament Fixture`
+  (short code `E2ETFA`, 2 divisions, no pre-registered teams; use for
+  ad-hoc captain-builds-a-team flows) and `[E2E] Roster Tournament Fixture`
+  (short code `E2ETFR`, 2 divisions × 2 persistent teams each captained
+  by attendee-a / attendee-b / free-host / pro-host, plus a
+  single-elimination bracket with seeded round-1 matches). Apply with
+  `psql "$(supabase status -o env | grep DB_URL | cut -d= -f2)" -f supabase/snippets/seed-tournament-fixture.sql`
+  locally, or against dev/preview with `psql "$SUPABASE_DB_URL" -f ...`.
+  Tests can then address the events by short code (`/e/E2ETFA`, `/e/E2ETFR`)
+  or look them up by the `[E2E]` title prefix.
+
+#### 5. Pro-only template / sponsor / analytics flows
+
+- **Files:** [events.authed.spec.ts:37,57](../../../tests/e2e/events.authed.spec.ts),
+  [event-create-extended.authed.spec.ts:231](../../../tests/e2e/event-create-extended.authed.spec.ts),
+  [event-host.authed.spec.ts:270](../../../tests/e2e/event-host.authed.spec.ts)
+  (sponsor panel fixme), [regression.authed.spec.ts:118](../../../tests/e2e/regression.authed.spec.ts).
+- **Blocker:** the default test user (attendee-a) is not Pro. The suite
+  already has a `pro-host` storage state
+  ([auth.pro-host.setup.ts](../../../tests/e2e/auth.pro-host.setup.ts))
+  driven by `TEST_PRO_HOST_EMAIL`, but most of these specs run with the
+  shared `[authed]` project and never switch.
+- **Unblock:** either (a) add a `[authed-pro]` Playwright project in
+  [playwright.config.ts](../../../playwright.config.ts) that loads
+  `pro-host.json` storage state, and move the Pro-gated tests there, or
+  (b) within each test do
+  `await page.context().addCookies(...)` after loading the pro-host state
+  manually. Option (a) is cleaner — the existing `setup-pro-host`
+  dependency already produces the state file.
+
+#### 6. Multi-actor admin / claim-approval flows
+
+- **Files:** [admin.authed.spec.ts](../../../tests/e2e/admin.authed.spec.ts)
+  (claim approval, role escalation), [community.authed.spec.ts:127](../../../tests/e2e/community.authed.spec.ts)
+  (rate-limit fixme).
+- **Blocker:** claim approval needs a city+day-matched listing and event
+  spanning attendee-a, attendee-b, and admin so the admin has something
+  to approve. Rate-limit needs an account willing to be locked out for
+  24h after the test runs.
+- **Unblock:** add a dedicated `TEST_RATELIMIT_EMAIL` account that the CI
+  pipeline doesn't reuse for any other test (so a 24h lockout is
+  acceptable). For claim approval, extend
+  [supabase/seed.sql](../../../../../supabase/seed.sql) with a paired
+  listing + event row keyed to attendee-b's home city, then write the
+  test to drive `/admin/claims` as the admin account.
+
+#### 7. Owned-fixture skips (no infra blocker)
+
+These skip because the test user happens not to own / be on / be hosting
+the required resource on the target environment. They are skip-graceful
+by design — running the matching `@destructive` create test once, or
+hand-creating the row in dev, unblocks them on the next run.
+
+- **No groups in this environment** / **Test user does not own a group**
+  ([groups.authed.spec.ts](../../../tests/e2e/groups.authed.spec.ts),
+  [groups-manage.authed.spec.ts](../../../tests/e2e/groups-manage.authed.spec.ts),
+  [hero-image.authed.spec.ts](../../../tests/e2e/hero-image.authed.spec.ts)):
+  run the `@destructive` group-creation test as attendee-a, or create
+  a group manually via the UI.
+- **No captained team found** ([teams.authed.spec.ts](../../../tests/e2e/teams.authed.spec.ts)):
+  run the `@destructive` team-creation test as attendee-a (requires Pro,
+  see §5).
+- **No events / no joinable event** ([events.authed.spec.ts](../../../tests/e2e/events.authed.spec.ts),
+  [regression.authed.spec.ts](../../../tests/e2e/regression.authed.spec.ts)):
+  run `event-host.authed.spec.ts`'s `beforeAll` (publishes a test event)
+  or create one via `/events/new`.
+- **No players / no community listings**: run the relevant `@destructive`
+  test once, or seed via [supabase/seed.sql](../../../../../supabase/seed.sql).
+- **No theme toggle / no surface filter / `/leaving` not in this build**
+  ([accessibility.public.spec.ts](../../../tests/e2e/accessibility.public.spec.ts),
+  [smoke.public.spec.ts](../../../tests/e2e/smoke.public.spec.ts),
+  [navigation.public.spec.ts](../../../tests/e2e/navigation.public.spec.ts)):
+  these probe optional UI affordances; skip is correct when they're not
+  rendered, no action needed unless the affordance is supposed to be
+  there.
+
+#### 8. `TEST_ATTENDEE_B_EMAIL` not set
+
+- **Files:** invite/accept/decline/broadcast paths in
+  [teams.authed.spec.ts](../../../tests/e2e/teams.authed.spec.ts),
+  [groups.authed.spec.ts](../../../tests/e2e/groups.authed.spec.ts),
+  [groups-manage.authed.spec.ts](../../../tests/e2e/groups-manage.authed.spec.ts),
+  [community.authed.spec.ts](../../../tests/e2e/community.authed.spec.ts),
+  [player-social.authed.spec.ts](../../../tests/e2e/player-social.authed.spec.ts),
+  [event-attendance.authed.spec.ts](../../../tests/e2e/event-attendance.authed.spec.ts).
+- **Blocker:** the second test account is not provisioned for the runner.
+- **Unblock:** export `TEST_ATTENDEE_B_EMAIL=<email>` (and reuse
+  `TEST_USER_PASSWORD`). The setup project
+  [auth.attendee-b.setup.ts](../../../tests/e2e/auth.attendee-b.setup.ts)
+  will sign in and produce `.playwright/.auth/attendee-b.json`, which
+  every dependent test reads.
+
+#### Verifying what's still skipping
+
+```bash
+cd apps/web && eval "$(grep -E '^(TEST_|PLAYWRIGHT_BASE_URL|SUPABASE_LOCAL_SIGNOUT)' .env.local | sed 's/^/export /')" \
+  && pnpm exec playwright test --reporter=list 2>&1 \
+  | grep -E '^\s*-\s|skipped' | sort -u
+```
+
+Each `- <spec> › <test>` line is followed by the `test.skip()` reason
+string from this doc's groupings.
+
 The cached session and any HTML report / trace artifacts are gitignored at the
 repo root.
 

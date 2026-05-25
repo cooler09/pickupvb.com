@@ -209,5 +209,6 @@ test.describe('rate limiting and moderation (placeholders)', () => {
     }
   });
 
-  test.fixme('admin moderation — requires admin role on the test account', async () => {});
+  // "admin moderation" is covered by admin.authed.spec.ts:
+  //   "admin hides a listing → hidden from public directory → admin can still see it; then unhides → listing restored".
 });

@@ -1,4 +1,68 @@
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs';
+
+const ATTENDEE_B_STATE = path.join(
+  __dirname,
+  '..',
+  '..',
+  '.playwright',
+  '.auth',
+  'attendee-b.json',
+);
+
+/**
+ * Find a group the signed-in user is listed under on /profile. Mirrors
+ * findOwnedGroupUrl in groups-manage.authed.spec.ts. Returns the group URL
+ * (path) or null. The caller probes `/<url>/members` to confirm management
+ * rights.
+ */
+async function findOwnedGroupUrl(page: import('@playwright/test').Page): Promise<string | null> {
+  await page.goto('/profile');
+  await page.waitForLoadState('networkidle');
+  const groupLinks = page.locator('a[href*="/groups/"]');
+  const count = await groupLinks.count();
+  for (let i = 0; i < count; i++) {
+    const href = await groupLinks.nth(i).getAttribute('href');
+    if (!href || href.includes('/edit') || href.includes('/members') || href.includes('/new'))
+      continue;
+    return href.replace(/\/$/, '');
+  }
+  return null;
+}
+
+/**
+ * Make sure the signed-in profile has a unique, searchable display_name that
+ * the UserPicker's ilike search can hit. Idempotent. Mirrors the helper in
+ * teams.authed.spec.ts.
+ */
+async function ensureSearchableDisplayName(
+  page: import('@playwright/test').Page,
+  prefix: string,
+): Promise<string> {
+  await page.goto('/profile');
+  await page.waitForLoadState('networkidle');
+  const dnInput = page.locator('input[name="display_name"]').first();
+  await expect(dnInput).toBeVisible({ timeout: 10_000 });
+  const current = await dnInput.inputValue();
+  if (current && current.startsWith(prefix)) return current;
+
+  const next = `${prefix} ${Math.random().toString(36).slice(2, 7)}`;
+  await dnInput.fill(next);
+  await page
+    .getByRole('button', { name: /save changes|save profile|update profile/i })
+    .first()
+    .click();
+  await page
+    .getByText(/profile updated/i)
+    .first()
+    .waitFor({ timeout: 10_000 })
+    .catch(() => {
+      /* tolerate no alert */
+    });
+  await page.waitForLoadState('networkidle');
+  return next;
+}
 
 /**
  * Authenticated group flows.
@@ -176,7 +240,110 @@ test.describe('group edit', () => {
 });
 
 test.describe('group members', () => {
-  test.fixme(
-    'Owner can add, promote, and remove a member — use attendee-b (TEST_ATTENDEE_B_EMAIL)',
-  );
+  test('owner adds attendee-b → promotes to admin → removes', async ({ page, browser }) => {
+    test.setTimeout(120_000);
+
+    if (!fs.existsSync(ATTENDEE_B_STATE)) {
+      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
+    }
+
+    const groupUrl = await findOwnedGroupUrl(page);
+    if (!groupUrl) {
+      test.skip(true, 'Test user does not own a group; skipping');
+    }
+
+    // Probe the members management page: it only renders the Add form for
+    // owners/admins, so absence of the form means the user lacks rights.
+    const membersUrl = `${groupUrl}/members`;
+    await page.goto(membersUrl);
+    await page.waitForLoadState('networkidle');
+    const canManage = await page
+      .getByRole('combobox', { name: /find a player/i })
+      .first()
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    if (!canManage) {
+      test.skip(true, 'Test user is not owner/admin of the discovered group; skipping');
+    }
+
+    // Resolve a searchable display_name for attendee-b.
+    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bPage = await bContext.newPage();
+    let searchTerm: string | null = null;
+    try {
+      searchTerm = await ensureSearchableDisplayName(bPage, 'E2E Attendee B');
+    } catch {
+      /* fall through; searchTerm stays null */
+    } finally {
+      await bContext.close().catch(() => {
+        /* tolerate teardown errors */
+      });
+    }
+    if (!searchTerm) {
+      test.skip(true, 'Could not determine attendee-b display_name; skipping');
+    }
+
+    // Reload as owner now that attendee-b's profile is finalized.
+    await page.goto(membersUrl);
+    await page.waitForLoadState('networkidle');
+
+    // If attendee-b is already a member from a previous run, remove them first
+    // so this run starts from a clean baseline.
+    const existingRow = page.locator('li').filter({ hasText: new RegExp(searchTerm!, 'i') });
+    if ((await existingRow.count()) > 0) {
+      const preRemove = existingRow
+        .first()
+        .getByRole('button', { name: /^remove$/i })
+        .first();
+      if (await preRemove.isVisible().catch(() => false)) {
+        await preRemove.click();
+        await page.waitForLoadState('networkidle');
+      }
+    }
+
+    // ── Add attendee-b as a member via the UserPicker ───────────────────
+    const combobox = page.getByRole('combobox', { name: /find a player/i }).first();
+    await expect(combobox).toBeVisible({ timeout: 5_000 });
+    await combobox.fill(searchTerm!);
+    const listbox = page.getByRole('listbox').first();
+    await expect(listbox).toBeVisible({ timeout: 10_000 });
+    await listbox.getByRole('option').first().click();
+
+    await page
+      .getByRole('button', { name: /add member/i })
+      .first()
+      .click();
+    await page.waitForLoadState('networkidle');
+
+    // Attendee-b row should now exist.
+    const newRow = page
+      .locator('li')
+      .filter({ hasText: new RegExp(searchTerm!, 'i') })
+      .first();
+    await expect(newRow).toBeVisible({ timeout: 10_000 });
+
+    // ── Promote attendee-b to admin ─────────────────────────────────────
+    const promoteBtn = newRow.getByRole('button', { name: /→\s*admin/i }).first();
+    await expect(promoteBtn).toBeVisible({ timeout: 5_000 });
+    await promoteBtn.click();
+    await page.waitForLoadState('networkidle');
+
+    // Verify the row now shows the admin role badge.
+    const adminRow = page
+      .locator('li')
+      .filter({ hasText: new RegExp(searchTerm!, 'i') })
+      .first();
+    await expect(adminRow).toContainText(/admin/i, { timeout: 10_000 });
+
+    // ── Remove attendee-b ───────────────────────────────────────────────
+    const removeBtn = adminRow.getByRole('button', { name: /^remove$/i }).first();
+    await expect(removeBtn).toBeVisible({ timeout: 5_000 });
+    await removeBtn.click();
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.locator('li').filter({ hasText: new RegExp(searchTerm!, 'i') })).toHaveCount(
+      0,
+      { timeout: 10_000 },
+    );
+  });
 });
