@@ -79,7 +79,7 @@ export function HeroImageUpload({ entityType, entityId, userId, currentUrl, onSa
             type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="rounded-md bg-white/90 px-3 py-1.5 text-xs font-medium shadow hover:bg-white disabled:opacity-60"
+            className="border-border-base bg-surface text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
           >
             {uploading ? 'Uploading…' : url ? 'Change' : 'Upload image'}
           </button>
@@ -87,7 +87,7 @@ export function HeroImageUpload({ entityType, entityId, userId, currentUrl, onSa
             <button
               type="button"
               onClick={() => void handleRemove()}
-              className="rounded-md bg-white/90 px-3 py-1.5 text-xs font-medium shadow hover:bg-white"
+              className="border-border-base bg-surface text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
             >
               Remove
             </button>
