@@ -9,7 +9,7 @@ import DateTimePicker from '@/components/datetime-picker';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { createEventAction, type CreateEventState } from './actions';
-import { saveEventTemplateFromForm } from './template-actions';
+import { saveEventTemplateFromForm, deleteEventTemplate } from './template-actions';
 import AdvancedDetailsPanel from '@/components/event-advanced-details-panel';
 import DivisionsRepeater from './_components/divisions-repeater';
 
@@ -34,9 +34,11 @@ const cardClass = 'border-border-base bg-surface space-y-5 rounded-lg border p-5
 const cardTitleClass = 'text-fg text-base font-semibold';
 const cardSubClass = 'text-muted text-sm';
 
-/** Lookup a previously-submitted form value (echoed back on action error) */
+/** Lookup a previously-submitted form value (echoed back on action error).
+ *  Falls back to the `1_`-prefixed variant so templates saved under the old
+ *  useFormState slot encoding still apply correctly. */
 function val(values: Record<string, string> | undefined, name: string, fallback = ''): string {
-  return values?.[name] ?? fallback;
+  return values?.[name] ?? values?.[`1_${name}`] ?? fallback;
 }
 function chk(
   values: Record<string, string> | undefined,
@@ -211,7 +213,11 @@ export default function NewEventForm({
   const values = state.values;
   const submitted = state.submitted;
   const formRef = useRef<HTMLFormElement>(null);
+  const templateNameRef = useRef<HTMLInputElement>(null);
   const [isSavingTemplate, startSaveTemplate] = useTransition();
+  const [isDeletingTemplate, startDeleteTemplate] = useTransition();
+  const [pickedTemplate, setPickedTemplate] = useState(selectedTemplateId ?? '');
+  const [templateNameError, setTemplateNameError] = useState<string | null>(null);
   const [type, setType] = useState<EventType>(
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
@@ -305,57 +311,105 @@ export default function NewEventForm({
         </div>
       )}
 
-      {viewerHasProBenefits && templateStatus === 'saved' && (
-        <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
-          Template saved.
-        </div>
-      )}
-      {viewerHasProBenefits && templateStatus === 'invalid' && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          Enter a template name before saving.
-        </div>
-      )}
-      {viewerHasProBenefits && templateStatus === 'error' && (
-        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-          Could not save template.
-        </div>
-      )}
-
       {viewerHasProBenefits ? (
         <section className={cardClass}>
-          <div>
-            <h2 className={cardTitleClass}>Saved templates</h2>
-            <p className={cardSubClass}>
-              Apply a saved setup, then tweak anything before creating.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label htmlFor="template" className={labelClass}>
-                Template
-              </label>
-              <select
-                id="template"
-                name="template"
-                defaultValue={selectedTemplateId ?? ''}
-                className={inputClass}
-              >
-                <option value="">Choose saved template</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+          <h2 className={cardTitleClass}>Saved templates</h2>
+
+          {/* Status feedback */}
+          {templateStatus === 'saved' && (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+              Template saved.
             </div>
-            <button
-              type="submit"
-              formAction="/events/new"
-              formMethod="get"
-              className="border-border-base text-fg rounded-md border px-4 py-2 text-sm font-semibold"
-            >
-              Apply
-            </button>
+          )}
+          {templateStatus === 'error' && (
+            <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              Could not save template.
+            </div>
+          )}
+
+          {/* Apply an existing template */}
+          {templates.length > 0 && (
+            <div className="space-y-2">
+              <p className={cardSubClass}>Apply a saved setup, then tweak before creating.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  id="template"
+                  name="template"
+                  value={pickedTemplate}
+                  onChange={(e) => setPickedTemplate(e.target.value)}
+                  className="border-border-base bg-surface text-fg focus:border-primary focus-visible:ring-primary rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                >
+                  <option value="">Choose saved template</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  formAction="/events/new"
+                  formMethod="get"
+                  disabled={!pickedTemplate}
+                  className="border-border-base text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-40"
+                >
+                  Apply
+                </button>
+                {pickedTemplate && (
+                  <button
+                    type="button"
+                    disabled={isDeletingTemplate}
+                    onClick={() => {
+                      startDeleteTemplate(async () => {
+                        await deleteEventTemplate(pickedTemplate);
+                      });
+                    }}
+                    className="text-muted hover:text-destructive focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2 disabled:opacity-60"
+                  >
+                    {isDeletingTemplate ? 'Removing…' : 'Remove'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Save current form as a new template */}
+          <div className={templates.length > 0 ? 'border-border-base border-t pt-4' : ''}>
+            <p className={`${cardSubClass} mb-2`}>Save current form as a template</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={templateNameRef}
+                type="text"
+                placeholder="Template name"
+                className="border-border-base bg-surface text-fg focus:border-primary focus-visible:ring-primary w-44 rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                onChange={() => setTemplateNameError(null)}
+              />
+              <button
+                type="button"
+                disabled={isSavingTemplate}
+                onClick={() => {
+                  const name = templateNameRef.current?.value.trim() ?? '';
+                  if (!name) {
+                    setTemplateNameError('Enter a name first.');
+                    templateNameRef.current?.focus();
+                    return;
+                  }
+                  setTemplateNameError(null);
+                  const fd = formRef.current ? new FormData(formRef.current) : new FormData();
+                  fd.set('templateName', name);
+                  fd.delete('template');
+                  startSaveTemplate(async () => {
+                    await saveEventTemplateFromForm(fd);
+                  });
+                }}
+                className="border-border-base text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
+              >
+                {isSavingTemplate ? 'Saving…' : 'Save template'}
+              </button>
+            </div>
+            {templateNameError && (
+              <p className="text-destructive mt-1 text-xs">{templateNameError}</p>
+            )}
           </div>
         </section>
       ) : (
@@ -776,32 +830,7 @@ export default function NewEventForm({
           <Link href="/events" className="text-muted hover:text-primary text-sm">
             Cancel
           </Link>
-          <div className="flex items-center gap-2">
-            {viewerHasProBenefits && (
-              <>
-                <input
-                  type="text"
-                  name="templateName"
-                  placeholder="Template name"
-                  className="border-border-base bg-surface text-fg w-40 rounded-md border px-3 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  disabled={isSavingTemplate}
-                  onClick={() => {
-                    const fd = formRef.current ? new FormData(formRef.current) : new FormData();
-                    startSaveTemplate(async () => {
-                      await saveEventTemplateFromForm(fd);
-                    });
-                  }}
-                  className="border-border-base text-fg rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-60"
-                >
-                  {isSavingTemplate ? 'Saving…' : 'Save template'}
-                </button>
-              </>
-            )}
-            <SubmitButton />
-          </div>
+          <SubmitButton />
         </div>
       </div>
     </form>

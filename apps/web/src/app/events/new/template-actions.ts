@@ -5,6 +5,14 @@ import { hasProBenefits } from '@/lib/admin';
 import { field } from '@/lib/form-data';
 import { requireRealUser } from '@/lib/server-auth';
 
+export async function deleteEventTemplate(id: string): Promise<never> {
+  const { user, supabase } = await requireRealUser('/events/new');
+  const pro = await hasProBenefits(user.id);
+  if (!pro) redirect('/events/new');
+  await supabase.from('host_event_templates').delete().eq('id', id).eq('user_id', user.id);
+  redirect('/events/new');
+}
+
 function toPayload(formData: FormData): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of formData.entries()) {
