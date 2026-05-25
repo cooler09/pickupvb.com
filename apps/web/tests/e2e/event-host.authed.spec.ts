@@ -209,13 +209,12 @@ test.describe('event host flows', () => {
       test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     await page.goto(eventUrl!);
-    // Hosts see an attendance count or analytics panel on their own event.
-    const hasAttendance = await page
-      .getByText(/attendance|attendees|rsvp|going/i)
-      .first()
-      .isVisible({ timeout: 10_000 })
-      .catch(() => false);
-    expect(hasAttendance).toBe(true);
+    // Hosts see the roster/analytics panel on their own event. The roster
+    // heading is "Players signed up (N)"; also accept the older copy in
+    // case the section is renamed.
+    await expect(
+      page.getByText(/players signed up|attendance|attendees|rsvp|going/i).first(),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test('cancel event panel is present on edit page', async ({ page }) => {
@@ -275,8 +274,11 @@ test.describe('event host flows', () => {
     }
     await addCoHostSummary.click();
 
-    // Use the UserPicker combobox to search for attendee-b.
-    const combobox = page.getByRole('combobox').first();
+    // The "+ Add co-host" panel contains two controls: a `<select name="group_id">`
+    // (which has the implicit role=combobox) AND the UserPicker text input.
+    // Target the UserPicker by its accessible name so we don't accidentally
+    // grab the group <select>.
+    const combobox = page.getByRole('combobox', { name: /add a player as co-host/i });
     await expect(combobox).toBeVisible({ timeout: 5_000 });
     await combobox.fill(searchTerm!);
     await page.waitForLoadState('networkidle');

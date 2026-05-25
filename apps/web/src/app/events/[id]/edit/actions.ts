@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { getViewer } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
@@ -360,6 +360,11 @@ export async function editEventAction(
   revalidatePath(`/events/${eventId}`);
   revalidatePath(`/events/${eventId}/edit`);
   revalidatePath('/events');
+  // `revalidatePath` does not evict `unstable_cache` entries — the event
+  // detail page reads through helpers tagged `event:<id>` (see
+  // _loaders/load-event-detail.ts), so we must also bust the tag or the
+  // detail page will keep rendering the stale title/time/etc.
+  updateTag(`event:${eventId}`);
 
   // Notify attendees if user-visible fields changed. Best-effort.
   if (c) {

@@ -25,7 +25,11 @@ test.describe('community directory', () => {
     const response = await page.goto('/community');
     expect(response?.ok()).toBeTruthy();
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('body')).not.toContainText(/500|internal server error/i);
+    // Match HTTP 500 contexts only — bare /500/ matches arbitrary digit runs
+    // in listing titles (e.g. "Admin Mod Test 1779750066869" contains "500").
+    await expect(page.locator('body')).not.toContainText(
+      /\b(?:HTTP\s*)?500\b|internal server error/i,
+    );
   });
 
   test('first existing listing in directory loads', async ({ page }) => {
@@ -104,7 +108,9 @@ test.describe('submit and delete a listing', () => {
     // Either a 404 response or a soft-404 page — not a 500.
     const statusOk = response?.status() === 404 || response?.status() === 200;
     expect(statusOk).toBe(true);
-    await expect(page.locator('body')).not.toContainText(/500|internal server error/i);
+    await expect(page.locator('body')).not.toContainText(
+      /\b(?:HTTP\s*)?500\b|internal server error/i,
+    );
     if (response?.status() === 200) {
       // Soft 404: the page body should say "not found" or similar.
       await expect(page.locator('body')).toContainText(/not found|doesn't exist|no listing/i);
