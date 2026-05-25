@@ -68,33 +68,58 @@ export function HeroImageUpload({ entityType, entityId, userId, currentUrl, onSa
 
   return (
     <div className="space-y-2">
-      <div className="border-border-base bg-fg/5 relative h-40 w-full overflow-hidden rounded-lg border">
-        {url ? (
-          <Image src={url} alt="" fill className="object-cover" />
-        ) : (
-          <div className="from-primary/15 to-highlight/30 h-full w-full bg-gradient-to-br" />
-        )}
-        <div className="absolute right-2 bottom-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="border-border-base bg-surface text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
-          >
-            {uploading ? 'Uploading…' : url ? 'Change' : 'Upload image'}
-          </button>
-          {url && !uploading && (
-            <button
-              type="button"
-              onClick={() => void handleRemove()}
-              className="border-border-base bg-surface text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-            >
-              Remove
-            </button>
+      {url ? (
+        <div className="border-border-base overflow-hidden rounded-lg border">
+          <div className="relative h-40 w-full">
+            <Image src={url} alt="" fill className="object-cover" />
+            {uploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <p className="text-sm font-medium text-white">Uploading…</p>
+              </div>
+            )}
+          </div>
+          {!uploading && (
+            <div className="border-border-base bg-surface flex items-center gap-3 border-t px-3 py-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="text-fg hover:text-primary focus-visible:ring-primary rounded text-sm font-medium focus:outline-none focus-visible:ring-2"
+              >
+                Change image
+              </button>
+              <span aria-hidden="true" className="text-border-base select-none">
+                ·
+              </span>
+              <button
+                type="button"
+                onClick={() => void handleRemove()}
+                className="text-muted hover:text-destructive focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2"
+              >
+                Remove
+              </button>
+            </div>
           )}
         </div>
-      </div>
-      {error && <p className="text-secondary text-xs">{error}</p>}
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="border-border-base text-muted hover:border-primary hover:text-fg focus-visible:ring-primary flex w-full flex-col items-center gap-1 rounded-lg border-2 border-dashed py-6 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
+        >
+          {uploading ? (
+            <span className="text-sm">Uploading…</span>
+          ) : (
+            <>
+              <span className="text-sm font-medium">Add banner image</span>
+              <span className="text-xs">
+                JPEG, PNG, or WebP · Max 8 MB · Recommended 1200 × 400
+              </span>
+            </>
+          )}
+        </button>
+      )}
+      {error && <p className="text-destructive text-xs">{error}</p>}
       <input
         ref={inputRef}
         type="file"
@@ -106,7 +131,6 @@ export function HeroImageUpload({ entityType, entityId, userId, currentUrl, onSa
           e.target.value = '';
         }}
       />
-      <p className="text-muted text-xs">JPEG, PNG, or WebP · Max 8 MB · Recommended 1200 × 400</p>
     </div>
   );
 }
