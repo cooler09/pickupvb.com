@@ -20,9 +20,8 @@ Required secrets (Settings → Secrets and variables → Actions):
 
 - `PROD_BASE_URL` — fallback production origin (used only for manual runs)
 - `DEV_BASE_URL` — fallback dev origin (used only for manual runs)
-- `DEV_TEST_USER_EMAIL` / `DEV_TEST_USER_PASSWORD` — credentials for a
-  pre-seeded user that exists **only in the dev environment**. Never use a
-  prod account.
+- `DEV_TEST_USER_EMAIL` / `DEV_TEST_USER_PASSWORD` — primary test account
+  (`zacharyjordan82+attendee-a@gmail.com`). Never use a prod account.
 - `VERCEL_AUTOMATION_BYPASS_SECRET` — _required if Vercel Deployment
   Protection is enabled._ Generate it under Vercel project Settings →
   Deployment Protection → "Protection Bypass for Automation". Without it,
@@ -80,20 +79,40 @@ telemetry, and bot traffic gets dropped for free.
 ## Run locally
 
 ```bash
-# Local dev (auto-starts pnpm dev if not already running)
-pnpm --filter @pickupvb/web e2e
+# Interactive UI mode — pick tests, watch traces, step through failures
+PLAYWRIGHT_BASE_URL=https://dev.pickupvb.com \
+  TEST_USER_EMAIL=zacharyjordan82+attendee-a@gmail.com \
+  TEST_USER_PASSWORD=Test123! \
+  TEST_ATTENDEE_B_EMAIL=zacharyjordan82+attendee-b@gmail.com \
+  TEST_FREE_HOST_EMAIL=zacharyjordan82+free-host@gmail.com \
+  TEST_PRO_HOST_EMAIL=zacharyjordan82+pro-host@gmail.com \
+  TEST_STRIPE_HOST_EMAIL=zacharyjordan82+stripe-host@gmail.com \
+  TEST_ADMIN_EMAIL=zacharyjordan82+admin@gmail.com \
+  pnpm --filter @pickupvb/web e2e:ui
 
 # Public smoke only (no auth required)
 pnpm --filter @pickupvb/web e2e:public
 
-# Against a deployed preview / dev URL
+# Against a deployed dev URL (env vars in .env.local are auto-loaded)
 PLAYWRIGHT_BASE_URL=https://dev.pickupvb.com pnpm --filter @pickupvb/web e2e:public
 
-# Authenticated specs — requires a seeded test user
-TEST_USER_EMAIL=tester@example.com \
-TEST_USER_PASSWORD=… \
+# Full suite including authenticated specs (reads from apps/web/.env.local)
 pnpm --filter @pickupvb/web e2e
+
+# Exclude destructive tests (group/team creation that can't be cleaned up)
+pnpm --filter @pickupvb/web e2e -- --grep-invert @destructive
 ```
+
+Test accounts are pre-seeded in the dev Supabase project. All share `TEST_USER_PASSWORD`:
+
+| Env var                  | Email                                   | Role           |
+| ------------------------ | --------------------------------------- | -------------- |
+| `TEST_USER_EMAIL`        | `zacharyjordan82+attendee-a@gmail.com`  | Attendee A     |
+| `TEST_ATTENDEE_B_EMAIL`  | `zacharyjordan82+attendee-b@gmail.com`  | Attendee B     |
+| `TEST_FREE_HOST_EMAIL`   | `zacharyjordan82+free-host@gmail.com`   | Free host      |
+| `TEST_PRO_HOST_EMAIL`    | `zacharyjordan82+pro-host@gmail.com`    | Pro host       |
+| `TEST_STRIPE_HOST_EMAIL` | `zacharyjordan82+stripe-host@gmail.com` | Stripe host    |
+| `TEST_ADMIN_EMAIL`       | `zacharyjordan82+admin@gmail.com`       | Platform admin |
 
 ## Layout
 
@@ -106,8 +125,23 @@ pnpm --filter @pickupvb/web e2e
 - `auth.setup.ts` — one-time sign-in that caches the session under
   `apps/web/.playwright/.auth/user.json`. Required by authed specs.
 - `profile.authed.spec.ts` — profile page, billing checklist, host event entry, sign out.
-- `events.authed.spec.ts` — `/events/new` form, template name validation (Pro guard), RSVP join/leave. Placeholder `test.fixme` entries cover Stripe and multi-user flows.
-- `groups.authed.spec.ts` — follow/unfollow a group. Group creation is tagged `@destructive` (no UI delete; data persists in dev).
+- `profile-edit.authed.spec.ts` — edit display name / home city / Instagram handle with before/after restore; handle editor; notification preference toggle; receipts/billing/analytics/pro pages.
+- `events.authed.spec.ts` — `/events/new` form, template name validation (Pro guard), RSVP join/leave.
+- `event-create-extended.authed.spec.ts` — external registration toggle (section 3.4), full template save/apply/remove flow for Pro users (section 3.5).
+- `event-attendance.authed.spec.ts` — position RSVP and position roster visibility (section 5.2); fixmes for paid RSVP, capacity, tip jar (sections 5.3–5.6).
+- `event-host.authed.spec.ts` — creates a real test event in `beforeAll`, verifies host flows (detail, edit, title change, host section, attendance panel, cancel panel), cancels in `afterAll`.
+- `groups.authed.spec.ts` — follow/unfollow a group. Group creation tagged `@destructive`.
+- `groups-manage.authed.spec.ts` — group edit page load and description edit (section 7.2), hero image upload/remove on group (section 7.3); fixmes for members and host-as-group (sections 7.4, 7.6).
+- `hero-image.authed.spec.ts` — hero image upload widget presence and upload/remove on profile, event edit, and group edit (sections 2.3, 4.2, 7.3).
+- `community.authed.spec.ts` — community directory, create+delete listing (self-contained), /leaving interstitial.
+- `player-social.authed.spec.ts` — own public profile, directory search, follow/unfollow non-self player, /friends page.
+- `tournament.authed.spec.ts` — tournament event page load and bracket page load; fixmes for all interactive tournament flows (section 6).
+- `teams.authed.spec.ts` — /teams/new form load and @destructive team creation (section 8.1); fixmes for invites, remove, broadcast (sections 8.2–8.4).
+- `billing-stripe.authed.spec.ts` — pricing, /profile/billing/pro, /profile/billing, /profile/billing/analytics page loads; fixmes for Stripe Checkout and Connect flows (sections 11–12).
+- `notifications.authed.spec.ts` — notification bell presence, bell click opens panel, /notifications page load; fixmes for unread badge and email notifications (section 13).
+- `authorization.authed.spec.ts` — non-owner redirected from event edit, non-member redirected from group members, non-Pro analytics guard (section 18.2).
+- `admin.authed.spec.ts` — all fixme; requires an admin-role account (section 17).
+- `regression.authed.spec.ts` — smoke regression checklist after any deploy (section 19).
 
 ### Placeholder tests (`test.fixme`)
 

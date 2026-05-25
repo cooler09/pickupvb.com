@@ -10,14 +10,18 @@ Manual test guide for every critical user-facing flow. Work through each section
 
 Before starting, prepare the following accounts in dev:
 
-| Role        | Email                  | Notes                                   |
-| ----------- | ---------------------- | --------------------------------------- |
-| Free host   | `free-host@test.com`   | No Stripe, no Pro                       |
-| Pro host    | `pro-host@test.com`    | Active Pro subscription                 |
-| Stripe host | `stripe-host@test.com` | Stripe Connect `charges_enabled = true` |
-| Attendee A  | `attendee-a@test.com`  | Regular user                            |
-| Attendee B  | `attendee-b@test.com`  | Regular user                            |
-| Admin       | _(your admin account)_ | Platform admin flag set                 |
+| Role        | Email                                   | Env var                  | Notes                                   |
+| ----------- | --------------------------------------- | ------------------------ | --------------------------------------- |
+| Free host   | `zacharyjordan82+free-host@gmail.com`   | `TEST_FREE_HOST_EMAIL`   | No Stripe, no Pro                       |
+| Pro host    | `zacharyjordan82+pro-host@gmail.com`    | `TEST_PRO_HOST_EMAIL`    | Active Pro subscription                 |
+| Stripe host | `zacharyjordan82+stripe-host@gmail.com` | `TEST_STRIPE_HOST_EMAIL` | Stripe Connect `charges_enabled = true` |
+| Attendee A  | `zacharyjordan82+attendee-a@gmail.com`  | `TEST_USER_EMAIL`        | Primary authed test user                |
+| Attendee B  | `zacharyjordan82+attendee-b@gmail.com`  | `TEST_ATTENDEE_B_EMAIL`  | Second user for multi-account flows     |
+| Admin       | `zacharyjordan82+admin@gmail.com`       | `TEST_ADMIN_EMAIL`       | Platform admin flag set                 |
+
+All accounts share the password in `TEST_USER_PASSWORD`. Add each `TEST_*_EMAIL` var to `.env.local` (see `apps/web/.env.local` for the template).
+
+**Primary authed test suite** (`TEST_USER_EMAIL`) runs as **Attendee A**. Specs that need a different role either skip gracefully or are marked `test.fixme` with the required role called out.
 
 ---
 

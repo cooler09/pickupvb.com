@@ -89,5 +89,7 @@ test.describe('group edit', () => {
 });
 
 test.describe('group members', () => {
-  test.fixme('Owner can add, promote, and remove a member — requires a second test account');
+  test.fixme(
+    'Owner can add, promote, and remove a member — use attendee-b (TEST_ATTENDEE_B_EMAIL)',
+  );
 });

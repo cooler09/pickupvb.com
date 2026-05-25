@@ -117,7 +117,9 @@ test.describe('RSVP — join and leave a free event', () => {
     'RSVP to a paid event via Stripe Checkout — requires Stripe Connect on the test account',
   );
 
-  test.fixme('Event full: second user cannot join at capacity — requires two test accounts');
+  test.fixme(
+    'Event full: second user cannot join at capacity — sign in as attendee-b (TEST_ATTENDEE_B_EMAIL) to test',
+  );
 });
 
 test.describe('event edit', () => {
