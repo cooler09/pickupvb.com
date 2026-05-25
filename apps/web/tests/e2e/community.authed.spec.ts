@@ -41,24 +41,12 @@ test.describe('submit and delete a listing', () => {
       test.skip(true, '/community/new not reachable; skipping');
     }
 
-    // Fill listing form fields.
+    // Fill listing form fields. Location is optional — skip it to avoid
+    // triggering the Nominatim geocoding API which can fail on generic test addresses.
     await page.locator('#title').fill(uniqueTitle);
     await page.locator('#description').fill('Automated e2e test listing — safe to delete');
     await page.locator('#externalUrl').fill('https://www.facebook.com/groups/vbtest');
     await page.locator('#externalHostName').fill('E2E Test Club');
-    await page.locator('#addressLine').fill('123 Main St');
-    await page.locator('#city').fill('Virginia Beach');
-    await page.locator('#region').fill('VA');
-
-    // postalCode and country may or may not be present depending on the form version.
-    const postalInput = page.locator('#postalCode');
-    if ((await postalInput.count()) > 0) {
-      await postalInput.fill('23451');
-    }
-    const countryInput = page.locator('#country');
-    if ((await countryInput.count()) > 0) {
-      await countryInput.fill('US');
-    }
 
     await page.getByRole('button', { name: /submit listing/i }).click();
 
@@ -115,9 +103,9 @@ test.describe('external link warning', () => {
 });
 
 test.describe('rate limiting and moderation (placeholders)', () => {
-  test.fixme('6th submission in a day returns rate-limit error');
+  test.fixme('6th submission in a day returns rate-limit error', async () => {});
 
-  test.fixme("report listing — requires another user's listing");
+  test.fixme("report listing — requires another user's listing", async () => {});
 
-  test.fixme('admin moderation — requires admin role on the test account');
+  test.fixme('admin moderation — requires admin role on the test account', async () => {});
 });

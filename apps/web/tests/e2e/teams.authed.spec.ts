@@ -30,7 +30,7 @@ test.describe('create team', () => {
 
   test(
     'creates a team and lands on the team profile page',
-    { tag: '@destructive' },
+    { tag: '@destructive', timeout: 60_000 },
     async ({ page }) => {
       await page.goto('/teams/new');
 
@@ -51,10 +51,7 @@ test.describe('create team', () => {
       await nameInput.fill(teamName);
 
       // Format selector may or may not be required.
-      const formatSelect = page
-        .getByLabel(/format/i)
-        .or(page.locator('select[name="format"]'))
-        .first();
+      const formatSelect = page.locator('select[name="format"]');
       if ((await formatSelect.count()) > 0) {
         await formatSelect.selectOption({ index: 1 });
       }

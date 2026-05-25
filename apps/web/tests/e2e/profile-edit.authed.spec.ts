@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Authenticated profile-edit flows.
@@ -9,9 +9,28 @@ import { test, expect } from '@playwright/test';
  * dashboard if needed.
  */
 
+/**
+ * The edit form lives inside a <details> element that is collapsed by default.
+ * This helper expands it if needed so form inputs become visible.
+ */
+async function openEditForm(page: Page) {
+  const summary = page.locator('details summary').filter({ hasText: /edit profile/i });
+  if ((await summary.count()) > 0) {
+    const details = page.locator('details').filter({ has: summary });
+    const isOpen = await details.evaluate((el) => (el as HTMLDetailsElement).open);
+    if (!isOpen) await summary.click();
+    // Wait for the form to become visible after expanding.
+    await page
+      .locator('input[name="display_name"]')
+      .first()
+      .waitFor({ state: 'visible', timeout: 5_000 });
+  }
+}
+
 test.describe('profile form', () => {
   test('profile form loads with name fields visible', async ({ page }) => {
     await page.goto('/profile');
+    await openEditForm(page);
     await expect(page.getByLabel(/first.?name/i).first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel(/last.?name/i).first()).toBeVisible({ timeout: 10_000 });
     await expect(page.getByLabel(/display.?name/i).first()).toBeVisible({ timeout: 10_000 });
@@ -19,6 +38,7 @@ test.describe('profile form', () => {
 
   test('edit display_name: fill unique value, save, reload, verify persisted', async ({ page }) => {
     await page.goto('/profile');
+    await openEditForm(page);
     const displayNameInput = page.locator('input[name="display_name"]').first();
     await expect(displayNameInput).toBeVisible({ timeout: 10_000 });
 
@@ -32,6 +52,7 @@ test.describe('profile form', () => {
 
     // Reload and verify persistence.
     await page.goto('/profile');
+    await openEditForm(page);
     await expect(page.locator('input[name="display_name"]').first()).toHaveValue(uniqueName, {
       timeout: 10_000,
     });
@@ -44,6 +65,7 @@ test.describe('profile form', () => {
 
   test('edit home_city: fill Virginia Beach, save, reload, verify persisted', async ({ page }) => {
     await page.goto('/profile');
+    await openEditForm(page);
     const cityInput = page.locator('input[name="home_city"]').first();
     await expect(cityInput).toBeVisible({ timeout: 10_000 });
 
@@ -54,6 +76,7 @@ test.describe('profile form', () => {
     await page.waitForLoadState('networkidle');
 
     await page.goto('/profile');
+    await openEditForm(page);
     await expect(page.locator('input[name="home_city"]').first()).toHaveValue('Virginia Beach', {
       timeout: 10_000,
     });
@@ -68,6 +91,7 @@ test.describe('profile form', () => {
     page,
   }) => {
     await page.goto('/profile');
+    await openEditForm(page);
     const igInput = page.locator('input[name="instagram_handle"]').first();
     await expect(igInput).toBeVisible({ timeout: 10_000 });
 
@@ -78,6 +102,7 @@ test.describe('profile form', () => {
     await page.waitForLoadState('networkidle');
 
     await page.goto('/profile');
+    await openEditForm(page);
     await expect(page.locator('input[name="instagram_handle"]').first()).toHaveValue(
       'e2etestuser',
       { timeout: 10_000 },

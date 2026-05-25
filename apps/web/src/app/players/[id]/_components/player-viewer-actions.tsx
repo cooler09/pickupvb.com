@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { addFriend, removeFriend } from '@/app/friends/actions';
 import { ShareLink } from '@/components/share-link';
-import { SubmitButton } from '@/components/submit-button';
 
 type Props = {
   profileId: string;
@@ -30,6 +29,7 @@ type ViewerState =
  */
 export function PlayerViewerActions({ profileId, profileHandle, profileName, returnPath }: Props) {
   const [state, setState] = useState<ViewerState>({ status: 'loading' });
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -59,6 +59,28 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
       cancelled = true;
     };
   }, [profileId]);
+
+  function handleFollow() {
+    startTransition(async () => {
+      setState({ status: 'other', isFollowing: true });
+      try {
+        await addFriend(profileId, returnPath);
+      } catch {
+        setState({ status: 'other', isFollowing: false });
+      }
+    });
+  }
+
+  function handleUnfollow() {
+    startTransition(async () => {
+      setState({ status: 'other', isFollowing: false });
+      try {
+        await removeFriend(profileId, returnPath);
+      } catch {
+        setState({ status: 'other', isFollowing: true });
+      }
+    });
+  }
 
   if (state.status === 'loading') {
     return (
@@ -103,17 +125,21 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
   return (
     <>
       {state.isFollowing ? (
-        <form action={removeFriend.bind(null, profileId, returnPath)}>
-          <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-60">
-            ✓ Following
-          </SubmitButton>
-        </form>
+        <button
+          onClick={handleUnfollow}
+          disabled={isPending}
+          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-60"
+        >
+          ✓ Following
+        </button>
       ) : (
-        <form action={addFriend.bind(null, profileId, returnPath)}>
-          <SubmitButton className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-60">
-            + Follow
-          </SubmitButton>
-        </form>
+        <button
+          onClick={handleFollow}
+          disabled={isPending}
+          className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-60"
+        >
+          + Follow
+        </button>
       )}
       <ShareLink path={`/players/${profileHandle}`} title={profileName} />
     </>

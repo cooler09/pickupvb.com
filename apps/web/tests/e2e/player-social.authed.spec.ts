@@ -44,7 +44,9 @@ test.describe('own public profile', () => {
 
   test('profile page shows edit form or "Edit profile" link', async ({ page }) => {
     await page.goto('/profile');
-    // Either the form is rendered directly or there is an "Edit profile" CTA.
+    // The edit form lives inside a collapsed <details> whose <summary> reads
+    // "Edit profile". Accept any of: expanded form input, a link/button CTA,
+    // or the collapsed summary toggle.
     const hasForm = await page
       .locator('input[name="display_name"]')
       .first()
@@ -60,7 +62,13 @@ test.describe('own public profile', () => {
       .first()
       .isVisible({ timeout: 5_000 })
       .catch(() => false);
-    expect(hasForm || hasEditLink || hasEditButton).toBe(true);
+    const hasSummary = await page
+      .locator('details summary')
+      .filter({ hasText: /edit profile/i })
+      .first()
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    expect(hasForm || hasEditLink || hasEditButton || hasSummary).toBe(true);
   });
 });
 
