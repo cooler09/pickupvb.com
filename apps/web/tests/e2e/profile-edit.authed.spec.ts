@@ -31,6 +31,13 @@ async function openEditForm(page: Page) {
 }
 
 test.describe('profile form', () => {
+  // These tests share the same /profile form. updateProfile() writes ALL
+  // fields from the form payload, so running them in parallel under
+  // multiple workers causes lost-update races — e.g. while test 1 is
+  // saving a new display_name, test 2 submits with its stale defaultValue
+  // snapshot of display_name and reverts test 1's write.
+  test.describe.configure({ mode: 'serial' });
+
   test('profile form loads with name fields visible', async ({ page }) => {
     await page.goto('/profile');
     await openEditForm(page);
