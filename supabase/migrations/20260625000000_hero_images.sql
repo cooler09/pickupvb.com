@@ -20,7 +20,10 @@ alter table public.profiles add column if not exists hero_image_url text;
 
 -- Add hero_image_url to the profiles_public view so public/anon queries
 -- can display profile banners without touching the base profiles table.
-create or replace view public.profiles_public as
+-- DROP + CREATE required: CREATE OR REPLACE VIEW only allows appending
+-- columns, not inserting mid-list; dropping avoids the column-rename error.
+drop view if exists public.profiles_public;
+create view public.profiles_public as
   select
     id,
     handle,
