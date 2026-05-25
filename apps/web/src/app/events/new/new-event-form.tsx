@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
-import { useState } from 'react';
+import { useState, useRef, useTransition } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
@@ -210,6 +210,8 @@ export default function NewEventForm({
   });
   const values = state.values;
   const submitted = state.submitted;
+  const formRef = useRef<HTMLFormElement>(null);
+  const [isSavingTemplate, startSaveTemplate] = useTransition();
   const [type, setType] = useState<EventType>(
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
@@ -293,7 +295,7 @@ export default function NewEventForm({
   const showCapacity = type === EventType.OpenPlay && !isExternal;
 
   return (
-    <form action={formAction} className="space-y-6 pb-24">
+    <form ref={formRef} action={formAction} className="space-y-6 pb-24">
       {state.error && (
         <div
           role="alert"
@@ -784,11 +786,17 @@ export default function NewEventForm({
                   className="border-border-base bg-surface text-fg w-40 rounded-md border px-3 py-2 text-sm"
                 />
                 <button
-                  type="submit"
-                  formAction={saveEventTemplateFromForm}
-                  className="border-border-base text-fg rounded-md border px-3 py-2 text-sm font-semibold"
+                  type="button"
+                  disabled={isSavingTemplate}
+                  onClick={() => {
+                    const fd = formRef.current ? new FormData(formRef.current) : new FormData();
+                    startSaveTemplate(async () => {
+                      await saveEventTemplateFromForm(fd);
+                    });
+                  }}
+                  className="border-border-base text-fg rounded-md border px-3 py-2 text-sm font-semibold disabled:opacity-60"
                 >
-                  Save template
+                  {isSavingTemplate ? 'Saving…' : 'Save template'}
                 </button>
               </>
             )}
