@@ -385,14 +385,16 @@ test.describe('event host flows', () => {
     await removeBtn.click();
     await page.waitForLoadState('domcontentloaded');
 
-    // Attendee-b should no longer appear as a co-host.
-    const coHostSection = page
-      .locator('section')
-      .filter({ hasText: /hosted by|co-host/i })
-      .first();
-    if ((await coHostSection.count()) > 0) {
-      await expect(coHostSection).not.toContainText(searchTerm!, { timeout: 10_000 });
-    }
+    // Attendee-b should no longer appear in the hosts list. Scope to the
+    // <ul> (reusing `hostsList` from the add path) — the wrapping section
+    // also contains the "+ Add co-host" UserPicker, which keeps the
+    // last-selected user as a chip and would false-positive a section-
+    // wide `not.toContainText` assertion.
+    await expect(hostsList).not.toContainText(searchTerm!, { timeout: 10_000 });
+    // Belt-and-suspenders: the remove button itself should be gone.
+    await expect(
+      page.getByRole('button', { name: new RegExp(`Remove co-host ${searchTerm}`, 'i') }),
+    ).toHaveCount(0, { timeout: 10_000 });
   });
 
   test('broadcast to attendees: attendee-b RSVPs, host sends broadcast', async ({
