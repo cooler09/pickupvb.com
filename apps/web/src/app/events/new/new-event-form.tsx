@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
-import { useState } from 'react';
+import { useState, useRef, useTransition } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { createEventAction, type CreateEventState } from './actions';
+import { saveEventTemplateFromForm, deleteEventTemplate } from './template-actions';
 import AdvancedDetailsPanel from '@/components/event-advanced-details-panel';
 import DivisionsRepeater from './_components/divisions-repeater';
 
@@ -33,9 +34,11 @@ const cardClass = 'border-border-base bg-surface space-y-5 rounded-lg border p-5
 const cardTitleClass = 'text-fg text-base font-semibold';
 const cardSubClass = 'text-muted text-sm';
 
-/** Lookup a previously-submitted form value (echoed back on action error) */
+/** Lookup a previously-submitted form value (echoed back on action error).
+ *  Falls back to the `1_`-prefixed variant so templates saved under the old
+ *  useFormState slot encoding still apply correctly. */
 function val(values: Record<string, string> | undefined, name: string, fallback = ''): string {
-  return values?.[name] ?? fallback;
+  return values?.[name] ?? values?.[`1_${name}`] ?? fallback;
 }
 function chk(
   values: Record<string, string> | undefined,
@@ -43,6 +46,9 @@ function chk(
   name: string,
   fallback = false,
 ): boolean {
+  if (values && Object.prototype.hasOwnProperty.call(values, name)) {
+    return values[name] === 'on';
+  }
   if (!submitted) return fallback;
   return values?.[name] === 'on';
 }
@@ -180,6 +186,11 @@ function SegmentedControl<T extends string>({
 export default function NewEventForm({
   hostableGroups = [],
   canCollectPayments = false,
+  templates = [],
+  selectedTemplateId,
+  templateValues,
+  templateStatus,
+  viewerHasProBenefits,
 }: {
   hostableGroups?: { id: string; name: string }[];
   /**
@@ -189,10 +200,24 @@ export default function NewEventForm({
    * `/profile/billing` to finish onboarding.
    */
   canCollectPayments?: boolean;
+  templates?: { id: string; name: string }[];
+  selectedTemplateId?: string;
+  templateValues?: Record<string, string>;
+  templateStatus?: string;
+  viewerHasProBenefits: boolean;
 }) {
-  const [state, formAction] = useFormState(createEventAction, initialState);
+  const [state, formAction] = useFormState(createEventAction, {
+    ...initialState,
+    ...(templateValues ? { values: templateValues } : {}),
+  });
   const values = state.values;
   const submitted = state.submitted;
+  const formRef = useRef<HTMLFormElement>(null);
+  const templateNameRef = useRef<HTMLInputElement>(null);
+  const [isSavingTemplate, startSaveTemplate] = useTransition();
+  const [isDeletingTemplate, startDeleteTemplate] = useTransition();
+  const [pickedTemplate, setPickedTemplate] = useState(selectedTemplateId ?? '');
+  const [templateNameError, setTemplateNameError] = useState<string | null>(null);
   const [type, setType] = useState<EventType>(
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
@@ -276,7 +301,7 @@ export default function NewEventForm({
   const showCapacity = type === EventType.OpenPlay && !isExternal;
 
   return (
-    <form action={formAction} className="space-y-6 pb-24">
+    <form ref={formRef} action={formAction} className="space-y-6 pb-24">
       {state.error && (
         <div
           role="alert"
@@ -284,6 +309,123 @@ export default function NewEventForm({
         >
           {state.error}
         </div>
+      )}
+
+      {viewerHasProBenefits ? (
+        <section className={cardClass}>
+          <h2 className={cardTitleClass}>Saved templates</h2>
+
+          {/* Status feedback */}
+          {templateStatus === 'saved' && (
+            <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
+              Template saved.
+            </div>
+          )}
+          {templateStatus === 'error' && (
+            <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              Could not save template.
+            </div>
+          )}
+
+          {/* Apply an existing template */}
+          {templates.length > 0 && (
+            <div className="space-y-2">
+              <p className={cardSubClass}>Apply a saved setup, then tweak before creating.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  id="template"
+                  name="template"
+                  value={pickedTemplate}
+                  onChange={(e) => setPickedTemplate(e.target.value)}
+                  className="border-border-base bg-surface text-fg focus:border-primary focus-visible:ring-primary rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                >
+                  <option value="">Choose saved template</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  formAction="/events/new"
+                  formMethod="get"
+                  // The Apply button lives inside the main createEventAction form,
+                  // which has `required` fields (title, etc.). Without
+                  // formNoValidate the browser runs HTML5 constraint validation
+                  // on submit and blocks the GET navigation when those fields
+                  // are empty — which is the common case on a fresh /events/new.
+                  formNoValidate
+                  disabled={!pickedTemplate}
+                  className="border-border-base text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-40"
+                >
+                  Apply
+                </button>
+                {pickedTemplate && (
+                  <button
+                    type="button"
+                    disabled={isDeletingTemplate}
+                    onClick={() => {
+                      startDeleteTemplate(async () => {
+                        await deleteEventTemplate(pickedTemplate);
+                      });
+                    }}
+                    className="text-muted hover:text-destructive focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2 disabled:opacity-60"
+                  >
+                    {isDeletingTemplate ? 'Removing…' : 'Remove'}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Save current form as a new template */}
+          <div className={templates.length > 0 ? 'border-border-base border-t pt-4' : ''}>
+            <p className={`${cardSubClass} mb-2`}>Save current form as a template</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={templateNameRef}
+                type="text"
+                placeholder="Template name"
+                className="border-border-base bg-surface text-fg focus:border-primary focus-visible:ring-primary w-44 rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                onChange={() => setTemplateNameError(null)}
+              />
+              <button
+                type="button"
+                disabled={isSavingTemplate}
+                onClick={() => {
+                  const name = templateNameRef.current?.value.trim() ?? '';
+                  if (!name) {
+                    setTemplateNameError('Enter a name first.');
+                    templateNameRef.current?.focus();
+                    return;
+                  }
+                  setTemplateNameError(null);
+                  const fd = formRef.current ? new FormData(formRef.current) : new FormData();
+                  fd.set('templateName', name);
+                  fd.delete('template');
+                  startSaveTemplate(async () => {
+                    await saveEventTemplateFromForm(fd);
+                  });
+                }}
+                className="border-border-base text-fg hover:bg-fg/5 focus-visible:ring-primary rounded-md border px-3 py-2 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
+              >
+                {isSavingTemplate ? 'Saving…' : 'Save template'}
+              </button>
+            </div>
+            {templateNameError && (
+              <p className="text-destructive mt-1 text-xs">{templateNameError}</p>
+            )}
+          </div>
+        </section>
+      ) : (
+        <p className="text-muted text-sm">
+          Save and reuse event templates with{' '}
+          <Link href="/pricing" className="text-primary underline">
+            Pro
+          </Link>
+          .
+        </p>
       )}
 
       {/* ──────────────────────────────────────────────────────────────────
@@ -936,6 +1078,28 @@ function PaymentSettingsSubsection({
           </div>
         </div>
       )}
+      {showOnPlatformControls && (
+        <div>
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="passProcessingFeeToBuyer"
+              defaultChecked={chk(values, submitted, 'passProcessingFeeToBuyer', true)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="text-fg font-medium">
+                Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
+              </span>
+              <span className="text-muted block">
+                Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you receive
+                the full advertised price. Disable to absorb it yourself. Ignored if you absorb the
+                service fee above.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
     </div>
   );
 }
@@ -1110,6 +1274,26 @@ function PricingSubsection({
                 <span>
                   <span className="text-fg font-medium">Absorb the 5% service fee</span>
                   <span className="text-muted block">Otherwise added to ticket price.</span>
+                </span>
+              </label>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  name="passProcessingFeeToBuyer"
+                  defaultChecked={chk(values, submitted, 'passProcessingFeeToBuyer', true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="text-fg font-medium">
+                    Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
+                  </span>
+                  <span className="text-muted block">
+                    Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you
+                    receive the full advertised price. Disable to absorb it yourself. Ignored if you
+                    absorb the service fee above.
+                  </span>
                 </span>
               </label>
             </div>

@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description: 'How PickupVB collects, uses, and protects your information.',
 };
 
-const LAST_UPDATED = 'May 24, 2026';
+const LAST_UPDATED = 'May 26, 2026';
 const COMPANY = 'Zachary Lockhart Consulting, LLC';
 const BRAND = 'PickupVB';
 const PRIVACY_EMAIL = 'privacy@pickupvb.com';
@@ -187,6 +187,37 @@ export default function PrivacyPage() {
         required to retain it for legal, accounting, tax, fraud-prevention, or dispute purposes (for
         example, payment records retained by Stripe as required by financial regulations). Server
         log data is retained for up to 90 days for security purposes.
+      </p>
+      <p>
+        Beyond Account deletion, the Service applies the following automated retention windows to
+        operational and messaging data. These windows run as scheduled jobs in our database and
+        purge eligible rows daily:
+      </p>
+      <ul>
+        <li>
+          <strong>Notification delivery records</strong> (the rendered email / SMS body and the
+          delivery address for messages we sent on your or another user&apos;s behalf): purged 90
+          days after successful delivery, or 30 days after a permanent delivery failure.
+        </li>
+        <li>
+          <strong>In-app notifications</strong> in your inbox: purged 30 days after you read them,
+          or 180 days after they were created if still unread.
+        </li>
+        <li>
+          <strong>Marketing attribution data</strong> (the referral source captured when you first
+          arrived on the site): purged 24 months after capture.
+        </li>
+        <li>
+          <strong>Server logs</strong>: retained for up to 90 days for security and abuse
+          investigation.
+        </li>
+      </ul>
+      <p>
+        <strong>Groups, teams, and broadcasts you delete from the Service</strong> are removed from
+        public view immediately, but a tombstone row is retained so historical records (past events
+        hosted by a deleted group, tournament results for a deleted team, the audit log of
+        broadcasts you sent) remain attributable. Tombstones are deleted on Account deletion under
+        the 30-day window above. The deleted entity&apos;s URL slug stays reserved.
       </p>
 
       <h2>7. Security</h2>

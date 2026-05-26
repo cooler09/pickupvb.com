@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { getViewer } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
@@ -126,6 +126,7 @@ export async function editEventAction(
     fieldOrUndefined(formData, 'refundWindowHours'),
   );
   const newHostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
+  const newPassProcessingFeeToBuyer = field(formData, 'passProcessingFeeToBuyer') === 'on';
   const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
 
   // ADR 0007 — `team_registration_mode` is editable on tournaments. Open-play
@@ -176,7 +177,7 @@ export async function editEventAction(
     admin
       .from('events')
       .select(
-        'host_absorbs_fee, refund_window_hours, host_id, title, starts_at, address_line, city',
+        'host_absorbs_fee, pass_processing_fee_to_buyer, refund_window_hours, host_id, title, starts_at, address_line, city',
       )
       .eq('id', eventId)
       .maybeSingle(),
@@ -190,6 +191,7 @@ export async function editEventAction(
   ]);
   type CurRow = {
     host_absorbs_fee: boolean;
+    pass_processing_fee_to_buyer: boolean;
     refund_window_hours: number;
     host_id: string;
     title: string;
@@ -206,6 +208,7 @@ export async function editEventAction(
     ? false
     : priceChanged ||
       c.host_absorbs_fee !== newHostAbsorbsFee ||
+      c.pass_processing_fee_to_buyer !== newPassProcessingFeeToBuyer ||
       c.refund_window_hours !== newRefundWindowHours;
 
   if (pricingChanged) {
@@ -268,7 +271,10 @@ export async function editEventAction(
     fundraiser_beneficiary: isFundraiser
       ? (fieldOrUndefined(formData, 'fundraiserBeneficiary') ?? null)
       : null,
-    theme_tags: themeTags && themeTags.length > 0 ? themeTags : null,
+    // `events.theme_tags` is `text[] not null default '{}'` — send an
+    // empty array (not null) when the host clears all tags, otherwise
+    // the UPDATE fails with a not-null violation.
+    theme_tags: themeTags && themeTags.length > 0 ? themeTags : [],
     sanctioning_body: fieldOrUndefined(formData, 'sanctioningBody') ?? null,
     registration_mode: isExternal ? 'external' : 'platform',
     external_registration_url: isExternal
@@ -338,6 +344,7 @@ export async function editEventAction(
       .from('events')
       .update({
         host_absorbs_fee: newHostAbsorbsFee,
+        pass_processing_fee_to_buyer: newPassProcessingFeeToBuyer,
         refund_window_hours: newRefundWindowHours,
       } as never)
       .eq('id', eventId);
@@ -356,6 +363,11 @@ export async function editEventAction(
   revalidatePath(`/events/${eventId}`);
   revalidatePath(`/events/${eventId}/edit`);
   revalidatePath('/events');
+  // `revalidatePath` does not evict `unstable_cache` entries — the event
+  // detail page reads through helpers tagged `event:<id>` (see
+  // _loaders/load-event-detail.ts), so we must also bust the tag or the
+  // detail page will keep rendering the stale title/time/etc.
+  updateTag(`event:${eventId}`);
 
   // Notify attendees if user-visible fields changed. Best-effort.
   if (c) {

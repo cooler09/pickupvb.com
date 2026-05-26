@@ -8,6 +8,7 @@ import { GroupViewerActions, GroupManageMembersLink } from './_components/group-
 import { MembersSection, type GroupMember } from './_components/members-section';
 import { GroupJsonLd } from './_components/group-jsonld';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { HeroImage } from '@/components/hero-image';
 
 /**
  * ISR cache for anonymous traffic. The public group profile (header,
@@ -28,6 +29,7 @@ type GroupRow = {
   name: string;
   description: string;
   avatar_url: string | null;
+  hero_image_url: string | null;
   home_city: string | null;
   region: string | null;
   created_by: string;
@@ -36,13 +38,13 @@ type GroupRow = {
 type MemberRow = {
   user_id: string;
   role: 'owner' | 'admin' | 'member';
-  profiles: {
-    display_name: string;
-    first_name: string | null;
-    last_name: string | null;
-    avatar_url: string | null;
-    handle: string;
-  } | null;
+};
+
+type ProfilePublicRow = {
+  id: string;
+  handle: string;
+  display_name: string;
+  avatar_url: string | null;
 };
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
@@ -93,7 +95,9 @@ export default async function GroupProfilePage(props: {
 
   const { data: groupData } = await supabase
     .from('groups')
-    .select('id, slug, name, description, avatar_url, home_city, region, created_by')
+    .select(
+      'id, slug, name, description, avatar_url, hero_image_url, home_city, region, created_by',
+    )
     .eq('slug', params.id)
     .maybeSingle();
   const group = groupData as GroupRow | null;
@@ -104,15 +108,27 @@ export default async function GroupProfilePage(props: {
   const [{ data: memberRows }, upcoming, past] = await Promise.all([
     supabase
       .from('group_members')
-      .select(
-        'user_id, role, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url)',
-      )
+      .select('user_id, role')
       .eq('group_id', group.id)
       .order('joined_at', { ascending: true }),
     loadVisibleGroupHostedEvents(supabase, group.id, { startsAfter: now }),
     loadVisibleGroupHostedEvents(supabase, group.id, { startsBefore: now }),
   ]);
   const memberRowsTyped = (memberRows as MemberRow[] | null) ?? [];
+
+  // profiles_public has no FK relationships so the nested join syntax won't
+  // work — fetch profiles separately and merge in JS.
+  const memberUserIds = memberRowsTyped.map((m) => m.user_id);
+  const profilesMap = new Map<string, ProfilePublicRow>();
+  if (memberUserIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from('profiles_public')
+      .select('id, handle, display_name, avatar_url')
+      .in('id', memberUserIds);
+    for (const p of (profileRows as ProfilePublicRow[] | null) ?? []) {
+      profilesMap.set(p.id, p);
+    }
+  }
 
   const managerIds = memberRowsTyped
     .filter((m) => m.role === 'owner' || m.role === 'admin')
@@ -121,19 +137,22 @@ export default async function GroupProfilePage(props: {
   const returnPath = `/groups/${group.slug}`;
 
   // Map row shape to the component's camelCase prop shape.
-  const members: GroupMember[] = memberRowsTyped.map((m) => ({
-    userId: m.user_id,
-    role: m.role,
-    profile: m.profiles
-      ? {
-          displayName: m.profiles.display_name,
-          firstName: m.profiles.first_name,
-          lastName: m.profiles.last_name,
-          avatarUrl: m.profiles.avatar_url,
-          handle: m.profiles.handle,
-        }
-      : null,
-  }));
+  const members: GroupMember[] = memberRowsTyped.map((m) => {
+    const p = profilesMap.get(m.user_id) ?? null;
+    return {
+      userId: m.user_id,
+      role: m.role,
+      profile: p
+        ? {
+            displayName: p.display_name,
+            firstName: null,
+            lastName: null,
+            avatarUrl: p.avatar_url,
+            handle: p.handle,
+          }
+        : null,
+    };
+  });
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
@@ -152,6 +171,8 @@ export default async function GroupProfilePage(props: {
         region={group.region}
         avatarUrl={group.avatar_url}
       />
+      <HeroImage url={group.hero_image_url} alt={group.name} priority />
+
       <GroupHeader
         group={{
           id: group.id,

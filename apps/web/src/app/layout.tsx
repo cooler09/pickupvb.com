@@ -6,6 +6,7 @@ import { ToastProvider } from '@/components/toast';
 import { EnvBanner } from '@/components/env-banner';
 import { WebVitalsClient } from '@/components/web-vitals-client';
 import { ConsentBanner } from '@/components/consent-banner';
+import { AuthStateSync } from '@/components/auth-state-sync';
 import { getCurrentUser } from '@/lib/server-auth';
 import { hasAnalyticsConsent, isConsentDecided } from '@/lib/consent';
 import { DEFAULT_THEME, isTheme, THEME_COOKIE, type Theme } from '@/lib/theme';
@@ -132,6 +133,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         >
           Skip to main content
         </a>
+        <AuthStateSync />
         <EnvBanner />
         <SiteHeader theme={theme} />
         <ToastProvider>

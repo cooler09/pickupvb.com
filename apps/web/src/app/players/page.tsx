@@ -30,21 +30,15 @@ type Row = {
   id: string;
   handle: string;
   display_name: string;
-  first_name: string | null;
-  last_name: string | null;
   home_city: string | null;
   avatar_url: string | null;
 };
 
 function nameOf(p: Row): string {
-  const full = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
-  return full || p.display_name || 'Player';
+  return p.display_name || 'Player';
 }
 
 function initialsOf(p: Row): string {
-  const f = p.first_name?.trim()?.[0];
-  const l = p.last_name?.trim()?.[0];
-  if (f && l) return (f + l).toUpperCase();
   const parts = (p.display_name ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
   return (p.display_name ?? '?').slice(0, 2).toUpperCase();
@@ -62,16 +56,14 @@ export default async function PlayersIndexPage(props: {
   const to = from + PAGE_SIZE - 1;
 
   let query = supabase
-    .from('profiles')
-    .select('id, handle, display_name, first_name, last_name, home_city, avatar_url', {
-      count: 'exact',
-    })
+    .from('profiles_public')
+    .select('id, handle, display_name, home_city, avatar_url', { count: 'exact' })
     .order('display_name', { ascending: true })
     .range(from, to);
 
   if (q) {
     const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
-    query = query.or(`display_name.ilike.${like},first_name.ilike.${like},last_name.ilike.${like}`);
+    query = query.ilike('display_name', like);
   }
   if (city) {
     query = query.ilike('home_city', `%${city.replace(/[%_]/g, (m) => `\\${m}`)}%`);

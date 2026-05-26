@@ -707,7 +707,13 @@ export class SupabaseEventRepository implements EventRepository {
       this.client
         .from('event_co_hosts')
         .select(
-          'host_user_id, host_group_id, profiles:profiles(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
+          // `event_co_hosts` has TWO FKs to `profiles` (`host_user_id` and
+          // `added_by`), so the embed MUST be disambiguated with the FK
+          // hint — otherwise PostgREST returns PGRST201 ("more than one
+          // relationship was found") and `data` comes back null. Without
+          // the hint the code below silently treated every event as
+          // having zero co-hosts, even when rows existed in the table.
+          'host_user_id, host_group_id, profiles:profiles!host_user_id(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
         )
         .eq('event_id', id),
       row.host_id
@@ -858,6 +864,12 @@ export class SupabaseEventRepository implements EventRepository {
       groups: GroupRow | null;
     };
     const coHostRows = (coHostRowsRes.data as CoHostJoinRow[] | null) ?? [];
+    if (coHostRowsRes.error) {
+      // Don't silently swallow embed/RLS failures — a stale schema or a
+      // missing FK hint here used to drop every co-host on the floor
+      // without surfacing any error (see PGRST201 ambiguity fix above).
+      throw new Error(`getDetail(${id}) co-host query failed: ${coHostRowsRes.error.message}`);
+    }
     const coGroupIds = coHostRows.map((c) => c.host_group_id).filter((v): v is string => !!v);
 
     // Registered tournament teams. Captain profile arrives nested via the

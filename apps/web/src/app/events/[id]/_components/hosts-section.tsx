@@ -88,11 +88,16 @@ export function HostsSection({
             </Link>
           </li>
         )}
-        {primaryHostUser && primaryHostUserSocial && (
-          <li>
-            <SocialLinks handles={primaryHostUserSocial} />
-          </li>
-        )}
+        {primaryHostUser &&
+          primaryHostUserSocial &&
+          // `SocialLinks` returns null when no handles are set. Without
+          // this guard we'd render an empty `<li>` and confuse anyone
+          // querying the hosts list (e.g. e2e selectors counting items).
+          Object.values(primaryHostUserSocial).some((v) => Boolean(v)) && (
+            <li>
+              <SocialLinks handles={primaryHostUserSocial} />
+            </li>
+          )}
         {coHostGroups.map((g) => (
           <li key={`g-${g.id}`}>
             <Link

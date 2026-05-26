@@ -13,25 +13,25 @@ import Stripe from 'stripe';
 let cached: Stripe | null = null;
 
 export function isStripeConfigured(): boolean {
-    return Boolean(process.env['STRIPE_SECRET_KEY']);
+  return Boolean(process.env['STRIPE_SECRET_KEY']);
 }
 
 export function getStripe(): Stripe {
-    if (cached) return cached;
-    const key = process.env['STRIPE_SECRET_KEY'];
-    if (!key) {
-        throw new Error(
-            'STRIPE_SECRET_KEY is not set. Set it in apps/web/.env.local (or .env) to enable payments.',
-        );
-    }
-    cached = new Stripe(key, {
-        // Let the SDK pick its bundled API version. We get type safety for
-        // that exact version by doing nothing here.
-        typescript: true,
-        // Vercel functions are short-lived; we don't need pooling.
-        maxNetworkRetries: 2,
-    });
-    return cached;
+  if (cached) return cached;
+  const key = process.env['STRIPE_SECRET_KEY'];
+  if (!key) {
+    throw new Error(
+      'STRIPE_SECRET_KEY is not set. Set it in apps/web/.env.local (or .env) to enable payments.',
+    );
+  }
+  cached = new Stripe(key, {
+    // Let the SDK pick its bundled API version. We get type safety for
+    // that exact version by doing nothing here.
+    typescript: true,
+    // Vercel functions are short-lived; we don't need pooling.
+    maxNetworkRetries: 2,
+  });
+  return cached;
 }
 
 /**
@@ -43,5 +43,25 @@ export const PLATFORM_FEE_BPS = 500;
 
 /** Compute the application_fee_amount in cents from a ticket price in cents. */
 export function platformFeeCents(amountCents: number): number {
-    return Math.round((amountCents * PLATFORM_FEE_BPS) / 10_000);
+  return Math.round((amountCents * PLATFORM_FEE_BPS) / 10_000);
+}
+
+/**
+ * Stripe's standard US online card-present processing fee, in cents.
+ *
+ * Formula: 2.9% of the gross + 30¢, ceiling-rounded so the host is made
+ * whole on the cent. This is the same fee Stripe charges on the connected
+ * account when the charge settles — we re-bill it to the buyer as a
+ * separate Checkout line item when the host opts into pass-through
+ * (`events.pass_processing_fee_to_buyer`).
+ *
+ * Note: the fee is computed against the GROSS the buyer pays (ticket +
+ * platform fee + processing fee). Strictly accurate gross-up would solve
+ * a fixed-point equation; we use the simpler one-pass formula and accept
+ * a sub-cent loss to the host on the recursion, matching every other
+ * ticketing platform that does this pass-through.
+ */
+export function processingFeeCents(grossCents: number): number {
+  if (grossCents <= 0) return 0;
+  return Math.ceil(grossCents * 0.029) + 30;
 }

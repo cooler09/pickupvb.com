@@ -11,6 +11,7 @@ import { getServerSupabase } from './supabase';
 export type EventPricing = {
   priceCents: number;
   hostAbsorbsFee: boolean;
+  passProcessingFeeToBuyer: boolean;
   refundWindowHours: number;
   hostId: string;
 };
@@ -30,7 +31,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
   const [eventRes, divRes] = await Promise.all([
     supabase
       .from('events')
-      .select('host_id, host_absorbs_fee, refund_window_hours')
+      .select('host_id, host_absorbs_fee, pass_processing_fee_to_buyer, refund_window_hours')
       .eq('id', eventId)
       .maybeSingle(),
     supabase
@@ -45,6 +46,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
   type EventRow = {
     host_id: string;
     host_absorbs_fee: boolean;
+    pass_processing_fee_to_buyer: boolean;
     refund_window_hours: number;
   };
   type DivRow = { price_cents: number | null };
@@ -54,6 +56,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
     hostId: e.host_id,
     priceCents: d?.price_cents ?? 0,
     hostAbsorbsFee: e.host_absorbs_fee ?? false,
+    passProcessingFeeToBuyer: e.pass_processing_fee_to_buyer ?? false,
     refundWindowHours: e.refund_window_hours ?? 24,
   };
 }
@@ -67,11 +70,15 @@ export function isPaidEvent(p: EventPricing | null): boolean {
  * the attendee just pays `priceCents`. Otherwise the platform fee is added
  * as a separate line item.
  *
- * Stripe's processing fee (~2.9% + 30¢) always comes out of the host's
- * payout — Stripe charges it on the connected account, regardless of who
- * ultimately bore the cost. Documented to hosts in the billing UI.
+ * Stripe's processing fee (~2.9% + 30¢) is opt-in pass-through per
+ * `events.pass_processing_fee_to_buyer` — when set, the buyer sees it as
+ * a third "Processing fee" line; when not, it comes out of the host's
+ * payout the way every Stripe charge does by default. Either way Stripe
+ * does NOT return the processing fee on a refund (Stripe policy since
+ * 2019), so a refunded ticket nets the host the processing fee out of
+ * pocket regardless of who originally bore it on the front end.
  */
-import { platformFeeCents } from './stripe';
+import { platformFeeCents, processingFeeCents } from './stripe';
 import { PRO_PLATFORM_FEE_BPS } from './pro';
 import { hasProBenefits } from './admin';
 
@@ -83,18 +90,56 @@ export async function platformFeeCentsFor(hostId: string, amountCents: number): 
   return platformFeeCents(amountCents);
 }
 
+/**
+ * Stripe processing fee that should be added to the buyer's bill as a
+ * separate line item, given the event's pass-through choice and the
+ * fee-absorption mode.
+ *
+ * Returns 0 when:
+ *   * the host is absorbing the platform fee (host advertised "what you
+ *     see is what you pay" — adding a processing-fee line would
+ *     contradict that promise), OR
+ *   * pass-through is disabled on the event (legacy default).
+ *
+ * Otherwise: `ceil(0.029 * (ticket + platformFee)) + 30`. The host's
+ * payout is restored to the advertised ticket + platform fee, less
+ * Stripe's actual fee on the new (slightly higher) gross — a sub-cent
+ * gap matches what other ticketing platforms accept.
+ */
+export function buyerProcessingFeeCents(opts: {
+  passToBuyer: boolean;
+  hostAbsorbs: boolean;
+  subtotalCents: number;
+}): number {
+  if (opts.hostAbsorbs || !opts.passToBuyer) return 0;
+  return processingFeeCents(opts.subtotalCents);
+}
+
 export async function attendeeChargeBreakdownAsync(p: EventPricing): Promise<{
   ticketCents: number;
   platformFeeCents: number;
+  processingFeeCents: number;
   totalCents: number;
 }> {
   const fee = await platformFeeCentsFor(p.hostId, p.priceCents);
   if (p.hostAbsorbsFee) {
-    return { ticketCents: p.priceCents, platformFeeCents: 0, totalCents: p.priceCents };
+    return {
+      ticketCents: p.priceCents,
+      platformFeeCents: 0,
+      processingFeeCents: 0,
+      totalCents: p.priceCents,
+    };
   }
+  const subtotal = p.priceCents + fee;
+  const processing = buyerProcessingFeeCents({
+    passToBuyer: p.passProcessingFeeToBuyer,
+    hostAbsorbs: p.hostAbsorbsFee,
+    subtotalCents: subtotal,
+  });
   return {
     ticketCents: p.priceCents,
     platformFeeCents: fee,
-    totalCents: p.priceCents + fee,
+    processingFeeCents: processing,
+    totalCents: subtotal + processing,
   };
 }

@@ -283,19 +283,15 @@ unmasking (button labels, status text). Alternatively use the
 
 **File:** [supabase/migrations/20260513000800_event_guests.sql](../../supabase/migrations/20260513000800_event_guests.sql)
 **Category:** data retention
+**Status:** ✅ resolved — table dropped in anon auth pivot
 
-`event_guests` captures display_name + email + phone + notes from
-anonymous RSVPers. There is no FK to `auth.users` (intentional — the
-guest is unauthenticated) and no retention policy. Rows persist
-indefinitely after the event is over.
-
-**Recommended fix:** add a daily cron route that scrubs
-`event_guests` rows where the parent event ended >180 days ago — set
-`email = null, phone = null, notes = null` while keeping `display_name`
-
-- `created_at` + the FK to `event_id` so attendance counts remain
-  accurate. The 180-day window is long enough for refund / dispute
-  workflows; tighten if regulatory advice says so.
+`event_guests` was dropped in
+[20260513001100_anon_auth_pivot.sql](../../supabase/migrations/20260513001100_anon_auth_pivot.sql).
+Anonymous RSVPers now sign in via `supabase.auth.signInAnonymously()`,
+getting a real `auth.users` row (`is_anonymous = true`), a `profiles`
+row, and a normal `event_attendees` row. No separate email/phone/notes
+table exists anymore; the soft-delete path from P1 #2 covers anonymous
+profiles the same as regular ones.
 
 ### 8. `community_listing_reports.reason` is freeform with no PII filter
 
@@ -317,18 +313,20 @@ location", "other") so the freeform path is the exception.
 
 **File:** [supabase/migrations/20260515000000_stripe_foundation.sql#L24-L50](../../supabase/migrations/20260515000000_stripe_foundation.sql#L24)
 **Category:** PII via third-party payload
+**Status:** ✅ resolved — column dropped (2026-05-24)
 
-`host_stripe_accounts` retains the most recent `account.updated`
+`host_stripe_accounts` retained the most recent `account.updated`
 webhook payload as JSON for debugging. That payload from Stripe
 includes the host's legal name, DOB (verification), address, last4 of
 SSN/EIN for US accounts, and the bank account last4 for payouts.
 
-**Recommended fix:** either (a) stop persisting the full payload and
-keep only the fields we explicitly need (`charges_enabled`,
-`payouts_enabled`, `details_submitted`, `requirements.currently_due`),
-or (b) gate the column behind owner-only RLS even from service-role
-clients used in non-payment code paths, and add a 30-day purge so it's
-only available for incident debugging.
+**Fix applied:** column dropped in
+[20260624000000_pii_p2_drop_last_event_payload.sql](../../supabase/migrations/20260624000000_pii_p2_drop_last_event_payload.sql).
+`lastEventPayload` parameter removed from `updateStatusByAccountId`
+(domain port + infrastructure adapter), `mirrorStripeAccountUpdate`
+(facade), and the `account.updated` webhook handler — the raw `account`
+object is no longer passed or persisted. Only `charges_enabled`,
+`payouts_enabled`, and `details_submitted` are written.
 
 ## P3 — nice-to-have
 
@@ -469,5 +467,126 @@ the public `allRegistrations` projection now falls back to `'Player'`
 directly instead of leaking the teammate email. Captain
 (`viewerRegistrations`) and host (`hostRows`) projections are
 unchanged — those audiences need the email and are gated by membership
-in the registration. Steps 2 + 3 (tighten SELECT RLS and add the
-`*_public` view) still open.
+in the registration. Steps 2 + 3 shipped in Bundle 89 (see below).
+
+### 2026-05-24 — Bundle 89: P1 #1 + #2 + #3 + #4 step 1 + #5 steps 2 + 3
+
+**P1 #2** — `profiles.deleted_at` (timestamptz) and `deletion_reason`
+(text, check-constrained enum) added in
+[20260620000000_pii_p1_soft_delete_and_fk_nullability.sql](../../supabase/migrations/20260620000000_pii_p1_soft_delete_and_fk_nullability.sql).
+Partial index on `deleted_at` for efficient soft-delete filtering.
+
+**P1 #1** — `events.host_id`, `groups.created_by`, `broadcasts.sender_id`
+flipped from RESTRICT / NO ACTION to `ON DELETE SET NULL`, columns made
+nullable. Same migration as P1 #2.
+
+**P1 #3** — Six CASCADE FKs flipped to `ON DELETE SET NULL` with
+nullable columns: `event_tips.host_id`, `host_stripe_accounts.user_id`
+(+ surrogate PK added), `host_subscriptions.user_id` (+ surrogate PK
+added), `event_attendees.user_id` (+ surrogate UUID PK replacing
+composite PK, partial unique index `WHERE user_id IS NOT NULL`),
+`event_team_payments.captain_id`, `community_listings.submitter_user_id`.
+Same migration as P1 #2.
+
+**P1 #4 step 1** — `profiles_public` view created in
+[20260621000000_pii_p1_profiles_public_view.sql](../../supabase/migrations/20260621000000_pii_p1_profiles_public_view.sql)
+projecting safe public columns only; filters `deleted_at IS NULL`.
+Granted to `anon, authenticated`. Base-table policy unchanged — steps
+2 + 3 (app query migration + policy tighten) remain open.
+
+**P1 #5 steps 2 + 3** —
+[20260622000000_pii_p1_team_members_rls.sql](../../supabase/migrations/20260622000000_pii_p1_team_members_rls.sql)
+drops the `using (true)` SELECT policy on `event_team_registration_members`,
+replaces it with captain-or-host-or-self, and creates
+`event_team_registration_members_public` view `(id, registration_id,
+display_name, sort_order)` granted to `anon, authenticated`.
+App-layer loader step (switch `loadAdHocRowsCached` public projection to
+use the view) remains open as a follow-up.
+
+**Open from this bundle:**
+
+- Soft-delete application path: `DeletionRequestAggregate`, cron, profile scrub UI
+
+### 2026-05-24 — P1 #4 steps 2 + 3: migrate public queries to profiles_public + tighten RLS
+
+**Step 2 — app-layer query migration:**
+
+All public-facing `profiles` reads switched to `profiles_public`. Because
+PostgREST FK-join syntax (`profiles!fk_name(...)`) does not work on views,
+the 4 FK-join queries (groups/[id]/page.tsx, groups/[id]/members/page.tsx,
+teams/page.tsx, teams/[id]/page.tsx, lib/mappers/friend.ts) were split into
+two queries each: the parent-table query runs as before, profiles are fetched
+separately via `profiles_public` by collected IDs, and results are merged in JS.
+
+`profiles_public` exposes only: `id, handle, display_name, avatar_url, home_city,
+primary_position, secondary_position, tertiary_position, instagram_handle,
+tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url,
+show_pro_badge, theme_preference, created_at`. `first_name`, `last_name`,
+`business_name`, `business_address`, `tax_id` are deliberately excluded.
+
+Two reads that needed non-public fields (not in the view) were switched to admin
+client: `profile/receipts/[paymentIntentId]/page.tsx` (host's
+`business_name/business_address` for the receipt) and `teams/actions.ts`
+(invitee's `auto_accept_team_invites` preference). The health-check probe at
+`api/health/deep/route.ts` and the annual statement CSV at
+`api/receipts/[year]/statement.csv/route.ts` also moved to `profiles_public`.
+
+**Step 3 — RLS tighten:**
+
+[20260623000000_pii_p1_profiles_rls_owner_only.sql](../../supabase/migrations/20260623000000_pii_p1_profiles_rls_owner_only.sql) —
+drops the permissive `using (true)` SELECT policy and replaces it with
+`auth.uid() = id OR public.is_platform_admin()`. `is_platform_admin()` is
+`SECURITY DEFINER` so it reads the `is_platform_admin` column without
+re-entering RLS. `profiles_public` continues to serve all public reads
+regardless of this change because the view runs as the view owner (not
+`security_invoker`).
+
+### 2026-05-24 — P1 #5 step 3: switch loadAdHocRowsCached public projection to view
+
+[apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts) —
+split `loadAdHocRowsCached` into two cached loaders:
+
+- `loadAdHocPublicRowsCached` — reads `event_team_registrations` (name,
+  division_id, captain_id, payment_status), `event_team_registration_members_public`
+  (id, registration_id, display_name, sort_order), and `profiles_public`
+  (captain display names). Contains no `email` or `user_id`. Used exclusively
+  for the `allRegistrations` public projection.
+- `loadAdHocRowsCached` — unchanged admin-client query with full member
+  fields including `email` and `user_id`. Now fetched only when the viewer
+  is signed in (`viewerRegistrations`) or is managing the event (`hostRows`).
+
+Anonymous visitors — including SEO crawlers and logged-out users — hit only
+the public cache. The sensitive fields never enter the shared in-memory result
+for public reads.
+
+### 2026-05-24 — P2 #5: notification_outbox purge cron
+
+[apps/web/src/app/api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts) —
+daily cron (04:00 UTC, registered in `vercel.json`) that deletes
+`notification_outbox` rows where `status in ('sent', 'skipped')` and
+`sent_at < now() - 30 days`, and `status = 'failed'` rows where
+`created_at < now() - 90 days`. Both deletes run concurrently via
+`Promise.all`. Pattern mirrors the existing reminders cron route.
+
+### 2026-05-24 — P2 #8: community_listing_reports reason dropdown + purge
+
+**Reason dropdown** —
+[apps/web/src/app/community/[slug]/page.tsx](../../apps/web/src/app/community/%5Bslug%5D/page.tsx):
+replaced the bare submit button in the report form with a `<select name="reason">` dropdown
+(spam, broken link, duplicate, wrong location, other) so freeform text is never
+collected. [listing-actions.ts](../../apps/web/src/app/community/%5Bslug%5D/listing-actions.ts):
+`reportListingFromForm` now reads `reason` from FormData; `reportListing` accepts
+and truncates it to 500 chars before passing to the command.
+
+**Report purge** — added to the daily maintenance cron in
+[apps/web/src/app/api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts):
+deletes `community_listing_reports` rows older than 180 days. Reporter `user_id`
+and reason have no moderation value past the initial review window.
+
+### 2026-05-24 — P2 #6: mask Sentry session replay
+
+[apps/web/instrumentation-client.ts](../../apps/web/instrumentation-client.ts) —
+set `maskAllText: true` and `blockAllMedia: true` on `replayIntegration`.
+Session replays on error no longer capture visible DOM text (form field
+values, display names, addresses) or media. Use `data-sentry-unmask`
+on specific elements if high-signal debugging needs a targeted opt-in.

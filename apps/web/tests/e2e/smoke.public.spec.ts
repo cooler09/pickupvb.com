@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Public smoke tests — no auth required. Hits the top entry points a search
@@ -56,10 +57,10 @@ test.describe('public smoke', () => {
     await surfaceCheckbox.check();
     // Filter form submits on change OR has a visible Apply button. Try both.
     const apply = page.getByRole('button', { name: /apply|filter|update/i }).first();
-    if (await apply.isVisible().catch(() => false)) {
+    if (await isVisibleOrTimeout(apply)) {
       await apply.click();
     }
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     expect(page.url()).toMatch(/surface/i);
   });
 

@@ -28,9 +28,7 @@ const PAGE_SIZE = 24;
 const FORMAT_OPTIONS = ['doubles', 'triples', 'quads', 'sixes'] as const;
 type FormatOption = (typeof FORMAT_OPTIONS)[number];
 
-type DiscoverRow = TeamCardData & {
-  captain: { display_name: string | null } | null;
-};
+type DiscoverRow = TeamCardData;
 
 export default async function TeamsIndexPage(props: {
   searchParams: Promise<{ q?: string; format?: string; page?: string }>;
@@ -52,10 +50,7 @@ export default async function TeamsIndexPage(props: {
   // Public "discover" query — runs for everyone, signed in or not.
   let discoverQuery = supabase
     .from('teams')
-    .select(
-      'id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(display_name)',
-      { count: 'exact' },
-    )
+    .select('id, slug, name, format, captain_id', { count: 'exact' })
     .order('name', { ascending: true })
     .range(from, to);
   if (q) {
@@ -66,6 +61,19 @@ export default async function TeamsIndexPage(props: {
   const discoverTeams = (discoverData as DiscoverRow[] | null) ?? [];
   const discoverTotal = discoverCount ?? discoverTeams.length;
   const hasFilter = q.length > 0 || !!format;
+
+  // Fetch captain display names from profiles_public (no FK join on views).
+  const captainIds = [...new Set(discoverTeams.map((t) => t.captain_id).filter(Boolean))];
+  const captainNameMap = new Map<string, string>();
+  if (captainIds.length > 0) {
+    const { data: captainRows } = await supabase
+      .from('profiles_public')
+      .select('id, display_name')
+      .in('id', captainIds);
+    for (const c of (captainRows as { id: string; display_name: string }[] | null) ?? []) {
+      captainNameMap.set(c.id, c.display_name);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-4">
@@ -126,7 +134,7 @@ export default async function TeamsIndexPage(props: {
                 key={t.id}
                 team={t}
                 role="public"
-                captainName={t.captain?.display_name ?? null}
+                captainName={captainNameMap.get(t.captain_id) ?? null}
               />
             ))}
           </ul>

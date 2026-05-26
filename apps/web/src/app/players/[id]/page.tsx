@@ -11,6 +11,7 @@ import { SocialLinks } from '@/components/social-links';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
+import { HeroImage } from '@/components/hero-image';
 
 /**
  * ISR cache for anonymous traffic. The public player profile (identity
@@ -27,22 +28,17 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
   const params = await props.params;
   const supabase = createSupabaseAnonClient();
   const { data } = await supabase
-    .from('profiles')
-    .select('handle, display_name, first_name, last_name, home_city')
+    .from('profiles_public')
+    .select('handle, display_name, home_city')
     .eq('handle', params.id)
     .maybeSingle();
   const row = data as {
     handle: string;
     display_name: string | null;
-    first_name: string | null;
-    last_name: string | null;
     home_city: string | null;
   } | null;
   if (!row) return { title: 'Player' };
-  const name =
-    [row.first_name, row.last_name].filter(Boolean).join(' ').trim() ||
-    row.display_name ||
-    'Player';
+  const name = row.display_name || 'Player';
   const description = `${name}${row.home_city ? ` of ${row.home_city}` : ''} — volleyball player on PickupVB.`;
   return {
     title: name,
@@ -61,9 +57,8 @@ type PlayerProfile = {
   id: string;
   handle: string;
   display_name: string;
-  first_name: string | null;
-  last_name: string | null;
   avatar_url: string | null;
+  hero_image_url: string | null;
   home_city: string | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -78,17 +73,13 @@ type PlayerProfile = {
 };
 
 function initialsOf(p: PlayerProfile): string {
-  const f = p.first_name?.trim()?.[0];
-  const l = p.last_name?.trim()?.[0];
-  if (f && l) return (f + l).toUpperCase();
   const parts = (p.display_name ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
   return (p.display_name ?? '?').slice(0, 2).toUpperCase();
 }
 
 function nameOf(p: PlayerProfile): string {
-  const full = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
-  return full || p.display_name || 'Player';
+  return p.display_name || 'Player';
 }
 
 export default async function PlayerProfilePage(props: {
@@ -104,9 +95,9 @@ export default async function PlayerProfilePage(props: {
   const supabase = createSupabaseAnonClient();
 
   const { data: profileRow } = await supabase
-    .from('profiles')
+    .from('profiles_public')
     .select(
-      'id, handle, display_name, first_name, last_name, avatar_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'id, handle, display_name, avatar_url, hero_image_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('handle', params.id)
     .maybeSingle();
@@ -144,6 +135,8 @@ export default async function PlayerProfilePage(props: {
           { name, url: `https://pickupvb.com/players/${profile.handle}` },
         ]}
       />
+      <HeroImage url={profile.hero_image_url} alt={name} priority />
+
       {/* ── Identity card ─────────────────────────────────────── */}
       <header className="border-border-base bg-surface rounded-lg border p-5">
         <div className="flex items-start gap-4">

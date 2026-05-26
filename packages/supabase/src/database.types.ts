@@ -203,8 +203,9 @@ export type Database = {
           body: string;
           channels: string[];
           created_at: string;
+          deleted_at: string | null;
           id: string;
-          sender_id: string;
+          sender_id: string | null;
           sent_at: string | null;
           subject: string | null;
         };
@@ -214,8 +215,9 @@ export type Database = {
           body: string;
           channels?: string[];
           created_at?: string;
+          deleted_at?: string | null;
           id?: string;
-          sender_id: string;
+          sender_id?: string | null;
           sent_at?: string | null;
           subject?: string | null;
         };
@@ -225,8 +227,9 @@ export type Database = {
           body?: string;
           channels?: string[];
           created_at?: string;
+          deleted_at?: string | null;
           id?: string;
-          sender_id?: string;
+          sender_id?: string | null;
           sent_at?: string | null;
           subject?: string | null;
         };
@@ -269,6 +272,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'community_listing_reports_reporter_user_id_fkey';
+            columns: ['reporter_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       community_listings: {
@@ -295,7 +305,7 @@ export type Database = {
           slug: string | null;
           starts_at: string;
           status: string;
-          submitter_user_id: string;
+          submitter_user_id: string | null;
           surface: Database['public']['Enums']['surface'] | null;
           time_zone: string | null;
           title: string;
@@ -324,7 +334,7 @@ export type Database = {
           slug?: string | null;
           starts_at: string;
           status?: string;
-          submitter_user_id: string;
+          submitter_user_id?: string | null;
           surface?: Database['public']['Enums']['surface'] | null;
           time_zone?: string | null;
           title: string;
@@ -353,7 +363,7 @@ export type Database = {
           slug?: string | null;
           starts_at?: string;
           status?: string;
-          submitter_user_id?: string;
+          submitter_user_id?: string | null;
           surface?: Database['public']['Enums']['surface'] | null;
           time_zone?: string | null;
           title?: string;
@@ -365,6 +375,13 @@ export type Database = {
             columns: ['claimed_by_user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'community_listings_claimed_by_user_id_fkey';
+            columns: ['claimed_by_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
           {
@@ -388,6 +405,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'community_listings_submitter_user_id_fkey';
+            columns: ['submitter_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       event_attendees: {
@@ -396,6 +420,7 @@ export type Database = {
           checkout_session_id: string | null;
           division_id: string;
           event_id: string;
+          id: string;
           joined_at: string;
           paid_at: string | null;
           payment_intent_id: string | null;
@@ -403,13 +428,14 @@ export type Database = {
           position: string | null;
           reminder_24h_sent_at: string | null;
           reminder_2h_sent_at: string | null;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           amount_paid_cents?: number;
           checkout_session_id?: string | null;
           division_id: string;
           event_id: string;
+          id?: string;
           joined_at?: string;
           paid_at?: string | null;
           payment_intent_id?: string | null;
@@ -417,13 +443,14 @@ export type Database = {
           position?: string | null;
           reminder_24h_sent_at?: string | null;
           reminder_2h_sent_at?: string | null;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           amount_paid_cents?: number;
           checkout_session_id?: string | null;
           division_id?: string;
           event_id?: string;
+          id?: string;
           joined_at?: string;
           paid_at?: string | null;
           payment_intent_id?: string | null;
@@ -431,7 +458,7 @@ export type Database = {
           position?: string | null;
           reminder_24h_sent_at?: string | null;
           reminder_2h_sent_at?: string | null;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
@@ -462,6 +489,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'event_attendees_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       event_co_hosts: {
@@ -471,6 +505,7 @@ export type Database = {
           event_id: string;
           host_group_id: string | null;
           host_user_id: string | null;
+          id: string;
         };
         Insert: {
           added_at?: string;
@@ -478,6 +513,7 @@ export type Database = {
           event_id: string;
           host_group_id?: string | null;
           host_user_id?: string | null;
+          id?: string;
         };
         Update: {
           added_at?: string;
@@ -485,6 +521,7 @@ export type Database = {
           event_id?: string;
           host_group_id?: string | null;
           host_user_id?: string | null;
+          id?: string;
         };
         Relationships: [
           {
@@ -492,6 +529,13 @@ export type Database = {
             columns: ['added_by'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_co_hosts_added_by_fkey';
+            columns: ['added_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
           {
@@ -520,6 +564,13 @@ export type Database = {
             columns: ['host_user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_co_hosts_host_user_id_fkey';
+            columns: ['host_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
         ];
@@ -733,12 +784,85 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'event_payment_audit_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_sponsors: {
+        Row: {
+          access_kind: string;
+          blurb: string | null;
+          created_at: string;
+          discount_code: string | null;
+          event_id: string;
+          id: string;
+          link_url: string | null;
+          logo_url: string | null;
+          name: string;
+          paid_at: string | null;
+          purchased_by_user_id: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          access_kind?: string;
+          blurb?: string | null;
+          created_at?: string;
+          discount_code?: string | null;
+          event_id: string;
+          id?: string;
+          link_url?: string | null;
+          logo_url?: string | null;
+          name: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          access_kind?: string;
+          blurb?: string | null;
+          created_at?: string;
+          discount_code?: string | null;
+          event_id?: string;
+          id?: string;
+          link_url?: string | null;
+          logo_url?: string | null;
+          name?: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_sponsors_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_sponsors_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events_view';
+            referencedColumns: ['id'];
+          },
         ];
       };
       event_team_payments: {
         Row: {
           amount_paid_cents: number | null;
-          captain_id: string;
+          captain_id: string | null;
           checkout_session_id: string | null;
           created_at: string;
           event_id: string;
@@ -751,7 +875,7 @@ export type Database = {
         };
         Insert: {
           amount_paid_cents?: number | null;
-          captain_id: string;
+          captain_id?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
           event_id: string;
@@ -764,7 +888,7 @@ export type Database = {
         };
         Update: {
           amount_paid_cents?: number | null;
-          captain_id?: string;
+          captain_id?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
           event_id?: string;
@@ -781,6 +905,13 @@ export type Database = {
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_team_payments_captain_id_fkey';
+            columns: ['captain_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
           {
@@ -835,6 +966,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'event_team_registration_members_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       event_team_registrations: {
@@ -843,6 +981,7 @@ export type Database = {
           captain_id: string;
           checkout_session_id: string | null;
           created_at: string;
+          deleted_at: string | null;
           division_id: string;
           event_id: string;
           id: string;
@@ -857,6 +996,7 @@ export type Database = {
           captain_id: string;
           checkout_session_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           division_id: string;
           event_id: string;
           id?: string;
@@ -871,6 +1011,7 @@ export type Database = {
           captain_id?: string;
           checkout_session_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           division_id?: string;
           event_id?: string;
           id?: string;
@@ -886,6 +1027,13 @@ export type Database = {
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_team_registrations_captain_id_fkey';
+            columns: ['captain_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
           {
@@ -966,7 +1114,7 @@ export type Database = {
           amount_cents: number;
           created_at: string;
           event_id: string;
-          host_id: string;
+          host_id: string | null;
           id: string;
           message: string | null;
           paid_at: string | null;
@@ -982,7 +1130,7 @@ export type Database = {
           amount_cents: number;
           created_at?: string;
           event_id: string;
-          host_id: string;
+          host_id?: string | null;
           id?: string;
           message?: string | null;
           paid_at?: string | null;
@@ -998,7 +1146,7 @@ export type Database = {
           amount_cents?: number;
           created_at?: string;
           event_id?: string;
-          host_id?: string;
+          host_id?: string | null;
           id?: string;
           message?: string | null;
           paid_at?: string | null;
@@ -1039,11 +1187,13 @@ export type Database = {
           external_registration_url: string | null;
           fundraiser_beneficiary: string | null;
           geo: unknown;
+          hero_image_url: string | null;
           host_absorbs_fee: boolean;
           host_group_id: string | null;
-          host_id: string;
+          host_id: string | null;
           id: string;
           is_fundraiser: boolean;
+          pass_processing_fee_to_buyer: boolean;
           payment_instructions: string | null;
           payments_off_platform: boolean;
           postal_code: string;
@@ -1080,11 +1230,13 @@ export type Database = {
           external_registration_url?: string | null;
           fundraiser_beneficiary?: string | null;
           geo: unknown;
+          hero_image_url?: string | null;
           host_absorbs_fee?: boolean;
           host_group_id?: string | null;
-          host_id: string;
+          host_id?: string | null;
           id?: string;
           is_fundraiser?: boolean;
+          pass_processing_fee_to_buyer?: boolean;
           payment_instructions?: string | null;
           payments_off_platform?: boolean;
           postal_code: string;
@@ -1121,11 +1273,13 @@ export type Database = {
           external_registration_url?: string | null;
           fundraiser_beneficiary?: string | null;
           geo?: unknown;
+          hero_image_url?: string | null;
           host_absorbs_fee?: boolean;
           host_group_id?: string | null;
-          host_id?: string;
+          host_id?: string | null;
           id?: string;
           is_fundraiser?: boolean;
+          pass_processing_fee_to_buyer?: boolean;
           payment_instructions?: string | null;
           payments_off_platform?: boolean;
           postal_code?: string;
@@ -1166,6 +1320,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'events_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       friendships: {
@@ -1193,10 +1354,24 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
+            foreignKeyName: 'friendships_friend_id_fkey';
+            columns: ['friend_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'friendships_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'friendships_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
         ];
@@ -1230,6 +1405,13 @@ export type Database = {
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'group_followers_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
         ];
@@ -1268,14 +1450,23 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'group_members_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       groups: {
         Row: {
           avatar_url: string | null;
           created_at: string;
-          created_by: string;
+          created_by: string | null;
+          deleted_at: string | null;
           description: string;
+          hero_image_url: string | null;
           home_city: string | null;
           id: string;
           name: string;
@@ -1286,8 +1477,10 @@ export type Database = {
         Insert: {
           avatar_url?: string | null;
           created_at?: string;
-          created_by: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
           description?: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string;
           name: string;
@@ -1298,8 +1491,10 @@ export type Database = {
         Update: {
           avatar_url?: string | null;
           created_at?: string;
-          created_by?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
           description?: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string;
           name?: string;
@@ -1315,45 +1510,86 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'groups_created_by_fkey';
+            columns: ['created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
+      };
+      host_event_templates: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          payload: Json;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          payload?: Json;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          payload?: Json;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
       };
       host_stripe_accounts: {
         Row: {
           charges_enabled: boolean;
           created_at: string;
           details_submitted: boolean;
-          last_event_payload: Json | null;
+          id: string;
           payouts_enabled: boolean;
           stripe_account_id: string;
           updated_at: string;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           charges_enabled?: boolean;
           created_at?: string;
           details_submitted?: boolean;
-          last_event_payload?: Json | null;
+          id?: string;
           payouts_enabled?: boolean;
           stripe_account_id: string;
           updated_at?: string;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           charges_enabled?: boolean;
           created_at?: string;
           details_submitted?: boolean;
-          last_event_payload?: Json | null;
+          id?: string;
           payouts_enabled?: boolean;
           stripe_account_id?: string;
           updated_at?: string;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
             foreignKeyName: 'host_stripe_accounts_user_id_fkey';
             columns: ['user_id'];
-            isOneToOne: true;
+            isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'host_stripe_accounts_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
         ];
@@ -1363,44 +1599,54 @@ export type Database = {
           cancel_at_period_end: boolean;
           created_at: string;
           current_period_end: string | null;
+          id: string;
           plan: string | null;
           status: string;
           stripe_customer_id: string;
           stripe_subscription_id: string | null;
           trial_end: string | null;
           updated_at: string;
-          user_id: string;
+          user_id: string | null;
         };
         Insert: {
           cancel_at_period_end?: boolean;
           created_at?: string;
           current_period_end?: string | null;
+          id?: string;
           plan?: string | null;
           status?: string;
           stripe_customer_id: string;
           stripe_subscription_id?: string | null;
           trial_end?: string | null;
           updated_at?: string;
-          user_id: string;
+          user_id?: string | null;
         };
         Update: {
           cancel_at_period_end?: boolean;
           created_at?: string;
           current_period_end?: string | null;
+          id?: string;
           plan?: string | null;
           status?: string;
           stripe_customer_id?: string;
           stripe_subscription_id?: string | null;
           trial_end?: string | null;
           updated_at?: string;
-          user_id?: string;
+          user_id?: string | null;
         };
         Relationships: [
           {
             foreignKeyName: 'host_subscriptions_user_id_fkey';
             columns: ['user_id'];
-            isOneToOne: true;
+            isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'host_subscriptions_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
         ];
@@ -1448,6 +1694,13 @@ export type Database = {
             columns: ['user_id'];
             isOneToOne: true;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketing_attribution_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: true;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
         ];
@@ -1594,10 +1847,13 @@ export type Database = {
           business_address: string | null;
           business_name: string | null;
           created_at: string;
+          deleted_at: string | null;
+          deletion_reason: string | null;
           display_name: string;
           facebook_handle: string | null;
           first_name: string | null;
           handle: string;
+          hero_image_url: string | null;
           home_city: string | null;
           id: string;
           instagram_handle: string | null;
@@ -1621,10 +1877,13 @@ export type Database = {
           business_address?: string | null;
           business_name?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
+          deletion_reason?: string | null;
           display_name: string;
           facebook_handle?: string | null;
           first_name?: string | null;
           handle: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id: string;
           instagram_handle?: string | null;
@@ -1648,10 +1907,13 @@ export type Database = {
           business_address?: string | null;
           business_name?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
+          deletion_reason?: string | null;
           display_name?: string;
           facebook_handle?: string | null;
           first_name?: string | null;
           handle?: string;
+          hero_image_url?: string | null;
           home_city?: string | null;
           id?: string;
           instagram_handle?: string | null;
@@ -1807,12 +2069,20 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'team_members_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       teams: {
         Row: {
           captain_id: string;
           created_at: string;
+          deleted_at: string | null;
           extra_member_count: number;
           format: Database['public']['Enums']['format'];
           id: string;
@@ -1822,6 +2092,7 @@ export type Database = {
         Insert: {
           captain_id: string;
           created_at?: string;
+          deleted_at?: string | null;
           extra_member_count?: number;
           format: Database['public']['Enums']['format'];
           id?: string;
@@ -1831,6 +2102,7 @@ export type Database = {
         Update: {
           captain_id?: string;
           created_at?: string;
+          deleted_at?: string | null;
           extra_member_count?: number;
           format?: Database['public']['Enums']['format'];
           id?: string;
@@ -1843,6 +2115,13 @@ export type Database = {
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'teams_captain_id_fkey';
+            columns: ['captain_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
         ];
@@ -1904,6 +2183,35 @@ export type Database = {
       };
     };
     Views: {
+      event_team_registration_members_public: {
+        Row: {
+          display_name: string | null;
+          id: string | null;
+          registration_id: string | null;
+          sort_order: number | null;
+        };
+        Insert: {
+          display_name?: string | null;
+          id?: string | null;
+          registration_id?: string | null;
+          sort_order?: number | null;
+        };
+        Update: {
+          display_name?: string | null;
+          id?: string | null;
+          registration_id?: string | null;
+          sort_order?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_team_registration_members_registration_id_fkey';
+            columns: ['registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_registrations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       events_view: {
         Row: {
           address_line: string | null;
@@ -2055,6 +2363,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'events_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       geography_columns: {
@@ -2115,6 +2430,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'events_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       metro_health_weekly: {
@@ -2125,6 +2447,69 @@ export type Database = {
           gmv_cents: number | null;
           metro: string | null;
           week_start: string | null;
+        };
+        Relationships: [];
+      };
+      profiles_public: {
+        Row: {
+          avatar_url: string | null;
+          created_at: string | null;
+          display_name: string | null;
+          facebook_handle: string | null;
+          handle: string | null;
+          hero_image_url: string | null;
+          home_city: string | null;
+          id: string | null;
+          instagram_handle: string | null;
+          primary_position: string | null;
+          secondary_position: string | null;
+          show_pro_badge: boolean | null;
+          tertiary_position: string | null;
+          theme_preference: string | null;
+          tiktok_handle: string | null;
+          twitter_handle: string | null;
+          website_url: string | null;
+          youtube_handle: string | null;
+        };
+        Insert: {
+          avatar_url?: string | null;
+          created_at?: string | null;
+          display_name?: string | null;
+          facebook_handle?: string | null;
+          handle?: string | null;
+          hero_image_url?: string | null;
+          home_city?: string | null;
+          id?: string | null;
+          instagram_handle?: string | null;
+          primary_position?: string | null;
+          secondary_position?: string | null;
+          show_pro_badge?: boolean | null;
+          tertiary_position?: string | null;
+          theme_preference?: string | null;
+          tiktok_handle?: string | null;
+          twitter_handle?: string | null;
+          website_url?: string | null;
+          youtube_handle?: string | null;
+        };
+        Update: {
+          avatar_url?: string | null;
+          created_at?: string | null;
+          display_name?: string | null;
+          facebook_handle?: string | null;
+          handle?: string | null;
+          hero_image_url?: string | null;
+          home_city?: string | null;
+          id?: string | null;
+          instagram_handle?: string | null;
+          primary_position?: string | null;
+          secondary_position?: string | null;
+          show_pro_badge?: boolean | null;
+          tertiary_position?: string | null;
+          theme_preference?: string | null;
+          tiktok_handle?: string | null;
+          twitter_handle?: string | null;
+          website_url?: string | null;
+          youtube_handle?: string | null;
         };
         Relationships: [];
       };
@@ -2456,6 +2841,10 @@ export type Database = {
       };
       postgis_version: { Args: never; Returns: string };
       postgis_wagyu_version: { Args: never; Returns: string };
+      purge_hero_image_orphans: {
+        Args: { p_grace_hours?: number };
+        Returns: number;
+      };
       search_community_listings: {
         Args: {
           p_format?: string;

@@ -55,11 +55,11 @@ type TeamRow = {
 type MemberRow = {
   user_id: string;
   status: 'active' | 'pending' | null;
-  profiles: {
-    display_name: string;
-    first_name: string | null;
-    last_name: string | null;
-  } | null;
+};
+
+type ProfilePublicRow = {
+  id: string;
+  display_name: string;
 };
 
 export default async function TeamDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -78,20 +78,31 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
 
   const { data: memberRows } = await supabase
     .from('team_members')
-    .select('user_id, status, profiles:profiles!inner(display_name, first_name, last_name)')
+    .select('user_id, status')
     .eq('team_id', team.id);
   const rows = (memberRows as MemberRow[] | null) ?? [];
-  const members: TeamRosterMember[] = rows.map((m) => ({
-    userId: m.user_id,
-    status: m.status ?? 'active',
-    profile: m.profiles
-      ? {
-          displayName: m.profiles.display_name,
-          firstName: m.profiles.first_name,
-          lastName: m.profiles.last_name,
-        }
-      : null,
-  }));
+
+  // Fetch profiles separately from profiles_public (no FK join on views).
+  const userIds = rows.map((r) => r.user_id);
+  const profileMap = new Map<string, ProfilePublicRow>();
+  if (userIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from('profiles_public')
+      .select('id, display_name')
+      .in('id', userIds);
+    for (const p of (profileRows as ProfilePublicRow[] | null) ?? []) {
+      profileMap.set(p.id, p);
+    }
+  }
+
+  const members: TeamRosterMember[] = rows.map((m) => {
+    const p = profileMap.get(m.user_id) ?? null;
+    return {
+      userId: m.user_id,
+      status: m.status ?? 'active',
+      profile: p ? { displayName: p.display_name, firstName: null, lastName: null } : null,
+    };
+  });
 
   // Captain on top, then active alpha, then pending alpha at the bottom.
   members.sort((a, b) => {

@@ -11,6 +11,7 @@ type Props = {
   isRealUser: boolean;
   ticketCents: number;
   platformFeeCents: number;
+  processingFeeCents: number;
   refundWindowHours: number;
   /**
    * When true, the host is collecting payment outside the app (cash,
@@ -58,11 +59,12 @@ export function PaidTicketPanel({
   isRealUser,
   ticketCents,
   platformFeeCents,
+  processingFeeCents,
   refundWindowHours,
   paymentsOffPlatform,
   viewerPaymentStatus,
 }: Props) {
-  const total = ticketCents + platformFeeCents;
+  const total = ticketCents + platformFeeCents + processingFeeCents;
   const pill = viewerPaymentStatus
     ? PAYMENT_PILL[viewerPaymentStatus]
     : {
@@ -87,9 +89,11 @@ export function PaidTicketPanel({
           <>
             <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Pay online</h2>
             <p className="text-fg mt-1 text-2xl font-bold">{formatUsd(total)}</p>
-            {platformFeeCents > 0 ? (
+            {platformFeeCents > 0 || processingFeeCents > 0 ? (
               <p className="text-muted text-xs">
-                {formatUsd(ticketCents)} to the host + {formatUsd(platformFeeCents)} service fee
+                {formatUsd(ticketCents)} to the host
+                {platformFeeCents > 0 ? ` + ${formatUsd(platformFeeCents)} service fee` : ''}
+                {processingFeeCents > 0 ? ` + ${formatUsd(processingFeeCents)} processing fee` : ''}
               </p>
             ) : (
               <p className="text-muted text-xs">Service fee absorbed by host</p>

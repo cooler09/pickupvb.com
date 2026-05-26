@@ -164,15 +164,11 @@ async function dispatch(event: Stripe.Event): Promise<void> {
  * gate the "publish a paid event" UI.
  */
 async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
-  await mirrorStripeAccountUpdate(
-    account.id,
-    {
-      chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
-      detailsSubmitted: account.details_submitted,
-    },
-    account as unknown as Record<string, unknown>,
-  );
+  await mirrorStripeAccountUpdate(account.id, {
+    chargesEnabled: account.charges_enabled,
+    payoutsEnabled: account.payouts_enabled,
+    detailsSubmitted: account.details_submitted,
+  });
   // Repo returns false (no row) silently — host hasn't onboarded through
   // our flow yet, so there's nothing to mirror.
 
@@ -209,7 +205,12 @@ type CheckoutMetadata = {
   team_id?: string;
   payment_id?: string;
   captain_id?: string;
-  kind?: 'attendee' | 'tip' | 'team_registration' | 'roster_team_payment';
+  sponsor_name?: string;
+  sponsor_blurb?: string;
+  sponsor_link_url?: string;
+  sponsor_logo_url?: string;
+  sponsor_discount_code?: string;
+  kind?: 'attendee' | 'tip' | 'team_registration' | 'roster_team_payment' | 'sponsor_slot';
 };
 
 /**
@@ -375,6 +376,51 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
           },
         },
         meta.captain_id,
+      );
+    }
+  }
+
+  if (meta.kind === 'sponsor_slot' && meta.user_id) {
+    const sponsorName = (meta.sponsor_name ?? '').trim();
+    if (!sponsorName) return;
+
+    const sponsorBlurb = (meta.sponsor_blurb ?? '').trim() || null;
+    const sponsorLinkUrl = (meta.sponsor_link_url ?? '').trim() || null;
+    const sponsorLogoUrl = (meta.sponsor_logo_url ?? '').trim() || null;
+    const sponsorDiscountCode = (meta.sponsor_discount_code ?? '').trim() || null;
+
+    const { error } = await admin.from('event_sponsors').upsert(
+      {
+        event_id: meta.event_id,
+        name: sponsorName,
+        blurb: sponsorBlurb,
+        link_url: sponsorLinkUrl,
+        logo_url: sponsorLogoUrl,
+        discount_code: sponsorDiscountCode,
+        access_kind: 'ala_carte',
+        purchased_by_user_id: meta.user_id,
+        stripe_checkout_session_id: session.id,
+        stripe_payment_intent_id: piId,
+        paid_at: paidAt,
+      } as never,
+      { onConflict: 'event_id' },
+    );
+    if (error) throw new Error(`mark sponsor slot paid failed: ${error.message}`);
+
+    const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
+    if (hostId) {
+      analytics.capture(
+        {
+          name: 'checkout_completed',
+          props: {
+            eventId: meta.event_id,
+            hostId,
+            amountCents: amountTotal,
+            kind: 'sponsor_slot',
+            paymentIntentId: piId ?? '',
+          },
+        },
+        meta.user_id,
       );
     }
   }

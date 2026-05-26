@@ -74,7 +74,11 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       .select('id', { count: 'exact', head: true })
       .eq('event_id', eventId)
       .eq('captain_id', captainId)
-      .eq('division_id', divisionId);
+      .eq('division_id', divisionId)
+      // A soft-deleted registration must not block re-registration in the
+      // same division; the row sticks around for audit/refund reconciliation
+      // (see migration 20260629000000) but is logically gone from product.
+      .is('deleted_at', null);
     if (error) {
       throw new Error(
         `EventTeamRegistration.existsForCaptainInDivision(${eventId}, ${captainId}, ${divisionId}) failed: ${error.message}`,
@@ -139,6 +143,17 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       .eq('id', String(id));
     if (error) {
       throw new Error(`EventTeamRegistration.delete(${id}) failed: ${error.message}`);
+    }
+  }
+
+  async softDelete(id: EventTeamRegistrationId): Promise<void> {
+    const { error } = await this.client
+      .from('event_team_registrations')
+      .update({ deleted_at: new Date().toISOString() } as never)
+      .eq('id', String(id))
+      .is('deleted_at', null);
+    if (error) {
+      throw new Error(`EventTeamRegistration.softDelete(${id}) failed: ${error.message}`);
     }
   }
 

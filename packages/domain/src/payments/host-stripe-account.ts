@@ -5,18 +5,18 @@
  * translates between Stripe-shaped rows and this read model.
  */
 export type HostStripeAccount = {
-    hostId: string;
-    accountId: string;
-    chargesEnabled: boolean;
-    payoutsEnabled: boolean;
-    detailsSubmitted: boolean;
+  hostId: string;
+  accountId: string;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
 };
 
 /** Mutable subset of the account state mirrored from Stripe. */
 export type HostStripeAccountStatus = {
-    chargesEnabled: boolean;
-    payoutsEnabled: boolean;
-    detailsSubmitted: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  detailsSubmitted: boolean;
 };
 
 /**
@@ -32,15 +32,8 @@ export type HostStripeAccountStatus = {
  *     no-op gracefully.
  */
 export interface HostStripeAccountRepository {
-    findByHostId(hostId: string): Promise<HostStripeAccount | null>;
-    create(account: HostStripeAccount): Promise<void>;
-    updateStatusByHostId(
-        hostId: string,
-        status: HostStripeAccountStatus,
-    ): Promise<void>;
-    updateStatusByAccountId(
-        accountId: string,
-        status: HostStripeAccountStatus,
-        lastEventPayload?: Record<string, unknown>,
-    ): Promise<boolean>;
+  findByHostId(hostId: string): Promise<HostStripeAccount | null>;
+  create(account: HostStripeAccount): Promise<void>;
+  updateStatusByHostId(hostId: string, status: HostStripeAccountStatus): Promise<void>;
+  updateStatusByAccountId(accountId: string, status: HostStripeAccountStatus): Promise<boolean>;
 }

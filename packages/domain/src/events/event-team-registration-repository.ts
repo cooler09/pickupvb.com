@@ -25,6 +25,18 @@ export interface EventTeamRegistrationRepository {
     divisionId: string,
   ): Promise<boolean>;
   save(registration: EventTeamRegistration): Promise<void>;
-  /** Removes the registration and cascades its roster members. */
+  /**
+   * Hard-removes the registration and cascades its roster members. Use only
+   * when the registration never touched Stripe (payment_status = none) —
+   * after a successful checkout, prefer {@link softDelete} so the row stays
+   * queryable for refund reconciliation.
+   */
   delete(id: EventTeamRegistrationId): Promise<void>;
+  /**
+   * Marks the registration as deleted (sets `deleted_at = now()`) without
+   * removing the row. Used after Stripe checkout so the audit trail of a
+   * paid + refunded registration survives even after the host withdraws
+   * the team from the event. Roster members stay attached.
+   */
+  softDelete(id: EventTeamRegistrationId): Promise<void>;
 }

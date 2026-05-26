@@ -95,6 +95,14 @@ export type AttendeePaymentInfo = {
 
 export type ViewerPaymentStatus = 'paid' | 'pending' | 'none';
 
+export type EventSponsorView = {
+  name: string;
+  blurb: string | null;
+  linkUrl: string | null;
+  logoUrl: string | null;
+  discountCode: string | null;
+};
+
 export type EventDetailViewModel = {
   event: EventDetailReadModel;
   user: ViewerSession['user'] | null;
@@ -117,6 +125,7 @@ export type EventDetailViewModel = {
   breakdown: {
     ticketCents: number;
     platformFeeCents: number;
+    processingFeeCents: number;
     totalCents: number;
   } | null;
   priceLabel: string;
@@ -146,6 +155,12 @@ export type EventDetailViewModel = {
   attendeesForList: AttendeeListRow[];
   filledByPosition: Partial<Record<string, number>>;
   viewerPosition: EventPosition | null;
+
+  // Optional host-owned sponsor block (Bundle 84).
+  sponsor: EventSponsorView | null;
+
+  // Wide banner image uploaded by the host (nullable — fallback gradient shown).
+  heroImageUrl: string | null;
 
   // Hero / sticky call-to-action.
   cta: EventHeroCta;
@@ -292,6 +307,100 @@ type AdHocRegRow = {
   members: AdHocMemberRow[] | null;
 };
 
+// Public-projection types — no email, no user_id.
+type AdHocMemberPublicRow = {
+  id: string;
+  registration_id: string;
+  display_name: string | null;
+  sort_order: number;
+};
+
+type AdHocRegPublicRow = {
+  id: string;
+  name: string;
+  division_id: string;
+  captain_id: string;
+  payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+  captainDisplayName: string | null;
+  members: AdHocMemberPublicRow[];
+};
+
+/**
+ * Public cached snapshot — reads only from narrow public surfaces so
+ * no PII (email, user_id) enters the shared cache.
+ *
+ * - Registrations from `event_team_registrations` (RLS: `using (true)`)
+ * - Members from `event_team_registration_members_public` view
+ *   (projects only `id, registration_id, display_name, sort_order`)
+ * - Captain names from `profiles_public` view
+ *
+ * Used exclusively to build `allRegistrations` (the public-visible list).
+ * Captain and host projections use `loadAdHocRowsCached` which carries
+ * the full `email` / `user_id` payload for authorized callers only.
+ */
+function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]> {
+  return unstable_cache(
+    async () => {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const admin = getAdminSupabase();
+
+      const { data: regData } = await admin
+        .from('event_team_registrations')
+        .select('id, name, division_id, captain_id, payment_status')
+        .eq('event_id', eventId)
+        // Admin client bypasses RLS; filter soft-deleted rows explicitly
+        // (migration 20260629000000).
+        .is('deleted_at', null);
+      type RegBase = {
+        id: string;
+        name: string;
+        division_id: string;
+        captain_id: string;
+        payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+      };
+      const regs = (regData as RegBase[] | null) ?? [];
+      if (regs.length === 0) return [];
+
+      const regIds = regs.map((r) => r.id);
+      const captainIds = [...new Set(regs.map((r) => r.captain_id))];
+
+      const [{ data: memberData }, { data: captainData }] = await Promise.all([
+        admin
+          .from('event_team_registration_members_public')
+          .select('id, registration_id, display_name, sort_order')
+          .in('registration_id', regIds),
+        admin.from('profiles_public').select('id, display_name').in('id', captainIds),
+      ]);
+
+      const membersByReg = new Map<string, AdHocMemberPublicRow[]>();
+      for (const m of (memberData as AdHocMemberPublicRow[] | null) ?? []) {
+        const arr = membersByReg.get(m.registration_id) ?? [];
+        arr.push(m);
+        membersByReg.set(m.registration_id, arr);
+      }
+
+      const captainMap = new Map<string, string | null>();
+      for (const c of (captainData as { id: string; display_name: string | null }[] | null) ?? []) {
+        captainMap.set(c.id, c.display_name);
+      }
+
+      return regs.map((r) => ({
+        ...r,
+        captainDisplayName: captainMap.get(r.captain_id) ?? null,
+        members: (membersByReg.get(r.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
+      }));
+    },
+    ['event-ad-hoc-public-rows', eventId],
+    { revalidate: 60, tags: [`event:${eventId}`] },
+  )();
+}
+
+/**
+ * Private cached snapshot — includes `email` and `user_id` for each
+ * member. Only fetched when the viewer is signed in (captain) or is
+ * managing the event (host). Never used for the public `allRegistrations`
+ * projection.
+ */
 function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
   // Viewer-independent: RLS on event_team_registrations is `using (true)`
   // and the snapshot is shared across viewers, so use the admin client.
@@ -307,10 +416,53 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
         .select(
           'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
         )
-        .eq('event_id', eventId);
+        .eq('event_id', eventId)
+        // Admin client bypasses RLS; filter soft-deleted rows explicitly
+        // (migration 20260629000000).
+        .is('deleted_at', null);
       return (data as AdHocRegRow[] | null) ?? [];
     },
     ['event-ad-hoc-rows', eventId],
+    { revalidate: 60, tags: [`event:${eventId}`] },
+  )();
+}
+
+function loadHeroImageCached(eventId: string): Promise<string | null> {
+  return unstable_cache(
+    async () => {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data } = await getAdminSupabase()
+        .from('events')
+        .select('hero_image_url')
+        .eq('id', eventId)
+        .maybeSingle();
+      return (data as { hero_image_url: string | null } | null)?.hero_image_url ?? null;
+    },
+    ['event-hero-image', eventId],
+    { revalidate: 60, tags: [`event:${eventId}`] },
+  )();
+}
+
+function loadEventSponsorCached(eventId: string): Promise<EventSponsorView | null> {
+  return unstable_cache(
+    async () => {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data } = await getAdminSupabase()
+        .from('event_sponsors')
+        .select('name, blurb, link_url, logo_url, discount_code')
+        .eq('event_id', eventId)
+        .maybeSingle();
+
+      if (!data) return null;
+      return {
+        name: data.name,
+        blurb: data.blurb,
+        linkUrl: data.link_url,
+        logoUrl: data.logo_url,
+        discountCode: data.discount_code,
+      };
+    },
+    ['event-sponsor', eventId],
     { revalidate: 60, tags: [`event:${eventId}`] },
   )();
 }
@@ -359,6 +511,8 @@ export async function loadEventDetail(
     hostStripeReady,
     eligibleTeamsByDivision,
     adHocBundle,
+    sponsor,
+    heroImageUrl,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -376,6 +530,8 @@ export async function loadEventDetail(
       : Promise.resolve(false),
     loadEligibleTeamsByDivision(event),
     loadAdHocBundle(event, user),
+    loadEventSponsorCached(event.id),
+    loadHeroImageCached(event.id),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -456,6 +612,8 @@ export async function loadEventDetail(
     attendeesForList,
     filledByPosition,
     viewerPosition,
+    sponsor,
+    heroImageUrl,
     cta,
   };
 }
@@ -467,7 +625,7 @@ export async function loadEventDetail(
 async function loadPrimaryHostSocialFresh(hostUserId: string): Promise<SocialHandles | null> {
   const sb = await getServerSupabase();
   const { data: socialRow } = await sb
-    .from('profiles')
+    .from('profiles_public')
     .select(
       'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
@@ -538,37 +696,45 @@ async function loadAdHocBundle(
   if (event.type !== 'tournament' || event.teamRegistrationMode !== 'ad_hoc') {
     return EMPTY_AD_HOC;
   }
-  // Raw rows come from the cached helper above (viewer-independent). Per-
-  // viewer projections (viewerRegistrations, hostRows, isViewerCaptain
-  // flag) are derived here against the cached snapshot.
-  const rows = await loadAdHocRowsCached(event.id);
-  const sortedMembers = (r: AdHocRegRow): AdHocMemberRow[] =>
-    (r.members ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
-  // Public projection — never fall back to `email` for `displayName`,
-  // that would leak a captain-supplied teammate email to every event
-  // viewer. Captain + host projections below keep the email field
-  // intact because those audiences are authorized to see it.
-  const allRegistrations: AdHocTeamPublicEntry[] = rows.map((r) => ({
+
+  // Public snapshot (no PII) is always needed for `allRegistrations`.
+  // Private snapshot (email + user_id) is only needed when the viewer
+  // is signed in (may be a captain) or is managing the event (host).
+  const needsPrivate = !!user || event.canManage;
+  const [publicRows, privateRows] = await Promise.all([
+    loadAdHocPublicRowsCached(event.id),
+    needsPrivate ? loadAdHocRowsCached(event.id) : Promise.resolve<AdHocRegRow[]>([]),
+  ]);
+
+  // Public projection — sourced exclusively from the narrow public cache.
+  // Members are pre-sorted by sort_order in the loader.
+  const allRegistrations: AdHocTeamPublicEntry[] = publicRows.map((r) => ({
     id: r.id,
     name: r.name,
     divisionId: r.division_id,
     paymentStatus: r.payment_status,
-    captainName: r.captain?.display_name ?? null,
-    members: sortedMembers(r).map((m) => ({
+    captainName: r.captainDisplayName,
+    members: r.members.map((m) => ({
       id: m.id,
       displayName: m.display_name ?? 'Player',
     })),
     isViewerCaptain: !!user && r.captain_id === user.id,
   }));
+
+  // Captain and host projections — sourced from the private cache which
+  // carries email and user_id. `sortedPrivateMembers` is only applied here.
+  const sortedPrivateMembers = (r: AdHocRegRow): AdHocMemberRow[] =>
+    (r.members ?? []).slice().sort((a, b) => a.sort_order - b.sort_order);
+
   const viewerRegistrations: AdHocTeamRegistration[] = user
-    ? rows
+    ? privateRows
         .filter((r) => r.captain_id === user.id)
         .map((r) => ({
           id: r.id,
           name: r.name,
           divisionId: r.division_id,
           paymentStatus: r.payment_status,
-          members: sortedMembers(r).map((m) => ({
+          members: sortedPrivateMembers(r).map((m) => ({
             id: m.id,
             userId: m.user_id,
             displayName: m.display_name,
@@ -577,9 +743,10 @@ async function loadAdHocBundle(
           })),
         }))
     : [];
+
   const hostRows: HostAdHocTeamRow[] =
-    event.canManage && rows.length > 0
-      ? rows.map((r) => ({
+    event.canManage && privateRows.length > 0
+      ? privateRows.map((r) => ({
           id: r.id,
           name: r.name,
           divisionId: r.division_id,
@@ -591,7 +758,7 @@ async function loadAdHocBundle(
             id: r.captain_id,
             displayName: r.captain?.display_name ?? null,
           },
-          members: sortedMembers(r).map((m) => ({
+          members: sortedPrivateMembers(r).map((m) => ({
             id: m.id,
             userId: m.user_id,
             displayName: m.display_name ?? m.email ?? 'Player',
@@ -599,6 +766,7 @@ async function loadAdHocBundle(
           })),
         }))
       : [];
+
   return { viewerRegistrations, allRegistrations, hostRows };
 }
 

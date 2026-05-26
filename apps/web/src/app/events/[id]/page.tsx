@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import type { Metadata } from 'next/types';
+import { notFound } from 'next/navigation';
 import { NotFoundError } from '@pickupvb/domain';
 import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
@@ -18,7 +19,9 @@ import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
 import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
+import { EventSponsorSection } from './_components/event-sponsor-section';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
+import { HeroImage } from '@/components/hero-image';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -68,12 +71,21 @@ function pickQuery(
   return Array.isArray(v) ? v[0] : v;
 }
 
+// Matches /events/[id] against the v4-ish UUID format Supabase uses. Bots and
+// stale links occasionally hit paths like `/events/new/edit` or `/events/foo`,
+// which would otherwise fall through to a DB query and surface as a 500
+// ("invalid input syntax for type uuid"). Reject early with a 404 instead.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function EventDetailPage(props: {
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
+  if (!UUID_RE.test(params.id)) {
+    notFound();
+  }
   // Resolve the viewer first so the detail query can return viewer-specific
   // bits (RSVP state, manage permission, friend ids, hostable groups).
   const viewer = await getViewer();
@@ -106,6 +118,8 @@ export default async function EventDetailPage(props: {
     attendeesForList,
     filledByPosition,
     viewerPosition,
+    sponsor,
+    heroImageUrl,
     cta,
   } = vm;
 
@@ -123,6 +137,8 @@ export default async function EventDetailPage(props: {
         cohost={pickQuery(searchParams, 'cohost')}
         cohostMsg={pickQuery(searchParams, 'cohost_msg')}
       />
+
+      <HeroImage url={heroImageUrl} alt={event.title} priority />
 
       <header className="space-y-2">
         <EventHero
@@ -298,6 +314,8 @@ export default async function EventDetailPage(props: {
           hostCanCollectTips={hostStripeReady}
         />
       )}
+
+      <EventSponsorSection sponsor={sponsor} />
 
       <EventStickyCta cta={cta} observeSelector="#signup" />
     </article>

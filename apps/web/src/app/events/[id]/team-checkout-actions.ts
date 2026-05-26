@@ -14,7 +14,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
-import { platformFeeCentsFor } from '@/lib/event-pricing';
+import { buyerProcessingFeeCents, platformFeeCentsFor } from '@/lib/event-pricing';
 import { repositories } from '@/lib/handlers';
 import { analytics } from '@/lib/handlers';
 import { log } from '@/lib/log';
@@ -101,19 +101,29 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
   const hostAccountId = await getHostStripeAccount(event.hostId as unknown as string);
   if (!hostAccountId) backWithError(eventId, 'host_not_ready');
 
-  // host_absorbs_fee mirrors the attendee flow. Pull it via the supabase
-  // session client (RLS lets anyone read events).
+  // host_absorbs_fee + pass_processing_fee_to_buyer mirror the attendee
+  // flow. Pull both via the supabase session client (RLS lets anyone read
+  // events).
   const { data: feeRow } = await supabase
     .from('events')
-    .select('host_absorbs_fee')
+    .select('host_absorbs_fee, pass_processing_fee_to_buyer')
     .eq('id', eventId)
     .maybeSingle();
-  const hostAbsorbsFee =
-    (feeRow as { host_absorbs_fee: boolean } | null)?.host_absorbs_fee ?? false;
+  const feeFlags = feeRow as {
+    host_absorbs_fee: boolean;
+    pass_processing_fee_to_buyer: boolean;
+  } | null;
+  const hostAbsorbsFee = feeFlags?.host_absorbs_fee ?? false;
+  const passProcessingFeeToBuyer = feeFlags?.pass_processing_fee_to_buyer ?? false;
 
   const hostId = event.hostId as unknown as string;
   const platformFee = await platformFeeCentsFor(hostId, priceCents);
   const buyerFeeLine = hostAbsorbsFee ? 0 : platformFee;
+  const processingFeeLine = buyerProcessingFeeCents({
+    passToBuyer: passProcessingFeeToBuyer,
+    hostAbsorbs: hostAbsorbsFee,
+    subtotalCents: priceCents + buyerFeeLine,
+  });
   const applicationFeeAmount = platformFee;
 
   const origin = await buildOrigin();
@@ -145,6 +155,18 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
                   currency: 'usd' as const,
                   unit_amount: buyerFeeLine,
                   product_data: { name: 'Service fee' },
+                },
+              },
+            ]
+          : []),
+        ...(processingFeeLine > 0
+          ? [
+              {
+                quantity: 1,
+                price_data: {
+                  currency: 'usd' as const,
+                  unit_amount: processingFeeLine,
+                  product_data: { name: 'Processing fee' },
                 },
               },
             ]

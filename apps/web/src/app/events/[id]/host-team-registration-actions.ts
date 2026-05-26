@@ -12,7 +12,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import {
   InvariantViolation,
@@ -162,8 +162,21 @@ export async function hostRefundTeamRegistration(
 }
 
 /**
- * Delete a team registration outright. Only allowed when payment_status
- * is None or Refunded — refund through Stripe first if the team has paid.
+ * Withdraw a team registration from the event. Only allowed when
+ * payment_status is None or Refunded — refund through Stripe first if
+ * the team has paid. The delete strategy depends on whether the row
+ * ever touched Stripe:
+ *
+ *   - `None` — no checkout was ever attempted; hard-delete is safe and
+ *     keeps the table clean.
+ *   - `Refunded` — the captain paid through Stripe and the host issued
+ *     a Connect refund. Soft-delete (set `deleted_at`) so the row stays
+ *     queryable for refund reconciliation and dispute response, but
+ *     disappears from product surfaces immediately. The eventual
+ *     account-deletion purge will hard-delete it.
+ *
+ * See migration 20260629000000 and audit P2 #5 in
+ * docs/audits/data-lifecycle.md.
  */
 export async function hostForceWithdrawTeamRegistration(
   eventId: string,
@@ -188,8 +201,13 @@ export async function hostForceWithdrawTeamRegistration(
     redirectEventNotice(eventId, 'rsvp', 'team_force_blocked');
   }
 
-  await eventTeamRegistrationRepo.delete(reg.id);
+  if (reg.paymentStatus === RegistrationPaymentStatus.None) {
+    await eventTeamRegistrationRepo.delete(reg.id);
+  } else {
+    await eventTeamRegistrationRepo.softDelete(reg.id);
+  }
 
   revalidatePath(returnPath);
+  updateTag(`event:${eventId}`);
   redirectEventNotice(eventId, 'rsvp', 'team_force_withdrawn');
 }

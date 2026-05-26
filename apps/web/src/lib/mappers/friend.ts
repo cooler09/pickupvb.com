@@ -18,29 +18,24 @@ import { getServerSupabase } from '../supabase';
 
 type SupabaseClient = Awaited<ReturnType<typeof getServerSupabase>>;
 
-/** Camel-case-adjacent DTO. Field names match the underlying `profiles` columns
- *  because the consumers (`FriendsList`, the profile-page Following section)
- *  already render snake_case directly — flipping that is a separate bundle. */
+/** Camel-case-adjacent DTO. Field names match the underlying `profiles_public`
+ *  columns. first_name / last_name are not in the public view and are omitted. */
 export type FriendProfile = {
   id: string;
   handle: string;
   display_name: string;
-  first_name: string | null;
-  last_name: string | null;
   avatar_url: string | null;
   home_city: string | null;
 };
-
-const FRIEND_PROFILE_COLUMNS =
-  'friend_id, profiles:profiles!friendships_friend_id_fkey(id, handle, display_name, first_name, last_name, avatar_url, home_city)';
-
-type OutRow = { friend_id: string; profiles: FriendProfile | null };
 
 /**
  * Load the outgoing friend edges (people `userId` follows) and the set of
  * incoming-edge user ids (people who follow `userId`) in one round-trip
  * via `Promise.all`. The incoming set is intersected client-side at the
  * call site to flag mutual friendships in the UI.
+ *
+ * Profiles are read from `profiles_public` (no FK join syntax — views carry
+ * no FK relationships in PostgREST) via a separate IN query merged in JS.
  *
  * Returns empty arrays / set when either query errors or returns null —
  * matching the previous inlined behaviour (the friends page rendered an
@@ -51,12 +46,20 @@ export async function loadFriendEdges(
   userId: string,
 ): Promise<{ friends: FriendProfile[]; mutualIds: Set<string> }> {
   const [outRes, inRes] = await Promise.all([
-    supabase.from('friendships').select(FRIEND_PROFILE_COLUMNS).eq('user_id', userId),
+    supabase.from('friendships').select('friend_id').eq('user_id', userId),
     supabase.from('friendships').select('user_id').eq('friend_id', userId),
   ]);
 
-  const out = (outRes.data as OutRow[] | null) ?? [];
-  const friends = out.map((r) => r.profiles).filter((p): p is FriendProfile => p !== null);
+  const friendIds = ((outRes.data as { friend_id: string }[] | null) ?? []).map((r) => r.friend_id);
+
+  let friends: FriendProfile[] = [];
+  if (friendIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from('profiles_public')
+      .select('id, handle, display_name, avatar_url, home_city')
+      .in('id', friendIds);
+    friends = (profileRows as FriendProfile[] | null) ?? [];
+  }
 
   const mutualIds = new Set(
     ((inRes.data as { user_id: string }[] | null) ?? []).map((r) => r.user_id),
