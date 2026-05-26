@@ -49,9 +49,10 @@ export default function RefundsPage() {
           Host&apos;s discretion.
         </li>
         <li>
-          <strong>Host-set policies.</strong> A Host may set a longer refund window, a no-refund
-          policy, or a tiered policy. Any Host-set policy is displayed on the event page before
-          checkout and supersedes the default.
+          <strong>Host-set policies.</strong> A Pro Host may configure a different refund window
+          (between 0 and 720 hours before event start). Hosts on the Free tier use the{' '}
+          {DEFAULT_REFUND_WINDOW_HOURS}-hour default. Any Host-set policy is displayed on the event
+          page before checkout and supersedes the default.
         </li>
       </ul>
 

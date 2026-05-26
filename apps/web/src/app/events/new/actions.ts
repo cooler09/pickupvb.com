@@ -12,6 +12,7 @@ import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords } from '@/lib/timezone';
 import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
+import { hasProBenefits } from '@/lib/admin';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
@@ -339,6 +340,7 @@ export async function createEventAction(
     }
     const refundWindowHours = parseRefundWindowHours(
       fieldOrUndefined(formData, 'refundWindowHours'),
+      { allowCustom: await hasProBenefits(user.id) },
     );
     const hostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
     const passProcessingFeeToBuyer = field(formData, 'passProcessingFeeToBuyer') === 'on';

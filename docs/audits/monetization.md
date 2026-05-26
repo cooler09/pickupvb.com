@@ -23,11 +23,11 @@ Quick-reference table. Detailed findings follow below.
 | Sponsor slot à-la-carte ($3/event for Free) | P2 #4    | ✅ Shipped | Bundle 85             |
 | Saved event templates                       | P1 #1    | ✅ Shipped | Bundle 86             |
 | Host analytics dashboard                    | P1 #1    | ✅ Shipped | Bundle 87             |
-| Custom refund policy gating                 | P1 #1    | 🔲 Planned | —                     |
+| Custom refund policy gating                 | P1 #1    | ✅ Shipped | Bundle 98             |
 | Invite-only / private events                | P1 #1    | 🔲 Planned | —                     |
-| Trial-to-paid conversion tracking (PostHog) | P2 #5    | 🔲 Planned | —                     |
+| Trial-to-paid conversion tracking (PostHog) | P2 #5    | ✅ Shipped | Bundle 98             |
 | Off-platform event upsell                   | P2 #7    | 🔲 Planned | —                     |
-| Monetization strategy ADR                   | P1 #3    | 🔲 Planned | —                     |
+| Monetization strategy ADR                   | P1 #3    | ✅ Shipped | Bundle 98             |
 | Metro-level sponsorship inventory           | P2 #6    | ⏸ Deferred | until ≥1 active metro |
 
 ---
@@ -42,9 +42,10 @@ Quick-reference table. Detailed findings follow below.
   to a full host toolkit. The fee-savings break-even (~$400/mo GMV) is now
   a floor, not a ceiling — hosts below that threshold have feature reasons
   to upgrade.
-- **Two planned items remain before Pro is fully baked:** custom refund
-  policy gating and invite-only/private events. Both are half-bundle
-  estimates; shipping them closes P1 #1 entirely.
+- **One planned item remains before Pro is fully baked:**
+  invite-only/private events (half-bundle estimate). Custom refund
+  policy gating shipped in Bundle 98, closing the second-to-last
+  P1 #1 sub-item.
 - **Take-rate is generous and should stay that way.** 5% free / 2.5%
   Pro is competitive with Eventbrite's 3.7%+$1.79 and well below
   Meetup's $24/mo flat. Holding the line is a trust-building moat;
@@ -202,11 +203,11 @@ per-event programmatic. See P2 #6 below.
 
 ### 1. Pro feature set doesn't earn $10/mo for sub-$400-GMV hosts
 
-> **Status (2026-05-24, Bundle 87): PARTIALLY SHIPPED.**
-> P1 #1 sub-item #1 (**Saved event templates**) and sub-item #2
-> (**Host analytics dashboard**) are now live as Pro-gated host
-> features. Remaining P1 #1 sub-items still open: custom refund
-> policy gating and invite-only/private event flow.
+> **Status (2026-05-27, Bundle 98): MOSTLY SHIPPED.**
+> Sub-items #1 (templates, Bundle 86), #2 (analytics, Bundle 87),
+> and #3 (custom refund policy gating, Bundle 98) are live. Only
+> sub-item #4 (invite-only / private events) remains open. Sub-item
+> #5 (co-host gating) was explicitly dropped 2026-05-24.
 
 **File:** [apps/web/src/app/pricing/page.tsx#L38-L45](../../apps/web/src/app/pricing/page.tsx#L38-L45),
 [apps/web/src/lib/pro.ts](../../apps/web/src/lib/pro.ts).
@@ -296,6 +297,13 @@ This is **revenue-neutral for PickupVB** but is the single biggest
 host-trust signal we can ship cheaply.
 
 ### 3. No Pro decision is documented in ADRs or journal
+
+> **Status (2026-05-27, Bundle 98): SHIPPED.** ADR
+> [0014-monetization-strategy.md](../adr/0014-monetization-strategy.md)
+> records the $10/mo / 50% fee discount / 1-paid-event-per-30d /
+> 14-day-trial decisions with rationale, rejected alternatives,
+> and explicit success-criteria triggers for revisiting. Journal
+> entry: [docs/journal/2026-05-27-bundle-98.md](../journal/2026-05-27-bundle-98.md).
 
 **File:** [docs/adr/](../adr/) — no `0NNN-pro-tier.md`;
 [docs/journal/](../journal/) — no monetization rationale entry.
@@ -397,6 +405,20 @@ Charging path reuses Stripe Checkout + webhook patterns already used by
 ticket/tip flows. **Estimate:** P2 #4 sponsor slot is complete for v1.
 
 ### 5. Trial-to-paid conversion isn't tracked
+
+> **Status (2026-05-27, Bundle 98): SHIPPED.** Added
+> `pro_trial_started` (fired on `customer.subscription.created`
+> when `status === 'trialing'`) and `pro_trial_converted` (fired
+> on `customer.subscription.updated` when previous status was
+> `trialing` and new status is `active`) to the typed analytics
+> port in
+> [packages/domain/src/shared/analytics-port.ts](../../packages/domain/src/shared/analytics-port.ts).
+> Emission lives in `handleSubscriptionChange` in
+> [apps/web/src/app/api/webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts).
+> Target metrics are in
+> [ADR 0014](../adr/0014-monetization-strategy.md#success-criteria-the-numbers-well-measure).
+> PostHog dashboard funnel build is a manual config step on the
+> launch checklist.
 
 **File:**
 [apps/web/src/app/auth/callback/route.ts](../../apps/web/src/app/auth/callback/route.ts)
@@ -534,11 +556,14 @@ Concrete sequencing, smallest valuable first:
    two bundles. Shipped in Bundle 87 (`/profile/billing/analytics`,
    Pro-gated) with fill-rate, repeat-attendee, and GMV trend metrics.
 5. **Bundle: custom refund policy gating (P1 #1 sub-item).** Half a
-   bundle. Gate custom `refund_window_hours` behind Pro.
+   bundle. Shipped in Bundle 98 — `parseRefundWindowHours` accepts
+   `{ allowCustom }`; Free hosts clamp to 24h, Pro hosts get 0–720.
 6. **Bundle: trial-to-paid funnel capture (P2 #5).** Half a bundle.
-   Required to evaluate everything above.
+   Shipped in Bundle 98 — `pro_trial_started` / `pro_trial_converted`
+   fire from the Stripe webhook.
 7. **ADR + journal entry: monetization strategy (P1 #3).** Half a
-   bundle. Lock in the rationale so the lever isn't churned.
+   bundle. Shipped in Bundle 98 as
+   [ADR 0014](../adr/0014-monetization-strategy.md).
 
 Bundles 1–6 together earn Pro its $10 sticker price for both ends of
 the host distribution (low-volume hosts get features; high-volume
@@ -575,6 +600,27 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-05-27 — Bundle 98** — Three P1/P2 closeouts in one bundle:
+  (1) **P1 #1 sub-item #3 — custom refund policy gating.**
+  `parseRefundWindowHours` now accepts `{ allowCustom }`; Free hosts
+  clamp to the 24h default, Pro hosts get 0–720h. Server-side
+  enforcement in both `/events/new` and `/events/[id]/edit` actions;
+  UI gating via a shared `RefundWindowField` helper in both forms
+  (Pro nudge for Free hosts).
+  (2) **P2 #5 — trial-to-paid funnel.** Two new typed analytics
+  events (`pro_trial_started`, `pro_trial_converted`) flowing from
+  `handleSubscriptionChange` in the Stripe webhook. Dispatch now
+  forwards `previous_attributes` so the trialing→active transition
+  is detectable.
+  (3) **P1 #3 — monetization ADR.** New ADR
+  [0014-monetization-strategy.md](../adr/0014-monetization-strategy.md)
+  records the $10/mo, 50% fee discount, 1-paid-event-per-30d,
+  14-day-trial decisions with success criteria and rejected
+  alternatives. Journal:
+  [docs/journal/2026-05-27-bundle-98.md](../journal/2026-05-27-bundle-98.md).
+  Verify gate (typecheck + lint + test + build) green. The only
+  remaining P1 #1 sub-item is invite-only / private events.
 
 - **2026-05-24 — Bundle 88** — Opas audit of Bundles 84–87 completed.
   Five fixes shipped: (1) sponsor form inputs no longer disabled for

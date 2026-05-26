@@ -9,6 +9,7 @@ import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords } from '@/lib/timezone';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 import { parsePriceCents, parseRefundWindowHours } from '@/lib/money';
+import { hasProBenefits } from '@/lib/admin';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
@@ -124,6 +125,7 @@ export async function editEventAction(
   const newPriceCents = priceUsdRaw !== undefined ? parsePriceCents(priceUsdRaw) : null;
   const newRefundWindowHours = parseRefundWindowHours(
     fieldOrUndefined(formData, 'refundWindowHours'),
+    { allowCustom: await hasProBenefits(user.id) },
   );
   const newHostAbsorbsFee = field(formData, 'hostAbsorbsFee') === 'on';
   const newPassProcessingFeeToBuyer = field(formData, 'passProcessingFeeToBuyer') === 'on';

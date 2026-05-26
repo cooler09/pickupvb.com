@@ -148,7 +148,11 @@ async function dispatch(event: Stripe.Event): Promise<void> {
     case 'customer.subscription.created':
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted':
-      await handleSubscriptionChange(event.data.object as Stripe.Subscription);
+      await handleSubscriptionChange(
+        event.data.object as Stripe.Subscription,
+        event.type,
+        (event.data as { previous_attributes?: Partial<Stripe.Subscription> }).previous_attributes,
+      );
       return;
     default:
       // No-op for events we don't subscribe to. Returning here marks
@@ -714,7 +718,14 @@ async function handlePayoutPaid(payout: Stripe.Payout, accountId: string | null)
  * so a single handler covers trial start, payment success, cancellation,
  * past_due, and end-of-period cancel.
  */
-async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void> {
+async function handleSubscriptionChange(
+  sub: Stripe.Subscription,
+  eventType:
+    | 'customer.subscription.created'
+    | 'customer.subscription.updated'
+    | 'customer.subscription.deleted',
+  previousAttributes?: Partial<Stripe.Subscription>,
+): Promise<void> {
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
   // Resolve user_id: prefer subscription metadata, then customer metadata,
@@ -768,4 +779,34 @@ async function handleSubscriptionChange(sub: Stripe.Subscription): Promise<void>
     trialEnd: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
     cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
   });
+
+  // Pro funnel analytics (audit P2 #5). Fires after the DB row is up to
+  // date so downstream queries match the captured event. Failures inside
+  // `analytics.capture` are swallowed by the adapter — never block a
+  // webhook on telemetry.
+  if (eventType === 'customer.subscription.created' && sub.status === 'trialing') {
+    analytics.capture(
+      {
+        name: 'pro_trial_started',
+        props: {
+          hostId: userId,
+          plan,
+          trialEnd: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+        },
+      },
+      userId,
+    );
+  } else if (
+    eventType === 'customer.subscription.updated' &&
+    previousAttributes?.status === 'trialing' &&
+    sub.status === 'active'
+  ) {
+    analytics.capture(
+      {
+        name: 'pro_trial_converted',
+        props: { hostId: userId, plan },
+      },
+      userId,
+    );
+  }
 }
