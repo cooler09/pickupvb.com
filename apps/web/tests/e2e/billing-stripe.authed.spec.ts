@@ -84,13 +84,24 @@ test.describe('Pro subscription pages', () => {
     expect(hasUpgrade || hasChart).toBe(true);
   });
 
-  test.fixme(
-    'subscribe via Stripe Checkout with test card 4242 → Pro badge on profile → template card visible',
-  );
+  test.fixme('subscribe via Stripe Checkout with test card 4242 → Pro badge on profile → template card visible', // for the rest of the run without polluting other tests (attendee-a is // Needs a dedicated test user that can be left in a 'Pro/trial' state
+  // the default actor for many tests — making them Pro changes
+  // expectations elsewhere). Add TEST_BILLING_VICTIM_EMAIL or wire up a
+  // post-test "cancel subscription via Stripe API" cleanup, then
+  // graduate this. Harness primitives in _helpers/stripe.ts are ready.
+  async () => {});
 
-  test.fixme('manage subscription: Stripe Billing Portal opens when "Manage" is clicked');
+  test.fixme('manage subscription: Stripe Billing Portal opens when "Manage" is clicked', // landing) AND drives the Stripe Billing Portal UI, whose selectors // Requires an existing subscription (depends on the test above
+  // are documented as unstable. Best-case assertion: click "Manage" →
+  // page.url() contains 'billing.stripe.com'. Leave fixme until the
+  // subscribe test ships so we have a known Pro state to assert.
+  async () => {});
 
-  test.fixme('cancel subscription in Stripe Portal → Pro access removed at end of billing period');
+  test.fixme('cancel subscription in Stripe Portal → Pro access removed at end of billing period', // (host_subscriptions.cancel_at_period_end flip). Skip until we have // Same blocker as Manage Portal + needs a webhook-driven assertion
+  // a deterministic way to test portal flows; the Stripe API call to
+  // subscriptions.update(cancel_at_period_end=true) is a more reliable
+  // proxy if we want CI coverage of the downstream behaviour.
+  async () => {});
 });
 
 test.describe('Stripe Connect (host payouts)', () => {
@@ -123,9 +134,13 @@ test.describe('Stripe Connect (host payouts)', () => {
     expect(hasEither).toBe(true);
   });
 
-  test.fixme(
-    'complete Stripe Connect onboarding with test identity → charges_enabled = true → checklist shows complete',
-  );
+  test.fixme('complete Stripe Connect onboarding with test identity → charges_enabled = true → checklist shows complete', // code from a Stripe test number), which cannot be driven by // Stripe Connect onboarding requires phone-number verification (SMS
+  // Playwright. The dev TEST_STRIPE_HOST_EMAIL account is already
+  // onboarded so paid-flow tests pass; this test would need either a
+  // throwaway account per run + Stripe Connect's "skip phone" test
+  // affordance (which is unreliable), or shifting to assert the
+  // already-onboarded state instead of driving the onboarding itself.
+  async () => {});
 
   test('stripe-host: billing page shows connected status and dashboard / earnings navigation', async ({
     browser,

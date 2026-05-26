@@ -161,3 +161,81 @@ export async function expectNewEventReachable(page: Page): Promise<void> {
     timeout: 10_000,
   });
 }
+
+export interface CreatePaidEventOptions extends CreateFreeOpenPlayEventOptions {
+  /** Ticket price in USD. The form field is `priceUsd`. */
+  priceUsd: number;
+  /** Refund window in hours. Defaults to 24 (form default). */
+  refundWindowHours?: number;
+}
+
+/**
+ * Create a paid open-play event. The caller MUST be signed in as a host
+ * with Stripe Connect onboarded (i.e. `STORAGE_PATHS.stripeHost`). If the
+ * host isn't Stripe-ready, the form rejects with a "host_not_ready"-style
+ * error and this helper surfaces it.
+ *
+ * Caller is responsible for cleanup via `cancelEvent`.
+ */
+export async function createPaidEvent(
+  page: Page,
+  opts: CreatePaidEventOptions,
+): Promise<CreatedEvent> {
+  const start = opts.startTime ?? '18:00';
+  const end = opts.endTime ?? '20:00';
+
+  await page.goto('/events/new');
+  if (page.url().includes('/login') || page.url().includes('/upgrade')) {
+    throw new Error(
+      `redirected to ${new URL(page.url()).pathname} — paid event creation gated for this account`,
+    );
+  }
+
+  await page.locator('#title').fill(opts.title);
+  await pickFutureDateTime(page, 'startsAt', start);
+  await pickFutureDateTime(page, 'endsAt', end);
+
+  await page.locator('#addressLine').fill('1000 19th St');
+  const editDetailsBtn = page.getByRole('button', { name: /edit address details/i });
+  if (await isVisibleOrTimeout(editDetailsBtn, 1_000)) {
+    await editDetailsBtn.click();
+  }
+  await page.locator('#city').fill('Virginia Beach');
+  await page.locator('#region').fill('VA');
+  await page.locator('#postalCode').fill('23451');
+  await page.locator('#country').fill('US');
+
+  if (opts.hostGroupId) {
+    await page.locator('#hostGroupId').selectOption(opts.hostGroupId);
+  }
+
+  // Set price. The form input name is `priceUsd` (see new-event-form.tsx).
+  const priceInput = page.locator('input[name="priceUsd"]').first();
+  await expect(priceInput, 'priceUsd input').toBeVisible({ timeout: 10_000 });
+  await priceInput.fill(String(opts.priceUsd));
+
+  if (opts.refundWindowHours !== undefined) {
+    const refundInput = page.locator('input[name="refundWindowHours"]').first();
+    if (await isVisibleOrTimeout(refundInput, 1_000)) {
+      await refundInput.fill(String(opts.refundWindowHours));
+    }
+  }
+
+  await page.getByRole('button', { name: /create event/i }).click();
+
+  await page.waitForURL(/\/events\/[0-9a-f-]{36}(\?|$)/, { timeout: 20_000 }).catch(async () => {
+    const currentUrl = page.url();
+    const errors = await page
+      .locator('[role="alert"], .text-error, [class*="error"]')
+      .allTextContents()
+      .catch(() => [] as string[]);
+    throw new Error(
+      `paid event submit did not redirect (stayed on ${currentUrl}); visible errors: ${JSON.stringify(errors.slice(0, 5))}`,
+    );
+  });
+
+  const url = page.url().replace(/\?.*$/, '');
+  const match = /\/events\/([0-9a-f-]{36})/.exec(url);
+  if (!match) throw new Error(`could not extract event id from ${url}`);
+  return { url, id: match[1]! };
+}

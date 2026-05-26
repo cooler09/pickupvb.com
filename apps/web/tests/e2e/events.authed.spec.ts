@@ -41,9 +41,10 @@ test.describe('event creation form', () => {
     }
   });
 
-  test.fixme('create a paid event — requires Stripe Connect on the test account');
-
-  test.fixme('create a tournament event with multiple divisions');
+  // Paid event create is covered by event-create-extended.authed.spec.ts:
+  //   "create a paid event as stripe-host — price appears on detail page"
+  // Multi-division tournament create remains a fixme there pending the
+  // tournament harness bundle.
 });
 
 test.describe('saved event templates (Pro feature)', () => {
@@ -141,9 +142,9 @@ test.describe('RSVP — join and leave a free event', () => {
     });
   });
 
-  test.fixme(
-    'RSVP to a paid event via Stripe Checkout — requires Stripe Connect on the test account',
-  );
+  // Paid RSVP via Stripe Checkout is covered by
+  // event-attendance.authed.spec.ts:
+  //   "RSVP to paid event → Stripe Checkout 4242 → redirected back with user on roster"
 
   test.fixme(
     'Event full: second user cannot join at capacity — sign in as attendee-b (TEST_ATTENDEE_B_EMAIL) to test',
