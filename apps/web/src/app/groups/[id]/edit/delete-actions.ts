@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ConflictError, NotFoundError, UnauthorizedError } from '@pickupvb/domain';
 import { requireRealUser } from '@/lib/server-auth';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 
 type State = { error?: string; ok?: boolean };
 
@@ -57,7 +58,13 @@ export async function deleteGroupAction(
       );
     }
 
-    const { error: updErr } = await supabase
+    // RLS quirk: Postgres applies the SELECT policy as an implicit WITH CHECK
+    // on UPDATE, so flipping `deleted_at` through the user-scoped client fails
+    // (`groups_select` filters `deleted_at is null`, so the after-image would
+    // be invisible to the actor). Owner authorization is already enforced above;
+    // bypass RLS for the single-column write.
+    const admin = getAdminSupabase();
+    const { error: updErr } = await admin
       .from('groups')
       .update({ deleted_at: new Date().toISOString() } as never)
       .eq('id', groupId);

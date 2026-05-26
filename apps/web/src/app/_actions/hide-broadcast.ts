@@ -3,6 +3,7 @@
 import { revalidatePath, updateTag } from 'next/cache';
 import { NotFoundError, UnauthorizedError } from '@pickupvb/domain';
 import { requireRealUser } from '@/lib/server-auth';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 
 type State = { error?: string; ok?: boolean };
 
@@ -47,7 +48,12 @@ export async function hideBroadcastAction(
     if (broadcast.sender_id !== user.id)
       throw new UnauthorizedError('You can only hide broadcasts you sent.');
 
-    const { error: updErr } = await supabase
+    // RLS quirk: `broadcasts_select_sender` filters `deleted_at is null`,
+    // which Postgres applies as an implicit WITH CHECK on UPDATE — flipping
+    // deleted_at through the user-scoped client fails because the after-image
+    // would be invisible to the sender. Sender check is enforced above.
+    const admin = getAdminSupabase();
+    const { error: updErr } = await admin
       .from('broadcasts')
       .update({ deleted_at: new Date().toISOString() } as never)
       .eq('id', broadcastId);

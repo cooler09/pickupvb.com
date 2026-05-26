@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ConflictError, NotFoundError, UnauthorizedError } from '@pickupvb/domain';
 import { requireRealUser } from '@/lib/server-auth';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 
 type State = { error?: string; ok?: boolean };
 
@@ -51,7 +52,11 @@ export async function deleteTeamAction(
       throw new ConflictError('This team is registered for upcoming events. Withdraw it first.');
     }
 
-    const { error: updErr } = await supabase
+    // RLS quirk: see deleteGroupAction — `teams_select` filters `deleted_at
+    // is null`, so Postgres rejects the user-scoped UPDATE because the
+    // after-image would be invisible. Captain check is enforced above.
+    const admin = getAdminSupabase();
+    const { error: updErr } = await admin
       .from('teams')
       .update({ deleted_at: new Date().toISOString() } as never)
       .eq('id', teamId);

@@ -83,6 +83,28 @@ hero_images` is wrong; orphan cleanup requires a `storage.objects`
 >   `profile-delete`, `host deletes event`, and `broadcasts hide`
 >   remain blocked on upstream app work (privacy.md P1; P3 #6
 >   decision; broadcast history UI follow-up).
+> - **Soft-delete RLS bug (Bundle 93 regression) — fixed.** The
+>   destructive group e2e surfaced `new row violates row-level
+security policy for table "groups"` on the soft-delete UPDATE.
+>   Root cause: PostgreSQL applies the SELECT policy as an implicit
+>   WITH CHECK on UPDATE — flipping `deleted_at` to non-NULL makes
+>   the after-image fail `deleted_at IS NULL`, so the UPDATE is
+>   rejected even when the UPDATE policy itself (owner-via-
+>   `group_members`) passes and even with an explicit `WITH CHECK
+(true)`. The
+>   [20260628000000](../../supabase/migrations/20260628000000_soft_delete_groups_teams_broadcasts.sql)
+>   migration's claim that "owners can still UPDATE the row to flip
+>   `deleted_at` because the WITH CHECK on `groups_update` /
+>   `teams_update` doesn't reference `deleted_at`" was wrong — it
+>   missed the SELECT-as-WITH-CHECK behavior. Same latent bug
+>   affected `teams.deleted_at` and `broadcasts.deleted_at` (sender
+>   filter also restrictive). Fix: switched the actual `deleted_at`
+>   write in `deleteGroupAction`, `deleteTeamAction`, and
+>   `hideBroadcastAction` to the admin (service-role) client, which
+>   bypasses RLS. App-layer owner/sender authorization is unchanged
+>   and remains the gate; soft-deleted rows still 404 for all
+>   readers (including the owner) on subsequent loads, which matches
+>   the test expectation and the original product intent.
 
 ---
 
