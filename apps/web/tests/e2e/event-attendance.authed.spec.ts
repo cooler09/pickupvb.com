@@ -327,8 +327,16 @@ test.describe('leave paid event / refund', () => {
     }
   });
 
-  test.fixme('leave outside refund window → leave blocked or no-refund warning', // helper. Add that and graduate this test. // an event today/tomorrow we need a `pickNearFutureDateTime(daysAhead)` // current DateTimePicker helper picks the LAST visible day; to schedule // Needs an event whose starts_at is <refund_window_hours from now. The
-  async () => {});
+  // Blocker: leave-outside-window requires `(starts_at - now) < refund_window_hours`.
+  // MAX_REFUND_WINDOW_HOURS = 720 (30 days). The existing `pickFutureDateTime`
+  // picks the LAST visible calendar day of the current month — 1 to ~31 days
+  // out, which is right at the 30-day boundary. Need a `pickNearFutureDateTime
+  // (page, name, daysAhead, time)` helper that targets a specific day-of-month
+  // (with month-navigation + outside-day filtering for react-day-picker's
+  // showOutsideDays grid) so we can schedule the event 1–2 days out and set
+  // refundWindowHours=48 to be definitively outside. Adding that helper is the
+  // next step.
+  test.fixme('leave outside refund window → leave blocked, error banner shown, user remains on roster', async () => {});
 });
 
 test.describe('capacity limit', () => {

@@ -146,9 +146,9 @@ test.describe('RSVP — join and leave a free event', () => {
   // event-attendance.authed.spec.ts:
   //   "RSVP to paid event → Stripe Checkout 4242 → redirected back with user on roster"
 
-  test.fixme(
-    'Event full: second user cannot join at capacity — sign in as attendee-b (TEST_ATTENDEE_B_EMAIL) to test',
-  );
+  // Event-full capacity check is covered by event-attendance.authed.spec.ts:
+  //   "event full: attendee-b tries to join a capacity-1 event that attendee-a
+  //    already filled — sees 'event is full'"
 });
 
 test.describe('event edit', () => {
