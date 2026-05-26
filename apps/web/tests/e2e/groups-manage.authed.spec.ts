@@ -168,27 +168,23 @@ test.describe('hero image on group', () => {
       buffer: TEST_PNG,
     });
 
-    // The subsequent isVisible() checks below carry their own 5-10s timeouts,
-    // which is the right place to wait — no arbitrary sleep needed.
+    // The upload is async — first wait for the "Uploading…" pending state
+    // to clear, otherwise the success-indicator checks below race the
+    // round-trip and all return false on slow Supabase Storage.
+    await expect(page.getByRole('button', { name: /uploading/i })).toBeHidden({
+      timeout: 30_000,
+    });
 
-    // Verify preview or success indicator.
-    const hasPreview = await page
+    // Any one of these three markers proves the upload landed. A single
+    // `.or()`-chained locator lets Playwright auto-wait instead of three
+    // sequential `.isVisible().catch(false)` checks that swallow the signal.
+    const uploadedIndicator = page
       .locator('img[src*="supabase"], img[src*="blob:"], [data-testid="hero-preview"]')
       .first()
-      .isVisible({ timeout: 10_000 })
-      .catch(() => false);
-    const hasSuccess = await page
-      .getByText(/uploaded|saved|image set/i)
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
-    const hasRemoveBtn = await page
-      .getByRole('button', { name: /remove|delete/i })
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+      .or(page.getByText(/uploaded|saved|image set/i).first())
+      .or(page.getByRole('button', { name: /remove|delete/i }).first());
 
-    expect(hasPreview || hasSuccess || hasRemoveBtn).toBe(true);
+    await expect(uploadedIndicator.first()).toBeVisible({ timeout: 10_000 });
 
     // Cleanup — remove the image.
     const removeBtn = page.getByRole('button', { name: /remove/i }).first();
