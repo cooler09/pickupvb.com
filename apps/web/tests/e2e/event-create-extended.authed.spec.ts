@@ -191,7 +191,7 @@ test.describe('external registration', () => {
       await expect(page.locator('main')).toContainText(/How to register/i, { timeout: 10_000 });
       // Verify the on-platform RSVP / join button is absent.
       const joinBtn = page.getByRole('button', { name: /^join$/i });
-      expect(await joinBtn.count()).toBe(0);
+      await expect(joinBtn).toHaveCount(0);
     } finally {
       // Cleanup — cancel the event so it does not pollute the dev database.
       if (eventUrl) {

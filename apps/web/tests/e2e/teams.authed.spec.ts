@@ -9,19 +9,22 @@ import { STORAGE_PATHS } from './_helpers/paths';
  */
 async function findCaptainedTeamUrl(page: Page): Promise<string | null> {
   await page.goto('/teams');
-  // MyTeamsPanel is a client component — wait for it to hydrate.
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(2_000);
 
-  const captainedSection = page
+  // MyTeamsPanel is a client component that hydrates after navigation.
+  // Poll for a captained team link rather than guessing with a fixed sleep;
+  // returns null cleanly if no team is captained.
+  const teamLink = page
     .locator('section')
     .filter({ hasText: /captained/i })
+    .first()
+    .locator('a[href*="/teams/"]')
     .first();
-  if ((await captainedSection.count()) === 0) return null;
 
-  const teamLink = captainedSection.locator('a[href*="/teams/"]').first();
-  if ((await teamLink.count()) === 0) return null;
-
+  try {
+    await expect(teamLink).toBeVisible({ timeout: 10_000 });
+  } catch {
+    return null;
+  }
   return await teamLink.getAttribute('href');
 }
 

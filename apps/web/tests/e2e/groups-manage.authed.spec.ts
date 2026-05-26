@@ -168,9 +168,8 @@ test.describe('hero image on group', () => {
       buffer: TEST_PNG,
     });
 
-    // Wait for upload to complete.
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(2_000);
+    // The subsequent isVisible() checks below carry their own 5-10s timeouts,
+    // which is the right place to wait — no arbitrary sleep needed.
 
     // Verify preview or success indicator.
     const hasPreview = await page

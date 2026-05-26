@@ -116,18 +116,21 @@ test.describe('theme toggle', () => {
     }
 
     // Capture before state.
-    const beforeClass = await page.locator('html').getAttribute('class');
-    const beforeTheme = await page.locator('html').getAttribute('data-theme');
+    const html = page.locator('html');
+    const beforeClass = await html.getAttribute('class');
+    const beforeTheme = await html.getAttribute('data-theme');
     const before = beforeClass ?? beforeTheme ?? '';
 
     await themeToggle.click();
-    await page.waitForTimeout(300); // allow transition
 
-    const afterClass = await page.locator('html').getAttribute('class');
-    const afterTheme = await page.locator('html').getAttribute('data-theme');
-    const after = afterClass ?? afterTheme ?? '';
-
-    // The theme attribute or class should have changed.
-    expect(after).not.toEqual(before);
+    // Poll until the theme attribute or class flips — replaces a fixed sleep
+    // that was racing the transition.
+    await expect
+      .poll(async () => {
+        const c = await html.getAttribute('class');
+        const t = await html.getAttribute('data-theme');
+        return c ?? t ?? '';
+      })
+      .not.toEqual(before);
   });
 });
