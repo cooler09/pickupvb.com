@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { deleteGroupBySlug } from './_helpers/cleanup';
 
 /**
  * Find a group the signed-in user is listed under on /profile. Mirrors
@@ -91,9 +92,10 @@ test.describe('create group', () => {
       // The group name should appear on the page.
       await expect(page.locator('main')).toContainText(name);
 
-      // NOTE: Groups have no delete button in the UI. This group will remain
-      // in the dev database. Clean it up manually via the Supabase dashboard
-      // or a SQL DELETE if needed.
+      // Hard-delete the fixture row via admin client (no UI delete path).
+      // No-op when E2E_CLEANUP_SUPABASE_* env vars aren't set — see
+      // tests/e2e/_helpers/cleanup.ts.
+      await deleteGroupBySlug(slug);
     },
   );
 

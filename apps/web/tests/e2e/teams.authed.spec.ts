@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { deleteTeamBySlug } from './_helpers/cleanup';
 
 /**
  * Finds a team URL that the current user captains, by loading /teams and
@@ -134,6 +135,12 @@ test.describe('create team', () => {
 
       // Team name should appear on the page.
       await expect(page.locator('main')).toContainText(teamName, { timeout: 10_000 });
+
+      // Hard-delete the fixture row via admin client (no UI delete path).
+      // No-op when E2E_CLEANUP_SUPABASE_* env vars aren't set — see
+      // tests/e2e/_helpers/cleanup.ts.
+      const slug = page.url().match(/\/teams\/([^/?#]+)/)?.[1];
+      if (slug) await deleteTeamBySlug(slug);
     },
   );
 });
