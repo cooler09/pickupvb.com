@@ -203,6 +203,7 @@ export type Database = {
           body: string;
           channels: string[];
           created_at: string;
+          deleted_at: string | null;
           id: string;
           sender_id: string | null;
           sent_at: string | null;
@@ -214,6 +215,7 @@ export type Database = {
           body: string;
           channels?: string[];
           created_at?: string;
+          deleted_at?: string | null;
           id?: string;
           sender_id?: string | null;
           sent_at?: string | null;
@@ -225,6 +227,7 @@ export type Database = {
           body?: string;
           channels?: string[];
           created_at?: string;
+          deleted_at?: string | null;
           id?: string;
           sender_id?: string | null;
           sent_at?: string | null;
@@ -1458,6 +1461,7 @@ export type Database = {
           avatar_url: string | null;
           created_at: string;
           created_by: string | null;
+          deleted_at: string | null;
           description: string;
           hero_image_url: string | null;
           home_city: string | null;
@@ -1471,6 +1475,7 @@ export type Database = {
           avatar_url?: string | null;
           created_at?: string;
           created_by?: string | null;
+          deleted_at?: string | null;
           description?: string;
           hero_image_url?: string | null;
           home_city?: string | null;
@@ -1484,6 +1489,7 @@ export type Database = {
           avatar_url?: string | null;
           created_at?: string;
           created_by?: string | null;
+          deleted_at?: string | null;
           description?: string;
           hero_image_url?: string | null;
           home_city?: string | null;
@@ -2073,6 +2079,7 @@ export type Database = {
         Row: {
           captain_id: string;
           created_at: string;
+          deleted_at: string | null;
           extra_member_count: number;
           format: Database['public']['Enums']['format'];
           id: string;
@@ -2082,6 +2089,7 @@ export type Database = {
         Insert: {
           captain_id: string;
           created_at?: string;
+          deleted_at?: string | null;
           extra_member_count?: number;
           format: Database['public']['Enums']['format'];
           id?: string;
@@ -2091,6 +2099,7 @@ export type Database = {
         Update: {
           captain_id?: string;
           created_at?: string;
+          deleted_at?: string | null;
           extra_member_count?: number;
           format?: Database['public']['Enums']['format'];
           id?: string;

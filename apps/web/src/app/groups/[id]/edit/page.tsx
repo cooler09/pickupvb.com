@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import EditGroupForm from './edit-group-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import { DeleteGroupPanel } from './delete-group-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,7 @@ export default async function EditGroupPage(props: { params: Promise<{ id: strin
         currentUrl={group.hero_image_url}
         returnPath={`/groups/${group.slug}`}
       />
+      {role === 'owner' && <DeleteGroupPanel groupId={group.id} groupName={group.name} />}
     </section>
   );
 }

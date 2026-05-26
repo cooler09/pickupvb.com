@@ -8,6 +8,7 @@ import { AddTeamMemberForm } from './add-team-member-form';
 import { ExtraMembersForm } from './extra-members-form';
 import { CaptainBroadcastPanel } from './captain-broadcast-panel';
 import { InviteResponse } from './invite-response';
+import { DeleteTeamPanel } from './delete-team-panel';
 import type { TeamRosterMember } from './team-member-row';
 
 type Props = {
@@ -120,6 +121,7 @@ export function TeamViewerChrome({
           </ul>
         </section>
       )}
+      <DeleteTeamPanel teamId={teamId} teamName={teamName} />
     </>
   );
 }

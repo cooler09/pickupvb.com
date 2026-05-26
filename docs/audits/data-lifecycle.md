@@ -29,6 +29,15 @@ broader entity-by-entity strategy.
 hero_images` is wrong; orphan cleanup requires a `storage.objects`
 >   walker that parses `{user_id}/{entity_type}/{entity_id}/hero.{ext}`
 >   paths against live entity ids. Still P3 but no longer XS effort.
+> - **P2 #1, P2 #2, P3 #1 (schema slice)** — soft-delete for groups,
+>   teams, and broadcasts landed in
+>   [supabase/migrations/20260628000000_soft_delete_groups_teams_broadcasts.sql](../../supabase/migrations/20260628000000_soft_delete_groups_teams_broadcasts.sql).
+>   `deleted_at timestamptz` + partial index on each, SELECT-policy
+>   filter so soft-deleted rows vanish from every read path. Owner-only
+>   delete UI on the group edit page; captain-only delete UI inside
+>   `TeamViewerChrome`. `hideBroadcastAction` shipped without a UI
+>   consumer — host broadcast history list is the follow-up that
+>   unlocks it.
 
 ---
 
@@ -386,17 +395,17 @@ retention without paying for Postgres pages:
 
 ## Open backlog
 
-| Severity  | Item                                                                                       | Estimated effort | Status                      |
-| --------- | ------------------------------------------------------------------------------------------ | ---------------- | --------------------------- |
-| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                | XS               | ✅ Shipped 2026-05-26       |
-| **P2 #1** | Group delete (`deleted_at` column, command, server action, RLS filter, partial index)      | M                | open                        |
-| **P2 #2** | Team delete (same shape as group)                                                          | M                | open                        |
-| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                  | XS               | ✅ Shipped 2026-05-26       |
-| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                      | S                | ✅ Shipped 2026-05-26       |
-| **P2 #5** | `event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout) | S                | open                        |
-| **P3 #1** | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                 | S                | open                        |
-| **P3 #2** | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)  | S–M              | open — scope larger than XS |
-| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                       | XS               | ✅ Shipped 2026-05-26       |
+| Severity  | Item                                                                                       | Estimated effort | Status                                                                  |
+| --------- | ------------------------------------------------------------------------------------------ | ---------------- | ----------------------------------------------------------------------- |
+| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                | XS               | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #1~~ | Group delete (`deleted_at` column, server action, RLS filter, partial index)               | M                | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #2~~ | Team delete (same shape as group)                                                          | M                | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                  | XS               | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                      | S                | ✅ Shipped 2026-05-26                                                   |
+| **P2 #5** | `event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout) | S                | open                                                                    |
+| ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                 | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up |
+| **P3 #2** | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)  | S–M              | open — scope larger than XS                                             |
+| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                       | XS               | ✅ Shipped 2026-05-26                                                   |
 
 Cross-references:
 
