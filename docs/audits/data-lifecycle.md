@@ -61,6 +61,28 @@ hero_images` is wrong; orphan cleanup requires a `storage.objects`
 >   objects that no longer map to a live owner row and current
 >   `hero_image_url`. The 24-hour grace window avoids racing immediate
 >   upload->DB-update flows.
+> - **P3 #4, P3 #5** — Pending team-invite TTL + push-subscription
+>   inactive purge landed in
+>   [supabase/migrations/20260701000000_retention_team_invites_push_subs.sql](../../supabase/migrations/20260701000000_retention_team_invites_push_subs.sql).
+>   Two pg_cron jobs: 30-day cap on `team_members.status='pending'` rows
+>   (corrects the §1 row that referenced a non-existent
+>   `team_member_invites` table — invites are `team_members` rows with
+>   `status='pending'` + `invited_at`) and 90-day inactive cap on
+>   `push_subscriptions` keyed on `coalesce(last_used_at, created_at)`,
+>   complementing the delivery worker's 410/404 HARD-delete.
+> - **P3 #6 — decided NOT pursued.** `events.deleted_at` was an open
+>   recommendation in §1; calling it explicitly: `status='cancelled'`
+>   is the canonical host-delete posture. Cancelled events disappear
+>   from public reads, the host's `host_id` SET NULLs on account
+>   deletion (privacy.md P1 #1), and the row is required for
+>   `event_payment_audit` / `event_tips` RESTRICT FKs. Revisit only
+>   if a concrete product need surfaces.
+> - **§3 tier-2 e2e specs** — group + team delete specs were noted as
+>   uncovered; they're actually covered inline in the destructive
+>   create flows (Bundle 93). Updated the §3 table to reflect that.
+>   `profile-delete`, `host deletes event`, and `broadcasts hide`
+>   remain blocked on upstream app work (privacy.md P1; P3 #6
+>   decision; broadcast history UI follow-up).
 
 ---
 
@@ -97,14 +119,13 @@ for DELETE to succeed.
 
 ### Teams / groups
 
-| Table                 | PII | `deleted_at` | FK posture                         | Realtime | Recommended |
-| --------------------- | --- | ------------ | ---------------------------------- | -------- | ----------- |
-| `teams`               | —   | —            | `captain_id` CASCADE               | —        | SOFT        |
-| `team_members`        | —   | —            | both CASCADE                       | —        | HARD        |
-| `team_member_invites` | Low | —            | both CASCADE                       | —        | HARD + TTL  |
-| `groups`              | —   | —            | `created_by` SET NULL (privacy P1) | —        | SOFT        |
-| `group_members`       | —   | —            | both CASCADE                       | —        | HARD        |
-| `group_followers`     | —   | —            | both CASCADE                       | —        | HARD        |
+| Table             | PII | `deleted_at` | FK posture                         | Realtime | Recommended                                                                  |
+| ----------------- | --- | ------------ | ---------------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `teams`           | —   | —            | `captain_id` CASCADE               | —        | SOFT                                                                         |
+| `team_members`    | Low | —            | both CASCADE                       | —        | HARD (active rows); **TTL on `status='pending'` rows** — see P3 #4 (shipped) |
+| `groups`          | —   | —            | `created_by` SET NULL (privacy P1) | —        | SOFT                                                                         |
+| `group_members`   | —   | —            | both CASCADE                       | —        | HARD                                                                         |
+| `group_followers` | —   | —            | both CASCADE                       | —        | HARD                                                                         |
 
 ### Money
 
@@ -119,13 +140,13 @@ for DELETE to succeed.
 
 ### Messaging / notifications
 
-| Table                      | PII                                     | `deleted_at`       | Notes                                                                                                              | Recommended                                     |
-| -------------------------- | --------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- |
-| `notifications`            | Low                                     | — (only `read_at`) | [20260524000000_notifications.sql#L58-L74](../../supabase/migrations/20260524000000_notifications.sql#L58-L74)     | SOFT + **scheduled hard purge** (P2 #2)         |
-| `notification_outbox`      | **High** (rendered body + `to_address`) | —                  | [20260524000000_notifications.sql#L91-L114](../../supabase/migrations/20260524000000_notifications.sql#L91-L114)   | **APPEND-ONLY w/ retention cap** (P1 #1 — GDPR) |
-| `broadcasts`               | Medium (rendered body)                  | —                  | [20260524000000_notifications.sql#L117-L135](../../supabase/migrations/20260524000000_notifications.sql#L117-L135) | SOFT (host audit trail, ~1-yr retention)        |
-| `push_subscriptions`       | —                                       | —                  | device endpoints                                                                                                   | HARD on 410/404; HARD after 90d inactive        |
-| `notification_preferences` | —                                       | —                  | `user_id` CASCADE                                                                                                  | HARD on user delete (already)                   |
+| Table                      | PII                                     | `deleted_at`       | Notes                                                                                                              | Recommended                                               |
+| -------------------------- | --------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `notifications`            | Low                                     | — (only `read_at`) | [20260524000000_notifications.sql#L58-L74](../../supabase/migrations/20260524000000_notifications.sql#L58-L74)     | SOFT + **scheduled hard purge** (P2 #2)                   |
+| `notification_outbox`      | **High** (rendered body + `to_address`) | —                  | [20260524000000_notifications.sql#L91-L114](../../supabase/migrations/20260524000000_notifications.sql#L91-L114)   | **APPEND-ONLY w/ retention cap** (P1 #1 — GDPR)           |
+| `broadcasts`               | Medium (rendered body)                  | —                  | [20260524000000_notifications.sql#L117-L135](../../supabase/migrations/20260524000000_notifications.sql#L117-L135) | SOFT (host audit trail, ~1-yr retention)                  |
+| `push_subscriptions`       | —                                       | —                  | device endpoints                                                                                                   | HARD on 410/404; HARD after 90d inactive (P3 #5, shipped) |
+| `notification_preferences` | —                                       | —                  | `user_id` CASCADE                                                                                                  | HARD on user delete (already)                             |
 
 ### Community
 
@@ -258,13 +279,13 @@ above are unreadable.
 
 Add positive create→delete specs once the P2 #1/#2 features ship:
 
-| Spec to add                                                    | Asserts                                                            |
-| -------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `groups-manage.authed.spec.ts >> owner can delete group`       | Group disappears from `/groups`, RLS hides the slug                |
-| `teams.authed.spec.ts >> captain can delete team`              | Team disappears from `/teams`, registered events refuse the delete |
-| `profile-delete.authed.spec.ts` (new)                          | Account deletion grace, PII scrub, FK SET NULLs                    |
-| `event-host.authed.spec.ts >> host deletes event` (vs. cancel) | Soft-deleted event 404s for non-admins                             |
-| `broadcasts.authed.spec.ts >> host hides a broadcast`          | Broadcast disappears from host history                             |
+| Spec to add                                                    | Asserts                                                            | Status                                                                                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `groups-manage.authed.spec.ts >> owner can delete group`       | Group disappears from `/groups`, RLS hides the slug                | ✅ Covered inline in [groups.authed.spec.ts @destructive](../../apps/web/tests/e2e/groups.authed.spec.ts) (2026-05-26)  |
+| `teams.authed.spec.ts >> captain can delete team`              | Team disappears from `/teams`, registered events refuse the delete | ✅ Covered inline in [teams.authed.spec.ts @destructive](../../apps/web/tests/e2e/teams.authed.spec.ts) (2026-05-26)    |
+| `profile-delete.authed.spec.ts` (new)                          | Account deletion grace, PII scrub, FK SET NULLs                    | Blocked on privacy.md P1 #1–#3 app-layer work (`/profile/delete` route, `requestAccountDeletion` server action)         |
+| `event-host.authed.spec.ts >> host deletes event` (vs. cancel) | Soft-deleted event 404s for non-admins                             | Deferred — `events.deleted_at` not pursued (see P3 #6 below); `status='cancelled'` is the canonical host-delete posture |
+| `broadcasts.authed.spec.ts >> host hides a broadcast`          | Broadcast disappears from host history                             | Blocked on host broadcast history UI (P3 #1 follow-up)                                                                  |
 
 ### P3 — Cleanup boilerplate
 
@@ -415,17 +436,20 @@ retention without paying for Postgres pages:
 
 ## Open backlog
 
-| Severity  | Item                                                                                           | Estimated effort | Status                                                                  |
-| --------- | ---------------------------------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------- |
-| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                    | XS               | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #1~~ | Group delete (`deleted_at` column, server action, RLS filter, partial index)                   | M                | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #2~~ | Team delete (same shape as group)                                                              | M                | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                      | XS               | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                          | S                | ✅ Shipped 2026-05-26                                                   |
-| **P2 #5** | ~~`event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout)~~ | S                | ✅ Shipped 2026-05-26                                                   |
-| ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                     | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up |
-| ~~P3 #2~~ | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)      | S–M              | ✅ Shipped 2026-05-26                                                   |
-| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                           | XS               | ✅ Shipped 2026-05-26                                                   |
+| Severity  | Item                                                                                           | Estimated effort | Status                                                                                                                                                                                                                                                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                    | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P2 #1~~ | Group delete (`deleted_at` column, server action, RLS filter, partial index)                   | M                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P2 #2~~ | Team delete (same shape as group)                                                              | M                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                      | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                          | S                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| **P2 #5** | ~~`event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout)~~ | S                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                     | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up                                                                                                                                                                                                                                                                   |
+| ~~P3 #2~~ | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)      | S–M              | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                           | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P3 #4~~ | Pending team-invite TTL (30-day cap on `team_members.status='pending'`)                        | XS               | ✅ Shipped 2026-05-26 — [20260701000000_retention_team_invites_push_subs.sql](../../supabase/migrations/20260701000000_retention_team_invites_push_subs.sql). Doc-correction: there is no separate `team_member_invites` table; invites are `team_members` rows with `status='pending'` + `invited_at`.                                   |
+| ~~P3 #5~~ | `push_subscriptions` 90-day inactive purge (`coalesce(last_used_at, created_at)`)              | XS               | ✅ Shipped 2026-05-26 — same migration as P3 #4. Belt-and-suspenders with the delivery worker's 410/404 HARD-delete.                                                                                                                                                                                                                      |
+| **P3 #6** | `events.deleted_at` for host-initiated true delete (vs `status='cancelled'`)                   | M                | **Not pursued.** `status='cancelled'` is the canonical host-delete posture: cancelled events are invisible to attendees and `event_payment_audit` / `event_tips` need the row for referential integrity (RESTRICT FKs). Account-deletion path is `host_id` SET NULL (privacy.md P1 #1). Revisit only if a concrete product need surfaces. |
 
 Cross-references:
 
