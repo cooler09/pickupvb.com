@@ -271,7 +271,10 @@ export async function editEventAction(
     fundraiser_beneficiary: isFundraiser
       ? (fieldOrUndefined(formData, 'fundraiserBeneficiary') ?? null)
       : null,
-    theme_tags: themeTags && themeTags.length > 0 ? themeTags : null,
+    // `events.theme_tags` is `text[] not null default '{}'` — send an
+    // empty array (not null) when the host clears all tags, otherwise
+    // the UPDATE fails with a not-null violation.
+    theme_tags: themeTags && themeTags.length > 0 ? themeTags : [],
     sanctioning_body: fieldOrUndefined(formData, 'sanctioningBody') ?? null,
     registration_mode: isExternal ? 'external' : 'platform',
     external_registration_url: isExternal

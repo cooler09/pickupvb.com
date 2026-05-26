@@ -179,20 +179,34 @@ test.describe('event host flows', () => {
       test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     await page.goto(`${eventUrl}/edit`);
-    const newTitle = `${testEventTitle} — edited`;
-    await page.locator('#title').fill(newTitle);
-    await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
 
-    // After save, navigate to detail page and verify updated title.
-    await page.goto(eventUrl!);
+    // Wait for the form to be interactive (hydrated). Clicking Save
+    // before the server-action endpoint is bound results in a no-op
+    // native POST that re-renders the page with the OLD data and no
+    // error banner.
+    const titleInput = page.locator('#title');
+    await expect(titleInput).toBeEditable({ timeout: 10_000 });
+
+    const newTitle = `${testEventTitle} — edited`;
+    await titleInput.fill(newTitle);
+    await page.getByRole('button', { name: /save changes/i }).click();
+
+    // The action ends with `redirect(\`/events/\${id}\`)` on success.
+    // Waiting on the URL change proves the action ran (vs. networkidle,
+    // which can resolve before the POST even fires). If the action
+    // returns `{ error }` instead, the form Alert below catches it.
+    const detailUrlRe = new RegExp(`${eventUrl!.replace(/[/]/g, '\\/')}(\\?|$)`);
+    await page.waitForURL(detailUrlRe, { timeout: 15_000 });
     await expect(page.locator('main')).toContainText(newTitle, { timeout: 10_000 });
 
     // Restore original title for subsequent tests.
     await page.goto(`${eventUrl}/edit`);
+    await expect(page.locator('#title')).toBeEditable({ timeout: 10_000 });
     await page.locator('#title').fill(testEventTitle);
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForURL(detailUrlRe, { timeout: 15_000 }).catch(() => {
+      // Restoration is best-effort; the assertion above already passed.
+    });
   });
 
   test('event detail shows host section', async ({ page }) => {
@@ -209,11 +223,13 @@ test.describe('event host flows', () => {
       test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
     await page.goto(eventUrl!);
-    // Hosts see the roster/analytics panel on their own event. The roster
-    // heading is "Players signed up (N)"; also accept the older copy in
-    // case the section is renamed.
+    // Hosts see the roster/analytics panel on their own event. Target
+    // the heading specifically — a plain text regex also matches the
+    // hidden `<summary>` for "Message attendees" inside the collapsed
+    // Host tools `<details>`, which `.first()` would resolve to in DOM
+    // order even though it isn't visible.
     await expect(
-      page.getByText(/players signed up|attendance|attendees|rsvp|going/i).first(),
+      page.getByRole('heading', { name: /players signed up|attendance|attendees|rsvp|going/i }),
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -295,8 +311,19 @@ test.describe('event host flows', () => {
     await addUserBtn.click();
     await page.waitForLoadState('networkidle');
 
-    // Attendee-b should now appear in the hosts section.
-    await expect(page.locator('main')).toContainText(searchTerm!, { timeout: 10_000 });
+    // Attendee-b should now appear in the hosts list specifically.
+    // Asserting on `main` would pass on the UserPicker chip echo even
+    // if the co-host failed to render — scope to the hosts list so a
+    // failure here points at the real bug (empty `<li>` in coHostUsers).
+    const hostsList = page.getByRole('list', { name: /hosts/i }).or(
+      page
+        .locator('section')
+        .filter({ has: page.getByRole('heading', { name: /hosted by/i }) })
+        .first()
+        .locator('ul')
+        .first(),
+    );
+    await expect(hostsList).toContainText(searchTerm!, { timeout: 10_000 });
 
     // Remove attendee-b as co-host.
     const removeBtn = page
