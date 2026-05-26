@@ -111,7 +111,11 @@ test.describe('profile form', () => {
 
     await igInput.fill('e2etestuser');
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('domcontentloaded');
+    // Server actions POST to the current URL without triggering a document
+    // navigation, so `waitForLoadState('domcontentloaded')` is a no-op and
+    // the next `page.goto()` races the in-flight write. Wait for the success
+    // flash instead — it only renders after the action resolves.
+    await expect(page.getByText(/profile updated/i).first()).toBeVisible({ timeout: 10_000 });
 
     await page.goto('/profile');
     await openEditForm(page);
@@ -123,7 +127,7 @@ test.describe('profile form', () => {
     // Cleanup — restore original value.
     await page.locator('input[name="instagram_handle"]').first().fill(originalValue);
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('domcontentloaded');
+    await expect(page.getByText(/profile updated/i).first()).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -194,28 +198,40 @@ test.describe('notification preferences', () => {
 
     const originalChecked = await emailToggle.isChecked();
 
-    // Toggle the checkbox.
+    // Toggle the checkbox and confirm the UI flipped before submitting.
     await emailToggle.click();
+    await expect(emailToggle).toBeChecked({ checked: !originalChecked });
+
+    // Server actions POST to the current URL without a document navigation,
+    // so `waitForLoadState('domcontentloaded')` is a no-op here. Wait for the
+    // action POST to resolve before reloading, otherwise the goto below races
+    // the write and reads the pre-save row.
     const saveBtn = page.getByRole('button', { name: /save/i }).first();
-    if ((await saveBtn.count()) > 0) {
-      await saveBtn.click();
-    }
-    await page.waitForLoadState('domcontentloaded');
+    const waitForSave = page.waitForResponse(
+      (r) =>
+        r.request().method() === 'POST' &&
+        r.url().includes('/profile/notifications') &&
+        r.status() < 400,
+    );
+    await saveBtn.click();
+    await waitForSave;
 
     // Reload and verify state changed.
     await page.goto('/profile/notifications');
     const toggleAfter = page.locator('input[name="email_enabled"]').first();
     await expect(toggleAfter).toBeVisible({ timeout: 10_000 });
-    const newChecked = await toggleAfter.isChecked();
-    expect(newChecked).toBe(!originalChecked);
+    await expect(toggleAfter).toBeChecked({ checked: !originalChecked });
 
     // Cleanup — restore original state.
     await toggleAfter.click();
-    const saveBtnAgain = page.getByRole('button', { name: /save/i }).first();
-    if ((await saveBtnAgain.count()) > 0) {
-      await saveBtnAgain.click();
-    }
-    await page.waitForLoadState('domcontentloaded');
+    const waitForRestore = page.waitForResponse(
+      (r) =>
+        r.request().method() === 'POST' &&
+        r.url().includes('/profile/notifications') &&
+        r.status() < 400,
+    );
+    await page.getByRole('button', { name: /save/i }).first().click();
+    await waitForRestore;
   });
 });
 
