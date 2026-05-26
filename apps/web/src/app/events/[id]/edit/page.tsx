@@ -22,12 +22,17 @@ function pickQuery(
 
 export const dynamic = 'force-dynamic';
 
+// See note in apps/web/src/app/events/[id]/page.tsx. Reject non-UUID ids
+// (e.g. `/events/new/edit` from a crawler) before they hit the DB.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function EditEventPage(props: {
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const searchParams = await props.searchParams;
   const { id } = await props.params;
+  if (!UUID_RE.test(id)) notFound();
   const viewer = await getViewer();
   if (!viewer || !viewer.user) redirect(`/login?next=/events/${id}/edit`);
   if (isAnonymousUser(viewer.user)) redirect(`/events/${id}`);
