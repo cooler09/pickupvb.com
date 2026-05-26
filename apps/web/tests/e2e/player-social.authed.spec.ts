@@ -1,15 +1,6 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
-
-const ATTENDEE_B_STATE = path.join(
-  __dirname,
-  '..',
-  '..',
-  '.playwright',
-  '.auth',
-  'attendee-b.json',
-);
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Authenticated player social flows: own public profile, player directory,
@@ -23,7 +14,7 @@ const ATTENDEE_B_STATE = path.join(
 test.describe('own public profile', () => {
   test('own public profile loads at /players/<handle>', async ({ page }) => {
     await page.goto('/profile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Look for a link to /players/<handle> on the profile page.
     const playerLink = page.locator('a[href*="/players/"]').first();
@@ -87,7 +78,7 @@ test.describe('player directory', () => {
   test('signed-in user profile is listed in /players directory', async ({ page }) => {
     // Get own handle/display_name from profile page first.
     await page.goto('/profile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     let ownHandle: string | null = null;
 
@@ -116,7 +107,7 @@ test.describe('player directory', () => {
       .slice(0, 24);
 
     await page.goto(`/players?q=${encodeURIComponent(cleanQuery)}`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     const mainText = (await page.locator('main').textContent()) ?? '';
     if (/no players match/i.test(mainText)) {
       test.skip(true, `Own profile not indexed in /players (searched "${cleanQuery}"); skipping`);
@@ -129,7 +120,7 @@ test.describe('follow and unfollow a player', () => {
   test('follow first non-self player, verify Following, then unfollow', async ({ page }) => {
     // Determine own handle so we can skip self in the player list.
     await page.goto('/profile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     let ownHandle: string | null = null;
     const handleInput = page.locator('input[name="handle"]').first();
@@ -138,7 +129,7 @@ test.describe('follow and unfollow a player', () => {
     }
 
     await page.goto('/players');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const playerLinks = page.locator('a[href*="/players/"]');
     const linkCount = await playerLinks.count();
@@ -161,7 +152,7 @@ test.describe('follow and unfollow a player', () => {
     }
 
     await page.goto(targetHref!);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Look for the "+ Follow" button.
     const followBtn = page
@@ -174,7 +165,7 @@ test.describe('follow and unfollow a player', () => {
     }
 
     await followBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify "✓ Following" or "Following" or "Unfollow" appears.
     const followingIndicator = page
@@ -186,7 +177,7 @@ test.describe('follow and unfollow a player', () => {
     // Cleanup — unfollow.
     const unfollowBtn = page.getByRole('button', { name: /following|unfollow/i }).first();
     await unfollowBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify we are back to the follow state.
     const backToFollow = page
@@ -217,13 +208,11 @@ test.describe('friends and following', () => {
   }) => {
     test.setTimeout(60_000);
 
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // Determine attendee-a's own handle.
     await page.goto('/profile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     const aHandleInput = page.locator('input[name="handle"]').first();
     const aHandle = (await aHandleInput.count()) > 0 ? await aHandleInput.inputValue() : null;
     if (!aHandle) {
@@ -231,12 +220,12 @@ test.describe('friends and following', () => {
     }
 
     // Determine attendee-b's handle (declared outside try so cleanup can reference it).
-    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bContext.newPage();
     let bHandle: string | null = null;
     try {
       await bPage.goto('/profile');
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       const bHandleInput = bPage.locator('input[name="handle"]').first();
       bHandle = (await bHandleInput.count()) > 0 ? await bHandleInput.inputValue() : null;
       if (!bHandle) {
@@ -245,11 +234,11 @@ test.describe('friends and following', () => {
 
       // Attendee-a follows attendee-b.
       await page.goto(`/players/${bHandle}`);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       const aFollowBtn = page.getByRole('button', { name: /\+\s*follow|^follow$/i }).first();
       if ((await aFollowBtn.count()) > 0) {
         await aFollowBtn.click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         await expect(page.getByRole('button', { name: /following|unfollow/i }).first()).toBeVisible(
           { timeout: 10_000 },
         );
@@ -257,11 +246,11 @@ test.describe('friends and following', () => {
 
       // Attendee-b follows attendee-a back.
       await bPage.goto(`/players/${aHandle}`);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       const bFollowBtn = bPage.getByRole('button', { name: /\+\s*follow|^follow$/i }).first();
       if ((await bFollowBtn.count()) > 0) {
         await bFollowBtn.click();
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
         await expect(
           bPage.getByRole('button', { name: /following|unfollow/i }).first(),
         ).toBeVisible({ timeout: 10_000 });
@@ -269,7 +258,7 @@ test.describe('friends and following', () => {
 
       // /friends should now list attendee-b as a mutual connection.
       await page.goto('/friends');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
       // Accept any mutual-follow indicator: "Friends", "Mutual", or bHandle appearing in the list.
       const hasMutual = await page
@@ -283,11 +272,11 @@ test.describe('friends and following', () => {
       // Cleanup: attendee-b unfollows attendee-a.
       if (aHandle) {
         await bPage.goto(`/players/${aHandle}`);
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
         const bUnfollowBtn = bPage.getByRole('button', { name: /following|unfollow/i }).first();
         if ((await bUnfollowBtn.count()) > 0) {
           await bUnfollowBtn.click();
-          await bPage.waitForLoadState('networkidle');
+          await bPage.waitForLoadState('domcontentloaded');
         }
       }
       await bContext.close();
@@ -295,11 +284,11 @@ test.describe('friends and following', () => {
       // Attendee-a unfollows attendee-b.
       if (bHandle) {
         await page.goto(`/players/${bHandle}`);
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         const aUnfollowBtn = page.getByRole('button', { name: /following|unfollow/i }).first();
         if ((await aUnfollowBtn.count()) > 0) {
           await aUnfollowBtn.click();
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
         }
       }
     }

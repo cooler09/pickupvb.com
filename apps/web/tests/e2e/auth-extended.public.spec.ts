@@ -20,7 +20,7 @@ test.describe('sign-up form', () => {
 
     if ((await signUpToggle.count()) > 0) {
       await signUpToggle.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
     // If no toggle, the page may already be in sign-up mode or a unified form.
 
@@ -41,7 +41,7 @@ test.describe('sign-up form', () => {
 
     if ((await signUpToggle.count()) > 0) {
       await signUpToggle.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
 
     // Fall back to /register if the /login page has no sign-up mode.
@@ -60,7 +60,7 @@ test.describe('sign-up form', () => {
       .first()
       .click();
 
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Validation can surface via browser constraint, inline error, or toast.
     // The email field should be invalid OR the body should contain an error message.
@@ -87,7 +87,7 @@ test.describe('sign-up form', () => {
 
     if ((await signUpToggle.count()) > 0) {
       await signUpToggle.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
 
     const emailInput = page.getByLabel(/email/i).first();
@@ -105,7 +105,7 @@ test.describe('sign-up form', () => {
       .first()
       .click();
 
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Either the password field is browser-invalid OR the page shows a length error.
     const passwordInput = page.getByLabel(/password/i).first();
@@ -156,7 +156,7 @@ test.describe('anonymous / guest session', () => {
     }
 
     await joinEl.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Accept: redirect to /login, OR a sign-in modal, OR a guest start flow.
     const urlHasLogin = page.url().includes('/login');

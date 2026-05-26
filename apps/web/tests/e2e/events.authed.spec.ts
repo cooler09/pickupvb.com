@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Authenticated event flows.
@@ -34,13 +35,10 @@ test.describe('saved event templates (Pro feature)', () => {
   // setup-pro-host project (driven by TEST_PRO_HOST_EMAIL) writes
   // .playwright/.auth/pro-host.json which we open here. Mirrors the pattern
   // in billing-stripe.authed.spec.ts.
-  const PRO_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'pro-host.json');
 
   test('clicking Save template with an empty name shows inline error', async ({ browser }) => {
-    if (!fs.existsSync(PRO_HOST_STATE)) {
-      test.skip(true, 'pro-host auth not set up (TEST_PRO_HOST_EMAIL missing); skipping');
-    }
-    const ctx = await browser.newContext({ storageState: PRO_HOST_STATE });
+    skipIfMissingAuth(STORAGE_PATHS.proHost, 'pro-host');
+    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.proHost });
     const page = await ctx.newPage();
     try {
       await page.goto('/events/new');
@@ -98,7 +96,7 @@ test.describe('RSVP — join and leave a free event', () => {
 
     // Join.
     await joinBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // The "Leave event" button should now appear, confirming the join succeeded.
     await expect(page.getByRole('button', { name: /leave event/i }).first()).toBeVisible({
@@ -115,10 +113,10 @@ test.describe('RSVP — join and leave a free event', () => {
       .getByRole('button', { name: /confirm|yes|leave/i })
       .filter({ hasNotText: /cancel/i })
       .first();
-    if (await confirmLeave.isVisible().catch(() => false)) {
+    if (await isVisibleOrTimeout(confirmLeave)) {
       await confirmLeave.click();
     }
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Back to join state.
     await expect(page.getByRole('button', { name: /join this event/i }).first()).toBeVisible({
@@ -140,7 +138,7 @@ test.describe('event edit', () => {
 
   test('non-host is redirected away from /events/<id>/edit', async ({ page }) => {
     await page.goto('/events');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const eventLinks = page.locator('a[href*="/events/"]');
     const count = await eventLinks.count();
@@ -155,7 +153,7 @@ test.describe('event edit', () => {
 
       const editUrl = href.replace(/\/$/, '') + '/edit';
       await page.goto(editUrl);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const finalUrl = page.url();
       if (!finalUrl.includes('/edit')) {
@@ -166,7 +164,7 @@ test.describe('event edit', () => {
 
       // We own this event; try the next one.
       await page.goto('/events');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
 
     test.skip(

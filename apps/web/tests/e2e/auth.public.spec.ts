@@ -27,7 +27,7 @@ test.describe('auth forms', () => {
     await form.getByRole('button', { name: /sign in|log in|create account/i }).click();
 
     // Should stay on the login page and show an error — not redirect, not crash.
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await expect(page).toHaveURL(/\/login/);
     await expect(page.locator('body')).toContainText(
       /invalid|incorrect|wrong|not found|error|try again/i,
@@ -44,7 +44,7 @@ test.describe('auth forms', () => {
 
     await page.getByLabel(/email/i).fill('no-such-user@pickupvb-e2e.invalid');
     await page.getByRole('button', { name: /send|reset|submit/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Should show a neutral confirmation — not reveal whether the email exists.
     await expect(page.locator('body')).toContainText(

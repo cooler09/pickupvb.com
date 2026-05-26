@@ -14,12 +14,14 @@ test.describe('non-owner cannot edit an event', () => {
   test('visiting /events/<id>/edit for a non-owned event redirects or 404s', async ({ page }) => {
     // Find the first event in the browse list.
     await page.goto('/events');
-    await page.waitForLoadState('networkidle');
 
     const eventLink = page.locator('a[href*="/events/"]').first();
+    // Don't use waitForLoadState('networkidle') — analytics beacons keep the
+    // network busy past the test timeout. Wait on a deterministic UI signal.
     if ((await eventLink.count()) === 0) {
       test.skip(true, 'No events in this environment; skipping authorization test');
     }
+    await expect(eventLink).toBeVisible();
 
     const href = (await eventLink.getAttribute('href')) ?? '';
     if (!href) {
@@ -71,12 +73,12 @@ test.describe('non-member cannot access group members page', () => {
   test('/groups/<slug>/members redirects non-member', async ({ page }) => {
     // Find the first group in the directory.
     await page.goto('/groups');
-    await page.waitForLoadState('networkidle');
 
     const groupLink = page.locator('a[href*="/groups/"]').first();
     if ((await groupLink.count()) === 0) {
       test.skip(true, 'No groups in this environment; skipping');
     }
+    await expect(groupLink).toBeVisible();
 
     const href = (await groupLink.getAttribute('href')) ?? '';
     if (!href) {

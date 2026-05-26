@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 import path from 'node:path';
 
 /**
@@ -32,7 +33,7 @@ test.describe('hero image — profile', () => {
     const existingBanner = page.locator('img').filter({ hasText: '' }).first();
 
     // The widget renders either the add button or the existing image — one must be visible.
-    const hasAdd = await addBannerBtn.isVisible({ timeout: 10_000 }).catch(() => false);
+    const hasAdd = await isVisibleOrTimeout(addBannerBtn, 10_000);
     const hasExisting = await page
       .locator('[data-testid*="banner"], [data-testid*="hero"], .hero-image, .banner-image')
       .first()
@@ -58,7 +59,7 @@ test.describe('hero image — profile', () => {
       .catch(() => false);
     if (hasExistingRemove) {
       await existingRemoveBtn.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
 
     // The "Add banner image" trigger must now be visible.
@@ -83,7 +84,7 @@ test.describe('hero image — profile', () => {
     const removeBtn = page.getByRole('button', { name: /remove/i }).first();
     await expect(removeBtn).toBeVisible({ timeout: 10_000 });
     await removeBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Confirm the widget reverts to the add state.
     await expect(page.getByRole('button', { name: /add banner image/i }).first()).toBeVisible({
@@ -114,7 +115,7 @@ test.describe('hero image — event edit', () => {
     }
 
     const addBannerBtn = page.getByRole('button', { name: /add banner image/i }).first();
-    const hasWidget = await addBannerBtn.isVisible({ timeout: 10_000 }).catch(() => false);
+    const hasWidget = await isVisibleOrTimeout(addBannerBtn, 10_000);
     if (!hasWidget) {
       test.skip(true, 'No hero image widget found on event edit page');
     }
@@ -141,7 +142,7 @@ test.describe('hero image — group edit', () => {
     }
 
     const addBannerBtn = page.getByRole('button', { name: /add banner image/i }).first();
-    const hasWidget = await addBannerBtn.isVisible({ timeout: 10_000 }).catch(() => false);
+    const hasWidget = await isVisibleOrTimeout(addBannerBtn, 10_000);
     if (!hasWidget) {
       test.skip(true, 'No hero image widget found on group edit page');
     }

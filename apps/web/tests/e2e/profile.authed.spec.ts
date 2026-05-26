@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Authenticated smoke. Uses the storageState produced by `auth.setup.ts`.
@@ -68,10 +69,10 @@ test.describe('authed smoke', () => {
       await page.goto('/profile');
       // Sign-out button lives in the header (desktop) or mobile menu.
       const signOut = page.getByRole('button', { name: /sign out/i }).first();
-      if (!(await signOut.isVisible().catch(() => false))) {
+      if (!(await isVisibleOrTimeout(signOut))) {
         // Open the mobile menu trigger if the header button is hidden.
         const menu = page.getByRole('button', { name: /menu|account|profile/i }).first();
-        if (await menu.isVisible().catch(() => false)) await menu.click();
+        if (await isVisibleOrTimeout(menu)) await menu.click();
       }
       // Sign-out submits a server action / form post; wait for the resulting
       // navigation so the auth cookie clear is in effect before we re-visit.

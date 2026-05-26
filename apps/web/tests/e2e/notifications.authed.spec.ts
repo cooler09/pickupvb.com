@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Notification flows (Section 13 of the test plan).
@@ -12,15 +12,6 @@ import fs from 'node:fs';
  *
  * Notification preferences (toggle email on/off) are covered in profile-edit.authed.spec.ts.
  */
-
-const ATTENDEE_B_STATE = path.join(
-  __dirname,
-  '..',
-  '..',
-  '.playwright',
-  '.auth',
-  'attendee-b.json',
-);
 
 test.describe('in-app notification bell', () => {
   test('notification bell is visible in the page header', async ({ page }) => {
@@ -95,13 +86,11 @@ test.describe('in-app notification bell', () => {
     browser,
   }) => {
     test.setTimeout(60_000);
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // Determine attendee-a's public handle.
     await page.goto('/profile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     const handleInput = page.locator('input[name="handle"]').first();
     const ownHandle = (await handleInput.count()) > 0 ? await handleInput.inputValue() : null;
     if (!ownHandle) {
@@ -109,11 +98,11 @@ test.describe('in-app notification bell', () => {
     }
 
     // Attendee-b follows attendee-a to generate a notification.
-    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bContext.newPage();
     try {
       await bPage.goto(`/players/${ownHandle}`);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
 
       // If already following, unfollow first so the follow action is fresh.
       const alreadyFollowing = await bPage
@@ -126,7 +115,7 @@ test.describe('in-app notification bell', () => {
           .getByRole('button', { name: /following|unfollow/i })
           .first()
           .click();
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
       }
 
       const followBtn = bPage.getByRole('button', { name: /\+\s*follow|^follow$/i }).first();
@@ -134,14 +123,14 @@ test.describe('in-app notification bell', () => {
         test.skip(true, 'No follow button found on attendee-a player page; skipping');
       }
       await followBtn.click();
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       await expect(bPage.getByRole('button', { name: /following|unfollow/i }).first()).toBeVisible({
         timeout: 10_000,
       });
 
       // On attendee-a's page, navigate to home and wait for the Realtime notification.
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       // Allow up to 10 s for the Supabase Realtime push to arrive and the badge to appear.
       const bellWithBadge = page.locator('button[aria-label*="Notifications ("]');
       await expect(bellWithBadge).toBeVisible({ timeout: 15_000 });
@@ -166,11 +155,11 @@ test.describe('in-app notification bell', () => {
     } finally {
       // Cleanup: attendee-b unfollows attendee-a.
       await bPage.goto(`/players/${ownHandle}`);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       const unfollowBtn = bPage.getByRole('button', { name: /following|unfollow/i }).first();
       if ((await unfollowBtn.count()) > 0) {
         await unfollowBtn.click();
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
       }
       await bContext.close();
     }

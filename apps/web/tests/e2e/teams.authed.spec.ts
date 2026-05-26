@@ -1,15 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
-
-const ATTENDEE_B_STATE = path.join(
-  __dirname,
-  '..',
-  '..',
-  '.playwright',
-  '.auth',
-  'attendee-b.json',
-);
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Finds a team URL that the current user captains, by loading /teams and
@@ -18,7 +10,7 @@ const ATTENDEE_B_STATE = path.join(
 async function findCaptainedTeamUrl(page: Page): Promise<string | null> {
   await page.goto('/teams');
   // MyTeamsPanel is a client component — wait for it to hydrate.
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.waitForTimeout(2_000);
 
   const captainedSection = page
@@ -45,7 +37,7 @@ async function findCaptainedTeamUrl(page: Page): Promise<string | null> {
  */
 async function ensureSearchableDisplayName(page: Page, prefix: string): Promise<string> {
   await page.goto('/profile');
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   const dnInput = page.locator('input[name="display_name"]').first();
   await expect(dnInput).toBeVisible({ timeout: 10_000 });
   const current = await dnInput.inputValue();
@@ -66,7 +58,7 @@ async function ensureSearchableDisplayName(page: Page, prefix: string): Promise<
     .catch(() => {
       /* tolerate no alert; we re-check value below */
     });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   return next;
 }
 
@@ -150,9 +142,7 @@ test.describe('team invites', () => {
   }) => {
     test.setTimeout(90_000);
 
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     const teamUrl = await findCaptainedTeamUrl(page);
     if (!teamUrl) {
@@ -162,7 +152,7 @@ test.describe('team invites', () => {
       );
     }
 
-    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bContext.newPage();
     let searchTerm: string | null = null;
     try {
@@ -183,7 +173,7 @@ test.describe('team invites', () => {
     try {
       // Navigate to the team page and use "Add a teammate" UserPicker.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Pre-cleanup: if attendee-b is already on the roster or has a pending
       // invite (e.g. from a previous failed run), remove them first. The
@@ -197,12 +187,12 @@ test.describe('team invites', () => {
           await cleanupBtn.click();
           // Confirm dialog if present.
           const confirmBtn = page.getByRole('button', { name: /confirm|remove|yes/i }).first();
-          if (await confirmBtn.isVisible().catch(() => false)) {
+          if (await isVisibleOrTimeout(confirmBtn)) {
             await confirmBtn.click();
           }
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
           await page.reload();
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
         }
       }
 
@@ -211,7 +201,7 @@ test.describe('team invites', () => {
         test.skip(true, 'No UserPicker combobox on team page; may not be captain');
       }
       await combobox.fill(searchTerm!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const listbox = page.getByRole('listbox').first();
       await expect(listbox).toBeVisible({ timeout: 10_000 });
@@ -236,23 +226,23 @@ test.describe('team invites', () => {
       const addTeammateBtn = page.getByRole('button', { name: /add teammate|add member/i }).first();
       await expect(addTeammateBtn).toBeVisible({ timeout: 5_000 });
       await addTeammateBtn.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Attendee-b should appear as "Pending invite" in the roster.
       await expect(page.locator('main')).toContainText(/pending invite/i, { timeout: 10_000 });
 
       // Attendee-b navigates to the team page and accepts the invite.
       await bPage.goto(teamUrl!);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
 
       const acceptBtn = bPage.getByRole('button', { name: /accept invite/i }).first();
       await expect(acceptBtn).toBeVisible({ timeout: 10_000 });
       await acceptBtn.click();
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
 
       // Reload team page as captain — attendee-b should now be an active member.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await expect(page.locator('main')).toContainText(searchTerm!, { timeout: 10_000 });
       // "Pending invite" label should be gone for this member.
       const memberRow = page.locator('li, tr').filter({ hasText: searchTerm! }).first();
@@ -262,7 +252,7 @@ test.describe('team invites', () => {
       const removeBtn = memberRow.getByRole('button', { name: /remove/i }).first();
       await expect(removeBtn).toBeVisible({ timeout: 10_000 });
       await removeBtn.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Roster should no longer contain attendee-b.
       await expect(page.locator('main')).not.toContainText(searchTerm!, { timeout: 10_000 });
@@ -274,16 +264,14 @@ test.describe('team invites', () => {
   test('attendee-b declines an invite — not added to roster', async ({ page, browser }) => {
     test.setTimeout(90_000);
 
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     const teamUrl = await findCaptainedTeamUrl(page);
     if (!teamUrl) {
       test.skip(true, 'No captained team found; skipping decline test');
     }
 
-    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bContext.newPage();
     let searchTerm: string | null = null;
     try {
@@ -301,14 +289,14 @@ test.describe('team invites', () => {
     try {
       // Captain invites attendee-b.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const combobox = page.getByRole('combobox').first();
       if ((await combobox.count()) === 0) {
         test.skip(true, 'No UserPicker on team page; may not be captain');
       }
       await combobox.fill(searchTerm!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const listbox = page.getByRole('listbox').first();
       await expect(listbox).toBeVisible({ timeout: 10_000 });
@@ -316,22 +304,22 @@ test.describe('team invites', () => {
 
       const addTeammateBtn = page.getByRole('button', { name: /add teammate|add member/i }).first();
       await addTeammateBtn.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       await expect(page.locator('main')).toContainText(/pending invite/i, { timeout: 10_000 });
 
       // Attendee-b declines.
       await bPage.goto(teamUrl!);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
 
       const declineBtn = bPage.getByRole('button', { name: /decline/i }).first();
       await expect(declineBtn).toBeVisible({ timeout: 10_000 });
       await declineBtn.click();
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
 
       // Reload as captain — attendee-b should not appear on the roster.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       const hasSearchTerm = await page
         .locator('main')
         .getByText(searchTerm!)
@@ -342,15 +330,15 @@ test.describe('team invites', () => {
     } finally {
       // Cleanup: cancel any remaining pending invite from captain's side.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       const cancelBtn = page
         .locator('li, tr')
         .filter({ hasText: searchTerm! })
         .getByRole('button', { name: /cancel/i })
         .first();
-      if (await cancelBtn.isVisible().catch(() => false)) {
+      if (await isVisibleOrTimeout(cancelBtn)) {
         await cancelBtn.click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
       }
       await bContext.close();
     }
@@ -366,7 +354,7 @@ test.describe('remove member', () => {
     }
 
     await page.goto(teamUrl!);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // If there are any non-captain roster rows, a Remove button should be visible.
     // This test just verifies the UI element is present when applicable.
@@ -378,7 +366,7 @@ test.describe('remove member', () => {
 
     // Find any Remove button (non-captain member row).
     const removeBtn = page.getByRole('button', { name: /^remove$/i }).first();
-    const hasRemove = await removeBtn.isVisible({ timeout: 3_000 }).catch(() => false);
+    const hasRemove = await isVisibleOrTimeout(removeBtn, 3_000);
     // Either there's a Remove button (other members) or the roster only has the captain.
     // We accept both states; the real removal flow is tested in team invites.
     expect(typeof hasRemove).toBe('boolean');
@@ -389,16 +377,14 @@ test.describe('team broadcast', () => {
   test('captain sends a broadcast after attendee-b joins', async ({ page, browser }) => {
     test.setTimeout(90_000);
 
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     const teamUrl = await findCaptainedTeamUrl(page);
     if (!teamUrl) {
       test.skip(true, 'No captained team found; skipping broadcast test');
     }
 
-    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bContext.newPage();
     let searchTerm: string | null = null;
     try {
@@ -416,14 +402,14 @@ test.describe('team broadcast', () => {
     try {
       // Captain invites attendee-b.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const combobox = page.getByRole('combobox').first();
       if ((await combobox.count()) === 0) {
         test.skip(true, 'No UserPicker on team page; may not be captain');
       }
       await combobox.fill(searchTerm!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       const listbox = page.getByRole('listbox').first();
       await expect(listbox).toBeVisible({ timeout: 10_000 });
       await listbox.getByRole('option').first().click();
@@ -431,21 +417,21 @@ test.describe('team broadcast', () => {
         .getByRole('button', { name: /add teammate|add member/i })
         .first()
         .click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Attendee-b accepts.
       await bPage.goto(teamUrl!);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       const acceptBtn = bPage.getByRole('button', { name: /accept invite/i }).first();
       if ((await acceptBtn.count()) === 0) {
         test.skip(true, 'Attendee-b did not receive invite; skipping broadcast test');
       }
       await acceptBtn.click();
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
 
       // Captain opens "Message team" and sends a broadcast.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const messageSummary = page
         .locator('details summary')
@@ -461,7 +447,7 @@ test.describe('team broadcast', () => {
       const sendBtn = page.getByRole('button', { name: /send message/i }).first();
       await expect(sendBtn).toBeVisible({ timeout: 5_000 });
       await sendBtn.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const success = await page
         .getByText(/sent|delivered|message sent/i)
@@ -473,12 +459,12 @@ test.describe('team broadcast', () => {
     } finally {
       // Cleanup: remove attendee-b from the team.
       await page.goto(teamUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       const memberRow = page.locator('li, tr').filter({ hasText: searchTerm! }).first();
       const removeBtn = memberRow.getByRole('button', { name: /remove|cancel/i }).first();
-      if (await removeBtn.isVisible().catch(() => false)) {
+      if (await isVisibleOrTimeout(removeBtn)) {
         await removeBtn.click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
       }
       await bContext.close();
     }

@@ -26,7 +26,7 @@ test.describe('events browse — public filters', () => {
 
   test('?surface=indoor shows an active filter chip', async ({ page }) => {
     await page.goto('/events?surface=indoor');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // ActiveFilterChips wraps the chip in a Link with aria-label
     // "Remove filter <label>" — uniquely identifies the chip vs the dropdown option.
@@ -38,7 +38,7 @@ test.describe('events browse — public filters', () => {
 
   test('?skillBand=intermediate shows an active skill filter chip', async ({ page }) => {
     await page.goto('/events?skillBand=intermediate');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const skillChip = page.getByRole('link', { name: /remove filter intermediate/i });
     await expect(skillChip).toBeVisible({ timeout: 10_000 });
@@ -51,7 +51,7 @@ test.describe('events browse — public filters', () => {
   }) => {
     const response = await page.goto('/events?surface=indoor&skillBand=intermediate');
     expect(response?.ok(), `filtered /events returned ${response?.status()}`).toBeTruthy();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await expect(page.getByRole('link', { name: /remove filter indoor/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /remove filter intermediate/i })).toBeVisible();
     // "Clear all" appears when 2+ chips are active.

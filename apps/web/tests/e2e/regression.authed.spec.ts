@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
-
-const STORAGE_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
-const PRO_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'pro-host.json');
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Regression checklist (Section 19) — a targeted smoke pass that should
@@ -17,7 +15,7 @@ const PRO_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 
 
 test.describe('regression', () => {
   // No serial mode needed: the sign-out test (line ~198) creates its own
-  // fresh context from STORAGE_STATE and the header signOut uses scope:'local',
+  // fresh context from STORAGE_PATHS.attendeeA and the header signOut uses scope:'local',
   // so it cannot leak into other tests' contexts.
 
   test('home page loads signed out (public sanity)', async ({ page }) => {
@@ -57,7 +55,7 @@ test.describe('regression', () => {
     }
 
     await joinBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByRole('button', { name: /leave event/i }).first()).toBeVisible({
       timeout: 15_000,
@@ -73,10 +71,10 @@ test.describe('regression', () => {
       .getByRole('button', { name: /confirm|yes|leave/i })
       .filter({ hasNotText: /cancel/i })
       .first();
-    if (await confirmLeave.isVisible().catch(() => false)) {
+    if (await isVisibleOrTimeout(confirmLeave)) {
       await confirmLeave.click();
     }
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(page.getByRole('button', { name: /join this event/i }).first()).toBeVisible({
       timeout: 15_000,
@@ -104,18 +102,16 @@ test.describe('regression', () => {
     const addBannerBtn = page.getByRole('button', { name: /add banner image/i }).first();
     const changeBtn = page.getByRole('button', { name: /change image/i }).first();
 
-    const hasAdd = await addBannerBtn.isVisible({ timeout: 10_000 }).catch(() => false);
-    const hasChange = await changeBtn.isVisible({ timeout: 10_000 }).catch(() => false);
+    const hasAdd = await isVisibleOrTimeout(addBannerBtn, 10_000);
+    const hasChange = await isVisibleOrTimeout(changeBtn, 10_000);
 
     expect(hasAdd || hasChange, 'Hero image upload widget must be visible on /profile').toBe(true);
   });
 
   test('template save validation shows error for empty name', async ({ browser }) => {
     // Pro-only feature — run against the pro-host storage state.
-    if (!fs.existsSync(PRO_HOST_STATE)) {
-      test.skip(true, 'pro-host auth not set up (TEST_PRO_HOST_EMAIL missing); skipping');
-    }
-    const ctx = await browser.newContext({ storageState: PRO_HOST_STATE });
+    skipIfMissingAuth(STORAGE_PATHS.proHost, 'pro-host');
+    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.proHost });
     const page = await ctx.newPage();
     try {
       await page.goto('/events/new');
@@ -162,7 +158,7 @@ test.describe('regression', () => {
 
     await titleInput.fill(updatedTitle);
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Navigate to detail page and confirm the title change is visible.
     await page.goto(href);
@@ -172,7 +168,7 @@ test.describe('regression', () => {
     await page.goto(editUrl);
     await page.locator('#title').first().fill(originalTitle);
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test('group page loads', async ({ page }) => {
@@ -213,7 +209,7 @@ test.describe('regression', () => {
       'Sign-out test temporarily disabled until apps/web is redeployed with scope:"local" signOut. Set SUPABASE_LOCAL_SIGNOUT_DEPLOYED=1 to opt in.',
     );
     // Use a fresh context so this test does not destroy the shared authed session.
-    const context = await browser.newContext({ storageState: STORAGE_STATE });
+    const context = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
     const page = await context.newPage();
     try {
       await page.goto('/profile');
@@ -229,14 +225,14 @@ test.describe('regression', () => {
       }
 
       await signOutBtn.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // After signing out the user should NOT still be on /profile.
       expect(page.url()).not.toMatch(/\/profile/);
 
       // Visiting /profile while signed out must redirect to /login.
       await page.goto('/profile');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
       await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
     } finally {
       await context.close();
@@ -262,7 +258,7 @@ test.describe('regression', () => {
     const beforeDataTheme = (await htmlEl.getAttribute('data-theme')) ?? '';
 
     await themeToggle.first().click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // After toggling, the attribute must have changed.
     const afterClass = (await htmlEl.getAttribute('class')) ?? '';
@@ -272,7 +268,7 @@ test.describe('regression', () => {
 
     // Navigate to /events and verify the same theme is still applied.
     await page.goto('/events');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const eventsClass = (await page.locator('html').getAttribute('class')) ?? '';
     const eventsDataTheme = (await page.locator('html').getAttribute('data-theme')) ?? '';

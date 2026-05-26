@@ -1,15 +1,6 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
-
-const ATTENDEE_B_STATE = path.join(
-  __dirname,
-  '..',
-  '..',
-  '.playwright',
-  '.auth',
-  'attendee-b.json',
-);
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Authenticated community-directory flows.
@@ -138,12 +129,10 @@ test.describe('rate limiting and moderation (placeholders)', () => {
   }) => {
     test.setTimeout(60_000);
 
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // attendee-b creates a throwaway listing.
-    const bCtx = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bCtx = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bCtx.newPage();
     let listingUrl: string | null = null;
 
@@ -178,7 +167,7 @@ test.describe('rate limiting and moderation (placeholders)', () => {
 
       // attendee-a (main page fixture) navigates to the listing and reports it.
       await page.goto(listingUrl);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // "See a problem?" section with a reason select + "Report listing" button.
       const reasonSelect = page.locator('select[name="reason"]').first();
@@ -202,13 +191,13 @@ test.describe('rate limiting and moderation (placeholders)', () => {
       // Cleanup — attendee-b deletes the listing.
       if (listingUrl) {
         await bPage.goto(listingUrl);
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
         const confirmCheckbox = bPage.getByRole('checkbox', { name: /confirm/i }).first();
         if ((await confirmCheckbox.count()) > 0) await confirmCheckbox.check();
         const deleteBtn = bPage.getByRole('button', { name: /^delete$/i }).first();
         if ((await deleteBtn.count()) > 0) {
           await deleteBtn.click();
-          await bPage.waitForLoadState('networkidle');
+          await bPage.waitForLoadState('domcontentloaded');
         }
       }
       await bCtx.close();

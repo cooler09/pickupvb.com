@@ -85,7 +85,7 @@ test.describe('profile form', () => {
 
     await cityInput.fill('Virginia Beach');
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.goto('/profile');
     await openEditForm(page);
@@ -96,7 +96,7 @@ test.describe('profile form', () => {
     // Cleanup.
     await page.locator('input[name="home_city"]').first().fill(originalValue);
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 
   test('edit instagram_handle: fill, save, reload, verify, then clear and save', async ({
@@ -111,7 +111,7 @@ test.describe('profile form', () => {
 
     await igInput.fill('e2etestuser');
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await page.goto('/profile');
     await openEditForm(page);
@@ -123,7 +123,7 @@ test.describe('profile form', () => {
     // Cleanup — restore original value.
     await page.locator('input[name="instagram_handle"]').first().fill(originalValue);
     await page.getByRole('button', { name: /save changes/i }).click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 });
 
@@ -200,7 +200,7 @@ test.describe('notification preferences', () => {
     if ((await saveBtn.count()) > 0) {
       await saveBtn.click();
     }
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Reload and verify state changed.
     await page.goto('/profile/notifications');
@@ -215,7 +215,7 @@ test.describe('notification preferences', () => {
     if ((await saveBtnAgain.count()) > 0) {
       await saveBtnAgain.click();
     }
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
   });
 });
 

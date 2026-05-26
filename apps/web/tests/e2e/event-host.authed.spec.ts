@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Host-only event management flows.
@@ -12,17 +13,6 @@ import fs from 'node:fs';
  * If afterAll fails to clean up, cancel the event manually via
  * <eventUrl>/edit → "Cancel event…" → "Yes, cancel event".
  */
-
-// Reuse the same storageState that the authed project applies to each test.
-const STORAGE_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
-const ATTENDEE_B_STATE = path.join(
-  __dirname,
-  '..',
-  '..',
-  '.playwright',
-  '.auth',
-  'attendee-b.json',
-);
 
 let eventUrl: string | null = null;
 let testEventTitle: string;
@@ -71,7 +61,7 @@ async function pickFutureDateTime(
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(60_000);
-  const context = await browser.newContext({ storageState: STORAGE_STATE });
+  const context = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
   const page = await context.newPage();
   testEventTitle = `E2E Host Test ${Date.now()}`;
 
@@ -93,7 +83,7 @@ test.beforeAll(async ({ browser }) => {
     // collapses; if addressLine already triggered the collapse, click the
     // "Edit address details" button to reopen.
     const editDetailsBtn = page.getByRole('button', { name: /edit address details/i });
-    if (await editDetailsBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    if (await isVisibleOrTimeout(editDetailsBtn, 1_000)) {
       await editDetailsBtn.click();
     }
     await page.locator('#city').fill('Virginia Beach');
@@ -130,11 +120,11 @@ test.beforeAll(async ({ browser }) => {
 
 test.afterAll(async ({ browser }) => {
   if (!eventUrl) return;
-  const context = await browser.newContext({ storageState: STORAGE_STATE });
+  const context = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
   const page = await context.newPage();
   try {
     await page.goto(`${eventUrl}/edit`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     const cancelBtn = page.getByRole('button', { name: /cancel event…/i }).first();
     if ((await cancelBtn.count()) > 0) {
@@ -142,7 +132,7 @@ test.afterAll(async ({ browser }) => {
       const confirmBtn = page.getByRole('button', { name: /yes, cancel event/i }).first();
       if ((await confirmBtn.count()) > 0) {
         await confirmBtn.click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
       }
     }
   } catch {
@@ -249,21 +239,38 @@ test.describe('event host flows', () => {
   test('co-host section: add attendee-b, verify listed, remove', async ({ page, browser }) => {
     test.setTimeout(60_000);
 
+    // In-band diagnostics: capture console errors + failed/server-action
+    // responses so the next failure shows whether the POST even fired and
+    // what status it returned. Server-action POSTs in Next 16 target the
+    // page URL with a `Next-Action` header.
+    const consoleErrors: string[] = [];
+    const actionResponses: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 300));
+    });
+    page.on('requestfailed', (req) => {
+      actionResponses.push(`FAIL ${req.method()} ${req.url()} — ${req.failure()?.errorText}`);
+    });
+    page.on('response', async (res) => {
+      const req = res.request();
+      if (req.method() === 'POST' && req.headers()['next-action']) {
+        actionResponses.push(`${res.status()} ${req.url()} action=${req.headers()['next-action']}`);
+      }
+    });
+
     if (!eventUrl) {
       test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // Get attendee-b's display name for the UserPicker search.
-    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bContext.newPage();
     let bDisplayName: string | null = null;
     let bHandle: string | null = null;
     try {
       await bPage.goto('/profile');
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       const dnInput = bPage.locator('input[name="display_name"]').first();
       bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
       const hInput = bPage.locator('input[name="handle"]').first();
@@ -278,7 +285,7 @@ test.describe('event host flows', () => {
     }
 
     await page.goto(eventUrl!);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Open the "+ Add co-host" details panel.
     const addCoHostSummary = page
@@ -292,23 +299,42 @@ test.describe('event host flows', () => {
 
     // The "+ Add co-host" panel contains two controls: a `<select name="group_id">`
     // (which has the implicit role=combobox) AND the UserPicker text input.
-    // Target the UserPicker by its accessible name so we don't accidentally
-    // grab the group <select>.
-    const combobox = page.getByRole('combobox', { name: /add a player as co-host/i });
+    // Scope to the user form via its stable hidden `<input name="kind"
+    // value="user">` — that field is present in BOTH the unselected
+    // (combobox + listbox) and selected (chip + Change) render branches.
+    // Filtering by the combobox itself would lose the match after option
+    // selection, since the UserPicker drops the combobox in chip mode.
+    const userForm = page
+      .locator('form')
+      .filter({ has: page.locator('input[type="hidden"][name="kind"][value="user"]') })
+      .first();
+    const combobox = userForm.getByRole('combobox', { name: /add a player as co-host/i });
     await expect(combobox).toBeVisible({ timeout: 5_000 });
     await combobox.fill(searchTerm!);
-    await page.waitForLoadState('networkidle');
 
-    const listbox = page.getByRole('listbox').first();
+    const listbox = userForm.getByRole('listbox');
     await expect(listbox).toBeVisible({ timeout: 10_000 });
     const option = listbox.getByRole('option').first();
     await expect(option).toBeVisible({ timeout: 5_000 });
     await option.click();
 
-    // Submit "Add user".
-    const addUserBtn = page.getByRole('button', { name: /add user/i }).first();
-    await expect(addUserBtn).toBeVisible({ timeout: 5_000 });
-    await addUserBtn.click();
+    // UserPicker swaps render branches when an option is picked: the
+    // unselected branch has `<input hidden name="user_id" value="">`,
+    // the selected branch has `<input hidden name="user_id" value={id}>`
+    // and renders a "Change" button instead of the combobox. Without
+    // waiting for the chip to render, the next click can submit FormData
+    // with the empty hidden input → addCoHostFromForm silently no-ops
+    // (no flash, no exception). Belt-and-suspenders: confirm the hidden
+    // input actually carries an id.
+    await expect(userForm.getByRole('button', { name: /^change$/i })).toBeVisible({
+      timeout: 5_000,
+    });
+    await expect(userForm.locator('input[type="hidden"][name="user_id"]')).not.toHaveValue('', {
+      timeout: 5_000,
+    });
+
+    // Submit "Add user" (scoped to the form so we don't grab a stray button).
+    await userForm.getByRole('button', { name: /add user/i }).click();
 
     // Race the expected success signal (a new <li> in the hosts list
     // containing attendee-b) against the action's failure path (a
@@ -337,9 +363,16 @@ test.describe('event host flows', () => {
         .locator('li')
         .allTextContents()
         .catch(() => [] as string[]);
+      const hostsHtml = await hostsList
+        .first()
+        .evaluate((el) => el.outerHTML)
+        .catch(() => '<no-match>');
       throw new Error(
         `Co-host did not appear (outcome=${outcome}, url=${url}); ` +
-          `hosts <li> texts: ${JSON.stringify(liTexts)}`,
+          `hosts <li> texts: ${JSON.stringify(liTexts)}; ` +
+          `hosts UL: ${hostsHtml.slice(0, 1200)}; ` +
+          `action responses: ${JSON.stringify(actionResponses)}; ` +
+          `console errors: ${JSON.stringify(consoleErrors)}`,
       );
     }
 
@@ -350,7 +383,7 @@ test.describe('event host flows', () => {
       .first();
     await expect(removeBtn).toBeVisible({ timeout: 10_000 });
     await removeBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Attendee-b should no longer appear as a co-host.
     const coHostSection = page
@@ -371,30 +404,28 @@ test.describe('event host flows', () => {
     if (!eventUrl) {
       test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // Attendee-b RSVPs to the test event.
-    const bContext = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bContext.newPage();
     try {
       await bPage.goto(eventUrl!);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
 
       const joinBtn = bPage.getByRole('button', { name: /join this event/i }).first();
       if ((await joinBtn.count()) === 0) {
         test.skip(true, 'Attendee-b cannot join this event (full, paid, or already joined)');
       }
       await joinBtn.click();
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       await expect(bPage.getByRole('button', { name: /leave event/i }).first()).toBeVisible({
         timeout: 15_000,
       });
 
       // Host (attendee-a) navigates to event and sends a broadcast.
       await page.goto(eventUrl!);
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Open "Host tools" details.
       const hostToolsSummary = page
@@ -422,7 +453,7 @@ test.describe('event host flows', () => {
       const sendBtn = page.getByRole('button', { name: /send message/i }).first();
       await expect(sendBtn).toBeVisible({ timeout: 5_000 });
       await sendBtn.click();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // Success: the form resets or a success message appears.
       const success = await page
@@ -435,7 +466,7 @@ test.describe('event host flows', () => {
     } finally {
       // Cleanup: attendee-b leaves the event.
       await bPage.goto(eventUrl!);
-      await bPage.waitForLoadState('networkidle');
+      await bPage.waitForLoadState('domcontentloaded');
       const leaveBtn = bPage.getByRole('button', { name: /leave event/i }).first();
       if ((await leaveBtn.count()) > 0) {
         await leaveBtn.click();
@@ -443,10 +474,10 @@ test.describe('event host flows', () => {
           .getByRole('button', { name: /confirm|yes|leave/i })
           .filter({ hasNotText: /cancel/i })
           .first();
-        if (await confirmLeave.isVisible().catch(() => false)) {
+        if (await isVisibleOrTimeout(confirmLeave)) {
           await confirmLeave.click();
         }
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
       }
       await bContext.close();
     }

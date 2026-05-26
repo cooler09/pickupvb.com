@@ -1,17 +1,7 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
-
-const FREE_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'free-host.json');
-const ATTENDEE_B_STATE = path.join(
-  __dirname,
-  '..',
-  '..',
-  '.playwright',
-  '.auth',
-  'attendee-b.json',
-);
-const ATTENDEE_A_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'user.json');
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Event attendance flows (Section 5 of the test plan).
@@ -65,7 +55,7 @@ test.describe('position RSVP', () => {
     }
 
     await joinBtn.click();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify join succeeded — "Leave" or "You're in" should appear.
     const leaveBtn = page
@@ -82,10 +72,10 @@ test.describe('position RSVP', () => {
         .getByRole('button', { name: /confirm|yes|leave/i })
         .filter({ hasNotText: /cancel/i })
         .first();
-      if (await confirmBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      if (await isVisibleOrTimeout(confirmBtn, 2_000)) {
         await confirmBtn.click();
       }
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
   });
 
@@ -132,24 +122,19 @@ test.describe('capacity limit', () => {
   }) => {
     test.setTimeout(90_000);
 
-    if (!fs.existsSync(FREE_HOST_STATE)) {
-      test.skip(true, 'free-host auth not set up (TEST_FREE_HOST_EMAIL missing); skipping');
-    }
-    if (!fs.existsSync(ATTENDEE_A_STATE)) {
-      test.skip(true, 'attendee-a auth not set up; skipping');
-    }
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up (TEST_ATTENDEE_B_EMAIL missing); skipping');
-    }
+    // attendee-a auth is hard-required by auth.setup.ts (throws when missing),
+    // so no skipIfMissingAuth needed for STORAGE_PATHS.attendeeA.
+    skipIfMissingAuth(STORAGE_PATHS.freeHost, 'free-host');
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // ── free-host creates an event with capacity = 1 ────────────────────
-    const hostCtx = await browser.newContext({ storageState: FREE_HOST_STATE });
+    const hostCtx = await browser.newContext({ storageState: STORAGE_PATHS.freeHost });
     const hostPage = await hostCtx.newPage();
     let eventUrl: string | null = null;
 
     try {
       await hostPage.goto('/events/new');
-      await hostPage.waitForLoadState('networkidle');
+      await hostPage.waitForLoadState('domcontentloaded');
 
       const creationResp = await hostPage.request.get('/events/new');
       if (!creationResp.ok()) {
@@ -247,31 +232,31 @@ test.describe('capacity limit', () => {
       eventUrl = hostPage.url();
 
       // ── attendee-a joins the event (fills the only spot) ─────────────
-      const aCtx = await browser.newContext({ storageState: ATTENDEE_A_STATE });
+      const aCtx = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
       const aPage = await aCtx.newPage();
       try {
         await aPage.goto(eventUrl);
-        await aPage.waitForLoadState('networkidle');
+        await aPage.waitForLoadState('domcontentloaded');
         const joinBtn = aPage.getByRole('button', { name: /^join$/i }).first();
         if ((await joinBtn.count()) > 0) {
           await joinBtn.click();
-          await aPage.waitForLoadState('networkidle');
+          await aPage.waitForLoadState('domcontentloaded');
         }
       } finally {
         await aCtx.close();
       }
 
       // ── attendee-b tries to join — should see "this event is full" ───
-      const bCtx = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+      const bCtx = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
       const bPage = await bCtx.newPage();
       try {
         await bPage.goto(eventUrl);
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
 
         const joinBtn = bPage.getByRole('button', { name: /^join$/i }).first();
         if ((await joinBtn.count()) > 0) {
           await joinBtn.click();
-          await bPage.waitForLoadState('networkidle');
+          await bPage.waitForLoadState('domcontentloaded');
         }
 
         // The page should show the "full" flash banner or "Event is full" state.
@@ -286,16 +271,16 @@ test.describe('capacity limit', () => {
       // Cleanup — cancel the event.
       if (eventUrl) {
         await hostPage.goto(eventUrl + '/edit');
-        await hostPage.waitForLoadState('networkidle');
+        await hostPage.waitForLoadState('domcontentloaded');
         const cancelBtn = hostPage.getByRole('button', { name: /cancel event/i }).first();
         if ((await cancelBtn.count()) > 0) {
           await cancelBtn.click();
           const confirmBtn = hostPage
             .getByRole('button', { name: /yes.*cancel|cancel event/i })
             .last();
-          if (await confirmBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+          if (await isVisibleOrTimeout(confirmBtn, 5_000)) {
             await confirmBtn.click();
-            await hostPage.waitForLoadState('networkidle');
+            await hostPage.waitForLoadState('domcontentloaded');
           }
         }
       }

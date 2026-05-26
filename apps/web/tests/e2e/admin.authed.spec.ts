@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Admin / platform moderation flows (Section 17 of the test plan).
@@ -13,27 +13,15 @@ import fs from 'node:fs';
  * attendee-b auth is absent.
  */
 
-const ADMIN_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'admin.json');
-const ATTENDEE_B_STATE = path.join(
-  __dirname,
-  '..',
-  '..',
-  '.playwright',
-  '.auth',
-  'attendee-b.json',
-);
-
 test.describe('admin profile', () => {
   test('admin badge is visible next to display name on /profile', async ({ browser }) => {
-    if (!fs.existsSync(ADMIN_STATE)) {
-      test.skip(true, 'admin auth not set up (TEST_ADMIN_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.admin, 'admin');
 
-    const ctx = await browser.newContext({ storageState: ADMIN_STATE });
+    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.admin });
     const page = await ctx.newPage();
     try {
       await page.goto('/profile');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       // AdminBadge renders as:
       // <span aria-label="Platform admin — moderator and PickupVB staff">Admin</span>
@@ -52,15 +40,11 @@ test.describe('community listing moderation', () => {
   }) => {
     test.setTimeout(90_000);
 
-    if (!fs.existsSync(ADMIN_STATE)) {
-      test.skip(true, 'admin auth not set up (TEST_ADMIN_EMAIL missing); skipping');
-    }
-    if (!fs.existsSync(ATTENDEE_B_STATE)) {
-      test.skip(true, 'attendee-b auth not set up; skipping (needed to create the target listing)');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.admin, 'admin');
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // Attendee-b creates a throwaway community listing.
-    const bCtx = await browser.newContext({ storageState: ATTENDEE_B_STATE });
+    const bCtx = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
     const bPage = await bCtx.newPage();
     let listingUrl: string | null = null;
     try {
@@ -93,17 +77,17 @@ test.describe('community listing moderation', () => {
       expect(listingUrl).toMatch(/\/community\//);
 
       // ── Admin hides the listing ──────────────────────────────────────
-      const adminCtx = await browser.newContext({ storageState: ADMIN_STATE });
+      const adminCtx = await browser.newContext({ storageState: STORAGE_PATHS.admin });
       const adminPage = await adminCtx.newPage();
       try {
         await adminPage.goto(listingUrl);
-        await adminPage.waitForLoadState('networkidle');
+        await adminPage.waitForLoadState('domcontentloaded');
 
         // Admin sees a "Manage listing" section with a "Hide" button.
         const hideBtn = adminPage.getByRole('button', { name: /^hide$/i }).first();
         await expect(hideBtn).toBeVisible({ timeout: 10_000 });
         await hideBtn.click();
-        await adminPage.waitForLoadState('networkidle');
+        await adminPage.waitForLoadState('domcontentloaded');
 
         // Page should show a success notice for "hidden".
         await expect(adminPage.locator('body')).toContainText(/hidden|only you|platform admin/i, {
@@ -116,7 +100,7 @@ test.describe('community listing moderation', () => {
         const publicPage = await publicCtx.newPage();
         try {
           await publicPage.goto('/community');
-          await publicPage.waitForLoadState('networkidle');
+          await publicPage.waitForLoadState('domcontentloaded');
           // The listing title should no longer appear in the directory.
           const titleVisible = await publicPage
             .getByText(new RegExp(listingTitle, 'i'))
@@ -130,7 +114,7 @@ test.describe('community listing moderation', () => {
 
         // Admin CAN still see the listing directly via its URL.
         await adminPage.goto(listingUrl);
-        await adminPage.waitForLoadState('networkidle');
+        await adminPage.waitForLoadState('domcontentloaded');
         await expect(adminPage.locator('main')).toContainText(/hidden|removed|not visible/i, {
           timeout: 10_000,
         });
@@ -139,7 +123,7 @@ test.describe('community listing moderation', () => {
         const unhideBtn = adminPage.getByRole('button', { name: /^unhide$/i }).first();
         await expect(unhideBtn).toBeVisible({ timeout: 10_000 });
         await unhideBtn.click();
-        await adminPage.waitForLoadState('networkidle');
+        await adminPage.waitForLoadState('domcontentloaded');
 
         // Success notice for "unhidden" / "restored".
         await expect(adminPage.locator('body')).toContainText(/restored|unhidden|active/i, {
@@ -152,13 +136,13 @@ test.describe('community listing moderation', () => {
       // Cleanup: attendee-b deletes the listing.
       if (listingUrl) {
         await bPage.goto(listingUrl);
-        await bPage.waitForLoadState('networkidle');
+        await bPage.waitForLoadState('domcontentloaded');
         const confirmCheckbox = bPage.getByRole('checkbox', { name: /confirm/i }).first();
         if ((await confirmCheckbox.count()) > 0) await confirmCheckbox.check();
         const deleteBtn = bPage.getByRole('button', { name: /^delete$/i }).first();
         if ((await deleteBtn.count()) > 0) {
           await deleteBtn.click();
-          await bPage.waitForLoadState('networkidle');
+          await bPage.waitForLoadState('domcontentloaded');
         }
       }
       await bCtx.close();

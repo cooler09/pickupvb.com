@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import fs from 'node:fs';
-
-const FREE_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'free-host.json');
-const PRO_HOST_STATE = path.join(__dirname, '..', '..', '.playwright', '.auth', 'pro-host.json');
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { skipIfMissingAuth } from './_helpers/auth';
+import { STORAGE_PATHS } from './_helpers/paths';
 
 /**
  * Extended event creation flows beyond what events.authed.spec.ts covers.
@@ -49,17 +47,15 @@ test.describe('external registration', () => {
   }) => {
     test.setTimeout(60_000);
 
-    if (!fs.existsSync(FREE_HOST_STATE)) {
-      test.skip(true, 'free-host auth not set up (TEST_FREE_HOST_EMAIL missing); skipping');
-    }
+    skipIfMissingAuth(STORAGE_PATHS.freeHost, 'free-host');
 
-    const ctx = await browser.newContext({ storageState: FREE_HOST_STATE });
+    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.freeHost });
     const page = await ctx.newPage();
     let eventUrl: string | null = null;
 
     try {
       await page.goto('/events/new');
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
 
       const response = await page.request.get('/events/new');
       if (!response.ok()) {
@@ -201,7 +197,7 @@ test.describe('external registration', () => {
       if (eventUrl) {
         const editUrl = eventUrl + '/edit';
         await page.goto(editUrl);
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         // Click "Cancel event…" to open the panel, then confirm.
         const cancelBtn = page.getByRole('button', { name: /cancel event/i }).first();
         if ((await cancelBtn.count()) > 0) {
@@ -210,9 +206,9 @@ test.describe('external registration', () => {
             .getByRole('button', { name: /yes.*cancel|cancel event/i })
             .filter({ hasNotText: /^\.\.\.$/ })
             .last();
-          if (await confirmBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+          if (await isVisibleOrTimeout(confirmBtn, 5_000)) {
             await confirmBtn.click();
-            await page.waitForLoadState('networkidle');
+            await page.waitForLoadState('domcontentloaded');
           }
         }
       }
@@ -225,10 +221,8 @@ test.describe('template full flow (Pro)', () => {
   test('Pro: save template, verify in dropdown, apply pre-fills form, then remove', async ({
     browser,
   }) => {
-    if (!fs.existsSync(PRO_HOST_STATE)) {
-      test.skip(true, 'pro-host auth not set up (TEST_PRO_HOST_EMAIL missing); skipping');
-    }
-    const ctx = await browser.newContext({ storageState: PRO_HOST_STATE });
+    skipIfMissingAuth(STORAGE_PATHS.proHost, 'pro-host');
+    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.proHost });
     const page = await ctx.newPage();
     try {
       await page.goto('/events/new');
@@ -276,7 +270,7 @@ test.describe('template full flow (Pro)', () => {
         const applyBtn = page.getByRole('button', { name: /apply/i }).first();
         if ((await applyBtn.count()) > 0) {
           await applyBtn.click();
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
         }
 
         // Form should be pre-filled with the saved event title.
@@ -295,11 +289,11 @@ test.describe('template full flow (Pro)', () => {
         const anyRemoveBtn = page.getByRole('button', { name: /remove/i }).first();
         if ((await anyRemoveBtn.count()) > 0) {
           await anyRemoveBtn.click();
-          await page.waitForLoadState('networkidle');
+          await page.waitForLoadState('domcontentloaded');
         }
       } else {
         await removeBtn.click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
       }
     } finally {
       await ctx.close().catch(() => {});
