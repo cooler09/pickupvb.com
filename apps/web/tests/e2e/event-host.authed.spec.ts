@@ -420,6 +420,15 @@ test.describe('event host flows', () => {
         test.skip(true, 'Attendee-b cannot join this event (full, paid, or already joined)');
       }
       await joinBtn.click();
+
+      // Join is a two-step: the trigger opens a confirmation <dialog>.
+      // Confirm inside the dialog (scoped so we don't re-click the trigger;
+      // the page has two buttons named "Join this event" once the dialog
+      // is open).
+      const joinDialog = bPage.getByRole('dialog', { name: /join this event/i });
+      if (await joinDialog.isVisible().catch(() => false)) {
+        await joinDialog.getByRole('button', { name: /join this event/i }).click();
+      }
       await bPage.waitForLoadState('domcontentloaded');
       await expect(bPage.getByRole('button', { name: /leave event/i }).first()).toBeVisible({
         timeout: 15_000,
@@ -472,12 +481,17 @@ test.describe('event host flows', () => {
       const leaveBtn = bPage.getByRole('button', { name: /leave event/i }).first();
       if ((await leaveBtn.count()) > 0) {
         await leaveBtn.click();
-        const confirmLeave = bPage
-          .getByRole('button', { name: /confirm|yes|leave/i })
-          .filter({ hasNotText: /cancel/i })
-          .first();
-        if (await isVisibleOrTimeout(confirmLeave)) {
-          await confirmLeave.click();
+        // Leave is also a two-step: scope the confirm click to the dialog
+        // so we don't re-click the trigger button.
+        const leaveDialog = bPage.getByRole('dialog', { name: /leave|confirm/i });
+        if (await leaveDialog.isVisible().catch(() => false)) {
+          const confirmInDialog = leaveDialog
+            .getByRole('button', { name: /leave event|confirm|yes/i })
+            .filter({ hasNotText: /cancel/i })
+            .first();
+          if (await isVisibleOrTimeout(confirmInDialog)) {
+            await confirmInDialog.click();
+          }
         }
         await bPage.waitForLoadState('domcontentloaded');
       }
