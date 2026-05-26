@@ -309,12 +309,12 @@ test.describe('event host flows', () => {
     const addUserBtn = page.getByRole('button', { name: /add user/i }).first();
     await expect(addUserBtn).toBeVisible({ timeout: 5_000 });
     await addUserBtn.click();
-    await page.waitForLoadState('networkidle');
 
-    // Attendee-b should now appear in the hosts list specifically.
-    // Asserting on `main` would pass on the UserPicker chip echo even
-    // if the co-host failed to render — scope to the hosts list so a
-    // failure here points at the real bug (empty `<li>` in coHostUsers).
+    // Race the expected success signal (a new <li> in the hosts list
+    // containing attendee-b) against the action's failure path (a
+    // `?cohost=…` flash on the URL). `waitForLoadState('networkidle')`
+    // is unreliable for server-action POSTs — the network can idle in
+    // the gap between the submit and the redirect/revalidate.
     const hostsList = page.getByRole('list', { name: /hosts/i }).or(
       page
         .locator('section')
@@ -323,7 +323,25 @@ test.describe('event host flows', () => {
         .locator('ul')
         .first(),
     );
-    await expect(hostsList).toContainText(searchTerm!, { timeout: 10_000 });
+    const cohostFlashUrl = new RegExp(`[?&]cohost=`);
+    const outcome = await Promise.race([
+      expect(hostsList)
+        .toContainText(searchTerm!, { timeout: 15_000 })
+        .then(() => 'added' as const),
+      page.waitForURL(cohostFlashUrl, { timeout: 15_000 }).then(() => 'flashed' as const),
+    ]).catch(() => 'timeout' as const);
+
+    if (outcome !== 'added') {
+      const url = page.url();
+      const liTexts = await hostsList
+        .locator('li')
+        .allTextContents()
+        .catch(() => [] as string[]);
+      throw new Error(
+        `Co-host did not appear (outcome=${outcome}, url=${url}); ` +
+          `hosts <li> texts: ${JSON.stringify(liTexts)}`,
+      );
+    }
 
     // Remove attendee-b as co-host.
     const removeBtn = page
