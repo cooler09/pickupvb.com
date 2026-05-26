@@ -1235,6 +1235,7 @@ export class SupabaseEventRepository implements EventRepository {
     let q = this.client
       .from('events')
       .select('id, title, surface, type, starts_at, time_zone, city, region, host_id')
+      .eq('visibility', 'public')
       .gte('starts_at', filters.startsAfter.toISOString())
       .order('starts_at', { ascending: true })
       .limit(filters.limit ?? 60);

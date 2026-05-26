@@ -24,7 +24,7 @@ Quick-reference table. Detailed findings follow below.
 | Saved event templates                       | P1 #1    | ✅ Shipped | Bundle 86             |
 | Host analytics dashboard                    | P1 #1    | ✅ Shipped | Bundle 87             |
 | Custom refund policy gating                 | P1 #1    | ✅ Shipped | Bundle 98             |
-| Invite-only / private events                | P1 #1    | 🔲 Planned | —                     |
+| Invite-only / private events                | P1 #1    | ✅ Shipped | Bundle 99             |
 | Trial-to-paid conversion tracking (PostHog) | P2 #5    | ✅ Shipped | Bundle 98             |
 | Off-platform event upsell                   | P2 #7    | 🔲 Planned | —                     |
 | Monetization strategy ADR                   | P1 #3    | ✅ Shipped | Bundle 98             |
@@ -42,10 +42,11 @@ Quick-reference table. Detailed findings follow below.
   to a full host toolkit. The fee-savings break-even (~$400/mo GMV) is now
   a floor, not a ceiling — hosts below that threshold have feature reasons
   to upgrade.
-- **One planned item remains before Pro is fully baked:**
-  invite-only/private events (half-bundle estimate). Custom refund
-  policy gating shipped in Bundle 98, closing the second-to-last
-  P1 #1 sub-item.
+- **All P1 sub-items shipped.** With Bundle 99 closing invite-only /
+  private events, Pro now ships every feature its pricing page
+  advertises. The fee-savings break-even (~$400/mo GMV) is a floor,
+  not a ceiling — hosts below that threshold have feature reasons
+  to upgrade.
 - **Take-rate is generous and should stay that way.** 5% free / 2.5%
   Pro is competitive with Eventbrite's 3.7%+$1.79 and well below
   Meetup's $24/mo flat. Holding the line is a trust-building moat;
@@ -203,11 +204,11 @@ per-event programmatic. See P2 #6 below.
 
 ### 1. Pro feature set doesn't earn $10/mo for sub-$400-GMV hosts
 
-> **Status (2026-05-27, Bundle 98): MOSTLY SHIPPED.**
+> **Status (2026-05-27, Bundle 99): SHIPPED.**
 > Sub-items #1 (templates, Bundle 86), #2 (analytics, Bundle 87),
-> and #3 (custom refund policy gating, Bundle 98) are live. Only
-> sub-item #4 (invite-only / private events) remains open. Sub-item
-> #5 (co-host gating) was explicitly dropped 2026-05-24.
+> #3 (custom refund policy gating, Bundle 98), and #4 (invite-only
+> / private events, Bundle 99) are live. Sub-item #5 (co-host
+> gating) was explicitly dropped 2026-05-24. P1 #1 is closed.
 
 **File:** [apps/web/src/app/pricing/page.tsx#L38-L45](../../apps/web/src/app/pricing/page.tsx#L38-L45),
 [apps/web/src/lib/pro.ts](../../apps/web/src/lib/pro.ts).
@@ -600,6 +601,34 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-05-27 — Bundle 99** — **P1 #1 sub-item #4 — invite-only /
+  private events.** Closes P1 #1 overall. Four changes in one
+  half-bundle: (1) new RLS migration
+  `20260702000000_invite_only_events_readable_by_link.sql` makes
+  `visibility = 'invite_only'` rows readable by anyone holding the
+  canonical URL (anon or signed-in), while keeping them out of
+  `/events`, sitemap, and `public_numbers_views` (all already
+  filter `visibility = 'public'`); (2) follow-up discovery-leak
+  patch — new migration
+  `20260702000100_search_events_filter_visibility_public.sql`
+  adds `visibility = 'public'` to the `search_events` RPC where
+  clause, and `searchFollowingFeed` in
+  `packages/infrastructure/src/supabase-event-repository.ts` adds
+  `.eq('visibility', 'public')` to its events query, since both
+  are `security invoker` / direct-table surfaces that would
+  otherwise leak `invite_only` rows under the new RLS; (3) new
+  `apps/web/src/lib/visibility.ts` helper `clampVisibilityForHost`
+  is the server-side security boundary — wired into both
+  `/events/new` and `/events/[id]/edit` actions, with the edit
+  path checking `detail.hostUserId` so a Pro co-host can't promote
+  a Free host's event; (4) both forms disable the visibility
+  `<select>` for Free hosts with a Pro nudge, mirroring the
+  Bundle 98 `RefundWindowField` pattern. The pricing page already
+  advertised this perk; copy now matches behavior. Verify gate
+  (typecheck + lint + test + build) green; 6 new unit tests.
+  Journal:
+  [docs/journal/2026-05-27-bundle-99.md](../journal/2026-05-27-bundle-99.md).
 
 - **2026-05-27 — Bundle 98** — Three P1/P2 closeouts in one bundle:
   (1) **P1 #1 sub-item #3 — custom refund policy gating.**

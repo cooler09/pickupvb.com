@@ -222,18 +222,29 @@ export default function EditEventForm({
           <div>
             <label htmlFor="visibility" className={labelClass}>
               Visibility
+              {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
             </label>
             <select
               id="visibility"
               name="visibility"
-              defaultValue={initial.visibility}
+              defaultValue={viewerHasProBenefits ? initial.visibility : 'public'}
+              disabled={!viewerHasProBenefits}
               className={inputClass}
             >
               <option value="public">Public</option>
-              <option value="invite_only">Invite only</option>
+              <option value="invite_only">Invite only (unlisted — share by link)</option>
               <option value="friends_of_host">People the host follows</option>
               <option value="friends_of_attendees">People attendees follow</option>
             </select>
+            {!viewerHasProBenefits && (
+              <p className="text-muted mt-1 text-xs">
+                Free events are public.{' '}
+                <Link href="/pricing" className="text-primary hover:underline">
+                  Upgrade to Pro
+                </Link>{' '}
+                to host unlisted or friends-only events.
+              </p>
+            )}
           </div>
         </div>
       </fieldset>

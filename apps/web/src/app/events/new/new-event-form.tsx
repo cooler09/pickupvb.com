@@ -796,20 +796,31 @@ export default function NewEventForm({
         <div>
           <label htmlFor="visibility" className={labelClass}>
             Who can see this event?
+            {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
           </label>
           <select
             id="visibility"
             name="visibility"
-            defaultValue={val(values, 'visibility', 'public')}
+            defaultValue={viewerHasProBenefits ? val(values, 'visibility', 'public') : 'public'}
+            disabled={!viewerHasProBenefits}
             className={inputClass}
             {...fieldA11y('visibility', state.fieldErrors)}
           >
             <option value="public">Public — anyone can find it</option>
-            <option value="invite_only">Invite only</option>
+            <option value="invite_only">Invite only (unlisted — share by link)</option>
             <option value="friends_of_host">People the host follows</option>
             <option value="friends_of_attendees">People attendees follow</option>
           </select>
           <FieldError name="visibility" errors={state.fieldErrors} />
+          {!viewerHasProBenefits && (
+            <p className="text-muted mt-1 text-xs">
+              Free events are public.{' '}
+              <Link href="/pricing" className="text-primary hover:underline">
+                Upgrade to Pro
+              </Link>{' '}
+              to host unlisted or friends-only events.
+            </p>
+          )}
         </div>
         <div>
           <label htmlFor="rules" className={labelClass}>
