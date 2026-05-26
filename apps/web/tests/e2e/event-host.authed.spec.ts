@@ -456,6 +456,25 @@ test.describe('event host flows', () => {
       await expect(messageSummary).toBeVisible({ timeout: 10_000 });
       await messageSummary.click();
 
+      // Capture server-action POST responses + console errors so the next
+      // failure reports actual status codes, not just "didn't see
+      // sent/delivered text". Same pattern as the co-host test above.
+      const broadcastConsoleErrors: string[] = [];
+      const broadcastActionResponses: string[] = [];
+      const onConsole = (msg: import('@playwright/test').ConsoleMessage) => {
+        if (msg.type() === 'error') broadcastConsoleErrors.push(msg.text().slice(0, 300));
+      };
+      const onResponse = (res: import('@playwright/test').Response) => {
+        const req = res.request();
+        if (req.method() === 'POST' && req.headers()['next-action']) {
+          broadcastActionResponses.push(
+            `${res.status()} ${req.url()} action=${req.headers()['next-action']}`,
+          );
+        }
+      };
+      page.on('console', onConsole);
+      page.on('response', onResponse);
+
       // Fill the broadcast body and send.
       const bodyTextarea = page.locator('textarea[name="body"], #broadcast-body').first();
       await expect(bodyTextarea).toBeVisible({ timeout: 5_000 });
@@ -463,17 +482,32 @@ test.describe('event host flows', () => {
 
       const sendBtn = page.getByRole('button', { name: /send message/i }).first();
       await expect(sendBtn).toBeVisible({ timeout: 5_000 });
-      await sendBtn.click();
-      await page.waitForLoadState('domcontentloaded');
 
-      // Success: the form resets or a success message appears.
-      const success = await page
-        .getByText(/sent|delivered|message sent/i)
-        .first()
-        .isVisible({ timeout: 10_000 })
-        .catch(() => false);
-      const formReset = await bodyTextarea.inputValue().catch(() => '');
-      expect(success || formReset === '', 'Broadcast should send without error').toBe(true);
+      // Wait for the server-action POST to settle with 2xx/3xx. This is
+      // the actual outcome signal — `waitForLoadState('networkidle')` is
+      // unreliable for server actions, and the visible "sent" copy /
+      // textarea reset behavior isn't deterministic post-revalidate.
+      const sendResponsePromise = page.waitForResponse(
+        (res) =>
+          res.request().method() === 'POST' &&
+          !!res.request().headers()['next-action'] &&
+          res.status() >= 200 &&
+          res.status() < 400,
+        { timeout: 15_000 },
+      );
+      await sendBtn.click();
+      const sendOk = await sendResponsePromise.then(() => true).catch(() => false);
+      page.off('console', onConsole);
+      page.off('response', onResponse);
+
+      if (!sendOk) {
+        throw new Error(
+          `Broadcast send did not produce a 2xx/3xx server-action response; ` +
+            `url=${page.url()}; ` +
+            `action responses: ${JSON.stringify(broadcastActionResponses)}; ` +
+            `console errors: ${JSON.stringify(broadcastConsoleErrors)}`,
+        );
+      }
     } finally {
       // Cleanup: attendee-b leaves the event.
       await bPage.goto(eventUrl!);
