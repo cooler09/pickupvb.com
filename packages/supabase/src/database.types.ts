@@ -502,6 +502,7 @@ export type Database = {
           event_id: string;
           host_group_id: string | null;
           host_user_id: string | null;
+          id: string;
         };
         Insert: {
           added_at?: string;
@@ -509,6 +510,7 @@ export type Database = {
           event_id: string;
           host_group_id?: string | null;
           host_user_id?: string | null;
+          id?: string;
         };
         Update: {
           added_at?: string;
@@ -516,6 +518,7 @@ export type Database = {
           event_id?: string;
           host_group_id?: string | null;
           host_user_id?: string | null;
+          id?: string;
         };
         Relationships: [
           {
@@ -1178,6 +1181,7 @@ export type Database = {
           external_registration_url: string | null;
           fundraiser_beneficiary: string | null;
           geo: unknown;
+          hero_image_url: string | null;
           host_absorbs_fee: boolean;
           host_group_id: string | null;
           host_id: string | null;
@@ -1206,7 +1210,6 @@ export type Database = {
           title: string;
           type: Database['public']['Enums']['event_type'];
           updated_at: string;
-          hero_image_url: string | null;
           venue_name: string | null;
           visibility: Database['public']['Enums']['visibility'];
         };
