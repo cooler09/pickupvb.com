@@ -73,8 +73,9 @@ async function ensureSearchableDisplayName(page: Page, prefix: string): Promise<
  * Sections 8.2–8.4 use attendee-b (TEST_ATTENDEE_B_EMAIL) for invite / accept / decline /
  * remove / broadcast flows and skip gracefully when attendee-b auth is not set up.
  *
- * Teams created via the @destructive test persist in dev — the app has no
- * team-delete UI. Clean up via Supabase dashboard if needed.
+ * Teams created via the @destructive test now also exercise the
+ * captain-only UI soft-delete (Bundle 93 / data-lifecycle P2 #2) and
+ * fall back to admin hard-delete via the cleanup helper.
  */
 
 test.describe('create team', () => {
@@ -136,10 +137,27 @@ test.describe('create team', () => {
       // Team name should appear on the page.
       await expect(page.locator('main')).toContainText(teamName, { timeout: 10_000 });
 
-      // Hard-delete the fixture row via admin client (no UI delete path).
-      // No-op when E2E_CLEANUP_SUPABASE_* env vars aren't set — see
-      // tests/e2e/_helpers/cleanup.ts.
-      const slug = page.url().match(/\/teams\/([^/?#]+)/)?.[1];
+      const teamUrl = page.url();
+      const slug = teamUrl.match(/\/teams\/([^/?#]+)/)?.[1];
+
+      // Exercise the captain-only UI soft-delete (Bundle 93 /
+      // data-lifecycle P2 #2). The danger-zone panel renders inline
+      // inside TeamViewerChrome for captains. Confirm, then assert the
+      // redirect to /teams?deleted=1 and that the team page now 404s
+      // (RLS SELECT filter on deleted_at).
+      const openDeleteBtn = page.getByRole('button', { name: /^delete team…?$/i });
+      if (await openDeleteBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await openDeleteBtn.click();
+        await page.getByRole('button', { name: /yes, delete team/i }).click();
+        await page.waitForURL(/\/teams(\?.*)?$/, { timeout: 15_000 });
+        expect(page.url()).toMatch(/[?&]deleted=1/);
+
+        const profileResp = await page.request.get(teamUrl);
+        expect(profileResp.status()).toBe(404);
+      }
+
+      // Belt + suspenders: hard-delete the fixture row via admin client.
+      // No-op when E2E_CLEANUP_SUPABASE_* env vars aren't set.
       if (slug) await deleteTeamBySlug(slug);
     },
   );

@@ -60,9 +60,11 @@ async function ensureSearchableDisplayName(
 /**
  * Authenticated group flows.
  *
- * Group creation is tagged @destructive because the app does not expose a
- * delete endpoint in the UI — created groups persist in the dev database.
- * Exclude from standard runs with `--grep-invert @destructive`.
+ * Group creation is tagged @destructive because it writes a real row.
+ * The destructive test now also exercises the owner-only UI delete
+ * (Bundle 93 / data-lifecycle P2 #1), and falls back to admin
+ * hard-delete via the cleanup helper. Exclude from standard runs with
+ * `--grep-invert @destructive`.
  *
  * Group follow/unfollow is read-reversible and runs in the standard suite.
  */
@@ -92,9 +94,27 @@ test.describe('create group', () => {
       // The group name should appear on the page.
       await expect(page.locator('main')).toContainText(name);
 
-      // Hard-delete the fixture row via admin client (no UI delete path).
-      // No-op when E2E_CLEANUP_SUPABASE_* env vars aren't set — see
-      // tests/e2e/_helpers/cleanup.ts.
+      // Exercise the owner-only UI soft-delete (Bundle 93 / data-lifecycle
+      // P2 #1). Navigate to the edit page, open the danger-zone panel,
+      // confirm, and assert the redirect to /groups?deleted=1.
+      const groupUrl = page.url().replace(/\/$/, '');
+      await page.goto(`${groupUrl}/edit`);
+      await page.waitForLoadState('domcontentloaded');
+      const openDeleteBtn = page.getByRole('button', { name: /^delete group…?$/i });
+      if (await openDeleteBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+        await openDeleteBtn.click();
+        await page.getByRole('button', { name: /yes, delete group/i }).click();
+        await page.waitForURL(/\/groups(\?.*)?$/, { timeout: 15_000 });
+        expect(page.url()).toMatch(/[?&]deleted=1/);
+
+        // Soft-deleted group's profile page should now 404 (RLS SELECT
+        // filter on deleted_at hides the row from every read path).
+        const profileResp = await page.request.get(groupUrl);
+        expect(profileResp.status()).toBe(404);
+      }
+
+      // Belt + suspenders: hard-delete the fixture row via admin client.
+      // No-op when E2E_CLEANUP_SUPABASE_* env vars aren't set.
       await deleteGroupBySlug(slug);
     },
   );
