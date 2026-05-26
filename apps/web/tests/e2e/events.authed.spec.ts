@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
 
 /**
  * Authenticated event flows.
@@ -20,9 +21,25 @@ test.describe('event creation form', () => {
     await expect(page.getByRole('button', { name: /create event/i })).toBeVisible();
   });
 
-  test.fixme(
-    'create a free open-play event end-to-end — requires DateTimePicker interaction and geocoding',
-  );
+  test('create a free open-play event end-to-end — DateTimePicker + geocoding, then cancel', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const title = `E2E Free Open Play ${Date.now()}`;
+    let eventUrl: string | null = null;
+    try {
+      const created = await createFreeOpenPlayEvent(page, { title });
+      eventUrl = created.url;
+
+      // Detail page should render the event title we submitted.
+      await page.goto(eventUrl);
+      await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      if (eventUrl) await cancelEvent(page, eventUrl);
+    }
+  });
 
   test.fixme('create a paid event — requires Stripe Connect on the test account');
 

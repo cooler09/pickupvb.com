@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
 
 /**
  * Group management flows (Sections 7.2–7.6 of the test plan).
@@ -343,7 +344,68 @@ test.describe('group members', () => {
 });
 
 test.describe('host event as group', () => {
-  test.fixme(
-    'group owner creates event selecting the group as host — event appears in group upcoming events list',
-  );
+  test('group owner creates event selecting the group as host — event appears in group upcoming events list', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+
+    // /events/new only lists groups the viewer can host as (hostableGroups
+    // in apps/web/src/app/events/new/page.tsx). If the select has no
+    // group options, the test user does not own/admin a hostable group on
+    // this environment — skip rather than fail (see README group #7).
+    await page.goto('/events/new');
+    const select = page.locator('#hostGroupId');
+    await expect(select).toBeVisible({ timeout: 10_000 });
+
+    // Option values: '' = "Yourself", anything else = group id.
+    const groupOptionValues = await select
+      .locator('option')
+      .evaluateAll((opts) =>
+        (opts as HTMLOptionElement[])
+          .map((o) => ({ value: o.value, label: o.textContent ?? '' }))
+          .filter((o) => o.value !== ''),
+      );
+    if (groupOptionValues.length === 0) {
+      test.skip(true, 'Test user does not own/admin a hostable group; skipping');
+    }
+    const groupId = groupOptionValues[0]!.value;
+    const groupName = groupOptionValues[0]!.label.trim();
+    const title = `E2E Host As Group ${Date.now()}`;
+
+    // The /groups/[id] route actually queries by SLUG, not uuid
+    // (see apps/web/src/app/groups/[id]/page.tsx — `.eq('slug', params.id)`),
+    // so navigating to `/groups/<uuid>` 404s. Resolve the slug by finding
+    // the group's link on the /groups directory by accessible name.
+    await page.goto('/groups');
+    await page.waitForLoadState('domcontentloaded');
+    const groupLink = page
+      .locator('main')
+      .locator(`a[href^="/groups/"]`)
+      .filter({ hasText: groupName })
+      .first();
+    const groupHref = await groupLink.getAttribute('href').catch(() => null);
+    if (!groupHref) {
+      test.skip(true, `Could not resolve slug for hostable group "${groupName}"; skipping`);
+    }
+
+    let eventUrl: string | null = null;
+    try {
+      const created = await createFreeOpenPlayEvent(page, { title, hostGroupId: groupId });
+      eventUrl = created.url;
+
+      // Visit the group's page and assert the event title appears in the
+      // upcoming events list (see apps/web/src/app/groups/[id]/page.tsx
+      // "Upcoming events" section).
+      await page.goto(groupHref!);
+      await page.waitForLoadState('domcontentloaded');
+      await expect(page.getByRole('heading', { name: /upcoming events/i })).toBeVisible({
+        timeout: 10_000,
+      });
+      await expect(page.getByRole('link', { name: title })).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      if (eventUrl) await cancelEvent(page, eventUrl);
+    }
+  });
 });
