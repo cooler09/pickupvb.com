@@ -38,6 +38,20 @@ hero_images` is wrong; orphan cleanup requires a `storage.objects`
 >   `TeamViewerChrome`. `hideBroadcastAction` shipped without a UI
 >   consumer — host broadcast history list is the follow-up that
 >   unlocks it.
+> - **P2 #5** — `event_team_registrations` soft-delete after Stripe
+>   checkout landed in
+>   [supabase/migrations/20260629000000_event_team_registrations_soft_delete.sql](../../supabase/migrations/20260629000000_event_team_registrations_soft_delete.sql).
+>   Same shape (`deleted_at timestamptz` + partial index + SELECT-policy
+>   filter). `hostForceWithdrawTeamRegistration` now hard-deletes when
+>   `payment_status='none'` and soft-deletes when `='refunded'`, keeping
+>   the row queryable for refund reconciliation. The repository port
+>   gained a `softDelete` method alongside the existing `delete`.
+>   `existsForCaptainInDivision` filters `deleted_at IS NULL` so a
+>   refunded + withdrawn captain can re-register in the same division.
+>   Admin-client reads in `load-event-detail.ts` filter explicitly
+>   (RLS doesn't apply); webhook lookups (`findByCheckoutSessionId`,
+>   `findByPaymentIntentId`) intentionally do not filter so late Stripe
+>   retries resolve to idempotent no-ops.
 
 ---
 
@@ -56,21 +70,21 @@ for DELETE to succeed.
 
 ### Events & participation
 
-| Table                              | PII | `deleted_at` | FK posture                                                                                                                                                                           | Realtime | Recommended                                                                               |
-| ---------------------------------- | --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------- |
-| `events`                           | —   | —            | `host_id` SET NULL (privacy P1 #1a)                                                                                                                                                  | ✓        | SOFT (status='cancelled' already exists; add `deleted_at` for host-initiated true delete) |
-| `event_attendees`                  | —   | —            | `event_id` CASCADE, `user_id` SET NULL                                                                                                                                               | ✓        | HARD                                                                                      |
-| `event_teams`                      | —   | —            | both CASCADE                                                                                                                                                                         | ✓        | HARD                                                                                      |
-| `event_divisions`                  | —   | —            | `event_id` CASCADE                                                                                                                                                                   | —        | HARD                                                                                      |
-| `event_free_agents`                | —   | —            | both CASCADE                                                                                                                                                                         | —        | HARD                                                                                      |
-| `event_guests`                     | Low | —            | both CASCADE                                                                                                                                                                         | —        | HARD                                                                                      |
-| `event_co_hosts`                   | —   | —            | both CASCADE; replica identity fixed 2026-06-26 ([20260626000000_event_co_hosts_replica_identity.sql](../../supabase/migrations/20260626000000_event_co_hosts_replica_identity.sql)) | —        | HARD                                                                                      |
-| `event_sponsors`                   | —   | —            | `event_id` CASCADE                                                                                                                                                                   | —        | HARD                                                                                      |
-| `tournament_brackets` + 3 children | —   | —            | CASCADE chain                                                                                                                                                                        | —        | HARD                                                                                      |
-| `event_team_registrations`         | —   | —            | `event_id` CASCADE, `division_id` RESTRICT                                                                                                                                           | —        | HARD (pre-checkout) / SOFT (post-payment) — see P2 #5                                     |
-| `event_team_registration_members`  | —   | —            | `registration_id` CASCADE                                                                                                                                                            | —        | HARD                                                                                      |
-| `team_extra_members`               | —   | —            | both CASCADE                                                                                                                                                                         | —        | HARD                                                                                      |
-| `reminder_tracking`                | —   | —            | `event_attendee_id` CASCADE                                                                                                                                                          | —        | HARD                                                                                      |
+| Table                              | PII | `deleted_at`       | FK posture                                                                                                                                                                           | Realtime | Recommended                                                                               |
+| ---------------------------------- | --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------- |
+| `events`                           | —   | —                  | `host_id` SET NULL (privacy P1 #1a)                                                                                                                                                  | ✓        | SOFT (status='cancelled' already exists; add `deleted_at` for host-initiated true delete) |
+| `event_attendees`                  | —   | —                  | `event_id` CASCADE, `user_id` SET NULL                                                                                                                                               | ✓        | HARD                                                                                      |
+| `event_teams`                      | —   | —                  | both CASCADE                                                                                                                                                                         | ✓        | HARD                                                                                      |
+| `event_divisions`                  | —   | —                  | `event_id` CASCADE                                                                                                                                                                   | —        | HARD                                                                                      |
+| `event_free_agents`                | —   | —                  | both CASCADE                                                                                                                                                                         | —        | HARD                                                                                      |
+| `event_guests`                     | Low | —                  | both CASCADE                                                                                                                                                                         | —        | HARD                                                                                      |
+| `event_co_hosts`                   | —   | —                  | both CASCADE; replica identity fixed 2026-06-26 ([20260626000000_event_co_hosts_replica_identity.sql](../../supabase/migrations/20260626000000_event_co_hosts_replica_identity.sql)) | —        | HARD                                                                                      |
+| `event_sponsors`                   | —   | —                  | `event_id` CASCADE                                                                                                                                                                   | —        | HARD                                                                                      |
+| `tournament_brackets` + 3 children | —   | —                  | CASCADE chain                                                                                                                                                                        | —        | HARD                                                                                      |
+| `event_team_registrations`         | —   | ✓ yes (2026-05-26) | `event_id` CASCADE, `division_id` RESTRICT                                                                                                                                           | —        | HARD (pre-checkout) / SOFT (post-payment) — shipped via P2 #5                             |
+| `event_team_registration_members`  | —   | —                  | `registration_id` CASCADE                                                                                                                                                            | —        | HARD                                                                                      |
+| `team_extra_members`               | —   | —                  | both CASCADE                                                                                                                                                                         | —        | HARD                                                                                      |
+| `reminder_tracking`                | —   | —                  | `event_attendee_id` CASCADE                                                                                                                                                          | —        | HARD                                                                                      |
 
 ### Teams / groups
 
@@ -395,17 +409,17 @@ retention without paying for Postgres pages:
 
 ## Open backlog
 
-| Severity  | Item                                                                                       | Estimated effort | Status                                                                  |
-| --------- | ------------------------------------------------------------------------------------------ | ---------------- | ----------------------------------------------------------------------- |
-| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                | XS               | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #1~~ | Group delete (`deleted_at` column, server action, RLS filter, partial index)               | M                | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #2~~ | Team delete (same shape as group)                                                          | M                | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                  | XS               | ✅ Shipped 2026-05-26                                                   |
-| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                      | S                | ✅ Shipped 2026-05-26                                                   |
-| **P2 #5** | `event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout) | S                | open                                                                    |
-| ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                 | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up |
-| **P3 #2** | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)  | S–M              | open — scope larger than XS                                             |
-| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                       | XS               | ✅ Shipped 2026-05-26                                                   |
+| Severity  | Item                                                                                           | Estimated effort | Status                                                                  |
+| --------- | ---------------------------------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------- |
+| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                    | XS               | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #1~~ | Group delete (`deleted_at` column, server action, RLS filter, partial index)                   | M                | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #2~~ | Team delete (same shape as group)                                                              | M                | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                      | XS               | ✅ Shipped 2026-05-26                                                   |
+| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                          | S                | ✅ Shipped 2026-05-26                                                   |
+| **P2 #5** | ~~`event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout)~~ | S                | ✅ Shipped 2026-05-26                                                   |
+| ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                     | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up |
+| **P3 #2** | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)      | S–M              | open — scope larger than XS                                             |
+| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                           | XS               | ✅ Shipped 2026-05-26                                                   |
 
 Cross-references:
 

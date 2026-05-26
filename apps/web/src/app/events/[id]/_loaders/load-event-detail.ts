@@ -347,7 +347,10 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
       const { data: regData } = await admin
         .from('event_team_registrations')
         .select('id, name, division_id, captain_id, payment_status')
-        .eq('event_id', eventId);
+        .eq('event_id', eventId)
+        // Admin client bypasses RLS; filter soft-deleted rows explicitly
+        // (migration 20260629000000).
+        .is('deleted_at', null);
       type RegBase = {
         id: string;
         name: string;
@@ -413,7 +416,10 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
         .select(
           'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
         )
-        .eq('event_id', eventId);
+        .eq('event_id', eventId)
+        // Admin client bypasses RLS; filter soft-deleted rows explicitly
+        // (migration 20260629000000).
+        .is('deleted_at', null);
       return (data as AdHocRegRow[] | null) ?? [];
     },
     ['event-ad-hoc-rows', eventId],

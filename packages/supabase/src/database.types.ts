@@ -981,6 +981,7 @@ export type Database = {
           captain_id: string;
           checkout_session_id: string | null;
           created_at: string;
+          deleted_at: string | null;
           division_id: string;
           event_id: string;
           id: string;
@@ -995,6 +996,7 @@ export type Database = {
           captain_id: string;
           checkout_session_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           division_id: string;
           event_id: string;
           id?: string;
@@ -1009,6 +1011,7 @@ export type Database = {
           captain_id?: string;
           checkout_session_id?: string | null;
           created_at?: string;
+          deleted_at?: string | null;
           division_id?: string;
           event_id?: string;
           id?: string;
