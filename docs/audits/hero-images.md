@@ -5,6 +5,19 @@
 
 This is a feature-evaluation note, not a code-quality audit. It captures the requested proposal, tradeoffs, and a recommended rollout shape so the idea can be revisited without re-deriving the analysis.
 
+> 2026-05-26 remediation update (Bundle 95):
+>
+> - P3 #2 from data-lifecycle is now shipped via
+>   [supabase/migrations/20260630000000_hero_images_orphan_cleanup.sql](../../supabase/migrations/20260630000000_hero_images_orphan_cleanup.sql).
+> - Added `public.purge_hero_image_orphans(grace_hours int)` plus daily
+>   pg_cron schedule `hero_images_purge_orphans` (06:00 UTC).
+> - The walker inspects `storage.objects` in bucket `hero-images`, parses
+>   `{user_id}/{entity_type}/{entity_id}/hero.{ext}` path segments, and
+>   removes objects that no longer map to a live owner row + active
+>   `hero_image_url` pointer.
+> - A 24-hour grace window prevents racing upload flows where object write
+>   and row update are not strictly atomic.
+
 ---
 
 ## Summary

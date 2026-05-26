@@ -52,6 +52,15 @@ hero_images` is wrong; orphan cleanup requires a `storage.objects`
 >   (RLS doesn't apply); webhook lookups (`findByCheckoutSessionId`,
 >   `findByPaymentIntentId`) intentionally do not filter so late Stripe
 >   retries resolve to idempotent no-ops.
+> - **P3 #2** — `hero-images` Storage orphan sweep landed in
+>   [supabase/migrations/20260630000000_hero_images_orphan_cleanup.sql](../../supabase/migrations/20260630000000_hero_images_orphan_cleanup.sql).
+>   Added `public.purge_hero_image_orphans(grace_hours int)` + daily
+>   pg_cron schedule (`hero_images_purge_orphans`, `0 6 * * *`) that
+>   walks `storage.objects` for the `hero-images` bucket, parses
+>   `{user_id}/{entity_type}/{entity_id}/hero.{ext}`, and purges
+>   objects that no longer map to a live owner row and current
+>   `hero_image_url`. The 24-hour grace window avoids racing immediate
+>   upload->DB-update flows.
 
 ---
 
@@ -206,12 +215,9 @@ the host broadcast history list.
 
 - `event_tips` — refund-only, no user-facing delete (correct by design).
 - `event_sponsors` — `removeSponsor` exists at [sponsor-actions.ts](../../apps/web/src/app/events/[id]/edit/sponsor-actions.ts).
-- `hero_images` — uploaded but orphaned hero rows are not garbage
-  collected when the parent group/event is hard-deleted (only
-  CASCADE-deletes if the FK is set up that way). Audit fix: nightly cron
-  `delete from hero_images where resource_id not in (select id from
-events) and resource_id not in (select id from groups)` — see P2 #2 in
-  [hero-images.md](hero-images.md).
+- `hero-images` Storage objects — ✅ shipped 2026-05-26 in
+  [20260630000000_hero_images_orphan_cleanup.sql](../../supabase/migrations/20260630000000_hero_images_orphan_cleanup.sql)
+  via `public.purge_hero_image_orphans(...)` + daily pg_cron schedule.
 
 ---
 
@@ -418,7 +424,7 @@ retention without paying for Postgres pages:
 | ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                          | S                | ✅ Shipped 2026-05-26                                                   |
 | **P2 #5** | ~~`event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout)~~ | S                | ✅ Shipped 2026-05-26                                                   |
 | ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                     | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up |
-| **P3 #2** | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)      | S–M              | open — scope larger than XS                                             |
+| ~~P3 #2~~ | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)      | S–M              | ✅ Shipped 2026-05-26                                                   |
 | ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                           | XS               | ✅ Shipped 2026-05-26                                                   |
 
 Cross-references:

@@ -2841,6 +2841,10 @@ export type Database = {
       };
       postgis_version: { Args: never; Returns: string };
       postgis_wagyu_version: { Args: never; Returns: string };
+      purge_hero_image_orphans: {
+        Args: { p_grace_hours?: number };
+        Returns: number;
+      };
       search_community_listings: {
         Args: {
           p_format?: string;
