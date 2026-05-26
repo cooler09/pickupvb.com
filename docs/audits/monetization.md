@@ -26,7 +26,7 @@ Quick-reference table. Detailed findings follow below.
 | Custom refund policy gating                 | P1 #1    | ✅ Shipped | Bundle 98             |
 | Invite-only / private events                | P1 #1    | ✅ Shipped | Bundle 99             |
 | Trial-to-paid conversion tracking (PostHog) | P2 #5    | ✅ Shipped | Bundle 98             |
-| Off-platform event upsell                   | P2 #7    | 🔲 Planned | —                     |
+| Off-platform event upsell                   | P2 #7    | ✅ Shipped | Bundle 100            |
 | Monetization strategy ADR                   | P1 #3    | ✅ Shipped | Bundle 98             |
 | Metro-level sponsorship inventory           | P2 #6    | ⏸ Deferred | until ≥1 active metro |
 
@@ -474,6 +474,18 @@ sold, not programmatic. Hold until we have at least one metro doing
 
 ### 7. Off-platform events get full platform value at zero revenue
 
+> **Status (2026-05-27, Bundle 100): SHIPPED.** Added a soft,
+> dismissible nudge on the event detail page rendered only for the
+> event's host when `event.paymentsOffPlatform === true` and the
+> `pickupvb_op_upsell_dismissed` cookie isn't set. "Switch" links
+> to `/events/[id]/edit`; "Dismiss" calls a server action that
+> writes the cookie for ~1 year. Per-browser cookie scoping matches
+> the audit's "single-occurrence" framing — once a host has seen
+> the pitch, repeating it on every event is nag-y. Files:
+> [apps/web/src/app/events/[id]/\_components/off-platform-upsell.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/off-platform-upsell.tsx),
+> [apps/web/src/app/events/[id]/off-platform-upsell-actions.ts](../../apps/web/src/app/events/%5Bid%5D/off-platform-upsell-actions.ts),
+> [apps/web/src/lib/off-platform-upsell.ts](../../apps/web/src/lib/off-platform-upsell.ts).
+
 **File:** [docs/payments.md#L113-L126](../payments.md#L113-L126).
 
 **Category:** revenue.
@@ -601,6 +613,25 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-05-27 — Bundle 100** — **P2 #7 — off-platform event
+  upsell.** Soft, dismissible nudge rendered above the hero on
+  `/events/[id]` only when the viewer is the event's host and
+  `event.paymentsOffPlatform === true`. New server action
+  `dismissOffPlatformUpsell` sets the
+  `pickupvb_op_upsell_dismissed` cookie (path-global, ~1y,
+  `sameSite=lax`) and `revalidatePath`s the event detail. New
+  files:
+  [apps/web/src/lib/off-platform-upsell.ts](../../apps/web/src/lib/off-platform-upsell.ts)
+  (cookie-name constant — shared by page reader + action),
+  [apps/web/src/app/events/[id]/off-platform-upsell-actions.ts](../../apps/web/src/app/events/%5Bid%5D/off-platform-upsell-actions.ts),
+  [apps/web/src/app/events/[id]/\_components/off-platform-upsell.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/off-platform-upsell.tsx).
+  Wired in
+  [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)
+  between `EventFlashBanners` and `HeroImage`. Closes the last
+  P2 item that wasn't either shipped or deferred-on-trigger.
+  Verify gate (typecheck + lint + test + build) green. Journal:
+  [docs/journal/2026-05-27-bundle-100.md](../journal/2026-05-27-bundle-100.md).
 
 - **2026-05-27 — Bundle 99** — **P1 #1 sub-item #4 — invite-only /
   private events.** Closes P1 #1 overall. Four changes in one
