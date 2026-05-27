@@ -8,6 +8,7 @@ import {
   GenerateBracketCommand,
   GeneratePlayoffCommand,
   RecordMatchResultCommand,
+  RegisterAdHocTeamCommand,
   ResetBracketCommand,
   ResetMatchCommand,
   SeedBracketCommand,
@@ -248,4 +249,40 @@ export async function resetMatch(
   }
   revalidate(eventId);
   back(eventId, divisionId, 'match_reset');
+}
+
+/**
+ * Host-only escape hatch for adding a walk-in / unregistered team
+ * directly to a division's bracket. Reuses the ad-hoc registration
+ * pipeline (ADR 0007) so the new row participates in seeding, capacity
+ * accounting, and audit history the same as any other team. The acting
+ * host becomes the nominal captain — they can rename or reassign the
+ * roster later from the event's team management UI.
+ *
+ * Why no member roster here: phase-1 surface is intentionally
+ * just-a-name. The seeding list only needs a team identity; roster can
+ * be filled in afterwards (or never — a placeholder team is a valid
+ * outcome at a walk-up event).
+ */
+export async function addAdHocTeamFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const name = String(formData.get('team_name') ?? '').trim();
+  if (!name) {
+    back(eventId, divisionId, 'team_name_required');
+  }
+  try {
+    await handlers.registerAdHocTeam.execute(
+      new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, []),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'team_added');
 }
