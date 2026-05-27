@@ -34,5 +34,30 @@
 -- matches what the bracket page already shows.
 -- ============================================================================
 
-alter publication supabase_realtime add table public.tournament_brackets;
-alter publication supabase_realtime add table public.bracket_matches;
+-- Idempotent: tournament_brackets was already added to supabase_realtime
+-- ad-hoc on the production project before this migration landed, so a
+-- plain `alter publication ... add table` fails with SQLSTATE 42710
+-- (relation is already member of publication). Guard each add with a
+-- lookup against pg_publication_tables so the migration is safe to
+-- re-run against any environment regardless of prior state.
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'tournament_brackets'
+  ) then
+    alter publication supabase_realtime add table public.tournament_brackets;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'bracket_matches'
+  ) then
+    alter publication supabase_realtime add table public.bracket_matches;
+  end if;
+end$$;
