@@ -27,6 +27,12 @@ export function ConsentBanner(): React.ReactElement | null {
 
   function decide(analytics: 'granted' | 'denied'): void {
     setHidden(true);
+    if (typeof window !== 'undefined') {
+      // Synchronously notify the PostHog provider so it can opt-in /
+      // -out without waiting for a router refresh. See
+      // [apps/web/src/components/posthog-provider.tsx](./posthog-provider.tsx).
+      window.dispatchEvent(new CustomEvent('pickupvb:consent-change', { detail: { analytics } }));
+    }
     startTransition(() => {
       void setConsentDecision({ analytics, marketing: 'denied' });
     });
@@ -40,8 +46,8 @@ export function ConsentBanner(): React.ReactElement | null {
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
         <p className="text-neutral-700 dark:text-neutral-200">
-          We use a small set of first-party analytics to understand how PickupVB is used. No
-          third-party ad-tech. See our{' '}
+          We use first-party analytics and PostHog&apos;s browser SDK to understand how PickupVB is
+          used. No third-party ad-tech. See our{' '}
           <a href="/legal/privacy" className="underline underline-offset-2 hover:no-underline">
             Privacy Policy
           </a>{' '}

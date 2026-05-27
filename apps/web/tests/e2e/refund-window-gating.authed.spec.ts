@@ -56,8 +56,11 @@ test.describe('refund window — Pro gating on /edit', () => {
       await expect(field).toHaveValue('24');
 
       // Label carries "(Pro)" badge and the helper text links to /pricing.
+      // Scope the upgrade link to this field's helper paragraph — the /edit page
+      // renders a second "Upgrade to Pro" link under the visibility select.
       await expect(page.locator('label[for="refundWindowHours"]')).toContainText(/\(Pro\)/);
-      await expect(page.getByRole('link', { name: /upgrade to pro/i })).toBeVisible();
+      const refundHelper = page.locator('#refundWindowHours ~ p');
+      await expect(refundHelper.getByRole('link', { name: /upgrade to pro/i })).toBeVisible();
     } finally {
       if (eventUrl) await cancelEvent(page, eventUrl);
       await ctx.close().catch(() => {});

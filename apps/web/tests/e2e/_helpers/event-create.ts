@@ -217,6 +217,14 @@ export async function createPaidEvent(
   if (opts.refundWindowHours !== undefined) {
     const refundInput = page.locator('input[name="refundWindowHours"]').first();
     if (await isVisibleOrTimeout(refundInput, 1_000)) {
+      // Fail fast if the field is disabled (e.g. host lost Pro on the
+      // environment). Otherwise `.fill()` waits silently for editability
+      // and consumes the entire test-level timeout.
+      if (await refundInput.isDisabled()) {
+        throw new Error(
+          'refundWindowHours input is disabled — host account is not Pro on this environment',
+        );
+      }
       await refundInput.fill(String(opts.refundWindowHours));
     }
   }

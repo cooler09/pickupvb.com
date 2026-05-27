@@ -19,7 +19,11 @@ import { cookies, headers } from 'next/headers';
  */
 export const CONSENT_COOKIE = 'pickupvb_consent';
 export const CONSENT_COOKIE_MAX_AGE_S = 60 * 60 * 24 * 180; // 180 days
-export const CONSENT_COOKIE_VERSION = 1;
+// v2 (bundle 102): browser-side PostHog SDK landed, materially changing
+// the consent disclosure ("first-party analytics, no third-party script"
+// → "first-party + PostHog browser SDK"). Bump re-prompts every existing
+// user with the updated banner copy + privacy policy section.
+export const CONSENT_COOKIE_VERSION = 2;
 
 export type ConsentDecision = 'granted' | 'denied';
 
