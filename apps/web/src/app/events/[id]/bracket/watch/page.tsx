@@ -4,7 +4,7 @@ import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
-import { BoardView } from '../_components/board-view';
+import { BoardView, pickLatestMatchId } from '../_components/board-view';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
 
 /**
@@ -153,6 +153,7 @@ export default async function BracketWatchPage(props: {
           viewerId={null}
           status={bracket.status}
           format={bracket.format}
+          highlightMatchId={pickLatestMatchId(bracket.matches)}
         />
       )}
     </article>

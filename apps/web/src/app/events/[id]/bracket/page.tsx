@@ -5,7 +5,7 @@ import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
-import { BoardView } from './_components/board-view';
+import { BoardView, pickLatestMatchId } from './_components/board-view';
 import { NoBracketView } from './_components/no-bracket-view';
 import { SetupView } from './_components/setup-view';
 import { BracketRealtimeRefresher } from './_components/realtime-refresher';
@@ -185,6 +185,7 @@ export default async function BracketPage(props: {
           viewerId={viewerId}
           status={bracket.status}
           format={bracket.format}
+          highlightMatchId={pickLatestMatchId(bracket.matches)}
         />
       )}
     </article>
