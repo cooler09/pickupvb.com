@@ -58,11 +58,11 @@ const nextConfig = {
   async headers() {
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://vercel.live",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://vercel.live https://*.i.posthog.com",
       "style-src 'self' 'unsafe-inline' https://vercel.live",
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.tile.openstreetmap.org https://vercel.live https://vercel.com",
       "font-src 'self' data: https://vercel.live https://assets.vercel.com",
-      "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com https://vercel.live wss://ws-us3.pusher.com",
+      "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com https://vercel.live wss://ws-us3.pusher.com https://*.i.posthog.com",
       'frame-src https://challenges.cloudflare.com https://vercel.live',
       "worker-src 'self' blob:",
       "object-src 'none'",
