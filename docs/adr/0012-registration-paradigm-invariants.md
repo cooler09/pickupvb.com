@@ -1,9 +1,14 @@
 # 0012. Registration paradigm: invariants between event type, team mode, composition, and price unit
 
-- **Status:** Accepted
+- **Status:** Accepted (amended by [0016](0016-per-division-team-registration-mode.md): the matrix is now applied per-division, not per-event)
 - **Date:** 2026-05-23
 - **Supersedes part of:** [0007](0007-team-registration-model.md) §3 (the
   off-platform escape hatch on per-player team events is removed).
+- **Amended by:** [0016](0016-per-division-team-registration-mode.md) — the
+  `team_registration_mode` column moved from `events` to `event_divisions`,
+  so the matrix below is enforced per division rather than per event. The
+  rules themselves (which `(mode, composition, price_unit)` combinations
+  are legal) are unchanged.
 
 ## Context
 

@@ -57,7 +57,13 @@ export async function joinAsFreeAgentFromForm(eventId: string, formData: FormDat
       revalidatePath(`/events/${eventId}`);
       back(eventId, 'already');
     }
-    if (err instanceof InvariantViolation) back(eventId, 'closed');
+    if (err instanceof InvariantViolation) {
+      // R2: division opted out of free agents — distinct flash so the
+      // panel can render an actionable message instead of the generic
+      // "isn't open" line.
+      if (/free-agent signups/i.test(err.message)) back(eventId, 'fa_disabled');
+      back(eventId, 'closed');
+    }
     if (err instanceof NotFoundError) back(eventId, 'closed');
     const m = err instanceof Error ? err.message : String(err);
     back(eventId, 'error', m);

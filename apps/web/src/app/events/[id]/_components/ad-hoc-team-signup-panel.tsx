@@ -49,6 +49,12 @@ export type AdHocTeamPublicEntry = {
   name: string;
   divisionId: string;
   paymentStatus: 'none' | 'pending' | 'paid' | 'refunded';
+  /**
+   * Who created this registration (ADR 0017). `'walk_in'` renders a
+   * "Walk-in" pill next to the payment pill on the public roster so
+   * viewers can tell same-day adds from pre-registered teams.
+   */
+  source: 'captain' | 'host' | 'walk_in';
   captainName: string | null;
   /**
    * Roster excluding the captain (captain is rendered separately so the
@@ -181,14 +187,18 @@ export function AdHocTeamSignupPanel({
               {allRegistrations.map((t) => {
                 const rosterSize = 1 + t.members.length;
                 const captainLabel = t.isViewerCaptain ? 'You' : (t.captainName ?? 'Captain');
+                // Single-division events skip the division prefix — it's
+                // redundant with EventHero and adds no information.
+                const showDivision = divisions.length > 1;
                 return (
                   <li key={t.id} className="border-border-base bg-surface rounded-md border p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{t.name}</p>
                         <p className="text-muted text-xs">
-                          {divisionLabel(divisions, t.divisionId)} · Captain: {captainLabel} ·{' '}
-                          {rosterSize} player{rosterSize === 1 ? '' : 's'}
+                          {showDivision && `${divisionLabel(divisions, t.divisionId)} · `}
+                          Captain: {captainLabel} · {rosterSize} player
+                          {rosterSize === 1 ? '' : 's'}
                         </p>
                       </div>
                       <span

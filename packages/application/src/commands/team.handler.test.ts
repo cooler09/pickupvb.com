@@ -12,6 +12,7 @@ import {
   SkillTier,
   Surface,
   TeamComposition,
+  TeamRegistrationMode,
   Team,
   UnauthorizedError,
   ValidationError,
@@ -55,6 +56,9 @@ function makeDivision(format: Format, id = 'div-1'): Division {
     teamSize: 6,
     capacity: Capacity.fixed(8),
     priceUnit: PriceUnit.PerTeam,
+    // ADR 0016: tournament divisions with team composition need an explicit
+    // team registration mode now that the setting lives per-division.
+    teamRegistrationMode: TeamRegistrationMode.Roster,
   });
 }
 

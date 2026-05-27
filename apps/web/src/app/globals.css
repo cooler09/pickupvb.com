@@ -126,3 +126,31 @@ body {
     outline-offset: 2px;
   }
 }
+
+/*
+ * One-shot "flash" used by `LatestMatchTracker` to draw the eye to a
+ * bracket match card when realtime updates promote a new "latest match."
+ * Driven by toggling the `.match-flash` class on the card wrapper; the
+ * tracker forces a reflow before re-adding so the animation re-fires on
+ * back-to-back updates.
+ */
+@keyframes match-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.75);
+  }
+  60% {
+    box-shadow: 0 0 0 10px rgba(234, 179, 8, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(234, 179, 8, 0);
+  }
+}
+.match-flash {
+  animation: match-flash 1.6s ease-out 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .match-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.6);
+  }
+}

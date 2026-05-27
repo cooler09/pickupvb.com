@@ -20,10 +20,11 @@ type Composition = 'solo' | 'team' | 'pair_draw' | 'partner_required';
 type PriceUnit = 'per_player' | 'per_team';
 
 /**
- * Per ADR 0012: composition + price-unit must match the event's team
- * registration mode. These helpers clamp each row's selection to the
- * subset valid for the currently-selected mode so the UI never lets the
- * host submit a combination the domain invariant will reject.
+ * Per ADR 0012 + ADR 0016: composition + price-unit must match each
+ * division's team registration mode. These helpers clamp each row's
+ * selection to the subset valid for the row's currently-selected mode
+ * so the UI never lets the host submit a combination the domain
+ * invariant will reject.
  */
 function allowedCompositions(mode: TeamRegistrationMode): readonly Composition[] {
   return mode === 'none' ? ['solo'] : ['team', 'pair_draw', 'partner_required'];
@@ -66,6 +67,8 @@ type Row = {
   priceUsd: string;
   priceUnit: 'per_player' | 'per_team';
   prizeText: string;
+  allowFreeAgents: boolean;
+  teamRegistrationMode: TeamRegistrationMode;
 };
 
 const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
@@ -82,6 +85,8 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
   priceUsd: '',
   priceUnit: 'per_team',
   prizeText: '',
+  allowFreeAgents: true,
+  teamRegistrationMode: 'ad_hoc',
   ...defaults,
 });
 
@@ -92,18 +97,11 @@ const inputClass =
 export default function DivisionsRepeater({
   defaultSurface,
   requireAtLeastOne = false,
-  teamRegistrationMode = 'ad_hoc',
   fieldErrors,
 }: {
   defaultSurface?: string;
   /** When true, always render at least one row and hide its Remove button. */
   requireAtLeastOne?: boolean;
-  /**
-   * Event-level team registration mode (lifted from the parent form).
-   * Gates which team-composition + price-unit options each row exposes,
-   * per ADR 0012. Defaults to `ad_hoc` to match the parent default.
-   */
-  teamRegistrationMode?: TeamRegistrationMode;
   /**
    * Server-side validation errors keyed by Zod path. Division errors arrive
    * as `divisions.${idx}.${field}` (e.g. `divisions.0.label`) — those keys
@@ -257,14 +255,31 @@ export default function DivisionsRepeater({
               </select>
             </div>
             <div>
+              <label className={labelClass}>Team registration</label>
+              <select
+                name={`div_${idx}_teamRegistrationMode`}
+                value={row.teamRegistrationMode}
+                onChange={(e) =>
+                  patch(row.key, {
+                    teamRegistrationMode: e.target.value as TeamRegistrationMode,
+                  })
+                }
+                className={inputClass}
+              >
+                <option value="ad_hoc">Ad-hoc — captain assembles at signup</option>
+                <option value="roster">Roster — captain picks an existing team</option>
+                <option value="none">None — individual signups</option>
+              </select>
+            </div>
+            <div>
               <label className={labelClass}>Team composition</label>
               <select
                 name={`div_${idx}_teamComposition`}
-                value={clampComposition(teamRegistrationMode, row.teamComposition)}
+                value={clampComposition(row.teamRegistrationMode, row.teamComposition)}
                 onChange={(e) => patch(row.key, { teamComposition: e.target.value })}
                 className={inputClass}
               >
-                {allowedCompositions(teamRegistrationMode).map((c) => (
+                {allowedCompositions(row.teamRegistrationMode).map((c) => (
                   <option key={c} value={c}>
                     {COMPOSITION_LABELS[c]}
                   </option>
@@ -319,13 +334,13 @@ export default function DivisionsRepeater({
               <label className={labelClass}>Charge</label>
               <select
                 name={`div_${idx}_priceUnit`}
-                value={clampPriceUnit(teamRegistrationMode, row.priceUnit)}
+                value={clampPriceUnit(row.teamRegistrationMode, row.priceUnit)}
                 onChange={(e) =>
                   patch(row.key, { priceUnit: e.target.value as 'per_player' | 'per_team' })
                 }
                 className={inputClass}
               >
-                {allowedPriceUnits(teamRegistrationMode).map((u) => (
+                {allowedPriceUnits(row.teamRegistrationMode).map((u) => (
                   <option key={u} value={u}>
                     {PRICE_UNIT_LABELS[u]}
                   </option>
@@ -342,6 +357,18 @@ export default function DivisionsRepeater({
                 placeholder="e.g. $300 / team or Champion T-shirts"
                 className={inputClass}
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-fg flex items-center gap-2 text-xs font-medium">
+                <input
+                  type="checkbox"
+                  name={`div_${idx}_allowFreeAgents`}
+                  value="1"
+                  checked={row.allowFreeAgents}
+                  onChange={(e) => patch(row.key, { allowFreeAgents: e.target.checked })}
+                />
+                Accept free-agent signups for this division
+              </label>
             </div>
           </div>
           {/* Row-level error \u2014 catches cross-field Zod refinements that

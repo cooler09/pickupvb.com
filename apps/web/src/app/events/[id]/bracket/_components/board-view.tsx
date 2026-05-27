@@ -9,6 +9,41 @@ import { generatePlayoff, resetBracket } from '../actions';
 import { MatchCard } from './match-card';
 import type { TeamLite } from './labels';
 import { SubmitButton } from '@/components/submit-button';
+import { TreeBracket } from './tree-bracket';
+
+/**
+ * Pick the match a spectator most likely wants to look at right now.
+ *
+ *   1. In-progress: a match with any sets recorded that isn't yet
+ *      completed. Tie-break by highest round, then highest matchNumber
+ *      (deepest into the bracket = most consequential).
+ *   2. Most recently completed: same tie-break — the last finished match.
+ *   3. Next up: lowest-numbered pending match with both teams known.
+ *
+ * Returns `null` when the bracket has no eligible matches yet (all TBD).
+ */
+export function pickLatestMatchId(matches: ReadonlyArray<Match>): string | null {
+  const live = matches.filter(
+    (m) =>
+      m.status === 'in_progress' ||
+      (m.status !== 'completed' && m.status !== 'bye' && m.sets.length > 0),
+  );
+  if (live.length > 0) {
+    const m = [...live].sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0]!;
+    return String(m.id);
+  }
+  const done = matches.filter((m) => m.status === 'completed');
+  if (done.length > 0) {
+    const m = [...done].sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0]!;
+    return String(m.id);
+  }
+  const next = matches.filter((m) => m.status === 'pending' && m.teamAId && m.teamBId);
+  if (next.length > 0) {
+    const m = [...next].sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber)[0]!;
+    return String(m.id);
+  }
+  return null;
+}
 
 export function BoardView(props: {
   eventId: string;
@@ -20,6 +55,8 @@ export function BoardView(props: {
   viewerId: string | null;
   status: 'active' | 'completed';
   format: BracketFormat;
+  /** When set, the matching card is rendered with a ring and a "Jump to latest" link appears at the top. */
+  highlightMatchId?: string | null;
 }) {
   const isPoolPlay = props.format === 'pool_play_playoff';
   const isDoubleElim = props.format === 'double_elimination';
@@ -42,58 +79,65 @@ export function BoardView(props: {
     poolMatches.every((m) => m.status === 'completed' || m.status === 'bye');
   const playoffExists = playoffMatches.length > 0;
 
+  const renderMatch = (m: Match) => {
+    const isHighlighted = !!props.highlightMatchId && String(m.id) === props.highlightMatchId;
+    return (
+      <div
+        id={`match-${String(m.id)}`}
+        className={`scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
+      >
+        <MatchCard
+          eventId={props.eventId}
+          divisionId={props.divisionId}
+          match={m}
+          teamById={props.teamById}
+          bestOf={props.bestOf}
+          isHost={props.isHost}
+          viewerId={props.viewerId}
+        />
+      </div>
+    );
+  };
+
   const renderRoundColumns = (
     list: ReadonlyArray<Match>,
     roundLabel: (r: number) => string = (r) => `Round ${r}`,
-  ) => (
-    <div className="flex gap-4 overflow-x-auto pb-2">
-      {groupByRound(list).map(({ round, matches }) => (
-        <div key={round} className="min-w-[260px] space-y-2">
-          <h3 className="text-fg/80 text-sm font-semibold">{roundLabel(round)}</h3>
-          {matches
-            .slice()
-            .sort((a, b) => a.matchNumber - b.matchNumber)
-            .map((m) => (
-              <MatchCard
-                key={m.id}
-                eventId={props.eventId}
-                divisionId={props.divisionId}
-                match={m}
-                teamById={props.teamById}
-                bestOf={props.bestOf}
-                isHost={props.isHost}
-                viewerId={props.viewerId}
-              />
-            ))}
-        </div>
-      ))}
-    </div>
-  );
+  ) => <TreeBracket matches={list} renderMatch={renderMatch} roundLabel={roundLabel} />;
 
   return (
-    <section className="space-y-6">
-      <div className="flex items-center justify-between">
+    <section className="space-y-6 scroll-smooth">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-muted text-sm">
           Best of {props.bestOf} • {props.status === 'completed' ? 'Final results' : 'In progress'}
         </p>
-        {props.isHost && props.status === 'active' && (
-          <details className="text-xs">
-            <summary className="cursor-pointer rounded border border-red-500/40 px-2 py-1 text-red-600 hover:bg-red-500/10">
-              Reset bracket
-            </summary>
-            <div className="mt-2 space-y-2 rounded border border-red-500/30 bg-red-500/5 p-2">
-              <p className="text-red-700 dark:text-red-300">
-                Returns the bracket to seeding so you can swap teams in or out, then re-generate.
-                Any entered match results will be discarded.
-              </p>
-              <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
-                <SubmitButton className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50">
-                  Reset and re-seed
-                </SubmitButton>
-              </form>
-            </div>
-          </details>
-        )}
+        <div className="flex items-center gap-2">
+          {props.highlightMatchId && (
+            <a
+              href={`#match-${props.highlightMatchId}`}
+              className="border-primary/40 text-primary hover:bg-primary/5 rounded border px-2 py-1 text-xs font-medium"
+            >
+              {'Jump to latest →'}
+            </a>
+          )}
+          {props.isHost && props.status === 'active' && (
+            <details className="text-xs">
+              <summary className="cursor-pointer rounded border border-red-500/40 px-2 py-1 text-red-600 hover:bg-red-500/10">
+                Reset bracket
+              </summary>
+              <div className="mt-2 space-y-2 rounded border border-red-500/30 bg-red-500/5 p-2">
+                <p className="text-red-700 dark:text-red-300">
+                  Returns the bracket to seeding so you can swap teams in or out, then re-generate.
+                  Any entered match results will be discarded.
+                </p>
+                <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
+                  <SubmitButton className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50">
+                    Reset and re-seed
+                  </SubmitButton>
+                </form>
+              </div>
+            </details>
+          )}
+        </div>
       </div>
 
       {isPoolPlay && poolMatches.length > 0 && (
@@ -105,6 +149,7 @@ export function BoardView(props: {
           bestOf={props.bestOf}
           isHost={props.isHost}
           viewerId={props.viewerId}
+          highlightMatchId={props.highlightMatchId ?? null}
         />
       )}
 
@@ -161,18 +206,6 @@ export function BoardView(props: {
   );
 }
 
-function groupByRound(list: ReadonlyArray<Match>): { round: number; matches: Match[] }[] {
-  const byRound = new Map<number, Match[]>();
-  for (const m of list) {
-    const arr = byRound.get(m.round) ?? [];
-    arr.push(m);
-    byRound.set(m.round, arr);
-  }
-  return Array.from(byRound.keys())
-    .sort((a, b) => a - b)
-    .map((r) => ({ round: r, matches: byRound.get(r)! }));
-}
-
 function PoolsView(props: {
   eventId: string;
   divisionId: string;
@@ -181,6 +214,7 @@ function PoolsView(props: {
   bestOf: number;
   isHost: boolean;
   viewerId: string | null;
+  highlightMatchId: string | null;
 }) {
   const pools = distinctPools(props.matches);
   return (
@@ -196,19 +230,26 @@ function PoolsView(props: {
               {poolMatches
                 .slice()
                 .sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber)
-                .map((m) => (
-                  <div key={m.id} className="min-w-[220px]">
-                    <MatchCard
-                      eventId={props.eventId}
-                      divisionId={props.divisionId}
-                      match={m}
-                      teamById={props.teamById}
-                      bestOf={props.bestOf}
-                      isHost={props.isHost}
-                      viewerId={props.viewerId}
-                    />
-                  </div>
-                ))}
+                .map((m) => {
+                  const isHighlighted = props.highlightMatchId === String(m.id);
+                  return (
+                    <div
+                      key={m.id}
+                      id={`match-${String(m.id)}`}
+                      className={`min-w-55 scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
+                    >
+                      <MatchCard
+                        eventId={props.eventId}
+                        divisionId={props.divisionId}
+                        match={m}
+                        teamById={props.teamById}
+                        bestOf={props.bestOf}
+                        isHost={props.isHost}
+                        viewerId={props.viewerId}
+                      />
+                    </div>
+                  );
+                })}
             </div>
           </div>
         );

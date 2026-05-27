@@ -190,6 +190,14 @@ export class RegisterAdHocTeamCommand {
     public readonly captainId: string,
     public readonly name: string,
     public readonly members: ReadonlyArray<AdHocRegistrationMemberInput>,
+    /**
+     * When true, treat the caller as the event host acting on behalf of
+     * a walk-in team and bypass the "one team per captain per division"
+     * uniqueness check. The handler still verifies the caller actually
+     * is the host before honoring the flag — clients can't bypass the
+     * check by lying.
+     */
+    public readonly actingAsHost: boolean = false,
   ) {}
 }
 
@@ -221,6 +229,41 @@ export class WithdrawAdHocTeamRegistrationCommand {
   constructor(
     public readonly registrationId: string,
     public readonly requesterId: string,
+  ) {}
+}
+
+// ---- Walk-in team registration (ADR 0017) -------------------------------
+/**
+ * Host registers a same-day team at the table for someone without a
+ * captain account. Allowed only on `team_registration_mode = 'ad_hoc'`
+ * divisions. The acting host is validated against `events.host_id`; no
+ * `captain_id` is recorded \u2014 the captain's identity lives in the
+ * freeform `captainDisplayName` / `captainPhone` fields.
+ */
+export class RegisterWalkInTeamCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly divisionId: string,
+    /** Caller; must be the event host. */
+    public readonly hostId: string,
+    public readonly name: string,
+    public readonly captainDisplayName: string,
+    public readonly captainPhone: string | null,
+    public readonly members: ReadonlyArray<AdHocRegistrationMemberInput>,
+  ) {}
+}
+
+/**
+ * Host marks a walk-in registration paid in cash / Venmo / off-platform.
+ * Refuses to touch captain or host-proxy rows (they have a real captain
+ * account and a Stripe path or the existing `hostMarkTeamRegistrationPaid`
+ * flow). Optional `note` captures reconciliation context.
+ */
+export class MarkWalkInPaidCashCommand {
+  constructor(
+    public readonly registrationId: string,
+    public readonly requesterId: string,
+    public readonly note: string | null,
   ) {}
 }
 

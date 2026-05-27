@@ -3,6 +3,7 @@ import {
   EventTeamRegistration,
   RegistrationMember,
   RegistrationPaymentStatus,
+  RegistrationSource,
   type DivisionId,
   type EventTeamRegistrationId,
   type EventTeamRegistrationMemberId,
@@ -17,13 +18,17 @@ type RegistrationRow = {
   id: string;
   event_id: string;
   division_id: string;
-  captain_id: string;
+  captain_id: string | null;
   name: string;
+  source: RegistrationSource;
+  captain_display_name: string | null;
+  captain_phone: string | null;
   payment_status: RegistrationPaymentStatus;
   checkout_session_id: string | null;
   payment_intent_id: string | null;
   amount_paid_cents: number | null;
   paid_at: string | null;
+  payment_note: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -92,13 +97,17 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       id: String(registration.id),
       event_id: registration.eventId,
       division_id: String(registration.divisionId),
-      captain_id: String(registration.captainId),
+      captain_id: registration.captainId === null ? null : String(registration.captainId),
       name: registration.name,
+      source: registration.source,
+      captain_display_name: registration.captainDisplayName,
+      captain_phone: registration.captainPhone,
       payment_status: registration.paymentStatus,
       checkout_session_id: registration.checkoutSessionId,
       payment_intent_id: registration.paymentIntentId,
       amount_paid_cents: registration.amountPaidCents,
       paid_at: registration.paidAt ? registration.paidAt.toISOString() : null,
+      payment_note: registration.paymentNote,
     };
 
     const { error } = await this.client
@@ -117,7 +126,10 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       throw new Error(`EventTeamRegistration.save member clear failed: ${delErr.message}`);
     }
 
-    if (registration.members.length === 0) return;
+    if (registration.members.length === 0) {
+      await this.ensureBackingTeam(registration);
+      return;
+    }
 
     const memberRows = registration.members.map((m) => ({
       id: String(m.id),
@@ -133,9 +145,153 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     if (insErr) {
       throw new Error(`EventTeamRegistration.save members insert failed: ${insErr.message}`);
     }
+
+    await this.ensureBackingTeam(registration);
+  }
+
+  /**
+   * Promote (or rename) the backing `teams` + `event_teams` rows that
+   * make the registration first-class for the bracket reader and the
+   * `events_view.team_count` expression. See ADR 0013 (Option B) and
+   * migration `20260705000000_promote_ad_hoc_registrations_to_teams.sql`.
+   *
+   * Idempotent: a follow-up `save` skips creation and only renames the
+   * backing team when the name changed.
+   */
+  private async ensureBackingTeam(registration: EventTeamRegistration): Promise<void> {
+    const { data: regRow, error: regErr } = await this.client
+      .from('event_team_registrations')
+      .select('team_id')
+      .eq('id', String(registration.id))
+      .maybeSingle();
+    if (regErr) {
+      throw new Error(`EventTeamRegistration.ensureBackingTeam read failed: ${regErr.message}`);
+    }
+    const existingTeamId = (regRow as { team_id: string | null } | null)?.team_id ?? null;
+
+    if (existingTeamId) {
+      // Rename path: keep teams.name in sync with the registration.
+      const { error: rnErr } = await this.client
+        .from('teams')
+        .update({ name: registration.name } as never)
+        .eq('id', existingTeamId)
+        .neq('name', registration.name);
+      if (rnErr) {
+        throw new Error(`EventTeamRegistration.ensureBackingTeam rename failed: ${rnErr.message}`);
+      }
+      return;
+    }
+
+    // Need the division's format to populate teams.format. Format lives
+    // on `event_divisions` since migration 20260605000500 (phase 9d
+    // dropped the legacy `events.format` column).
+    const { data: divRow, error: divErr } = await this.client
+      .from('event_divisions')
+      .select('format')
+      .eq('id', String(registration.divisionId))
+      .maybeSingle();
+    if (divErr || !divRow) {
+      throw new Error(
+        `EventTeamRegistration.ensureBackingTeam division lookup failed: ${
+          divErr?.message ?? 'division not found'
+        }`,
+      );
+    }
+    const evtFormat = (divRow as unknown as { format: string }).format;
+
+    // Walk-in registrations (ADR 0017) have no real captain account, but
+    // the backing `teams` row's `captain_id` is NOT NULL. Use the event
+    // host as the team's nominal captain so the bracket reader and the
+    // `events_view.team_count` expression still work — the registration
+    // row itself keeps `captain_id = null`, which is the source of truth
+    // for the public roster.
+    let backingCaptainId: string;
+    if (registration.captainId !== null) {
+      backingCaptainId = String(registration.captainId);
+    } else {
+      const { data: evtRow, error: evtErr } = await this.client
+        .from('events')
+        .select('host_id')
+        .eq('id', registration.eventId)
+        .maybeSingle();
+      if (evtErr || !evtRow) {
+        throw new Error(
+          `EventTeamRegistration.ensureBackingTeam host lookup failed: ${
+            evtErr?.message ?? 'event not found'
+          }`,
+        );
+      }
+      backingCaptainId = (evtRow as unknown as { host_id: string }).host_id;
+    }
+
+    const { data: newTeam, error: tErr } = await this.client
+      .from('teams')
+      .insert({
+        captain_id: backingCaptainId,
+        name: registration.name,
+        format: evtFormat,
+      } as never)
+      .select('id')
+      .single();
+    if (tErr || !newTeam) {
+      throw new Error(
+        `EventTeamRegistration.ensureBackingTeam team insert failed: ${
+          tErr?.message ?? 'no row returned'
+        }`,
+      );
+    }
+    const newTeamId = (newTeam as { id: string }).id;
+
+    const { error: linkErr } = await this.client
+      .from('event_team_registrations')
+      .update({ team_id: newTeamId } as never)
+      .eq('id', String(registration.id));
+    if (linkErr) {
+      throw new Error(`EventTeamRegistration.ensureBackingTeam link failed: ${linkErr.message}`);
+    }
+
+    const { error: etErr } = await this.client.from('event_teams').insert({
+      event_id: registration.eventId,
+      team_id: newTeamId,
+      division_id: String(registration.divisionId),
+    } as never);
+    if (etErr) {
+      throw new Error(
+        `EventTeamRegistration.ensureBackingTeam event_teams insert failed: ${etErr.message}`,
+      );
+    }
+  }
+
+  /**
+   * Read the backing-team link for a registration before removal so we
+   * can clean up the `event_teams` row. The `teams` row itself is
+   * intentionally preserved on withdraw (history per ADR 0013).
+   */
+  private async detachBackingTeamLink(id: EventTeamRegistrationId): Promise<void> {
+    const { data, error } = await this.client
+      .from('event_team_registrations')
+      .select('event_id, team_id')
+      .eq('id', String(id))
+      .maybeSingle();
+    if (error) {
+      throw new Error(`EventTeamRegistration.detachBackingTeamLink read failed: ${error.message}`);
+    }
+    const row = data as { event_id: string; team_id: string | null } | null;
+    if (!row || !row.team_id) return;
+    const { error: etErr } = await this.client
+      .from('event_teams')
+      .delete()
+      .eq('event_id', row.event_id)
+      .eq('team_id', row.team_id);
+    if (etErr) {
+      throw new Error(
+        `EventTeamRegistration.detachBackingTeamLink event_teams delete failed: ${etErr.message}`,
+      );
+    }
   }
 
   async delete(id: EventTeamRegistrationId): Promise<void> {
+    await this.detachBackingTeamLink(id);
     // Cascade on the FK handles members; we only need the parent delete.
     const { error } = await this.client
       .from('event_team_registrations')
@@ -147,6 +303,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
   }
 
   async softDelete(id: EventTeamRegistrationId): Promise<void> {
+    await this.detachBackingTeamLink(id);
     const { error } = await this.client
       .from('event_team_registrations')
       .update({ deleted_at: new Date().toISOString() } as never)
@@ -164,7 +321,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     const { data, error } = await this.client
       .from('event_team_registrations')
       .select(
-        'id, event_id, division_id, captain_id, name, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, created_at, updated_at',
+        'id, event_id, division_id, captain_id, name, source, captain_display_name, captain_phone, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note, created_at, updated_at',
       )
       .eq(column, value)
       .maybeSingle();
@@ -197,14 +354,18 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       id: row.id as never as EventTeamRegistrationId,
       eventId: row.event_id,
       divisionId: row.division_id as never as DivisionId,
-      captainId: row.captain_id as UserId,
+      captainId: row.captain_id === null ? null : (row.captain_id as UserId),
       name: row.name,
       members,
+      source: row.source,
+      captainDisplayName: row.captain_display_name,
+      captainPhone: row.captain_phone,
       paymentStatus: row.payment_status,
       checkoutSessionId: row.checkout_session_id,
       paymentIntentId: row.payment_intent_id,
       amountPaidCents: row.amount_paid_cents,
       paidAt: row.paid_at ? new Date(row.paid_at) : null,
+      paymentNote: row.payment_note,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     });

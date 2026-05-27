@@ -85,7 +85,6 @@ type EventRow = {
   external_registration_instructions: string | null;
   payment_instructions: string | null;
   payments_off_platform: boolean | null;
-  team_registration_mode: TeamRegistrationMode | null;
 };
 
 type DivisionRow = {
@@ -112,6 +111,8 @@ type DivisionRow = {
   winner_team_id: string | null;
   winner_team_registration_id: string | null;
   winner_recorded_at: string | null;
+  allow_free_agents: boolean;
+  team_registration_mode: TeamRegistrationMode | null;
 };
 
 function rowToCapacity(row: EventRow): Capacity | null {
@@ -183,6 +184,8 @@ function divisionRowToDomain(row: DivisionRow): Division {
     prizePurseCents: row.prize_purse_cents,
     startsAt: row.starts_at ? new Date(row.starts_at) : null,
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
+    allowFreeAgents: row.allow_free_agents ?? true,
+    teamRegistrationMode: row.team_registration_mode ?? null,
   });
 }
 
@@ -211,6 +214,8 @@ function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): Divisi
     prizePurseCents: row.prize_purse_cents,
     startsAt: row.starts_at ? new Date(row.starts_at) : null,
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
+    allowFreeAgents: row.allow_free_agents ?? true,
+    teamRegistrationMode: row.team_registration_mode ?? null,
     winner,
   };
 }
@@ -237,6 +242,8 @@ function divisionToRow(eventId: string, d: Division): Record<string, unknown> {
     prize_purse_cents: d.prizePurseCents,
     starts_at: d.startsAt ? d.startsAt.toISOString() : null,
     ends_at: d.endsAt ? d.endsAt.toISOString() : null,
+    allow_free_agents: d.allowFreeAgents,
+    team_registration_mode: d.teamRegistrationMode,
   };
 }
 
@@ -256,7 +263,6 @@ function rowToExtensions(row: EventRow) {
     externalRegistrationInstructions: row.external_registration_instructions,
     paymentInstructions: row.payment_instructions,
     paymentsOffPlatform: row.payments_off_platform ?? false,
-    teamRegistrationMode: row.team_registration_mode ?? null,
   };
 }
 
@@ -384,7 +390,6 @@ export class SupabaseEventRepository implements EventRepository {
       external_registration_instructions: event.externalRegistrationInstructions,
       payment_instructions: event.paymentInstructions,
       payments_off_platform: event.paymentsOffPlatform,
-      team_registration_mode: event.teamRegistrationMode,
       updated_at: new Date().toISOString(),
     };
 

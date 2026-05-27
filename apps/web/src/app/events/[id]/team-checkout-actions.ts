@@ -83,12 +83,12 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
   if (event.type !== EventType.Tournament) {
     backWithError(eventId, 'not_tournament');
   }
-  if (event.teamRegistrationMode !== TeamRegistrationMode.AdHoc) {
-    backWithError(eventId, 'not_team_event');
-  }
 
   const division = event.divisions.find((d) => String(d.id) === String(registration.divisionId));
   if (!division) backWithError(eventId, 'division_not_found');
+  if (division.teamRegistrationMode !== TeamRegistrationMode.AdHoc) {
+    backWithError(eventId, 'not_team_event');
+  }
   if (division.priceUnit !== PriceUnit.PerTeam) {
     // Per-player priced divisions go through the attendee flow, not here.
     backWithError(eventId, 'not_per_team');

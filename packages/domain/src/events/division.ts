@@ -9,6 +9,7 @@ import {
   SkillTier,
   Surface,
   TeamComposition,
+  TeamRegistrationMode,
 } from './enums.js';
 import { assertFormatAllowedForSurface } from './rules.js';
 
@@ -44,6 +45,21 @@ export interface CreateDivisionProps {
   /** Optional schedule override for multi-day tournaments. */
   startsAt?: Date | null;
   endsAt?: Date | null;
+  /**
+   * When `false`, the division does not accept free-agent signups. Hosts
+   * running pure captain-assembled brackets use this to hide the free-agent
+   * pool. Defaults to `true`.
+   */
+  allowFreeAgents?: boolean;
+  /**
+   * ADR 0016 team paradigm at the division level. `null` = individual
+   * signup (open-play or solo-bracket tournament); `'ad_hoc'` = captain
+   * assembles a throwaway {@link EventTeamRegistration}; `'roster'` =
+   * captain registers an existing persistent {@link Team}. Defaults to
+   * `null` — the create-event handler upgrades non-solo tournament
+   * divisions to `'ad_hoc'` when the host didn't pick a mode.
+   */
+  teamRegistrationMode?: TeamRegistrationMode | null;
 }
 
 /**
@@ -74,6 +90,8 @@ export class Division {
     public readonly prizePurseCents: number | null,
     public readonly startsAt: Date | null,
     public readonly endsAt: Date | null,
+    public readonly allowFreeAgents: boolean,
+    public readonly teamRegistrationMode: TeamRegistrationMode | null,
   ) {}
 
   /**
@@ -168,6 +186,8 @@ export class Division {
       prizePurseCents,
       startsAt,
       endsAt,
+      props.allowFreeAgents ?? true,
+      props.teamRegistrationMode ?? null,
     );
   }
 
@@ -194,6 +214,8 @@ export class Division {
     prizePurseCents: number | null;
     startsAt: Date | null;
     endsAt: Date | null;
+    allowFreeAgents: boolean;
+    teamRegistrationMode: TeamRegistrationMode | null;
   }): Division {
     return new Division(
       props.id,
@@ -214,6 +236,8 @@ export class Division {
       props.prizePurseCents,
       props.startsAt,
       props.endsAt,
+      props.allowFreeAgents,
+      props.teamRegistrationMode,
     );
   }
 }

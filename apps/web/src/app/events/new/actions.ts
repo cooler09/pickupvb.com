@@ -7,7 +7,7 @@ import { CreateEventSchema } from '@pickupvb/types';
 import { CreateEventCommand, JoinEventCommand } from '@pickupvb/application';
 import { EVENT_POSITIONS, EventType, SkillTier, skillTierBand } from '@pickupvb/domain';
 import { handlers, analytics } from '@/lib/handlers';
-import { field, fieldOrUndefined } from '@/lib/form-data';
+import { bool, field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords } from '@/lib/timezone';
@@ -140,17 +140,6 @@ export async function createEventAction(
             : {}),
           ...(field(formData, 'paymentsOffPlatform') === 'on' ? { paymentsOffPlatform: true } : {}),
         }),
-    // ADR 0007 — only meaningful for tournaments; aggregate ignores it for
-    // open-play. `none` = individual signups only.
-    ...(type === EventType.Tournament
-      ? (() => {
-          const raw = fieldOrUndefined(formData, 'teamRegistrationMode');
-          if (raw === 'ad_hoc') return { teamRegistrationMode: 'ad_hoc' as const };
-          if (raw === 'roster') return { teamRegistrationMode: 'roster' as const };
-          if (raw === 'none') return { teamRegistrationMode: null };
-          return {} as const; // unset → aggregate default (ad_hoc)
-        })()
-      : {}),
   };
 
   // ---- ADR 0006 additional divisions --------------------------------------
@@ -166,6 +155,19 @@ export async function createEventAction(
     const priceUnitRaw = fieldOrUndefined(formData, `div_${i}_priceUnit`);
     const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
     const prizeText = fieldOrUndefined(formData, `div_${i}_prizeText`);
+    // R2: per-division free-agent opt-out. Default true (matches the
+    // historical behaviour all existing divisions were created under).
+    const allowFreeAgents = bool(formData, `div_${i}_allowFreeAgents`);
+    // ADR 0016: per-division team registration paradigm. For tournaments,
+    // default to ad_hoc when the composition is non-solo, else null. The
+    // host can override per row via the picker.
+    const isTournamentRow = type === EventType.Tournament;
+    const teamRegModeRaw = fieldOrUndefined(formData, `div_${i}_teamRegistrationMode`);
+    let teamRegistrationMode: 'ad_hoc' | 'roster' | null;
+    if (teamRegModeRaw === 'ad_hoc') teamRegistrationMode = 'ad_hoc';
+    else if (teamRegModeRaw === 'roster') teamRegistrationMode = 'roster';
+    else if (teamRegModeRaw === 'none') teamRegistrationMode = null;
+    else teamRegistrationMode = isTournamentRow && teamComposition !== 'solo' ? 'ad_hoc' : null;
     divisions.push({
       label,
       surface: fieldOrUndefined(formData, `div_${i}_surface`) || 'indoor',
@@ -181,6 +183,8 @@ export async function createEventAction(
       ...(priceUsd ? { priceCents: parsePriceCents(priceUsd) } : {}),
       ...(priceUsd ? { priceUnit } : {}),
       ...(prizeText ? { prizeText } : {}),
+      allowFreeAgents,
+      teamRegistrationMode,
     });
   }
 
@@ -193,15 +197,12 @@ export async function createEventAction(
     };
   }
 
-  // ADR 0012 — canonical registration-config invariants (event type × team
-  // mode × division composition × price unit).
+  // ADR 0012 — canonical registration-config invariants (event type ×
+  // per-division team mode × division composition × price unit). ADR 0016
+  // moved team-mode to the division level.
   if (isTournament && !isExternal) {
-    const submittedMode = fieldOrUndefined(formData, 'teamRegistrationMode');
-    const resolvedMode: 'ad_hoc' | 'roster' | null =
-      submittedMode === 'roster' ? 'roster' : submittedMode === 'none' ? null : 'ad_hoc'; // default when unset, matching the aggregate
     const teamPricing = validateTeamPricing({
       type: 'tournament',
-      teamRegistrationMode: resolvedMode,
       paymentsOffPlatform: field(formData, 'paymentsOffPlatform') === 'on',
       divisions: divisions.map((d) => ({
         label: (d.label as string) ?? '',
@@ -212,6 +213,8 @@ export async function createEventAction(
           | 'partner_required',
         priceUnit: ((d.priceUnit as string) ?? 'per_player') as 'per_player' | 'per_team',
         priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
+        teamRegistrationMode:
+          (d.teamRegistrationMode as 'ad_hoc' | 'roster' | null | undefined) ?? null,
       })),
     });
     if (!teamPricing.ok) {

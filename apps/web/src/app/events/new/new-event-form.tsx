@@ -233,16 +233,6 @@ export default function NewEventForm({
   const [paymentsOffPlatform, setPaymentsOffPlatform] = useState(() =>
     chk(values, submitted, 'paymentsOffPlatform', false),
   );
-  // Team registration mode is lifted to the parent so the DivisionsRepeater
-  // can react to it (per ADR 0012: team-led modes hide solo composition +
-  // per-player pricing; individual mode hides team compositions +
-  // per-team pricing).
-  const [teamRegistrationMode, setTeamRegistrationMode] = useState<'ad_hoc' | 'roster' | 'none'>(
-    () => {
-      const raw = val(values, 'teamRegistrationMode', 'ad_hoc');
-      return raw === 'roster' || raw === 'none' ? raw : 'ad_hoc';
-    },
-  );
 
   // Capacity is a single 3-way selector now (Unlimited / Fixed / By position).
   // It's only meaningful for open-play, on-platform events.
@@ -730,14 +720,9 @@ export default function NewEventForm({
           />
         ) : (
           <>
-            <TeamRegistrationModeSelect
-              value={teamRegistrationMode}
-              onChange={setTeamRegistrationMode}
-            />
             <DivisionsRepeater
               defaultSurface="indoor"
               requireAtLeastOne
-              teamRegistrationMode={teamRegistrationMode}
               {...(state.fieldErrors ? { fieldErrors: state.fieldErrors } : {})}
             />
           </>
@@ -1098,42 +1083,6 @@ function PaymentSettingsSubsection({
           </label>
         </div>
       )}
-    </div>
-  );
-}
-
-/**
- * Team-registration mode picker. Rendered above the DivisionsRepeater so
- * the choice gates which composition + price-unit options appear per
- * division (per ADR 0012).
- */
-function TeamRegistrationModeSelect({
-  value,
-  onChange,
-}: {
-  value: 'ad_hoc' | 'roster' | 'none';
-  onChange: (next: 'ad_hoc' | 'roster' | 'none') => void;
-}) {
-  return (
-    <div>
-      <label htmlFor="teamRegistrationMode" className={labelClass}>
-        Team registration
-      </label>
-      <select
-        id="teamRegistrationMode"
-        name="teamRegistrationMode"
-        value={value}
-        onChange={(e) => onChange(e.target.value as 'ad_hoc' | 'roster' | 'none')}
-        className={inputClass}
-      >
-        <option value="ad_hoc">Ad-hoc — captains create a team at signup</option>
-        <option value="roster">Roster — captains pick an existing team</option>
-        <option value="none">None — individual signups only</option>
-      </select>
-      <p className="text-muted mt-1 text-xs">
-        Team-led modes charge the captain per team. &ldquo;None&rdquo; means each player signs up
-        individually and pays per player.
-      </p>
     </div>
   );
 }

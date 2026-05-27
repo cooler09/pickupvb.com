@@ -1,0 +1,63 @@
+-- ============================================================================
+-- Bracket realtime: add tournament_brackets + bracket_matches to the
+-- supabase_realtime publication so the bracket UI can refresh live as the
+-- host enters scores from another device (or another host on another
+-- device for co-hosted tournaments).
+--
+-- Context: brackets/matches were created in 20260514000400_tournament_brackets
+-- but never added to logical replication. The bracket page is a server
+-- component that re-renders on `router.refresh()`; a small client island
+-- subscribes to postgres_changes on these two tables and triggers the
+-- refresh, mirroring the pattern already in
+-- apps/web/src/hooks/use-event-attendees.ts for event attendees.
+--
+-- We deliberately only publish the two coarse-grained tables:
+--   * tournament_brackets — catches create, format change, status moves
+--     (setup -> active -> completed), reset.
+--   * bracket_matches     — catches winner assignment and slot fills as
+--     teams advance.
+-- bracket_seeds and bracket_match_sets are intentionally NOT published:
+--   * the host doing the seeding/score entry sees their own page refresh
+--     via the server action;
+--   * any remote viewer who needs to see the result will receive the
+--     bracket_matches event a beat later (winner_team_id changes when a
+--     match completes) and the subsequent router.refresh() reloads
+--     everything including seeds + per-set scores.
+--
+-- Both tables already have a uuid PK, so REPLICA IDENTITY defaults to the
+-- PK — no replica-identity backfill needed (cf.
+-- 20260626000000_event_co_hosts_replica_identity.sql for the contrast).
+--
+-- Impact: any client subscribed to a channel that filters on `bracket_id`
+-- or `division_id` for these two tables will start receiving INSERT /
+-- UPDATE / DELETE events. RLS still applies to subscribers, so visibility
+-- matches what the bracket page already shows.
+-- ============================================================================
+
+-- Idempotent: tournament_brackets was already added to supabase_realtime
+-- ad-hoc on the production project before this migration landed, so a
+-- plain `alter publication ... add table` fails with SQLSTATE 42710
+-- (relation is already member of publication). Guard each add with a
+-- lookup against pg_publication_tables so the migration is safe to
+-- re-run against any environment regardless of prior state.
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'tournament_brackets'
+  ) then
+    alter publication supabase_realtime add table public.tournament_brackets;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'bracket_matches'
+  ) then
+    alter publication supabase_realtime add table public.bracket_matches;
+  end if;
+end$$;

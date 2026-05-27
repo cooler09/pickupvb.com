@@ -12,6 +12,8 @@ export type FreeAgentEntry = {
 export type FreeAgentDivision = {
   id: string;
   label: string;
+  /** Whether this division accepts free-agent signups (R2). */
+  allowFreeAgents: boolean;
 };
 
 type Props = {
@@ -35,6 +37,10 @@ const RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string 
   notin: { tone: 'error', text: "You weren't in the free-agent pool." },
   closed: { tone: 'error', text: "This event isn't open for free-agent signups." },
   division_required: { tone: 'error', text: 'Pick a division to sign up for.' },
+  fa_disabled: {
+    tone: 'error',
+    text: "This division isn't accepting free agents.",
+  },
   signin: { tone: 'error', text: 'Log in to sign up.' },
   anon: { tone: 'error', text: 'Finish creating your account to sign up.' },
   error: { tone: 'error', text: 'Something went wrong. Try again.' },
@@ -56,6 +62,11 @@ export function FreeAgentSignupPanel({
   resultCode,
 }: Props) {
   const result = resultCode ? RESULT_MESSAGES[resultCode] : undefined;
+  // Only divisions that opted in can accept new signups. The grouping list
+  // above still shows agents that previously signed up for now-opted-out
+  // divisions; they're surfaced under their original bracket so captains
+  // can still see them.
+  const signupDivisions = divisions.filter((d) => d.allowFreeAgents);
 
   return (
     <section className="border-border-base space-y-4 rounded-lg border p-4">
@@ -153,10 +164,10 @@ export function FreeAgentSignupPanel({
         </form>
       )}
 
-      {viewerId && isRealUser && !isFreeAgent && (
+      {viewerId && isRealUser && !isFreeAgent && signupDivisions.length > 0 && (
         <form action={joinAsFreeAgentFromForm.bind(null, eventId)} className="space-y-2">
-          {divisions.length === 1 ? (
-            <input type="hidden" name="division_id" value={divisions[0]!.id} />
+          {signupDivisions.length === 1 ? (
+            <input type="hidden" name="division_id" value={signupDivisions[0]!.id} />
           ) : (
             <label className="block">
               <span className="text-muted text-xs font-medium tracking-wide uppercase">
@@ -171,7 +182,7 @@ export function FreeAgentSignupPanel({
                 <option value="" disabled>
                   Pick a division…
                 </option>
-                {divisions.map((d) => (
+                {signupDivisions.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.label}
                   </option>

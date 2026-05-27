@@ -5,6 +5,7 @@ import {
   ConflictError,
   NotFoundError,
   RegistrationMember,
+  RegistrationSource,
   TeamRegistrationMode,
   UnauthorizedError,
   InvariantViolation,
@@ -17,7 +18,9 @@ import {
 } from '@pickupvb/domain';
 import {
   AddAdHocTeamMemberCommand,
+  MarkWalkInPaidCashCommand,
   RegisterAdHocTeamCommand,
+  RegisterWalkInTeamCommand,
   RemoveAdHocTeamMemberCommand,
   RenameAdHocTeamRegistrationCommand,
   WithdrawAdHocTeamRegistrationCommand,
@@ -57,29 +60,42 @@ export class RegisterAdHocTeamHandler {
     captainId,
     name,
     members,
+    actingAsHost,
   }: RegisterAdHocTeamCommand): Promise<{ id: string }> {
     const event = await this.events.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     if (event.type !== EventType.Tournament) {
       throw new InvariantViolation('Ad-hoc team registration is only available on tournaments.');
     }
-    if (event.teamRegistrationMode !== TeamRegistrationMode.AdHoc) {
-      throw new InvariantViolation('This event is not configured for ad-hoc team registration.');
-    }
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
+    if (division.teamRegistrationMode !== TeamRegistrationMode.AdHoc) {
+      throw new InvariantViolation('This division is not configured for ad-hoc team registration.');
+    }
 
-    // One team per division per captain. Withdrawing the prior
-    // registration first is the intended escape hatch.
-    const dup = await this.registrations.existsForCaptainInDivision(
-      eventId,
-      String(captainId),
-      String(division.id),
-    );
-    if (dup) {
-      throw new ConflictError(
-        'You already have a team registered in this division. Withdraw it first if you need to start over.',
+    // Host walk-in escape hatch: when the host is creating a walk-in
+    // team for the bracket, they're a proxy captain rather than a
+    // self-signup, so the "one team per captain per division" rule
+    // doesn't apply. Verify they're actually the host before honoring
+    // the flag.
+    const isHostProxy = actingAsHost === true && String(event.hostId) === String(captainId);
+    if (actingAsHost === true && !isHostProxy) {
+      throw new UnauthorizedError('Only the event host can add a walk-in team.');
+    }
+
+    if (!isHostProxy) {
+      // One team per division per captain. Withdrawing the prior
+      // registration first is the intended escape hatch.
+      const dup = await this.registrations.existsForCaptainInDivision(
+        eventId,
+        String(captainId),
+        String(division.id),
       );
+      if (dup) {
+        throw new ConflictError(
+          'You already have a team registered in this division. Withdraw it first if you need to start over.',
+        );
+      }
     }
 
     const registration = EventTeamRegistration.create({
@@ -89,6 +105,7 @@ export class RegisterAdHocTeamHandler {
       captainId: captainId as UserId,
       name,
       members: members.map((m, i) => memberFromInput(m, i)),
+      source: isHostProxy ? RegistrationSource.Host : RegistrationSource.Captain,
     });
     await this.registrations.save(registration);
     return { id: String(registration.id) };
@@ -170,5 +187,91 @@ export class WithdrawAdHocTeamRegistrationHandler {
       );
     }
     await this.repo.delete(reg.id);
+  }
+}
+
+/**
+ * Host registers a walk-in team for the bracket (ADR 0017). The acting
+ * caller must be the event host on a published tournament with an
+ * ad-hoc division. The resulting row has `source = 'walk_in'`,
+ * `captain_id = null`, and stores the captain's name + phone as
+ * freeform text. Payment starts at `'none'`; the host marks it paid
+ * later via {@link MarkWalkInPaidCashHandler}.
+ */
+export class RegisterWalkInTeamHandler {
+  constructor(
+    private readonly events: EventRepository,
+    private readonly registrations: EventTeamRegistrationRepository,
+  ) {}
+
+  async execute({
+    eventId,
+    divisionId,
+    hostId,
+    name,
+    captainDisplayName,
+    captainPhone,
+    members,
+  }: RegisterWalkInTeamCommand): Promise<{ id: string }> {
+    const event = await this.events.findById(eventId);
+    if (!event) throw new NotFoundError('event', eventId);
+    if (event.type !== EventType.Tournament) {
+      throw new InvariantViolation('Walk-in registration is only available on tournaments.');
+    }
+    if (String(event.hostId) !== String(hostId)) {
+      throw new UnauthorizedError('Only the event host can add a walk-in team.');
+    }
+    const division = event.divisions.find((d) => String(d.id) === divisionId);
+    if (!division) throw new NotFoundError('division', divisionId);
+    if (division.teamRegistrationMode !== TeamRegistrationMode.AdHoc) {
+      throw new InvariantViolation('Walk-ins are only allowed in ad-hoc divisions.');
+    }
+
+    const registration = EventTeamRegistration.create({
+      id: randomUUID() as never as EventTeamRegistrationId,
+      eventId,
+      divisionId: division.id as never as DivisionId,
+      captainId: null,
+      name,
+      members: members.map((m, i) => memberFromInput(m, i)),
+      source: RegistrationSource.WalkIn,
+      captainDisplayName,
+      captainPhone,
+    });
+    await this.registrations.save(registration);
+    return { id: String(registration.id) };
+  }
+}
+
+/**
+ * Host marks a walk-in registration paid in cash (ADR 0017). Refuses to
+ * touch captain / host-proxy rows (they have a real captain account and
+ * already have either a Stripe path or the existing
+ * `hostMarkTeamRegistrationPaid` flow). The price recorded is the
+ * division's per-team price at the time of marking — the same source
+ * the existing host action uses.
+ */
+export class MarkWalkInPaidCashHandler {
+  constructor(
+    private readonly events: EventRepository,
+    private readonly registrations: EventTeamRegistrationRepository,
+  ) {}
+
+  async execute({ registrationId, requesterId, note }: MarkWalkInPaidCashCommand): Promise<void> {
+    const reg = await this.registrations.findById(
+      registrationId as never as EventTeamRegistrationId,
+    );
+    if (!reg) throw new NotFoundError('event_team_registration', registrationId);
+    const event = await this.events.findById(reg.eventId);
+    if (!event) throw new NotFoundError('event', reg.eventId);
+    if (String(event.hostId) !== String(requesterId)) {
+      throw new UnauthorizedError('Only the event host can mark walk-in payments.');
+    }
+    const division = event.divisions.find((d) => String(d.id) === String(reg.divisionId));
+    const amountCents = division?.priceCents ?? 0;
+    // The aggregate enforces source = 'walk_in' and the payment-status
+    // transition — wrap so any cross-aggregate state surfaces cleanly.
+    reg.markPaidCash({ amountCents, paidAt: new Date(), note });
+    await this.registrations.save(reg);
   }
 }

@@ -28,12 +28,16 @@ function formatCapacity(kind: 'fixed' | 'unlimited' | null, maxSpots: number | n
 
 /**
  * Read-only display of all divisions on an event. Per ADR 0006 every event
- * has ≥ 1 division (backfilled); the single-division case still renders as
- * one row so the badges and capacity/price/prize info are visible. Hosts get
- * CRUD via {@link HostDivisionsManager} rendered separately on the page.
+ * has ≥ 1 division (backfilled). For single-division events the surrounding
+ * `EventHero` + meta sections already render skill tier, format, gender,
+ * capacity, and price for `divisions[0]`, so this section would just
+ * duplicate that data — we render only when there are 2+ divisions worth
+ * comparing. Hosts get CRUD via {@link HostDivisionsManager} rendered
+ * separately on the page (always visible so a host can split a
+ * single-division event).
  */
 export function DivisionsSection({ divisions }: Props) {
-  if (divisions.length === 0) return null;
+  if (divisions.length <= 1) return null;
   return (
     <section className="space-y-3">
       <h2 className="text-fg text-lg font-semibold">

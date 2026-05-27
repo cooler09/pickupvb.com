@@ -79,6 +79,12 @@ export class UpdateEventDivisionHandler {
         updates.prizePurseCents === undefined ? current.prizePurseCents : updates.prizePurseCents,
       startsAt: updates.startsAt === undefined ? current.startsAt : updates.startsAt,
       endsAt: updates.endsAt === undefined ? current.endsAt : updates.endsAt,
+      allowFreeAgents:
+        updates.allowFreeAgents === undefined ? current.allowFreeAgents : updates.allowFreeAgents,
+      teamRegistrationMode:
+        updates.teamRegistrationMode === undefined
+          ? current.teamRegistrationMode
+          : updates.teamRegistrationMode,
     });
     event.updateDivision(next);
     await this.repo.save(event);

@@ -1,12 +1,16 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
+import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
-import { BoardView } from './_components/board-view';
+import { BoardView, pickLatestMatchId } from './_components/board-view';
+import { LatestMatchTracker } from './_components/latest-match-tracker';
 import { NoBracketView } from './_components/no-bracket-view';
 import { SetupView } from './_components/setup-view';
+import { BracketRealtimeRefresher } from './_components/realtime-refresher';
 import { NOTICE_LABEL } from './_components/labels';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +66,7 @@ export default async function BracketPage(props: {
 
   const divParam = pickQuery(searchParams, 'division');
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
+  const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
   const [bracket, registeredTeams] = await Promise.all([
     repositories.bracketRepo.findByDivisionId(selectedDivision.id as never),
@@ -96,6 +101,27 @@ export default async function BracketPage(props: {
           {registeredTeams.length} registered team
           {registeredTeams.length === 1 ? '' : 's'}
         </p>
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Link
+            href={
+              (event.divisions.length > 1
+                ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}`
+                : `/events/${event.id}/bracket/watch`) as Route
+            }
+            className="text-primary text-xs hover:underline"
+          >
+            {'Open public spectator view →'}
+          </Link>
+          <ShareLink
+            path={
+              event.divisions.length > 1
+                ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}`
+                : `/events/${event.id}/bracket/watch`
+            }
+            title={`Live bracket — ${event.title}`}
+            label="Share spectator link"
+          />
+        </div>
       </header>
 
       {event.divisions.length > 1 && (
@@ -143,6 +169,8 @@ export default async function BracketPage(props: {
         />
       )}
 
+      <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
+
       {bracket && bracket.status === 'setup' && (
         <SetupView
           eventId={event.id}
@@ -158,17 +186,25 @@ export default async function BracketPage(props: {
       )}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <BoardView
-          eventId={event.id}
-          divisionId={selectedDivision.id}
-          matches={[...bracket.matches]}
-          teamById={teamById}
-          bestOf={bracket.config.bestOf}
-          isHost={isHost}
-          viewerId={viewerId}
-          status={bracket.status}
-          format={bracket.format}
-        />
+        <>
+          <LatestMatchTracker
+            matchId={pickLatestMatchId(bracket.matches)}
+            autoScroll={false}
+            initialFocusId={focusParam}
+          />
+          <BoardView
+            eventId={event.id}
+            divisionId={selectedDivision.id}
+            matches={[...bracket.matches]}
+            teamById={teamById}
+            bestOf={bracket.config.bestOf}
+            isHost={isHost}
+            viewerId={viewerId}
+            status={bracket.status}
+            format={bracket.format}
+            highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
+          />
+        </>
       )}
     </article>
   );

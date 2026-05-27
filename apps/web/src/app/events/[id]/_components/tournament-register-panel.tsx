@@ -20,10 +20,17 @@ type Props = {
   /**
    * When `false`, the team option is hidden entirely and the panel
    * renders only the free-agent flow (no picker). Set this when the
-   * event's `team_registration_mode` is `null` — i.e. the host opted
+   * event has no division whose `team_registration_mode` is set (ADR 0016)
+   * — i.e. the host opted
    * out of team registration.
    */
   teamEnabled: boolean;
+  /**
+   * When `false`, the free-agent option is hidden entirely. Set this
+   * when no division on the event has `allow_free_agents = true`
+   * (R2 in `docs/audits/registration-workflow.md`).
+   */
+  freeAgentEnabled: boolean;
   teamPanel: ReactNode;
   freeAgentPanel: ReactNode;
 };
@@ -50,17 +57,26 @@ export function TournamentRegisterPanel({
   freeAgentCount,
   defaultMode = 'team',
   teamEnabled,
+  freeAgentEnabled,
   teamPanel,
   freeAgentPanel,
 }: Props) {
-  const initialMode: Mode = teamEnabled ? defaultMode : 'free-agent';
+  const resolvedDefault: Mode = freeAgentEnabled ? defaultMode : 'team';
+  const initialMode: Mode = teamEnabled ? resolvedDefault : 'free-agent';
   const [mode, setMode] = useState<Mode>(initialMode);
 
-  // No choice to surface — render the free-agent panel directly.
+  // No choice to surface — render the single available panel directly.
   if (!teamEnabled) {
     return (
       <section className="border-border-base overflow-hidden rounded-lg border" id="signup">
         {freeAgentPanel}
+      </section>
+    );
+  }
+  if (!freeAgentEnabled) {
+    return (
+      <section className="border-border-base overflow-hidden rounded-lg border" id="signup">
+        {teamPanel}
       </section>
     );
   }

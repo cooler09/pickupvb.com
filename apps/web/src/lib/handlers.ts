@@ -40,9 +40,11 @@ import {
   JoinEventWithPositionHandler,
   LeaveEventAsFreeAgentHandler,
   LeaveEventHandler,
+  MarkWalkInPaidCashHandler,
   RecordMatchResultHandler,
   RegisterAdHocTeamHandler,
   RegisterTeamHandler,
+  RegisterWalkInTeamHandler,
   RemoveEventCoHostHandler,
   RemoveEventDivisionHandler,
   RemoveAdHocTeamMemberHandler,
@@ -156,6 +158,9 @@ export const handlers = {
   withdrawAdHocTeamRegistration: new WithdrawAdHocTeamRegistrationHandler(
     eventTeamRegistrationRepo,
   ),
+  // ADR 0017 walk-in team registrations
+  registerWalkInTeam: new RegisterWalkInTeamHandler(eventRepo, eventTeamRegistrationRepo),
+  markWalkInPaidCash: new MarkWalkInPaidCashHandler(eventRepo, eventTeamRegistrationRepo),
   createBracket: new CreateBracketHandler(eventRepo, bracketRepo),
   seedBracket: new SeedBracketHandler(eventRepo, bracketRepo),
   generateBracket: new GenerateBracketHandler(eventRepo, bracketRepo),

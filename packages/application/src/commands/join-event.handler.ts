@@ -68,10 +68,8 @@ export class JoinEventAsFreeAgentHandler {
   }: JoinEventAsFreeAgentCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    const division = event.divisions.find((d) => String(d.id) === divisionId);
-    if (!division) throw new NotFoundError('division', divisionId);
-    // Run aggregate invariants (status / type / start-time / duplicate guard).
-    event.joinAsFreeAgent(userId as never, notes);
+    // Aggregate owns division existence + allowFreeAgents check.
+    event.joinAsFreeAgent(userId as never, divisionId as never, notes);
     await this.repo.save(event);
     // Persist the division pick via dedicated port (aggregate's
     // `_freeAgents` map has no slot for division_id).

@@ -5,7 +5,13 @@ import type {
   EventRepository,
   MatchSet,
 } from '@pickupvb/domain';
-import { Bracket, NotFoundError, UnauthorizedError } from '@pickupvb/domain';
+import {
+  Bracket,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+  minTeamsForFormat,
+} from '@pickupvb/domain';
 
 // ---- Commands ------------------------------------------------------------
 //
@@ -107,6 +113,14 @@ export class CreateBracketHandler {
     assertHost(evt.hostId, cmd.requesterId);
     const existing = await this.brackets.findByDivisionId(cmd.divisionId as never);
     if (existing) return { bracketId: existing.id };
+    const min = minTeamsForFormat(cmd.format);
+    const teams = await this.brackets.listRegisteredTeams(evt.id, cmd.divisionId as never);
+    if (teams.length < min) {
+      throw new ValidationError(
+        `This format needs at least ${min} registered teams (only ${teams.length} so far).`,
+        { teamCount: teams.length, minTeams: min, format: cmd.format },
+      );
+    }
     const bracket = Bracket.create(
       this.brackets.nextBracketId(),
       evt.id,

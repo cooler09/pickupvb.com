@@ -7,10 +7,10 @@ type Division = { id: string; label: string };
 type Props = {
   teams: ReadonlyArray<RegisteredTeam>;
   /**
-   * Ad-hoc registrations (`event_team_registrations`) for tournaments
-   * in `team_registration_mode = 'ad_hoc'`. These are tournament-scoped
-   * — they don't have a `teams` row and so don't link anywhere — but
-   * they still belong in the public roster.
+   * Ad-hoc registrations (`event_team_registrations`) for divisions
+   * with `team_registration_mode = 'ad_hoc'` (ADR 0016). These are
+   * tournament-scoped — they don't have a `teams` row and so don't
+   * link anywhere — but they still belong in the public roster.
    */
   adHocRegistrations?: ReadonlyArray<AdHocTeamPublicEntry>;
   /** Divisions on the event, used to resolve labels for ad-hoc rows. */
@@ -34,6 +34,10 @@ const PAYMENT_PILL: Record<AdHocTeamPublicEntry['paymentStatus'], { label: strin
 export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisions = [] }: Props) {
   const divisionLabel = (id: string): string =>
     divisions.find((d) => d.id === id)?.label ?? 'Division';
+  // Single-division events skip the division prefix on each row — it's
+  // redundant with EventHero (and DivisionsSection is hidden in that
+  // case as well).
+  const showDivision = divisions.length > 1;
   const total = teams.length + adHocRegistrations.length;
   return (
     <section id="teams">
@@ -77,15 +81,23 @@ export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisio
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{r.name}</p>
                     <p className="text-muted text-xs">
-                      {divisionLabel(r.divisionId)} · Captain: {captainLabel} · {rosterSize} player
+                      {showDivision && `${divisionLabel(r.divisionId)} · `}
+                      Captain: {captainLabel} · {rosterSize} player
                       {rosterSize === 1 ? '' : 's'}
                     </p>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[r.paymentStatus].cls}`}
-                  >
-                    {PAYMENT_PILL[r.paymentStatus].label}
-                  </span>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1">
+                    {r.source === 'walk_in' && (
+                      <span className="rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800">
+                        Walk-in
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-md border px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL[r.paymentStatus].cls}`}
+                    >
+                      {PAYMENT_PILL[r.paymentStatus].label}
+                    </span>
+                  </div>
                 </div>
                 {rosterSize > 1 && (
                   <details className="group mt-2">

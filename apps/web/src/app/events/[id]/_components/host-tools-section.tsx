@@ -32,14 +32,19 @@ export function HostToolsSection({
           eventId={event.id}
           attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
         />
-        {event.type === 'tournament' && event.teamRegistrationMode === 'ad_hoc' && (
-          <HostAdHocTeamsPanel
-            eventId={event.id}
-            returnPath={returnPath}
-            divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
-            rows={adHocHostRows}
-          />
-        )}
+        {event.type === 'tournament' &&
+          event.divisions.some((d) => d.teamRegistrationMode === 'ad_hoc') && (
+            <HostAdHocTeamsPanel
+              eventId={event.id}
+              returnPath={returnPath}
+              divisions={event.divisions.map((d) => ({
+                id: d.id,
+                label: d.label,
+                isAdHoc: d.teamRegistrationMode === 'ad_hoc',
+              }))}
+              rows={adHocHostRows}
+            />
+          )}
         {event.type === 'tournament' && event.divisions.length > 0 && (
           <HostDivisionWinnersPanel
             eventId={event.id}

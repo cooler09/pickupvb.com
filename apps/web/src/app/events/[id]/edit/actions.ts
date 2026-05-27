@@ -16,7 +16,7 @@ import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 import { GetEventDetailQuery } from '@pickupvb/application';
-import { SkillTier, TeamRegistrationMode } from '@pickupvb/domain';
+import { SkillTier } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { notify } from '@/lib/notify';
 
@@ -141,38 +141,21 @@ export async function editEventAction(
   const newPassProcessingFeeToBuyer = field(formData, 'passProcessingFeeToBuyer') === 'on';
   const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
 
-  // ADR 0007 — `team_registration_mode` is editable on tournaments. Open-play
-  // events ignore the field. Default to the current value if the form
-  // didn't include it (e.g. the edit form predates this control).
-  const isTournament = detail.type === 'tournament';
-  const teamRegistrationModeRaw = fieldOrUndefined(formData, 'teamRegistrationMode');
-  let newTeamRegistrationMode: TeamRegistrationMode | null = detail.teamRegistrationMode;
-  if (isTournament && teamRegistrationModeRaw) {
-    if (teamRegistrationModeRaw === 'ad_hoc') {
-      newTeamRegistrationMode = TeamRegistrationMode.AdHoc;
-    } else if (teamRegistrationModeRaw === 'roster') {
-      newTeamRegistrationMode = TeamRegistrationMode.Roster;
-    } else if (teamRegistrationModeRaw === 'none') {
-      newTeamRegistrationMode = null;
-    }
-  } else if (!isTournament) {
-    newTeamRegistrationMode = null;
-  }
-
   // ADR 0012 — canonical registration-config invariants (event type ×
-  // team mode × division composition × price unit). Build the resulting
-  // division list using the submitted primary-division price (if changed)
-  // on top of the current read-model values.
+  // per-division team mode × division composition × price unit). ADR 0016
+  // moved team-mode to the division level; division mode is unchanged in
+  // this update so we replay the current modes against the resulting
+  // pricing.
   {
     const resultingDivisions = detail.divisions.map((d, i) => ({
       label: d.label,
       teamComposition: d.teamComposition,
       priceUnit: d.priceUnit,
       priceCents: i === 0 && newPriceCents !== null ? newPriceCents : (d.priceCents ?? null),
+      teamRegistrationMode: d.teamRegistrationMode ?? null,
     }));
     const teamPricing = validateTeamPricing({
       type: detail.type,
-      teamRegistrationMode: newTeamRegistrationMode,
       paymentsOffPlatform,
       divisions: resultingDivisions,
     });
@@ -299,7 +282,6 @@ export async function editEventAction(
       ? (fieldOrUndefined(formData, 'paymentInstructions') ?? null)
       : null,
     payments_off_platform: paymentsOffPlatform,
-    ...(isTournament ? { team_registration_mode: newTeamRegistrationMode } : {}),
   };
 
   // ---- Apply update ----
