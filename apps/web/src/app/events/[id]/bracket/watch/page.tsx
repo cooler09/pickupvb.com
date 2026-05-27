@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
@@ -19,6 +20,33 @@ import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
  * `bracket_matches`, and `bracket_match_sets` is already `for select using
  * (true)`, so anon viewers see the same data.
  */
+
+export async function generateMetadata(props: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await props.params;
+  try {
+    const event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, null));
+    const title = `Live bracket — ${event.title} · PickupVB`;
+    const description = `Follow the ${event.title} bracket live on PickupVB. Match results update in real time.`;
+    const canonical = `/events/${event.id}/bracket/watch`;
+    return {
+      title,
+      description,
+      alternates: { canonical },
+      openGraph: {
+        title,
+        description,
+        url: canonical,
+        type: 'website',
+        siteName: 'PickupVB',
+      },
+      twitter: { card: 'summary_large_image', title, description },
+    };
+  } catch {
+    return { title: 'Live bracket — PickupVB' };
+  }
+}
 
 function pickQuery(
   sp: Record<string, string | string[] | undefined> | undefined,
