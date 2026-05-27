@@ -46,9 +46,9 @@ begin
      where team_id is null
        and deleted_at is null
   loop
-    select format into evt_format from public.events where id = r.event_id;
+    select format into evt_format from public.event_divisions where id = r.division_id;
     if evt_format is null then
-      -- Defensive: event was hard-deleted but the registration row survived
+      -- Defensive: division was hard-deleted but the registration row survived
       -- (shouldn't happen under current FKs, but skip rather than crash).
       continue;
     end if;

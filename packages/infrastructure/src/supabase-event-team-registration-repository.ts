@@ -173,20 +173,22 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       return;
     }
 
-    // Need the event's format to populate teams.format.
-    const { data: evtRow, error: evtErr } = await this.client
-      .from('events')
+    // Need the division's format to populate teams.format. Format lives
+    // on `event_divisions` since migration 20260605000500 (phase 9d
+    // dropped the legacy `events.format` column).
+    const { data: divRow, error: divErr } = await this.client
+      .from('event_divisions')
       .select('format')
-      .eq('id', registration.eventId)
+      .eq('id', String(registration.divisionId))
       .maybeSingle();
-    if (evtErr || !evtRow) {
+    if (divErr || !divRow) {
       throw new Error(
-        `EventTeamRegistration.ensureBackingTeam event lookup failed: ${
-          evtErr?.message ?? 'event not found'
+        `EventTeamRegistration.ensureBackingTeam division lookup failed: ${
+          divErr?.message ?? 'division not found'
         }`,
       );
     }
-    const evtFormat = (evtRow as unknown as { format: string }).format;
+    const evtFormat = (divRow as unknown as { format: string }).format;
 
     const { data: newTeam, error: tErr } = await this.client
       .from('teams')
