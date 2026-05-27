@@ -80,12 +80,16 @@ create policy event_team_payments_insert
     )
   );
 
--- ---- 3. Drop the event-level column ---------------------------------------
+-- ---- 3. Drop events_view first (it `select e.*`s the soon-to-be-dropped
+--         column, so the alter table below fails with SQLSTATE 2BP01 if
+--         the view is still in place). Recreated in step 4.
+drop view if exists public.events_view;
+
+-- ---- 3b. Drop the event-level column --------------------------------------
 alter table public.events
   drop column team_registration_mode;
 
--- ---- 4. Rebuild events_view so `select e.*` stops projecting the column ---
-drop view if exists public.events_view;
+-- ---- 4. Rebuild events_view without the dropped column --------------------
 create view public.events_view as
 select
   e.*,
