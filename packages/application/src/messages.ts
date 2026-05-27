@@ -190,6 +190,14 @@ export class RegisterAdHocTeamCommand {
     public readonly captainId: string,
     public readonly name: string,
     public readonly members: ReadonlyArray<AdHocRegistrationMemberInput>,
+    /**
+     * When true, treat the caller as the event host acting on behalf of
+     * a walk-in team and bypass the "one team per captain per division"
+     * uniqueness check. The handler still verifies the caller actually
+     * is the host before honoring the flag — clients can't bypass the
+     * check by lying.
+     */
+    public readonly actingAsHost: boolean = false,
   ) {}
 }
 

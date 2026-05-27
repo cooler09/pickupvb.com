@@ -299,7 +299,7 @@ export async function addAdHocTeamFromForm(
   }
   try {
     await handlers.registerAdHocTeam.execute(
-      new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, members),
+      new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, members, true),
     );
   } catch (err) {
     const { code, msg } = classify(err);

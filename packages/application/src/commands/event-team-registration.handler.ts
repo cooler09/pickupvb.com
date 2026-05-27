@@ -57,6 +57,7 @@ export class RegisterAdHocTeamHandler {
     captainId,
     name,
     members,
+    actingAsHost,
   }: RegisterAdHocTeamCommand): Promise<{ id: string }> {
     const event = await this.events.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
@@ -69,17 +70,29 @@ export class RegisterAdHocTeamHandler {
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
 
-    // One team per division per captain. Withdrawing the prior
-    // registration first is the intended escape hatch.
-    const dup = await this.registrations.existsForCaptainInDivision(
-      eventId,
-      String(captainId),
-      String(division.id),
-    );
-    if (dup) {
-      throw new ConflictError(
-        'You already have a team registered in this division. Withdraw it first if you need to start over.',
+    // Host walk-in escape hatch: when the host is creating a walk-in
+    // team for the bracket, they're a proxy captain rather than a
+    // self-signup, so the "one team per captain per division" rule
+    // doesn't apply. Verify they're actually the host before honoring
+    // the flag.
+    const isHostProxy = actingAsHost === true && String(event.hostId) === String(captainId);
+    if (actingAsHost === true && !isHostProxy) {
+      throw new UnauthorizedError('Only the event host can add a walk-in team.');
+    }
+
+    if (!isHostProxy) {
+      // One team per division per captain. Withdrawing the prior
+      // registration first is the intended escape hatch.
+      const dup = await this.registrations.existsForCaptainInDivision(
+        eventId,
+        String(captainId),
+        String(division.id),
       );
+      if (dup) {
+        throw new ConflictError(
+          'You already have a team registered in this division. Withdraw it first if you need to start over.',
+        );
+      }
     }
 
     const registration = EventTeamRegistration.create({
