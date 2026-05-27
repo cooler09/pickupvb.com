@@ -3,14 +3,20 @@ import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
-import { getViewer, isAnonymousUser } from '@/lib/server-auth';
-import { BoardView } from './_components/board-view';
-import { NoBracketView } from './_components/no-bracket-view';
-import { SetupView } from './_components/setup-view';
-import { BracketRealtimeRefresher } from './_components/realtime-refresher';
-import { NOTICE_LABEL } from './_components/labels';
+import { BoardView } from '../_components/board-view';
+import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
 
-export const dynamic = 'force-dynamic';
+/**
+ * Public spectator view of a tournament bracket. Read-only, no host or
+ * captain affordances. Anyone with the link can watch the bracket update
+ * live via the realtime refresher.
+ *
+ * Distinct from `/events/[id]/bracket` (the host/captain workspace) so the
+ * spectator UI stays uncluttered and the page doesn't need to opt out of
+ * caching for auth-dependent reasons. RLS on `tournament_brackets`,
+ * `bracket_matches`, and `bracket_match_sets` is already `for select using
+ * (true)`, so anon viewers see the same data.
+ */
 
 function pickQuery(
   sp: Record<string, string | string[] | undefined> | undefined,
@@ -20,21 +26,16 @@ function pickQuery(
   return Array.isArray(v) ? v[0] : v;
 }
 
-export default async function BracketPage(props: {
+export default async function BracketWatchPage(props: {
   params: Promise<{ id: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const viewer = await getViewer();
-  const user = viewer?.user ?? null;
-  const isRealUser = !!user && !isAnonymousUser(user);
 
   let event;
   try {
-    event = await handlers.getEventDetail.execute(
-      new GetEventDetailQuery(params.id, user?.id ?? null),
-    );
+    event = await handlers.getEventDetail.execute(new GetEventDetailQuery(params.id, null));
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
@@ -70,11 +71,6 @@ export default async function BracketPage(props: {
   ]);
 
   const teamById = new Map(registeredTeams.map((t) => [t.teamId, t]));
-  const isHost = !!event.canManage && isRealUser;
-  const viewerId = user?.id ?? null;
-  const noticeCode = pickQuery(searchParams, 'notice');
-  const noticeMsg = pickQuery(searchParams, 'msg');
-  const notice = noticeCode ? (NOTICE_LABEL[noticeCode] ?? null) : null;
 
   const divisionSummary = [
     selectedDivision.label,
@@ -91,16 +87,16 @@ export default async function BracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">Bracket — {event.title}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-fg text-2xl font-bold">Live bracket — {event.title}</h1>
+          <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+            ● LIVE
+          </span>
+        </div>
         {divisionSummary && <p className="text-fg/80 text-sm">{divisionSummary}</p>}
         <p className="text-muted text-sm">
           {registeredTeams.length} registered team
-          {registeredTeams.length === 1 ? '' : 's'}
-        </p>
-        <p className="text-xs">
-          <Link href={`/events/${event.id}/bracket/watch`} className="text-primary hover:underline">
-            {'Open public spectator view →'}
-          </Link>
+          {registeredTeams.length === 1 ? '' : 's'} • Updates automatically
         </p>
       </header>
 
@@ -111,7 +107,7 @@ export default async function BracketPage(props: {
             return (
               <Link
                 key={d.id}
-                href={`/events/${event.id}/bracket?division=${d.id}`}
+                href={`/events/${event.id}/bracket/watch?division=${d.id}`}
                 aria-current={active ? 'page' : undefined}
                 className={`-mb-px rounded-t px-3 py-2 text-sm ${
                   active
@@ -126,43 +122,16 @@ export default async function BracketPage(props: {
         </nav>
       )}
 
-      {notice && (
-        <div
-          role={notice.tone === 'success' ? 'status' : 'alert'}
-          className={`rounded border px-3 py-2 text-sm ${
-            notice.tone === 'success'
-              ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300'
-              : 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
-          }`}
-        >
-          {notice.text}
-          {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}
-        </div>
-      )}
-
-      {!bracket && (
-        <NoBracketView
-          eventId={event.id}
-          divisionId={selectedDivision.id}
-          teamCount={registeredTeams.length}
-          isHost={isHost}
-        />
-      )}
-
       <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
 
-      {bracket && bracket.status === 'setup' && (
-        <SetupView
-          eventId={event.id}
-          divisionId={selectedDivision.id}
-          bracketFormat={bracket.format}
-          seeds={bracket.seeds.map((s) => ({
-            teamId: s.teamId,
-            seed: s.seed,
-          }))}
-          registeredTeams={registeredTeams}
-          isHost={isHost}
-        />
+      {(!bracket || bracket.status === 'setup') && (
+        <div className="border-border-base bg-bg rounded-lg border p-6 text-center">
+          <p className="text-fg/80 text-sm">
+            {bracket
+              ? 'Seeding is in progress. The bracket will appear here once the host generates it.'
+              : "The host hasn't created the bracket yet. Check back closer to game time."}
+          </p>
+        </div>
       )}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
@@ -172,8 +141,8 @@ export default async function BracketPage(props: {
           matches={[...bracket.matches]}
           teamById={teamById}
           bestOf={bracket.config.bestOf}
-          isHost={isHost}
-          viewerId={viewerId}
+          isHost={false}
+          viewerId={null}
           status={bracket.status}
           format={bracket.format}
         />
