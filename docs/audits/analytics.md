@@ -12,6 +12,22 @@ a vendor SDK.
 
 ## Status updates
 
+- **2026-05-27** — Bundle 102 ships PostHog **browser SDK** (consent-gated
+  client provider in
+  [apps/web/src/components/posthog-provider.tsx](../../apps/web/src/components/posthog-provider.tsx),
+  mounted from [apps/web/src/app/layout.tsx](../../apps/web/src/app/layout.tsx)
+  inside a `<Suspense>` boundary). Server `capture()` and browser
+  autocapture now stitch into one PostHog Person via the salted-hash
+  distinct id computed by
+  [apps/web/src/lib/server-distinct-id.ts](../../apps/web/src/lib/server-distinct-id.ts).
+  Closes the "no `$pageview`, no visitor counts" gap left by Bundle 82
+  without re-adding Vercel Analytics — full rationale + alternatives in
+  [docs/adr/0015-browser-analytics-posture.md](../adr/0015-browser-analytics-posture.md).
+  `CONSENT_COOKIE_VERSION` bumped 1 → 2 because the disclosure
+  materially changed (third-party script in the browser); existing
+  users get re-prompted. Privacy policy §5 + subprocessor list
+  rewritten. Regression test for the consent-gated init lives in
+  [apps/web/src/components/posthog-provider.test.ts](../../apps/web/src/components/posthog-provider.test.ts).
 - **2026-05-26** — Serverless flush gap discovered + closed. Symptom: zero events arriving in
   PostHog on prod despite `POSTHOG_API_KEY` + `POSTHOG_DISTINCT_ID_SALT`
   being set and the adapter resolving to `PostHogAnalytics` (not the

@@ -132,8 +132,8 @@ export default function PrivacyPage() {
           who help us run the Service:
           <ul>
             <li>Supabase (managed Postgres, authentication)</li>
-            <li>Vercel (hosting, edge compute, web analytics)</li>
-            <li>PostHog (product analytics, server-side capture only)</li>
+            <li>Vercel (hosting, edge compute)</li>
+            <li>PostHog (product analytics — server-side capture and browser SDK)</li>
             <li>Stripe (payments, payouts, billing portal)</li>
             <li>Resend (transactional email)</li>
             <li>Sentry (error monitoring)</li>
@@ -162,10 +162,13 @@ export default function PrivacyPage() {
       <h2>5. Cookies and tracking</h2>
       <p>
         We use first-party cookies for authentication, security (CSRF protection), and saving
-        preferences (e.g. theme). We use Vercel Analytics and PostHog for first-party, aggregate
-        product analytics &mdash; PostHog captures happen server-side only, so no third-party
-        tracking script runs in your browser. PostHog distinct ids are derived from a salted hash of
-        your account id; the raw id never leaves our servers.
+        preferences (e.g. theme). We use PostHog for first-party, aggregate product analytics. Some
+        PostHog events are captured server-side (e.g. account creation, RSVP, checkout); others are
+        captured in your browser by the PostHog browser SDK once you have accepted analytics consent
+        &mdash; the SDK records page views, anonymous click activity, and performance metrics so we
+        can understand how the Service is used. We do not enable session replay. PostHog distinct
+        ids for signed-in users are derived from a salted hash of your account id; the raw id never
+        leaves our servers.
       </p>
       <p>
         The first time you visit the Service you&apos;ll see a consent banner with two choices:{' '}

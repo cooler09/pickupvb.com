@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next/types';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
@@ -7,10 +8,15 @@ import { EnvBanner } from '@/components/env-banner';
 import { WebVitalsClient } from '@/components/web-vitals-client';
 import { ConsentBanner } from '@/components/consent-banner';
 import { AuthStateSync } from '@/components/auth-state-sync';
+import { PostHogProvider } from '@/components/posthog-provider';
 import { getCurrentUser } from '@/lib/server-auth';
+import { getViewerHashedDistinctId, getViewerTraits } from '@/lib/server-distinct-id';
 import { hasAnalyticsConsent, isConsentDecided } from '@/lib/consent';
 import { DEFAULT_THEME, isTheme, THEME_COOKIE, type Theme } from '@/lib/theme';
 import './globals.css';
+
+const POSTHOG_BROWSER_KEY = process.env['NEXT_PUBLIC_POSTHOG_KEY'];
+const POSTHOG_BROWSER_HOST = process.env['NEXT_PUBLIC_POSTHOG_HOST'] ?? 'https://us.i.posthog.com';
 
 export const metadata: Metadata = {
   title: {
@@ -115,10 +121,12 @@ async function resolveTheme(): Promise<Theme> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [theme, analyticsAllowed, decided] = await Promise.all([
+  const [theme, analyticsAllowed, decided, hashedDistinctId, traits] = await Promise.all([
     resolveTheme(),
     hasAnalyticsConsent(),
     isConsentDecided(),
+    getViewerHashedDistinctId(),
+    getViewerTraits(),
   ]);
   return (
     <html lang="en" data-theme={theme}>
@@ -141,6 +149,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </main>
         </ToastProvider>
+        <Suspense fallback={null}>
+          <PostHogProvider
+            allowed={analyticsAllowed}
+            hashedDistinctId={hashedDistinctId}
+            traits={traits}
+            apiKey={POSTHOG_BROWSER_KEY}
+            apiHost={POSTHOG_BROWSER_HOST}
+          />
+        </Suspense>
         <SiteFooter />
         {analyticsAllowed ? <WebVitalsClient /> : null}
         {decided ? null : <ConsentBanner />}
