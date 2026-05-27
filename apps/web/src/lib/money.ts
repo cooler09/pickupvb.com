@@ -16,19 +16,28 @@ export const DEFAULT_REFUND_WINDOW_HOURS = 24;
  * Empty / non-numeric input → 0 (meaning "free event").
  */
 export function parsePriceCents(raw: string | undefined): number {
-    if (!raw) return 0;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return 0;
-    return Math.max(0, Math.round(n * 100));
+  if (!raw) return 0;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.round(n * 100));
 }
 
 /**
  * Parse a refund-window hours form field. Clamps to [0, MAX] and falls back
  * to the default if missing/invalid.
+ *
+ * Pass `{ allowCustom: false }` to force the default regardless of input —
+ * used to gate the "custom refund policy" feature behind Pro (audit P1 #1
+ * sub-item). The form input is also disabled in that case, but the server
+ * clamp is the actual entitlement boundary.
  */
-export function parseRefundWindowHours(raw: string | undefined): number {
-    if (!raw) return DEFAULT_REFUND_WINDOW_HOURS;
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return DEFAULT_REFUND_WINDOW_HOURS;
-    return Math.max(0, Math.min(MAX_REFUND_WINDOW_HOURS, Math.round(n)));
+export function parseRefundWindowHours(
+  raw: string | undefined,
+  opts: { allowCustom?: boolean } = {},
+): number {
+  if (opts.allowCustom === false) return DEFAULT_REFUND_WINDOW_HOURS;
+  if (!raw) return DEFAULT_REFUND_WINDOW_HOURS;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_REFUND_WINDOW_HOURS;
+  return Math.max(0, Math.min(MAX_REFUND_WINDOW_HOURS, Math.round(n)));
 }

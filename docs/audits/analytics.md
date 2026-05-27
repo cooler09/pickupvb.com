@@ -12,6 +12,33 @@ a vendor SDK.
 
 ## Status updates
 
+- **2026-05-26** — Serverless flush gap discovered + closed. Symptom: zero events arriving in
+  PostHog on prod despite `POSTHOG_API_KEY` + `POSTHOG_DISTINCT_ID_SALT`
+  being set and the adapter resolving to `PostHogAnalytics` (not the
+  noop). Root cause: `analytics.capture()` is fire-and-forget — the
+  consent-gated decorator kicks the actual `client.capture()` off as a
+  floating promise, and `posthog-node`'s background HTTP flush is also
+  async. On Vercel the serverless function freezes the moment the
+  response is returned, and the enqueued capture never reaches the
+  ingest host. Original architecture sketch (this file, "Adapter
+  responsibilities") anticipated a `shutdown()` call from a
+  `finally` block; no call site actually wired it. **Fix:** `posthog-node`
+  v5 exposes a `waitUntil` constructor option. The web composition
+  root ([apps/web/src/lib/analytics.ts](../../apps/web/src/lib/analytics.ts))
+  now passes `safeAfter` (a `next/server` `after()` wrapper that
+  swallows the "no request scope" throw for cron/test callers), and
+  `ConsentGatedAnalytics` hands the full consent-check + forward
+  promise to `safeAfter` too, so the whole async chain stays inside
+  the request lifetime. The infrastructure adapter
+  ([packages/infrastructure/src/posthog-analytics.ts](../../packages/infrastructure/src/posthog-analytics.ts))
+  accepts an optional `waitUntil` so it stays Next-free. Regression
+  test landed in
+  [apps/web/src/lib/analytics.test.ts](../../apps/web/src/lib/analytics.test.ts)
+  — mocks `next/server`'s `after` + `./consent` and asserts every
+  `capture` / `identify` hands its gated promise to `after()`, that
+  consent denial drops the inner call, and that a missing request
+  scope falls through to the inner adapter (so cron callers still
+  capture).
 - **2026-05-24** — Bundle 75 closed P1 #1 + P1 #2 (port, adapter, first two captures). Bundle 76 closed P1 #4 (PII guardrail
   test in `packages/domain`) and completed the server-side capture
   set for `event_left`, `checkout_started`, `checkout_completed`,

@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
 
 /**
  * Authenticated event flows.
@@ -20,13 +21,30 @@ test.describe('event creation form', () => {
     await expect(page.getByRole('button', { name: /create event/i })).toBeVisible();
   });
 
-  test.fixme(
-    'create a free open-play event end-to-end — requires DateTimePicker interaction and geocoding',
-  );
+  test('create a free open-play event end-to-end — DateTimePicker + geocoding, then cancel', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const title = `E2E Free Open Play ${Date.now()}`;
+    let eventUrl: string | null = null;
+    try {
+      const created = await createFreeOpenPlayEvent(page, { title });
+      eventUrl = created.url;
 
-  test.fixme('create a paid event — requires Stripe Connect on the test account');
+      // Detail page should render the event title we submitted.
+      await page.goto(eventUrl);
+      await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      if (eventUrl) await cancelEvent(page, eventUrl);
+    }
+  });
 
-  test.fixme('create a tournament event with multiple divisions');
+  // Paid event create is covered by event-create-extended.authed.spec.ts:
+  //   "create a paid event as stripe-host — price appears on detail page"
+  // Multi-division tournament create remains a fixme there pending the
+  // tournament harness bundle.
 });
 
 test.describe('saved event templates (Pro feature)', () => {
@@ -124,13 +142,13 @@ test.describe('RSVP — join and leave a free event', () => {
     });
   });
 
-  test.fixme(
-    'RSVP to a paid event via Stripe Checkout — requires Stripe Connect on the test account',
-  );
+  // Paid RSVP via Stripe Checkout is covered by
+  // event-attendance.authed.spec.ts:
+  //   "RSVP to paid event → Stripe Checkout 4242 → redirected back with user on roster"
 
-  test.fixme(
-    'Event full: second user cannot join at capacity — sign in as attendee-b (TEST_ATTENDEE_B_EMAIL) to test',
-  );
+  // Event-full capacity check is covered by event-attendance.authed.spec.ts:
+  //   "event full: attendee-b tries to join a capacity-1 event that attendee-a
+  //    already filled — sees 'event is full'"
 });
 
 test.describe('event edit', () => {

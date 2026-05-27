@@ -751,6 +751,7 @@ export default function NewEventForm({
             canCollectPayments={canCollectPayments}
             paymentsOffPlatform={paymentsOffPlatform}
             setPaymentsOffPlatform={setPaymentsOffPlatform}
+            viewerHasProBenefits={viewerHasProBenefits}
           />
         )}
         {showPaymentSettings && (
@@ -760,6 +761,7 @@ export default function NewEventForm({
             canCollectPayments={canCollectPayments}
             paymentsOffPlatform={paymentsOffPlatform}
             setPaymentsOffPlatform={setPaymentsOffPlatform}
+            viewerHasProBenefits={viewerHasProBenefits}
           />
         )}
       </section>
@@ -794,20 +796,31 @@ export default function NewEventForm({
         <div>
           <label htmlFor="visibility" className={labelClass}>
             Who can see this event?
+            {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
           </label>
           <select
             id="visibility"
             name="visibility"
-            defaultValue={val(values, 'visibility', 'public')}
+            defaultValue={viewerHasProBenefits ? val(values, 'visibility', 'public') : 'public'}
+            disabled={!viewerHasProBenefits}
             className={inputClass}
             {...fieldA11y('visibility', state.fieldErrors)}
           >
             <option value="public">Public — anyone can find it</option>
-            <option value="invite_only">Invite only</option>
+            <option value="invite_only">Invite only (unlisted — share by link)</option>
             <option value="friends_of_host">People the host follows</option>
             <option value="friends_of_attendees">People attendees follow</option>
           </select>
           <FieldError name="visibility" errors={state.fieldErrors} />
+          {!viewerHasProBenefits && (
+            <p className="text-muted mt-1 text-xs">
+              Free events are public.{' '}
+              <Link href="/pricing" className="text-primary hover:underline">
+                Upgrade to Pro
+              </Link>{' '}
+              to host unlisted or friends-only events.
+            </p>
+          )}
         </div>
         <div>
           <label htmlFor="rules" className={labelClass}>
@@ -988,12 +1001,14 @@ function PaymentSettingsSubsection({
   canCollectPayments,
   paymentsOffPlatform,
   setPaymentsOffPlatform,
+  viewerHasProBenefits,
 }: {
   values: Record<string, string> | undefined;
   submitted: boolean | undefined;
   canCollectPayments: boolean;
   paymentsOffPlatform: boolean;
   setPaymentsOffPlatform: (v: boolean) => void;
+  viewerHasProBenefits: boolean;
 }) {
   // Refund window + service-fee absorption only apply to on-platform
   // (Stripe-mediated) charges. Hide them when payments are off-platform
@@ -1044,24 +1059,7 @@ function PaymentSettingsSubsection({
       </div>
       {showOnPlatformControls && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="refundWindowHours" className={labelClass}>
-              Refund window (h)
-            </label>
-            <input
-              id="refundWindowHours"
-              name="refundWindowHours"
-              type="number"
-              min="0"
-              max="720"
-              step="1"
-              defaultValue={val(values, 'refundWindowHours', '24')}
-              className={inputClass}
-            />
-            <p className="text-muted mt-1 text-xs">
-              Hours before start when self-cancel refunds work. 0 disables.
-            </p>
-          </div>
+          <RefundWindowField values={values} viewerHasProBenefits={viewerHasProBenefits} />
           <div className="flex items-end">
             <label className="flex items-start gap-2 text-xs">
               <input
@@ -1161,6 +1159,54 @@ function StripeOnboardingBanner() {
   );
 }
 
+/**
+ * Refund-window input. Pro hosts can configure any value in 0–720h; free
+ * hosts see a disabled input pinned to the 24h default with an upgrade
+ * nudge. The server action enforces the same clamp regardless of what's
+ * submitted (audit P1 #1 sub-item — custom refund policy gating).
+ */
+function RefundWindowField({
+  values,
+  viewerHasProBenefits,
+}: {
+  values: Record<string, string> | undefined;
+  viewerHasProBenefits: boolean;
+}) {
+  const defaultValue = viewerHasProBenefits ? val(values, 'refundWindowHours', '24') : '24';
+  return (
+    <div>
+      <label htmlFor="refundWindowHours" className={labelClass}>
+        Refund window (h)
+        {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
+      </label>
+      <input
+        id="refundWindowHours"
+        name="refundWindowHours"
+        type="number"
+        min="0"
+        max="720"
+        step="1"
+        defaultValue={defaultValue}
+        disabled={!viewerHasProBenefits}
+        className={inputClass}
+      />
+      <p className="text-muted mt-1 text-xs">
+        {viewerHasProBenefits ? (
+          'Hours before start when self-cancel refunds work. 0 disables.'
+        ) : (
+          <>
+            Free hosts use the 24-hour default.{' '}
+            <Link href="/pricing" className="text-primary hover:underline">
+              Upgrade to Pro
+            </Link>{' '}
+            to customize (0–720h).
+          </>
+        )}
+      </p>
+    </div>
+  );
+}
+
 function PricingSubsection({
   fieldErrors,
   values,
@@ -1168,6 +1214,7 @@ function PricingSubsection({
   canCollectPayments,
   paymentsOffPlatform,
   setPaymentsOffPlatform,
+  viewerHasProBenefits,
 }: {
   fieldErrors: Record<string, string> | undefined;
   values: Record<string, string> | undefined;
@@ -1175,6 +1222,7 @@ function PricingSubsection({
   canCollectPayments: boolean;
   paymentsOffPlatform: boolean;
   setPaymentsOffPlatform: (v: boolean) => void;
+  viewerHasProBenefits: boolean;
 }) {
   const showOnPlatformControls = canCollectPayments && !paymentsOffPlatform;
   return (
@@ -1245,24 +1293,7 @@ function PricingSubsection({
         </div>
         {showOnPlatformControls && (
           <>
-            <div>
-              <label htmlFor="refundWindowHours" className={labelClass}>
-                Refund window (h)
-              </label>
-              <input
-                id="refundWindowHours"
-                name="refundWindowHours"
-                type="number"
-                min="0"
-                max="720"
-                step="1"
-                defaultValue={val(values, 'refundWindowHours', '24')}
-                className={inputClass}
-              />
-              <p className="text-muted mt-1 text-xs">
-                Hours before start when self-cancel refunds work. 0 disables.
-              </p>
-            </div>
+            <RefundWindowField values={values} viewerHasProBenefits={viewerHasProBenefits} />
             <div className="flex items-end">
               <label className="flex items-start gap-2 text-xs">
                 <input

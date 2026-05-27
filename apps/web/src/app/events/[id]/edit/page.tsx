@@ -107,6 +107,7 @@ export default async function EditEventPage(props: {
         eventId={id}
         isOpenPlay={event.type === 'open_play'}
         pricingLocked={pricingLocked}
+        viewerHasProBenefits={viewerHasProBenefits}
         initial={{
           title: event.title,
           description: event.description ?? '',

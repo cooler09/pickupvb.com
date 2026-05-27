@@ -23,11 +23,11 @@ Quick-reference table. Detailed findings follow below.
 | Sponsor slot à-la-carte ($3/event for Free) | P2 #4    | ✅ Shipped | Bundle 85             |
 | Saved event templates                       | P1 #1    | ✅ Shipped | Bundle 86             |
 | Host analytics dashboard                    | P1 #1    | ✅ Shipped | Bundle 87             |
-| Custom refund policy gating                 | P1 #1    | 🔲 Planned | —                     |
-| Invite-only / private events                | P1 #1    | 🔲 Planned | —                     |
-| Trial-to-paid conversion tracking (PostHog) | P2 #5    | 🔲 Planned | —                     |
-| Off-platform event upsell                   | P2 #7    | 🔲 Planned | —                     |
-| Monetization strategy ADR                   | P1 #3    | 🔲 Planned | —                     |
+| Custom refund policy gating                 | P1 #1    | ✅ Shipped | Bundle 98             |
+| Invite-only / private events                | P1 #1    | ✅ Shipped | Bundle 99             |
+| Trial-to-paid conversion tracking (PostHog) | P2 #5    | ✅ Shipped | Bundle 98             |
+| Off-platform event upsell                   | P2 #7    | ✅ Shipped | Bundle 100            |
+| Monetization strategy ADR                   | P1 #3    | ✅ Shipped | Bundle 98             |
 | Metro-level sponsorship inventory           | P2 #6    | ⏸ Deferred | until ≥1 active metro |
 
 ---
@@ -42,9 +42,11 @@ Quick-reference table. Detailed findings follow below.
   to a full host toolkit. The fee-savings break-even (~$400/mo GMV) is now
   a floor, not a ceiling — hosts below that threshold have feature reasons
   to upgrade.
-- **Two planned items remain before Pro is fully baked:** custom refund
-  policy gating and invite-only/private events. Both are half-bundle
-  estimates; shipping them closes P1 #1 entirely.
+- **All P1 sub-items shipped.** With Bundle 99 closing invite-only /
+  private events, Pro now ships every feature its pricing page
+  advertises. The fee-savings break-even (~$400/mo GMV) is a floor,
+  not a ceiling — hosts below that threshold have feature reasons
+  to upgrade.
 - **Take-rate is generous and should stay that way.** 5% free / 2.5%
   Pro is competitive with Eventbrite's 3.7%+$1.79 and well below
   Meetup's $24/mo flat. Holding the line is a trust-building moat;
@@ -202,11 +204,11 @@ per-event programmatic. See P2 #6 below.
 
 ### 1. Pro feature set doesn't earn $10/mo for sub-$400-GMV hosts
 
-> **Status (2026-05-24, Bundle 87): PARTIALLY SHIPPED.**
-> P1 #1 sub-item #1 (**Saved event templates**) and sub-item #2
-> (**Host analytics dashboard**) are now live as Pro-gated host
-> features. Remaining P1 #1 sub-items still open: custom refund
-> policy gating and invite-only/private event flow.
+> **Status (2026-05-27, Bundle 99): SHIPPED.**
+> Sub-items #1 (templates, Bundle 86), #2 (analytics, Bundle 87),
+> #3 (custom refund policy gating, Bundle 98), and #4 (invite-only
+> / private events, Bundle 99) are live. Sub-item #5 (co-host
+> gating) was explicitly dropped 2026-05-24. P1 #1 is closed.
 
 **File:** [apps/web/src/app/pricing/page.tsx#L38-L45](../../apps/web/src/app/pricing/page.tsx#L38-L45),
 [apps/web/src/lib/pro.ts](../../apps/web/src/lib/pro.ts).
@@ -296,6 +298,13 @@ This is **revenue-neutral for PickupVB** but is the single biggest
 host-trust signal we can ship cheaply.
 
 ### 3. No Pro decision is documented in ADRs or journal
+
+> **Status (2026-05-27, Bundle 98): SHIPPED.** ADR
+> [0014-monetization-strategy.md](../adr/0014-monetization-strategy.md)
+> records the $10/mo / 50% fee discount / 1-paid-event-per-30d /
+> 14-day-trial decisions with rationale, rejected alternatives,
+> and explicit success-criteria triggers for revisiting. Journal
+> entry: [docs/journal/2026-05-27-bundle-98.md](../journal/2026-05-27-bundle-98.md).
 
 **File:** [docs/adr/](../adr/) — no `0NNN-pro-tier.md`;
 [docs/journal/](../journal/) — no monetization rationale entry.
@@ -398,6 +407,20 @@ ticket/tip flows. **Estimate:** P2 #4 sponsor slot is complete for v1.
 
 ### 5. Trial-to-paid conversion isn't tracked
 
+> **Status (2026-05-27, Bundle 98): SHIPPED.** Added
+> `pro_trial_started` (fired on `customer.subscription.created`
+> when `status === 'trialing'`) and `pro_trial_converted` (fired
+> on `customer.subscription.updated` when previous status was
+> `trialing` and new status is `active`) to the typed analytics
+> port in
+> [packages/domain/src/shared/analytics-port.ts](../../packages/domain/src/shared/analytics-port.ts).
+> Emission lives in `handleSubscriptionChange` in
+> [apps/web/src/app/api/webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts).
+> Target metrics are in
+> [ADR 0014](../adr/0014-monetization-strategy.md#success-criteria-the-numbers-well-measure).
+> PostHog dashboard funnel build is a manual config step on the
+> launch checklist.
+
 **File:**
 [apps/web/src/app/auth/callback/route.ts](../../apps/web/src/app/auth/callback/route.ts)
 (analytics identify),
@@ -450,6 +473,18 @@ sold, not programmatic. Hold until we have at least one metro doing
 **Estimate: 1 bundle** when triggered.
 
 ### 7. Off-platform events get full platform value at zero revenue
+
+> **Status (2026-05-27, Bundle 100): SHIPPED.** Added a soft,
+> dismissible nudge on the event detail page rendered only for the
+> event's host when `event.paymentsOffPlatform === true` and the
+> `pickupvb_op_upsell_dismissed` cookie isn't set. "Switch" links
+> to `/events/[id]/edit`; "Dismiss" calls a server action that
+> writes the cookie for ~1 year. Per-browser cookie scoping matches
+> the audit's "single-occurrence" framing — once a host has seen
+> the pitch, repeating it on every event is nag-y. Files:
+> [apps/web/src/app/events/[id]/\_components/off-platform-upsell.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/off-platform-upsell.tsx),
+> [apps/web/src/app/events/[id]/off-platform-upsell-actions.ts](../../apps/web/src/app/events/%5Bid%5D/off-platform-upsell-actions.ts),
+> [apps/web/src/lib/off-platform-upsell.ts](../../apps/web/src/lib/off-platform-upsell.ts).
 
 **File:** [docs/payments.md#L113-L126](../payments.md#L113-L126).
 
@@ -534,11 +569,14 @@ Concrete sequencing, smallest valuable first:
    two bundles. Shipped in Bundle 87 (`/profile/billing/analytics`,
    Pro-gated) with fill-rate, repeat-attendee, and GMV trend metrics.
 5. **Bundle: custom refund policy gating (P1 #1 sub-item).** Half a
-   bundle. Gate custom `refund_window_hours` behind Pro.
+   bundle. Shipped in Bundle 98 — `parseRefundWindowHours` accepts
+   `{ allowCustom }`; Free hosts clamp to 24h, Pro hosts get 0–720.
 6. **Bundle: trial-to-paid funnel capture (P2 #5).** Half a bundle.
-   Required to evaluate everything above.
+   Shipped in Bundle 98 — `pro_trial_started` / `pro_trial_converted`
+   fire from the Stripe webhook.
 7. **ADR + journal entry: monetization strategy (P1 #3).** Half a
-   bundle. Lock in the rationale so the lever isn't churned.
+   bundle. Shipped in Bundle 98 as
+   [ADR 0014](../adr/0014-monetization-strategy.md).
 
 Bundles 1–6 together earn Pro its $10 sticker price for both ends of
 the host distribution (low-volume hosts get features; high-volume
@@ -575,6 +613,74 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-05-27 — Bundle 100** — **P2 #7 — off-platform event
+  upsell.** Soft, dismissible nudge rendered above the hero on
+  `/events/[id]` only when the viewer is the event's host and
+  `event.paymentsOffPlatform === true`. New server action
+  `dismissOffPlatformUpsell` sets the
+  `pickupvb_op_upsell_dismissed` cookie (path-global, ~1y,
+  `sameSite=lax`) and `revalidatePath`s the event detail. New
+  files:
+  [apps/web/src/lib/off-platform-upsell.ts](../../apps/web/src/lib/off-platform-upsell.ts)
+  (cookie-name constant — shared by page reader + action),
+  [apps/web/src/app/events/[id]/off-platform-upsell-actions.ts](../../apps/web/src/app/events/%5Bid%5D/off-platform-upsell-actions.ts),
+  [apps/web/src/app/events/[id]/\_components/off-platform-upsell.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/off-platform-upsell.tsx).
+  Wired in
+  [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)
+  between `EventFlashBanners` and `HeroImage`. Closes the last
+  P2 item that wasn't either shipped or deferred-on-trigger.
+  Verify gate (typecheck + lint + test + build) green. Journal:
+  [docs/journal/2026-05-27-bundle-100.md](../journal/2026-05-27-bundle-100.md).
+
+- **2026-05-27 — Bundle 99** — **P1 #1 sub-item #4 — invite-only /
+  private events.** Closes P1 #1 overall. Four changes in one
+  half-bundle: (1) new RLS migration
+  `20260702000000_invite_only_events_readable_by_link.sql` makes
+  `visibility = 'invite_only'` rows readable by anyone holding the
+  canonical URL (anon or signed-in), while keeping them out of
+  `/events`, sitemap, and `public_numbers_views` (all already
+  filter `visibility = 'public'`); (2) follow-up discovery-leak
+  patch — new migration
+  `20260702000100_search_events_filter_visibility_public.sql`
+  adds `visibility = 'public'` to the `search_events` RPC where
+  clause, and `searchFollowingFeed` in
+  `packages/infrastructure/src/supabase-event-repository.ts` adds
+  `.eq('visibility', 'public')` to its events query, since both
+  are `security invoker` / direct-table surfaces that would
+  otherwise leak `invite_only` rows under the new RLS; (3) new
+  `apps/web/src/lib/visibility.ts` helper `clampVisibilityForHost`
+  is the server-side security boundary — wired into both
+  `/events/new` and `/events/[id]/edit` actions, with the edit
+  path checking `detail.hostUserId` so a Pro co-host can't promote
+  a Free host's event; (4) both forms disable the visibility
+  `<select>` for Free hosts with a Pro nudge, mirroring the
+  Bundle 98 `RefundWindowField` pattern. The pricing page already
+  advertised this perk; copy now matches behavior. Verify gate
+  (typecheck + lint + test + build) green; 6 new unit tests.
+  Journal:
+  [docs/journal/2026-05-27-bundle-99.md](../journal/2026-05-27-bundle-99.md).
+
+- **2026-05-27 — Bundle 98** — Three P1/P2 closeouts in one bundle:
+  (1) **P1 #1 sub-item #3 — custom refund policy gating.**
+  `parseRefundWindowHours` now accepts `{ allowCustom }`; Free hosts
+  clamp to the 24h default, Pro hosts get 0–720h. Server-side
+  enforcement in both `/events/new` and `/events/[id]/edit` actions;
+  UI gating via a shared `RefundWindowField` helper in both forms
+  (Pro nudge for Free hosts).
+  (2) **P2 #5 — trial-to-paid funnel.** Two new typed analytics
+  events (`pro_trial_started`, `pro_trial_converted`) flowing from
+  `handleSubscriptionChange` in the Stripe webhook. Dispatch now
+  forwards `previous_attributes` so the trialing→active transition
+  is detectable.
+  (3) **P1 #3 — monetization ADR.** New ADR
+  [0014-monetization-strategy.md](../adr/0014-monetization-strategy.md)
+  records the $10/mo, 50% fee discount, 1-paid-event-per-30d,
+  14-day-trial decisions with success criteria and rejected
+  alternatives. Journal:
+  [docs/journal/2026-05-27-bundle-98.md](../journal/2026-05-27-bundle-98.md).
+  Verify gate (typecheck + lint + test + build) green. The only
+  remaining P1 #1 sub-item is invite-only / private events.
 
 - **2026-05-24 — Bundle 88** — Opas audit of Bundles 84–87 completed.
   Five fixes shipped: (1) sponsor form inputs no longer disabled for

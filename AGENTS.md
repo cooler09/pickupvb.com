@@ -322,9 +322,86 @@ other reason. Never edit applied migrations just to add a preamble.
 
 ## Testing
 
-There's no end-to-end suite yet. Domain and application packages have unit
-tests (`pnpm --filter @pickupvb/domain test`). When adding business rules,
-add a test in `packages/{domain,application}/src/**/*.test.ts`.
+The repo has three test surfaces. Match new tests to the layer that owns
+the logic — don't push a domain invariant into Playwright, and don't try
+to assert UI plumbing in a domain unit test.
+
+| Surface        | Runner                  | Where                                                     | What belongs here                                                                                                                       |
+| -------------- | ----------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Unit**       | Vitest (`pnpm test`)    | `packages/{domain,application}/src/**/*.test.ts`          | Pure business rules, aggregate invariants, command/query handler edge cases, value-object construction, typed-error paths.              |
+| **Unit (web)** | Vitest (`apps/web` pkg) | `apps/web/src/**/*.test.ts` (run via `pnpm --filter ...`) | Framework-glue you can isolate by mocking (`vi.mock('next/server', …)`, `vi.mock('./consent', …)`). Form-data helpers, money, consent.  |
+| **End-to-end** | Playwright              | `apps/web/tests/e2e/`                                     | Cross-cutting user journeys against a real Next server + Supabase: signup → join event, host onboarding → publish, paid checkout flows. |
+
+### When to add a test alongside a change
+
+**Always add or update a test when:**
+
+- You're shipping a bug fix that's reachable from production code paths.
+  The test should fail against `main` and pass with your fix. This is the
+  highest-signal context you can leave for the next agent — it encodes
+  _why_ the change was made in executable form. The PostHog serverless
+  flush fix (bundle 101) is the reference: the symptom was invisible in
+  dev, so [apps/web/src/lib/analytics.test.ts](apps/web/src/lib/analytics.test.ts)
+  exists specifically to fail if anyone removes the `after()` wrapper.
+- You're adding a new domain rule (capacity, eligibility, state
+  transition). The test goes in `packages/domain`. The fact that
+  `JoinEvent` rejects over-capacity isn't documentation worth writing —
+  it's a test worth writing.
+- You're adding a new application-layer handler. Cover the happy path
+  - the typed-error branches (`NotFoundError`, `ConflictError`, …).
+- You're adding a non-trivial flow that touches Stripe, RLS, or the
+  consent gate. These are the layers where regressions are silent in
+  prod (no error thrown, just dropped events / missed charges).
+
+**Skip the test when:**
+
+- The change is a pure type tweak, doc edit, comment, or rename that
+  the typecheck already covers.
+- The behaviour is exhaustively constrained by `exactOptionalPropertyTypes`
+  - discriminated unions (writing a test for "the discriminator matches"
+    is noise).
+- You're shipping a one-off scaffold the user explicitly asked for and
+  the surrounding area has no tests to match style with.
+
+### How to write the test
+
+- **Use the test as a forcing function for the decision record.** A good
+  test name reads like the why: `'hands every capture to next/server after()'`,
+  not `'capture works'`. The next agent who breaks the behaviour reads
+  the failing test name first.
+- **Mock at module boundaries, not call sites.** `vi.mock('next/server', …)`
+  - `vi.mock('./consent', …)` keeps the test honest about what the unit
+    owns vs. what it delegates. See
+    [apps/web/src/lib/analytics.test.ts](apps/web/src/lib/analytics.test.ts).
+- **Don't test framework internals.** Don't assert `revalidatePath` was
+  called inside a server action's unit test — that's plumbing the
+  integration layer already validates. Do assert that your action
+  _throws the right `DomainError`_ or _redirects to the expected
+  flash-param URL_.
+- **Playwright is for "did the user get what they wanted," not "did the
+  handler return the right shape."** Add an e2e case when the regression
+  would only surface as a broken click-path (auth cookie quirks, RLS
+  policy gaps, Stripe redirect round-trips). For internal logic, write
+  a Vitest case instead — it runs 100× faster and pins the cause, not
+  the symptom.
+
+### Pre-existing suites to model from
+
+- Domain: `packages/domain/src/events/capacity.test.ts` and
+  `packages/domain/src/events/event-team-registration.test.ts` —
+  invariant + state-transition coverage.
+- Application: `packages/application/src/commands/join-event.handler.test.ts`
+  — typed-error branches via a fake repo.
+- Web unit (with mocks): `apps/web/src/lib/analytics.test.ts` —
+  `vi.mock` for framework + sibling-module isolation.
+- E2E: `apps/web/tests/e2e/` — Playwright projects (`public`, etc.) and
+  the test-account env-var pattern shown in the terminal history of
+  this repo.
+
+Run order during verify: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
+E2E (`pnpm --filter @pickupvb/web e2e`) is not part of the default verify
+chain — run it manually against a deployed environment when the change
+touches a covered journey.
 
 ## Common pitfalls
 

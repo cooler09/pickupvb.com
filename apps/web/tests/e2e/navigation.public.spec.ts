@@ -66,7 +66,8 @@ test.describe('external link interstitial', () => {
 });
 
 test.describe('short URL redirect', () => {
-  test.fixme(
-    'GET /e/<code> 308-redirects to the full event URL — requires a known short code in the dev env',
-  );
+  // Covered by meta-seo.public.spec.ts:
+  //   "GET /e/E2ETFA 308-redirects to /events/<uuid>"
+  // That test asserts the raw 308 + Location header *and* the followed redirect
+  // using the persistent tournament fixture seed (`E2ETFA`).
 });

@@ -211,22 +211,28 @@ test.describe('group edit', () => {
     await page.goto('/groups');
     await page.waitForLoadState('domcontentloaded');
 
-    const groupLinks = page.locator('a[href*="/groups/"]');
-    const count = await groupLinks.count();
-    if (count === 0) {
+    // Snapshot all candidate slugs in one DOM read. Re-navigating to /groups
+    // between each candidate (the previous pattern) burned the network budget
+    // on a slow dev environment and produced flaky `ERR_TIMED_OUT` failures.
+    const allHrefs = await page
+      .locator('a[href*="/groups/"]')
+      .evaluateAll((els) => (els as HTMLAnchorElement[]).map((a) => a.getAttribute('href') ?? ''));
+    const slugs = Array.from(
+      new Set(
+        allHrefs
+          .filter(
+            (h) => h && !h.includes('/edit') && !h.includes('/members') && !h.includes('/new'),
+          )
+          .map((h) => h.split('/groups/')[1]?.replace(/\/$/, ''))
+          .filter((s): s is string => Boolean(s)),
+      ),
+    );
+
+    if (slugs.length === 0) {
       test.skip(true, 'No groups in this environment; skipping non-member redirect test');
     }
 
-    // Try groups from the directory until we find one that redirects the test user
-    // away from the /members sub-page (i.e., one we are not a member of).
-    for (let i = 0; i < Math.min(count, 5); i++) {
-      const href = await groupLinks.nth(i).getAttribute('href');
-      if (!href || href.includes('/edit') || href.includes('/members') || href.includes('/new'))
-        continue;
-
-      const slug = href.split('/groups/')[1]?.replace(/\/$/, '');
-      if (!slug) continue;
-
+    for (const slug of slugs.slice(0, 5)) {
       await page.goto(`/groups/${slug}/members`);
       await page.waitForLoadState('domcontentloaded');
 
@@ -240,10 +246,7 @@ test.describe('group edit', () => {
         expect(safe).toBe(true);
         return;
       }
-
-      // Members page loaded — we may be a member of this group; try the next.
-      await page.goto('/groups');
-      await page.waitForLoadState('domcontentloaded');
+      // Members page loaded — try the next slug. No need to re-fetch /groups.
     }
 
     test.skip(

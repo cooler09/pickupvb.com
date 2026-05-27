@@ -59,4 +59,14 @@ describe('parseRefundWindowHours', () => {
   it('passes through a valid value', () => {
     expect(parseRefundWindowHours('48')).toBe(48);
   });
+
+  it('forces the default when allowCustom is false (free-tier gate)', () => {
+    expect(parseRefundWindowHours('48', { allowCustom: false })).toBe(DEFAULT_REFUND_WINDOW_HOURS);
+    expect(parseRefundWindowHours('0', { allowCustom: false })).toBe(DEFAULT_REFUND_WINDOW_HOURS);
+    expect(parseRefundWindowHours('720', { allowCustom: false })).toBe(DEFAULT_REFUND_WINDOW_HOURS);
+  });
+
+  it('respects custom values when allowCustom is true (Pro)', () => {
+    expect(parseRefundWindowHours('72', { allowCustom: true })).toBe(72);
+  });
 });

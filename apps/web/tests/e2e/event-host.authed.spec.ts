@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
 
 /**
  * Host-only event management flows.
@@ -18,47 +19,6 @@ let eventUrl: string | null = null;
 let testEventTitle: string;
 let beforeAllError: string | null = null;
 
-/**
- * The DateTimePicker exposes the visible trigger as `<button id={name}>` and
- * the hidden form value as `<input type="hidden" name={name}>`. So `#startsAt`
- * targets the trigger and `input[type=hidden][name="startsAt"]` carries the
- * ISO string the server reads.
- *
- * Opens the picker for `name`, picks the LAST visible non-disabled day in
- * the calendar grid (deep in the month → safely in the future even on early-
- * month runs and after `minDate` clamps), fills the time, and closes.
- */
-async function pickFutureDateTime(
-  page: import('@playwright/test').Page,
-  name: 'startsAt' | 'endsAt',
-  timeHhmm: string,
-): Promise<void> {
-  const trigger = page.locator(`button#${name}`);
-  await trigger.click();
-
-  const dialog = page.locator('[role="dialog"]').last();
-  await dialog.waitFor({ state: 'visible', timeout: 5_000 });
-
-  // LAST non-disabled day in the visible month — pushes the date several
-  // days ahead so server-side "starts in the past" validation can't reject.
-  const day = dialog.locator('[role="gridcell"] button:not([disabled])').last();
-  await day.click();
-
-  const timeInput = dialog.locator('input[type="time"]').first();
-  await timeInput.fill(timeHhmm);
-
-  // Trigger handleTime → onChange → hidden input updates.
-  await timeInput.blur();
-  await page.keyboard.press('Escape');
-
-  // Verify the hidden ISO input now has a value.
-  const hiddenIso = await page
-    .locator(`input[type="hidden"][name="${name}"]`)
-    .inputValue()
-    .catch(() => '');
-  if (!hiddenIso) throw new Error(`DateTimePicker for ${name} did not populate hidden input`);
-}
-
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(60_000);
   const context = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
@@ -66,47 +26,8 @@ test.beforeAll(async ({ browser }) => {
   testEventTitle = `E2E Host Test ${Date.now()}`;
 
   try {
-    await page.goto('/events/new');
-    if (page.url().includes('/login') || page.url().includes('/upgrade')) {
-      beforeAllError = `redirected to ${new URL(page.url()).pathname} — event creation gated`;
-      return;
-    }
-
-    await page.locator('#title').fill(testEventTitle);
-
-    await pickFutureDateTime(page, 'startsAt', '18:00');
-    await pickFutureDateTime(page, 'endsAt', '20:00');
-
-    await page.locator('#addressLine').fill('1000 19th St');
-    // City/region/postal/country are visible only while no address detail has
-    // been entered yet (hasAddress=false). Fill them BEFORE the conditional
-    // collapses; if addressLine already triggered the collapse, click the
-    // "Edit address details" button to reopen.
-    const editDetailsBtn = page.getByRole('button', { name: /edit address details/i });
-    if (await isVisibleOrTimeout(editDetailsBtn, 1_000)) {
-      await editDetailsBtn.click();
-    }
-    await page.locator('#city').fill('Virginia Beach');
-    await page.locator('#region').fill('VA');
-    await page.locator('#postalCode').fill('23451');
-    await page.locator('#country').fill('US');
-
-    await page.getByRole('button', { name: /create event/i }).click();
-
-    await page.waitForURL(/\/events\/[0-9a-f-]{36}(\?|$)/, { timeout: 20_000 }).catch(async () => {
-      // Surface why submission didn't redirect — usually a server-side
-      // validation error rerendered the form.
-      const currentUrl = page.url();
-      const errors = await page
-        .locator('[role="alert"], .text-error, [class*="error"]')
-        .allTextContents()
-        .catch(() => [] as string[]);
-      throw new Error(
-        `submit did not redirect (stayed on ${currentUrl}); visible errors: ${JSON.stringify(errors.slice(0, 5))}`,
-      );
-    });
-    // Strip the `?created=1` flash param so `${eventUrl}/edit` builds cleanly.
-    eventUrl = page.url().replace(/\?.*$/, '');
+    const created = await createFreeOpenPlayEvent(page, { title: testEventTitle });
+    eventUrl = created.url;
   } catch (err) {
     beforeAllError = err instanceof Error ? err.message : String(err);
     // Surface the failure so the next agent can see WHY creation failed
@@ -123,20 +44,7 @@ test.afterAll(async ({ browser }) => {
   const context = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
   const page = await context.newPage();
   try {
-    await page.goto(`${eventUrl}/edit`);
-    await page.waitForLoadState('domcontentloaded');
-
-    const cancelBtn = page.getByRole('button', { name: /cancel event…/i }).first();
-    if ((await cancelBtn.count()) > 0) {
-      await cancelBtn.click();
-      const confirmBtn = page.getByRole('button', { name: /yes, cancel event/i }).first();
-      if ((await confirmBtn.count()) > 0) {
-        await confirmBtn.click();
-        await page.waitForLoadState('domcontentloaded');
-      }
-    }
-  } catch {
-    // Cleanup failed — cancel the event manually.
+    await cancelEvent(page, eventUrl);
   } finally {
     await context.close();
   }
@@ -232,8 +140,38 @@ test.describe('event host flows', () => {
     await expect(cancelEventBtn).toBeVisible({ timeout: 10_000 });
   });
 
-  test.fixme('sponsor panel — requires Pro or sponsor add-on', async () => {
-    // TODO: requires Pro user with sponsor add-on. See README group #2 (Stripe).
+  test('sponsor panel — Pro host sees "Sponsor slot (Pro)" section on /edit', async ({
+    browser,
+  }) => {
+    // Open a pro-host context (mirrors billing-stripe.authed pattern). The
+    // attendee-a session this file's beforeAll uses isn't Pro, so we have to
+    // create a separate disposable event as the pro-host and cancel it in
+    // finally — we can't reuse `eventUrl` because that event is owned by
+    // attendee-a, and only the host sees the edit page.
+    skipIfMissingAuth(STORAGE_PATHS.proHost, 'pro-host');
+    test.setTimeout(90_000);
+
+    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.proHost });
+    const page = await ctx.newPage();
+    let proEventUrl: string | null = null;
+    try {
+      const created = await createFreeOpenPlayEvent(page, {
+        title: `E2E Pro Sponsor ${Date.now()}`,
+      });
+      proEventUrl = created.url;
+
+      await page.goto(`${proEventUrl}/edit`);
+      await page.waitForLoadState('domcontentloaded');
+
+      // SponsorPanel renders `<h2>Sponsor slot (Pro)</h2>` (see
+      // apps/web/src/app/events/[id]/edit/sponsor-panel.tsx).
+      await expect(page.getByRole('heading', { name: /sponsor slot/i })).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      if (proEventUrl) await cancelEvent(page, proEventUrl);
+      await ctx.close().catch(() => {});
+    }
   });
 
   test('co-host section: add attendee-b, verify listed, remove', async ({ page, browser }) => {

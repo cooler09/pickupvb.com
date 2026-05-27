@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { cancelEvent, createFreeOpenPlayEvent, createPaidEvent } from './_helpers/event-create';
+import { shouldSkipStripeTests } from './_helpers/stripe';
 
 /**
  * Extended event creation flows beyond what events.authed.spec.ts covers.
@@ -302,13 +304,56 @@ test.describe('template full flow (Pro)', () => {
 });
 
 test.describe('create event end-to-end', () => {
-  test.fixme(
-    'create a free open-play event — DateTimePicker interaction + geocoding; cleanup via edit → cancel',
-  );
+  test('create a free open-play event — DateTimePicker interaction + geocoding; cleanup via edit → cancel', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    const title = `E2E Extended Free Open Play ${Date.now()}`;
+    let eventUrl: string | null = null;
+    try {
+      const created = await createFreeOpenPlayEvent(page, { title });
+      eventUrl = created.url;
 
-  test.fixme('create a paid event — requires Stripe Connect on the test account');
+      // Detail page should render the event title we submitted, and the URL
+      // matches the created uuid.
+      await page.goto(eventUrl);
+      await expect(page).toHaveURL(new RegExp(`/events/${created.id}`));
+      await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      if (eventUrl) await cancelEvent(page, eventUrl);
+    }
+  });
 
-  test.fixme(
-    'create a tournament event with two divisions — requires Pro or Stripe on the test account',
-  );
+  test('create a paid event as stripe-host — price appears on detail page', async ({ browser }) => {
+    const skipReason = shouldSkipStripeTests();
+    if (skipReason) test.skip(true, skipReason);
+    skipIfMissingAuth(STORAGE_PATHS.stripeHost, 'stripe-host');
+    test.setTimeout(120_000);
+
+    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.stripeHost });
+    const page = await ctx.newPage();
+    let eventUrl: string | null = null;
+    try {
+      const title = `E2E Paid Event Create ${Date.now()}`;
+      const created = await createPaidEvent(page, { title, priceUsd: 7 });
+      eventUrl = created.url;
+
+      await page.goto(eventUrl);
+      await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({
+        timeout: 10_000,
+      });
+      // Price should be reflected somewhere on the detail page.
+      await expect(page.locator('main')).toContainText(/\$\s*7(\.\d{2})?/, { timeout: 10_000 });
+    } finally {
+      if (eventUrl) await cancelEvent(page, eventUrl);
+      await ctx.close().catch(() => {});
+    }
+  });
+
+  test.fixme('create a tournament event with two divisions — needs divisions repeater helper', // repeater helper that adds two `div_N_*` rows and fills name/skill/ // Compound: needs (a) the existing paid-event helper, (b) a divisions
+  // capacity/priceUsd for each, (c) the team_registration_mode select.
+  // Wait for the tournament harness bundle (item #3 in the e2e backlog).
+  async () => {});
 });

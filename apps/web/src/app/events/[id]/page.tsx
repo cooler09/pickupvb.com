@@ -2,9 +2,11 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import type { Metadata } from 'next/types';
 import { notFound } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { NotFoundError } from '@pickupvb/domain';
 import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
+import { OFF_PLATFORM_UPSELL_COOKIE } from '@/lib/off-platform-upsell';
 import { LocalDateTime } from '@/components/local-datetime';
 import { EventHero } from './_components/event-hero';
 import { EventStickyCta } from './_components/event-sticky-cta';
@@ -20,6 +22,7 @@ import { EventSignupArea } from './_components/event-signup-area';
 import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
+import { OffPlatformUpsell } from './_components/off-platform-upsell';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 import { HeroImage } from '@/components/hero-image';
 
@@ -137,6 +140,12 @@ export default async function EventDetailPage(props: {
         cohost={pickQuery(searchParams, 'cohost')}
         cohostMsg={pickQuery(searchParams, 'cohost_msg')}
       />
+
+      {isHostOfEvent &&
+        event.paymentsOffPlatform &&
+        (await cookies()).get(OFF_PLATFORM_UPSELL_COOKIE)?.value !== '1' && (
+          <OffPlatformUpsell eventId={event.id} returnPath={returnPath} />
+        )}
 
       <HeroImage url={heroImageUrl} alt={event.title} priority />
 

@@ -28,6 +28,12 @@ import { NoopAnalytics } from './noop-analytics';
  *    set to `https://eu.i.posthog.com` for EU hosting.
  *  - `salt` — secret used to derive the distinct id. Rotating it
  *    re-anonymizes existing users (intentional; see audit P3 #10).
+ *  - `waitUntil` — optional callback that extends the lifetime of a
+ *    serverless invocation until a background promise resolves. On
+ *    Vercel this is `(p) => after(p)` from `next/server` — without it,
+ *    `posthog-node` enqueues the capture but the lambda freezes before
+ *    the HTTP request to PostHog completes, and the event is silently
+ *    dropped. Omit for non-serverless or non-request contexts.
  *
  * Use `analyticsFromEnv()` below to construct from environment variables
  * with a `NoopAnalytics` fallback when unconfigured.
@@ -36,14 +42,22 @@ export class PostHogAnalytics implements AnalyticsPort {
   private readonly client: PostHog;
   private readonly salt: string;
 
-  constructor(apiKey: string, host: string, salt: string) {
+  constructor(
+    apiKey: string,
+    host: string,
+    salt: string,
+    waitUntil?: (promise: Promise<unknown>) => void,
+  ) {
     this.client = new PostHog(apiKey, {
       host,
       // Server-side capture: flush aggressively so events reach PostHog
       // before a serverless function freezes. `shutdown()` is the
-      // belt-and-braces flush for callers that can await.
+      // belt-and-braces flush for callers that can await; `waitUntil`
+      // is the per-capture extension that actually keeps the lambda
+      // alive long enough for the HTTP flush to land.
       flushAt: 1,
       flushInterval: 0,
+      ...(waitUntil ? { waitUntil } : {}),
     });
     this.salt = salt;
   }
@@ -95,13 +109,17 @@ export class PostHogAnalytics implements AnalyticsPort {
  *
  * Optional:
  *  - `POSTHOG_HOST` — defaults to `https://us.i.posthog.com`
+ *
+ * @param waitUntil — optional Vercel `waitUntil`-shaped callback. See
+ *   the `PostHogAnalytics` constructor for why this matters on
+ *   serverless.
  */
-export function analyticsFromEnv(): AnalyticsPort {
+export function analyticsFromEnv(waitUntil?: (promise: Promise<unknown>) => void): AnalyticsPort {
   const apiKey = process.env.POSTHOG_API_KEY;
   const salt = process.env.POSTHOG_DISTINCT_ID_SALT;
   if (!apiKey || !salt) {
     return new NoopAnalytics();
   }
   const host = process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com';
-  return new PostHogAnalytics(apiKey, host, salt);
+  return new PostHogAnalytics(apiKey, host, salt, waitUntil);
 }

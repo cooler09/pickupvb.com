@@ -81,6 +81,26 @@ export interface HostPayoutSetupCompletedProps {
   hostId: AnalyticsActorId;
 }
 
+/** Pro subscription funnel: started a trial. Fired from the Stripe
+ * `customer.subscription.created` webhook when the resulting
+ * subscription is in the `trialing` state. */
+export interface ProTrialStartedProps {
+  hostId: AnalyticsActorId;
+  /** Stripe price id resolved to our plan slug. `null` when neither
+   * monthly nor yearly env var matches (a config drift signal). */
+  plan: 'monthly' | 'yearly' | null;
+  /** ISO timestamp when the trial converts to billing. */
+  trialEnd: string | null;
+}
+
+/** Pro subscription funnel: trial → paid conversion. Fired from
+ * `customer.subscription.updated` when status transitions out of
+ * `trialing` into `active` (the canonical successful conversion). */
+export interface ProTrialConvertedProps {
+  hostId: AnalyticsActorId;
+  plan: 'monthly' | 'yearly' | null;
+}
+
 /** Core Web Vitals + a couple of supporting paint/network metrics. The
  * names mirror the lowercase metric ids the browser exposes through
  * `next/web-vitals`. */
@@ -118,6 +138,8 @@ export type AnalyticsEvent =
   | { name: 'checkout_completed'; props: CheckoutCompletedProps }
   | { name: 'signup_completed'; props: SignupCompletedProps }
   | { name: 'host_payout_setup_completed'; props: HostPayoutSetupCompletedProps }
+  | { name: 'pro_trial_started'; props: ProTrialStartedProps }
+  | { name: 'pro_trial_converted'; props: ProTrialConvertedProps }
   | { name: 'web_vitals'; props: WebVitalsProps };
 
 export type AnalyticsEventName = AnalyticsEvent['name'];

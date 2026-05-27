@@ -31,10 +31,56 @@ function SubmitButton() {
   );
 }
 
+/**
+ * Refund-window input, Pro-gated. Free hosts see a disabled input pinned
+ * to the 24-hour default with an upgrade nudge; Pro hosts get the full
+ * 0–720h range. The server action enforces the same clamp regardless of
+ * what's submitted (audit P1 #1 — custom refund policy gating).
+ */
+function RefundWindowField({
+  defaultValue,
+  disabled,
+  viewerHasProBenefits,
+}: {
+  defaultValue: number;
+  disabled: boolean;
+  viewerHasProBenefits: boolean;
+}) {
+  return (
+    <div>
+      <label htmlFor="refundWindowHours" className={labelClass}>
+        Refund window (hours)
+        {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
+      </label>
+      <input
+        id="refundWindowHours"
+        name="refundWindowHours"
+        type="number"
+        min="0"
+        max="720"
+        step="1"
+        defaultValue={viewerHasProBenefits ? defaultValue : 24}
+        disabled={disabled || !viewerHasProBenefits}
+        className={inputClass}
+      />
+      {!viewerHasProBenefits && (
+        <p className="text-muted mt-1 text-xs">
+          Free hosts use the 24-hour default.{' '}
+          <Link href="/pricing" className="text-primary hover:underline">
+            Upgrade to Pro
+          </Link>{' '}
+          to customize (0–720h).
+        </p>
+      )}
+    </div>
+  );
+}
+
 export type EditEventFormProps = {
   eventId: string;
   isOpenPlay: boolean;
   pricingLocked: boolean;
+  viewerHasProBenefits: boolean;
   initial: {
     title: string;
     description: string;
@@ -65,6 +111,7 @@ export default function EditEventForm({
   eventId,
   isOpenPlay,
   pricingLocked,
+  viewerHasProBenefits,
   initial,
 }: EditEventFormProps) {
   const [state, formAction] = useFormState(editEventAction, initialState);
@@ -175,18 +222,29 @@ export default function EditEventForm({
           <div>
             <label htmlFor="visibility" className={labelClass}>
               Visibility
+              {!viewerHasProBenefits && <span className="text-muted ml-1 text-xs">(Pro)</span>}
             </label>
             <select
               id="visibility"
               name="visibility"
-              defaultValue={initial.visibility}
+              defaultValue={viewerHasProBenefits ? initial.visibility : 'public'}
+              disabled={!viewerHasProBenefits}
               className={inputClass}
             >
               <option value="public">Public</option>
-              <option value="invite_only">Invite only</option>
+              <option value="invite_only">Invite only (unlisted — share by link)</option>
               <option value="friends_of_host">People the host follows</option>
               <option value="friends_of_attendees">People attendees follow</option>
             </select>
+            {!viewerHasProBenefits && (
+              <p className="text-muted mt-1 text-xs">
+                Free events are public.{' '}
+                <Link href="/pricing" className="text-primary hover:underline">
+                  Upgrade to Pro
+                </Link>{' '}
+                to host unlisted or friends-only events.
+              </p>
+            )}
           </div>
         </div>
       </fieldset>
@@ -267,22 +325,11 @@ export default function EditEventForm({
             </div>
             {showOnPlatformControls && (
               <>
-                <div>
-                  <label htmlFor="refundWindowHours" className={labelClass}>
-                    Refund window (hours)
-                  </label>
-                  <input
-                    id="refundWindowHours"
-                    name="refundWindowHours"
-                    type="number"
-                    min="0"
-                    max="720"
-                    step="1"
-                    defaultValue={initial.refundWindowHours}
-                    disabled={pricingLocked}
-                    className={inputClass}
-                  />
-                </div>
+                <RefundWindowField
+                  defaultValue={initial.refundWindowHours}
+                  disabled={pricingLocked}
+                  viewerHasProBenefits={viewerHasProBenefits}
+                />
                 <div className="flex items-end">
                   <label className="flex items-start gap-2 text-xs">
                     <input
@@ -360,22 +407,11 @@ export default function EditEventForm({
           </p>
           {showOnPlatformControls && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label htmlFor="refundWindowHours" className={labelClass}>
-                  Refund window (hours)
-                </label>
-                <input
-                  id="refundWindowHours"
-                  name="refundWindowHours"
-                  type="number"
-                  min="0"
-                  max="720"
-                  step="1"
-                  defaultValue={initial.refundWindowHours}
-                  disabled={pricingLocked}
-                  className={inputClass}
-                />
-              </div>
+              <RefundWindowField
+                defaultValue={initial.refundWindowHours}
+                disabled={pricingLocked}
+                viewerHasProBenefits={viewerHasProBenefits}
+              />
               <div className="flex items-end">
                 <label className="flex items-start gap-2 text-xs">
                   <input
