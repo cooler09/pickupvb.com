@@ -52,15 +52,13 @@ export function ScoreboardView({ code, initialConfig }: Props) {
   }, [theme]);
 
   useEffect(() => {
-    const params = new URLSearchParams({
-      ta: state.config.teamA,
-      tb: state.config.teamB,
-      t: String(state.config.targetScore),
-      wb: String(state.config.winBy),
-      bo: String(state.config.bestOf),
-    });
-    setShareUrl(`${window.location.origin}/tools/scoreboard/${code}/remote?${params}`);
-  }, [code, state.config]);
+    // Short alias ("pickupvb.com/s/ABCD") that redirects to the canonical
+    // /tools/scoreboard/{code}/remote URL. Keeps the share link readable
+    // aloud at a gym and easy to type on a phone. The remote inherits
+    // team names + target / win-by / best-of from the first realtime
+    // broadcast off this scoreboard, so no query string is needed.
+    setShareUrl(`${window.location.origin}/s/${code}`);
+  }, [code]);
 
   // Keep the screen awake on the scoreboard tab while in use.
   useEffect(() => {
