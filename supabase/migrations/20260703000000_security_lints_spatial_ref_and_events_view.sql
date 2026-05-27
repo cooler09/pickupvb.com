@@ -3,12 +3,15 @@
 --
 -- Context: The Supabase project dashboard flagged four critical findings:
 --
---   1. RLS disabled on public.spatial_ref_sys
---      PostGIS installs spatial_ref_sys into the public schema. It's
---      static reference data (EPSG SRID definitions) but PostgREST
---      exposes it because it lives in public. The fix is to enable RLS
---      and add a permissive read policy — the contents are public by
---      definition and writes are owned by the extension.
+--   1. RLS disabled on public.spatial_ref_sys — NOT FIXED HERE.
+--      PostGIS installs spatial_ref_sys into the public schema and the
+--      table is owned by the `postgres` superuser via the extension.
+--      The Supabase migration runner role can't `ALTER TABLE` it
+--      (SQLSTATE 42501: must be owner of table spatial_ref_sys), so
+--      this lint has to be suppressed in the Supabase dashboard as a
+--      known false-positive. The contents are public reference data
+--      (EPSG/PROJ SRID definitions) and writes only happen through the
+--      extension, so exposing it via PostgREST is harmless.
 --
 --   2. SECURITY DEFINER view: public.events_view
 --      events_view is a thin projection over events that adds
@@ -33,21 +36,8 @@
 -- Impact: No runtime behavior change for the app. events_view now runs
 -- with the caller's RLS context (it always relied on a public-by-RLS
 -- base table, so the result set is identical for every caller).
--- spatial_ref_sys gains RLS and a read-everyone policy, matching how
--- it was already effectively exposed.
 -- ============================================================================
 
--- ---- 1. spatial_ref_sys: enable RLS with permissive read ------------------
-
-alter table public.spatial_ref_sys enable row level security;
-
--- Public reference data (EPSG/PROJ definitions). Reads are safe; writes
--- happen via the PostGIS extension owner, not through PostgREST.
-create policy spatial_ref_sys_select
-  on public.spatial_ref_sys
-  for select
-  using (true);
-
--- ---- 2. events_view: convert to security_invoker --------------------------
+-- ---- events_view: convert to security_invoker -----------------------------
 
 alter view public.events_view set (security_invoker = on);
