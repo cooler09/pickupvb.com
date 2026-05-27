@@ -64,14 +64,17 @@ create policy event_team_payments_insert
     auth.uid() = captain_id
     and exists (
       select 1 from public.event_teams et
-       where et.event_id = event_id and et.team_id = team_id
+       where et.event_id = public.event_team_payments.event_id
+         and et.team_id = public.event_team_payments.team_id
     )
     and exists (
       select 1
         from public.events e
-        join public.event_teams et on et.event_id = e.id and et.team_id = team_id
+        join public.event_teams et
+          on et.event_id = e.id
+         and et.team_id = public.event_team_payments.team_id
         join public.event_divisions d on d.id = et.division_id
-       where e.id = event_id
+       where e.id = public.event_team_payments.event_id
          and e.status = 'published'
          and d.team_registration_mode = 'roster'
     )
