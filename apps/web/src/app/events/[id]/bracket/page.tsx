@@ -7,6 +7,7 @@ import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { BoardView } from './_components/board-view';
 import { NoBracketView } from './_components/no-bracket-view';
 import { SetupView } from './_components/setup-view';
+import { BracketRealtimeRefresher } from './_components/realtime-refresher';
 import { NOTICE_LABEL } from './_components/labels';
 
 export const dynamic = 'force-dynamic';
@@ -142,6 +143,8 @@ export default async function BracketPage(props: {
           isHost={isHost}
         />
       )}
+
+      <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
 
       {bracket && bracket.status === 'setup' && (
         <SetupView
