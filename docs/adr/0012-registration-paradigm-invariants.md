@@ -1,6 +1,6 @@
 # 0012. Registration paradigm: invariants between event type, team mode, composition, and price unit
 
-- **Status:** Accepted (amended by [0016](0016-per-division-team-registration-mode.md): the matrix is now applied per-division, not per-event)
+- **Status:** Accepted (amended by [0016](0016-per-division-team-registration-mode.md): the matrix is now applied per-division, not per-event; further amended 2026-05-27 by Bundle 121: free divisions skip the price-unit constraint — see "Free-division exemption" below)
 - **Date:** 2026-05-23
 - **Supersedes part of:** [0007](0007-team-registration-model.md) §3 (the
   off-platform escape hatch on per-player team events is removed).
@@ -9,6 +9,10 @@
   so the matrix below is enforced per division rather than per event. The
   rules themselves (which `(mode, composition, price_unit)` combinations
   are legal) are unchanged.
+- **Amended by:** Bundle 121 (2026-05-27) — Rules 2 & 3's `price_unit`
+  clauses are skipped when `price_cents <= 0`. Composition halves of those
+  rules and Rule 4 are unchanged. See [Free-division exemption](#free-division-exemption-2026-05-27-bundle-121)
+  below and [docs/journal/2026-05-27-bundle-121.md](../journal/2026-05-27-bundle-121.md).
 
 ## Context
 
@@ -100,6 +104,51 @@ so the host sees a useful error before save.
   `solo` reserved for individual signup.
 - Pushes the host toward exactly one of two mental models per event:
   _"my attendees each pay"_ or _"the captain pays for the team."_
+
+### Free-division exemption (2026-05-27, Bundle 121)
+
+Rule 2's `price_unit = 'per_team'` clause and Rule 3's
+`price_unit = 'per_player'` clause are **skipped when
+`price_cents <= 0`** (free or absent price). The composition halves of
+both rules and Rule 4 (off-platform doesn't relax anything) are
+unchanged.
+
+The rationale for the price-unit clauses, as written in the original
+ADR, is about payment routing: "the captain pays for the team; the
+platform does not split a captain's payment across teammates." That
+reasoning only applies when there's money to route. With
+`price_cents = 0`, Stripe is skipped entirely
+([features.md#L104](../features.md#L104)) and the unit has no
+observable effect — rejecting the combination forces the host to
+twiddle a field that doesn't matter.
+
+What we do instead, so the rule's original goal (coherent stored
+`(price_unit, mode)` pairs) is still met:
+
+- **Write boundary normalizes the persisted unit.** When a host
+  submits a free division the server sets `price_unit = 'per_team'`
+  for team-led modes and `price_unit = 'per_player'` for individual
+  mode, regardless of what (if anything) the form submitted. The
+  moment the host adds a price > 0, Rules 2 & 3 re-engage and the
+  unit must already be coherent — it will be, because the write
+  boundary kept it that way.
+- **UI hides the picker on free divisions.** The "Charge" select is
+  gated on `price_usd > 0` in both `DivisionsRepeater` (create form)
+  and `HostDivisionsManager` (per-division edit). Hosts only see
+  the unit choice when it matters.
+- **Off-platform is still not a separate axis.** The exemption is
+  keyed on `price_cents`, not `payments_off_platform`. A _paid_
+  off-platform division still has to pick a unit that matches its
+  mode; Rule 4's "off-platform isn't an escape hatch" is preserved
+  for non-zero prices.
+
+Code references:
+
+- Domain — [`VolleyballEvent.assertRegistrationConfigValid`](../../packages/domain/src/events/volleyball-event.ts#L807-L880).
+- Boundary — [`validateTeamPricing`](../../apps/web/src/lib/event-team-pricing-validation.ts).
+- Write normalization —
+  [`new/actions.ts`](../../apps/web/src/app/events/new/actions.ts) and
+  [`division-actions.ts`](../../apps/web/src/app/events/%5Bid%5D/division-actions.ts).
 
 ## Consequences
 
