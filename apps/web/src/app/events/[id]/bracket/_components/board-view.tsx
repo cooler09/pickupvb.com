@@ -9,6 +9,7 @@ import { generatePlayoff, resetBracket } from '../actions';
 import { MatchCard } from './match-card';
 import type { TeamLite } from './labels';
 import { SubmitButton } from '@/components/submit-button';
+import { TreeBracket } from './tree-bracket';
 
 export function BoardView(props: {
   eventId: string;
@@ -42,33 +43,22 @@ export function BoardView(props: {
     poolMatches.every((m) => m.status === 'completed' || m.status === 'bye');
   const playoffExists = playoffMatches.length > 0;
 
+  const renderMatch = (m: Match) => (
+    <MatchCard
+      eventId={props.eventId}
+      divisionId={props.divisionId}
+      match={m}
+      teamById={props.teamById}
+      bestOf={props.bestOf}
+      isHost={props.isHost}
+      viewerId={props.viewerId}
+    />
+  );
+
   const renderRoundColumns = (
     list: ReadonlyArray<Match>,
     roundLabel: (r: number) => string = (r) => `Round ${r}`,
-  ) => (
-    <div className="flex gap-4 overflow-x-auto pb-2">
-      {groupByRound(list).map(({ round, matches }) => (
-        <div key={round} className="min-w-[260px] space-y-2">
-          <h3 className="text-fg/80 text-sm font-semibold">{roundLabel(round)}</h3>
-          {matches
-            .slice()
-            .sort((a, b) => a.matchNumber - b.matchNumber)
-            .map((m) => (
-              <MatchCard
-                key={m.id}
-                eventId={props.eventId}
-                divisionId={props.divisionId}
-                match={m}
-                teamById={props.teamById}
-                bestOf={props.bestOf}
-                isHost={props.isHost}
-                viewerId={props.viewerId}
-              />
-            ))}
-        </div>
-      ))}
-    </div>
-  );
+  ) => <TreeBracket matches={list} renderMatch={renderMatch} roundLabel={roundLabel} />;
 
   return (
     <section className="space-y-6">
@@ -159,18 +149,6 @@ export function BoardView(props: {
       )}
     </section>
   );
-}
-
-function groupByRound(list: ReadonlyArray<Match>): { round: number; matches: Match[] }[] {
-  const byRound = new Map<number, Match[]>();
-  for (const m of list) {
-    const arr = byRound.get(m.round) ?? [];
-    arr.push(m);
-    byRound.set(m.round, arr);
-  }
-  return Array.from(byRound.keys())
-    .sort((a, b) => a - b)
-    .map((r) => ({ round: r, matches: byRound.get(r)! }));
 }
 
 function PoolsView(props: {
