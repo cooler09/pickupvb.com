@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
+import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { BoardView } from './_components/board-view';
@@ -97,11 +98,19 @@ export default async function BracketPage(props: {
           {registeredTeams.length} registered team
           {registeredTeams.length === 1 ? '' : 's'}
         </p>
-        <p className="text-xs">
-          <Link href={`/events/${event.id}/bracket/watch`} className="text-primary hover:underline">
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <Link
+            href={`/events/${event.id}/bracket/watch`}
+            className="text-primary text-xs hover:underline"
+          >
             {'Open public spectator view →'}
           </Link>
-        </p>
+          <ShareLink
+            path={`/events/${event.id}/bracket/watch`}
+            title={`Live bracket — ${event.title}`}
+            label="Share spectator link"
+          />
+        </div>
       </header>
 
       {event.divisions.length > 1 && (

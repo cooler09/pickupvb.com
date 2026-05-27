@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
+import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { BoardView } from '../_components/board-view';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
@@ -98,6 +99,13 @@ export default async function BracketWatchPage(props: {
           {registeredTeams.length} registered team
           {registeredTeams.length === 1 ? '' : 's'} • Updates automatically
         </p>
+        <div className="pt-1">
+          <ShareLink
+            path={`/events/${event.id}/bracket/watch`}
+            title={`Live bracket — ${event.title}`}
+            label="Share this view"
+          />
+        </div>
       </header>
 
       {event.divisions.length > 1 && (
