@@ -49,8 +49,11 @@ test.describe('visibility — Pro gating on /edit', () => {
       await expect(field).toHaveValue('public');
 
       // Label carries "(Pro)" badge and the helper text links to /pricing.
+      // Scope the upgrade link to this field's helper paragraph — the /edit page
+      // renders a second "Upgrade to Pro" link under the refund-window input.
       await expect(page.locator('label[for="visibility"]')).toContainText(/\(Pro\)/);
-      await expect(page.getByRole('link', { name: /upgrade to pro/i })).toBeVisible();
+      const visibilityHelper = page.locator('#visibility ~ p');
+      await expect(visibilityHelper.getByRole('link', { name: /upgrade to pro/i })).toBeVisible();
     } finally {
       if (eventUrl) await cancelEvent(page, eventUrl);
       await ctx.close().catch(() => {});
