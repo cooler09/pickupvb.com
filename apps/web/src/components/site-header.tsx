@@ -4,6 +4,7 @@ import type { Theme } from '@/lib/theme';
 import { SubmitButton } from '@/components/submit-button';
 import { ThemeToggle } from './theme-toggle';
 import { MobileMenu } from './mobile-menu';
+import { NavDropdown, type NavDropdownItem } from './nav-dropdown';
 import { NotificationBell } from './notification-bell';
 import { signOut } from './actions';
 
@@ -81,9 +82,10 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
           PickupVB
         </Link>
 
-        {/* Desktop nav — primary links only. Secondary actions (theme,
-            notifications, profile, sign out) live in the right-side
-            cluster so the link row stays scannable. */}
+        {/* Desktop nav — top-level links plus grouped dropdowns so every
+            destination from the mobile drawer stays reachable without
+            crowding the bar. Secondary actions (theme, notifications,
+            profile, sign out) live in the right-side cluster. */}
         <ul className="hidden items-center gap-5 text-sm md:flex">
           <li>
             <Link href="/events" className="hover:text-primary">
@@ -91,35 +93,43 @@ export default async function SiteHeader({ theme }: { theme: Theme }) {
             </Link>
           </li>
           <li>
-            <Link href="/events/new" className="hover:text-primary">
-              Host
-            </Link>
+            <NavDropdown
+              label="Community"
+              hasIndicator={pendingTeamInvites > 0}
+              indicatorLabel={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
+              items={[
+                { href: '/community', label: 'Community feed' },
+                { href: '/groups', label: 'Groups' },
+                { href: '/players', label: 'Players' },
+                ...(userInfo
+                  ? ([
+                      {
+                        href: '/teams',
+                        label: 'Teams',
+                        badge:
+                          pendingTeamInvites > 0 ? (
+                            <span
+                              aria-label={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
+                              className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                            >
+                              {pendingTeamInvites}
+                            </span>
+                          ) : null,
+                      },
+                    ] satisfies NavDropdownItem[])
+                  : []),
+              ]}
+            />
           </li>
           <li>
-            <Link href="/community" className="hover:text-primary">
-              Community
-            </Link>
+            <NavDropdown
+              label="Host"
+              items={[
+                { href: '/events/new', label: 'Host an event' },
+                { href: '/tools', label: 'Host tools' },
+              ]}
+            />
           </li>
-          <li>
-            <Link href="/groups" className="hover:text-primary">
-              Groups
-            </Link>
-          </li>
-          {userInfo && (
-            <li>
-              <Link href="/teams" className="hover:text-primary inline-flex items-center gap-1.5">
-                Teams
-                {pendingTeamInvites > 0 && (
-                  <span
-                    aria-label={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
-                    className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-                  >
-                    {pendingTeamInvites}
-                  </span>
-                )}
-              </Link>
-            </li>
-          )}
           <li>
             <Link href="/pricing" className="hover:text-primary">
               Pricing
