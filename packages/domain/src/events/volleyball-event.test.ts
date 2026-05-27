@@ -489,12 +489,30 @@ describe('VolleyballEvent registration-config invariant (ADR 0012 + 0016)', () =
     ).toThrow(InvariantViolation);
   });
 
-  it('rejects ad-hoc team event with a free (price 0) per-player division', () => {
+  // ADR 0012 — free divisions skip the price-unit check entirely (no money
+  // to route means per-player vs. per-team is a meaningless distinction).
+  // The write boundary normalizes the persisted unit; the aggregate accepts
+  // either when the price is zero.
+  it('accepts ad-hoc team event with a free (price 0) division regardless of priceUnit', () => {
     expect(() =>
       makeTournamentWith({
         divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerPlayer })],
       }),
-    ).toThrow(InvariantViolation);
+    ).not.toThrow();
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerTeam })],
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts ad-hoc team event with a free per-player division even when paymentsOffPlatform', () => {
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerPlayer })],
+        paymentsOffPlatform: true,
+      }),
+    ).not.toThrow();
   });
 
   it('rejects ad-hoc team event with a solo-composition division', () => {

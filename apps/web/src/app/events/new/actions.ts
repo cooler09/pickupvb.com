@@ -153,7 +153,7 @@ export async function createEventAction(
     const maxSpots = fieldOrUndefined(formData, `div_${i}_maxSpots`);
     const priceUsd = fieldOrUndefined(formData, `div_${i}_priceUsd`);
     const priceUnitRaw = fieldOrUndefined(formData, `div_${i}_priceUnit`);
-    const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
+    const priceUnitFromForm = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
     const prizeText = fieldOrUndefined(formData, `div_${i}_prizeText`);
     // R2: per-division free-agent opt-out. Default true (matches the
     // historical behaviour all existing divisions were created under).
@@ -168,6 +168,16 @@ export async function createEventAction(
     else if (teamRegModeRaw === 'roster') teamRegistrationMode = 'roster';
     else if (teamRegModeRaw === 'none') teamRegistrationMode = null;
     else teamRegistrationMode = isTournamentRow && teamComposition !== 'solo' ? 'ad_hoc' : null;
+    // ADR 0012 — for free divisions (priceCents 0 / absent) the UI hides
+    // the price-unit picker; normalize the persisted unit to match the
+    // mode so downstream readers still see a coherent (mode, unit) pair.
+    const priceCentsParsed = priceUsd ? parsePriceCents(priceUsd) : undefined;
+    const isFree = !priceCentsParsed || priceCentsParsed <= 0;
+    const priceUnit = isFree
+      ? teamRegistrationMode === null
+        ? 'per_player'
+        : 'per_team'
+      : priceUnitFromForm;
     divisions.push({
       label,
       surface: fieldOrUndefined(formData, `div_${i}_surface`) || 'indoor',

@@ -811,14 +811,24 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    *   1. Open-play events must have every division at `mode = null`
    *      (individual signup only). No team-led divisions allowed at all.
    *   2. A division with `mode ∈ {ad_hoc, roster}` requires a non-solo
-   *      `team_composition` and `priceUnit === per_team`. The captain pays
-   *      for the team; per-player pricing is rejected because the platform
-   *      does not split a captain's payment across teammates.
-   *   3. A division with `mode === null` requires `TeamComposition.Solo`
-   *      and `priceUnit === per_player`.
+   *      `team_composition`. When the division charges money
+   *      (`priceCents > 0`) it must also be `priceUnit === per_team`:
+   *      the captain pays for the team and the platform does not split a
+   *      captain's payment across teammates. **Free divisions
+   *      (`priceCents === 0` or `null`) skip the price-unit check** —
+   *      with no money to route, per-player vs. per-team is a meaningless
+   *      distinction. The write boundary normalizes the unit to
+   *      `per_team` in that case so persisted rows stay coherent.
+   *   3. A division with `mode === null` requires `TeamComposition.Solo`.
+   *      When charging money it must be `priceUnit === per_player`; free
+   *      divisions skip the check (mirrored to Rule 2). The write
+   *      boundary normalizes the unit to `per_player`.
    *   4. `payments_off_platform` does not relax any of the above —
    *      off-platform changes who handles the money, not what shape
-   *      of registration the platform accepts.
+   *      of registration the platform accepts. (The price-unit relaxation
+   *      in Rules 2 & 3 is keyed on `priceCents`, not on whether payments
+   *      are off-platform, so a paid off-platform division still must
+   *      pick the unit that matches its mode.)
    *
    * Invoked from {@link create} and from division mutations so a bad
    * combination can't sneak in by adding a division later.
@@ -830,6 +840,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       const isIndividual = mode === null;
       const composition = d.teamComposition;
       const priceUnit = d.priceUnit;
+      const isFree = (d.priceCents ?? 0) <= 0;
 
       // Rule 1: open-play forbids any team-led division.
       if (this.type === EventType.OpenPlay && !isIndividual) {
@@ -838,28 +849,30 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         );
       }
 
-      // Rule 2: team-led division requires team composition + per-team price.
+      // Rule 2: team-led division requires team composition.
+      // The per-team price-unit constraint only kicks in for paid divisions.
       if (isTeamLed) {
         if (composition === TeamComposition.Solo) {
           throw new InvariantViolation(
             `Team-registered divisions cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partner_required.`,
           );
         }
-        if (priceUnit === PriceUnit.PerPlayer) {
+        if (!isFree && priceUnit === PriceUnit.PerPlayer) {
           throw new InvariantViolation(
             `Team-registered divisions require per-team pricing. Division "${d.label}" is priced per-player — the captain pays for the team. Switch the division to per-team pricing or set the division's team registration mode to "none".`,
           );
         }
       }
 
-      // Rule 3: individual-signup division requires solo composition + per-player price.
+      // Rule 3: individual-signup division requires solo composition.
+      // The per-player price-unit constraint only kicks in for paid divisions.
       if (isIndividual) {
         if (composition !== TeamComposition.Solo) {
           throw new InvariantViolation(
             `Individual-signup divisions must use solo composition. Division "${d.label}" has team composition "${composition}" — set the division's team registration mode to ad_hoc/roster or switch the composition to solo.`,
           );
         }
-        if (priceUnit === PriceUnit.PerTeam) {
+        if (!isFree && priceUnit === PriceUnit.PerTeam) {
           throw new InvariantViolation(
             `Individual-signup divisions cannot use per-team pricing. Division "${d.label}" must be priced per-player, or set the division's team registration mode to ad_hoc/roster.`,
           );

@@ -9,7 +9,11 @@
  * error message before save and short-circuit before reaching the
  * application layer.
  *
- * Off-platform payments do **not** relax any of these rules.
+ * The price-unit constraint is **skipped for free divisions**
+ * (`priceCents === 0` or `null`) — with no money to route, per-player vs.
+ * per-team is a meaningless distinction. Server actions normalize the
+ * unit on the way in so persisted rows stay coherent. Off-platform
+ * payments do **not** relax any of the other rules.
  */
 
 export type TeamPricingDivisionInput = {
@@ -36,6 +40,7 @@ export function validateTeamPricing(
     const mode = d.teamRegistrationMode;
     const isTeamLed = mode === 'ad_hoc' || mode === 'roster';
     const isIndividual = mode === null;
+    const isFree = (d.priceCents ?? 0) <= 0;
 
     // Rule 1: open-play is individual-only on every division.
     if (input.type === 'open_play' && !isIndividual) {
@@ -47,7 +52,8 @@ export function validateTeamPricing(
       };
     }
 
-    // Rule 2: team-led divisions require team composition + per-team price.
+    // Rule 2: team-led divisions require team composition.
+    // The per-team price-unit constraint only kicks in for paid divisions.
     if (isTeamLed) {
       if (d.teamComposition === 'solo') {
         return {
@@ -57,7 +63,7 @@ export function validateTeamPricing(
             `Division “${d.label}” must use team, pair-draw, or partner-required composition.`,
         };
       }
-      if (d.priceUnit === 'per_player') {
+      if (!isFree && d.priceUnit === 'per_player') {
         return {
           ok: false,
           error:
@@ -67,7 +73,8 @@ export function validateTeamPricing(
       }
     }
 
-    // Rule 3: individual divisions require solo composition + per-player price.
+    // Rule 3: individual divisions require solo composition.
+    // The per-player price-unit constraint only kicks in for paid divisions.
     if (isIndividual) {
       if (d.teamComposition !== 'solo') {
         return {
@@ -77,7 +84,7 @@ export function validateTeamPricing(
             `“${d.teamComposition}” — enable team registration on the division, or switch the division to solo.`,
         };
       }
-      if (d.priceUnit === 'per_team') {
+      if (!isFree && d.priceUnit === 'per_team') {
         return {
           ok: false,
           error:

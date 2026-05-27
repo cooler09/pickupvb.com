@@ -330,23 +330,29 @@ export default function DivisionsRepeater({
               />
               <FieldError name={rowErrorKey(idx, 'priceUsd')} errors={fieldErrors} />
             </div>
-            <div>
-              <label className={labelClass}>Charge</label>
-              <select
-                name={`div_${idx}_priceUnit`}
-                value={clampPriceUnit(row.teamRegistrationMode, row.priceUnit)}
-                onChange={(e) =>
-                  patch(row.key, { priceUnit: e.target.value as 'per_player' | 'per_team' })
-                }
-                className={inputClass}
-              >
-                {allowedPriceUnits(row.teamRegistrationMode).map((u) => (
-                  <option key={u} value={u}>
-                    {PRICE_UNIT_LABELS[u]}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* ADR 0012 — price-unit picker only matters when the division
+                charges money. For free divisions the server normalizes the
+                unit to match the team-registration mode, so we hide the
+                select entirely (and skip submitting it). */}
+            {Number(row.priceUsd) > 0 && (
+              <div>
+                <label className={labelClass}>Charge</label>
+                <select
+                  name={`div_${idx}_priceUnit`}
+                  value={clampPriceUnit(row.teamRegistrationMode, row.priceUnit)}
+                  onChange={(e) =>
+                    patch(row.key, { priceUnit: e.target.value as 'per_player' | 'per_team' })
+                  }
+                  className={inputClass}
+                >
+                  {allowedPriceUnits(row.teamRegistrationMode).map((u) => (
+                    <option key={u} value={u}>
+                      {PRICE_UNIT_LABELS[u]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className={labelClass}>Prize (text)</label>
               <input
