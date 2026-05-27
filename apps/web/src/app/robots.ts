@@ -29,8 +29,12 @@ export default function robots(): MetadataRoute.Robots {
           '/reset-password',
           '/claim',
           '/claim/',
-          '/tools',
-          '/tools/',
+          // Ephemeral scoreboard rooms (random 4-char codes, no useful
+          // content to index) — but the tool index (/tools) and the
+          // scoreboard landing page (/tools/scoreboard) are allowed so
+          // search engines surface the free utility.
+          '/tools/scoreboard/*',
+          '/s/',
           '/sentry-test',
           '/events/new',
           // Edit pages and bracket admin are per-event subroutes.

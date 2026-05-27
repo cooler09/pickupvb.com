@@ -1,38 +1,98 @@
-'use client';
+import type { Metadata } from 'next';
+import { ScoreboardSetupForm } from './_components/setup-form.js';
 
-import { useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
-import type { Route } from 'next';
-import { DEFAULT_CONFIG } from './_lib/types.js';
-import { generateRoomCode } from './_lib/room-code.js';
+/**
+ * SEO-facing landing page for the free live score tracker. The setup
+ * form is a small client island (`_components/setup-form.tsx`) so the
+ * page itself can stay a server component and export real metadata that
+ * crawlers and link-previewers can index. Ephemeral game rooms under
+ * `/tools/scoreboard/[code]` stay `noindex` — only this entry page and
+ * the `/tools` index are advertised to search engines (sitemap.ts).
+ */
+export const metadata: Metadata = {
+  title: 'Free live volleyball score tracker (works for any sport)',
+  description:
+    'Free, no-signup live scoreboard for volleyball, pickleball, basketball, and any sport. Full-screen score display with a shareable phone remote. Real-time sync across devices. No account required.',
+  alternates: { canonical: '/tools/scoreboard' },
+  keywords: [
+    'volleyball scoreboard',
+    'live score tracker',
+    'pickleball scoreboard',
+    'free scoreboard app',
+    'phone scoreboard',
+    'tournament scorekeeper',
+    'shared scoreboard',
+  ],
+  openGraph: {
+    title: 'Free live score tracker — volleyball, pickleball, any sport',
+    description:
+      'Full-screen scoreboard with a shareable phone remote. Real-time sync, no account, no install.',
+    url: '/tools/scoreboard',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Free live score tracker',
+    description: 'Full-screen scoreboard with a shareable phone remote. No signup.',
+  },
+};
 
-const labelClass = 'text-fg block text-sm font-medium';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-bg px-3 py-2 text-sm text-fg shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+const faqs = [
+  {
+    q: 'Do I need an account?',
+    a: 'No. The scoreboard is a free utility — no signup, no install, no payment.',
+  },
+  {
+    q: 'What sports does it work for?',
+    a: 'Any rally-scored sport. You set the target score (25 for volleyball, 11 for pickleball, 21 for badminton, etc.), the win-by margin, and how many sets the match goes to.',
+  },
+  {
+    q: 'How do players join from a phone?',
+    a: 'Each game gets a short room code. Share the URL (e.g. pickupvb.com/s/ABCD) and any phone can open the remote — taps on either device update both in real time.',
+  },
+  {
+    q: 'Is the score saved anywhere?',
+    a: 'No. State lives only on the connected devices and on a Supabase Realtime broadcast channel that has nothing at rest. Auto-clears after 24h of inactivity.',
+  },
+  {
+    q: 'How many people can join one game?',
+    a: 'There is no hard limit — the scoreboard and any number of remote devices share the same room.',
+  },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebApplication',
+      name: 'PickupVB Live Score Tracker',
+      applicationCategory: 'SportsApplication',
+      operatingSystem: 'Any (browser)',
+      url: 'https://pickupvb.com/tools/scoreboard',
+      description:
+        'Free, no-signup live scoreboard for any rally-scored sport. Full-screen score display with a real-time phone remote.',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: faqs.map((f) => ({
+        '@type': 'Question',
+        name: f.q,
+        acceptedAnswer: { '@type': 'Answer', text: f.a },
+      })),
+    },
+  ],
+};
 
 export default function ScoreboardSetupPage() {
-  const router = useRouter();
-  const [teamA, setTeamA] = useState(DEFAULT_CONFIG.teamA);
-  const [teamB, setTeamB] = useState(DEFAULT_CONFIG.teamB);
-  const [targetScore, setTargetScore] = useState(DEFAULT_CONFIG.targetScore);
-  const [winBy, setWinBy] = useState(DEFAULT_CONFIG.winBy);
-  const [bestOf, setBestOf] = useState(DEFAULT_CONFIG.bestOf);
-
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const code = generateRoomCode();
-    const params = new URLSearchParams({
-      ta: teamA || DEFAULT_CONFIG.teamA,
-      tb: teamB || DEFAULT_CONFIG.teamB,
-      t: String(Math.max(1, targetScore)),
-      wb: String(Math.max(1, winBy)),
-      bo: String(Math.max(1, bestOf)),
-    });
-    router.push(`/tools/scoreboard/${code}?${params.toString()}` as Route);
-  }
-
   return (
     <section className="mx-auto max-w-2xl space-y-6">
+      <script
+        type="application/ld+json"
+        // Static, server-rendered JSON — safe to inline.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+
       <header className="space-y-1">
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
           Host tool · Free
@@ -45,94 +105,7 @@ export default function ScoreboardSetupPage() {
         </p>
       </header>
 
-      <form onSubmit={onSubmit} className="border-border-base space-y-5 rounded-lg border p-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="teamA" className={labelClass}>
-              Team A name
-            </label>
-            <input
-              id="teamA"
-              value={teamA}
-              onChange={(e) => setTeamA(e.target.value)}
-              maxLength={30}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="teamB" className={labelClass}>
-              Team B name
-            </label>
-            <input
-              id="teamB"
-              value={teamB}
-              onChange={(e) => setTeamB(e.target.value)}
-              maxLength={30}
-              className={inputClass}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div>
-            <label htmlFor="target" className={labelClass}>
-              Target score
-            </label>
-            <input
-              id="target"
-              type="number"
-              min={1}
-              max={99}
-              value={targetScore}
-              onChange={(e) => setTargetScore(Number(e.target.value) || 1)}
-              className={inputClass}
-            />
-            <p className="text-muted mt-1 text-xs">25 volleyball · 11 pickleball</p>
-          </div>
-          <div>
-            <label htmlFor="winby" className={labelClass}>
-              Win by
-            </label>
-            <input
-              id="winby"
-              type="number"
-              min={1}
-              max={10}
-              value={winBy}
-              onChange={(e) => setWinBy(Number(e.target.value) || 1)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="bestof" className={labelClass}>
-              Best of sets
-            </label>
-            <input
-              id="bestof"
-              type="number"
-              min={1}
-              max={9}
-              step={2}
-              value={bestOf}
-              onChange={(e) => setBestOf(Number(e.target.value) || 1)}
-              className={inputClass}
-            />
-            <p className="text-muted mt-1 text-xs">1 = single game</p>
-          </div>
-        </div>
-
-        <div className="border-border-base border-t pt-4">
-          <button
-            type="submit"
-            className="bg-primary hover:bg-primary/90 focus-visible:ring-primary w-full rounded-md px-4 py-2.5 font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2"
-          >
-            Start scoreboard
-          </button>
-          <p className="text-muted mt-2 text-center text-xs">
-            You can adjust the target/win-by mid-match — the host always has the final say.
-          </p>
-        </div>
-      </form>
+      <ScoreboardSetupForm />
 
       <div className="text-muted border-border-base rounded-md border border-dashed p-4 text-xs">
         <p className="text-fg font-medium">How it works</p>
@@ -142,6 +115,18 @@ export default function ScoreboardSetupPage() {
           <li>Taps on either device update both in real time.</li>
           <li>State auto-clears after 24h of inactivity.</li>
         </ul>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-fg text-xl font-semibold">FAQ</h2>
+        <dl className="space-y-3">
+          {faqs.map((f) => (
+            <div key={f.q} className="border-border-base rounded-md border p-3">
+              <dt className="text-fg text-sm font-medium">{f.q}</dt>
+              <dd className="text-muted mt-1 text-sm">{f.a}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </section>
   );

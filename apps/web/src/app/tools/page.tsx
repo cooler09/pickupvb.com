@@ -1,5 +1,19 @@
 import Link from 'next/link';
 import type { Route } from 'next';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Free host tools for volleyball (and any sport)',
+  description:
+    'Free, no-signup utilities for running pickup games and tournaments: a live score tracker with a phone remote, brackets, seeding, and standings. Works on any device.',
+  alternates: { canonical: '/tools' },
+  openGraph: {
+    title: 'Free host tools for volleyball',
+    description: 'Live score tracker, brackets, seeding, and standings. No account, no install.',
+    url: '/tools',
+    type: 'website',
+  },
+};
 
 type Tool = {
   slug: string;
