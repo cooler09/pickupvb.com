@@ -182,6 +182,17 @@ function DivisionForm({
             className={inputClass}
           />
         </div>
+        <div className="sm:col-span-2">
+          <label className="text-fg flex items-center gap-2 text-xs font-medium">
+            <input
+              type="checkbox"
+              name="allowFreeAgents"
+              value="1"
+              defaultChecked={initial?.allowFreeAgents ?? true}
+            />
+            Accept free-agent signups for this division
+          </label>
+        </div>
       </div>
       <div className="flex justify-end gap-2">
         <button

@@ -7,7 +7,7 @@ import { CreateEventSchema } from '@pickupvb/types';
 import { CreateEventCommand, JoinEventCommand } from '@pickupvb/application';
 import { EVENT_POSITIONS, EventType, SkillTier, skillTierBand } from '@pickupvb/domain';
 import { handlers, analytics } from '@/lib/handlers';
-import { field, fieldOrUndefined } from '@/lib/form-data';
+import { bool, field, fieldOrUndefined } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords } from '@/lib/timezone';
@@ -166,6 +166,9 @@ export async function createEventAction(
     const priceUnitRaw = fieldOrUndefined(formData, `div_${i}_priceUnit`);
     const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
     const prizeText = fieldOrUndefined(formData, `div_${i}_prizeText`);
+    // R2: per-division free-agent opt-out. Default true (matches the
+    // historical behaviour all existing divisions were created under).
+    const allowFreeAgents = bool(formData, `div_${i}_allowFreeAgents`);
     divisions.push({
       label,
       surface: fieldOrUndefined(formData, `div_${i}_surface`) || 'indoor',
@@ -181,6 +184,7 @@ export async function createEventAction(
       ...(priceUsd ? { priceCents: parsePriceCents(priceUsd) } : {}),
       ...(priceUsd ? { priceUnit } : {}),
       ...(prizeText ? { prizeText } : {}),
+      allowFreeAgents,
     });
   }
 

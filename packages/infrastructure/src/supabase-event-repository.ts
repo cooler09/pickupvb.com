@@ -112,6 +112,7 @@ type DivisionRow = {
   winner_team_id: string | null;
   winner_team_registration_id: string | null;
   winner_recorded_at: string | null;
+  allow_free_agents: boolean;
 };
 
 function rowToCapacity(row: EventRow): Capacity | null {
@@ -183,6 +184,7 @@ function divisionRowToDomain(row: DivisionRow): Division {
     prizePurseCents: row.prize_purse_cents,
     startsAt: row.starts_at ? new Date(row.starts_at) : null,
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
+    allowFreeAgents: row.allow_free_agents ?? true,
   });
 }
 
@@ -211,6 +213,7 @@ function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): Divisi
     prizePurseCents: row.prize_purse_cents,
     startsAt: row.starts_at ? new Date(row.starts_at) : null,
     endsAt: row.ends_at ? new Date(row.ends_at) : null,
+    allowFreeAgents: row.allow_free_agents ?? true,
     winner,
   };
 }
@@ -237,6 +240,7 @@ function divisionToRow(eventId: string, d: Division): Record<string, unknown> {
     prize_purse_cents: d.prizePurseCents,
     starts_at: d.startsAt ? d.startsAt.toISOString() : null,
     ends_at: d.endsAt ? d.endsAt.toISOString() : null,
+    allow_free_agents: d.allowFreeAgents,
   };
 }
 

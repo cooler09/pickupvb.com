@@ -44,6 +44,12 @@ export interface CreateDivisionProps {
   /** Optional schedule override for multi-day tournaments. */
   startsAt?: Date | null;
   endsAt?: Date | null;
+  /**
+   * When `false`, the division does not accept free-agent signups. Hosts
+   * running pure captain-assembled brackets use this to hide the free-agent
+   * pool. Defaults to `true`.
+   */
+  allowFreeAgents?: boolean;
 }
 
 /**
@@ -74,6 +80,7 @@ export class Division {
     public readonly prizePurseCents: number | null,
     public readonly startsAt: Date | null,
     public readonly endsAt: Date | null,
+    public readonly allowFreeAgents: boolean,
   ) {}
 
   /**
@@ -168,6 +175,7 @@ export class Division {
       prizePurseCents,
       startsAt,
       endsAt,
+      props.allowFreeAgents ?? true,
     );
   }
 
@@ -194,6 +202,7 @@ export class Division {
     prizePurseCents: number | null;
     startsAt: Date | null;
     endsAt: Date | null;
+    allowFreeAgents: boolean;
   }): Division {
     return new Division(
       props.id,
@@ -214,6 +223,7 @@ export class Division {
       props.prizePurseCents,
       props.startsAt,
       props.endsAt,
+      props.allowFreeAgents,
     );
   }
 }

@@ -578,6 +578,7 @@ export type Database = {
       event_divisions: {
         Row: {
           age_group: Database['public']['Enums']['age_group'];
+          allow_free_agents: boolean;
           capacity_kind: string | null;
           created_at: string;
           ends_at: string | null;
@@ -605,6 +606,7 @@ export type Database = {
         };
         Insert: {
           age_group?: Database['public']['Enums']['age_group'];
+          allow_free_agents?: boolean;
           capacity_kind?: string | null;
           created_at?: string;
           ends_at?: string | null;
@@ -632,6 +634,7 @@ export type Database = {
         };
         Update: {
           age_group?: Database['public']['Enums']['age_group'];
+          allow_free_agents?: boolean;
           capacity_kind?: string | null;
           created_at?: string;
           ends_at?: string | null;

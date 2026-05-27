@@ -181,14 +181,18 @@ export function AdHocTeamSignupPanel({
               {allRegistrations.map((t) => {
                 const rosterSize = 1 + t.members.length;
                 const captainLabel = t.isViewerCaptain ? 'You' : (t.captainName ?? 'Captain');
+                // Single-division events skip the division prefix — it's
+                // redundant with EventHero and adds no information.
+                const showDivision = divisions.length > 1;
                 return (
                   <li key={t.id} className="border-border-base bg-surface rounded-md border p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{t.name}</p>
                         <p className="text-muted text-xs">
-                          {divisionLabel(divisions, t.divisionId)} · Captain: {captainLabel} ·{' '}
-                          {rosterSize} player{rosterSize === 1 ? '' : 's'}
+                          {showDivision && `${divisionLabel(divisions, t.divisionId)} · `}
+                          Captain: {captainLabel} · {rosterSize} player
+                          {rosterSize === 1 ? '' : 's'}
                         </p>
                       </div>
                       <span

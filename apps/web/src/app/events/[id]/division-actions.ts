@@ -14,7 +14,7 @@ import {
 } from '@pickupvb/types';
 import { handlers } from '@/lib/handlers';
 import { requireSession } from '@/lib/server-auth';
-import { field, fieldOrUndefined } from '@/lib/form-data';
+import { bool, field, fieldOrUndefined } from '@/lib/form-data';
 
 /**
  * Per ADR 0006 — server actions for division CRUD invoked by the host
@@ -54,6 +54,9 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
     ...(priceUsd ? { priceCents: parsePriceCents(priceUsd) } : {}),
     ...(priceUsd ? { priceUnit } : {}),
     ...(prizeText ? { prizeText } : {}),
+    // R2: present whenever the form renders the checkbox; defaults to true
+    // for legacy hosts editing rows from before the column existed.
+    allowFreeAgents: bool(formData, 'allowFreeAgents'),
   };
   return DivisionInputSchema.parse(dto);
 }

@@ -81,6 +81,7 @@ export function divisionFromDto(input: DivisionInputDto, sortOrder: number): Div
     prizePurseCents: input.prizePurseCents ?? null,
     startsAt: input.startsAt ?? null,
     endsAt: input.endsAt ?? null,
+    allowFreeAgents: input.allowFreeAgents ?? true,
   });
 }
 

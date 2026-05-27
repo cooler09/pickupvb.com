@@ -34,6 +34,10 @@ const PAYMENT_PILL: Record<AdHocTeamPublicEntry['paymentStatus'], { label: strin
 export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisions = [] }: Props) {
   const divisionLabel = (id: string): string =>
     divisions.find((d) => d.id === id)?.label ?? 'Division';
+  // Single-division events skip the division prefix on each row — it's
+  // redundant with EventHero (and DivisionsSection is hidden in that
+  // case as well).
+  const showDivision = divisions.length > 1;
   const total = teams.length + adHocRegistrations.length;
   return (
     <section id="teams">
@@ -77,7 +81,8 @@ export function TeamsRegisteredSection({ teams, adHocRegistrations = [], divisio
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">{r.name}</p>
                     <p className="text-muted text-xs">
-                      {divisionLabel(r.divisionId)} · Captain: {captainLabel} · {rosterSize} player
+                      {showDivision && `${divisionLabel(r.divisionId)} · `}
+                      Captain: {captainLabel} · {rosterSize} player
                       {rosterSize === 1 ? '' : 's'}
                     </p>
                   </div>

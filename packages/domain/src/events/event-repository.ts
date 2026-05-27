@@ -171,6 +171,8 @@ export interface DivisionLite {
   prizePurseCents: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
+  /** When false, the free-agent panel hides this division from sign-ups. */
+  allowFreeAgents: boolean;
   /**
    * Winning team for this division, set by the host after play wraps up.
    * Null when no winner has been recorded yet. The label is the team's

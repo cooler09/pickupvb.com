@@ -175,6 +175,7 @@ export function EventSignupArea({
           teamCount={teamCount}
           freeAgentCount={freeAgentCount}
           teamEnabled={event.teamRegistrationMode !== null}
+          freeAgentEnabled={event.divisions.some((d) => d.allowFreeAgents)}
           defaultMode={event.isFreeAgent ? 'free-agent' : 'team'}
           teamPanel={
             event.teamRegistrationMode === 'ad_hoc' ? (
@@ -229,7 +230,11 @@ export function EventSignupArea({
                   avatarUrl: f.profile.avatarUrl,
                 },
               }))}
-              divisions={event.divisions.map((d) => ({ id: d.id, label: d.label }))}
+              divisions={event.divisions.map((d) => ({
+                id: d.id,
+                label: d.label,
+                allowFreeAgents: d.allowFreeAgents,
+              }))}
               isFreeAgent={event.isFreeAgent}
               viewerId={user?.id ?? null}
               isRealUser={isRealUser}

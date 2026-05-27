@@ -86,6 +86,8 @@ export const DivisionInputSchema = z.object({
   prizePurseCents: z.number().int().min(0).optional().nullable(),
   startsAt: z.coerce.date().optional().nullable(),
   endsAt: z.coerce.date().optional().nullable(),
+  /** R2: per-division host opt-out for free-agent signups. Defaults to true. */
+  allowFreeAgents: z.boolean().optional(),
 });
 export type DivisionInputDto = z.infer<typeof DivisionInputSchema>;
 

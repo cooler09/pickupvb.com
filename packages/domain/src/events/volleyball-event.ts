@@ -7,7 +7,7 @@ import {
   NotFoundError,
 } from '../shared/result.js';
 import { Capacity } from './capacity.js';
-import { Division } from './division.js';
+import { Division, type DivisionId } from './division.js';
 import {
   EventPosition,
   EventStatus,
@@ -736,10 +736,12 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * team registration — a captain can be both.
    *
    * @throws {InvariantViolation} if the event is not a Tournament, is not
-   *   Published, has already started, or notes exceed 280 characters.
+   *   Published, has already started, the division does not accept
+   *   free agents, or notes exceed 280 characters.
+   * @throws {NotFoundError} if `divisionId` does not belong to this event.
    * @throws {ConflictError} if the user is already signed up as a free agent.
    */
-  joinAsFreeAgent(userId: UserId, notes: string | null): void {
+  joinAsFreeAgent(userId: UserId, divisionId: DivisionId, notes: string | null): void {
     if (this.type !== EventType.Tournament) {
       throw new InvariantViolation('Free-agent signup is only for tournaments.');
     }
@@ -748,6 +750,13 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     }
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; free-agent signup is closed.');
+    }
+    const division = this._divisions.find((d) => d.id === divisionId);
+    if (!division) {
+      throw new NotFoundError('division', String(divisionId), 'Division not found on this event.');
+    }
+    if (!division.allowFreeAgents) {
+      throw new InvariantViolation('This division does not accept free-agent signups.');
     }
     if (this._freeAgents.has(userId)) {
       throw new ConflictError('User is already signed up as a free agent.', {

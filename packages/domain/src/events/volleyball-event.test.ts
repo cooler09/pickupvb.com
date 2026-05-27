@@ -345,24 +345,57 @@ describe('tournament signup', () => {
 });
 
 describe('free agent (tournament only)', () => {
-  it('joinAsFreeAgent records the user', () => {
+  const FA_DIV = 'div-fa' as DivisionId;
+  function tournamentWithFADivision(allowFreeAgents = true): VolleyballEvent {
     const t = makeTournament();
+    t.addDivision(
+      Division.create({
+        id: FA_DIV,
+        sortOrder: 0,
+        label: 'Open',
+        surface: Surface.Sand,
+        format: Format.Quads,
+        gender: Gender.Coed,
+        skillTier: SkillTier.BB,
+        teamComposition: TeamComposition.Team,
+        priceCents: null,
+        priceUnit: PriceUnit.PerTeam,
+        allowFreeAgents,
+      }),
+    );
+    return t;
+  }
+
+  it('joinAsFreeAgent records the user', () => {
+    const t = tournamentWithFADivision();
     t.publish();
-    t.joinAsFreeAgent(ALICE, 'OH/RS, can bring own ball');
+    t.joinAsFreeAgent(ALICE, FA_DIV, 'OH/RS, can bring own ball');
     expect(t.freeAgents.has(ALICE)).toBe(true);
   });
 
   it('rejects duplicate free-agent signup', () => {
-    const t = makeTournament();
+    const t = tournamentWithFADivision();
     t.publish();
-    t.joinAsFreeAgent(ALICE, null);
-    expect(() => t.joinAsFreeAgent(ALICE, null)).toThrow(ConflictError);
+    t.joinAsFreeAgent(ALICE, FA_DIV, null);
+    expect(() => t.joinAsFreeAgent(ALICE, FA_DIV, null)).toThrow(ConflictError);
   });
 
   it('rejects free-agent signup on an open-play event', () => {
     const open = makeOpenPlay();
     open.publish();
-    expect(() => open.joinAsFreeAgent(ALICE, null)).toThrow(InvariantViolation);
+    expect(() => open.joinAsFreeAgent(ALICE, FA_DIV, null)).toThrow(InvariantViolation);
+  });
+
+  it('rejects free-agent signup when the division opts out', () => {
+    const t = tournamentWithFADivision(false);
+    t.publish();
+    expect(() => t.joinAsFreeAgent(ALICE, FA_DIV, null)).toThrow(InvariantViolation);
+  });
+
+  it('rejects free-agent signup for an unknown division', () => {
+    const t = tournamentWithFADivision();
+    t.publish();
+    expect(() => t.joinAsFreeAgent(ALICE, 'nope' as DivisionId, null)).toThrow(NotFoundError);
   });
 });
 

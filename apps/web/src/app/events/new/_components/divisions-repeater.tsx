@@ -66,6 +66,7 @@ type Row = {
   priceUsd: string;
   priceUnit: 'per_player' | 'per_team';
   prizeText: string;
+  allowFreeAgents: boolean;
 };
 
 const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
@@ -82,6 +83,7 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
   priceUsd: '',
   priceUnit: 'per_team',
   prizeText: '',
+  allowFreeAgents: true,
   ...defaults,
 });
 
@@ -342,6 +344,18 @@ export default function DivisionsRepeater({
                 placeholder="e.g. $300 / team or Champion T-shirts"
                 className={inputClass}
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-fg flex items-center gap-2 text-xs font-medium">
+                <input
+                  type="checkbox"
+                  name={`div_${idx}_allowFreeAgents`}
+                  value="1"
+                  checked={row.allowFreeAgents}
+                  onChange={(e) => patch(row.key, { allowFreeAgents: e.target.checked })}
+                />
+                Accept free-agent signups for this division
+              </label>
             </div>
           </div>
           {/* Row-level error \u2014 catches cross-field Zod refinements that
