@@ -1,7 +1,6 @@
 import type { BracketFormat } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import {
-  addAdHocTeamFromForm,
   generateBracket,
   randomizeSeedFromForm,
   resetBracket,
@@ -9,6 +8,7 @@ import {
 } from '../actions';
 import { FORMAT_LABEL, type TeamLite } from './labels';
 import { SeedingList } from './seeding-list';
+import { WalkInTeamForm } from './walk-in-team-form';
 
 export function SetupView(props: {
   eventId: string;
@@ -85,7 +85,7 @@ export function SetupView(props: {
         orderedTeams={orderedTeams}
       />
 
-      <AddAdHocTeamForm eventId={props.eventId} divisionId={props.divisionId} />
+      <WalkInTeamForm eventId={props.eventId} divisionId={props.divisionId} />
 
       <div className="flex flex-wrap gap-2">
         <form action={generateBracket.bind(null, props.eventId, props.divisionId)}>
@@ -141,49 +141,6 @@ function SeedingForm(props: {
           formAction={randomizeSeedFromForm.bind(null, props.eventId, props.divisionId)}
         >
           Randomize
-        </SubmitButton>
-      </div>
-    </form>
-  );
-}
-
-/**
- * Phase-1 walk-in / unregistered team escape hatch. Posts to
- * `addAdHocTeamFromForm` which creates a real ad-hoc registration
- * (ADR 0007) on this division, so the team is visible everywhere a
- * registered team would be — not just inside the bracket UI.
- *
- * Just a name on purpose: roster management already has a home in the
- * event's team management UI, and most walk-up additions don't need a
- * roster captured up front.
- */
-function AddAdHocTeamForm(props: { eventId: string; divisionId: string }) {
-  return (
-    <form
-      action={addAdHocTeamFromForm.bind(null, props.eventId, props.divisionId)}
-      className="border-border-base space-y-2 rounded-lg border border-dashed p-4"
-    >
-      <div>
-        <h3 className="text-fg text-sm font-semibold">Add a walk-in team</h3>
-        <p className="text-muted text-xs">
-          For teams not registered to this division. Created as an ad-hoc registration on this
-          division — edit the roster afterwards from the event’s team management page.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex-1">
-          <span className="sr-only">Team name</span>
-          <input
-            type="text"
-            name="team_name"
-            required
-            maxLength={80}
-            placeholder="Team name"
-            className="border-border-base bg-bg text-fg focus:border-primary focus:ring-primary block w-full rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none"
-          />
-        </label>
-        <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm disabled:opacity-50">
-          Add team
         </SubmitButton>
       </div>
     </form>

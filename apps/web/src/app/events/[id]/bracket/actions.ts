@@ -264,6 +264,18 @@ export async function resetMatch(
  * be filled in afterwards (or never — a placeholder team is a valid
  * outcome at a walk-up event).
  */
+/**
+ * Host-only escape hatch for adding a walk-in / unregistered team
+ * directly to a division's bracket. Reuses the ad-hoc registration
+ * pipeline (ADR 0007) so the new row participates in seeding, capacity
+ * accounting, and audit history the same as any other team. The acting
+ * host becomes the nominal captain — they can rename or reassign the
+ * roster later from the event's team management UI.
+ *
+ * Optional `player_name_<i>` / `player_email_<i>` rows let the host
+ * capture a starting roster inline. Empty name rows are skipped so the
+ * host can leave extra rows blank without effect.
+ */
 export async function addAdHocTeamFromForm(
   eventId: string,
   divisionId: string,
@@ -274,9 +286,20 @@ export async function addAdHocTeamFromForm(
   if (!name) {
     back(eventId, divisionId, 'team_name_required');
   }
+  const members: { displayName: string; email?: string }[] = [];
+  for (const [k, v] of formData.entries()) {
+    if (typeof v !== 'string') continue;
+    const m = /^player_name_(\d+)$/.exec(k);
+    if (!m) continue;
+    const displayName = v.trim();
+    if (!displayName) continue;
+    const emailRaw = formData.get(`player_email_${m[1]}`);
+    const email = typeof emailRaw === 'string' ? emailRaw.trim() : '';
+    members.push(email ? { displayName, email } : { displayName });
+  }
   try {
     await handlers.registerAdHocTeam.execute(
-      new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, []),
+      new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, members),
     );
   } catch (err) {
     const { code, msg } = classify(err);
