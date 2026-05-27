@@ -23,13 +23,29 @@ import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { id } = await props.params;
+  const sp = await props.searchParams;
+  const divisionParam = pickQuery(sp, 'division') ?? null;
   try {
     const event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, null));
-    const title = `Live bracket — ${event.title} · PickupVB`;
-    const description = `Follow the ${event.title} bracket live on PickupVB. Match results update in real time.`;
-    const canonical = `/events/${event.id}/bracket/watch`;
+    const division =
+      (divisionParam && event.divisions.find((d) => d.id === divisionParam)) ||
+      event.divisions[0] ||
+      null;
+    const isMulti = event.divisions.length > 1;
+    const divisionSuffix = division && isMulti ? ` — ${division.label}` : '';
+    const title = `Live bracket — ${event.title}${divisionSuffix} · PickupVB`;
+    const description = `Follow the ${event.title}${divisionSuffix} bracket live on PickupVB. Match results update in real time.`;
+    const canonicalBase = `/events/${event.id}/bracket/watch`;
+    const canonical =
+      division && isMulti ? `${canonicalBase}?division=${division.id}` : canonicalBase;
+    // Route the OG image through `og/route.ts` so per-division previews
+    // unfurl correctly. Falls back to the file-convention card via the
+    // same renderer when no division is present.
+    const ogImageUrl =
+      division && isMulti ? `${canonicalBase}/og?division=${division.id}` : `${canonicalBase}/og`;
     return {
       title,
       description,
@@ -40,8 +56,14 @@ export async function generateMetadata(props: {
         url: canonical,
         type: 'website',
         siteName: 'PickupVB',
+        images: [{ url: ogImageUrl, width: 1200, height: 630 }],
       },
-      twitter: { card: 'summary_large_image', title, description },
+      twitter: {
+        card: 'summary_large_image',
+        title,
+        description,
+        images: [ogImageUrl],
+      },
     };
   } catch {
     return { title: 'Live bracket — PickupVB' };
@@ -94,6 +116,7 @@ export default async function BracketWatchPage(props: {
 
   const divParam = pickQuery(searchParams, 'division');
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
+  const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
   const [bracket, registeredTeams] = await Promise.all([
     repositories.bracketRepo.findByDivisionId(selectedDivision.id as never),
@@ -130,7 +153,11 @@ export default async function BracketWatchPage(props: {
         </p>
         <div className="pt-1">
           <ShareLink
-            path={`/events/${event.id}/bracket/watch`}
+            path={
+              event.divisions.length > 1
+                ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}`
+                : `/events/${event.id}/bracket/watch`
+            }
             title={`Live bracket — ${event.title}`}
             label="Share this view"
           />
@@ -173,7 +200,11 @@ export default async function BracketWatchPage(props: {
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
         <>
-          <LatestMatchTracker matchId={pickLatestMatchId(bracket.matches)} autoScroll />
+          <LatestMatchTracker
+            matchId={pickLatestMatchId(bracket.matches)}
+            autoScroll
+            initialFocusId={focusParam}
+          />
           <BoardView
             eventId={event.id}
             divisionId={selectedDivision.id}
@@ -184,7 +215,7 @@ export default async function BracketWatchPage(props: {
             viewerId={null}
             status={bracket.status}
             format={bracket.format}
-            highlightMatchId={pickLatestMatchId(bracket.matches)}
+            highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
           />
         </>
       )}

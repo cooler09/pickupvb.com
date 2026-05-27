@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
@@ -65,6 +66,7 @@ export default async function BracketPage(props: {
 
   const divParam = pickQuery(searchParams, 'division');
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
+  const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
   const [bracket, registeredTeams] = await Promise.all([
     repositories.bracketRepo.findByDivisionId(selectedDivision.id as never),
@@ -101,13 +103,21 @@ export default async function BracketPage(props: {
         </p>
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <Link
-            href={`/events/${event.id}/bracket/watch`}
+            href={
+              (event.divisions.length > 1
+                ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}`
+                : `/events/${event.id}/bracket/watch`) as Route
+            }
             className="text-primary text-xs hover:underline"
           >
             {'Open public spectator view →'}
           </Link>
           <ShareLink
-            path={`/events/${event.id}/bracket/watch`}
+            path={
+              event.divisions.length > 1
+                ? `/events/${event.id}/bracket/watch?division=${selectedDivision.id}`
+                : `/events/${event.id}/bracket/watch`
+            }
             title={`Live bracket — ${event.title}`}
             label="Share spectator link"
           />
@@ -177,7 +187,11 @@ export default async function BracketPage(props: {
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
         <>
-          <LatestMatchTracker matchId={pickLatestMatchId(bracket.matches)} autoScroll={false} />
+          <LatestMatchTracker
+            matchId={pickLatestMatchId(bracket.matches)}
+            autoScroll={false}
+            initialFocusId={focusParam}
+          />
           <BoardView
             eventId={event.id}
             divisionId={selectedDivision.id}
@@ -188,7 +202,7 @@ export default async function BracketPage(props: {
             viewerId={viewerId}
             status={bracket.status}
             format={bracket.format}
-            highlightMatchId={pickLatestMatchId(bracket.matches)}
+            highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
           />
         </>
       )}

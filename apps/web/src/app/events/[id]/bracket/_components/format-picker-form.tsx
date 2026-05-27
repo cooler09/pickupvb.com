@@ -24,6 +24,135 @@ type FormatMeta = {
   minTeams: number;
 };
 
+/**
+ * Tiny inline-SVG sketch of each bracket shape. Pure decoration — no text,
+ * no accessibility content (the format title + description carry the
+ * meaning, and `aria-hidden` keeps screen readers from announcing the
+ * graphic). 80×40 viewbox sized so it sits neatly above the format name
+ * without crowding the description text.
+ */
+function FormatThumbnail({ format }: { format: BracketFormat }) {
+  const stroke = 'currentColor';
+  const sw = 1.25;
+  switch (format) {
+    case 'single_elimination':
+      // 4 teams → 2 semis → 1 final, classic right-pointing tree.
+      return (
+        <svg
+          viewBox="0 0 80 40"
+          width={64}
+          height={32}
+          aria-hidden="true"
+          className="text-primary/70"
+          fill="none"
+        >
+          <path d="M4 6 H22 M4 14 H22 M4 26 H22 M4 34 H22" stroke={stroke} strokeWidth={sw} />
+          <path
+            d="M22 6 V10 H38 V18 M22 14 V10 M22 26 V30 H38 V22 M22 34 V30 M38 18 V20 H60 V20 M38 22 V20"
+            stroke={stroke}
+            strokeWidth={sw}
+          />
+          <path d="M60 20 H76" stroke={stroke} strokeWidth={sw} />
+        </svg>
+      );
+    case 'double_elimination':
+      // Winners tree on top, losers tree on bottom, both feeding the right.
+      return (
+        <svg
+          viewBox="0 0 80 40"
+          width={64}
+          height={32}
+          aria-hidden="true"
+          className="text-primary/70"
+          fill="none"
+        >
+          {/* Winners bracket */}
+          <path d="M4 4 H18 M4 10 H18" stroke={stroke} strokeWidth={sw} />
+          <path d="M18 4 V7 H34 V13 M18 10 V7" stroke={stroke} strokeWidth={sw} />
+          <path d="M34 13 H58" stroke={stroke} strokeWidth={sw} />
+          {/* Losers bracket */}
+          <path d="M4 28 H18 M4 36 H18" stroke={stroke} strokeWidth={sw} />
+          <path d="M18 28 V32 H34 V26 M18 36 V32" stroke={stroke} strokeWidth={sw} />
+          <path d="M34 26 H58" stroke={stroke} strokeWidth={sw} />
+          {/* Grand final on the right */}
+          <path d="M58 13 V20 H72 V20 M58 26 V20" stroke={stroke} strokeWidth={sw} />
+        </svg>
+      );
+    case 'round_robin':
+      // Four nodes in a square, every pair connected.
+      return (
+        <svg
+          viewBox="0 0 80 40"
+          width={64}
+          height={32}
+          aria-hidden="true"
+          className="text-primary/70"
+          fill="none"
+        >
+          {(() => {
+            const pts = [
+              { x: 20, y: 8 },
+              { x: 60, y: 8 },
+              { x: 60, y: 32 },
+              { x: 20, y: 32 },
+            ];
+            const edges = [];
+            for (let i = 0; i < pts.length; i++) {
+              for (let j = i + 1; j < pts.length; j++) {
+                edges.push(
+                  <line
+                    key={`${i}-${j}`}
+                    x1={pts[i]!.x}
+                    y1={pts[i]!.y}
+                    x2={pts[j]!.x}
+                    y2={pts[j]!.y}
+                    stroke={stroke}
+                    strokeWidth={sw}
+                  />,
+                );
+              }
+            }
+            return (
+              <>
+                {edges}
+                {pts.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r={3} fill={stroke} />
+                ))}
+              </>
+            );
+          })()}
+        </svg>
+      );
+    case 'pool_play_playoff':
+      // Two pools (4 dots stacked) on the left, arrow into a 2-round tree.
+      return (
+        <svg
+          viewBox="0 0 80 40"
+          width={64}
+          height={32}
+          aria-hidden="true"
+          className="text-primary/70"
+          fill="none"
+        >
+          {/* Pool A */}
+          <rect x={3} y={3} width={20} height={14} rx={2} stroke={stroke} strokeWidth={sw} />
+          {[7, 13, 19].map((x, i) => (
+            <circle key={`a-${i}`} cx={x} cy={10} r={1.5} fill={stroke} />
+          ))}
+          {/* Pool B */}
+          <rect x={3} y={23} width={20} height={14} rx={2} stroke={stroke} strokeWidth={sw} />
+          {[7, 13, 19].map((x, i) => (
+            <circle key={`b-${i}`} cx={x} cy={30} r={1.5} fill={stroke} />
+          ))}
+          {/* Playoff bracket on the right */}
+          <path d="M30 10 H44 M30 30 H44" stroke={stroke} strokeWidth={sw} />
+          <path d="M44 10 V20 H60 M44 30 V20" stroke={stroke} strokeWidth={sw} />
+          <path d="M60 20 H76" stroke={stroke} strokeWidth={sw} />
+        </svg>
+      );
+  }
+}
+
 const FORMATS: ReadonlyArray<FormatMeta> = [
   {
     value: 'single_elimination',
@@ -130,8 +259,15 @@ export function FormatPickerForm(props: {
                   disabled={disabled}
                   className="sr-only"
                 />
-                <div className="text-fg font-semibold">{f.title}</div>
-                <p className="text-fg/80 mt-1">{f.blurb}</p>
+                <div className="flex items-start gap-3">
+                  <div className="border-border-base bg-bg shrink-0 rounded border p-1">
+                    <FormatThumbnail format={f.value} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-fg font-semibold">{f.title}</div>
+                    <p className="text-fg/80 mt-1">{f.blurb}</p>
+                  </div>
+                </div>
                 <dl className="text-muted mt-2 space-y-0.5 text-xs">
                   <div>
                     <dt className="text-fg/70 inline font-medium">Best for: </dt>
