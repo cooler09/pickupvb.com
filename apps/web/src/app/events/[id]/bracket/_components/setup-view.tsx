@@ -8,6 +8,7 @@ import {
   seedBracketFromForm,
 } from '../actions';
 import { FORMAT_LABEL, type TeamLite } from './labels';
+import { SeedingList } from './seeding-list';
 
 export function SetupView(props: {
   eventId: string;
@@ -122,10 +123,13 @@ function SeedingForm(props: {
     >
       <h3 className="text-fg text-sm font-semibold">Seeding order</h3>
       <p className="text-muted text-xs">
-        Top of the list is seed 1. Click <em>Randomize</em> to shuffle, or save the current order
-        as-is.
+        Top of the list is seed 1. Drag or use the arrows to reorder, click <em>Randomize</em> to
+        shuffle, or save the current order as-is.
       </p>
-      <SeedingList orderedTeams={props.orderedTeams} />
+      <SeedingList
+        key={props.orderedTeams.map((t) => t.teamId).join(',')}
+        orderedTeams={props.orderedTeams}
+      />
       <div className="flex flex-wrap gap-2 pt-2">
         <SubmitButton className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50">
           Save seeding
@@ -140,23 +144,6 @@ function SeedingForm(props: {
         </SubmitButton>
       </div>
     </form>
-  );
-}
-
-function SeedingList(props: { orderedTeams: ReadonlyArray<{ teamId: string; name: string }> }) {
-  return (
-    <ol className="space-y-1">
-      {props.orderedTeams.map((t, i) => (
-        <li
-          key={t.teamId}
-          className="border-border-base/60 bg-bg flex items-center gap-2 rounded border px-2 py-1 text-sm"
-        >
-          <span className="text-muted w-6 text-right tabular-nums">{i + 1}.</span>
-          <span className="text-fg flex-1 truncate">{t.name}</span>
-          <input type="hidden" name="team_id" value={t.teamId} />
-        </li>
-      ))}
-    </ol>
   );
 }
 
