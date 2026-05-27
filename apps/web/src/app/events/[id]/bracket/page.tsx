@@ -6,6 +6,7 @@ import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { BoardView, pickLatestMatchId } from './_components/board-view';
+import { LatestMatchTracker } from './_components/latest-match-tracker';
 import { NoBracketView } from './_components/no-bracket-view';
 import { SetupView } from './_components/setup-view';
 import { BracketRealtimeRefresher } from './_components/realtime-refresher';
@@ -175,18 +176,21 @@ export default async function BracketPage(props: {
       )}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <BoardView
-          eventId={event.id}
-          divisionId={selectedDivision.id}
-          matches={[...bracket.matches]}
-          teamById={teamById}
-          bestOf={bracket.config.bestOf}
-          isHost={isHost}
-          viewerId={viewerId}
-          status={bracket.status}
-          format={bracket.format}
-          highlightMatchId={pickLatestMatchId(bracket.matches)}
-        />
+        <>
+          <LatestMatchTracker matchId={pickLatestMatchId(bracket.matches)} autoScroll={false} />
+          <BoardView
+            eventId={event.id}
+            divisionId={selectedDivision.id}
+            matches={[...bracket.matches]}
+            teamById={teamById}
+            bestOf={bracket.config.bestOf}
+            isHost={isHost}
+            viewerId={viewerId}
+            status={bracket.status}
+            format={bracket.format}
+            highlightMatchId={pickLatestMatchId(bracket.matches)}
+          />
+        </>
       )}
     </article>
   );

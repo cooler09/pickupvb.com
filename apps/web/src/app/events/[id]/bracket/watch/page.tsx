@@ -5,6 +5,7 @@ import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
+import { LatestMatchTracker } from '../_components/latest-match-tracker';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
 
 /**
@@ -143,18 +144,21 @@ export default async function BracketWatchPage(props: {
       )}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <BoardView
-          eventId={event.id}
-          divisionId={selectedDivision.id}
-          matches={[...bracket.matches]}
-          teamById={teamById}
-          bestOf={bracket.config.bestOf}
-          isHost={false}
-          viewerId={null}
-          status={bracket.status}
-          format={bracket.format}
-          highlightMatchId={pickLatestMatchId(bracket.matches)}
-        />
+        <>
+          <LatestMatchTracker matchId={pickLatestMatchId(bracket.matches)} autoScroll />
+          <BoardView
+            eventId={event.id}
+            divisionId={selectedDivision.id}
+            matches={[...bracket.matches]}
+            teamById={teamById}
+            bestOf={bracket.config.bestOf}
+            isHost={false}
+            viewerId={null}
+            status={bracket.status}
+            format={bracket.format}
+            highlightMatchId={pickLatestMatchId(bracket.matches)}
+          />
+        </>
       )}
     </article>
   );
