@@ -165,6 +165,13 @@ export function EventSignupArea({
     // the picker badge + subline match what users see in the panels.
     const teamCount = event.teams.length + adHocAllRegistrations.length;
     const freeAgentCount = event.freeAgents.length;
+    // ADR 0016: team registration mode is per-division. A division can be
+    // ad_hoc, roster, or null (individual signup) independently of its
+    // siblings. Split the divisions per mode and render whichever
+    // sub-panels apply; if both modes are present, stack them.
+    const adHocDivisions = event.divisions.filter((d) => d.teamRegistrationMode === 'ad_hoc');
+    const rosterDivisions = event.divisions.filter((d) => d.teamRegistrationMode === 'roster');
+    const teamEnabled = adHocDivisions.length > 0 || rosterDivisions.length > 0;
     return (
       <SignupSection
         title="Register"
@@ -174,49 +181,52 @@ export function EventSignupArea({
         <TournamentRegisterPanel
           teamCount={teamCount}
           freeAgentCount={freeAgentCount}
-          teamEnabled={event.teamRegistrationMode !== null}
+          teamEnabled={teamEnabled}
           freeAgentEnabled={event.divisions.some((d) => d.allowFreeAgents)}
           defaultMode={event.isFreeAgent ? 'free-agent' : 'team'}
           teamPanel={
-            event.teamRegistrationMode === 'ad_hoc' ? (
-              <AdHocTeamSignupPanel
-                eventId={event.id}
-                returnPath={returnPath}
-                divisions={event.divisions.map((d) => ({
-                  id: d.id,
-                  label: d.label,
-                  priceCents: d.priceCents,
-                  priceUnit: d.priceUnit,
-                  teamSize: d.teamSize,
-                }))}
-                viewerId={user?.id ?? null}
-                isRealUser={isRealUser}
-                viewerRegistrations={adHocViewerRegistrations}
-                allRegistrations={adHocAllRegistrations}
-                paymentsOffPlatform={effectiveOffPlatform}
-                {...(effRsvp ? { resultCode: effRsvp } : {})}
-                {...(effRsvpMsg ? { resultMsg: effRsvpMsg } : {})}
-              />
-            ) : (
-              <TournamentSignupPanel
-                eventId={event.id}
-                eventFormat={event.format}
-                teams={event.teams}
-                viewerCaptainedTeams={event.viewerCaptainedTeams}
-                divisions={event.divisions.map((d) => ({
-                  id: d.id,
-                  label: d.label,
-                  format: d.format,
-                  priceCents: d.priceCents,
-                  priceUnit: d.priceUnit,
-                }))}
-                viewerId={user?.id ?? null}
-                isRealUser={isRealUser}
-                returnPath={returnPath}
-                paymentsOffPlatform={effectiveOffPlatform}
-                {...(team || effRsvp ? { resultCode: team ?? effRsvp } : {})}
-              />
-            )
+            <div className="space-y-4">
+              {adHocDivisions.length > 0 && (
+                <AdHocTeamSignupPanel
+                  eventId={event.id}
+                  returnPath={returnPath}
+                  divisions={adHocDivisions.map((d) => ({
+                    id: d.id,
+                    label: d.label,
+                    priceCents: d.priceCents,
+                    priceUnit: d.priceUnit,
+                    teamSize: d.teamSize,
+                  }))}
+                  viewerId={user?.id ?? null}
+                  isRealUser={isRealUser}
+                  viewerRegistrations={adHocViewerRegistrations}
+                  allRegistrations={adHocAllRegistrations}
+                  paymentsOffPlatform={effectiveOffPlatform}
+                  {...(effRsvp ? { resultCode: effRsvp } : {})}
+                  {...(effRsvpMsg ? { resultMsg: effRsvpMsg } : {})}
+                />
+              )}
+              {rosterDivisions.length > 0 && (
+                <TournamentSignupPanel
+                  eventId={event.id}
+                  eventFormat={event.format}
+                  teams={event.teams}
+                  viewerCaptainedTeams={event.viewerCaptainedTeams}
+                  divisions={rosterDivisions.map((d) => ({
+                    id: d.id,
+                    label: d.label,
+                    format: d.format,
+                    priceCents: d.priceCents,
+                    priceUnit: d.priceUnit,
+                  }))}
+                  viewerId={user?.id ?? null}
+                  isRealUser={isRealUser}
+                  returnPath={returnPath}
+                  paymentsOffPlatform={effectiveOffPlatform}
+                  {...(team || effRsvp ? { resultCode: team ?? effRsvp } : {})}
+                />
+              )}
+            </div>
           }
           freeAgentPanel={
             <FreeAgentSignupPanel

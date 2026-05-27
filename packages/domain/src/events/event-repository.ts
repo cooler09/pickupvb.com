@@ -174,6 +174,12 @@ export interface DivisionLite {
   /** When false, the free-agent panel hides this division from sign-ups. */
   allowFreeAgents: boolean;
   /**
+   * ADR 0016 — per-division team paradigm. `null` = individual signup;
+   * `'ad_hoc'` = captain assembles a throwaway roster; `'roster'` =
+   * captain registers an existing persistent team.
+   */
+  teamRegistrationMode: TeamRegistrationMode | null;
+  /**
    * Winning team for this division, set by the host after play wraps up.
    * Null when no winner has been recorded yet. The label is the team's
    * display name (roster-mode `teams.name` or ad-hoc
@@ -261,8 +267,6 @@ export interface EventDetailReadModel {
   externalRegistrationInstructions: string | null;
   paymentInstructions: string | null;
   paymentsOffPlatform: boolean;
-  /** ADR 0007 — null on open-play. Tournaments default to RosterTeams. */
-  teamRegistrationMode: TeamRegistrationMode | null;
 
   /** Divisions on this event (ADR 0006). Empty array when not yet split. */
   divisions: ReadonlyArray<DivisionLite>;

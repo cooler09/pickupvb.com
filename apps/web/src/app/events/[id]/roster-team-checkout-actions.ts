@@ -86,13 +86,13 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
   const event = await eventRepo.findById(eventId);
   if (!event) backWithError(eventId, 'event_not_found');
   if (event.type !== EventType.Tournament) backWithError(eventId, 'not_tournament');
-  if (event.teamRegistrationMode !== TeamRegistrationMode.Roster) {
-    backWithError(eventId, 'not_team_event');
-  }
   if (event.paymentsOffPlatform) backWithError(eventId, 'payments_off');
 
   const division = event.divisions.find((d) => String(d.id) === registration.division_id);
   if (!division) backWithError(eventId, 'division_not_found');
+  if (division.teamRegistrationMode !== TeamRegistrationMode.Roster) {
+    backWithError(eventId, 'not_team_event');
+  }
   if (division.priceUnit !== PriceUnit.PerTeam) backWithError(eventId, 'not_per_team');
   const priceCents = division.priceCents ?? 0;
   if (priceCents <= 0) backWithError(eventId, 'free_event');

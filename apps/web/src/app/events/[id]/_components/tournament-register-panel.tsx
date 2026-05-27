@@ -20,7 +20,8 @@ type Props = {
   /**
    * When `false`, the team option is hidden entirely and the panel
    * renders only the free-agent flow (no picker). Set this when the
-   * event's `team_registration_mode` is `null` — i.e. the host opted
+   * event has no division whose `team_registration_mode` is set (ADR 0016)
+   * — i.e. the host opted
    * out of team registration.
    */
   teamEnabled: boolean;

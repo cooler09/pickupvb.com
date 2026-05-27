@@ -9,6 +9,7 @@ import {
   SkillTier,
   Surface,
   TeamComposition,
+  TeamRegistrationMode,
 } from './enums.js';
 import { assertFormatAllowedForSurface } from './rules.js';
 
@@ -50,6 +51,15 @@ export interface CreateDivisionProps {
    * pool. Defaults to `true`.
    */
   allowFreeAgents?: boolean;
+  /**
+   * ADR 0016 team paradigm at the division level. `null` = individual
+   * signup (open-play or solo-bracket tournament); `'ad_hoc'` = captain
+   * assembles a throwaway {@link EventTeamRegistration}; `'roster'` =
+   * captain registers an existing persistent {@link Team}. Defaults to
+   * `null` — the create-event handler upgrades non-solo tournament
+   * divisions to `'ad_hoc'` when the host didn't pick a mode.
+   */
+  teamRegistrationMode?: TeamRegistrationMode | null;
 }
 
 /**
@@ -81,6 +91,7 @@ export class Division {
     public readonly startsAt: Date | null,
     public readonly endsAt: Date | null,
     public readonly allowFreeAgents: boolean,
+    public readonly teamRegistrationMode: TeamRegistrationMode | null,
   ) {}
 
   /**
@@ -176,6 +187,7 @@ export class Division {
       startsAt,
       endsAt,
       props.allowFreeAgents ?? true,
+      props.teamRegistrationMode ?? null,
     );
   }
 
@@ -203,6 +215,7 @@ export class Division {
     startsAt: Date | null;
     endsAt: Date | null;
     allowFreeAgents: boolean;
+    teamRegistrationMode: TeamRegistrationMode | null;
   }): Division {
     return new Division(
       props.id,
@@ -224,6 +237,7 @@ export class Division {
       props.startsAt,
       props.endsAt,
       props.allowFreeAgents,
+      props.teamRegistrationMode,
     );
   }
 }

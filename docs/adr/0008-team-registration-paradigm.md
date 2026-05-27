@@ -1,6 +1,6 @@
 # 0008. Team registration paradigm: per-event single mode, ad-hoc default
 
-- **Status:** Accepted
+- **Status:** Accepted — §2 (per-event single mode) superseded by [0016](0016-per-division-team-registration-mode.md) 2026-05-27. Other sections still hold.
 - **Date:** 2026-05-24
 
 ## Context

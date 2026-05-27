@@ -193,6 +193,22 @@ function DivisionForm({
             Accept free-agent signups for this division
           </label>
         </div>
+        <div className="sm:col-span-2">
+          <label className={labelClass}>Team registration</label>
+          <select
+            name="teamRegistrationMode"
+            defaultValue={initial?.teamRegistrationMode ?? 'none'}
+            className={inputClass}
+          >
+            <option value="ad_hoc">Ad-hoc — captain assembles at signup</option>
+            <option value="roster">Roster — captain picks an existing team</option>
+            <option value="none">None — individual signups</option>
+          </select>
+          <p className="text-muted mt-1 text-xs">
+            Per ADR 0016 each division opts in independently. Solo-composition divisions should stay
+            on “None”.
+          </p>
+        </div>
       </div>
       <div className="flex justify-end gap-2">
         <button

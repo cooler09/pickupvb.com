@@ -361,6 +361,7 @@ describe('free agent (tournament only)', () => {
         priceCents: null,
         priceUnit: PriceUnit.PerTeam,
         allowFreeAgents,
+        teamRegistrationMode: TeamRegistrationMode.AdHoc,
       }),
     );
     return t;
@@ -410,6 +411,7 @@ function pricedDivision(props: {
   priceUnit: PriceUnit;
   sortOrder?: number;
   teamComposition?: TeamComposition;
+  teamRegistrationMode?: TeamRegistrationMode | null;
 }): Division {
   return Division.create({
     id: (props.id ?? 'div-1') as DivisionId,
@@ -422,12 +424,15 @@ function pricedDivision(props: {
     teamComposition: props.teamComposition ?? TeamComposition.Team,
     priceCents: props.priceCents,
     priceUnit: props.priceUnit,
+    teamRegistrationMode:
+      props.teamRegistrationMode === undefined
+        ? TeamRegistrationMode.AdHoc
+        : props.teamRegistrationMode,
   });
 }
 
 function makeTournamentWith(opts: {
   divisions: ReadonlyArray<Division>;
-  teamRegistrationMode?: TeamRegistrationMode | null;
   paymentsOffPlatform?: boolean;
 }): VolleyballEvent {
   return VolleyballEvent.create({
@@ -447,9 +452,6 @@ function makeTournamentWith(opts: {
     endsAt: tomorrow(8),
     divisions: opts.divisions,
     extensions: {
-      ...(opts.teamRegistrationMode !== undefined
-        ? { teamRegistrationMode: opts.teamRegistrationMode }
-        : {}),
       ...(opts.paymentsOffPlatform !== undefined
         ? { paymentsOffPlatform: opts.paymentsOffPlatform }
         : {}),
@@ -457,10 +459,16 @@ function makeTournamentWith(opts: {
   });
 }
 
-describe('VolleyballEvent registration-config invariant (ADR 0012)', () => {
-  it('defaults tournaments to ad-hoc team registration', () => {
-    const evt = makeTournament();
-    expect(evt.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
+describe('VolleyballEvent registration-config invariant (ADR 0012 + 0016)', () => {
+  it('tournaments default each non-solo division to ad-hoc when created from the form', () => {
+    // The aggregate itself no longer defaults team-mode (ADR 0016 moved
+    // the field to the division). The defaulting now lives in the
+    // create-event form action; this test asserts the aggregate accepts
+    // an ad-hoc-tagged team-composition division.
+    const evt = makeTournamentWith({
+      divisions: [pricedDivision({ priceCents: 10000, priceUnit: PriceUnit.PerTeam })],
+    });
+    expect(evt.divisions[0]?.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
   });
 
   // Rule 2 — team-led events require team composition + per-team pricing
@@ -507,19 +515,19 @@ describe('VolleyballEvent registration-config invariant (ADR 0012)', () => {
     const evt = makeTournamentWith({
       divisions: [pricedDivision({ priceCents: 10000, priceUnit: PriceUnit.PerTeam })],
     });
-    expect(evt.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
+    expect(evt.divisions[0]?.teamRegistrationMode).toBe(TeamRegistrationMode.AdHoc);
   });
 
-  // Rule 3 — individual-signup events require solo + per-player
+  // Rule 3 — individual-signup divisions require solo + per-player
   it('rejects individual-signup tournament with per-team priced division', () => {
     expect(() =>
       makeTournamentWith({
-        teamRegistrationMode: null,
         divisions: [
           pricedDivision({
             priceCents: 10000,
             priceUnit: PriceUnit.PerTeam,
             teamComposition: TeamComposition.Solo,
+            teamRegistrationMode: null,
           }),
         ],
       }),
@@ -529,30 +537,35 @@ describe('VolleyballEvent registration-config invariant (ADR 0012)', () => {
   it('rejects individual-signup tournament with a non-solo composition division', () => {
     expect(() =>
       makeTournamentWith({
-        teamRegistrationMode: null,
-        divisions: [pricedDivision({ priceCents: 2500, priceUnit: PriceUnit.PerPlayer })],
+        divisions: [
+          pricedDivision({
+            priceCents: 2500,
+            priceUnit: PriceUnit.PerPlayer,
+            teamRegistrationMode: null,
+          }),
+        ],
       }),
     ).toThrow(InvariantViolation);
   });
 
   it('accepts individual-signup tournament with solo + per-player division', () => {
     const evt = makeTournamentWith({
-      teamRegistrationMode: null,
       divisions: [
         pricedDivision({
           priceCents: 2500,
           priceUnit: PriceUnit.PerPlayer,
           teamComposition: TeamComposition.Solo,
+          teamRegistrationMode: null,
         }),
       ],
     });
-    expect(evt.teamRegistrationMode).toBeNull();
+    expect(evt.divisions[0]?.teamRegistrationMode).toBeNull();
   });
 
-  // Rule 1 — open-play is individual-only
-  it('open-play events default to individual signup (null mode)', () => {
+  // Rule 1 — open-play is individual-only on every division
+  it('open-play events have no division-level team mode by default', () => {
     const open = makeOpenPlay();
-    expect(open.teamRegistrationMode).toBeNull();
+    expect(open.divisions.every((d) => d.teamRegistrationMode === null)).toBe(true);
   });
 
   // Defence-in-depth — addDivision re-runs invariants

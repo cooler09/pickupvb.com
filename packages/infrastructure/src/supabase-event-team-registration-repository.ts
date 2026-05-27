@@ -3,6 +3,7 @@ import {
   EventTeamRegistration,
   RegistrationMember,
   RegistrationPaymentStatus,
+  RegistrationSource,
   type DivisionId,
   type EventTeamRegistrationId,
   type EventTeamRegistrationMemberId,
@@ -17,13 +18,17 @@ type RegistrationRow = {
   id: string;
   event_id: string;
   division_id: string;
-  captain_id: string;
+  captain_id: string | null;
   name: string;
+  source: RegistrationSource;
+  captain_display_name: string | null;
+  captain_phone: string | null;
   payment_status: RegistrationPaymentStatus;
   checkout_session_id: string | null;
   payment_intent_id: string | null;
   amount_paid_cents: number | null;
   paid_at: string | null;
+  payment_note: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -92,13 +97,17 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       id: String(registration.id),
       event_id: registration.eventId,
       division_id: String(registration.divisionId),
-      captain_id: String(registration.captainId),
+      captain_id: registration.captainId === null ? null : String(registration.captainId),
       name: registration.name,
+      source: registration.source,
+      captain_display_name: registration.captainDisplayName,
+      captain_phone: registration.captainPhone,
       payment_status: registration.paymentStatus,
       checkout_session_id: registration.checkoutSessionId,
       payment_intent_id: registration.paymentIntentId,
       amount_paid_cents: registration.amountPaidCents,
       paid_at: registration.paidAt ? registration.paidAt.toISOString() : null,
+      payment_note: registration.paymentNote,
     };
 
     const { error } = await this.client
@@ -190,10 +199,35 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     }
     const evtFormat = (divRow as unknown as { format: string }).format;
 
+    // Walk-in registrations (ADR 0017) have no real captain account, but
+    // the backing `teams` row's `captain_id` is NOT NULL. Use the event
+    // host as the team's nominal captain so the bracket reader and the
+    // `events_view.team_count` expression still work — the registration
+    // row itself keeps `captain_id = null`, which is the source of truth
+    // for the public roster.
+    let backingCaptainId: string;
+    if (registration.captainId !== null) {
+      backingCaptainId = String(registration.captainId);
+    } else {
+      const { data: evtRow, error: evtErr } = await this.client
+        .from('events')
+        .select('host_id')
+        .eq('id', registration.eventId)
+        .maybeSingle();
+      if (evtErr || !evtRow) {
+        throw new Error(
+          `EventTeamRegistration.ensureBackingTeam host lookup failed: ${
+            evtErr?.message ?? 'event not found'
+          }`,
+        );
+      }
+      backingCaptainId = (evtRow as unknown as { host_id: string }).host_id;
+    }
+
     const { data: newTeam, error: tErr } = await this.client
       .from('teams')
       .insert({
-        captain_id: String(registration.captainId),
+        captain_id: backingCaptainId,
         name: registration.name,
         format: evtFormat,
       } as never)
@@ -287,7 +321,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     const { data, error } = await this.client
       .from('event_team_registrations')
       .select(
-        'id, event_id, division_id, captain_id, name, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, created_at, updated_at',
+        'id, event_id, division_id, captain_id, name, source, captain_display_name, captain_phone, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note, created_at, updated_at',
       )
       .eq(column, value)
       .maybeSingle();
@@ -320,14 +354,18 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       id: row.id as never as EventTeamRegistrationId,
       eventId: row.event_id,
       divisionId: row.division_id as never as DivisionId,
-      captainId: row.captain_id as UserId,
+      captainId: row.captain_id === null ? null : (row.captain_id as UserId),
       name: row.name,
       members,
+      source: row.source,
+      captainDisplayName: row.captain_display_name,
+      captainPhone: row.captain_phone,
       paymentStatus: row.payment_status,
       checkoutSessionId: row.checkout_session_id,
       paymentIntentId: row.payment_intent_id,
       amountPaidCents: row.amount_paid_cents,
       paidAt: row.paid_at ? new Date(row.paid_at) : null,
+      paymentNote: row.payment_note,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     });

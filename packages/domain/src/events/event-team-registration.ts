@@ -18,6 +18,26 @@ export type RegistrationPaymentStatus =
   (typeof RegistrationPaymentStatus)[keyof typeof RegistrationPaymentStatus];
 
 /**
+ * Who created this registration (ADR 0017).
+ *
+ * - `'captain'` — captain self-signup via `AdHocTeamSignupPanel`. Requires
+ *   a real account so `captainId` references `profiles(id)`.
+ * - `'host'` — host registered an ad-hoc team on behalf of a real
+ *   captain account (the captain delegated the form, or signed up at
+ *   the table but is on-platform).
+ * - `'walk_in'` — host registered a same-day team at the table for
+ *   someone with no account. `captainId` is `null`; `captainDisplayName`
+ *   carries the freeform identity. Walk-ins are only legal in `ad_hoc`
+ *   divisions and start at `payment_status='none'` (cash at the table).
+ */
+export const RegistrationSource = {
+  Captain: 'captain',
+  Host: 'host',
+  WalkIn: 'walk_in',
+} as const;
+export type RegistrationSource = (typeof RegistrationSource)[keyof typeof RegistrationSource];
+
+/**
  * One roster slot on an {@link EventTeamRegistration}. A slot identifies its
  * player either by `userId` (existing account) or by `displayName` (+ optional
  * `email`) for guests the captain is bringing who don't have an account.
@@ -73,18 +93,38 @@ export interface CreateEventTeamRegistrationProps {
   id: EventTeamRegistrationId;
   eventId: string;
   divisionId: DivisionId;
-  captainId: UserId;
+  /**
+   * Required for `'captain'` and `'host'` sources; must be `null` for
+   * `'walk_in'`. The factory validates the discriminant.
+   */
+  captainId: UserId | null;
   name: string;
   /** Roster does not include the captain implicitly — pass them as a member. */
   members: ReadonlyArray<RegistrationMember>;
+  /**
+   * Defaults to `'captain'` so existing self-signup call sites don't
+   * have to change. Host walk-in flows pass `'walk_in'` explicitly
+   * (and must also pass `captainDisplayName`).
+   */
+  source?: RegistrationSource;
+  /**
+   * Required when `source = 'walk_in'`. Optional otherwise (the captain's
+   * profile display name is used for rendering on captain/host rows; this
+   * freeform field is for walk-ins who don't have a profile).
+   */
+  captainDisplayName?: string | null;
+  /** Optional contact number captured at the table for walk-ins. */
+  captainPhone?: string | null;
 }
 
 export interface RehydrateEventTeamRegistrationProps extends CreateEventTeamRegistrationProps {
+  source: RegistrationSource;
   paymentStatus: RegistrationPaymentStatus;
   checkoutSessionId: string | null;
   paymentIntentId: string | null;
   amountPaidCents: number | null;
   paidAt: Date | null;
+  paymentNote: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -109,7 +149,10 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     id: EventTeamRegistrationId,
     public readonly eventId: string,
     public readonly divisionId: DivisionId,
-    public readonly captainId: UserId,
+    public readonly captainId: UserId | null,
+    public readonly source: RegistrationSource,
+    public readonly captainDisplayName: string | null,
+    public readonly captainPhone: string | null,
     private _name: string,
     private _members: RegistrationMember[],
     private _paymentStatus: RegistrationPaymentStatus,
@@ -117,6 +160,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     private _paymentIntentId: string | null,
     private _amountPaidCents: number | null,
     private _paidAt: Date | null,
+    private _paymentNote: string | null,
     public readonly createdAt: Date,
     private _updatedAt: Date,
   ) {
@@ -141,15 +185,31 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       throw new InvariantViolation(`Roster may have at most ${MAX_ROSTER_SIZE} members.`);
     }
     assertUniqueMembers(props.members);
+    const source = props.source ?? RegistrationSource.Captain;
+    const displayName = props.captainDisplayName?.trim() || null;
+    const phone = props.captainPhone?.trim() || null;
+    assertSourceIdentity(source, props.captainId, displayName);
+    if (displayName && displayName.length > MAX_NAME_LEN) {
+      throw new InvariantViolation(
+        `Captain display name must be at most ${MAX_NAME_LEN} characters.`,
+      );
+    }
+    if (phone && (phone.length < 1 || phone.length > 40)) {
+      throw new InvariantViolation('Captain phone must be 1–40 characters.');
+    }
     const now = new Date();
     return new EventTeamRegistration(
       props.id,
       props.eventId,
       props.divisionId,
       props.captainId,
+      source,
+      displayName,
+      phone,
       name,
       [...props.members],
       RegistrationPaymentStatus.None,
+      null,
       null,
       null,
       null,
@@ -170,6 +230,9 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       props.eventId,
       props.divisionId,
       props.captainId,
+      props.source,
+      props.captainDisplayName ?? null,
+      props.captainPhone ?? null,
       props.name,
       [...props.members],
       props.paymentStatus,
@@ -177,6 +240,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       props.paymentIntentId,
       props.amountPaidCents,
       props.paidAt,
+      props.paymentNote,
       props.createdAt,
       props.updatedAt,
     );
@@ -212,6 +276,10 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
 
   get paidAt(): Date | null {
     return this._paidAt;
+  }
+
+  get paymentNote(): string | null {
+    return this._paymentNote;
   }
 
   get updatedAt(): Date {
@@ -304,6 +372,41 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     this._updatedAt = new Date();
   }
 
+  /**
+   * Host records a cash / Venmo / off-platform payment for a walk-in
+   * team (ADR 0017). Only legal on `source = 'walk_in'` rows — captain
+   * and host-proxy ad-hoc registrations have a real captain account
+   * and go through the existing `hostMarkTeamRegistrationPaid` /
+   * Stripe paths. The optional `note` is freeform reconciliation
+   * context ("Venmo @captain", "five $20s", etc.) and is capped at
+   * 500 characters to match the DB constraint.
+   */
+  markPaidCash(props: { amountCents: number; paidAt: Date; note?: string | null }): void {
+    if (this.source !== RegistrationSource.WalkIn) {
+      throw new InvariantViolation('Cash payment is only allowed on walk-in registrations.');
+    }
+    if (
+      this._paymentStatus !== RegistrationPaymentStatus.None &&
+      this._paymentStatus !== RegistrationPaymentStatus.Pending
+    ) {
+      throw new InvariantViolation(
+        `Cannot mark cash-paid from payment status "${this._paymentStatus}".`,
+      );
+    }
+    if (!Number.isInteger(props.amountCents) || props.amountCents < 0) {
+      throw new InvariantViolation('Paid amount must be a non-negative integer of cents.');
+    }
+    const note = props.note?.trim() || null;
+    if (note && note.length > 500) {
+      throw new InvariantViolation('Payment note must be at most 500 characters.');
+    }
+    this._paymentStatus = RegistrationPaymentStatus.Paid;
+    this._paymentNote = note;
+    this._amountPaidCents = props.amountCents;
+    this._paidAt = props.paidAt;
+    this._updatedAt = new Date();
+  }
+
   /** Host refund or captain cancellation after payment. */
   markRefunded(): void {
     if (this._paymentStatus !== RegistrationPaymentStatus.Paid) {
@@ -311,6 +414,35 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     }
     this._paymentStatus = RegistrationPaymentStatus.Refunded;
     this._updatedAt = new Date();
+  }
+}
+
+/**
+ * Enforce the source ↔ identity discriminant from ADR 0017 in the
+ * factory before the row reaches the DB check constraint of the same
+ * shape. Throws a typed {@link InvariantViolation} so callers can map
+ * it to a validation flash without scraping the Postgres error.
+ */
+function assertSourceIdentity(
+  source: RegistrationSource,
+  captainId: UserId | null,
+  captainDisplayName: string | null,
+): void {
+  if (source === RegistrationSource.WalkIn) {
+    if (captainId !== null) {
+      throw new InvariantViolation('Walk-in registrations cannot link to a captain account.');
+    }
+    if (!captainDisplayName) {
+      throw new InvariantViolation(
+        'Walk-in registrations require a captain display name (typed at the table).',
+      );
+    }
+  } else {
+    if (captainId === null) {
+      throw new InvariantViolation(
+        `Registrations with source "${source}" require a captain account.`,
+      );
+    }
   }
 }
 

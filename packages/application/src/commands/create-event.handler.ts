@@ -50,9 +50,6 @@ function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventEx
     ...(input.paymentsOffPlatform !== undefined
       ? { paymentsOffPlatform: input.paymentsOffPlatform }
       : {}),
-    ...(input.teamRegistrationMode !== undefined
-      ? { teamRegistrationMode: input.teamRegistrationMode }
-      : {}),
   };
 }
 
@@ -82,6 +79,7 @@ export function divisionFromDto(input: DivisionInputDto, sortOrder: number): Div
     startsAt: input.startsAt ?? null,
     endsAt: input.endsAt ?? null,
     allowFreeAgents: input.allowFreeAgents ?? true,
+    teamRegistrationMode: input.teamRegistrationMode ?? null,
   });
 }
 

@@ -299,10 +299,14 @@ type AdHocRegRow = {
   id: string;
   name: string;
   division_id: string;
-  captain_id: string;
+  captain_id: string | null;
+  source: 'captain' | 'host' | 'walk_in';
+  captain_display_name: string | null;
+  captain_phone: string | null;
   payment_status: 'none' | 'pending' | 'paid' | 'refunded';
   payment_intent_id: string | null;
   amount_paid_cents: number | null;
+  payment_note: string | null;
   captain: { id: string; display_name: string | null } | null;
   members: AdHocMemberRow[] | null;
 };
@@ -319,7 +323,9 @@ type AdHocRegPublicRow = {
   id: string;
   name: string;
   division_id: string;
-  captain_id: string;
+  captain_id: string | null;
+  source: 'captain' | 'host' | 'walk_in';
+  captain_display_name: string | null;
   payment_status: 'none' | 'pending' | 'paid' | 'refunded';
   captainDisplayName: string | null;
   members: AdHocMemberPublicRow[];
@@ -346,7 +352,7 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
 
       const { data: regData } = await admin
         .from('event_team_registrations')
-        .select('id, name, division_id, captain_id, payment_status')
+        .select('id, name, division_id, captain_id, source, captain_display_name, payment_status')
         .eq('event_id', eventId)
         // Admin client bypasses RLS; filter soft-deleted rows explicitly
         // (migration 20260629000000).
@@ -355,14 +361,18 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
         id: string;
         name: string;
         division_id: string;
-        captain_id: string;
+        captain_id: string | null;
+        source: 'captain' | 'host' | 'walk_in';
+        captain_display_name: string | null;
         payment_status: 'none' | 'pending' | 'paid' | 'refunded';
       };
       const regs = (regData as RegBase[] | null) ?? [];
       if (regs.length === 0) return [];
 
       const regIds = regs.map((r) => r.id);
-      const captainIds = [...new Set(regs.map((r) => r.captain_id))];
+      const captainIds = [
+        ...new Set(regs.map((r) => r.captain_id).filter((id): id is string => !!id)),
+      ];
 
       const [{ data: memberData }, { data: captainData }] = await Promise.all([
         admin
@@ -386,7 +396,11 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
 
       return regs.map((r) => ({
         ...r,
-        captainDisplayName: captainMap.get(r.captain_id) ?? null,
+        // Walk-ins (captain_id = null) carry their captain's name on the
+        // registration row itself; for captain/host sources, fall back
+        // to the linked profile.
+        captainDisplayName:
+          r.captain_id === null ? r.captain_display_name : (captainMap.get(r.captain_id) ?? null),
         members: (membersByReg.get(r.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
       }));
     },
@@ -414,7 +428,7 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
       const { data } = await getAdminSupabase()
         .from('event_team_registrations')
         .select(
-          'id, name, division_id, captain_id, payment_status, payment_intent_id, amount_paid_cents, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
+          'id, name, division_id, captain_id, source, captain_display_name, captain_phone, payment_status, payment_intent_id, amount_paid_cents, payment_note, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
         )
         .eq('event_id', eventId)
         // Admin client bypasses RLS; filter soft-deleted rows explicitly
@@ -693,7 +707,10 @@ async function loadAdHocBundle(
   event: EventDetailReadModel,
   user: ViewerSession['user'] | null,
 ): Promise<AdHocBundle> {
-  if (event.type !== 'tournament' || event.teamRegistrationMode !== 'ad_hoc') {
+  if (
+    event.type !== 'tournament' ||
+    !event.divisions.some((d) => d.teamRegistrationMode === 'ad_hoc')
+  ) {
     return EMPTY_AD_HOC;
   }
 
@@ -713,12 +730,13 @@ async function loadAdHocBundle(
     name: r.name,
     divisionId: r.division_id,
     paymentStatus: r.payment_status,
+    source: r.source,
     captainName: r.captainDisplayName,
     members: r.members.map((m) => ({
       id: m.id,
       displayName: m.display_name ?? 'Player',
     })),
-    isViewerCaptain: !!user && r.captain_id === user.id,
+    isViewerCaptain: !!user && r.captain_id !== null && r.captain_id === user.id,
   }));
 
   // Captain and host projections — sourced from the private cache which
@@ -728,7 +746,7 @@ async function loadAdHocBundle(
 
   const viewerRegistrations: AdHocTeamRegistration[] = user
     ? privateRows
-        .filter((r) => r.captain_id === user.id)
+        .filter((r) => r.captain_id !== null && r.captain_id === user.id)
         .map((r) => ({
           id: r.id,
           name: r.name,
@@ -746,25 +764,35 @@ async function loadAdHocBundle(
 
   const hostRows: HostAdHocTeamRow[] =
     event.canManage && privateRows.length > 0
-      ? privateRows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          divisionId: r.division_id,
-          paymentStatus: r.payment_status,
-          paymentIntentId: r.payment_intent_id,
-          amountPaidCents: r.amount_paid_cents ?? 0,
-          rosterSize: 1 + (r.members?.length ?? 0),
-          captain: {
-            id: r.captain_id,
-            displayName: r.captain?.display_name ?? null,
-          },
-          members: sortedPrivateMembers(r).map((m) => ({
-            id: m.id,
-            userId: m.user_id,
-            displayName: m.display_name ?? m.email ?? 'Player',
-            email: m.email,
-          })),
-        }))
+      ? privateRows.map((r) => {
+          // Walk-ins (captain_id null) carry their captain's identity on the
+          // registration row itself; for captain/host sources, fall back
+          // to the linked profile.
+          const captainName =
+            r.captain_id === null ? r.captain_display_name : (r.captain?.display_name ?? null);
+          return {
+            id: r.id,
+            name: r.name,
+            divisionId: r.division_id,
+            paymentStatus: r.payment_status,
+            paymentIntentId: r.payment_intent_id,
+            amountPaidCents: r.amount_paid_cents ?? 0,
+            rosterSize: 1 + (r.members?.length ?? 0),
+            source: r.source,
+            captainPhone: r.captain_phone,
+            paymentNote: r.payment_note,
+            captain: {
+              id: r.captain_id,
+              displayName: captainName,
+            },
+            members: sortedPrivateMembers(r).map((m) => ({
+              id: m.id,
+              userId: m.user_id,
+              displayName: m.display_name ?? m.email ?? 'Player',
+              email: m.email,
+            })),
+          };
+        })
       : [];
 
   return { viewerRegistrations, allRegistrations, hostRows };

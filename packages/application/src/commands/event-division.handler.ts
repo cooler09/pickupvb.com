@@ -81,6 +81,10 @@ export class UpdateEventDivisionHandler {
       endsAt: updates.endsAt === undefined ? current.endsAt : updates.endsAt,
       allowFreeAgents:
         updates.allowFreeAgents === undefined ? current.allowFreeAgents : updates.allowFreeAgents,
+      teamRegistrationMode:
+        updates.teamRegistrationMode === undefined
+          ? current.teamRegistrationMode
+          : updates.teamRegistrationMode,
     });
     event.updateDivision(next);
     await this.repo.save(event);

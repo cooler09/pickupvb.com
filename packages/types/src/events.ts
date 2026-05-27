@@ -50,12 +50,6 @@ export const EventExtensionsSchema = z.object({
   paymentInstructions: z.string().max(2000).optional().nullable(),
   /** When true, host collects payment off-platform (no Stripe). */
   paymentsOffPlatform: z.boolean().optional(),
-  /**
-   * ADR 0007 team paradigm. `null` for individual signup; `ad_hoc` (default
-   * for tournaments) for one-off captain-assembled rosters; `roster` for
-   * registering a persistent {@link Team}.
-   */
-  teamRegistrationMode: z.enum(enumValues(TeamRegistrationMode)).optional().nullable(),
 });
 export type EventExtensionsDto = z.infer<typeof EventExtensionsSchema>;
 
@@ -88,6 +82,13 @@ export const DivisionInputSchema = z.object({
   endsAt: z.coerce.date().optional().nullable(),
   /** R2: per-division host opt-out for free-agent signups. Defaults to true. */
   allowFreeAgents: z.boolean().optional(),
+  /**
+   * ADR 0016: per-division team registration paradigm. `null` for
+   * individual signup; `ad_hoc` (default for tournament team-comp
+   * divisions) for one-off captain-assembled rosters; `roster` for
+   * registering a persistent {@link Team}.
+   */
+  teamRegistrationMode: z.enum(enumValues(TeamRegistrationMode)).optional().nullable(),
 });
 export type DivisionInputDto = z.infer<typeof DivisionInputSchema>;
 

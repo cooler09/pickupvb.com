@@ -88,7 +88,7 @@ begin
       surface, type, visibility, status,
       address_line, city, region, postal_code, country, geo,
       starts_at, ends_at,
-      team_registration_mode, short_code, time_zone
+      short_code, time_zone
     ) values (
       v_host_id,
       '[E2E] Ad-Hoc Tournament Fixture',
@@ -97,7 +97,7 @@ begin
       'sand', 'tournament', 'public', 'published',
       '500 E Marshall St', 'Richmond', 'VA', '23219', 'US', v_geo,
       v_starts, v_ends,
-      'ad_hoc', 'E2ETFA', 'America/New_York'
+      'E2ETFA', 'America/New_York'
     )
     returning id into v_event_adhoc;
   end if;
@@ -105,17 +105,18 @@ begin
   -- Ensure 2 divisions. The default-division trigger only ran for legacy
   -- rows; CreateEventHandler now emits one in app-layer code. For this
   -- raw SQL seed we explicitly add both divisions.
+  -- ADR 0016: team_registration_mode is per-division.
   if not exists (select 1 from public.event_divisions where event_id = v_event_adhoc and label = 'Men''s Open') then
     insert into public.event_divisions (
       event_id, sort_order, label,
       surface, format, gender,
       skill_tier, team_composition, team_size,
-      capacity_kind, max_spots
+      capacity_kind, max_spots, team_registration_mode
     ) values (
       v_event_adhoc, 0, 'Men''s Open',
       'sand', 'doubles', 'mens',
       'open', 'team', 2,
-      'fixed', 16
+      'fixed', 16, 'ad_hoc'
     );
   end if;
 
@@ -124,12 +125,12 @@ begin
       event_id, sort_order, label,
       surface, format, gender,
       skill_tier, team_composition, team_size,
-      capacity_kind, max_spots
+      capacity_kind, max_spots, team_registration_mode
     ) values (
       v_event_adhoc, 1, 'Women''s Open',
       'sand', 'doubles', 'womens',
       'open', 'team', 2,
-      'fixed', 16
+      'fixed', 16, 'ad_hoc'
     );
   end if;
 
@@ -144,7 +145,7 @@ begin
       surface, type, visibility, status,
       address_line, city, region, postal_code, country, geo,
       starts_at, ends_at,
-      team_registration_mode, short_code, time_zone
+      short_code, time_zone
     ) values (
       v_host_id,
       '[E2E] Roster Tournament Fixture',
@@ -153,23 +154,24 @@ begin
       'sand', 'tournament', 'public', 'published',
       '500 E Marshall St', 'Richmond', 'VA', '23219', 'US', v_geo,
       v_starts, v_ends,
-      'roster', 'E2ETFR', 'America/New_York'
+      'E2ETFR', 'America/New_York'
     )
     returning id into v_event_roster;
   end if;
 
   -- Resolve the two divisions (created either inline below or by a prior run).
+  -- ADR 0016: team_registration_mode is per-division.
   if not exists (select 1 from public.event_divisions where event_id = v_event_roster and label = 'A Division') then
     insert into public.event_divisions (
       event_id, sort_order, label,
       surface, format, gender,
       skill_tier, team_composition, team_size,
-      capacity_kind, max_spots
+      capacity_kind, max_spots, team_registration_mode
     ) values (
       v_event_roster, 0, 'A Division',
       'sand', 'doubles', 'coed',
       'a', 'team', 2,
-      'fixed', 8
+      'fixed', 8, 'roster'
     );
   end if;
 
@@ -178,12 +180,12 @@ begin
       event_id, sort_order, label,
       surface, format, gender,
       skill_tier, team_composition, team_size,
-      capacity_kind, max_spots
+      capacity_kind, max_spots, team_registration_mode
     ) values (
       v_event_roster, 1, 'BB Division',
       'sand', 'doubles', 'coed',
       'bb', 'team', 2,
-      'fixed', 8
+      'fixed', 8, 'roster'
     );
   end if;
 

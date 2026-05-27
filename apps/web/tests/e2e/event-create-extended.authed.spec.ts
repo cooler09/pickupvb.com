@@ -352,8 +352,6 @@ test.describe('create event end-to-end', () => {
     }
   });
 
-  test.fixme('create a tournament event with two divisions — needs divisions repeater helper', // repeater helper that adds two `div_N_*` rows and fills name/skill/ // Compound: needs (a) the existing paid-event helper, (b) a divisions
-  // capacity/priceUsd for each, (c) the team_registration_mode select.
-  // Wait for the tournament harness bundle (item #3 in the e2e backlog).
+  test.fixme('create a tournament event with two divisions — needs divisions repeater helper', // Wait for the tournament harness bundle (item #3 in the e2e backlog). // capacity/priceUsd for each, (c) the per-division team_registration_mode select (ADR 0016). // repeater helper that adds two `div_N_*` rows and fills name/skill/ // Compound: needs (a) the existing paid-event helper, (b) a divisions
   async () => {});
 });

@@ -57,6 +57,15 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
     // R2: present whenever the form renders the checkbox; defaults to true
     // for legacy hosts editing rows from before the column existed.
     allowFreeAgents: bool(formData, 'allowFreeAgents'),
+    // ADR 0016 — per-division team registration paradigm. Form sends
+    // 'ad_hoc' | 'roster' | 'none'; map 'none' → null.
+    ...(() => {
+      const raw = fieldOrUndefined(formData, 'teamRegistrationMode');
+      if (raw === 'ad_hoc') return { teamRegistrationMode: 'ad_hoc' as const };
+      if (raw === 'roster') return { teamRegistrationMode: 'roster' as const };
+      if (raw === 'none') return { teamRegistrationMode: null };
+      return {} as const;
+    })(),
   };
   return DivisionInputSchema.parse(dto);
 }

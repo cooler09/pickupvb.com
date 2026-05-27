@@ -128,7 +128,6 @@ export default async function EditEventPage(props: {
           hostAbsorbsFee: pricing?.hostAbsorbsFee ?? false,
           passProcessingFeeToBuyer: pricing?.passProcessingFeeToBuyer ?? false,
           paymentsOffPlatform: event.paymentsOffPlatform,
-          teamRegistrationMode: event.teamRegistrationMode,
           extensions: {
             venueName: event.venueName,
             registrationClosesAt: event.registrationClosesAt,

@@ -4,6 +4,7 @@ import {
   hostMarkTeamRegistrationPaid,
   hostRefundTeamRegistration,
 } from '../host-team-registration-actions';
+import { markWalkInPaidCashFromForm, registerWalkInTeamFromForm } from '../walk-in-team-actions';
 
 /**
  * Host-facing row for the ad-hoc team management panel. Built from the
@@ -24,8 +25,14 @@ export type HostAdHocTeamRow = {
   paymentIntentId: string | null;
   amountPaidCents: number;
   rosterSize: number;
+  /** Who created this registration — ADR 0017. */
+  source: 'captain' | 'host' | 'walk_in';
+  /** Phone for walk-in captains (null for captain/host sources). */
+  captainPhone: string | null;
+  /** Freeform note attached when the host marked a walk-in paid in cash. */
+  paymentNote: string | null;
   captain: {
-    id: string;
+    id: string | null;
     displayName: string | null;
   } | null;
   /** Roster excluding the captain, sorted by `sort_order`. */
@@ -35,6 +42,8 @@ export type HostAdHocTeamRow = {
 type DivisionLabel = {
   id: string;
   label: string;
+  /** Only ad-hoc divisions accept walk-ins (ADR 0017). */
+  isAdHoc: boolean;
 };
 
 type Props = {
@@ -73,14 +82,85 @@ function divisionLabel(divisions: ReadonlyArray<DivisionLabel>, id: string): str
  * action can `revalidatePath` + `redirect` with a flash code.
  */
 export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Props) {
+  const adHocDivisions = divisions.filter((d) => d.isAdHoc);
   return (
     <section className="border-border-base bg-fg/[0.02] space-y-3 rounded-lg border p-4">
       <header>
         <h3 className="text-fg text-sm font-semibold">Team registrations</h3>
         <p className="text-muted text-xs">
-          Mark off-platform payments, refund Stripe payments, or remove unpaid teams.
+          Mark off-platform payments, refund Stripe payments, remove unpaid teams, or add a walk-in
+          team that signed up the day of.
         </p>
       </header>
+
+      {adHocDivisions.length > 0 && (
+        <details className="border-border-base bg-surface rounded-md border p-3">
+          <summary className="text-fg cursor-pointer text-xs font-semibold select-none">
+            Add walk-in team
+          </summary>
+          <form
+            action={registerWalkInTeamFromForm.bind(null, eventId, returnPath)}
+            className="mt-3 space-y-2 text-sm"
+          >
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-muted text-xs font-medium">Division</span>
+                <select
+                  name="division_id"
+                  required
+                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                >
+                  {adHocDivisions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-muted text-xs font-medium">Team name</span>
+                <input
+                  name="team_name"
+                  required
+                  maxLength={120}
+                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-muted text-xs font-medium">Captain name</span>
+                <input
+                  name="captain_display_name"
+                  required
+                  maxLength={80}
+                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-muted text-xs font-medium">Captain phone (optional)</span>
+                <input
+                  name="captain_phone"
+                  maxLength={40}
+                  inputMode="tel"
+                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                />
+              </label>
+            </div>
+            <label className="flex flex-col gap-1">
+              <span className="text-muted text-xs font-medium">
+                Additional players (one per line, optional)
+              </span>
+              <textarea
+                name="members"
+                rows={3}
+                className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+              />
+            </label>
+            <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50">
+              Add walk-in team
+            </SubmitButton>
+          </form>
+        </details>
+      )}
       {rows.length === 0 ? (
         <p className="text-muted text-xs">No teams have registered yet.</p>
       ) : (
@@ -90,6 +170,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
             const isPaid = r.paymentStatus === 'paid';
             const isRefunded = r.paymentStatus === 'refunded';
             const isStripe = !!r.paymentIntentId && !r.paymentIntentId.startsWith('offline:');
+            const isWalkIn = r.source === 'walk_in';
             const canMarkPaid = r.paymentStatus === 'none' || r.paymentStatus === 'pending';
             const canRefund = isPaid;
             const canForceWithdraw = r.paymentStatus === 'none' || isRefunded;
@@ -106,24 +187,54 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                       {r.rosterSize === 1 ? '' : 's'} · Captain:{' '}
                       {r.captain?.displayName ?? 'Unknown'}
                     </p>
+                    {isWalkIn && r.captainPhone && (
+                      <p className="text-muted text-xs">Phone: {r.captainPhone}</p>
+                    )}
+                    {isPaid && r.paymentNote && (
+                      <p className="text-muted text-xs italic">Note: {r.paymentNote}</p>
+                    )}
                   </div>
-                  <span
-                    className={`shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium ${pill.cls}`}
-                  >
-                    {pill.label}
-                    {isPaid && r.amountPaidCents > 0
-                      ? ` · ${formatUsd(r.amountPaidCents)}${isStripe ? ' (Stripe)' : ' (off-platform)'}`
-                      : ''}
-                  </span>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1">
+                    {isWalkIn && (
+                      <span className="rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800">
+                        Walk-in
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-md border px-2 py-0.5 text-xs font-medium ${pill.cls}`}
+                    >
+                      {pill.label}
+                      {isPaid && r.amountPaidCents > 0
+                        ? ` · ${formatUsd(r.amountPaidCents)}${isStripe ? ' (Stripe)' : isWalkIn ? ' (cash)' : ' (off-platform)'}`
+                        : ''}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {canMarkPaid && (
+                  {canMarkPaid && !isWalkIn && (
                     <form
                       action={hostMarkTeamRegistrationPaid.bind(null, eventId, r.id, returnPath)}
                     >
                       <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50">
                         Mark paid (off-platform)
+                      </SubmitButton>
+                    </form>
+                  )}
+                  {canMarkPaid && isWalkIn && (
+                    <form
+                      action={markWalkInPaidCashFromForm.bind(null, eventId, r.id, returnPath)}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <input
+                        type="text"
+                        name="note"
+                        placeholder="Cash note (optional)"
+                        maxLength={500}
+                        className="border-border-base bg-surface rounded-md border px-2 py-1 text-xs"
+                      />
+                      <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50">
+                        Mark paid (cash)
                       </SubmitButton>
                     </form>
                   )}

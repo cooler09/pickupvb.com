@@ -597,6 +597,7 @@ export type Database = {
           starts_at: string | null;
           surface: Database['public']['Enums']['surface'];
           team_composition: Database['public']['Enums']['team_composition'];
+          team_registration_mode: Database['public']['Enums']['team_registration_mode'] | null;
           team_size: number | null;
           tier_label: string | null;
           updated_at: string;
@@ -625,6 +626,7 @@ export type Database = {
           starts_at?: string | null;
           surface: Database['public']['Enums']['surface'];
           team_composition?: Database['public']['Enums']['team_composition'];
+          team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
           tier_label?: string | null;
           updated_at?: string;
@@ -653,6 +655,7 @@ export type Database = {
           starts_at?: string | null;
           surface?: Database['public']['Enums']['surface'];
           team_composition?: Database['public']['Enums']['team_composition'];
+          team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
           tier_label?: string | null;
           updated_at?: string;
@@ -981,7 +984,9 @@ export type Database = {
       event_team_registrations: {
         Row: {
           amount_paid_cents: number | null;
-          captain_id: string;
+          captain_display_name: string | null;
+          captain_id: string | null;
+          captain_phone: string | null;
           checkout_session_id: string | null;
           created_at: string;
           deleted_at: string | null;
@@ -991,12 +996,16 @@ export type Database = {
           name: string;
           paid_at: string | null;
           payment_intent_id: string | null;
+          payment_note: string | null;
           payment_status: string;
+          source: string;
           updated_at: string;
         };
         Insert: {
           amount_paid_cents?: number | null;
-          captain_id: string;
+          captain_display_name?: string | null;
+          captain_id?: string | null;
+          captain_phone?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
           deleted_at?: string | null;
@@ -1006,12 +1015,16 @@ export type Database = {
           name: string;
           paid_at?: string | null;
           payment_intent_id?: string | null;
+          payment_note?: string | null;
           payment_status?: string;
+          source?: string;
           updated_at?: string;
         };
         Update: {
           amount_paid_cents?: number | null;
-          captain_id?: string;
+          captain_display_name?: string | null;
+          captain_id?: string | null;
+          captain_phone?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
           deleted_at?: string | null;
@@ -1021,7 +1034,9 @@ export type Database = {
           name?: string;
           paid_at?: string | null;
           payment_intent_id?: string | null;
+          payment_note?: string | null;
           payment_status?: string;
+          source?: string;
           updated_at?: string;
         };
         Relationships: [
@@ -1213,7 +1228,6 @@ export type Database = {
           starts_at: string;
           status: Database['public']['Enums']['event_status'];
           surface: Database['public']['Enums']['surface'];
-          team_registration_mode: Database['public']['Enums']['team_registration_mode'] | null;
           theme_tags: string[];
           time_zone: string | null;
           title: string;
@@ -1256,7 +1270,6 @@ export type Database = {
           starts_at: string;
           status?: Database['public']['Enums']['event_status'];
           surface: Database['public']['Enums']['surface'];
-          team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           theme_tags?: string[];
           time_zone?: string | null;
           title: string;
@@ -1299,7 +1312,6 @@ export type Database = {
           starts_at?: string;
           status?: Database['public']['Enums']['event_status'];
           surface?: Database['public']['Enums']['surface'];
-          team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           theme_tags?: string[];
           time_zone?: string | null;
           title?: string;
@@ -2252,7 +2264,6 @@ export type Database = {
           status: Database['public']['Enums']['event_status'] | null;
           surface: Database['public']['Enums']['surface'] | null;
           team_count: number | null;
-          team_registration_mode: Database['public']['Enums']['team_registration_mode'] | null;
           theme_tags: string[] | null;
           time_zone: string | null;
           title: string | null;
@@ -2297,7 +2308,6 @@ export type Database = {
           status?: Database['public']['Enums']['event_status'] | null;
           surface?: Database['public']['Enums']['surface'] | null;
           team_count?: never;
-          team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           theme_tags?: string[] | null;
           time_zone?: string | null;
           title?: string | null;
@@ -2342,7 +2352,6 @@ export type Database = {
           status?: Database['public']['Enums']['event_status'] | null;
           surface?: Database['public']['Enums']['surface'] | null;
           team_count?: never;
-          team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           theme_tags?: string[] | null;
           time_zone?: string | null;
           title?: string | null;
