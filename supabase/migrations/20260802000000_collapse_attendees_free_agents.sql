@@ -389,7 +389,7 @@ create policy event_participants_insert on public.event_participants
             join public.events e on e.id = d.event_id
            where d.id = division_id
              and d.allow_free_agents = true
-             and e.team_registration_mode = 'tournament'
+             and e.type = 'tournament'
              and e.status = 'published'
         )
       )
