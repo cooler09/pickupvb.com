@@ -1,5 +1,37 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 136):** Dropdown menu on Radix
+> shipped — **P2 #12 closed** for `<NavDropdown>` (the one Menu-style
+> popover in the header; `<details>` / panel patterns elsewhere are
+> separate primitives). [nav-dropdown.tsx](../../apps/web/src/components/nav-dropdown.tsx)
+> rewritten on `@radix-ui/react-dropdown-menu` while preserving the
+> public API (`NavDropdown`, `NavDropdownItem`) one-for-one — the
+> only consumer ([site-header.tsx](../../apps/web/src/components/site-header.tsx))
+> needed zero edits. Radix now owns focus management, arrow-key
+> navigation, typeahead, Escape-to-close (with focus return to the
+> trigger), and click-outside dismissal; the only effect kept is a
+> route-change close (rAF-deferred per AGENTS.md Pattern 5) because
+> Radix doesn't auto-close on Next.js client-side nav (trigger stays
+> mounted). Items now render through `RadixDropdownMenu.Item asChild`
+> wrapping `<Link>` so the primitive's roving-tabindex composes with
+> typed routes. Surface adopts M3 menu tokens: `shadow-elevation-2`
+>
+> - `rounded-md` + `bg-surface`, items pick up the Bundle 131
+>   `state-layer` plus a `data-[highlighted]:bg-fg/5` keyboard-focus
+>   highlight (Radix paints `data-highlighted` on the active item).
+>   Motion bridged via one new `.md-menu-motion` class in
+>   [globals.css](../../apps/web/src/app/globals.css) with two
+>   `@keyframes` (`md-menu-enter`, `md-menu-exit`) anchored to the
+>   Radix-computed `--radix-dropdown-menu-content-transform-origin` so
+>   the scale-in originates from the trigger, not the menu's center.
+>   Same `emphasized-decelerate` / `emphasized-accelerate` curve as the
+>   Bundle 134 dialog family, but `short4` / `short3` durations —
+>   anchored menus feel sluggish on dialog timing. Notification-bell
+>   panel and remaining `<details>` disclosures are content panels
+>   (richer than a menu), not Menu-pattern targets — deferred. Verify
+>   15/15 typecheck · lint 3 pre-existing warnings · 179+50 tests ·
+>   8/8 build. See [Bundle 136 journal](../journal/2026-05-28-bundle-136.md).
+
 > **Status update (2026-05-28, Bundle 135):** TextField primitive
 > shipped — **P2 #13 primitive + reference call site shipped**
 > (surface-by-surface form migration deferred). New
@@ -541,7 +573,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   the hamburger / profile drawer. This is the single biggest mobile
   UX win on the table.
 
-### #12 `<details>` / popover patterns used where M3 prescribes Menu
+### #12 `<details>` / popover patterns used where M3 prescribes Menu 🟡 NavDropdown migrated (2026-05-28, Bundle 136); content-panel disclosures (notification bell, host panels) deferred
 
 - **Where:** [nav-dropdown.tsx](../../apps/web/src/components/nav-dropdown.tsx),
   notification panel in
@@ -738,6 +770,93 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 136 — Dropdown menu on Radix (2026-05-28)
+
+Migrates the Menu-pattern half of **P2 #12** — the desktop header's
+`<NavDropdown>` — to `@radix-ui/react-dropdown-menu` while keeping
+the call-site contract exactly as it was. Content-panel disclosures
+(notification bell, host-panel `<details>`) are not menus and are
+out of scope for this bundle.
+
+**Files touched:**
+
+- `apps/web/package.json` — `@radix-ui/react-dropdown-menu` added.
+- [apps/web/src/components/nav-dropdown.tsx](../../apps/web/src/components/nav-dropdown.tsx)
+  — full rewrite on Radix. Public exports unchanged (`NavDropdown`,
+  `NavDropdownItem`). Two legacy `useEffect` bridges gone (Escape +
+  click-outside) — Radix owns those. The only kept effect is a
+  route-change close (rAF-deferred via `requestAnimationFrame` per
+  AGENTS.md Pattern 5) because Radix doesn't unmount the trigger on
+  Next.js client-side nav. Items wrap `<Link>` via `Item asChild`
+  so the primitive's roving tabindex + typeahead compose with
+  Next.js typed routes. Trigger chevron rotates via
+  `data-[state=open]:rotate-180` instead of a React state read.
+- [apps/web/src/app/globals.css](../../apps/web/src/app/globals.css)
+  — added one `.md-menu-motion` class + two `@keyframes`
+  (`md-menu-enter`, `md-menu-exit`) after the Bundle 134
+  bottom-sheet block. Sets `transform-origin: var(--radix-dropdown-menu-content-transform-origin)`
+  so the scale-in originates from the trigger (Radix computes the
+  origin from the popper's resolved `side` + `align`). Durations
+  `short4` enter / `short3` exit — menus feel slow on the dialog
+  family's `medium2` / `short4` pair.
+
+**Decisions:**
+
+- **Public API preserved.** `NavDropdown({ label, items, hasIndicator,
+indicatorLabel })` + `NavDropdownItem { href, label, badge? }`
+  unchanged. The only consumer ([site-header.tsx](../../apps/web/src/components/site-header.tsx))
+  needed zero edits. Matches the Bundle 132 / 134 Radix convention
+  documented in [AGENTS.md](../../AGENTS.md).
+- **Controlled `open` state.** Radix's `Root` accepts uncontrolled
+  open by default, but we need to force-close on route change
+  because the trigger stays mounted across client-side navigation.
+  Keeping `useState(open)` + `<Root open onOpenChange>` lets that
+  effect run without fighting Radix's internal state.
+- **rAF-deferred setState in the route-change effect.** AGENTS.md
+  Pattern 5 forbids synchronous setState in an effect body; the
+  Bundle 133 hide-on-scroll pattern uses the same
+  `requestAnimationFrame` deferral. Linter is back to 3 pre-existing
+  warnings.
+- **`Item asChild` over Radix's default `<div>`.** Lets the link
+  itself be the focusable element (better than nesting `<a>` inside
+  Radix's `<div role="menuitem">` and managing focus by hand). Typed
+  routes flow through because `<Link href>` is the actual child.
+- **State layer + `data-highlighted` for the keyboard focus path.**
+  Mouse hover lights up via Bundle 131 `state-layer`; keyboard
+  arrow-key navigation lights up via `data-[highlighted]:bg-fg/5`
+  (Radix paints `data-highlighted` on the currently-active item).
+  Two paint paths because state-layer is a `currentColor` overlay
+  bound to `:hover` — not the same trigger as Radix's keyboard
+  highlight.
+- **`md-menu-motion` keyframes are anchored, not centered.** Setting
+  `transform-origin: var(--radix-dropdown-menu-content-transform-origin)`
+  makes the scale-in feel attached to the trigger. Centered scale
+  would have the menu "land" rather than "unfold," which is the M3
+  Menu motion intent.
+- **Notification-bell panel and `<details>` host panels stay.**
+  They're content panels (multiple sections, scroll, link rows with
+  rich layout) — not the single-column item list a Menu primitive
+  models. Migrating them to `react-dropdown-menu` would lose layout
+  flexibility. They'd be `react-popover` candidates if the audit
+  ever calls for one, but that's a separate finding.
+
+**Follow-ups deferred:**
+
+- **Notification-bell panel** ([notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx))
+  could move to `@radix-ui/react-popover` for the focus-trap + Escape
+  - click-outside owner-swap. Not strictly a Menu so it stays out of
+    P2 #12; would be its own audit item.
+- **Host-panel `<details>`** disclosures — most are inline content,
+  not floating popovers. The Bundle 128 modal conversion already
+  picked the ones that were really dialogs. Remaining `<details>`
+  are fine as-is.
+- **Submenu / checkbox-item / radio-item** support — Radix has them,
+  but no current call site needs them. Wait for a concrete need.
+
+**Verify:** typecheck 15/15 ✓ · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings ✓ · 179 domain + 50 web tests ✓ ·
+8/8 build ✓.
 
 ### Bundle 135 — TextField primitive (2026-05-28)
 

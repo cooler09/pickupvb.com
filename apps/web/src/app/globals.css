@@ -714,6 +714,51 @@ body {
 }
 
 /*
+ * ============================================================================
+ *  M3 menu motion (Bundle 8 — P2 #12).
+ *
+ *  Applied to Radix `DropdownMenu.Content` via `.md-menu-motion`.
+ *  M3 menus enter from their anchor — Radix exposes
+ *  `--radix-dropdown-menu-content-transform-origin` (computed from
+ *  the `side` + `align` of the popper) so we scale from that origin
+ *  rather than the geometric center. Short duration (`short4` enter
+ *  / `short3` exit) because anchored menus feel sluggish on the
+ *  dialog timing.
+ * ============================================================================
+ */
+@keyframes md-menu-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes md-menu-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+.md-menu-motion {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+}
+.md-menu-motion[data-state='open'] {
+  animation: md-menu-enter var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.md-menu-motion[data-state='closed'] {
+  animation: md-menu-exit var(--md-sys-motion-duration-short3)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+
+/*
  * Honor `prefers-reduced-motion` globally — defangs all CSS transitions /
  * animations / smooth-scroll for users who request it. Per-component motion
  * (e.g. `match-flash` above) can still opt back in with a deliberate
