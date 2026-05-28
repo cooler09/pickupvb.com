@@ -146,22 +146,35 @@ export default async function EditEventPage(props: {
         }}
       />
 
-      <HeroImagePanel
-        entityType="events"
-        entityId={id}
-        userId={user.id}
-        currentUrl={(heroRow as { hero_image_url: string | null } | null)?.hero_image_url ?? null}
-        returnPath={`/events/${id}`}
-      />
+      {/*
+        Supplementary panels below have their own independent save flows
+        (hero image uploads on file pick; sponsor has its own Save button).
+        Group them under a divider + "saves independently" caption so the
+        "Save changes" button above doesn't read as the page-terminal CTA.
+      */}
+      <div className="space-y-4 pt-4">
+        <div className="border-border-base border-t pt-4">
+          <h2 className="text-fg text-lg font-semibold">Additional settings</h2>
+          <p className="text-muted text-sm">Each section below saves on its own.</p>
+        </div>
 
-      <SponsorPanel
-        eventId={id}
-        returnPath={`/events/${id}/edit`}
-        sponsor={sponsor}
-        canUseSponsors={viewerHasProBenefits || sponsorEntitledByPayment}
-        {...(sponsorFlash ? { sponsorFlash } : {})}
-        {...(sponsorMsg ? { sponsorMsg } : {})}
-      />
+        <HeroImagePanel
+          entityType="events"
+          entityId={id}
+          userId={user.id}
+          currentUrl={(heroRow as { hero_image_url: string | null } | null)?.hero_image_url ?? null}
+          returnPath={`/events/${id}`}
+        />
+
+        <SponsorPanel
+          eventId={id}
+          returnPath={`/events/${id}/edit`}
+          sponsor={sponsor}
+          canUseSponsors={viewerHasProBenefits || sponsorEntitledByPayment}
+          {...(sponsorFlash ? { sponsorFlash } : {})}
+          {...(sponsorMsg ? { sponsorMsg } : {})}
+        />
+      </div>
 
       {event.status !== 'cancelled' && (
         <CancelEventPanel

@@ -10,6 +10,7 @@ import AdvancedDetailsPanel, {
 } from '@/components/event-advanced-details-panel';
 import { Alert } from '@/components/alert';
 import { FieldError, fieldA11y } from '@/components/field-error';
+import { primaryButtonClass } from '@/components/primary-button';
 import { editEventAction, type EditEventState } from './actions';
 
 const initialState: EditEventState = {};
@@ -21,11 +22,7 @@ const inputClass =
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Saving…' : 'Save changes'}
     </button>
   );
@@ -584,7 +581,7 @@ export default function EditEventForm({
 
       <AdvancedDetailsPanel initial={initial.extensions} />
 
-      <div className="flex items-center justify-between">
+      <div className="border-border-base bg-surface/95 sticky bottom-2 z-10 -mx-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2 shadow-sm backdrop-blur">
         <Link href={`/events/${eventId}`} className="text-primary text-sm hover:underline">
           ← Cancel
         </Link>
