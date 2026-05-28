@@ -1339,6 +1339,55 @@ backlog is effectively drained pre-launch.
 
 ---
 
+### 2026-05-30 — P3 #9 follow-up: positional sign-up persistence on event_divisions ✅
+
+The P3 #9 minimal aggregate cleanup left `positionRoster` on the
+aggregate as a deferred follow-up — "no division column yet". On
+closer inspection that wasn't just a tidying gap: ADR 0006 Phase 9d
+dropped `events.position_roster` and never relocated the column,
+leaving the infra repo reading from a non-existent column (always
+null) and the save path explicitly skipping the field. Open-play
+positional sign-up was silently broken on the write side — host
+submissions accepted, never round-tripped.
+
+**Schema (additive only):**
+
+- [`20260806000000_event_divisions_position_roster.sql`](../../supabase/migrations/20260806000000_event_divisions_position_roster.sql)
+  adds nullable `position_roster jsonb` to `event_divisions`. No
+  backfill (pre-launch repo; no live positional events to recover).
+
+**Infra round-trip restored:**
+
+- [`packages/infrastructure/src/supabase-event-repository.ts`](../../packages/infrastructure/src/supabase-event-repository.ts)
+  — removed `position_roster` from `EventRow`, added it to
+  `DivisionRow`. `rowToPositionRoster` renamed to
+  `divisionRowToPositionRoster` and reads the primary division
+  row. `findById` and `getDetail` both hydrate from
+  `divisionRows[0]`. `save` stamps `event.positionRoster` onto
+  the primary division row in the upsert batch.
+- [`packages/supabase/src/database.types.ts`](../../packages/supabase/src/database.types.ts)
+  — hand-patched `event_divisions` Row/Insert/Update with
+  `position_roster: Json | null`.
+
+**Why "primary division" is correct, not a special-case hack:**
+open-play events are single-division by invariant (P1 #3, enforced
+in `VolleyballEvent`). The aggregate's single `positionRoster`
+field naturally maps to `divisions[0]`. Tournament/league
+divisions leave the column null (positional sign-up is an
+open-play-only concept). No `Division` value-object field added —
+the column is repo-side persistence detail, not a `Division`
+invariant.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green (cached build, infra rebuild).
+
+The P3 #9 deferred-follow-ups list now drops the positional-signup
+entry; remaining follow-ups (`EventTeamRegistration.forfeitedAt`
+wiring, LeagueSchedule RPC, bracket-reader filter loosening,
+unused `captain_display_name`, bridge-view callers) all unchanged.
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)

@@ -571,6 +571,7 @@ export type Database = {
           id: string;
           label: string;
           max_spots: number | null;
+          position_roster: Json | null;
           price_cents: number | null;
           price_unit: Database['public']['Enums']['price_unit'];
           prize_purse_cents: number | null;
@@ -599,6 +600,7 @@ export type Database = {
           id?: string;
           label: string;
           max_spots?: number | null;
+          position_roster?: Json | null;
           price_cents?: number | null;
           price_unit?: Database['public']['Enums']['price_unit'];
           prize_purse_cents?: number | null;
@@ -627,6 +629,7 @@ export type Database = {
           id?: string;
           label?: string;
           max_spots?: number | null;
+          position_roster?: Json | null;
           price_cents?: number | null;
           price_unit?: Database['public']['Enums']['price_unit'];
           prize_purse_cents?: number | null;

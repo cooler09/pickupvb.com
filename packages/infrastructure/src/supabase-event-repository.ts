@@ -65,7 +65,6 @@ type EventRow = {
   time_zone: string | null;
   capacity_kind: 'fixed' | 'unlimited' | null;
   max_spots: number | null;
-  position_roster: Record<string, number> | null;
   latitude: number;
   longitude: number;
   attendee_count: number;
@@ -112,6 +111,7 @@ type DivisionRow = {
   winner_recorded_at: string | null;
   allow_free_agents: boolean;
   team_registration_mode: TeamRegistrationMode | null;
+  position_roster: Record<string, number> | null;
 };
 
 function rowToCapacity(row: EventRow): Capacity | null {
@@ -146,8 +146,10 @@ function primaryDivisionFallback(
   };
 }
 
-function rowToPositionRoster(row: EventRow): Map<EventPosition, number> | null {
-  const raw = row.position_roster;
+function divisionRowToPositionRoster(
+  row: DivisionRow | undefined,
+): Map<EventPosition, number> | null {
+  const raw = row?.position_roster;
   if (!raw || typeof raw !== 'object') return null;
   const out = new Map<EventPosition, number>();
   for (const [key, value] of Object.entries(raw)) {
@@ -347,7 +349,7 @@ export class SupabaseEventRepository implements EventRepository {
       freeAgents: ((freeAgents ?? []) as Array<{ user_id: string; notes: string | null }>).map(
         (f) => [f.user_id as never, f.notes] as const,
       ),
-      positionRoster: rowToPositionRoster(row),
+      positionRoster: divisionRowToPositionRoster(divisionRows[0]),
       extensions: rowToExtensions(row),
       divisions: divisionRows.map(divisionRowToDomain),
     });
@@ -377,9 +379,10 @@ export class SupabaseEventRepository implements EventRepository {
       ends_at: event.endsAt.toISOString(),
       time_zone: event.timeZone,
       // ADR 0006 Phase 9c: legacy event columns (format, gender, skill_level,
-      // capacity_kind, max_spots, position_roster) are no longer written here.
-      // Authority lives on event_divisions; the position_roster moved to
-      // division-scoped data in earlier phases.
+      // capacity_kind, max_spots) are no longer written here. Authority
+      // lives on event_divisions. positionRoster also lives on the
+      // primary division row — stamped below alongside the division
+      // reconciliation.
       // ADR 0006 extension columns
       venue_name: event.venueName,
       registration_closes_at: event.registrationClosesAt
@@ -626,6 +629,13 @@ export class SupabaseEventRepository implements EventRepository {
     const eventIdStr = String(event.id);
     const divisionRows = event.divisions.map((d) => divisionToRow(eventIdStr, d));
     if (divisionRows.length > 0) {
+      // Stamp the aggregate-level `positionRoster` onto the primary
+      // division row. Open-play events are single-division by invariant
+      // (P1 #3); tournament/league divisions carry null.
+      const primary = divisionRows[0] as Record<string, unknown>;
+      primary.position_roster = event.positionRoster
+        ? Object.fromEntries(event.positionRoster.entries())
+        : null;
       const { error: upErr } = await this.client
         .from('event_divisions')
         .upsert(divisionRows as never, { onConflict: 'id' });
@@ -873,7 +883,7 @@ export class SupabaseEventRepository implements EventRepository {
       } | null;
     };
     const attRows = (attendeeRowsRes.data as AttendeeRow[] | null) ?? [];
-    const positionRoster = rowToPositionRoster(row);
+    const positionRoster = divisionRowToPositionRoster(divisionRowsForDetail[0]);
     // Attendees arrive ordered by joined_at; mark waitlist when, in
     // chronological order, the per-position count exceeds the configured
     // roster value. Earliest signups keep their seat. The per-position
