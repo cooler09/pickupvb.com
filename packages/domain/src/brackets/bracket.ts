@@ -35,6 +35,16 @@ export interface BracketConfig {
   poolCount: number;
   /** Pool play only: how many top teams from each pool advance (default 2). */
   advancePerPool: number;
+  /**
+   * Pool play only: whether each pool runs a full round-robin or a
+   * fixed number of games per team. See ADR 0018.
+   */
+  poolSchedule: 'round_robin' | 'fixed_games';
+  /**
+   * Pool play only, `fixed_games` mode: how many opponents each team
+   * plays inside its pool. Ignored (kept as null) for `round_robin`.
+   */
+  poolGamesPerTeam: number | null;
 }
 
 export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
@@ -42,7 +52,12 @@ export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   byeStrategy: 'top_seeds',
   poolCount: 2,
   advancePerPool: 2,
+  poolSchedule: 'round_robin',
+  poolGamesPerTeam: null,
 };
+
+/** `bestOf` values the host can pick. Other odd values are rejected at create-time. */
+export const ALLOWED_BEST_OF: ReadonlyArray<number> = [1, 3, 5];
 
 export interface RecordResultInput {
   readonly matchId: MatchId;
@@ -84,8 +99,19 @@ export class Bracket extends AggregateRoot<BracketId> {
     config: Partial<BracketConfig> = {},
   ): Bracket {
     const merged: BracketConfig = { ...DEFAULT_BRACKET_CONFIG, ...config };
-    if (merged.bestOf < 1 || merged.bestOf % 2 === 0) {
-      throw new ValidationError('bestOf must be a positive odd number.');
+    if (!ALLOWED_BEST_OF.includes(merged.bestOf)) {
+      throw new ValidationError(
+        `bestOf must be one of ${ALLOWED_BEST_OF.join(', ')}; got ${merged.bestOf}.`,
+        { bestOf: merged.bestOf, allowed: ALLOWED_BEST_OF },
+      );
+    }
+    if (merged.poolSchedule === 'fixed_games') {
+      if (merged.poolGamesPerTeam === null || merged.poolGamesPerTeam < 1) {
+        throw new ValidationError(
+          'poolGamesPerTeam must be >= 1 when poolSchedule is fixed_games.',
+          { poolGamesPerTeam: merged.poolGamesPerTeam },
+        );
+      }
     }
     const b = new Bracket(id, eventId, divisionId, format, merged, 'setup', [], []);
     b.raise(new BracketCreated(b.id));
@@ -200,7 +226,15 @@ export class Bracket extends AggregateRoot<BracketId> {
             },
           );
         }
-        matches = generatePoolPlay(this._seeds, poolCount, idFactory);
+        matches = generatePoolPlay(
+          this._seeds,
+          poolCount,
+          {
+            schedule: this._config.poolSchedule,
+            gamesPerTeam: this._config.poolGamesPerTeam,
+          },
+          idFactory,
+        );
         break;
       }
       default:

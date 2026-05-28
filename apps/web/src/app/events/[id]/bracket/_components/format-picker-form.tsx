@@ -193,6 +193,8 @@ function estimateMatches(
   teams: number,
   poolCount: number,
   advancePerPool: number,
+  poolSchedule: 'round_robin' | 'fixed_games',
+  poolGamesPerTeam: number,
 ): number | null {
   if (teams < 2) return null;
   switch (format) {
@@ -206,7 +208,16 @@ function estimateMatches(
     case 'pool_play_playoff': {
       const perPool = Math.floor(teams / poolCount);
       if (perPool < 2) return null;
-      const poolMatches = poolCount * ((perPool * (perPool - 1)) / 2);
+      let poolMatches: number;
+      if (poolSchedule === 'fixed_games') {
+        // Each team plays `gamesPerTeam` opponents → perPool * games / 2 per pool.
+        // Clamp to gamesPerTeam < perPool (full RR otherwise).
+        const g = Math.min(poolGamesPerTeam, perPool - 1);
+        if (g < 1) return null;
+        poolMatches = poolCount * Math.floor((perPool * g) / 2);
+      } else {
+        poolMatches = poolCount * ((perPool * (perPool - 1)) / 2);
+      }
       const playoffTeams = Math.min(advancePerPool * poolCount, teams);
       const playoffMatches = Math.max(0, playoffTeams - 1);
       return poolMatches + playoffMatches;
@@ -220,13 +231,27 @@ export function FormatPickerForm(props: {
   teamCount: number;
 }) {
   const [format, setFormat] = useState<BracketFormat>('single_elimination');
+  const [bestOf, setBestOf] = useState<1 | 3 | 5>(3);
   const [poolCount, setPoolCount] = useState(2);
   const [advancePerPool, setAdvancePerPool] = useState(2);
+  const [poolSchedule, setPoolSchedule] = useState<'round_robin' | 'fixed_games'>('round_robin');
+  const [poolGamesPerTeam, setPoolGamesPerTeam] = useState(2);
 
   const isPoolPlay = format === 'pool_play_playoff';
+  const isFixedGames = isPoolPlay && poolSchedule === 'fixed_games';
   const selectedMeta = FORMATS.find((f) => f.value === format)!;
   const belowMin = props.teamCount < selectedMeta.minTeams;
-  const estimate = estimateMatches(format, props.teamCount, poolCount, advancePerPool);
+  const teamsPerPool = isPoolPlay ? Math.floor(props.teamCount / poolCount) : 0;
+  // fixed_games requires gamesPerTeam < smallest pool size. Mirror the domain check.
+  const fixedGamesInvalid = isFixedGames && teamsPerPool > 0 && poolGamesPerTeam >= teamsPerPool;
+  const estimate = estimateMatches(
+    format,
+    props.teamCount,
+    poolCount,
+    advancePerPool,
+    poolSchedule,
+    poolGamesPerTeam,
+  );
   // Snake distribution gives the smallest pool floor(teams / pools) teams,
   // so advancing N from each pool requires teams >= pools * advancePerPool.
   // The domain enforces this at generate() time; mirror it here so the host
@@ -294,6 +319,41 @@ export function FormatPickerForm(props: {
         </div>
       </fieldset>
 
+      <fieldset className="border-border-base bg-bg flex flex-wrap items-center gap-3 rounded border p-3">
+        <legend className="text-fg/80 px-1 text-xs font-medium">Match length</legend>
+        <div role="radiogroup" aria-label="Best of" className="flex flex-wrap gap-2">
+          {([1, 3, 5] as const).map((n) => {
+            const selected = bestOf === n;
+            return (
+              <label
+                key={n}
+                className={
+                  'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
+                  (selected
+                    ? 'border-primary bg-primary/10 text-fg'
+                    : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
+                }
+              >
+                <input
+                  type="radio"
+                  name="best_of"
+                  value={n}
+                  checked={selected}
+                  onChange={() => setBestOf(n)}
+                  className="sr-only"
+                />
+                Best of {n}
+              </label>
+            );
+          })}
+        </div>
+        <p className="text-muted basis-full text-xs">
+          {bestOf === 1
+            ? 'Single game decides each match — fastest schedule.'
+            : `First to ${Math.floor(bestOf / 2) + 1} sets wins each match.`}
+        </p>
+      </fieldset>
+
       {isPoolPlay && (
         <fieldset className="border-border-base bg-bg flex flex-wrap items-end gap-3 rounded border p-3">
           <legend className="text-fg/80 px-1 text-xs font-medium">Pool play options</legend>
@@ -327,16 +387,70 @@ export function FormatPickerForm(props: {
               ))}
             </select>
           </label>
+          <div className="basis-full" />
+          <div role="radiogroup" aria-label="Pool schedule" className="flex flex-col gap-1 text-sm">
+            <span className="text-fg/80">Schedule</span>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { v: 'round_robin', label: 'Every team plays every other' },
+                  { v: 'fixed_games', label: 'Each team plays N games' },
+                ] as const
+              ).map((opt) => {
+                const selected = poolSchedule === opt.v;
+                return (
+                  <label
+                    key={opt.v}
+                    className={
+                      'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
+                      (selected
+                        ? 'border-primary bg-primary/10 text-fg'
+                        : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="pool_schedule"
+                      value={opt.v}
+                      checked={selected}
+                      onChange={() => setPoolSchedule(opt.v)}
+                      className="sr-only"
+                    />
+                    {opt.label}
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+          {isFixedGames && (
+            <label className="flex flex-col text-sm">
+              <span className="text-fg/80">Games per team</span>
+              <input
+                type="number"
+                name="pool_games_per_team"
+                min={1}
+                max={Math.max(1, teamsPerPool - 1)}
+                value={poolGamesPerTeam}
+                onChange={(e) => setPoolGamesPerTeam(Math.max(1, Number(e.target.value) || 1))}
+                className="border-border-base bg-bg w-20 rounded border px-2 py-1"
+              />
+            </label>
+          )}
           <p className="text-muted basis-full text-xs">
-            With {props.teamCount} teams in {poolCount} pools, that’s ~
-            {Math.floor(props.teamCount / poolCount)} per pool. The top {advancePerPool} from each
-            pool advance to a single-elim playoff.
+            With {props.teamCount} teams in {poolCount} pools, that’s ~{teamsPerPool} per pool. The
+            top {advancePerPool} from each pool advance to a single-elim playoff.
           </p>
           {poolPlayUnderfilled && (
             <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
               {poolCount} pools advancing {advancePerPool} per pool needs at least{' '}
               {poolCount * advancePerPool} teams; you have {props.teamCount}. Reduce pools or
               advance-per-pool, or wait for more teams to register.
+            </p>
+          )}
+          {fixedGamesInvalid && (
+            <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
+              Games per team must be less than the smallest pool size ({teamsPerPool}). Pick a
+              smaller number, or switch to “every team plays every other.”
             </p>
           )}
         </fieldset>
@@ -348,12 +462,14 @@ export function FormatPickerForm(props: {
         <>
           <input type="hidden" name="pool_count" value={poolCount} />
           <input type="hidden" name="advance_per_pool" value={advancePerPool} />
+          <input type="hidden" name="pool_schedule" value={poolSchedule} />
+          <input type="hidden" name="pool_games_per_team" value={poolGamesPerTeam} />
         </>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <SubmitButton
-          disabled={props.teamCount < 2 || belowMin || poolPlayUnderfilled}
+          disabled={props.teamCount < 2 || belowMin || poolPlayUnderfilled || fixedGamesInvalid}
           className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50"
         >
           Create bracket

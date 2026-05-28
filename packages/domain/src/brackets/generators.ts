@@ -144,20 +144,35 @@ function findMatch(matchesByRound: Match[][], id: MatchId): Match | null {
  * Every team plays every other team exactly once. For odd N, one team
  * sits out per round.
  *
- * @throws {ValidationError} if fewer than 2 seeds are supplied.
+ * When `maxRounds` is supplied, the schedule is truncated after that
+ * many rounds — useful for "each team plays exactly N games" pools
+ * (see {@link generatePoolPlay} `fixed_games` mode). Each team will
+ * have played `maxRounds` opponents (or one fewer when sitting out as
+ * the odd team in their round).
+ *
+ * @throws {ValidationError} if fewer than 2 seeds are supplied or
+ *   `maxRounds` is not positive.
  */
-export function generateRoundRobin(seeds: ReadonlyArray<Seed>, mkId: IdFactory): Match[] {
+export function generateRoundRobin(
+  seeds: ReadonlyArray<Seed>,
+  mkId: IdFactory,
+  maxRounds?: number,
+): Match[] {
   if (seeds.length < 2) {
     throw new ValidationError('Round robin requires at least 2 teams.', {
       teamCount: seeds.length,
     });
+  }
+  if (maxRounds !== undefined && maxRounds < 1) {
+    throw new ValidationError('maxRounds must be >= 1.', { maxRounds });
   }
   const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
   const teams: (TeamId | null)[] = sorted.map((s) => s.teamId);
   if (teams.length % 2 === 1) teams.push(null); // bye marker
 
   const n = teams.length;
-  const rounds = n - 1;
+  const fullRounds = n - 1;
+  const rounds = maxRounds !== undefined ? Math.min(maxRounds, fullRounds) : fullRounds;
   const half = n / 2;
   const matches: Match[] = [];
 
@@ -429,23 +444,50 @@ export function distributeIntoPools(seeds: ReadonlyArray<Seed>, poolCount: numbe
 }
 
 /**
- * Generate pool-play matches: each pool plays an internal round-robin.
+ * Generate pool-play matches: each pool plays an internal round-robin
+ * (or a fixed games-per-team truncation thereof).
+ *
  * `match.pool` is set to 'A', 'B', ... so the UI can group by pool, and
  * `match.round` follows the per-pool round-robin round number.
  *
  * @throws {ValidationError} propagated from {@link distributeIntoPools}
- *   (bad pool count / too few seeds).
+ *   (bad pool count / too few seeds), or when `schedule === 'fixed_games'`
+ *   without a positive `gamesPerTeam`, or when `gamesPerTeam` is greater
+ *   than or equal to the smallest pool's team count (use round-robin
+ *   instead).
  */
 export function generatePoolPlay(
   seeds: ReadonlyArray<Seed>,
   poolCount: number,
+  options: {
+    schedule: 'round_robin' | 'fixed_games';
+    gamesPerTeam: number | null;
+  },
   mkId: IdFactory,
 ): Match[] {
   const pools = distributeIntoPools(seeds, poolCount);
+  let maxRounds: number | undefined;
+  if (options.schedule === 'fixed_games') {
+    const g = options.gamesPerTeam;
+    if (g === null || g < 1) {
+      throw new ValidationError('fixed_games mode requires gamesPerTeam >= 1.', {
+        gamesPerTeam: g,
+      });
+    }
+    const smallestPool = Math.min(...pools.map((p) => p.length));
+    if (g >= smallestPool) {
+      throw new ValidationError(
+        `gamesPerTeam (${g}) must be less than the smallest pool size (${smallestPool}); ` +
+          `use round_robin for a full schedule.`,
+        { gamesPerTeam: g, smallestPool },
+      );
+    }
+    maxRounds = g;
+  }
   const out: Match[] = [];
   for (let i = 0; i < pools.length; i++) {
     const label = poolLabel(i);
-    const poolMatches = generateRoundRobin(pools[i]!, mkId);
+    const poolMatches = generateRoundRobin(pools[i]!, mkId, maxRounds);
     for (const m of poolMatches) {
       out.push({ ...m, pool: label });
     }

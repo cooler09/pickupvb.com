@@ -22,6 +22,7 @@ status to `Superseded by NNNN`.
 | [0013](0013-team-identity-and-history.md)           | Team identity, persistence, and competitive history                                  | Proposed                                                             |
 | [0016](0016-per-division-team-registration-mode.md) | Per-division team registration mode (supersedes ADR 0008 §2)                         | Accepted                                                             |
 | [0017](0017-walk-in-registrations.md)               | Walk-in team registrations: source discriminator + nullable captain + cash payment   | Accepted                                                             |
+| [0018](0018-pool-play-configuration.md)             | Pool play configuration: bestOf, schedule mode, work team, courts                    | Proposed                                                             |
 
 ## Template
 

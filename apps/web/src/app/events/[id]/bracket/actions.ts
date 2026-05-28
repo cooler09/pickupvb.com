@@ -91,11 +91,21 @@ export async function createBracketFromForm(
 ): Promise<void> {
   const format = String(formData.get('format') ?? 'single_elimination') as BracketFormat;
   const config: Partial<BracketConfig> = {};
+  const bestOf = Number(formData.get('best_of') ?? '');
+  if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
   if (format === 'pool_play_playoff') {
     const poolCount = Number(formData.get('pool_count') ?? '');
     const advance = Number(formData.get('advance_per_pool') ?? '');
     if (Number.isFinite(poolCount) && poolCount >= 2) config.poolCount = poolCount;
     if (Number.isFinite(advance) && advance >= 1) config.advancePerPool = advance;
+    const schedule = String(formData.get('pool_schedule') ?? '');
+    if (schedule === 'round_robin' || schedule === 'fixed_games') {
+      config.poolSchedule = schedule;
+      if (schedule === 'fixed_games') {
+        const games = Number(formData.get('pool_games_per_team') ?? '');
+        if (Number.isFinite(games) && games >= 1) config.poolGamesPerTeam = games;
+      }
+    }
   }
   await createBracket(
     eventId,
