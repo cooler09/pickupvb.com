@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { Alert } from '@/components/alert';
 import { FieldError, fieldA11y } from '@/components/field-error';
+import { TextField } from '@/components/text-field';
 import { createTeamAction, type TeamFormState } from '../actions';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 
@@ -29,20 +30,7 @@ export default function NewTeamForm() {
   return (
     <form action={formAction} className="space-y-4">
       {state.error && <Alert variant="error">{state.error}</Alert>}
-      <div>
-        <label htmlFor="name" className={labelClass}>
-          Team name
-        </label>
-        <input
-          id="name"
-          name="name"
-          required
-          maxLength={80}
-          className={inputClass}
-          {...fieldA11y('name', state.fieldErrors)}
-        />
-        <FieldError name="name" errors={state.fieldErrors} />
-      </div>
+      <TextField name="name" label="Team name" errors={state.fieldErrors} required maxLength={80} />
       <div>
         <label htmlFor="format" className={labelClass}>
           Format

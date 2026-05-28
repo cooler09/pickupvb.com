@@ -1,5 +1,30 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 135):** TextField primitive
+> shipped — **P2 #13 primitive + reference call site shipped**
+> (surface-by-surface form migration deferred). New
+> [text-field.tsx](../../apps/web/src/components/text-field.tsx) is the
+> M3 **outlined** TextField with all the slots the audit called for:
+> top-aligned label, `supportingText` (helper or error — error
+> overrides), `leadingIcon` / `trailingIcon` (inside the bordered
+> chassis, padding auto-adjusts), `prefix` / `suffix` text adornments,
+> and `multiline` flag for `<textarea>`. ARIA wiring is
+> primitive-owned: composes the existing
+> [field-error.tsx](../../apps/web/src/components/field-error.tsx)
+> `errors` prop to paint `aria-invalid`, generates the
+> supporting-text id and threads it through `aria-describedby`, and
+> applies `role="alert"` only when an error is showing (helper copy
+> stays unannounced). Focus state uses the Bundle 129
+> `--md-primary` token via `focus-within:border-md-primary` +
+> `focus-within:ring-md-primary`. Reference call site:
+> [new-team-form.tsx](../../apps/web/src/app/teams/new/new-team-form.tsx)
+> migrated its "Team name" input (the format `<select>` stays on the
+> legacy chassis until a SelectField primitive lands). Existing
+> `<input>` + `<FieldError>` call sites keep working untouched per
+> the audit's surface-by-surface migration plan. Verify 15/15
+> typecheck · lint 3 pre-existing warnings · 179+50 tests · 8/8
+> build. See [Bundle 135 journal](../journal/2026-05-28-bundle-135.md).
+
 > **Status update (2026-05-28, Bundle 134):** Dialog + BottomSheet
 > shipped — **P2 #9 closed** and **P2 #14 closed**.
 > [form-modal.tsx](../../apps/web/src/components/form-modal.tsx)
@@ -528,7 +553,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   Style with M3 menu tokens (elevation-2 surface, M3 item heights,
   state layers from #4).
 
-### #13 Text fields lack M3 structure (filled vs. outlined, supporting text, leading icon)
+### #13 Text fields lack M3 structure (filled vs. outlined, supporting text, leading icon) 🟡 Primitive + reference call site shipped (2026-05-28, Bundle 135)
 
 - **Where:** Form inputs across `apps/web/src/app/**/*-form.tsx`
   use bare `<input>` with hand-rolled `border` + `rounded-md`
@@ -713,6 +738,101 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 135 — TextField primitive (2026-05-28)
+
+Lands the **P2 #13** primitive + reference call site
+(surface-by-surface form migration deferred per the audit's plan).
+
+**Files touched:**
+
+- [apps/web/src/components/text-field.tsx](../../apps/web/src/components/text-field.tsx)
+  — new M3 outlined TextField primitive. `forwardRef` so callers can
+  drive focus / select / scroll-into-view. Props split via
+  discriminated union on `multiline`: `false` (default) takes
+  `InputHTMLAttributes<HTMLInputElement>`, `true` takes
+  `TextareaHTMLAttributes<HTMLTextAreaElement>`. Outlined chassis
+  paints `border-border-base` idle / `border-md-primary` focus /
+  `border-red-600` error, with `focus-within:ring-2` so a child
+  `<input>` / `<textarea>` focus brings the ring to the chassis (the
+  ring isn't on the field itself — it's on the whole adornment row).
+  Padding helper `inputPadding(hasLeading, hasTrailing)` strips the
+  left or right `px-3` when an adornment is taking that side; the
+  chassis owns the vertical padding so leading/trailing slots share
+  the centerline.
+
+  Slot semantics:
+  - `leadingIcon` / `trailingIcon` — `text-fg/60`, `aria-hidden` is
+    the caller's call (icons get aria-hidden by default in our
+    inline SVG vocabulary).
+  - `prefix` / `suffix` — `text-muted text-sm`, no padding adjustment
+    on the input side (adornment text is part of the value-flow).
+  - `supportingText` — single `<p>` under the chassis with stable id
+    `${fieldId}-support`. When `errors[name]` is set the same
+    element swaps to the error text + `text-red-600` +
+    `role="alert"`. `aria-describedby` is wired in both states so
+    screen readers always announce the most-recent helper / error
+    copy.
+  - Field `id` is auto-generated via `useId()` so labels are wired
+    even when a form has duplicate `name` props across nested
+    blocks. Caller can override with explicit `id` prop.
+
+- [apps/web/src/app/teams/new/new-team-form.tsx](../../apps/web/src/app/teams/new/new-team-form.tsx)
+  — reference call site. "Team name" input swapped from the
+  hand-rolled `<input>` + `<FieldError>` pair to a single
+  `<TextField name="name" label="Team name" errors={state.fieldErrors}
+required maxLength={80} />`. The format `<select>` stays on the
+  legacy chassis — SelectField is its own primitive and bundle.
+
+**Decisions:**
+
+- **Outlined only, top-aligned label.** Audit explicitly preferred
+  outlined-no-floating over the "very Material" filled-with-floating
+  default. Floating-label support is a CSS-only follow-up (M3
+  outlined notches the border around the label) but adds ~30 lines
+  of motion + sizing nuance — not worth bundling.
+- **Single primitive for `input` + `textarea`.** They share 95% of
+  the chassis; splitting them would force callers to remember which
+  primitive to use for which control. `multiline?: boolean` flag
+  with discriminated-union typing covers both without losing
+  control-specific prop autocomplete.
+- **`<SelectField>` deferred.** `<select>` has different focus-ring
+  semantics (browser draws its own dropdown) and needs a separate
+  decision on whether to wrap native `<select>` or migrate to a
+  Radix Select primitive. Mixing it in here would either bloat the
+  bundle or push half-baked styling.
+- **Auto-`useId()` for field ids.** Forms in this codebase frequently
+  have duplicate `name` slugs across nested sections (`location.city`
+  in two different addresses); using `name` as the DOM id would
+  silently break label/control association. `useId()` is the only
+  collision-free option that works with SSR.
+- **`role="alert"` only on error.** Helper copy doesn't need to
+  preempt the screen reader; only the error message warrants the
+  interruption. The `aria-describedby` link is always wired so the
+  field's own focus announcement still reads helper / error copy.
+- **Don't migrate every form in this bundle.** Audit's plan is
+  surface-by-surface; one reference call site + the primitive is
+  the right cut. Each form migration is a small reviewable diff.
+
+**Follow-ups deferred** (tracked in [Bundle 135 journal](../journal/2026-05-28-bundle-135.md)):
+
+- **SelectField primitive** — needs a separate bundle. Open
+  question: wrap native `<select>` for accessibility + form-data
+  compatibility, or adopt `@radix-ui/react-select` for full styling
+  control (loses the native mobile picker UX).
+- **Floating-label variant** of TextField if a future surface
+  benefits (signup, settings). Mostly a CSS exercise once the
+  primitive ships.
+- **Migration backlog:** `new-event-form.tsx` (the largest form,
+  many fields), `community-listing-edit-form.tsx`, `new-group-form.tsx`,
+  remaining inputs in `new-team-form.tsx`. Each is a small PR.
+- **`<NumberField>` / `<DateField>`** subclasses with built-in
+  formatting + validation could compose on top of TextField. Wait
+  for a concrete need before generalising.
+
+**Verify:** typecheck 15/15 ✓ · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings ✓ · 179 domain + 50 web tests ✓ ·
+8/8 build ✓.
 
 ### Bundle 134 — Dialog + BottomSheet on Radix (2026-05-28)
 
