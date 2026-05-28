@@ -14,7 +14,14 @@ import { PostHogProvider } from '@/components/posthog-provider';
 import { getCurrentUser } from '@/lib/server-auth';
 import { getViewerHashedDistinctId, getViewerTraits } from '@/lib/server-distinct-id';
 import { hasAnalyticsConsent, isConsentDecided } from '@/lib/consent';
-import { DEFAULT_THEME, isTheme, THEME_COOKIE, type Theme } from '@/lib/theme';
+import {
+  DEFAULT_PREFERENCE,
+  isTheme,
+  isThemePreference,
+  resolveThemeForSSR,
+  THEME_COOKIE,
+  type ThemePreference,
+} from '@/lib/theme';
 import './globals.css';
 
 const POSTHOG_BROWSER_KEY = process.env['NEXT_PUBLIC_POSTHOG_KEY'];
@@ -113,11 +120,13 @@ const siteJsonLd = {
   ],
 };
 
-async function resolveTheme(): Promise<Theme> {
+async function resolveTheme(): Promise<ThemePreference> {
   const cookieValue = (await cookies()).get(THEME_COOKIE)?.value;
-  if (isTheme(cookieValue)) return cookieValue;
+  if (isThemePreference(cookieValue)) return cookieValue;
 
   // No cookie yet — fall back to the signed-in user's saved preference.
+  // Profile stores only light|dark (no 'system'), so `isTheme` is the
+  // right guard here.
   try {
     const { supabase, user } = await getCurrentUser();
     if (user) {
@@ -132,20 +141,32 @@ async function resolveTheme(): Promise<Theme> {
   } catch {
     // Profile lookup failures shouldn't break rendering.
   }
-  return DEFAULT_THEME;
+  return DEFAULT_PREFERENCE;
 }
 
+/**
+ * Bootstrap script that runs as the first child of `<body>`. When the
+ * resolved preference is `'system'`, the SSR-side resolver couldn't read
+ * the OS dark-mode setting and fell back to `DEFAULT_THEME`. This script
+ * corrects `data-theme` to the OS choice before paint and keeps it in
+ * sync with `prefers-color-scheme` changes. No-op for explicit
+ * light/dark preferences.
+ */
+const THEME_BOOTSTRAP = `(function(){var d=document.documentElement;if(d.getAttribute('data-theme-mode')!=='system')return;var m=window.matchMedia('(prefers-color-scheme: dark)');function a(){d.setAttribute('data-theme',m.matches?'dark':'light');}a();m.addEventListener('change',a);})();`;
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [theme, analyticsAllowed, decided, hashedDistinctId, traits] = await Promise.all([
+  const [preference, analyticsAllowed, decided, hashedDistinctId, traits] = await Promise.all([
     resolveTheme(),
     hasAnalyticsConsent(),
     isConsentDecided(),
     getViewerHashedDistinctId(),
     getViewerTraits(),
   ]);
+  const theme = resolveThemeForSSR(preference);
   return (
-    <html lang="en" data-theme={theme}>
+    <html lang="en" data-theme={theme} data-theme-mode={preference}>
       <body className="flex min-h-dvh flex-col">
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
@@ -158,7 +179,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
         <AuthStateSync />
         <EnvBanner />
-        <SiteHeader theme={theme} />
+        <SiteHeader theme={preference} />
         <ToastProvider>
           <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
             {children}

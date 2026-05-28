@@ -1,5 +1,35 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 138):** System theme mode shipped
+> — **P3 #19 closed.** Three-way preference (`light | dark | system`)
+> stored in the existing `pvb-theme` cookie; the DB profile column
+> stays `light|dark` check-constrained (no migration risk for a P3
+> nice-to-have). `'system'` is intentionally device-scoped only —
+> matches the typical pattern where a user might want pinned dark on
+> one device and system on another. New
+> [theme.ts](../../apps/web/src/lib/theme.ts) splits `Theme` (resolved
+> `data-theme` painted by CSS) from `ThemePreference` (user-facing
+> choice including `'system'`) with matching guards. The root layout
+> renders `<html data-theme={resolved} data-theme-mode={preference}>`
+> and injects a tiny inline bootstrap `<script>` as the first child of
+> `<body>` that — only when `data-theme-mode === 'system'` — reads
+> `matchMedia('(prefers-color-scheme: dark)')`, paints `data-theme`,
+> and attaches a `change` listener so the page tracks OS dark-mode
+> flips live without a reload. `setTheme()` in
+> [theme-actions.ts](../../apps/web/src/app/theme-actions.ts) always
+> writes the cookie; the profile update only fires for explicit
+> light/dark (the check-constraint forbids `'system'`).
+> [theme-toggle.tsx](../../apps/web/src/components/theme-toggle.tsx)
+> gains a third button (⌂ System) using the same `aria-pressed` group
+> pattern. `SiteHeader` / `MobileMenu` widened their `theme` prop type
+> from `Theme` to `ThemePreference` — no call-site renames needed.
+> This is the final bundle in the audit's 10-bundle adoption arc; the
+> remaining P3 items (#17 icon discipline, #20 tonal palette
+> exploration, #21 Switch primitive, #22 Chip primitive, #18 data-table
+> primitive) stay opportunistic per their original guidance. Verify
+> 15/15 typecheck · lint 3 pre-existing warnings · 179+50 tests · 8/8
+> build. See [Bundle 138 journal](../journal/2026-05-28-bundle-138.md).
+
 > **Status update (2026-05-28, Bundle 137):** Density scale shipped
 > — **P2 #15 vocabulary + reference call sites shipped** (responsive
 > density now applied to receipts + earnings tables; further
@@ -683,7 +713,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   embedded).
 - **Fix:** Defer until a third table appears. Premature otherwise.
 
-### #19 Theme-mode follow-system signal not exposed
+### #19 Theme-mode follow-system signal not exposed 🟢 Fixed (2026-05-28, Bundle 138)
 
 - **Where:** [theme-toggle.tsx](../../apps/web/src/components/theme-toggle.tsx)
   toggles light/dark binary. M3 spec includes "match system" as a
@@ -795,6 +825,70 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 138 — System theme mode (2026-05-28)
+
+Lands **P3 #19** — the "follow system" third option for the theme
+toggle — closing the last bundle in the M3 audit's 10-bundle
+adoption sequence. Cookie-only design: no Supabase migration, no
+production-deploy risk for a P3 cleanup. Profile column stays
+`light|dark` check-constrained; `'system'` lives in the device
+cookie alongside, matching the typical pattern (device-scoped
+mode is rarely an account-level preference).
+
+**Files touched:**
+
+- [apps/web/src/lib/theme.ts](../../apps/web/src/lib/theme.ts) —
+  full rewrite. Splits `Theme` (resolved `data-theme` value,
+  light/dark) from `ThemePreference` (user-facing,
+  light/dark/system). Adds `isThemePreference`,
+  `resolveThemeForSSR`, `readThemePreferenceFromCookies`,
+  `DEFAULT_PREFERENCE`. Existing `Theme`, `isTheme`,
+  `DEFAULT_THEME`, `THEME_COOKIE` unchanged so the rest of the
+  tree keeps compiling.
+- [apps/web/src/app/theme-actions.ts](../../apps/web/src/app/theme-actions.ts)
+  — `setTheme` parameter widened to `ThemePreference`. Always
+  writes the cookie. Profile update fires only when preference is
+  explicit light/dark (the DB check-constraint forbids `'system'`,
+  and conceptually `'system'` is device-scoped anyway).
+- [apps/web/src/app/layout.tsx](../../apps/web/src/app/layout.tsx)
+  — `resolveTheme()` now returns `ThemePreference`; computes
+  `theme` for SSR via `resolveThemeForSSR` (`'system'` → SSR
+  default, corrected on hydration). `<html>` carries both
+  `data-theme={resolved}` and `data-theme-mode={preference}`.
+  Tiny inline bootstrap `<script>` (THEME_BOOTSTRAP) is the first
+  child of `<body>` — checks `data-theme-mode`, paints the OS
+  resolved value when `'system'`, and attaches a `matchMedia`
+  `change` listener so the page tracks system dark-mode flips
+  live. `<SiteHeader theme={preference} />`.
+- [apps/web/src/components/theme-toggle.tsx](../../apps/web/src/components/theme-toggle.tsx)
+  — full rewrite. Accepts `current: ThemePreference`. Third
+  button (⌂ System). Immediate DOM update writes
+  `data-theme-mode` and resolves `data-theme` via `matchMedia` for
+  `'system'`. Same `useTransition` flow into the server action.
+- [apps/web/src/components/site-header.tsx](../../apps/web/src/components/site-header.tsx)
+  · [apps/web/src/components/mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx)
+  — widened `theme` prop type from `Theme` to `ThemePreference`.
+  No structural changes; forwards untouched.
+
+**Findings flipped:**
+
+- **P3 #19** → 🟢 Fixed.
+
+**Closes the audit's 10-bundle adoption sequence.** Remaining P3
+items stay opportunistic per their original guidance:
+
+- **#17 Icon discipline** — touches many files; needs its own pass.
+- **#18 Data-table primitive** — defer "until a third table appears"
+  (audit's own guidance; receipts + earnings is still only two).
+- **#20 Tonal palette / tertiary container exploration** — research
+  task, not a code change.
+- **#21 Switch primitive** — Radix-based, own bundle when a switch
+  call site shows up.
+- **#22 Chip primitive** — wait for call sites before standardizing.
+
+**Verify:** 15/15 typecheck · lint 3 pre-existing warnings (all
+unrelated `set-state-in-effect`) · 179+50 tests · 8/8 build.
 
 ### Bundle 137 — Density scale (2026-05-28)
 

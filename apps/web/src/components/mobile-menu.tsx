@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { Theme } from '@/lib/theme';
+import type { ThemePreference } from '@/lib/theme';
 import { SubmitButton } from '@/components/submit-button';
 import { ThemeToggle } from './theme-toggle';
 import { signOut } from './actions';
 
 type Props = {
-  theme: Theme;
+  theme: ThemePreference;
   user: { displayName: string; initials: string } | null;
   /** Number of unanswered team invites for the signed-in user. */
   pendingTeamInvites: number;
