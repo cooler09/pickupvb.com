@@ -212,10 +212,97 @@ create policy event_brackets_delete
     ))
   );
 
--- 2b. Drop the event_idx — division_uidx already covers the only lookup path.
+-- 2b. Rewrite child-table RLS policies (bracket_seeds, bracket_matches,
+--     bracket_match_sets) that reach through event_brackets.event_id —
+--     the 20260514000400_tournament_brackets.sql definitions survived
+--     the rename in 20260728000000 untouched and still reference the
+--     legacy column. Derive event_id via event_divisions instead.
+drop policy if exists bracket_seeds_write on public.bracket_seeds;
+create policy bracket_seeds_write
+  on public.bracket_seeds for all
+  using (exists (
+    select 1
+      from public.event_brackets b
+      join public.event_divisions d on d.id = b.division_id
+     where b.id = bracket_id and public.is_event_host(d.event_id)
+  ))
+  with check (exists (
+    select 1
+      from public.event_brackets b
+      join public.event_divisions d on d.id = b.division_id
+     where b.id = bracket_id and public.is_event_host(d.event_id)
+  ));
+
+drop policy if exists bracket_matches_insert on public.bracket_matches;
+create policy bracket_matches_insert
+  on public.bracket_matches for insert
+  with check (exists (
+    select 1
+      from public.event_brackets b
+      join public.event_divisions d on d.id = b.division_id
+     where b.id = bracket_id and public.is_event_host(d.event_id)
+  ));
+
+drop policy if exists bracket_matches_delete on public.bracket_matches;
+create policy bracket_matches_delete
+  on public.bracket_matches for delete
+  using (exists (
+    select 1
+      from public.event_brackets b
+      join public.event_divisions d on d.id = b.division_id
+     where b.id = bracket_id and public.is_event_host(d.event_id)
+  ));
+
+drop policy if exists bracket_matches_update on public.bracket_matches;
+create policy bracket_matches_update
+  on public.bracket_matches for update
+  using (
+    exists (
+      select 1
+        from public.event_brackets b
+        join public.event_divisions d on d.id = b.division_id
+       where b.id = bracket_id and public.is_event_host(d.event_id)
+    )
+    or public.is_bracket_match_captain(id)
+  )
+  with check (
+    exists (
+      select 1
+        from public.event_brackets b
+        join public.event_divisions d on d.id = b.division_id
+       where b.id = bracket_id and public.is_event_host(d.event_id)
+    )
+    or public.is_bracket_match_captain(id)
+  );
+
+drop policy if exists bracket_match_sets_write on public.bracket_match_sets;
+create policy bracket_match_sets_write
+  on public.bracket_match_sets for all
+  using (
+    exists (
+      select 1
+        from public.bracket_matches m
+        join public.event_brackets b on b.id = m.bracket_id
+        join public.event_divisions d on d.id = b.division_id
+       where m.id = match_id and public.is_event_host(d.event_id)
+    )
+    or public.is_bracket_match_captain(match_id)
+  )
+  with check (
+    exists (
+      select 1
+        from public.bracket_matches m
+        join public.event_brackets b on b.id = m.bracket_id
+        join public.event_divisions d on d.id = b.division_id
+       where m.id = match_id and public.is_event_host(d.event_id)
+    )
+    or public.is_bracket_match_captain(match_id)
+  );
+
+-- 2c. Drop the event_idx — division_uidx already covers the only lookup path.
 drop index if exists public.event_brackets_event_idx;
 
--- 2c. Drop the FK + column. The original `event_id unique` constraint was
+-- 2d. Drop the FK + column. The original `event_id unique` constraint was
 --     already replaced by `event_brackets_division_uidx` in
 --     20260605000300_bracket_per_division.sql, so there is no unique
 --     constraint to retire here.
