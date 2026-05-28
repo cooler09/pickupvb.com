@@ -1,6 +1,6 @@
 # Events Page UX Audit
 
-_Last updated: 2026-05-27_
+_Last updated: 2026-05-28_
 
 Audit of [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx).
 Goal: prioritize the most important information and CTAs for visitors landing
@@ -9,6 +9,57 @@ from a share link, while keeping the page useful for hosts and attendees.
 > **Status:** Quick-win bundle + larger-changes bundle both shipped
 > (2026-05-18). Remaining open items live in the "Won't-do / explicit
 > deferrals" section.
+
+> **Status update (2026-05-28, Bundle 128):** Walk-in team form converted
+> from inline `<details>` to a modal dialog at all three call sites
+> (no-bracket / setup-view / host-ad-hoc-teams-panel) to give the host a
+> focus-isolated subtask with unambiguous Save/Cancel terminal CTAs.
+> Findings + fixes:
+>
+> 1. **Inline disclosure leaked context for focused subtasks.** The
+>    walk-in team form was revealed inline via `<details open={!ready}>`,
+>    which (a) pushed the bracket setup / payment table around when
+>    opened, (b) let the host accidentally interleave with format
+>    selection or seeding, (c) had no clear Cancel CTA — the "secondary
+>    becomes primary in a known state" pattern was good but the wrong
+>    container. Fix: new
+>    [apps/web/src/components/form-modal.tsx](../../apps/web/src/components/form-modal.tsx)
+>    primitive built on native `<dialog>` (`aria-modal`, focus trap,
+>    Escape-to-close, backdrop scrim). API: `<FormModal trigger={(open) =>
+…} title="…" description="…">{(close) => <form>…</form>}</FormModal>`,
+>    plus a `<CloseOnSettled onSettled={close} />` helper that watches
+>    `useFormStatus().pending` and dismisses on settle. Reuses the
+>    established pattern from
+>    [report-bug-button.tsx](../../apps/web/src/components/report-bug-button.tsx)
+>    - [confirm-submit-button.tsx](../../apps/web/src/components/confirm-submit-button.tsx)
+>      instead of pulling in Radix / HeadlessUI.
+>
+>    Converted call sites:
+>    - [bracket/\_components/no-bracket-view.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/no-bracket-view.tsx)
+>    - [bracket/\_components/setup-view.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/setup-view.tsx)
+>    - [\_components/host-ad-hoc-teams-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/host-ad-hoc-teams-panel.tsx)
+>
+>    Trigger is promoted to primary fill when the walk-in is the
+>    unblocking action (`teamCount < 2` or no teams registered), demoted
+>    to dashed-border secondary once registered teams cover the case.
+>    [WalkInTeamForm](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/walk-in-team-form.tsx)
+>    gained an optional `onSettled` prop — when present it renders the
+>    `<CloseOnSettled>` plus a Cancel/Submit footer; when absent it
+>    keeps its old standalone styling (no other call sites today, but
+>    the prop keeps it composable).
+>
+> Carry-overs (next UX bundles per the modal-conversion plan):
+>
+> - **P2** — [host-divisions-manager.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/host-divisions-manager.tsx)
+>   per-row Edit + "+ Add division" → `FormModal`. Same isolation
+>   argument but bigger refactor (multiple action shapes).
+> - **P2** — [sponsor-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx)
+>   editor → `FormModal`. Lets us collapse the awkward "Additional
+>   settings" wrapper added in Bundle 127.5 since hero image would be
+>   the only inline panel left.
+> - **P3** — moderate-strength candidates ([captain-broadcast-panel.tsx](../../apps/web/src/app/teams/%5Bid%5D/_components/captain-broadcast-panel.tsx),
+>   [host-division-winners-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/host-division-winners-panel.tsx))
+>   — only convert if usage data shows confusion; inline acceptable.
 
 > **Status update (2026-05-27, Bundle 127):** Site-wide CTA-vocabulary
 > sweep triggered by a quick UX scan after the bracket creator polish

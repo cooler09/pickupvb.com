@@ -1,4 +1,5 @@
 import type { BracketFormat } from '@pickupvb/domain';
+import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import {
   generateBracket,
@@ -112,16 +113,36 @@ export function SetupView(props: {
       />
 
       {/* Walk-in form is secondary at this stage — the host already has a
-          bracket in setup. Collapse it by default; auto-open when there
-          aren't enough teams to generate yet. */}
-      <details open={!canGenerate} className="border-border-base rounded-lg border border-dashed">
-        <summary className="text-fg/80 hover:bg-fg/5 cursor-pointer rounded-lg px-3 py-2 text-sm font-medium">
-          Add a walk-in team
-        </summary>
-        <div className="border-border-base border-t p-3">
-          <WalkInTeamForm eventId={props.eventId} divisionId={props.divisionId} />
-        </div>
-      </details>
+          bracket in setup. Lives behind a modal so registering a team
+          doesn't push the seeding list around. When the host can't
+          generate yet, the trigger is promoted to primary. */}
+      <div className="flex justify-start">
+        <FormModal
+          trigger={(open) => (
+            <button
+              type="button"
+              onClick={open}
+              className={
+                canGenerate
+                  ? 'border-border-base text-fg/80 hover:bg-fg/5 rounded-md border border-dashed px-3 py-1.5 text-sm font-medium'
+                  : 'bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90'
+              }
+            >
+              + Add a walk-in team
+            </button>
+          )}
+          title="Add a walk-in team"
+          description="For teams not registered to this division. Created as an ad-hoc registration — you can edit the roster later from the event's team management page."
+        >
+          {(close) => (
+            <WalkInTeamForm
+              eventId={props.eventId}
+              divisionId={props.divisionId}
+              onSettled={close}
+            />
+          )}
+        </FormModal>
+      </div>
     </section>
   );
 }

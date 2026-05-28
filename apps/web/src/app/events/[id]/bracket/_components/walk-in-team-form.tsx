@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { CloseOnSettled, ModalFooter } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { addAdHocTeamFromForm } from '../actions';
 
@@ -14,8 +15,18 @@ import { addAdHocTeamFromForm } from '../actions';
  * Empty player-name rows are skipped server-side, so the host can leave
  * extras blank.
  */
-export function WalkInTeamForm(props: { eventId: string; divisionId: string }) {
+export function WalkInTeamForm(props: {
+  eventId: string;
+  divisionId: string;
+  /**
+   * Optional dismiss callback. When provided, the form renders a
+   * Cancel button alongside Submit and closes itself after the server
+   * action settles (success or failure). Set by `FormModal` consumers.
+   */
+  onSettled?: () => void;
+}) {
   const [playerRows, setPlayerRows] = useState<number[]>([0, 1]);
+  const inModal = !!props.onSettled;
 
   const addRow = () => {
     setPlayerRows((rows) => [...rows, (rows[rows.length - 1] ?? -1) + 1]);
@@ -28,15 +39,20 @@ export function WalkInTeamForm(props: { eventId: string; divisionId: string }) {
   return (
     <form
       action={addAdHocTeamFromForm.bind(null, props.eventId, props.divisionId)}
-      className="border-border-base space-y-3 rounded-lg border border-dashed p-4"
+      className={
+        inModal ? 'space-y-3' : 'border-border-base space-y-3 rounded-lg border border-dashed p-4'
+      }
     >
-      <div>
-        <h3 className="text-fg text-sm font-semibold">Add a walk-in team</h3>
-        <p className="text-muted text-xs">
-          For teams not registered to this division. Created as an ad-hoc registration on this
-          division — you can edit the roster later from the event’s team management page.
-        </p>
-      </div>
+      {inModal && props.onSettled && <CloseOnSettled onSettled={props.onSettled} />}
+      {!inModal && (
+        <div>
+          <h3 className="text-fg text-sm font-semibold">Add a walk-in team</h3>
+          <p className="text-muted text-xs">
+            For teams not registered to this division. Created as an ad-hoc registration on this
+            division — you can edit the roster later from the event’s team management page.
+          </p>
+        </div>
+      )}
 
       <label className="block">
         <span className="text-fg/80 text-xs font-medium">Team name</span>
@@ -91,11 +107,29 @@ export function WalkInTeamForm(props: { eventId: string; divisionId: string }) {
         </button>
       </fieldset>
 
-      <div>
-        <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm disabled:opacity-50">
-          Add team
-        </SubmitButton>
-      </div>
+      {inModal ? (
+        <ModalFooter>
+          <button
+            type="button"
+            onClick={props.onSettled}
+            className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
+          >
+            Cancel
+          </button>
+          <SubmitButton
+            pendingChildren="Adding…"
+            className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
+          >
+            Add team
+          </SubmitButton>
+        </ModalFooter>
+      ) : (
+        <div>
+          <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm disabled:opacity-50">
+            Add team
+          </SubmitButton>
+        </div>
+      )}
     </form>
   );
 }
