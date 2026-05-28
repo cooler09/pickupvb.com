@@ -272,6 +272,20 @@ update public.event_team_payments p
  where m.division_id = p.division_id
    and m.team_id     = p.team_id;
 
+-- Drop the old composite FK + unique + supporting index, then drop the
+-- denormalized cols. This must happen BEFORE the ad-hoc/walk-in INSERT
+-- below — the new rows don't carry division_id/team_id and the legacy
+-- NOT NULL on team_id would otherwise reject them.
+alter table public.event_team_payments
+  drop constraint event_team_payments_division_team_fk;
+alter table public.event_team_payments
+  drop constraint event_team_payments_division_team_unique;
+drop index if exists public.event_team_payments_division_idx;
+
+alter table public.event_team_payments
+  drop column division_id,
+  drop column team_id;
+
 -- (b) Insert new payment rows for any ad_hoc/walk_in registration that
 --     had inline non-default payment state (Bundle 117 inline payment cols)
 insert into public.event_team_payments
@@ -294,18 +308,6 @@ where r.payment_status <> 'none'
    or r.checkout_session_id is not null
    or r.payment_intent_id   is not null
    or r.payment_note        is not null;
-
--- Drop the old composite FK + unique + supporting index, then drop the
--- denormalized cols.
-alter table public.event_team_payments
-  drop constraint event_team_payments_division_team_fk;
-alter table public.event_team_payments
-  drop constraint event_team_payments_division_team_unique;
-drop index if exists public.event_team_payments_division_idx;
-
-alter table public.event_team_payments
-  drop column division_id,
-  drop column team_id;
 
 -- Add the entry-keyed FK + unique + NOT NULL.
 alter table public.event_team_payments
