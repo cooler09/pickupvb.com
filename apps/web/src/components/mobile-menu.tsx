@@ -148,12 +148,11 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
             aria-label="Main menu"
             className="border-border-base bg-surface fixed inset-x-0 top-[57px] z-50 border-b px-4 py-4 shadow-lg"
           >
+            {/* Primary destinations (Events / Groups / Teams / Profile) moved
+                to `<BottomNav>` in Bundle 5. The hamburger now carries
+                secondary destinations only, per M3 spec once a bottom nav
+                is present. */}
             <ul className="flex flex-col gap-1 text-base">
-              <li>
-                <Link href="/events" className="hover:bg-fg/5 block rounded-md px-3 py-2">
-                  Find events
-                </Link>
-              </li>
               <li>
                 <Link href="/events/new" className="hover:bg-fg/5 block rounded-md px-3 py-2">
                   Host an event
@@ -161,12 +160,7 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
               </li>
               <li>
                 <Link href="/community" className="hover:bg-fg/5 block rounded-md px-3 py-2">
-                  Community
-                </Link>
-              </li>
-              <li>
-                <Link href="/groups" className="hover:bg-fg/5 block rounded-md px-3 py-2">
-                  Groups
+                  Community feed
                 </Link>
               </li>
               <li>
@@ -174,31 +168,6 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                   Players
                 </Link>
               </li>
-              {user && (
-                <li>
-                  <Link
-                    href="/teams"
-                    className="hover:bg-fg/5 flex items-center justify-between rounded-md px-3 py-2"
-                  >
-                    <span className="flex items-center gap-2">
-                      Teams
-                      {pendingTeamInvites > 0 && (
-                        <span className="text-xs font-normal text-amber-700">
-                          {pendingTeamInvites === 1 ? '1 invite' : `${pendingTeamInvites} invites`}
-                        </span>
-                      )}
-                    </span>
-                    {pendingTeamInvites > 0 && (
-                      <span
-                        aria-label={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
-                        className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white ring-2 ring-amber-200"
-                      >
-                        {pendingTeamInvites}
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              )}
               <li>
                 <Link href="/tools" className="hover:bg-fg/5 block rounded-md px-3 py-2">
                   Host tools
@@ -209,6 +178,27 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                   Pricing
                 </Link>
               </li>
+              {user && pendingTeamInvites > 0 && (
+                <li>
+                  <Link
+                    href="/teams"
+                    className="hover:bg-fg/5 flex items-center justify-between rounded-md px-3 py-2"
+                  >
+                    <span className="flex items-center gap-2">
+                      Team invites
+                      <span className="text-xs font-normal text-amber-700">
+                        {pendingTeamInvites === 1 ? '1 pending' : `${pendingTeamInvites} pending`}
+                      </span>
+                    </span>
+                    <span
+                      aria-label={`${pendingTeamInvites} pending team invite${pendingTeamInvites === 1 ? '' : 's'}`}
+                      className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white ring-2 ring-amber-200"
+                    >
+                      {pendingTeamInvites}
+                    </span>
+                  </Link>
+                </li>
+              )}
             </ul>
 
             <div className="border-border-base mt-4 border-t pt-4">

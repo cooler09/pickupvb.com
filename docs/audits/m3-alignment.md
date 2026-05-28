@@ -1,5 +1,34 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 133):** BottomNav + FAB primitive
+> shipped — **P2 #11 closed**; **P2 #10 primitive + reference call site
+> shipped** (multi-page rollout deferred). New
+> [bottom-nav.tsx](../../apps/web/src/components/bottom-nav.tsx)
+> server wrapper resolves viewer auth and renders
+> [bottom-nav-bar.tsx](../../apps/web/src/components/bottom-nav-bar.tsx)
+> — a `'use client'` `<nav>` fixed below `md` with 4 destinations
+> (Events / Groups / Teams / Profile-or-Sign-in), `state-layer` +
+> `tap-target` per item, `pb-safe` for the iOS notch, and an
+> rAF-coalesced **hide-on-scroll** that flips a `data-hidden`
+> attribute the M3 motion tokens animate against. Mounted in
+> [layout.tsx](../../apps/web/src/app/layout.tsx) alongside a
+> matching mobile-only spacer so the SiteFooter clears the bar.
+> [mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx)
+> trimmed to **secondary** destinations only (Host an event,
+> Community feed, Players, Host tools, Pricing + team-invite badge
+> when pending) per M3 spec. New
+> [fab.tsx](../../apps/web/src/components/fab.tsx) M3 FAB primitive —
+> 56 dp circle (`h-14 w-14 rounded-2xl`),
+> `bg-md-primary-container` / `text-md-on-primary-container`,
+> `shadow-elevation-3` → `hover:shadow-elevation-4`, compact +
+> extended variants, stacked above BottomNav via `z-30` +
+> `bottom-20` (clears `h-16` bar) collapsing to `md:bottom-6`
+> where the bar hides. Reference call site:
+> [events/page.tsx](../../apps/web/src/app/events/page.tsx) renders
+> the FAB for signed-in viewers with `href="/events/new"` /
+> `label="Host an event"`. Verify 15/15 typecheck · lint 3 pre-existing
+> warnings · 179+50 tests · 8/8 build. See [Bundle 133 journal](../journal/2026-05-28-bundle-133.md).
+
 > **Status update (2026-05-28, Bundle 132):** Radix Toast shipped —
 > **P2 #8 closed**. [toast.tsx](../../apps/web/src/components/toast.tsx)
 > rewritten on `@radix-ui/react-toast` while preserving the
@@ -428,7 +457,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   `useEffect` bridge that [form-modal.tsx#L72-L89](../../apps/web/src/components/form-modal.tsx#L72-L89)
   needs today.
 
-### #10 No FAB (Floating Action Button) on host-heavy pages
+### #10 No FAB (Floating Action Button) on host-heavy pages 🟡 Primitive + reference call site shipped (2026-05-28, Bundle 133)
 
 - **Where:** `/events/[id]` host view, `/groups/[id]` admin view,
   `/teams/[slug]` captain view. Primary host actions
@@ -441,7 +470,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   the page's single most-likely host action. Animate on scroll
   (extended → collapsed) per M3 spec. Skip on read-only pages.
 
-### #11 No bottom-navigation primitive — site uses desktop top nav on mobile
+### #11 No bottom-navigation primitive — site uses desktop top nav on mobile 🟢 Fixed (2026-05-28, Bundle 133)
 
 - **Where:** [site-header.tsx](../../apps/web/src/components/site-header.tsx)
   - [mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx).
@@ -653,6 +682,101 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 133 — BottomNav + FAB primitive (2026-05-28)
+
+Closes **P2 #11** (no bottom-navigation primitive) and lands the
+**P2 #10** primitive + reference call site (multi-page rollout deferred).
+
+**Files touched:**
+
+- [apps/web/src/components/bottom-nav.tsx](../../apps/web/src/components/bottom-nav.tsx)
+  — new thin server wrapper. Resolves the current user via
+  `getCurrentUser()`, derives `isAuthenticated = Boolean(user) && !isAnon`
+  (anon JWTs are treated as signed-out per AGENTS.md Supabase guidance),
+  forwards to `<BottomNavBar isAuthenticated>`. The split exists so the
+  client surface stays free of `cookies()` reads.
+- [apps/web/src/components/bottom-nav-bar.tsx](../../apps/web/src/components/bottom-nav-bar.tsx)
+  — new `'use client'` `<nav aria-label="Primary">` with 4 items
+  (Events / Groups / Teams / Profile-or-Sign-in), inline 24×24 stroke
+  icons (calendar / users / trophy / person / login arrow), active
+  highlight via `pathname === match || pathname.startsWith(\`${match}/\`)`,
+`aria-current="page"`on the active link,`state-layer`overlay on
+hover/focus/press from Bundle 131. Hide-on-scroll lives in a small`useHideOnScroll()`hook — passive`scroll` listener, rAF coalescing,
+jitter threshold (`Math.abs(delta) > 8`), only hides past 80 px of
+scroll. setState fires inside the rAF callback (not the effect body)
+so it stays clear of `react-hooks/set-state-in-effect`(AGENTS.md
+Pattern 5). Toggles`data-hidden` which a sibling Tailwind variant
+(`data-[hidden=true]:translate-y-full`) animates via
+`transition-transform duration-200 ease-out`. Bar is `fixed inset-x-0
+  bottom-0 z-40 h-16 pb-safe md:hidden`with`shadow-elevation-2`.
+- [apps/web/src/components/fab.tsx](../../apps/web/src/components/fab.tsx)
+  — new M3 FAB primitive. `Fab({ href, label, children, extended })` —
+  `label` required (visible content is usually an icon), `extended`
+  flips to the rectangular pill (`h-14 rounded-2xl px-4 gap-2`).
+  Surface: `bg-md-primary-container text-md-on-primary-container
+shadow-elevation-3 hover:shadow-elevation-4`. Positioned
+  `fixed right-4 bottom-20 z-30 md:right-6 md:bottom-6` —
+  `bottom-20` clears the BottomNav (h-16), `md:bottom-6` reclaims
+  desktop where the bar hides. `z-30` < BottomNav `z-40` < Toast
+  viewport `z-50` (intentional stacking — FAB never covers a toast).
+  Caller owns viewer-state gating; primitive is a dumb link.
+- [apps/web/src/app/layout.tsx](../../apps/web/src/app/layout.tsx)
+  — imports `BottomNav`; after `<SiteFooter />` renders a mobile-only
+  `<div aria-hidden="true" className="pb-safe h-16 md:hidden" />`
+  spacer (keeps footer content scrolling clear of the fixed bar) then
+  `<BottomNav />` itself.
+- [apps/web/src/components/mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx)
+  — removed the **Find events / Groups / Teams (top-line) / Profile**
+  primary destinations now owned by BottomNav. The drawer carries
+  **Host an event / Community feed / Players / Host tools / Pricing**
+  plus a single **Team invites** row that surfaces only when
+  `user && pendingTeamInvites > 0` (keeps the badge discoverable until
+  the invite count gets promoted to a BottomNav badge — see follow-up).
+  `pendingTeamInvites` prop signature kept unchanged so
+  [site-header.tsx](../../apps/web/src/components/site-header.tsx)
+  needs no edit; semantics narrowed to "pending count → badge".
+- [apps/web/src/app/events/page.tsx](../../apps/web/src/app/events/page.tsx)
+  — reference call site for `<Fab>`. Conditionally renders
+  `<Fab href="/events/new" label="Host an event">` with an inline
+  plus-icon for signed-in viewers (uses the existing `user` from
+  `getCurrentUser()` on the page — no new fetch).
+
+**Decisions:**
+
+- **4 destinations, not 5.** Audit prescribes 3–5; chose 4 to keep
+  per-tab tap target wide on small phones (390 px viewport → 97 px
+  per tab in a 4-col grid) and to leave room for a future
+  Notifications tab without churn.
+- **`/events` is the only call site this bundle.** `/groups` reads via
+  `createSupabaseAnonClient()` inside ISR (no `cookies()`) — adding a
+  viewer-gated FAB would need a client wrapper. `/teams` already has
+  a prominent `+ New team` CTA in its header card. Keeping the FAB
+  surface area to one page lets it act as the canonical pattern for
+  the deferred rollout.
+- **Hide-on-scroll, not always-visible.** M3 standard pattern; also
+  buys back the bottom 64 px when the user is actively scrolling a
+  long feed.
+- **`pendingTeamInvites` badge stays in the hamburger for now.**
+  Surfacing it on the BottomNav Teams tab is the natural follow-up
+  but needs a small client-state subscription so the count stays
+  fresh without a reload — deferred to keep this bundle tight.
+
+**Follow-ups deferred** (tracked in [Bundle 133 journal](../journal/2026-05-28-bundle-133.md)):
+
+- Multi-page FAB rollout: `/events/[id]` host view, `/groups`,
+  `/groups/[id]` admin view, `/teams`, `/teams/[slug]` captain view
+  (each needs a per-page viewer-state gate and the right primary
+  action label).
+- Promote the pending-team-invites badge from the MobileMenu row
+  onto the BottomNav Teams tab as a Material-style numeric badge.
+- Consider an `<Fab variant="extended">` auto-collapse-on-scroll
+  behaviour once we have a real page that benefits from it.
+
+**Verify:** typecheck 15/15 ✓ · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings (scoreboard-view, remote-control,
+unchanged from Bundle 132) ✓ · 179 domain + 50 web tests ✓ · 8/8
+build ✓.
 
 ### Bundle 132 — Radix Toast (2026-05-28)
 

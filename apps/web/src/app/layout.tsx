@@ -3,6 +3,7 @@ import type { Metadata } from 'next/types';
 import type { Viewport } from 'next';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
+import BottomNav from '@/components/bottom-nav';
 import { SiteFooter } from '@/components/site-footer';
 import { ToastProvider } from '@/components/toast';
 import { EnvBanner } from '@/components/env-banner';
@@ -173,6 +174,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           />
         </Suspense>
         <SiteFooter />
+        {/* Spacer to keep the SiteFooter clear of the fixed BottomNav on
+            mobile. BottomNav is `h-16` plus `pb-safe`; the matching
+            spacer hides at `md` where the bar itself hides. */}
+        <div aria-hidden="true" className="pb-safe h-16 md:hidden" />
+        <BottomNav />
         {analyticsAllowed ? <WebVitalsClient /> : null}
         {decided ? null : <ConsentBanner />}
       </body>
