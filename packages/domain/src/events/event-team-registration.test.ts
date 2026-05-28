@@ -3,6 +3,7 @@ import {
   EventTeamRegistration,
   RegistrationMember,
   RegistrationPaymentStatus,
+  RegistrationSource,
   type EventTeamRegistrationId,
   type EventTeamRegistrationMemberId,
 } from './event-team-registration.js';
@@ -139,6 +140,47 @@ describe('EventTeamRegistration.create', () => {
 
   it('rejects duplicate linked userIds', () => {
     expect(() => makeReg([userMember('m1', 'u1'), userMember('m2', 'u1', 1)])).toThrow(
+      InvariantViolation,
+    );
+  });
+});
+
+describe('EventTeamRegistration walk-in source', () => {
+  // Pins the source ↔ identity discriminant the boundary (and the DB
+  // check constraint `event_team_entries_captain_identity`) depend on:
+  // walk-ins must carry a typed-at-the-table captain display name
+  // distinct from the team name, and must NOT link a captain account.
+  function makeWalkIn(props: {
+    captainId?: string | null;
+    captainDisplayName: string | null;
+  }): EventTeamRegistration {
+    return EventTeamRegistration.create({
+      id: REG,
+      eventId: EVENT,
+      divisionId: DIV,
+      captainId: (props.captainId ?? null) as UserId | null,
+      name: 'Spike Force',
+      members: [guestMember('m', 'Guest A')],
+      source: RegistrationSource.WalkIn,
+      captainDisplayName: props.captainDisplayName,
+    });
+  }
+
+  it('preserves captainDisplayName distinct from the team name', () => {
+    const reg = makeWalkIn({ captainDisplayName: 'Jamie Q.' });
+    expect(reg.name).toBe('Spike Force');
+    expect(reg.captainDisplayName).toBe('Jamie Q.');
+    expect(reg.captainId).toBeNull();
+    expect(reg.source).toBe(RegistrationSource.WalkIn);
+  });
+
+  it('requires a captainDisplayName', () => {
+    expect(() => makeWalkIn({ captainDisplayName: null })).toThrow(InvariantViolation);
+    expect(() => makeWalkIn({ captainDisplayName: '   ' })).toThrow(InvariantViolation);
+  });
+
+  it('rejects a linked captain account', () => {
+    expect(() => makeWalkIn({ captainId: 'captain', captainDisplayName: 'Jamie Q.' })).toThrow(
       InvariantViolation,
     );
   });

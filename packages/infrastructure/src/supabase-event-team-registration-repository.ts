@@ -36,6 +36,7 @@ type EntryRow = {
   team_id: string | null;
   captain_id: string | null;
   display_name: string;
+  captain_display_name: string | null;
   captain_phone: string | null;
   created_at: string;
   updated_at: string;
@@ -125,6 +126,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       team_id: null,
       captain_id: registration.captainId === null ? null : String(registration.captainId),
       display_name: registration.name,
+      captain_display_name: registration.captainDisplayName,
       captain_phone: registration.captainPhone,
     };
 
@@ -228,7 +230,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     const { data, error } = await this.client
       .from('event_team_entries')
       .select(
-        'id, division_id, source, team_id, captain_id, display_name, captain_phone, created_at, updated_at, event_divisions!inner(event_id), payments:event_team_payments(payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note)',
+        'id, division_id, source, team_id, captain_id, display_name, captain_display_name, captain_phone, created_at, updated_at, event_divisions!inner(event_id), payments:event_team_payments(payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note)',
       )
       .eq('id', entryId)
       .neq('source', 'roster')
@@ -250,6 +252,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       team_id: raw.team_id,
       captain_id: raw.captain_id,
       display_name: raw.display_name,
+      captain_display_name: raw.captain_display_name,
       captain_phone: raw.captain_phone,
       created_at: raw.created_at,
       updated_at: raw.updated_at,
@@ -287,7 +290,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       name: row.display_name,
       members,
       source: dbSourceToAggregate(row.source),
-      captainDisplayName: isWalkIn ? row.display_name : null,
+      captainDisplayName: isWalkIn ? row.captain_display_name : null,
       captainPhone: row.captain_phone,
       paymentStatus: payment.payment_status,
       checkoutSessionId: payment.checkout_session_id,

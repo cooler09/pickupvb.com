@@ -831,10 +831,10 @@ export type Database = {
           captain_phone: string | null;
           created_at: string;
           deleted_at: string | null;
+          display_name: string;
           division_id: string;
           forfeited_at: string | null;
           id: string;
-          name: string;
           registered_at: string;
           source: string;
           team_id: string | null;
@@ -846,10 +846,10 @@ export type Database = {
           captain_phone?: string | null;
           created_at?: string;
           deleted_at?: string | null;
+          display_name: string;
           division_id: string;
           forfeited_at?: string | null;
           id?: string;
-          name: string;
           registered_at?: string;
           source: string;
           team_id?: string | null;
@@ -861,10 +861,10 @@ export type Database = {
           captain_phone?: string | null;
           created_at?: string;
           deleted_at?: string | null;
+          display_name?: string;
           division_id?: string;
           forfeited_at?: string | null;
           id?: string;
-          name?: string;
           registered_at?: string;
           source?: string;
           team_id?: string | null;

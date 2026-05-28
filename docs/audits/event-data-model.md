@@ -1388,6 +1388,78 @@ unused `captain_display_name`, bridge-view callers) all unchanged.
 
 ---
 
+### 2026-05-30 — Walk-in registration column-mapping bug (reframes the "unused captain_display_name" follow-up) ✅
+
+**What the old follow-up claimed.** The P3 backlog carried an item to
+drop `event_team_entries.captain_display_name` as "unused." Investigation
+ahead of acting on it surfaced the opposite: the column is _required_
+for every walk-in row by the
+[`event_team_entries_captain_identity`](../../supabase/migrations/20260731000000_collapse_team_registration_tables.sql#L120-L126)
+CHECK constraint, the form layer captures it
+([host-ad-hoc-teams-panel.tsx](../../apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx#L145)
+→ [walk-in-team-actions.ts](../../apps/web/src/app/events/[id]/walk-in-team-actions.ts#L74)),
+the aggregate enforces it
+([event-team-registration.ts](../../packages/domain/src/events/event-team-registration.ts#L189-L189)
+via `assertSourceIdentity`), and the application command threads it
+through to the repo
+([event-team-registration.handler.ts](../../packages/application/src/commands/event-team-registration.handler.ts#L237-L238)).
+The boundary, however, never wrote it.
+
+**Twin bug surfaced in the same surface.** While verifying, a second
+column-name mismatch came to light: the registration repository and the
+event-detail loader both selected and wrote `display_name` against
+`event_team_entries`, but the column was named `name` per the original
+collapse migration. Both consumers were correct in spirit (every sibling
+table uses `display_name`), but `as never as EntryRow` /
+`data as unknown as Raw` casts hid the divergence from typecheck.
+Walk-in inserts would have failed at runtime today.
+
+**Fix.**
+
+1. **Rename the DB column** so every consumer converges on
+   `display_name`:
+   [`20260807000000_event_team_entries_rename_name_to_display_name.sql`](../../supabase/migrations/20260807000000_event_team_entries_rename_name_to_display_name.sql).
+   Postgres rewrites the inline CHECK predicate automatically; the
+   `events_view` and `metro_health_weekly` views don't select the
+   renamed column. Generated types patched in the same change-set
+   ([database.types.ts](../../packages/supabase/src/database.types.ts#L827-L873)).
+2. **Wire `captain_display_name` end-to-end** in the repository
+   ([supabase-event-team-registration-repository.ts](../../packages/infrastructure/src/supabase-event-team-registration-repository.ts#L31-L42))
+   — `EntryRow.captain_display_name`, `save()` payload, `loadOne()`
+   select + Raw mapping, and rehydrate now read from the column instead
+   of falling back to the team name.
+3. **Loader surfaces it** in
+   [load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts#L443-L443)
+   — added `captain_display_name` to the select, the `Raw` type, and
+   `AdHocRegRow`; host walk-in rows now render the typed-at-the-table
+   captain name instead of duplicating the team name.
+4. **Domain regression tests** in
+   [event-team-registration.test.ts](../../packages/domain/src/events/event-team-registration.test.ts#L147-L185)
+   lock in the source ↔ identity discriminant the boundary depends on:
+   walk-in registrations preserve `captainDisplayName` distinct from
+   `name`, reject empty/null captain display names, and reject linked
+   captain accounts.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green (208 domain tests, infra rebuild).
+
+**Pattern this confirms (twice in a row this session).** "Audit says X
+is unused" needs grep-verification before acting — the positional-roster
+discovery (previous bundle) and this captain_display_name discovery
+both started as "drop the dead column" cleanups and turned out to be
+"the column is the bug, not the cleanup." Both were hidden by
+`as never as` casts at the Supabase boundary that bypass generated-types
+validation. Treating those casts as a smell is the durable takeaway —
+prefer typed `.from('table').insert<RowType>(...)` payloads where the
+adapter shape is stable.
+
+**Follow-ups remaining on this audit (carried unchanged from previous
+entries):** `EventTeamRegistration.forfeitedAt` wiring (blocked on
+league host UI), `LeagueSchedule` RPC, bracket-reader `source='roster'`
+filter loosening, bridge-view callers retargeting.
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)

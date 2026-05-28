@@ -301,6 +301,7 @@ type AdHocRegRow = {
   division_id: string;
   captain_id: string | null;
   source: 'ad_hoc' | 'walk_in';
+  captain_display_name: string | null;
   captain_phone: string | null;
   payment_status: 'none' | 'pending' | 'paid' | 'refunded';
   payment_intent_id: string | null;
@@ -440,7 +441,7 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
       const { data } = await getAdminSupabase()
         .from('event_team_entries')
         .select(
-          'id, display_name, division_id, captain_id, source, captain_phone, captain:profiles!event_team_entries_captain_id_fkey(id, display_name), members:event_team_entry_members(id, user_id, display_name, email, sort_order), payment:event_team_payments(payment_status, payment_intent_id, amount_paid_cents, payment_note), event_divisions!inner(event_id)',
+          'id, display_name, division_id, captain_id, source, captain_display_name, captain_phone, captain:profiles!event_team_entries_captain_id_fkey(id, display_name), members:event_team_entry_members(id, user_id, display_name, email, sort_order), payment:event_team_payments(payment_status, payment_intent_id, amount_paid_cents, payment_note), event_divisions!inner(event_id)',
         )
         .eq('event_divisions.event_id', eventId)
         .neq('source', 'roster')
@@ -457,6 +458,7 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
         division_id: string;
         captain_id: string | null;
         source: 'ad_hoc' | 'walk_in';
+        captain_display_name: string | null;
         captain_phone: string | null;
         captain: { id: string; display_name: string | null } | null;
         members: AdHocMemberRow[] | null;
@@ -471,6 +473,7 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
           division_id: r.division_id,
           captain_id: r.captain_id,
           source: r.source,
+          captain_display_name: r.captain_display_name,
           captain_phone: r.captain_phone,
           payment_status: p?.payment_status ?? 'none',
           payment_intent_id: p?.payment_intent_id ?? null,
@@ -819,10 +822,11 @@ async function loadAdHocBundle(
   const hostRows: HostAdHocTeamRow[] =
     event.canManage && privateRows.length > 0
       ? privateRows.map((r) => {
-          // Walk-ins (captain_id null) carry their captain's identity on the
-          // entry's display_name (which we mapped to `name`); for ad-hoc /
-          // captain sources, fall back to the linked profile.
-          const captainName = r.captain_id === null ? r.name : (r.captain?.display_name ?? null);
+          // Walk-ins (captain_id null) carry their captain's identity in
+          // `captain_display_name` (typed at the table by the host); for
+          // ad-hoc / captain sources, fall back to the linked profile.
+          const captainName =
+            r.captain_id === null ? r.captain_display_name : (r.captain?.display_name ?? null);
           return {
             id: r.id,
             name: r.name,
