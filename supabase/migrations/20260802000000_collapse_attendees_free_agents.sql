@@ -594,48 +594,84 @@ grant execute on function public.event_paid_attendee_count(uuid) to anon, authen
 -- with the friends_of_attendees subquery retargeted at event_participants.
 
 create policy events_select on public.events for select using (
-  status = 'published'
-  and deleted_at is null
-  and (
-    visibility = 'public'
-    or (
-      visibility = 'unlisted' and auth.role() is not null
+  auth.uid() = host_id
+  or (
+    host_group_id is not null
+    and exists (
+      select 1 from public.group_members gm
+       where gm.group_id = events.host_group_id
+         and gm.user_id  = auth.uid()
+         and gm.role in ('owner', 'admin')
     )
-    or (
-      visibility = 'invite_only' and (
-        host_id = auth.uid()
-        or exists (
-          select 1 from public.event_co_hosts c
-           where c.event_id = events.id and c.user_id = auth.uid()
+  )
+  or exists (
+    select 1 from public.event_co_hosts ch
+     where ch.event_id = events.id
+       and (
+         ch.host_user_id = auth.uid()
+         or (ch.host_group_id is not null and exists (
+           select 1 from public.group_members gm
+            where gm.group_id = ch.host_group_id
+              and gm.user_id  = auth.uid()
+              and gm.role in ('owner', 'admin')
+         ))
+       )
+  )
+  or (
+    status = 'published' and (
+      visibility = 'public'
+      or visibility = 'invite_only'
+      or (
+        visibility = 'friends_of_host' and (
+          exists (
+            select 1 from public.friendships f
+             where f.user_id = events.host_id
+               and f.friend_id = auth.uid()
+          )
+          or (host_group_id is not null and (
+            exists (
+              select 1 from public.group_followers gf
+               where gf.group_id = events.host_group_id
+                 and gf.user_id  = auth.uid()
+            )
+            or exists (
+              select 1 from public.group_members gm
+               where gm.group_id = events.host_group_id
+                 and gm.user_id  = auth.uid()
+            )
+          ))
+          or exists (
+            select 1 from public.event_co_hosts ch
+             where ch.event_id = events.id
+               and (
+                 (ch.host_user_id is not null and exists (
+                    select 1 from public.friendships f
+                     where f.user_id = ch.host_user_id
+                       and f.friend_id = auth.uid()
+                 ))
+                 or (ch.host_group_id is not null and (
+                    exists (
+                      select 1 from public.group_followers gf
+                       where gf.group_id = ch.host_group_id
+                         and gf.user_id  = auth.uid()
+                    )
+                    or exists (
+                      select 1 from public.group_members gm
+                       where gm.group_id = ch.host_group_id
+                         and gm.user_id  = auth.uid()
+                    )
+                 ))
+               )
+          )
         )
-        or exists (
-          select 1 from public.event_invites i
-           where i.event_id = events.id
-             and i.invitee_user_id = auth.uid()
-             and i.status in ('pending','accepted')
+      )
+      or (
+        visibility = 'friends_of_attendees' and exists (
+          select 1 from public.event_participants p
+            join public.event_divisions d on d.id = p.division_id
+            join public.friendships f on f.user_id = p.user_id and f.friend_id = auth.uid()
+           where d.event_id = events.id and p.role = 'attendee'
         )
-      )
-    )
-    or (
-      visibility = 'group' and host_group_id is not null and exists (
-        select 1 from public.group_members gm
-         where gm.group_id = host_group_id and gm.user_id = auth.uid()
-      )
-    )
-    or (
-      visibility = 'friends_only' and exists (
-        select 1 from public.friendships f
-         where f.user_id = host_id and f.friend_id = auth.uid()
-      )
-    )
-    or (
-      visibility = 'friends_of_attendees' and exists (
-        select 1
-          from public.event_participants p
-          join public.event_divisions d on d.id = p.division_id
-          join public.friendships f
-            on f.user_id = p.user_id and f.friend_id = auth.uid()
-         where d.event_id = events.id and p.role = 'attendee'
       )
     )
   )
