@@ -1,5 +1,29 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 129):** Tokens bundle shipped —
+> the **vocabulary half** of P1 #1 (color roles), P1 #2 (type scale),
+> P2 #5 (elevation scale), P2 #6 (motion scale), P2 #7 (shape scale),
+> and P2 #16 (safe-area) is live in
+> [globals.css](../../apps/web/src/app/globals.css) and the layout
+> [viewport](../../apps/web/src/app/layout.tsx) carries
+> `viewportFit: 'cover'`. New `scripts/gen-palette.ts` generates the
+> tonal palette from the brand seeds (teal `#439093` / coral `#F09B93` /
+> sand `#E9DD8A` / neutral `#183334`) via
+> `@material/material-color-utilities` — re-run on seed change, paste
+> output back in. Zero runtime weight ships.
+>
+> **Importantly the legacy `--tw-color-*` aliases are unchanged** —
+> every existing utility (`bg-primary`, `text-fg`, `bg-surface`, …)
+> renders identically to pre-bundle, so this is a zero-visual-change
+> bundle. M3 roles are exposed as parallel Tailwind utilities under the
+> `md-` prefix (`bg-md-primary`, `text-md-on-surface-variant`,
+> `border-md-outline`, `rounded-shape-md`, `shadow-elevation-2`,
+> `text-headline-md`, `pt-safe`/`pb-safe`/…) ready for opt-in migration
+> in Bundles 2 onward. Per-finding headers flipped to **🟡 Tokens
+> shipped** — the call-site migration half remains open.
+> See [Bundle 129 journal](../journal/2026-05-28-bundle-129.md) and the
+> [Remediation log](#remediation-log).
+
 > **Status (2026-05-28):** New audit. Driven by the observation that
 > mobile UX keeps requiring rework bundle-over-bundle (see
 > [events-page-ux.md](events-page-ux.md), Bundles 117/118/120/121/127/128).
@@ -129,7 +153,7 @@ migrations driven by the per-component backlog below.
 
 ## P1 findings (ship-blocking design-system gaps)
 
-### #1 No principled color system — ad-hoc Tailwind palette utilities mixed with brand tokens
+### #1 No principled color system — ad-hoc Tailwind palette utilities mixed with brand tokens 🟡 Tokens shipped (2026-05-28, Bundle 129)
 
 - **Where:**
   [globals.css#L14-L90](../../apps/web/src/app/globals.css#L14-L90)
@@ -168,7 +192,7 @@ migrations driven by the per-component backlog below.
     keep working — call sites migrate opportunistically. Land as a
     single bundle; zero component changes required.
 
-### #2 No type scale — every heading/body class hand-tuned
+### #2 No type scale — every heading/body class hand-tuned 🟡 Tokens shipped (2026-05-28, Bundle 129)
 
 - **Where:** Page LOC walked: `text-base`, `text-sm`, `text-xs`,
   `text-lg`, `text-xl`, `text-2xl`, `text-3xl` all used without a
@@ -271,7 +295,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   nav items, list items, chip buttons, menu items. Replace per-site
   `hover:opacity-*` and `hover:bg-fg/5` ad-hoc rules.
 
-### #5 No elevation scale — `shadow-sm` / `shadow-md` / `shadow-lg` chosen by feel
+### #5 No elevation scale — `shadow-sm` / `shadow-md` / `shadow-lg` chosen by feel 🟡 Tokens shipped (2026-05-28, Bundle 129)
 
 - **Where:** [primary-button.tsx#L29](../../apps/web/src/components/primary-button.tsx#L29)
   hard-codes `shadow-sm`;
@@ -284,7 +308,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   Rebuild as Tailwind utilities `elevation-0` … `elevation-5`.
   Audit current `shadow-*` usage and map each to the closest M3 level.
 
-### #6 No motion scale — animations one-off
+### #6 No motion scale — animations one-off 🟡 Tokens shipped (2026-05-28, Bundle 129)
 
 - **Where:**
   [globals.css#L150-L175](../../apps/web/src/app/globals.css#L150-L175)
@@ -300,7 +324,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   in [globals.css](../../apps/web/src/app/globals.css) instead of
   per-keyframe (`match-flash` already does this — generalize).
 
-### #7 No shape scale — every container picks its own `rounded-*`
+### #7 No shape scale — every container picks its own `rounded-*` 🟡 Tokens shipped (2026-05-28, Bundle 129)
 
 - **Where:** `rounded-md` (`PrimaryButton`), `rounded-lg` (`FormModal`),
   `rounded-xl` (event cards on `/events`), `rounded-2xl` (hero panel),
@@ -426,7 +450,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   that subtract 4 dp per step. Apply to tables and dense lists
   per-breakpoint (`compact` on `xs`, `comfortable` on `md+`).
 
-### #16 No safe-area handling for iOS notch / Android gesture bar
+### #16 No safe-area handling for iOS notch / Android gesture bar 🟡 Utilities + viewport shipped (2026-05-28, Bundle 129)
 
 - **Where:** Fixed-position elements (mobile menu drawer header,
   FAB once landed, eventual `BottomNav`) need `env(safe-area-inset-*)`
@@ -573,5 +597,42 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 
 ## Remediation log
 
-_(Empty — audit landed 2026-05-28. Update this section as bundles
-ship; flip per-finding headers to ✅ when closed.)_
+### Bundle 129 — Tokens (2026-05-28)
+
+**Files touched:**
+
+- [scripts/gen-palette.ts](../../scripts/gen-palette.ts) (new) —
+  one-shot M3 tonal-palette generator seeded from the brand colors.
+  Run with `pnpm tsx scripts/gen-palette.ts` and paste the output into
+  the color-roles block in `globals.css`. Uses
+  `@material/material-color-utilities` (devDependency only, never
+  ships).
+- [apps/web/src/app/globals.css](../../apps/web/src/app/globals.css) —
+  added: 34 M3 color roles × 2 themes; state-layer alpha tokens; motion
+  duration + easing scales; elevation 0–5 (theme-aware); type scale (15
+  roles wired via `--text-<name>` so Tailwind 4 picks them up as
+  `text-<name>` utilities with line-height + tracking); shape scale via
+  `--radius-shape-<name>` (`rounded-shape-xs/-sm/-md/-lg/-xl/-full`);
+  elevation utilities via `--shadow-elevation-<0–5>`; M3 color roles
+  re-exposed as Tailwind utilities under the `md-` prefix
+  (`bg-md-primary`, `text-md-on-surface`, `border-md-outline`, etc.);
+  `pt-safe`/`pb-safe`/`pl-safe`/`pr-safe` `@utility` shorthands for
+  `env(safe-area-inset-*)`; global `prefers-reduced-motion` reset that
+  defangs all transitions + animations.
+- [apps/web/src/app/layout.tsx](../../apps/web/src/app/layout.tsx) —
+  added `export const viewport: Viewport = { viewportFit: 'cover', … }`
+  so the safe-area utilities resolve to non-zero on notched devices.
+- Root `package.json` devDeps: `@material/material-color-utilities`,
+  `tsx` (palette-script runner).
+
+**Why this is "tokens shipped" not "finding closed":** the M3
+**vocabulary** is now available app-wide, but no component call site has
+been migrated to use it yet. Existing `bg-primary` / `text-fg` /
+`bg-surface` utilities continue to read from the unchanged legacy
+`--tw-color-*` block — pre-bundle and post-bundle screenshots are
+identical. The migration half of each finding stays open and gets
+drawn down by Bundles 2 onward of the recommended sequence.
+
+**Verify:** `pnpm typecheck` 15/15 ✅ · `pnpm lint` warnings only (all
+pre-existing) ✅ · `pnpm test` 179 domain + 50 web ✅ · `pnpm build` 8/8
+(~67 s) ✅.

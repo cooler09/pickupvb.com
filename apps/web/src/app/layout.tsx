@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next/types';
+import type { Viewport } from 'next';
 import { cookies } from 'next/headers';
 import SiteHeader from '@/components/site-header';
 import { SiteFooter } from '@/components/site-footer';
@@ -17,6 +18,19 @@ import './globals.css';
 
 const POSTHOG_BROWSER_KEY = process.env['NEXT_PUBLIC_POSTHOG_KEY'];
 const POSTHOG_BROWSER_HOST = process.env['NEXT_PUBLIC_POSTHOG_HOST'] ?? 'https://us.i.posthog.com';
+
+/**
+ * `viewportFit: 'cover'` lets `env(safe-area-inset-*)` resolve to non-zero
+ * values on iOS notch / Android gesture-bar devices, which the `pt-safe` /
+ * `pb-safe` / `pl-safe` / `pr-safe` utilities in `globals.css` consume.
+ * Required for the M3 BottomNav + FAB landing in later bundles of the
+ * m3-alignment audit, but harmless to ship now.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
   title: {
