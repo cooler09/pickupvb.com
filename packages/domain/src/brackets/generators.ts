@@ -82,6 +82,8 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
         teamBId: null,
         winnerTeamId: null,
         workTeamId: null,
+        court: null,
+        slot: null,
         status: 'pending',
         sets: [],
         advancesToMatchId: feeds ? feeds.id : null,
@@ -198,6 +200,8 @@ export function generateRoundRobin(
         teamBId: b,
         winnerTeamId: null,
         workTeamId: null,
+        court: null,
+        slot: null,
         status: 'pending',
         sets: [],
         advancesToMatchId: null,
@@ -245,6 +249,8 @@ function emptyMatch(
     teamBId: null,
     winnerTeamId: null,
     workTeamId: null,
+    court: null,
+    slot: null,
     status: 'pending',
     sets: [],
     advancesToMatchId: null,
@@ -472,6 +478,7 @@ export function generatePoolPlay(
     schedule: 'round_robin' | 'fixed_games';
     gamesPerTeam: number | null;
     assignWorkTeam?: boolean;
+    courtLabels?: ReadonlyArray<string>;
   },
   mkId: IdFactory,
 ): Match[] {
@@ -505,6 +512,9 @@ export function generatePoolPlay(
     }
     out.push(...stamped);
   }
+  if (options.courtLabels && options.courtLabels.length > 0) {
+    assignCourtsAndSlots(out, options.courtLabels);
+  }
   return out;
 }
 
@@ -534,6 +544,59 @@ function assignIdleWorkTeams(matches: Match[], poolSeeds: ReadonlyArray<Seed>): 
       const work = idle[0]!;
       for (const m of roundMatches) m.workTeamId = work;
     }
+  }
+}
+
+/**
+ * Mutates `matches` in place, assigning each match a 1-indexed `slot`
+ * and a `court` label. Implements greedy graph coloring on the conflict
+ * graph: two matches conflict (cannot share a slot) when they share any
+ * team (`teamAId`, `teamBId`, or `workTeamId`).
+ *
+ * For each match, the lowest-numbered slot that has spare court capacity
+ * (`< courtLabels.length` matches already in it) **and** no team conflict
+ * with matches already in that slot is chosen. If no existing slot fits,
+ * a new slot is appended — slots are unbounded (slots are time, courts
+ * are space).
+ *
+ * Court within a slot is assigned in fill order — the Nth match placed in
+ * a slot takes `courtLabels[N]`. Hosts may override later in the UI.
+ * See ADR 0018.
+ */
+export function assignCourtsAndSlots(matches: Match[], courtLabels: ReadonlyArray<string>): void {
+  const courtCount = courtLabels.length;
+  if (courtCount < 1) return;
+  type SlotState = { teams: Set<TeamId>; size: number };
+  const slots: SlotState[] = [];
+  for (const m of matches) {
+    const involved: TeamId[] = [];
+    if (m.teamAId) involved.push(m.teamAId);
+    if (m.teamBId) involved.push(m.teamBId);
+    if (m.workTeamId) involved.push(m.workTeamId);
+    let assigned = -1;
+    for (let s = 0; s < slots.length; s++) {
+      const slot = slots[s]!;
+      if (slot.size >= courtCount) continue;
+      let conflicts = false;
+      for (const t of involved) {
+        if (slot.teams.has(t)) {
+          conflicts = true;
+          break;
+        }
+      }
+      if (conflicts) continue;
+      assigned = s;
+      break;
+    }
+    if (assigned === -1) {
+      slots.push({ teams: new Set<TeamId>(), size: 0 });
+      assigned = slots.length - 1;
+    }
+    const slot = slots[assigned]!;
+    for (const t of involved) slot.teams.add(t);
+    m.slot = assigned + 1;
+    m.court = courtLabels[slot.size] ?? null;
+    slot.size += 1;
   }
 }
 

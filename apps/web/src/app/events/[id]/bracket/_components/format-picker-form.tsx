@@ -237,6 +237,7 @@ export function FormatPickerForm(props: {
   const [poolSchedule, setPoolSchedule] = useState<'round_robin' | 'fixed_games'>('round_robin');
   const [poolGamesPerTeam, setPoolGamesPerTeam] = useState(2);
   const [requireWorkTeam, setRequireWorkTeam] = useState(false);
+  const [courtLabelsText, setCourtLabelsText] = useState('');
 
   const isPoolPlay = format === 'pool_play_playoff';
   const isFixedGames = isPoolPlay && poolSchedule === 'fixed_games';
@@ -447,6 +448,21 @@ export function FormatPickerForm(props: {
             />
             <span className="text-fg/80">
               Assign a ref / work team per match (the idle team in each pool round)
+            </span>
+          </label>
+          <label className="flex basis-full flex-col text-sm">
+            <span className="text-fg/80">Courts (comma-separated, optional)</span>
+            <input
+              type="text"
+              name="court_labels"
+              value={courtLabelsText}
+              onChange={(e) => setCourtLabelsText(e.target.value)}
+              placeholder="Court 1, Court 2, North gym"
+              className="border-border-base bg-bg rounded border px-2 py-1"
+            />
+            <span className="text-muted mt-1 text-xs">
+              When set, matches are split into parallel time-slots so no team plays or refs on two
+              courts at once. Leave blank to skip slot scheduling.
             </span>
           </label>
           <p className="text-muted basis-full text-xs">

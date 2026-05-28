@@ -38,6 +38,13 @@ export function MatchCard(props: {
         <span>Match {m.matchNumber}</span>
         <span className="capitalize">{m.status.replace('_', ' ')}</span>
       </div>
+      {(m.court || m.slot) && (
+        <p className="text-muted -mt-1 mb-2 text-xs">
+          {m.court ? <span className="text-fg/70 font-medium">{m.court}</span> : null}
+          {m.court && m.slot ? ' · ' : null}
+          {m.slot ? <span>Slot {m.slot}</span> : null}
+        </p>
+      )}
       <ul className="space-y-1">
         <TeamRow team={teamA} wins={aWins} isWinner={winner === m.teamAId} />
         <TeamRow team={teamB} wins={bWins} isWinner={winner === m.teamBId} />

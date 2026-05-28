@@ -48,6 +48,8 @@ type MatchRow = {
   team_b_id: string | null;
   winner_team_id: string | null;
   work_team_id: string | null;
+  court: string | null;
+  slot: number | null;
   status: MatchStatus;
   advances_to_match_id: string | null;
   advances_to_slot: 'a' | 'b' | null;
@@ -162,6 +164,8 @@ export class SupabaseBracketRepository implements BracketRepository {
       teamBId: m.team_b_id ? (m.team_b_id as TeamId) : null,
       winnerTeamId: m.winner_team_id ? (m.winner_team_id as TeamId) : null,
       workTeamId: m.work_team_id ? (m.work_team_id as TeamId) : null,
+      court: m.court,
+      slot: m.slot,
       status: m.status,
       sets: setsByMatch.get(m.id) ?? [],
       advancesToMatchId: m.advances_to_match_id ? (m.advances_to_match_id as MatchId) : null,
@@ -239,6 +243,8 @@ export class SupabaseBracketRepository implements BracketRepository {
       team_b_id: m.teamBId,
       winner_team_id: m.winnerTeamId,
       work_team_id: m.workTeamId,
+      court: m.court,
+      slot: m.slot,
       status: m.status,
       scheduled_at: m.scheduledAt?.toISOString() ?? null,
       updated_at: new Date().toISOString(),

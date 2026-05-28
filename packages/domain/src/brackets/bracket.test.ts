@@ -3,9 +3,11 @@ import {
   ALLOWED_BEST_OF,
   Bracket,
   DEFAULT_BRACKET_CONFIG,
+  assignCourtsAndSlots,
   generatePoolPlay,
   generateRoundRobin,
   type BracketId,
+  type Match,
   type MatchId,
   type Seed,
 } from './index.js';
@@ -318,5 +320,128 @@ describe('Bracket.create requireWorkTeam', () => {
       requireWorkTeam: true,
     });
     expect(b.config.requireWorkTeam).toBe(true);
+  });
+});
+
+// ---- Phase 3: courts + parallel-slot solver -------------------------
+
+describe('assignCourtsAndSlots', () => {
+  it('is a no-op when courtLabels is empty', () => {
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      { schedule: 'round_robin', gamesPerTeam: null },
+      mkIdFactory(),
+    );
+    assignCourtsAndSlots(matches, []);
+    for (const m of matches) {
+      expect(m.court).toBeNull();
+      expect(m.slot).toBeNull();
+    }
+  });
+
+  it('never puts the same team in two matches in the same slot', () => {
+    const matches = generatePoolPlay(
+      seedTeams(12),
+      3,
+      { schedule: 'round_robin', gamesPerTeam: null, courtLabels: ['C1', 'C2'] },
+      mkIdFactory(),
+    );
+    // Group by slot, check team uniqueness.
+    const bySlot = new Map<number, Match[]>();
+    for (const m of matches) {
+      expect(m.slot).not.toBeNull();
+      const list = bySlot.get(m.slot!) ?? [];
+      list.push(m);
+      bySlot.set(m.slot!, list);
+    }
+    for (const [, list] of bySlot) {
+      const teams = new Set<string>();
+      for (const m of list) {
+        for (const t of [m.teamAId, m.teamBId]) {
+          if (t) {
+            expect(teams.has(t)).toBe(false);
+            teams.add(t);
+          }
+        }
+      }
+    }
+  });
+
+  it('respects court count: no slot has more matches than courts', () => {
+    const matches = generatePoolPlay(
+      seedTeams(12),
+      3,
+      { schedule: 'round_robin', gamesPerTeam: null, courtLabels: ['C1', 'C2'] },
+      mkIdFactory(),
+    );
+    const countsBySlot = new Map<number, number>();
+    for (const m of matches) {
+      countsBySlot.set(m.slot!, (countsBySlot.get(m.slot!) ?? 0) + 1);
+    }
+    for (const [, n] of countsBySlot) expect(n).toBeLessThanOrEqual(2);
+  });
+
+  it('assigns court labels from the provided list', () => {
+    const labels = ['Court A', 'Court B'];
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      { schedule: 'round_robin', gamesPerTeam: null, courtLabels: labels },
+      mkIdFactory(),
+    );
+    for (const m of matches) expect(labels).toContain(m.court);
+  });
+
+  it('treats workTeamId as a slot conflict', () => {
+    // 6 teams / 2 pools = 3-team pools. Odd → one idle team per round.
+    const matches = generatePoolPlay(
+      seedTeams(6),
+      2,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        assignWorkTeam: true,
+        courtLabels: ['C1', 'C2'],
+      },
+      mkIdFactory(),
+    );
+    const bySlot = new Map<number, Match[]>();
+    for (const m of matches) {
+      const list = bySlot.get(m.slot!) ?? [];
+      list.push(m);
+      bySlot.set(m.slot!, list);
+    }
+    for (const [, list] of bySlot) {
+      const involved = new Set<string>();
+      for (const m of list) {
+        for (const t of [m.teamAId, m.teamBId, m.workTeamId]) {
+          if (t) {
+            expect(involved.has(t)).toBe(false);
+            involved.add(t);
+          }
+        }
+      }
+    }
+  });
+});
+
+// ---- Bracket.create courtLabels default -----------------------------
+
+describe('Bracket.create courtLabels', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  it('defaults courtLabels to empty', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff');
+    expect(b.config.courtLabels).toEqual([]);
+  });
+
+  it('accepts a courtLabels list', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      courtLabels: ['Court 1', 'Court 2'],
+    });
+    expect(b.config.courtLabels).toEqual(['Court 1', 'Court 2']);
   });
 });

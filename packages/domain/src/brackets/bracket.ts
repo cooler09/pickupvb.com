@@ -51,6 +51,14 @@ export interface BracketConfig {
    * teams stay null and the UI hides the column. See ADR 0018.
    */
   requireWorkTeam: boolean;
+  /**
+   * Free-text court labels (e.g. `['Court 1', 'Court 2', 'North gym']`).
+   * When non-empty, the pool-play generator assigns each match a
+   * `slot` (parallel time-block) and a `court` from this list such
+   * that no team plays or refs two matches in the same slot.
+   * Empty array (default) disables slot/court assignment. See ADR 0018.
+   */
+  courtLabels: ReadonlyArray<string>;
 }
 
 export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
@@ -61,6 +69,7 @@ export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   poolSchedule: 'round_robin',
   poolGamesPerTeam: null,
   requireWorkTeam: false,
+  courtLabels: [],
 };
 
 /** `bestOf` values the host can pick. Other odd values are rejected at create-time. */
@@ -240,6 +249,7 @@ export class Bracket extends AggregateRoot<BracketId> {
             schedule: this._config.poolSchedule,
             gamesPerTeam: this._config.poolGamesPerTeam,
             assignWorkTeam: this._config.requireWorkTeam,
+            courtLabels: this._config.courtLabels,
           },
           idFactory,
         );

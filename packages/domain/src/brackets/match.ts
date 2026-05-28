@@ -38,6 +38,19 @@ export interface Match {
   workTeamId: TeamId | null;
   status: MatchStatus;
   sets: MatchSet[];
+  /**
+   * Court label (free text, chosen from `BracketConfig.courtLabels`) the
+   * match is scheduled on. Paired with {@link slot} — matches sharing a
+   * slot run in parallel on different courts. Null when courts are not
+   * configured. See ADR 0018.
+   */
+  court: string | null;
+  /**
+   * 1-indexed time slot. All matches with the same `slot` run in
+   * parallel; teams playing in slot N must not also play or ref any
+   * other match in slot N. Null when courts are not configured.
+   */
+  slot: number | null;
   /** Wiring: when this match completes, place the winner here. */
   readonly advancesToMatchId: MatchId | null;
   readonly advancesToSlot: AdvanceSlot | null;

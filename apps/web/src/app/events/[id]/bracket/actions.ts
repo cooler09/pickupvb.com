@@ -107,6 +107,12 @@ export async function createBracketFromForm(
       }
     }
     if (formData.get('require_work_team') != null) config.requireWorkTeam = true;
+    const rawCourts = String(formData.get('court_labels') ?? '');
+    const courts = rawCourts
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (courts.length > 0) config.courtLabels = courts;
   }
   await createBracket(
     eventId,
