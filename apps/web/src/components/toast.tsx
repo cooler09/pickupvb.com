@@ -176,7 +176,7 @@ function ToastItem({ toast: t, dismiss }: { toast: Toast; dismiss: (id: string) 
             t.title ? `Dismiss notification: ${t.title}` : `Dismiss notification: ${t.message}`
           }
           onClick={() => dismiss(t.id)}
-          className={`-mt-1 -mr-1 rounded-md px-1.5 text-lg leading-none opacity-70 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${VARIANT_RING_CLASSES[t.variant]}`}
+          className={`tap-target -mt-1 -mr-1 rounded-md text-lg leading-none opacity-70 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${VARIANT_RING_CLASSES[t.variant]}`}
         >
           <span aria-hidden>×</span>
         </button>

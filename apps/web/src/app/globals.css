@@ -476,6 +476,30 @@ body {
 }
 
 /*
+ * ============================================================================
+ *  M3 touch-target utility (Bundle 2 — P1 #3).
+ *
+ *  Material Design 3 mandates a 48 dp minimum touch target on mobile; WCAG
+ *  2.5.8 (AA, new in 2.2) requires 24 px minimum. 48 px = 12 × 4 px in
+ *  Tailwind v4's default spacing scale, so `min-h-12 min-w-12` reaches the
+ *  M3 target directly. The flex centering keeps the visual icon small while
+ *  growing the *hit area* outward — visual change is generally zero on
+ *  components that previously sized themselves via padding.
+ *
+ *  Apply to every icon-only `<button>` (close `×`, kebab/menu triggers,
+ *  +/− steppers, drag handles). Text-bearing controls that already exceed
+ *  48 dp through their content do not need this utility.
+ * ============================================================================
+ */
+@utility tap-target {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  min-height: 3rem;
+}
+
+/*
  * Honor `prefers-reduced-motion` globally — defangs all CSS transitions /
  * animations / smooth-scroll for users who request it. Per-component motion
  * (e.g. `match-flash` above) can still opt back in with a deliberate

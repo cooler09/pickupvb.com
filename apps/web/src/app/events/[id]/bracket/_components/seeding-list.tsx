@@ -92,7 +92,7 @@ export function SeedingList({ orderedTeams }: { orderedTeams: ReadonlyArray<Team
               aria-label={`Move ${t.name} up`}
               onClick={() => move(i, i - 1)}
               disabled={i === 0}
-              className="text-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
+              className="tap-target text-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
             >
               ↑
             </button>
@@ -101,7 +101,7 @@ export function SeedingList({ orderedTeams }: { orderedTeams: ReadonlyArray<Team
               aria-label={`Move ${t.name} down`}
               onClick={() => move(i, i + 1)}
               disabled={i === teams.length - 1}
-              className="text-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
+              className="tap-target text-muted hover:text-fg disabled:cursor-not-allowed disabled:opacity-30"
             >
               ↓
             </button>

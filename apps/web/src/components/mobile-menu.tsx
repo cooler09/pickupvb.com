@@ -96,7 +96,7 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
         aria-expanded={open}
         aria-controls="mobile-nav"
         onClick={() => setOpen((v) => !v)}
-        className="border-border-base text-fg hover:bg-fg/5 inline-flex h-11 w-11 items-center justify-center rounded-md border"
+        className="border-border-base text-fg hover:bg-fg/5 tap-target rounded-md border"
       >
         {open ? (
           <svg

@@ -112,7 +112,7 @@ export function FormModal({
                 type="button"
                 onClick={close}
                 aria-label="Close"
-                className="text-fg/60 hover:text-fg -m-1 rounded p-1 text-lg leading-none"
+                className="tap-target text-fg/60 hover:text-fg -m-2 rounded text-lg leading-none"
               >
                 ×
               </button>

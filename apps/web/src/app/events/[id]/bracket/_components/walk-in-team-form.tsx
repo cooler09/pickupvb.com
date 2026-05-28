@@ -91,7 +91,7 @@ export function WalkInTeamForm(props: {
                 type="button"
                 onClick={() => removeRow(id)}
                 aria-label={`Remove player ${idx + 1}`}
-                className="border-border-base text-fg/60 hover:bg-fg/5 hover:text-fg rounded border px-2 py-1 text-xs"
+                className="border-border-base text-fg/60 hover:bg-fg/5 hover:text-fg tap-target rounded border text-xs"
               >
                 ✕
               </button>

@@ -295,7 +295,7 @@ function ReorderControls(props: {
           type="submit"
           disabled={!props.canMoveUp}
           aria-label="Move match earlier"
-          className="border-border-base rounded border px-1.5 py-0.5 disabled:opacity-30"
+          className="border-border-base tap-target rounded border disabled:opacity-30"
         >
           ↑
         </button>
@@ -310,7 +310,7 @@ function ReorderControls(props: {
           type="submit"
           disabled={!props.canMoveDown}
           aria-label="Move match later"
-          className="border-border-base rounded border px-1.5 py-0.5 disabled:opacity-30"
+          className="border-border-base tap-target rounded border disabled:opacity-30"
         >
           ↓
         </button>

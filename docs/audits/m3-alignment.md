@@ -1,5 +1,17 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 130):** Touch-targets sweep
+> shipped — P1 #3 closed. New `tap-target` Tailwind 4 `@utility`
+> (`3rem × 3rem` min, flex-centered) defined in
+> [globals.css](../../apps/web/src/app/globals.css) and applied to every
+> icon-only `<button>` flagged by the audit: toast close,
+> `FormModal` close, mobile-menu hamburger, notification bell,
+> pagination prev/next, co-host remove, bracket seeding move-up/down,
+> bracket board move-earlier/later, walk-in player remove. Visual change
+> is intentionally minimal — only the **hit area** grows. Verify 15/15
+> typecheck · lint warnings only · 179+50 tests · 8/8 build. See
+> [Bundle 130 journal](../journal/2026-05-28-bundle-130.md).
+
 > **Status update (2026-05-28, Bundle 129):** Tokens bundle shipped —
 > the **vocabulary half** of P1 #1 (color roles), P1 #2 (type scale),
 > P2 #5 (elevation scale), P2 #6 (motion scale), P2 #7 (shape scale),
@@ -231,7 +243,7 @@ migrations driven by the per-component backlog below.
   forbids new `text-3xl` / `text-2xl` etc. once the migration
   reaches green.
 
-### #3 Mobile touch targets — drift below 48 dp outside primary nav
+### #3 Mobile touch targets — drift below 48 dp outside primary nav 🟢 Fixed (2026-05-28, Bundle 130)
 
 - **Where:** [accessibility.md](accessibility.md) closed the mobile-nav
   P2 (44 px on hamburger + bell). Drift is back elsewhere:
@@ -596,6 +608,54 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 130 — Touch targets sweep (2026-05-28)
+
+Closes **P1 #3** (mobile touch targets drift below 48 dp).
+
+**Files touched:**
+
+- [apps/web/src/app/globals.css](../../apps/web/src/app/globals.css) —
+  added `@utility tap-target` (`display: inline-flex; align/justify
+center; min-width: 3rem; min-height: 3rem`). 48 px = M3 minimum;
+  matches WCAG 2.5.8 AA (24 px floor) with the design-system target.
+  Composes additively — no per-component overrides needed.
+- [apps/web/src/components/toast.tsx](../../apps/web/src/components/toast.tsx) —
+  toast `×` close: dropped `-mt-1 -mr-1 px-1.5` for `tap-target`.
+  Hit area went from ~24 × 28 px to 48 × 48 px.
+- [apps/web/src/components/form-modal.tsx](../../apps/web/src/components/form-modal.tsx) —
+  modal `×` close: dropped `p-1 -m-1`, added `tap-target -m-2` to
+  preserve visual flush-corner placement.
+- [apps/web/src/components/pagination.tsx](../../apps/web/src/components/pagination.tsx) —
+  Prev/Next links: replaced `inline-flex items-center py-1.5` with
+  `tap-target` (kept `px-3` for horizontal label padding).
+- [apps/web/src/components/notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx) —
+  bell trigger: replaced `h-11 w-11 flex items-center justify-center`
+  with `tap-target` (44 → 48 px).
+- [apps/web/src/components/mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx) —
+  hamburger: same swap (44 → 48 px). The fixed-inset backdrop
+  `<button>` is already viewport-sized; not touched.
+- [apps/web/src/app/events/[id]/\_components/hosts-section.tsx](../../apps/web/src/app/events/[id]/_components/hosts-section.tsx) —
+  both co-host remove `✕` buttons (group + user variants).
+- [apps/web/src/app/events/[id]/bracket/\_components/seeding-list.tsx](../../apps/web/src/app/events/[id]/bracket/_components/seeding-list.tsx) —
+  move-up / move-down `↑` `↓` arrows.
+- [apps/web/src/app/events/[id]/bracket/\_components/board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx) —
+  move-match earlier / later arrows.
+- [apps/web/src/app/events/[id]/bracket/\_components/walk-in-team-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/walk-in-team-form.tsx) —
+  remove-player `✕`.
+
+**Deferred:** `NavDropdown` chevron trigger (text label dominates the
+hit area, already meets 24 px), `<details>`-based share menu in
+[share-link.tsx](../../apps/web/src/components/share-link.tsx) (label +
+icon together exceed 48 px width), filter chips in
+[active-filter-chips.tsx](../../apps/web/src/app/events/_components/active-filter-chips.tsx)
+(M3 Chip spec targets 32 dp, not 48 — handled in the eventual P3 chip
+primitive). Lint rule that warns on icon-only `<button>` without
+`tap-target` deferred to a follow-up bundle once the call-site pattern
+is fully consistent.
+
+**Verify:** `pnpm typecheck` ✅ · `pnpm lint` warnings only (all
+pre-existing) ✅ · `pnpm test` 179 + 50 ✅ · `pnpm build` 8/8 (~49 s) ✅.
 
 ### Bundle 129 — Tokens (2026-05-28)
 
