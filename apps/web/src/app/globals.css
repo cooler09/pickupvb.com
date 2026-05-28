@@ -610,6 +610,110 @@ body {
 }
 
 /*
+ * ============================================================================
+ *  M3 dialog motion (Bundle 6 — P2 #9).
+ *
+ *  Applied to Radix `Dialog.Overlay` (via `.md-dialog-overlay`) and
+ *  `Dialog.Content` (via `.md-dialog-motion`). Enter uses
+ *  `emphasized-decelerate` at `medium2` (content lands), exit uses
+ *  `emphasized-accelerate` at `short4` (content leaves). The overlay
+ *  fades on the same curve so the dimming and the surface move
+ *  together. Centered dialog enters from a 4 px lift + 2% scale-up.
+ * ============================================================================
+ */
+@keyframes md-overlay-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes md-overlay-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes md-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 0.25rem)) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes md-dialog-exit {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 0.25rem)) scale(0.98);
+  }
+}
+.md-dialog-overlay[data-state='open'] {
+  animation: md-overlay-enter var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.md-dialog-overlay[data-state='closed'] {
+  animation: md-overlay-exit var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+.md-dialog-motion[data-state='open'] {
+  animation: md-dialog-enter var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.md-dialog-motion[data-state='closed'] {
+  animation: md-dialog-exit var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+
+/*
+ * ============================================================================
+ *  M3 bottom-sheet motion (Bundle 6 — P2 #14).
+ *
+ *  Applied to Radix `Dialog.Content` via `.md-sheet-motion` when
+ *  `presentation='sheet'` or (below `sm`) `presentation='auto'`.
+ *  Slide-up from the bottom edge with the same emphasized-decelerate
+ *  / accelerate pair so dialog and sheet feel like one family.
+ *
+ *  The `auto` presentation composes `.md-sheet-motion sm:md-dialog-motion`,
+ *  so at `sm:` the sheet keyframes are replaced by the dialog
+ *  keyframes via Tailwind's responsive variant.
+ * ============================================================================
+ */
+@keyframes md-sheet-enter {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes md-sheet-exit {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+.md-sheet-motion[data-state='open'] {
+  animation: md-sheet-enter var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.md-sheet-motion[data-state='closed'] {
+  animation: md-sheet-exit var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+
+/*
  * Honor `prefers-reduced-motion` globally — defangs all CSS transitions /
  * animations / smooth-scroll for users who request it. Per-component motion
  * (e.g. `match-flash` above) can still opt back in with a deliberate

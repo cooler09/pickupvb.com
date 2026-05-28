@@ -1,5 +1,36 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 134):** Dialog + BottomSheet
+> shipped — **P2 #9 closed** and **P2 #14 closed**.
+> [form-modal.tsx](../../apps/web/src/components/form-modal.tsx)
+> migrated off the native `<dialog>` element onto
+> `@radix-ui/react-dialog` while preserving the public API — the
+> three existing call sites (host-ad-hoc-teams panel, no-bracket
+> view, setup view) needed zero edits. The two `useEffect` bridges
+> (one to `showModal()`, one for browser-initiated `close`) are
+> gone; Radix gives us controlled `open` state for free, real
+> backdrop-click + Escape on every browser, and `data-state`
+> attributes the M3 motion tokens animate against. New M3
+> affordances: optional **`icon` prop** (M3 dialog icon slot above
+> the title), **`presentation` prop** — `'dialog'` (default,
+> centered card), `'sheet'` (bottom sheet on every viewport), or
+> `'auto'` (sheet below `sm`, dialog above) — sheet anchors to the
+> bottom edge with a drag-handle nub and `pb-safe` for the iOS
+> notch, and a new **`<ModalActions>`** export with named
+> `destructive` / `dismissive` / `confirming` slots enforcing M3's
+> action ordering. `<ModalFooter>` stays exported as the unstyled
+> escape hatch already used by Bundle 128 call sites. Motion
+> bridged via three new CSS classes in
+> [globals.css](../../apps/web/src/app/globals.css)
+> (`.md-dialog-overlay`, `.md-dialog-motion`, `.md-sheet-motion`)
+> with five `@keyframes` consuming the Bundle 129 motion tokens
+> (`--md-sys-motion-duration-medium2/short4` +
+> `--md-sys-motion-easing-emphasized-{decelerate,accelerate}`).
+> `RadixDialog.Close` carries `tap-target` + `state-layer` (Bundles
+> 130/131). Verify 15/15 typecheck · lint 3 pre-existing warnings ·
+> 179+50 tests · 8/8 build. See
+> [Bundle 134 journal](../journal/2026-05-28-bundle-134.md).
+
 > **Status update (2026-05-28, Bundle 133):** BottomNav + FAB primitive
 > shipped — **P2 #11 closed**; **P2 #10 primitive + reference call site
 > shipped** (multi-page rollout deferred). New
@@ -438,7 +469,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   M3 enter/exit motion tokens. Keep the existing `useToast()` API so
   call sites don't change.
 
-### #9 Dialog primitive lacks M3 affordances
+### #9 Dialog primitive lacks M3 affordances 🟢 Fixed (2026-05-28, Bundle 134)
 
 - **Where:** [form-modal.tsx](../../apps/web/src/components/form-modal.tsx)
   is a solid native `<dialog>` shell shipped in Bundle 128, but it
@@ -513,7 +544,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   rather than replacing it). Migrate forms surface-by-surface;
   existing `<input>` calls keep working until migrated.
 
-### #14 Bottom sheet primitive missing — modals on mobile are visually wrong
+### #14 Bottom sheet primitive missing — modals on mobile are visually wrong 🟢 Fixed (2026-05-28, Bundle 134)
 
 - **Where:** The Bundle 128 `FormModal` centers a `max-w-md` card on
   every viewport. On mobile this loses ~30% of vertical space to
@@ -682,6 +713,111 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 134 — Dialog + BottomSheet on Radix (2026-05-28)
+
+Closes **P2 #9** (Dialog primitive lacks M3 affordances) and **P2 #14**
+(Bottom sheet primitive missing).
+
+**Files touched:**
+
+- [apps/web/package.json](../../apps/web/package.json) — added
+  `@radix-ui/react-dialog` as a runtime dependency, following the
+  documented `pnpm --filter @pickupvb/web add …` + `pnpm install`
+  peer-dep reconciliation pattern.
+- [apps/web/src/components/form-modal.tsx](../../apps/web/src/components/form-modal.tsx)
+  — full rewrite on Radix primitives. **Public API preserved
+  one-for-one** — same `<FormModal trigger title description size>`
+  shape, same `children` node-or-render-prop, same `CloseOnSettled`
+  - `ModalFooter` exports. Three call sites (`host-ad-hoc-teams-panel.tsx`,
+    `no-bracket-view.tsx`, `setup-view.tsx`) needed no edits. Two
+    legacy `useEffect` bridges gone: the one in
+    [old form-modal.tsx#L72-L89] that drove `el.showModal()` from
+    React state, and the one that listened for browser-initiated
+    `'close'` events. Radix's controlled `open` + `onOpenChange`
+    collapses both into a single `useState`. Backdrop click + Escape
+    now work consistently on every browser (native `<dialog>`
+    backdrop-click is still spotty on Safari).
+
+  Additive M3 affordances:
+  - `icon?: ReactNode` prop — M3 dialog icon slot, centered above
+    the title in `text-md-primary`; title + description center when
+    an icon is present per M3 spec.
+  - `presentation?: 'dialog' | 'sheet' | 'auto'` prop — `'dialog'`
+    (default) preserves the Bundle 128 centered card,
+    `'sheet'` anchors a full-width bottom sheet with rounded top
+    corners + drag-handle nub + `pb-safe`, `'auto'` composes
+    `md-sheet-motion sm:md-dialog-motion` and the responsive layout
+    flips so a single Radix `<Content>` covers both viewports.
+  - `<ModalActions>` new export — named
+    `destructive` / `dismissive` / `confirming` slots that handle
+    M3's `[destructive]   …   [dismissive] [confirming]` ordering
+    automatically; on `<sm` collapses to a `column-reverse` stack so
+    the primary action stays nearest the thumb.
+  - Close button keeps `tap-target` (Bundle 130) + adopts
+    `state-layer` (Bundle 131) and `rounded-full` per M3 icon-button
+    spec.
+
+- [apps/web/src/app/globals.css](../../apps/web/src/app/globals.css)
+  — new M3 dialog motion section after `.md-toast-motion`. Five
+  `@keyframes` (`md-overlay-enter`, `md-overlay-exit`, `md-dialog-enter`,
+  `md-dialog-exit`, `md-sheet-enter`, `md-sheet-exit`) and three
+  classes (`.md-dialog-overlay`, `.md-dialog-motion`,
+  `.md-sheet-motion`) bound to Radix's `[data-state='open'|'closed']`.
+  Enter uses `emphasized-decelerate` at `medium2`, exit uses
+  `emphasized-accelerate` at `short4` — same pair as toast so dialog
+  - sheet + snackbar feel like one motion family. Centered dialog
+    enters from a 4 px lift + 2% scale-up; sheet enters via
+    `translateY(100%) → 0`. Reduced-motion global block already
+    defangs both.
+
+**Decisions:**
+
+- **Preserve public API at all costs.** The Bundle 128 call sites
+  were carefully written and tested; this bundle is a primitive
+  swap, not a call-site migration. New affordances added strictly
+  as **optional props** so the diff at every call site is zero.
+- **`<ModalActions>` is additive, not a `ModalFooter` replacement.**
+  Existing call sites use `ModalFooter` with custom button rows that
+  already match M3 ordering by hand. Renaming/forcing migration
+  would risk regressing the working layouts. New code is encouraged
+  to use `<ModalActions>` for the slot enforcement.
+- **Single `<Content>` for `presentation='auto'` instead of two
+  conditional renders.** Composes `md-sheet-motion sm:md-dialog-motion`
+  and switches positioning at `sm:` via Tailwind responsive prefixes.
+  Keeps the focus trap + portal lifecycle stable across the
+  breakpoint (no remount on rotation).
+- **`<span style={{ display: 'contents' }}>` wraps the trigger
+  render-prop output.** Radix's `Dialog.Trigger asChild` requires a
+  single forwardRef child; legacy call sites pass arbitrary JSX
+  (buttons, links, styled divs) into `(open) => …`. The contents
+  wrapper keeps the wrapper out of the layout while giving Radix
+  the single element it needs — the imperative `open()` callback
+  the caller wires onto their element handles the actual trigger
+  logic, so we don't need `Trigger asChild` semantics at all and
+  instead just render the trigger output adjacent to `Portal`.
+- **No `vaul` for swipe-to-dismiss yet.** Audit mentions `vaul` as
+  an option; Radix Dialog alone covers the visual + a11y story.
+  Touch-drag dismiss is a follow-up if real usage demands it.
+
+**Follow-ups deferred** (tracked in [Bundle 134 journal](../journal/2026-05-28-bundle-134.md)):
+
+- Migrate the two existing `ModalFooter` call sites to
+  `<ModalActions>` once a real change touches those forms (cheap
+  diff but no value in a churn-only PR).
+- Pick a first `presentation='auto'` adoption site — likely the
+  walk-in team form on `host-ad-hoc-teams-panel.tsx` (the largest
+  modal, most-likely benefit from full-width on mobile).
+- Add `vaul`-style swipe-down-to-dismiss on the sheet variant if
+  user testing shows the close button is awkward on mobile.
+- Audit other native `<dialog>` users
+  ([report-bug-button.tsx], [confirm-submit-button.tsx]) for whether
+  they should migrate onto Radix as well or stay native (smaller
+  one-off use cases may not be worth the dep weight per call site).
+
+**Verify:** typecheck 15/15 ✓ · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings ✓ · 179 domain + 50 web tests ✓ ·
+8/8 build ✓.
 
 ### Bundle 133 — BottomNav + FAB primitive (2026-05-28)
 
