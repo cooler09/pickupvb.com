@@ -1,5 +1,31 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 132):** Radix Toast shipped —
+> **P2 #8 closed**. [toast.tsx](../../apps/web/src/components/toast.tsx)
+> rewritten on `@radix-ui/react-toast` while preserving the
+> `useToast()` public API (zero call-site edits). Brings the toast
+> system in line with M3 Snackbar: **single-visible queueing** (head
+> renders, rest held in React state — assertable queue depth on the
+> context for tests); **action slot** (`Toast.action = { label,
+altText?, onClick }` wired through `<RadixToast.Action>` for
+> recovery flows like "Couldn't save. **Retry**"); **M3 duration
+> policy** via `defaultDurationMs` — 10 s for errors, 6 s when an
+> action is present, 5 s otherwise (callers override via
+> `durationMs`; `0` → persistent); **bottom-center on mobile /
+> bottom-right on `≥ sm` with `pb-safe`**; **`type="foreground"` for
+> errors/warnings → `aria-live='assertive'`, `"background"` for the
+> rest → `polite`**. Motion uses one new `md-toast-motion` CSS
+> class in [globals.css](../../apps/web/src/app/globals.css) (three
+> `@keyframes` bound to Radix's `[data-state]` / `[data-swipe]`
+> attributes) consuming the Bundle 129 motion tokens
+> (`--md-sys-motion-duration-medium2/short3/short4` +
+> `--md-sys-motion-easing-emphasized-{accelerate,decelerate}`) — no
+> new animation dep. Per-variant focus rings + `tap-target`
+> (Bundle 130) preserved on Close + Action buttons. Radix convention
+> documented in [AGENTS.md](../../AGENTS.md#ui-primitives--radix-ui).
+> Verify 15/15 typecheck · lint warnings only · 179+50 tests · 8/8
+> build. See [Bundle 132 journal](../journal/2026-05-28-bundle-132.md).
+
 > **Status update (2026-05-28, Bundle 131):** State layers + button
 > vocabulary shipped — vocabulary half of P2 #4 closed. New
 > `@utility state-layer` in [globals.css](../../apps/web/src/app/globals.css)
@@ -341,7 +367,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
 
 ### #6 No motion scale — animations one-off 🟡 Tokens shipped (2026-05-28, Bundle 129)
 
-- **Where:**
+- **Where:** 🟢 Fixed (2026-05-28, Bundle 132)
   [globals.css#L150-L175](../../apps/web/src/app/globals.css#L150-L175)
   defines `match-flash` with hard-coded `1.6s ease-out`. Toast
   enter/exit, modal open/close, dropdown reveal, drawer slide — each
@@ -627,6 +653,82 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 132 — Radix Toast (2026-05-28)
+
+Closes **P2 #8** (Toast UX diverges from M3 Snackbar).
+
+**Files touched:**
+
+- [apps/web/package.json](../../apps/web/package.json) — added
+  `@radix-ui/react-toast` as a runtime dependency (peer-dep
+  reconciliation followed the documented `pnpm install` after
+  `pnpm --filter @pickupvb/web add …` pattern).
+- [apps/web/src/components/toast.tsx](../../apps/web/src/components/toast.tsx) —
+  full rewrite on Radix primitives while preserving the
+  `useToast()`, `Toast`, `ToastVariant`, `ToastProvider` exports
+  one-for-one. New additive `ToastAction` interface
+  (`{ label; altText?; onClick }`) hung off `Toast.action`. Queue
+  semantics: provider holds `Toast[]` in React state, renders only
+  `toasts[0]` inside `<RadixToast.Provider swipeDirection="right">`;
+  `dismiss(id)` filters by id; second `show()` while one is visible
+  appends. Duration: `defaultDurationMs(t)` returns 10 000 for
+  errors, 6 000 when `action` is present, 5 000 otherwise; the
+  prop-supplied `0` is mapped to `POSITIVE_INFINITY`. Variant →
+  Radix `type` mapping: errors / warnings → `'foreground'`
+  (assertive); the rest → `'background'` (polite). Viewport
+  positioned `fixed inset-x-0 bottom-4 mx-auto … sm:right-6
+sm:bottom-6 sm:left-auto sm:items-end` with `pb-safe`.
+  Per-variant focus-ring classes (Bundle 44) preserved on both
+  Close and Action; Close keeps `tap-target` (Bundle 130).
+  `FlashReader` (URL `?rsvp=…` consumer) preserved unchanged inside
+  the provider's `<Suspense>`.
+- [apps/web/src/app/globals.css](../../apps/web/src/app/globals.css) —
+  added one new `.md-toast-motion` class block right after the
+  `@utility state-layer` block: three `@keyframes`
+  (`md-toast-enter` opacity + translateY, `md-toast-exit` fade,
+  `md-toast-swipe-out` translateX-to-edge + fade) bound to Radix's
+  `[data-state='open' | 'closed']` and `[data-swipe='move' |
+'cancel' | 'end']` attribute selectors. Durations + easings pull
+  from the Bundle 129 motion tokens — no new animation dep.
+
+**Why this closes the finding cleanly:**
+
+- The two existing `useToast()` call sites
+  ([layout.tsx](../../apps/web/src/app/layout.tsx),
+  [near-me-button.tsx](../../apps/web/src/app/events/near-me-button.tsx))
+  required **zero edits** — the public surface is byte-compatible
+  except for the new optional `action?` field.
+- The exact M3 Snackbar contract is now in code: one visible at a
+  time, action slot, foreground/background `aria-live` mapping,
+  duration policy, mobile-bottom-center / desktop-bottom-right
+  position with safe-area.
+- The motion bridge (Radix attributes → CSS keyframes consuming M3
+  motion tokens) is a pattern that will compose onto Bundle 6
+  (Dialog) and Bundle 8 (DropdownMenu) — no incremental cost there.
+
+**Deferred (intentional):**
+
+- No call site uses `Toast.action` yet — wired and typed, ready
+  for the first "couldn't save / retry" UX (likely lands with the
+  next round of optimistic-UI work).
+- Touch-device swipe-gesture polish (the keyframes are wired;
+  desktop mouse-drag looks right; real-device QA pending).
+- Layering `state-layer` (Bundle 131) onto the Close button —
+  per-variant ring + tinted hover already reads coherently; pick
+  this up in the state-layer call-site sweep.
+
+**Documentation:**
+
+- Added "UI primitives — Radix UI" section to
+  [AGENTS.md](../../AGENTS.md) so future bundles (Dialog,
+  DropdownMenu, Popover, Tooltip) reach for `@radix-ui/react-*`
+  with the same convention (preserve our public API at the
+  call-site layer; bridge Radix `data-*` attributes to M3 motion
+  tokens via plain CSS keyframes; no `tailwindcss-animate`).
+
+**Verify:** typecheck ✅ · lint warnings only (all pre-existing) ✅ ·
+`pnpm test` 179 domain + 50 web ✅ · `pnpm build` 8/8 ✅.
 
 ### Bundle 131 — State layers + button vocabulary (2026-05-28)
 

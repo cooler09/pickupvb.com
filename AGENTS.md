@@ -229,6 +229,49 @@ Either way, **don't add ad-hoc status mapping in route handlers** — throw
 the typed `DomainError` and let
 [apps/web/src/lib/api-helpers.ts](apps/web/src/lib/api-helpers.ts) map it.
 
+## UI primitives — Radix UI
+
+For client-side widgets where accessibility + behavior are the hard
+part (focus management, `aria-live`, swipe / hotkey dismissal, focus
+trap, controlled-vs-uncontrolled state), reach for
+`@radix-ui/react-*` headless primitives instead of hand-rolling.
+Style them with our existing Tailwind v4 tokens + M3 utilities.
+
+In the tree today:
+
+- [apps/web/src/components/toast.tsx](apps/web/src/components/toast.tsx)
+  on `@radix-ui/react-toast` (Bundle 132). M3 Snackbar conformance —
+  single-visible queueing, action slot, M3 duration policy,
+  foreground/background `aria-live` mapping.
+
+Conventions:
+
+- **Preserve our public API at the call-site layer.** When migrating
+  an existing component, keep the existing hook / component / props
+  shape exactly so call sites need zero edits. Add new fields as
+  optional. Bundle 132's `useToast()` rewrite touched zero call
+  sites for this reason.
+- **Bridge Radix `data-state` / `data-swipe` attributes to M3 motion
+  tokens via plain CSS keyframes** in
+  [apps/web/src/app/globals.css](apps/web/src/app/globals.css). See
+  the `.md-toast-motion` block for the pattern (one shared class,
+  three `@keyframes`, durations / easings sourced from
+  `--md-sys-motion-duration-*` and `--md-sys-motion-easing-*`). We
+  intentionally do **not** depend on `tailwindcss-animate`.
+- **Compose `tap-target` (Bundle 130) onto Radix `*.Close` /
+  `*.Trigger` primitives** for icon-only affordances. Radix forwards
+  `className` to the underlying `<button>`.
+- **Add the runtime dep with `pnpm --filter @pickupvb/web add
+@radix-ui/react-…`, then run `pnpm install`** to reconcile
+  peer-dep lockfile entries (documented repo pattern — skipping the
+  second install has tripped earlier bundles).
+
+When Bundle 6 (Dialog) and Bundle 8 (DropdownMenu) land, follow the
+same shape: pick the Radix primitive, preserve the existing public
+API, bridge motion via CSS keyframes consuming M3 tokens. Do not
+swap in `@mui/material` (rejected in
+[m3-alignment.md § "Why not MUI"](docs/audits/m3-alignment.md#why-not-mui)).
+
 ## Supabase
 
 - **Server reads/writes:** `getServerSupabase()` from [apps/web/src/lib/supabase.ts](apps/web/src/lib/supabase.ts).

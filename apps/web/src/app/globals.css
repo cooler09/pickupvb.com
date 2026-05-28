@@ -551,6 +551,65 @@ body {
 }
 
 /*
+ * ============================================================================
+ *  M3 toast (Snackbar) motion (Bundle 4 — P2 #8).
+ *
+ *  Applied to Radix `Toast.Root` via `.md-toast-motion`. Enter uses
+ *  `emphasized-decelerate` at `medium2` (300 ms) — content easing into
+ *  place. Exit uses `emphasized-accelerate` at `short4` (200 ms) — content
+ *  leaving the user's attention. Swipe-to-dismiss tracks the pointer
+ *  through `--radix-toast-swipe-move-x`, then animates out to the right
+ *  on commit.
+ * ============================================================================
+ */
+@keyframes md-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes md-toast-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes md-toast-swipe-out {
+  from {
+    transform: translateX(var(--radix-toast-swipe-end-x, 0));
+  }
+  to {
+    transform: translateX(calc(100% + 1rem));
+    opacity: 0;
+  }
+}
+.md-toast-motion[data-state='open'] {
+  animation: md-toast-enter var(--md-sys-motion-duration-medium2)
+    var(--md-sys-motion-easing-emphasized-decelerate);
+}
+.md-toast-motion[data-state='closed'] {
+  animation: md-toast-exit var(--md-sys-motion-duration-short4)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+.md-toast-motion[data-swipe='move'] {
+  transform: translateX(var(--radix-toast-swipe-move-x));
+}
+.md-toast-motion[data-swipe='cancel'] {
+  transform: translateX(0);
+  transition: transform var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+.md-toast-motion[data-swipe='end'] {
+  animation: md-toast-swipe-out var(--md-sys-motion-duration-short3)
+    var(--md-sys-motion-easing-emphasized-accelerate);
+}
+
+/*
  * Honor `prefers-reduced-motion` globally — defangs all CSS transitions /
  * animations / smooth-scroll for users who request it. Per-component motion
  * (e.g. `match-flash` above) can still opt back in with a deliberate
