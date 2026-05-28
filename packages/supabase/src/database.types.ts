@@ -829,6 +829,7 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
           division_id: string;
+          forfeited_at: string | null;
           id: string;
           name: string;
           registered_at: string;
@@ -843,6 +844,7 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           division_id: string;
+          forfeited_at?: string | null;
           id?: string;
           name: string;
           registered_at?: string;
@@ -857,6 +859,7 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           division_id?: string;
+          forfeited_at?: string | null;
           id?: string;
           name?: string;
           registered_at?: string;

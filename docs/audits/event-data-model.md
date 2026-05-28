@@ -1266,6 +1266,77 @@ the top of this file remains the canonical reference; features.md
 mirrors it for product-doc readers, ADR 0006 cross-references it
 for architecture-doc readers.
 
+### 2026-05-30 — P3 #11: league payment routing callout in payments.md ✅
+
+Per [P3 #11](#p3-11--eventshost_group_id--payment-routing-already-documented-but-call-it-out-for-leagues),
+docs-only confirmation that leagues follow the same payment-routing
+rule as tournaments — payee resolved from `events.host_id`, never
+from `host_group_id`. Product decision (verbatim from the user):
+"yeah it will be the same as tournaments."
+
+- [docs/payments.md § Payment routing](../payments.md#payment-routing--every-entry-point-goes-through-host_id)
+  — added a paragraph below the routing table noting that league
+  season-fee checkout reuses `team-checkout-actions.ts` (same
+  `event.hostId` → `getHostStripeAccount(hostId)` resolution),
+  cross-references this finding and the ADR 0006 addendum, and
+  re-states the closed product question (no recurring billing for
+  leagues; one-shot Checkout Sessions only).
+- The ADR 0006 addendum landed in the previous P3 #12 bundle
+  already captures the architectural side (payee routing through
+  `events.host_id`, no recurring billing); this entry closes the
+  payments-doc cross-reference.
+
+No code changes, no migrations, no schema deltas — confirmation
+that the existing routing model carries leagues without
+modification.
+
+---
+
+### 2026-05-30 — P2 #7: league rostered-team lifecycle (`forfeited_at`) ✅
+
+Closes P2 #7. Pre-launch posture matches the audit's recommended
+fix: small, additive, no new aggregate, no new join table.
+
+**Schema (additive only):**
+
+- [`20260805000000_event_team_entries_forfeited_at.sql`](../../supabase/migrations/20260805000000_event_team_entries_forfeited_at.sql)
+  adds a nullable `forfeited_at timestamptz` column on
+  `event_team_entries`. No backfill, no index, no RLS change.
+
+**Audit text translation.** The original finding refers to
+`event_teams` and `event_team_registrations` — both names from
+before the P2 #6.6 collapse
+([`20260731000000_collapse_team_registration_tables.sql`](../../supabase/migrations/20260731000000_collapse_team_registration_tables.sql)).
+The current shape is one table, `event_team_entries`, with a
+`source ∈ {roster, ad_hoc, walk_in}` discriminator. The `source`
+to event-type mapping (and the league-only constraint, transitively
+enforced by P1 #1's `assertRegistrationConfigValid` league branch)
+is now documented in
+[ADR 0008's 2026-05-30 addendum](../adr/0008-team-registration-paradigm.md#addendum-2026-05-30--league-rostered-teams),
+which subsumes the audit's "Document in ADR 0008 (or a new ADR 0019)
+that `event_team_registrations` is tournament-ad-hoc only" item.
+
+**Deferred per audit guidance** ("Defer until a host asks for it"):
+
+- `EventTeamRegistration.forfeitedAt` getter / `forfeit(now)`
+  mutator on the aggregate.
+- Host action + schedule-render filter consuming the column.
+- Repository round-trip mapping (will be added with the domain
+  field when a league host needs forfeit UI).
+
+Schema lands now so the column is forward-compatible; no
+deprecation window will be needed when the aggregate threads it
+through. Generated types in `packages/supabase/src/database.types.ts`
+hand-patched to surface the column on Row/Insert/Update.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green.
+
+With P2 #7 closed, every audit finding either has a remediation log
+entry, is documented as a no-change decision (P3 #10), or has its
+follow-ups tracked in the dedicated sections above. The audit
+backlog is effectively drained pre-launch.
+
 ---
 
 ## Cross-references

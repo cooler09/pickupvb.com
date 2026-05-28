@@ -73,6 +73,16 @@ otherwise. Callers use that id as the Stripe Checkout `destination`
 
 `host_group_id` is **never** read in any of those paths.
 
+**Leagues follow the exact same rule.** League season-fee checkout
+reuses `team-checkout-actions.ts` — same `event.hostId` →
+`getHostStripeAccount(hostId)` resolution as tournament team
+registration. There is no recurring-billing path for leagues; season
+fees are one-shot Checkout Sessions. When a club (group) runs a
+league, the creating user's Stripe Connect is the payee for the life
+of the event, the same way it is for tournaments and open plays.
+See [docs/audits/event-data-model.md § P3 #11](audits/event-data-model.md#p3-11--eventshost_group_id--payment-routing-already-documented-but-call-it-out-for-leagues)
+and the [ADR 0006 addendum](adr/0006-event-divisions.md#addendum-2026-05-30--league-event-type).
+
 ---
 
 ## Event creation: which Stripe account is gated?
