@@ -1,5 +1,24 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 131):** State layers + button
+> vocabulary shipped — vocabulary half of P2 #4 closed. New
+> `@utility state-layer` in [globals.css](../../apps/web/src/app/globals.css)
+> paints the M3 `currentColor` overlay at the system state alphas
+> (`--md-sys-state-{hover,focus,pressed}-opacity`) — one canonical
+> recipe for hover/focus/pressed across every interactive surface.
+> [primary-button.tsx](../../apps/web/src/components/primary-button.tsx)
+> refactored: `primaryButtonClass` drops `hover:opacity-90` for
+> `state-layer`, and three new variants — `tonalButtonClass`,
+> `secondaryButtonClass` (outlined), `textButtonClass` — land alongside
+> at the same call-site shape. Visual change on existing primary
+> buttons: hover/focus now reads as a soft white overlay (M3-correct)
+> instead of a global opacity dim — same brightness direction, cleaner
+> at the edges. The **migration half** of P2 #4 (sweep ad-hoc
+> `hover:bg-fg/5` on nav items, `<details>` triggers, list rows,
+> etc.) stays open and is drawn down by the per-component bundles.
+> Verify 15/15 typecheck · lint warnings only · 179+50 tests · 8/8
+> build. See [Bundle 131 journal](../journal/2026-05-28-bundle-131.md).
+
 > **Status update (2026-05-28, Bundle 130):** Touch-targets sweep
 > shipped — P1 #3 closed. New `tap-target` Tailwind 4 `@utility`
 > (`3rem × 3rem` min, flex-centered) defined in
@@ -272,7 +291,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
 
 ## P2 findings (next-bundle hardening)
 
-### #4 No state-layer convention for hover/focus/pressed
+### #4 No state-layer convention for hover/focus/pressed 🟡 Utility + button vocabulary shipped (2026-05-28, Bundle 131)
 
 - **Where:** Hover states are bespoke per component:
   `PrimaryButton` uses `hover:opacity-90`
@@ -608,6 +627,53 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 131 — State layers + button vocabulary (2026-05-28)
+
+Vocabulary half of **P2 #4** (state-layer convention) — call-site
+migration of ad-hoc `hover:*` rules on nav items / list rows /
+`<details>` triggers stays open.
+
+**Files touched:**
+
+- [apps/web/src/app/globals.css](../../apps/web/src/app/globals.css) —
+  added `@utility state-layer`. Body sets `position: relative` +
+  `isolation: isolate` on the host and paints an `::after`
+  pseudo-element at `inset: 0` with `background-color: currentColor`,
+  `border-radius: inherit`, `pointer-events: none`, opacity 0 at rest.
+  Hover (`:hover:not(:disabled)`), focus-visible, and active each pull
+  their opacity from the matching `--md-sys-state-*-opacity` token
+  (8% / 12% / 12%). Transition uses the `short2` duration + `standard`
+  easing tokens shipped in Bundle 129. Disabled hosts intentionally
+  skip the hover overlay so the disabled affordance reads cleanly.
+- [apps/web/src/components/primary-button.tsx](../../apps/web/src/components/primary-button.tsx) —
+  factored shared parts (`SIZING`, `BASE`) so each variant is a
+  one-line composition. `primaryButtonClass` drops `hover:opacity-90`
+  and gains `state-layer`. Three new variants:
+  - `tonalButtonClass` — Filled tonal (medium emphasis,
+    `bg-primary/10 text-primary`).
+  - `secondaryButtonClass` — Outlined (medium emphasis,
+    `border border-primary text-primary bg-transparent`).
+  - `textButtonClass` — Text (low emphasis, `text-primary` only).
+    All four share size/base/state-layer; differ only in fill/border.
+
+**Why this is "vocabulary shipped" not "finding closed":** the
+`state-layer` utility now exists app-wide and the canonical button
+vocabulary uses it, but ad-hoc `hover:bg-fg/5` / `hover:text-primary`
+rules still live on `MobileMenu` items, `NavDropdown` triggers,
+`<details>` summaries, list rows, and the notification-bell row items.
+Those sweeps happen as the per-component bundles land (Bundle 4 =
+Radix Toast; Bundle 5 = BottomNav + FAB will replace `MobileMenu`
+hovers; Bundle 8 = DropdownMenu primitive replaces `<details>`).
+
+**Visual change:** the only existing surfaces that change are calls to
+`primaryButtonClass`. Hover/focus now paints a faint white overlay
+instead of a global `opacity: 0.9` dim — both go brighter, the new
+version stays crisp at button edges (no fade on the shadow / border).
+Pre/post screenshots match within ~1% diff.
+
+**Verify:** typecheck ✅ · lint warnings only (all pre-existing) ✅ ·
+`pnpm test` 179 domain + 50 web ✅ · `pnpm build` 8/8 ✅.
 
 ### Bundle 130 — Touch targets sweep (2026-05-28)
 

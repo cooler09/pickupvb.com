@@ -500,6 +500,57 @@ body {
 }
 
 /*
+ * ============================================================================
+ *  M3 state-layer utility (Bundle 3 — P2 #4).
+ *
+ *  M3 collapses hover / focus / pressed / dragged into a single overlay:
+ *  paint a `currentColor`-tinted layer on top of the interactive surface
+ *  at a per-state alpha (8% / 12% / 12% / 16%, from `--md-sys-state-*`).
+ *  This replaces ad-hoc `hover:opacity-90` / `hover:bg-fg/5` rules — every
+ *  interactive surface gets the same hover/focus/pressed signature.
+ *
+ *  Composition rules:
+ *    - The element must be `position: relative` and `isolation: isolate`
+ *      so the overlay paints in its own stacking context (so it sits
+ *      above the background but below text / icons). Both are set here.
+ *    - `border-radius: inherit` on the overlay so the layer matches the
+ *      host's `rounded-*` utility automatically.
+ *    - `pointer-events: none` so the overlay never intercepts clicks.
+ *    - Use `currentColor` so the layer's tint is whatever the element's
+ *      text color is — white-ish on filled-primary, primary-teal on
+ *      outlined/text/tonal. Matches the M3 token mapping.
+ *
+ *  Apply alongside any rounding / size utilities. Pair with `disabled:`
+ *  styles per call site — the overlay still paints under `:hover` even
+ *  when the host is disabled if you don't gate the styling.
+ * ============================================================================
+ */
+@utility state-layer {
+  position: relative;
+  isolation: isolate;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background-color: currentColor;
+    opacity: 0;
+    transition: opacity var(--md-sys-motion-duration-short2, 100ms)
+      var(--md-sys-motion-easing-standard, ease);
+  }
+  &:hover:not(:disabled)::after {
+    opacity: var(--md-sys-state-hover-opacity, 0.08);
+  }
+  &:focus-visible::after {
+    opacity: var(--md-sys-state-focus-opacity, 0.12);
+  }
+  &:active:not(:disabled)::after {
+    opacity: var(--md-sys-state-pressed-opacity, 0.12);
+  }
+}
+
+/*
  * Honor `prefers-reduced-motion` globally — defangs all CSS transitions /
  * animations / smooth-scroll for users who request it. Per-component motion
  * (e.g. `match-flash` above) can still opt back in with a deliberate
