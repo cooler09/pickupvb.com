@@ -64,16 +64,26 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   // 23505 (unique violation on PK) means the user already has a row;
   // could be from a previous checkout that didn't complete.
   //
-  // RLS: event_attendees_insert requires auth.uid() = user_id, so this is
-  // self-service. Webhook handlers (admin client) flip status to 'paid'
-  // later; the user can't self-promote (event_attendees_update_own_pending
-  // requires the row to stay 'pending').
-  const { error: insertErr } = await supabase.from('event_attendees').insert({
-    division_id: pricing.divisionId,
-    user_id: user.id,
-    payment_status: 'pending',
-    amount_paid_cents: 0,
-  } as never);
+  // RLS: event_participants_insert requires auth.uid() = user_id, so
+  // this is self-service. Webhook handlers (admin client) flip the
+  // payment row status to 'paid' later; the user can't self-promote
+  // (event_participants_update_own_pending requires the payment row
+  // to stay 'pending').
+  //
+  // Two-step write: insert the participant; on success upsert the
+  // matching payment row. The bridge view's INSTEAD OF trigger used to
+  // do this atomically; we own the cleanup window now.
+  let participantId: string | null = null;
+  const { data: insertedRow, error: insertErr } = await supabase
+    .from('event_participants')
+    .insert({
+      division_id: pricing.divisionId,
+      user_id: user.id,
+      role: 'attendee',
+    } as never)
+    .select('id')
+    .maybeSingle();
+  if (insertedRow) participantId = (insertedRow as { id: string }).id;
   if (insertErr) {
     // Reuse the existing row if any (idempotent retry of a prior
     // checkout). For other errors, surface a friendly message.
@@ -81,19 +91,44 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
       // Already have a row. If they're already 'paid' bounce them, else
       // fall through and create a new checkout for the existing pending row.
       const { data: existing } = await supabase
-        .from('event_attendees')
-        .select('payment_status')
+        .from('event_participants')
+        .select('id, payment:event_participant_payments(payment_status)')
+        .eq('role', 'attendee')
         .eq('division_id', pricing.divisionId)
         .eq('user_id', user.id)
         .maybeSingle();
-      const status = (existing as { payment_status: string } | null)?.payment_status;
+      const exEmbed = existing as unknown as {
+        id: string;
+        payment: { payment_status: string } | null;
+      } | null;
+      const status = exEmbed?.payment?.payment_status ?? 'pending';
       if (status === 'paid') backWithError(eventId, 'already');
+      participantId = exEmbed?.id ?? null;
       // status === 'pending' or 'none' — proceed to (re)create checkout.
     } else if (insertErr.message?.toLowerCase().includes('full')) {
       backWithError(eventId, 'full');
     } else {
       await log.error('[checkout] reserve attendee failed', insertErr, { eventId });
       backWithError(eventId, 'error', insertErr.message);
+    }
+  }
+
+  // Make sure a pending payment row exists for this participant. Upsert
+  // is idempotent across checkout retries.
+  if (participantId) {
+    const { error: payErr } = await supabase.from('event_participant_payments').upsert(
+      {
+        participant_id: participantId,
+        payment_status: 'pending',
+        amount_paid_cents: 0,
+      } as never,
+      { onConflict: 'participant_id' },
+    );
+    if (payErr) {
+      // Roll back the participant so capacity reopens.
+      await supabase.from('event_participants').delete().eq('id', participantId);
+      await log.error('[checkout] payment row create failed', payErr, { eventId });
+      backWithError(eventId, 'error', payErr.message);
     }
   }
 
@@ -148,24 +183,21 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
       },
     });
   } catch (err) {
-    // Roll back the pending row so we don't leak capacity.
-    await supabase
-      .from('event_attendees')
-      .delete()
-      .eq('division_id', pricing.divisionId)
-      .eq('user_id', user.id)
-      .eq('payment_status', 'pending');
+    // Roll back the pending row so we don't leak capacity. Cascade deletes
+    // the payment row.
+    if (participantId) {
+      await supabase.from('event_participants').delete().eq('id', participantId);
+    }
     await log.error('[checkout] session create failed', err, { eventId });
     const m = err instanceof Error ? err.message : 'Could not start checkout.';
     backWithError(eventId, 'error', m);
   }
 
-  // Stash the session id on the row so we can match the webhook later.
+  // Stash the session id on the payment row so we can match the webhook later.
   await supabase
-    .from('event_attendees')
+    .from('event_participant_payments')
     .update({ checkout_session_id: session.id } as never)
-    .eq('division_id', pricing.divisionId)
-    .eq('user_id', user.id);
+    .eq('participant_id', participantId!);
 
   if (!session.url) backWithError(eventId, 'error', 'Stripe did not return a URL.');
   // No `revalidatePath` here: payment hasn't completed yet. The Stripe

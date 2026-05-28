@@ -41,7 +41,7 @@ export async function GET(
             ? session.payment_intent
             : (session.payment_intent?.id ?? null);
         await admin
-          .from('event_attendees')
+          .from('event_participant_payments')
           .update({
             payment_status: 'paid',
             payment_intent_id: piId,

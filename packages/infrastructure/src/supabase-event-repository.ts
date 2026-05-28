@@ -292,8 +292,9 @@ export class SupabaseEventRepository implements EventRepository {
       { data: divisions, error: dErr },
     ] = await Promise.all([
       this.client
-        .from('event_attendees')
+        .from('event_participants')
         .select('user_id, position, division:event_divisions!inner(event_id)')
+        .eq('role', 'attendee')
         .eq('division.event_id', id),
       this.client
         .from('event_team_entries')
@@ -302,8 +303,9 @@ export class SupabaseEventRepository implements EventRepository {
         .eq('source', 'roster')
         .is('deleted_at', null),
       this.client
-        .from('event_free_agents')
+        .from('event_participants')
         .select('user_id, notes, division:event_divisions!inner(event_id)')
+        .eq('role', 'free_agent')
         .eq('division.event_id', id),
       this.client
         .from('event_divisions')
@@ -431,8 +433,9 @@ export class SupabaseEventRepository implements EventRepository {
     const soleDivisionId = divisionIds.length === 1 ? divisionIds[0]! : null;
 
     const { data: existingAttendeeRows, error: selAErr } = await this.client
-      .from('event_attendees')
+      .from('event_participants')
       .select('user_id, position')
+      .eq('role', 'attendee')
       .in(
         'division_id',
         divisionIds.length > 0 ? divisionIds : ['00000000-0000-0000-0000-000000000000'],
@@ -471,22 +474,23 @@ export class SupabaseEventRepository implements EventRepository {
     }
     if (attendeesToDelete.length > 0) {
       const { error: delErr } = await this.client
-        .from('event_attendees')
+        .from('event_participants')
         .delete()
+        .eq('role', 'attendee')
         .in('division_id', divisionIds)
         .in('user_id', attendeesToDelete);
       if (delErr) throw new Error(`save attendees delete failed: ${delErr.message}`);
     }
     if (attendeesToInsert.length > 0) {
-      const { error: insErr } = await this.client
-        .from('event_attendees')
-        .insert(attendeesToInsert as never);
+      const rows = attendeesToInsert.map((a) => ({ ...a, role: 'attendee' as const }));
+      const { error: insErr } = await this.client.from('event_participants').insert(rows as never);
       if (insErr) throw new Error(`save attendees insert failed: ${insErr.message}`);
     }
     for (const row of attendeesToUpdate) {
       const { error: updErr } = await this.client
-        .from('event_attendees')
+        .from('event_participants')
         .update({ position: row.position } as never)
+        .eq('role', 'attendee')
         .in('division_id', divisionIds)
         .eq('user_id', row.user_id);
       if (updErr) throw new Error(`save attendees update failed: ${updErr.message}`);
@@ -561,8 +565,9 @@ export class SupabaseEventRepository implements EventRepository {
 
     // Free agents — delta on membership + notes update.
     const { data: existingFaRows, error: selFErr } = await this.client
-      .from('event_free_agents')
+      .from('event_participants')
       .select('user_id, notes')
+      .eq('role', 'free_agent')
       .in(
         'division_id',
         divisionIds.length > 0 ? divisionIds : ['00000000-0000-0000-0000-000000000000'],
@@ -594,22 +599,23 @@ export class SupabaseEventRepository implements EventRepository {
     }
     if (faToDelete.length > 0) {
       const { error: delFErr } = await this.client
-        .from('event_free_agents')
+        .from('event_participants')
         .delete()
+        .eq('role', 'free_agent')
         .in('division_id', divisionIds)
         .in('user_id', faToDelete);
       if (delFErr) throw new Error(`save free agents delete failed: ${delFErr.message}`);
     }
     if (faToInsert.length > 0) {
-      const { error: insFErr } = await this.client
-        .from('event_free_agents')
-        .insert(faToInsert as never);
+      const rows = faToInsert.map((f) => ({ ...f, role: 'free_agent' as const }));
+      const { error: insFErr } = await this.client.from('event_participants').insert(rows as never);
       if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
     }
     for (const row of faToUpdate) {
       const { error: updErr } = await this.client
-        .from('event_free_agents')
+        .from('event_participants')
         .update({ notes: row.notes } as never)
+        .eq('role', 'free_agent')
         .in('division_id', divisionIds)
         .eq('user_id', row.user_id);
       if (updErr) throw new Error(`save free agents update failed: ${updErr.message}`);
@@ -778,10 +784,11 @@ export class SupabaseEventRepository implements EventRepository {
       divisionRowsRes,
     ] = await Promise.all([
       this.client
-        .from('event_attendees')
+        .from('event_participants')
         .select(
           'user_id, joined_at, position, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
         )
+        .eq('role', 'attendee')
         .eq('division.event_id', id)
         .order('joined_at', { ascending: true }),
       this.client
@@ -820,10 +827,11 @@ export class SupabaseEventRepository implements EventRepository {
         .is('deleted_at', null)
         .order('registered_at', { ascending: true }),
       this.client
-        .from('event_free_agents')
+        .from('event_participants')
         .select(
           'user_id, notes, division_id, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
         )
+        .eq('role', 'free_agent')
         .eq('division.event_id', id)
         .order('joined_at', { ascending: true }),
       this.client
@@ -1289,11 +1297,10 @@ export class SupabaseEventRepository implements EventRepository {
 
     // Find events where any friend is attending — used to build the OR
     // condition (host_id IN friends OR id IN friend-attended).
-    // After Step 5a `event_attendees.event_id` is gone; join through
-    // `event_divisions` to recover the parent event id.
     const { data: aRows, error: aErr } = await this.client
-      .from('event_attendees')
+      .from('event_participants')
       .select('user_id, division:event_divisions!inner(event_id)')
+      .eq('role', 'attendee')
       .in('user_id', friendIds as string[]);
     if (aErr) throw new Error(`searchFollowingFeed attendees failed: ${aErr.message}`);
 
@@ -1439,14 +1446,14 @@ export class SupabaseEventRepository implements EventRepository {
     userId: string,
     divisionId: string,
   ): Promise<void> {
-    // After Step 5a `event_free_agents` is keyed by (division_id, user_id).
-    // Upsert so the multi-division flow (where `save(event)` skips the
-    // insert because it can't pick a division on its own) installs the
-    // row, and a re-classification into a different division is a clean
-    // overwrite.
+    // After Step 5a free agents are stored as event_participants rows with
+    // role='free_agent', keyed by (division_id, user_id). Upsert so the
+    // multi-division flow (where `save(event)` skips the insert because
+    // it can't pick a division on its own) installs the row, and a
+    // re-classification into a different division is a clean overwrite.
     const { error } = await this.client
-      .from('event_free_agents')
-      .upsert({ division_id: divisionId, user_id: userId } as never, {
+      .from('event_participants')
+      .upsert({ division_id: divisionId, user_id: userId, role: 'free_agent' } as never, {
         onConflict: 'division_id,user_id',
       });
     if (error) {

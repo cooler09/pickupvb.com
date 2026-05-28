@@ -88,10 +88,14 @@ export default async function EditEventPage(props: {
   let paidAttendeeCount = 0;
   if (event.status !== 'cancelled') {
     const { count } = await admin
-      .from('event_attendees')
-      .select('user_id, division:event_divisions!inner(event_id)', { head: true, count: 'exact' })
+      .from('event_participants')
+      .select(
+        'user_id, payment:event_participant_payments!inner(payment_status), division:event_divisions!inner(event_id)',
+        { head: true, count: 'exact' },
+      )
+      .eq('role', 'attendee')
       .eq('division.event_id', id)
-      .eq('payment_status', 'paid');
+      .eq('payment.payment_status', 'paid');
     paidAttendeeCount = count ?? 0;
   }
 

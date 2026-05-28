@@ -59,8 +59,9 @@ export async function sendEventBroadcast(
   const admin = getAdminSupabase();
   const [{ data: attRows }, { data: senderRow }] = await Promise.all([
     admin
-      .from('event_attendees')
+      .from('event_participants')
       .select('user_id, division:event_divisions!inner(event_id)')
+      .eq('role', 'attendee')
       .eq('division.event_id', eventId),
     admin.from('profiles').select('display_name').eq('id', user.id).maybeSingle(),
   ]);

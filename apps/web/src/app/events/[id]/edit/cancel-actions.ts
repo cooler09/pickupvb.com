@@ -54,10 +54,19 @@ export async function cancelEventAction(
 
   // Snapshot attendees BEFORE refund (refunds delete rows).
   const { data: attRows } = await admin
-    .from('event_attendees')
-    .select('user_id, payment_status, division:event_divisions!inner(event_id)')
+    .from('event_participants')
+    .select(
+      'user_id, payment:event_participant_payments(payment_status), division:event_divisions!inner(event_id)',
+    )
+    .eq('role', 'attendee')
     .eq('division.event_id', eventId);
-  const attendees = (attRows as { user_id: string; payment_status: string }[] | null) ?? [];
+  const attendees =
+    (attRows as { user_id: string; payment: { payment_status: string } | null }[] | null)?.map(
+      (a) => ({
+        user_id: a.user_id,
+        payment_status: a.payment?.payment_status ?? 'pending',
+      }),
+    ) ?? [];
 
   // Mark cancelled. RLS allows hosts to update their own event; we use the
   // user-session client to keep that audit trail.

@@ -7,11 +7,9 @@ import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
  * Subscribes to attendee changes for a single event so the UI can show
  * live spot counts to everyone viewing the event detail page.
  *
- * Post-collapse (2026-08-02): event_attendees is now a view over
- * event_participants. Views can't be in the realtime publication, so we
- * watch event_participants directly and filter the callback by
- * role='attendee'. The `in` filter is still applied on division_id so the
- * channel only receives rows that could plausibly match.
+ * Watches `event_participants` directly and filters callbacks by
+ * role='attendee'. The `in` filter on `division_id` scopes the
+ * channel to rows that could plausibly belong to this event.
  */
 export function useEventAttendees(eventId: string, initialCount = 0) {
   const [count, setCount] = useState(initialCount);

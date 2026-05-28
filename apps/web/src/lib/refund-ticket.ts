@@ -47,14 +47,31 @@ export async function refundAttendeeTicket(
 ): Promise<RefundOutcome> {
   const admin = getAdminSupabase();
   const { data: row } = await admin
-    .from('event_attendees')
+    .from('event_participants')
     .select(
-      'payment_status, payment_intent_id, amount_paid_cents, division:event_divisions!inner(event_id)',
+      'id, payment:event_participant_payments(payment_status, payment_intent_id, amount_paid_cents), division:event_divisions!inner(event_id)',
     )
+    .eq('role', 'attendee')
     .eq('division.event_id', eventId)
     .eq('user_id', userId)
     .maybeSingle();
-  const att = row as unknown as AttRow | null;
+  type EmbedRow = {
+    id: string;
+    payment: {
+      payment_status: string;
+      payment_intent_id: string | null;
+      amount_paid_cents: number;
+    } | null;
+  };
+  const embed = row as unknown as EmbedRow | null;
+  const att: AttRow | null = embed
+    ? {
+        payment_status: embed.payment?.payment_status ?? 'pending',
+        payment_intent_id: embed.payment?.payment_intent_id ?? null,
+        amount_paid_cents: embed.payment?.amount_paid_cents ?? 0,
+      }
+    : null;
+  const participantId = embed?.id ?? null;
 
   if (!att || att.payment_status !== 'paid' || !att.payment_intent_id || !isStripeConfigured()) {
     return { kind: 'not_paid' };
@@ -84,16 +101,10 @@ export async function refundAttendeeTicket(
   // Synchronously remove the attendee and audit-log the refund so the
   // page reflects the change on the next render. The charge.refunded
   // webhook runs later and is idempotent.
-  const { data: divRows } = await admin
-    .from('event_divisions')
-    .select('id')
-    .eq('event_id', eventId);
-  const divisionIds = ((divRows as Array<{ id: string }> | null) ?? []).map((r) => r.id);
   const { error: delErr } = await admin
-    .from('event_attendees')
+    .from('event_participants')
     .delete()
-    .in('division_id', divisionIds)
-    .eq('user_id', userId);
+    .eq('id', participantId!);
   if (delErr) {
     await log.error('[refund] delete attendee after refund failed', delErr, {
       eventId,

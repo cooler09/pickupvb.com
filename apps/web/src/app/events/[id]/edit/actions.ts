@@ -373,8 +373,9 @@ export async function editEventAction(
     if (changes.length > 0) {
       try {
         const { data: attRows } = await admin
-          .from('event_attendees')
+          .from('event_participants')
           .select('user_id, division:event_divisions!inner(event_id)')
+          .eq('role', 'attendee')
           .eq('division.event_id', eventId);
         const attendees = (attRows as { user_id: string }[] | null) ?? [];
         const summary = `Updated: ${changes.join(', ')}`;

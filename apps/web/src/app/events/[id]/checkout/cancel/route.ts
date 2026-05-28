@@ -22,13 +22,18 @@ export async function GET(
 
   if (sessionId) {
     const admin = getAdminSupabase();
-    // session_id is globally unique — no need to scope by event_id
-    // (which no longer exists on event_attendees after Step 5a).
-    const { error } = await admin
-      .from('event_attendees')
-      .delete()
+    // session_id is globally unique — look up the payment row first,
+    // then delete the participant (payment cascades).
+    const { data: payRow } = await admin
+      .from('event_participant_payments')
+      .select('participant_id')
       .eq('checkout_session_id', sessionId)
-      .eq('payment_status', 'pending');
+      .eq('payment_status', 'pending')
+      .maybeSingle();
+    const pid = (payRow as { participant_id: string } | null)?.participant_id;
+    const { error } = pid
+      ? await admin.from('event_participants').delete().eq('id', pid)
+      : { error: null };
     if (error) {
       log.warn('[checkout/cancel] release pending failed', {
         error: error.message,

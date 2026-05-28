@@ -414,73 +414,6 @@ export type Database = {
           },
         ];
       };
-      event_attendees: {
-        Row: {
-          amount_paid_cents: number;
-          checkout_session_id: string | null;
-          division_id: string;
-          id: string;
-          joined_at: string;
-          paid_at: string | null;
-          payment_intent_id: string | null;
-          payment_status: string;
-          position: string | null;
-          reminder_24h_sent_at: string | null;
-          reminder_2h_sent_at: string | null;
-          user_id: string | null;
-        };
-        Insert: {
-          amount_paid_cents?: number;
-          checkout_session_id?: string | null;
-          division_id: string;
-          id?: string;
-          joined_at?: string;
-          paid_at?: string | null;
-          payment_intent_id?: string | null;
-          payment_status?: string;
-          position?: string | null;
-          reminder_24h_sent_at?: string | null;
-          reminder_2h_sent_at?: string | null;
-          user_id?: string | null;
-        };
-        Update: {
-          amount_paid_cents?: number;
-          checkout_session_id?: string | null;
-          division_id?: string;
-          id?: string;
-          joined_at?: string;
-          paid_at?: string | null;
-          payment_intent_id?: string | null;
-          payment_status?: string;
-          position?: string | null;
-          reminder_24h_sent_at?: string | null;
-          reminder_2h_sent_at?: string | null;
-          user_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'event_attendees_division_id_fkey';
-            columns: ['division_id'];
-            isOneToOne: false;
-            referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_attendees_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_attendees_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'profiles_public';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       event_co_hosts: {
         Row: {
           added_at: string;
@@ -670,35 +603,6 @@ export type Database = {
           },
         ];
       };
-      event_free_agents: {
-        Row: {
-          division_id: string;
-          joined_at: string;
-          notes: string | null;
-          user_id: string;
-        };
-        Insert: {
-          division_id: string;
-          joined_at?: string;
-          notes?: string | null;
-          user_id: string;
-        };
-        Update: {
-          division_id?: string;
-          joined_at?: string;
-          notes?: string | null;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'event_free_agents_division_id_fkey';
-            columns: ['division_id'];
-            isOneToOne: false;
-            referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       event_payment_audit: {
         Row: {
           action: string;
@@ -754,6 +658,99 @@ export type Database = {
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_participants: {
+        Row: {
+          division_id: string;
+          id: string;
+          joined_at: string;
+          notes: string | null;
+          position: string | null;
+          reminder_24h_sent_at: string | null;
+          reminder_2h_sent_at: string | null;
+          role: string;
+          user_id: string;
+        };
+        Insert: {
+          division_id: string;
+          id?: string;
+          joined_at?: string;
+          notes?: string | null;
+          position?: string | null;
+          reminder_24h_sent_at?: string | null;
+          reminder_2h_sent_at?: string | null;
+          role: string;
+          user_id: string;
+        };
+        Update: {
+          division_id?: string;
+          id?: string;
+          joined_at?: string;
+          notes?: string | null;
+          position?: string | null;
+          reminder_24h_sent_at?: string | null;
+          reminder_2h_sent_at?: string | null;
+          role?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_participants_division_id_fkey';
+            columns: ['division_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_divisions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_participants_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_participants_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_participant_payments: {
+        Row: {
+          amount_paid_cents: number;
+          checkout_session_id: string | null;
+          paid_at: string | null;
+          participant_id: string;
+          payment_intent_id: string | null;
+          payment_status: string;
+        };
+        Insert: {
+          amount_paid_cents?: number;
+          checkout_session_id?: string | null;
+          paid_at?: string | null;
+          participant_id: string;
+          payment_intent_id?: string | null;
+          payment_status?: string;
+        };
+        Update: {
+          amount_paid_cents?: number;
+          checkout_session_id?: string | null;
+          paid_at?: string | null;
+          participant_id?: string;
+          payment_intent_id?: string | null;
+          payment_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_participant_payments_participant_id_fkey';
+            columns: ['participant_id'];
+            isOneToOne: true;
+            referencedRelation: 'event_participants';
             referencedColumns: ['id'];
           },
         ];

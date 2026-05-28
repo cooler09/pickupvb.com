@@ -255,11 +255,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   const amountTotal = session.amount_total ?? 0;
 
   if (meta.kind === 'attendee' && meta.user_id) {
-    // The pending row was stamped with checkout_session_id at checkout
-    // creation; key off it (event_id is no longer on event_attendees
-    // after Step 5a).
+    // The pending payment row was stamped with checkout_session_id at
+    // checkout creation; key off it.
     const { error } = await admin
-      .from('event_attendees')
+      .from('event_participant_payments')
       .update({
         payment_status: 'paid',
         payment_intent_id: piId,
@@ -453,11 +452,18 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
   const admin = getAdminSupabase();
 
   if (meta.kind === 'attendee' && meta.user_id) {
-    await admin
-      .from('event_attendees')
-      .delete()
+    // Delete the pending participant; payment row cascades. Look it up
+    // by checkout_session_id on the payment side first.
+    const { data: payRow } = await admin
+      .from('event_participant_payments')
+      .select('participant_id')
       .eq('checkout_session_id', session.id)
-      .eq('payment_status', 'pending');
+      .eq('payment_status', 'pending')
+      .maybeSingle();
+    const pid = (payRow as { participant_id: string } | null)?.participant_id;
+    if (pid) {
+      await admin.from('event_participants').delete().eq('id', pid);
+    }
   }
 
   if (meta.kind === 'tip' && meta.tip_id) {
@@ -482,11 +488,19 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
  */
 async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
   const admin = getAdminSupabase();
-  await admin
-    .from('event_attendees')
-    .delete()
+  // Drop pending attendee reservations attached to this PI. Look up via
+  // payments table, then delete the participant (payment cascades).
+  const { data: pendingPay } = await admin
+    .from('event_participant_payments')
+    .select('participant_id')
     .eq('payment_intent_id', pi.id)
     .eq('payment_status', 'pending');
+  const pids = ((pendingPay as { participant_id: string }[] | null) ?? []).map(
+    (r) => r.participant_id,
+  );
+  if (pids.length > 0) {
+    await admin.from('event_participants').delete().in('id', pids);
+  }
   // Tips: mark failed rather than delete so the host can see attempted tips.
   await admin
     .from('event_tips')
@@ -519,25 +533,29 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
     .eq('stripe_payment_intent_id', piId);
 
   const { data: attendeeRow } = await admin
-    .from('event_attendees')
-    .select('id, user_id, amount_paid_cents, division:event_divisions!inner(event_id)')
-    .eq('payment_intent_id', piId)
+    .from('event_participants')
+    .select(
+      'id, user_id, payment:event_participant_payments!inner(amount_paid_cents, payment_intent_id), division:event_divisions!inner(event_id)',
+    )
+    .eq('role', 'attendee')
+    .eq('payment.payment_intent_id', piId)
     .maybeSingle();
   type AttRow = {
     id: string;
     user_id: string;
-    amount_paid_cents: number;
+    payment: { amount_paid_cents: number } | null;
     division: { event_id: string } | null;
   };
   const att = attendeeRow as unknown as AttRow | null;
   if (att && att.division) {
     const eventId = att.division.event_id;
-    await admin.from('event_attendees').delete().eq('id', att.id);
+    const amountPaid = att.payment?.amount_paid_cents ?? 0;
+    await admin.from('event_participants').delete().eq('id', att.id);
     await admin.from('event_payment_audit').insert({
       event_id: eventId,
       user_id: att.user_id,
       action: 'refunded',
-      amount_cents: charge.amount_refunded ?? att.amount_paid_cents,
+      amount_cents: charge.amount_refunded ?? amountPaid,
       payment_intent_id: piId,
     } as never);
 
@@ -555,7 +573,7 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
         {
           eventId,
           eventTitle: title,
-          amountCents: charge.amount_refunded ?? att.amount_paid_cents,
+          amountCents: charge.amount_refunded ?? amountPaid,
         },
         { idempotencyKey: `refund:${piId}` },
       );

@@ -39,18 +39,21 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const admin = getAdminSupabase();
   const { data: rows } = await admin
-    .from('event_attendees')
+    .from('event_participants')
     .select(
-      'user_id, joined_at, position, payment_status, amount_paid_cents, payment_intent_id, profiles:profiles!inner(display_name, first_name, last_name), division:event_divisions!inner(event_id)',
+      'user_id, joined_at, position, payment:event_participant_payments(payment_status, amount_paid_cents, payment_intent_id), profiles:profiles!inner(display_name, first_name, last_name), division:event_divisions!inner(event_id)',
     )
+    .eq('role', 'attendee')
     .eq('division.event_id', id);
   type Row = {
     user_id: string;
     joined_at: string;
     position: string | null;
-    payment_status: string;
-    amount_paid_cents: number;
-    payment_intent_id: string | null;
+    payment: {
+      payment_status: string;
+      amount_paid_cents: number;
+      payment_intent_id: string | null;
+    } | null;
     profiles: {
       display_name: string;
       first_name: string | null;
@@ -72,19 +75,22 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   ];
   const csv = [
     header.join(','),
-    ...typed.map((r) =>
-      [
+    ...typed.map((r) => {
+      const status = r.payment?.payment_status ?? 'pending';
+      const amount = r.payment?.amount_paid_cents ?? 0;
+      const pi = r.payment?.payment_intent_id ?? null;
+      return [
         csvCell(r.user_id),
         csvCell(r.profiles?.display_name ?? ''),
         csvCell(r.profiles?.first_name ?? ''),
         csvCell(r.profiles?.last_name ?? ''),
         csvCell(r.joined_at),
         csvCell(r.position ?? ''),
-        csvCell(r.payment_status),
-        String(r.amount_paid_cents ?? 0),
-        csvCell(r.payment_intent_id ? 'stripe' : r.payment_status === 'paid' ? 'manual' : ''),
-      ].join(','),
-    ),
+        csvCell(status),
+        String(amount),
+        csvCell(pi ? 'stripe' : status === 'paid' ? 'manual' : ''),
+      ].join(',');
+    }),
   ].join('\n');
 
   return new NextResponse(csv, {

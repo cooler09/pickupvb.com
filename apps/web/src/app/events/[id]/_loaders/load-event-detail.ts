@@ -858,19 +858,24 @@ async function loadAdHocBundle(
 async function loadAttendeePayments(eventId: string): Promise<Map<string, AttendeePaymentInfo>> {
   const { getAdminSupabase } = await import('@/lib/supabase-admin');
   const { data: payRows } = await getAdminSupabase()
-    .from('event_attendees')
-    .select('user_id, payment_status, payment_intent_id, division:event_divisions!inner(event_id)')
+    .from('event_participants')
+    .select(
+      'user_id, payment:event_participant_payments(payment_status, payment_intent_id), division:event_divisions!inner(event_id)',
+    )
+    .eq('role', 'attendee')
     .eq('division.event_id', eventId);
   type PayRow = {
     user_id: string;
-    payment_status: string;
-    payment_intent_id: string | null;
+    payment: {
+      payment_status: string;
+      payment_intent_id: string | null;
+    } | null;
   };
   const map = new Map<string, AttendeePaymentInfo>();
   for (const r of (payRows as PayRow[] | null) ?? []) {
     map.set(r.user_id, {
-      status: r.payment_status,
-      viaStripe: !!r.payment_intent_id,
+      status: r.payment?.payment_status ?? 'pending',
+      viaStripe: !!r.payment?.payment_intent_id,
     });
   }
   return map;
@@ -882,12 +887,16 @@ async function loadViewerPaymentStatus(
 ): Promise<ViewerPaymentStatus | undefined> {
   const sb = await getServerSupabase();
   const { data: row } = await sb
-    .from('event_attendees')
-    .select('payment_status, division:event_divisions!inner(event_id)')
+    .from('event_participants')
+    .select(
+      'payment:event_participant_payments(payment_status), division:event_divisions!inner(event_id)',
+    )
+    .eq('role', 'attendee')
     .eq('division.event_id', eventId)
     .eq('user_id', userId)
     .maybeSingle();
-  const raw = (row as { payment_status?: string } | null)?.payment_status;
+  const raw = (row as { payment?: { payment_status?: string } | null } | null)?.payment
+    ?.payment_status;
   return raw === 'paid' || raw === 'pending' || raw === 'none' ? raw : undefined;
 }
 

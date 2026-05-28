@@ -64,32 +64,21 @@ async function sendBatch(
   let totalReminders = 0;
   for (const ev of events) {
     // Find attendees of this event who haven't been reminded yet.
-    // After Step 5a `event_attendees.event_id` is gone; reach the
-    // event through its divisions.
     const { data: attRows } = await admin
-      .from('event_attendees')
-      .select('user_id, division:event_divisions!inner(event_id)')
+      .from('event_participants')
+      .select('id, user_id, division:event_divisions!inner(event_id)')
+      .eq('role', 'attendee')
       .eq('division.event_id', ev.id)
       .is(columnName, null);
-    const attendees = (attRows as AttendeeRow[] | null) ?? [];
+    const attendees = (attRows as (AttendeeRow & { id: string })[] | null) ?? [];
     if (attendees.length === 0) continue;
 
     // Mark sent FIRST to prevent double-fire on cron overlap.
-    const userIds = attendees.map((a) => a.user_id);
-    // Load the division ids for this event so the update can scope
-    // by division_id (the only column that maps back to the event
-    // after Step 5a).
-    const { data: divRows } = await admin
-      .from('event_divisions')
-      .select('id')
-      .eq('event_id', ev.id);
-    const divisionIds = ((divRows as Array<{ id: string }> | null) ?? []).map((r) => r.id);
-    if (divisionIds.length === 0) continue;
+    const participantIds = attendees.map((a) => a.id);
     await admin
-      .from('event_attendees')
+      .from('event_participants')
       .update({ [columnName]: new Date().toISOString() } as never)
-      .in('division_id', divisionIds)
-      .in('user_id', userIds);
+      .in('id', participantIds);
 
     const location = locationOf(ev);
     // Dispatch sequentially to avoid hammering rate limits.

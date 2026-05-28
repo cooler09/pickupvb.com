@@ -9,10 +9,14 @@ import { getAdminSupabase } from './supabase-admin';
 export async function isPricingLocked(eventId: string): Promise<boolean> {
   const admin = getAdminSupabase();
   const { count, error } = await admin
-    .from('event_attendees')
-    .select('user_id, division:event_divisions!inner(event_id)', { count: 'exact', head: true })
+    .from('event_participants')
+    .select(
+      'user_id, payment:event_participant_payments!inner(payment_status), division:event_divisions!inner(event_id)',
+      { count: 'exact', head: true },
+    )
+    .eq('role', 'attendee')
     .eq('division.event_id', eventId)
-    .eq('payment_status', 'paid');
+    .eq('payment.payment_status', 'paid');
   if (error) return false;
   return (count ?? 0) > 0;
 }

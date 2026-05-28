@@ -1460,6 +1460,124 @@ filter loosening, bridge-view callers retargeting.
 
 ---
 
+### 2026-05-30 — Bridge-view caller retargeting (Bundle A) ✅
+
+Closed follow-up #1 from the previous entry: every `.from('event_attendees')`
+and `.from('event_free_agents')` call site now writes / reads the canonical
+`event_participants` (+ `event_participant_payments` for ticket money) tables
+directly. The bridge views and their `INSTEAD OF` triggers remain in place
+as a backstop until Bundle B drops them in a follow-up migration.
+
+**Sites retargeted:**
+
+- **Read paths** —
+  [pricing-lock.ts](../../apps/web/src/lib/pricing-lock.ts),
+  [refund-ticket.ts](../../apps/web/src/lib/refund-ticket.ts),
+  [profile/billing/analytics/page.tsx](../../apps/web/src/app/profile/billing/analytics/page.tsx),
+  [attendees.csv route](../../apps/web/src/app/api/events/[id]/attendees.csv/route.ts),
+  [reminders cron](../../apps/web/src/app/api/notifications/reminders/route.ts),
+  [load-event-detail.ts `loadAttendeePayments` + `loadViewerPaymentStatus`](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts),
+  [edit/page.tsx paid-attendee count](../../apps/web/src/app/events/[id]/edit/page.tsx),
+  [broadcast-actions.ts](../../apps/web/src/app/events/[id]/broadcast-actions.ts),
+  [edit/cancel-actions.ts](../../apps/web/src/app/events/[id]/edit/cancel-actions.ts),
+  [edit/actions.ts notify path](../../apps/web/src/app/events/[id]/edit/actions.ts).
+- **Write paths** —
+  [checkout-actions.ts](../../apps/web/src/app/events/[id]/checkout-actions.ts)
+  (two-step participant + payment upsert with orphan cleanup on payment
+  failure or Stripe error),
+  [Stripe webhook](../../apps/web/src/app/api/webhooks/stripe/route.ts)
+  (`checkout.session.completed`, `checkout.session.expired`,
+  `payment_intent.payment_failed`, `charge.refunded`),
+  [checkout/success](../../apps/web/src/app/events/[id]/checkout/success/route.ts) /
+  [checkout/cancel](../../apps/web/src/app/events/[id]/checkout/cancel/route.ts) routes,
+  [manage-payments-actions.ts](../../apps/web/src/app/events/[id]/manage-payments-actions.ts)
+  (host manual mark-paid now upserts `event_participant_payments`).
+- **Infra repo** —
+  [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts)
+  `findById`, `save` (attendee + free-agent delta sync), `getDetail`,
+  `searchFollowingFeed`, `attachFreeAgentToDivision`.
+- **Realtime hook comment** —
+  [use-event-attendees.ts](../../apps/web/src/hooks/use-event-attendees.ts)
+  was already subscribing to `event_participants`; cleaned up the stale
+  "post-collapse" comment.
+- **Type stub** — added `event_participants` + `event_participant_payments`
+  Table entries to
+  [packages/supabase/src/database.types.ts](../../packages/supabase/src/database.types.ts)
+  (no Docker locally; pattern documented in the supabase-types-stub repo
+  memory).
+
+**Patterns established:**
+
+- **Read with payment fields** —
+  `.from('event_participants').select('..., payment:event_participant_payments(payment_status, ...), division:event_divisions!inner(event_id)').eq('role','attendee').eq('division.event_id', id)`.
+  Read with `r.payment?.payment_status ?? 'pending'` to preserve the
+  bridge view's `coalesce(..., 'pending')` semantics.
+- **Filter on a payment column** — promote the embed to `!inner` and
+  filter via `.eq('payment.payment_status', 'paid')`.
+- **Update a payment field** — keyed by the payment-side column
+  (`checkout_session_id`, `payment_intent_id`) when one is available;
+  otherwise resolve `participant_id` first and `upsert` into
+  `event_participant_payments` with `onConflict: 'participant_id'`.
+- **Insert pending attendee** — insert participant first (RLS:
+  `event_participants_insert`, returning `id`); on success upsert the
+  matching payment row. On payment-side failure (or downstream Stripe
+  failure) delete the participant to roll back the capacity reservation.
+  The bridge's `INSTEAD OF` trigger used to fold these into one
+  statement — the app layer now owns the cleanup window.
+- **Reminder timestamps stay on `event_participants`** —
+  `reminder_24h_sent_at` / `reminder_2h_sent_at` are participant
+  metadata, not payment metadata. Bridge-view shape hid this.
+- **Delete by participant id** — the payment row cascades, so all
+  `event_attendees` deletes that previously keyed off
+  `(division_id, user_id)` or `payment_intent_id` now resolve
+  `participant_id` first and delete from `event_participants`.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green.
+
+**Follow-ups remaining on this audit:**
+
+- **Bundle B (next)** — drop the `event_attendees` /
+  `event_free_agents` views, their `INSTEAD OF` triggers, and the
+  matching entries in `packages/supabase/src/database.types.ts`. After
+  Bundle A's verify, no caller references the views.
+- Carried unchanged: `EventTeamRegistration.forfeitedAt` wiring,
+  `LeagueSchedule` RPC, bracket-reader `source='roster'` filter loosening.
+
+---
+
+### 2026-05-30 — Bridge-view drop (Bundle B) ✅
+
+Closed Bundle B from the preceding entry. Migration
+[20260808000000_drop_event_attendees_free_agents_bridge.sql](../../supabase/migrations/20260808000000_drop_event_attendees_free_agents_bridge.sql)
+drops the `event_attendees` / `event_free_agents` SECURITY INVOKER views,
+their six `INSTEAD OF` trigger functions, and (in the types stub) the
+matching `Database['public']['Tables']` entries from
+[packages/supabase/src/database.types.ts](../../packages/supabase/src/database.types.ts).
+No data movement — the canonical `event_participants` /
+`event_participant_payments` tables already held everything; the views
+were a pass-through retained as a Bundle A backstop. Any future
+`.from('event_attendees')` typo now fails fast at PostgREST instead of
+silently round-tripping through a translation layer.
+
+The audit's P2 #6.7 ("collapse `event_attendees` + `event_free_agents`
+into `event_participants`") is fully closed: aggregate (Step 6/7),
+caller retarget (Bundle A), bridge removal (Bundle B). The pattern this
+two-bundle split established — keep the bridge in place across a
+code-only retarget, drop the bridge in a separate migration-only PR — is
+worth reusing for the next "collapse two tables behind a view" pass.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green (15/15 typecheck, lint at the existing 3 unrelated warnings,
+179+50 tests, 8/8 build).
+
+**Follow-ups remaining on this audit:**
+
+- Carried unchanged: `EventTeamRegistration.forfeitedAt` wiring,
+  `LeagueSchedule` RPC, bracket-reader `source='roster'` filter loosening.
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)

@@ -106,7 +106,11 @@ export default async function HostAnalyticsPage() {
   if (eventIds.length > 0) {
     const [{ data: rawAttendees }, { data: rawDivisions }, { data: rawAudits }] = await Promise.all(
       [
-        supabase.from('event_attendees').select('event_id, user_id').in('event_id', eventIds),
+        supabase
+          .from('event_participants')
+          .select('user_id, division:event_divisions!inner(event_id)')
+          .eq('role', 'attendee')
+          .in('division.event_id', eventIds),
         supabase.from('event_divisions').select('event_id, max_spots').in('event_id', eventIds),
         supabase
           .from('event_payment_audit')
@@ -116,7 +120,11 @@ export default async function HostAnalyticsPage() {
       ],
     );
 
-    attendees = (rawAttendees as AttendeeRow[] | null) ?? [];
+    attendees = (
+      (rawAttendees as { user_id: string; division: { event_id: string } | null }[] | null) ?? []
+    )
+      .filter((a) => a.division != null)
+      .map((a) => ({ event_id: a.division!.event_id, user_id: a.user_id })) as AttendeeRow[];
     divisions = (rawDivisions as DivisionRow[] | null) ?? [];
     audits = (rawAudits as PaymentAuditRow[] | null) ?? [];
   }
