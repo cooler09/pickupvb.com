@@ -59,6 +59,15 @@ export class ResetBracketCommand {
   ) {}
 }
 
+export class ReorderPoolMatchesCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly pool: string,
+    public readonly matchIdsInOrder: ReadonlyArray<string>,
+  ) {}
+}
+
 export class RecordMatchResultCommand {
   constructor(
     public readonly matchId: string,
@@ -192,6 +201,24 @@ export class ResetBracketHandler {
     const evt = await loadEventForBracket(this.events, bracket);
     assertHost(evt.hostId, cmd.requesterId);
     bracket.reset();
+    await this.brackets.save(bracket);
+  }
+}
+
+export class ReorderPoolMatchesHandler {
+  constructor(
+    private readonly events: EventRepository,
+    private readonly brackets: BracketRepository,
+  ) {}
+
+  async execute(cmd: ReorderPoolMatchesCommand): Promise<void> {
+    const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
+    const evt = await loadEventForBracket(this.events, bracket);
+    assertHost(evt.hostId, cmd.requesterId);
+    bracket.reorderPoolMatches(
+      cmd.pool,
+      cmd.matchIdsInOrder.map((id) => id as never),
+    );
     await this.brackets.save(bracket);
   }
 }

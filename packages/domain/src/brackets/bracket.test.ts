@@ -445,3 +445,129 @@ describe('Bracket.create courtLabels', () => {
     expect(b.config.courtLabels).toEqual(['Court 1', 'Court 2']);
   });
 });
+
+// ---- Phase 1b: reorderPoolMatches ----------------------------------
+
+describe('Bracket.reorderPoolMatches', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  function setupPoolPlay(opts: { courtLabels?: string[] } = {}): Bracket {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      bestOf: 1,
+      ...(opts.courtLabels ? { courtLabels: opts.courtLabels } : {}),
+    });
+    b.seedTeams(seedTeams(6).map((s) => s.teamId));
+    b.generate(mkIdFactory());
+    return b;
+  }
+
+  it('renumbers matches 1..N in the new order', () => {
+    const b = setupPoolPlay();
+    const poolA = b.matches.filter((m) => m.pool === 'A');
+    expect(poolA.length).toBeGreaterThan(1);
+    const reversed = poolA
+      .slice()
+      .sort((a, x) => a.matchNumber - x.matchNumber)
+      .reverse()
+      .map((m) => m.id);
+    b.reorderPoolMatches('A', reversed);
+    const afterA = b.matches
+      .filter((m) => m.pool === 'A')
+      .sort((a, x) => a.matchNumber - x.matchNumber);
+    for (let i = 0; i < afterA.length; i++) {
+      expect(afterA[i]!.matchNumber).toBe(i + 1);
+      expect(afterA[i]!.id).toBe(reversed[i]);
+    }
+  });
+
+  it('does not change opponents', () => {
+    const b = setupPoolPlay();
+    const before = new Map(
+      b.matches.filter((m) => m.pool === 'A').map((m) => [String(m.id), [m.teamAId, m.teamBId]]),
+    );
+    const reversed = b.matches
+      .filter((m) => m.pool === 'A')
+      .sort((a, x) => a.matchNumber - x.matchNumber)
+      .reverse()
+      .map((m) => m.id);
+    b.reorderPoolMatches('A', reversed);
+    for (const m of b.matches.filter((m) => m.pool === 'A')) {
+      const orig = before.get(String(m.id))!;
+      expect([m.teamAId, m.teamBId]).toEqual(orig);
+    }
+  });
+
+  it('re-runs the slot solver when courtLabels is set', () => {
+    const b = setupPoolPlay({ courtLabels: ['C1', 'C2'] });
+    const poolA = b.matches.filter((m) => m.pool === 'A');
+    const reversed = poolA
+      .slice()
+      .sort((a, x) => a.matchNumber - x.matchNumber)
+      .reverse()
+      .map((m) => m.id);
+    b.reorderPoolMatches('A', reversed);
+    // Every pool match still has a slot/court assigned and no team appears
+    // twice in the same slot.
+    const bySlot = new Map<number, typeof b.matches>();
+    for (const m of b.matches.filter((x) => x.pool !== null)) {
+      expect(m.slot).not.toBeNull();
+      expect(m.court).not.toBeNull();
+      const list = (bySlot.get(m.slot!) ?? []) as typeof b.matches;
+      bySlot.set(m.slot!, [...list, m]);
+    }
+    for (const [, list] of bySlot) {
+      const teams = new Set<string>();
+      for (const m of list) {
+        for (const t of [m.teamAId, m.teamBId]) {
+          if (t) {
+            expect(teams.has(t)).toBe(false);
+            teams.add(t);
+          }
+        }
+      }
+    }
+  });
+
+  it('rejects reorder when newOrder length mismatches', () => {
+    const b = setupPoolPlay();
+    const poolA = b.matches.filter((m) => m.pool === 'A');
+    expect(() =>
+      b.reorderPoolMatches(
+        'A',
+        poolA.slice(0, 1).map((m) => m.id),
+      ),
+    ).toThrow(/every match/i);
+  });
+
+  it('rejects reorder when a listed id is not in the pool', () => {
+    const b = setupPoolPlay();
+    const poolA = b.matches.filter((m) => m.pool === 'A');
+    const poolB = b.matches.filter((m) => m.pool === 'B');
+    const swapped = [...poolA.slice(0, poolA.length - 1).map((m) => m.id), poolB[0]!.id];
+    expect(() => b.reorderPoolMatches('A', swapped)).toThrow();
+  });
+
+  it('rejects reorder for an unknown pool', () => {
+    const b = setupPoolPlay();
+    expect(() => b.reorderPoolMatches('Z', [])).toThrow();
+  });
+
+  it('rejects reorder when a pool match has progressed past pending', () => {
+    const b = setupPoolPlay();
+    const poolA = b.matches.filter((m) => m.pool === 'A');
+    // Record a result on the first non-bye match in pool A.
+    const target = poolA.find((m) => m.status === 'pending' && m.teamAId && m.teamBId)!;
+    b.recordResult({
+      matchId: target.id,
+      sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }],
+    });
+    const reversed = poolA
+      .slice()
+      .sort((a, x) => a.matchNumber - x.matchNumber)
+      .reverse()
+      .map((m) => m.id);
+    expect(() => b.reorderPoolMatches('A', reversed)).toThrow(/progress|completed/i);
+  });
+});

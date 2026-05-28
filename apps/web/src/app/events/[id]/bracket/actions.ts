@@ -9,6 +9,7 @@ import {
   GeneratePlayoffCommand,
   RecordMatchResultCommand,
   RegisterAdHocTeamCommand,
+  ReorderPoolMatchesCommand,
   ResetBracketCommand,
   ResetMatchCommand,
   SeedBracketCommand,
@@ -205,6 +206,52 @@ export async function resetBracket(eventId: string, divisionId: string): Promise
   }
   revalidate(eventId);
   back(eventId, divisionId, 'reset');
+}
+
+/**
+ * Bump a pool-play match up or down by one position. The form posts the
+ * pool's current match order via repeated hidden `match_id` inputs plus
+ * the `move_id` and `direction` of the button clicked. The server
+ * computes the new order and hands it to the aggregate. See ADR 0018
+ * Phase 1b.
+ */
+export async function movePoolMatchFromForm(
+  eventId: string,
+  divisionId: string,
+  pool: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const moveId = String(formData.get('move_id') ?? '');
+  const direction = String(formData.get('direction') ?? '');
+  const order = formData.getAll('match_id').map((v) => String(v));
+  if (!moveId || (direction !== 'up' && direction !== 'down') || order.length < 2) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'Bad reorder request.');
+  }
+  const idx = order.indexOf(moveId);
+  if (idx === -1) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'Match not in pool order.');
+  }
+  const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapWith < 0 || swapWith >= order.length) {
+    // Already at the edge — no-op.
+    revalidate(eventId);
+    return;
+  }
+  const next = order.slice();
+  [next[idx], next[swapWith]] = [next[swapWith]!, next[idx]!];
+  try {
+    await handlers.reorderPoolMatches.execute(
+      new ReorderPoolMatchesCommand(divisionId, user.id, pool, next),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
 }
 
 /**

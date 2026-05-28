@@ -23,6 +23,7 @@ import {
   generatePoolPlay,
   generateRoundRobin,
   generateSingleElimination,
+  assignCourtsAndSlots,
 } from './generators.js';
 import type { BracketId, Match, MatchId, MatchSet, Seed } from './match.js';
 import { determineWinner } from './match.js';
@@ -303,6 +304,79 @@ export class Bracket extends AggregateRoot<BracketId> {
     );
     this._matches = [...this._matches, ...playoff];
     this.raise(new BracketGenerated(this.id, playoff.length));
+  }
+
+  /**
+   * Reorder the matches within a single pool to a host-specified sequence.
+   * Reassigns `matchNumber` 1..N in the order given and re-runs the
+   * court/slot solver across all pool matches so the schedule stays
+   * conflict-free. See ADR 0018 Phase 1b.
+   *
+   * Constraints:
+   * - Bracket must be `active` and use `pool_play_playoff` format.
+   * - `newOrder` must list every match currently in `pool`, no extras.
+   * - No match in the pool may have started (status must be `pending`
+   *   or `bye`) — once results are recorded, the schedule is frozen.
+   *
+   * @throws {InvariantViolation} bad status or wrong format.
+   * @throws {NotFoundError} pool doesn't exist, or a listed match id
+   *   isn't in the pool.
+   * @throws {ValidationError} duplicate or missing match ids.
+   * @throws {ConflictError} pool has matches in progress or completed.
+   */
+  reorderPoolMatches(pool: string, newOrder: ReadonlyArray<MatchId>): void {
+    if (this._status !== 'active') {
+      throw new InvariantViolation('Can only reorder matches on an active bracket.');
+    }
+    if (this._format !== 'pool_play_playoff') {
+      throw new InvariantViolation('Reorder is only supported for pool play.');
+    }
+    const poolMatches = this._matches.filter((m) => m.pool === pool);
+    if (poolMatches.length === 0) {
+      throw new NotFoundError('pool', pool);
+    }
+    if (new Set(newOrder.map(String)).size !== newOrder.length) {
+      throw new ValidationError('Duplicate match id in reorder list.');
+    }
+    if (poolMatches.length !== newOrder.length) {
+      throw new ValidationError('Reorder must include every match in the pool.', {
+        expected: poolMatches.length,
+        got: newOrder.length,
+      });
+    }
+    const byId = new Map(poolMatches.map((m) => [String(m.id), m]));
+    for (const id of newOrder) {
+      if (!byId.has(String(id))) {
+        throw new NotFoundError('match', String(id));
+      }
+    }
+    for (const m of poolMatches) {
+      if (m.status !== 'pending' && m.status !== 'bye') {
+        throw new ConflictError('Cannot reorder a pool that has matches in progress or completed.');
+      }
+    }
+    // Assign 1..N matchNumber in new order. `matchNumber` is declared
+    // readonly on the Match interface (the generator owns the initial
+    // value); cast to mutate here.
+    for (let i = 0; i < newOrder.length; i++) {
+      const m = byId.get(String(newOrder[i]!))!;
+      (m as { matchNumber: number }).matchNumber = i + 1;
+    }
+    // Re-run court/slot solver across all pool matches in their new
+    // (pool, matchNumber) order so slots reflect the new sequence.
+    if (this._config.courtLabels.length > 0) {
+      const allPoolMatches = this._matches
+        .filter((m) => m.pool !== null)
+        .sort((a, b) => {
+          if (a.pool !== b.pool) return (a.pool ?? '') < (b.pool ?? '') ? -1 : 1;
+          return a.matchNumber - b.matchNumber;
+        });
+      for (const m of allPoolMatches) {
+        m.court = null;
+        m.slot = null;
+      }
+      assignCourtsAndSlots(allPoolMatches, this._config.courtLabels);
+    }
   }
 
   /**

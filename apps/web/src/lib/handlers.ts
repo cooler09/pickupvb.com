@@ -53,6 +53,7 @@ import {
   ReportCommunityListingHandler,
   ResetBracketHandler,
   ResetMatchHandler,
+  ReorderPoolMatchesHandler,
   SearchCommunityListingsHandler,
   SearchEventsHandler,
   SeedBracketHandler,
@@ -166,6 +167,7 @@ export const handlers = {
   generateBracket: new GenerateBracketHandler(eventRepo, bracketRepo),
   generatePlayoff: new GeneratePlayoffHandler(eventRepo, bracketRepo),
   resetBracket: new ResetBracketHandler(eventRepo, bracketRepo),
+  reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo),
   recordMatchResult: new RecordMatchResultHandler(bracketRepo),
   resetMatch: new ResetMatchHandler(bracketRepo),
   // Community listings

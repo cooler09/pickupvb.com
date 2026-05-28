@@ -5,7 +5,7 @@ import {
   type Match,
   type PoolStanding,
 } from '@pickupvb/domain';
-import { generatePlayoff, resetBracket } from '../actions';
+import { generatePlayoff, movePoolMatchFromForm, resetBracket } from '../actions';
 import { MatchCard } from './match-card';
 import type { TeamLite } from './labels';
 import { SubmitButton } from '@/components/submit-button';
@@ -222,38 +222,100 @@ function PoolsView(props: {
       {pools.map((pool) => {
         const poolMatches = props.matches.filter((m) => m.pool === pool);
         const standings = computePoolStandings(props.matches, pool);
+        const sortedPoolMatches = poolMatches
+          .slice()
+          .sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber);
+        const orderedIds = sortedPoolMatches.map((m) => String(m.id));
+        // Reorder is allowed when the host hasn't started any pool match.
+        const canReorder =
+          props.isHost && poolMatches.every((m) => m.status === 'pending' || m.status === 'bye');
         return (
           <div key={pool} className="space-y-2">
             <h2 className="text-fg text-base font-semibold">Pool {pool}</h2>
             <PoolStandingsTable standings={standings} teamById={props.teamById} />
             <div className="flex flex-wrap gap-2">
-              {poolMatches
-                .slice()
-                .sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber)
-                .map((m) => {
-                  const isHighlighted = props.highlightMatchId === String(m.id);
-                  return (
-                    <div
-                      key={m.id}
-                      id={`match-${String(m.id)}`}
-                      className={`min-w-55 scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
-                    >
-                      <MatchCard
+              {sortedPoolMatches.map((m, i) => {
+                const isHighlighted = props.highlightMatchId === String(m.id);
+                return (
+                  <div
+                    key={m.id}
+                    id={`match-${String(m.id)}`}
+                    className={`min-w-55 scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
+                  >
+                    {canReorder && (
+                      <ReorderControls
                         eventId={props.eventId}
                         divisionId={props.divisionId}
-                        match={m}
-                        teamById={props.teamById}
-                        bestOf={props.bestOf}
-                        isHost={props.isHost}
-                        viewerId={props.viewerId}
+                        pool={pool}
+                        matchId={String(m.id)}
+                        orderedIds={orderedIds}
+                        canMoveUp={i > 0}
+                        canMoveDown={i < sortedPoolMatches.length - 1}
                       />
-                    </div>
-                  );
-                })}
+                    )}
+                    <MatchCard
+                      eventId={props.eventId}
+                      divisionId={props.divisionId}
+                      match={m}
+                      teamById={props.teamById}
+                      bestOf={props.bestOf}
+                      isHost={props.isHost}
+                      viewerId={props.viewerId}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ReorderControls(props: {
+  eventId: string;
+  divisionId: string;
+  pool: string;
+  matchId: string;
+  orderedIds: ReadonlyArray<string>;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+}) {
+  const action = movePoolMatchFromForm.bind(null, props.eventId, props.divisionId, props.pool);
+  return (
+    <div className="text-muted mb-1 flex items-center gap-1 text-xs">
+      <span className="mr-1">Order:</span>
+      <form action={action}>
+        {props.orderedIds.map((id) => (
+          <input key={id} type="hidden" name="match_id" value={id} />
+        ))}
+        <input type="hidden" name="move_id" value={props.matchId} />
+        <input type="hidden" name="direction" value="up" />
+        <button
+          type="submit"
+          disabled={!props.canMoveUp}
+          aria-label="Move match earlier"
+          className="border-border-base rounded border px-1.5 py-0.5 disabled:opacity-30"
+        >
+          ↑
+        </button>
+      </form>
+      <form action={action}>
+        {props.orderedIds.map((id) => (
+          <input key={id} type="hidden" name="match_id" value={id} />
+        ))}
+        <input type="hidden" name="move_id" value={props.matchId} />
+        <input type="hidden" name="direction" value="down" />
+        <button
+          type="submit"
+          disabled={!props.canMoveDown}
+          aria-label="Move match later"
+          className="border-border-base rounded border px-1.5 py-0.5 disabled:opacity-30"
+        >
+          ↓
+        </button>
+      </form>
     </div>
   );
 }
