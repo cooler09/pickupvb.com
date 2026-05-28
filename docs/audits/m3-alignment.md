@@ -1,5 +1,30 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-28, Bundle 137):** Density scale shipped
+> — **P2 #15 vocabulary + reference call sites shipped** (responsive
+> density now applied to receipts + earnings tables; further
+> dense-list rollouts are opportunistic). Three M3 density utilities
+> (`md-density-comfortable` / `md-density-standard` /
+> `md-density-compact`) land tokens on cascading custom properties
+> (`--md-row-py`, `--md-row-px`) so a single density class on a
+> parent reaches every consuming descendant. New `.md-table`
+> consumer paints those tokens onto `th` / `td` cells via descendant
+> selector — cells keep their other utility classes (`text-right`,
+> `text-muted`, `whitespace-nowrap`, `hidden sm:table-cell`) and
+> only the padding token moves. Receipts ([profile/receipts/page.tsx](../../apps/web/src/app/profile/receipts/page.tsx))
+> and earnings ([profile/billing/earnings/page.tsx](../../apps/web/src/app/profile/billing/earnings/page.tsx),
+> both event-rollup and monthly tables) now declare
+> `md-table md-density-compact md:md-density-comfortable` once on
+> the `<table>` and shed the per-cell `px-3 py-2` triplets —
+> cramped-on-mobile sympton from the audit is gone, desktop gains
+> the M3 56 dp row height. Group-member list + other dense lists
+> are deferred (still uniform `px-3 py-2` — each is a small
+> reviewable diff using the same primitives). M3 data-table
+> primitive (P3 #18) explicitly deferred "until a third table
+> appears," per the original audit guidance. Verify 15/15 typecheck
+> · lint 3 pre-existing warnings · 179+50 tests · 8/8 build. See
+> [Bundle 137 journal](../journal/2026-05-28-bundle-137.md).
+
 > **Status update (2026-05-28, Bundle 136):** Dropdown menu on Radix
 > shipped — **P2 #12 closed** for `<NavDropdown>` (the one Menu-style
 > popover in the header; `<details>` / panel patterns elsewhere are
@@ -614,7 +639,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   `@radix-ui/react-dialog` or `vaul`. Use M3 motion tokens
   (`emphasized-decelerate` for entry).
 
-### #15 No density / responsive density
+### #15 No density / responsive density 🟡 Tokens + `md-table` consumer + receipts/earnings migrated (2026-05-28, Bundle 137); other dense lists deferred
 
 - **Where:** Every list, table, card uses one set of paddings.
   Receipts table and earnings table cram on mobile; group member list
@@ -770,6 +795,100 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 137 — Density scale (2026-05-28)
+
+Lands the **P2 #15** vocabulary + reference call sites — receipts
+and earnings tables — closing the cram-on-mobile finding the audit
+explicitly called out. Other dense lists (group-member list and
+friends) are deferred as opportunistic follow-ups using the same
+primitives.
+
+**Files touched:**
+
+- [apps/web/src/app/globals.css](../../apps/web/src/app/globals.css)
+  — three `@utility` blocks for the M3 density scale plus a
+  `.md-table` consumer. Tokens land on two CSS custom properties
+  (`--md-row-py`, `--md-row-px`) so density is set once per surface
+  and cascades through the DOM. `md-density-comfortable` (12 px /
+  16 px), `md-density-standard` (8 px / 12 px, also the `.md-table`
+  baseline), `md-density-compact` (6 px / 8 px) — matches the
+  audit's prescription ("subtract 4 dp per step"). `.md-table > thead
+  > tr > th, .md-table > tbody > tr > {th,td}, .md-table > tfoot >
+  > tr > td`is the cell selector, so cells outside the standard
+three-section structure (raw`<table><tr>` without a section
+  > wrapper) won't get padding silently — that's by design, the
+  > selector is the API contract.
+- [apps/web/src/app/profile/receipts/page.tsx](../../apps/web/src/app/profile/receipts/page.tsx)
+  — transactions table migrated. `<table>` now carries
+  `md-table md-density-compact md:md-density-comfortable w-full text-sm`;
+  every `<th>` / `<td>` lost its `px-3 py-2` triplet and kept its
+  other utility classes verbatim.
+- [apps/web/src/app/profile/billing/earnings/page.tsx](../../apps/web/src/app/profile/billing/earnings/page.tsx)
+  — both tables (per-event rollup + monthly) migrated with the
+  same `md-table md-density-compact md:md-density-comfortable`
+  pattern.
+
+**Decisions:**
+
+- **Cascading CSS custom properties, not BEM-style modifier
+  classes per cell.** Setting `--md-row-py` / `--md-row-px` on the
+  `<table>` reaches every descendant cell via natural CSS variable
+  inheritance — no `<td className="md-cell">` boilerplate at every
+  cell. The trade-off is the `.md-table > section > tr > cell`
+  selector chain (one declaration covers all four cell positions:
+  `thead>th`, `tbody>th`, `tbody>td`, `tfoot>td`).
+- **Three density steps named per M3.** `comfortable` /
+  `standard` / `compact` are the exact M3 vocabulary; using the
+  same names in our utility classes keeps the design-system
+  discussion legible ("that's our compact density" → same thing in
+  Figma + the M3 spec + our codebase).
+- **Compact on mobile, comfortable on desktop — not the reverse
+  default.** M3's default is comfortable for desktop surfaces; we
+  follow that but ramp DOWN on small screens because the audit's
+  evidence was "cram on mobile." The reverse (comfortable on
+  mobile) would lose 5+ rows on the receipts table viewport.
+- **`.md-table` is opt-in, not a global `<table>` selector.**
+  There are tables in the codebase outside the receipts/earnings
+  pages that already have bespoke padding (host panels, etc.).
+  Hijacking every `<table>` would silently break them. Opt-in via
+  the `.md-table` class is the safe migration boundary.
+- **`.md-table` baseline density is `standard`** — if a caller
+  forgets to specify a density utility, they get sensible 8 px / 12
+  px padding rather than zero. The `md-density-*` utility class on
+  the same element overrides via CSS variable specificity (later
+  declaration wins in the cascade).
+- **No per-cell density utilities this bundle.** The audit's
+  evidence was tables; lists are different layout primitives
+  (`<ul><li>`, `<div>` chains) where the M3 density mapping is less
+  obvious. Wait for a concrete dense-list pain point before
+  designing the list utility.
+
+**Follow-ups deferred:**
+
+- **Group-member list and other dense lists** — the audit's
+  third bucket ("group member list is sparse on desktop"). Each is
+  a small reviewable diff; the primitives are ready but each list
+  is a layout decision. Open audit-side: do we want
+  `md-density-*` to set list padding via a `.md-list` consumer
+  parallel to `.md-table`, or per-item utility?
+- **M3 data-table primitive (P3 #18)** — sort, selection,
+  pagination embedded. Original audit guidance: "defer until a
+  third table appears." Still two tables (receipts + earnings),
+  so still deferred.
+- **Mobile receipts/earnings horizontal scroll** — the earnings
+  page wraps the `<table>` in `overflow-x-auto`; receipts does
+  not. Both work at compact density on iPhone SE without
+  scrolling, but it's worth a sanity scan on the smallest target.
+- **`tap-target` interaction** — dense table rows shrink toward
+  the Bundle 130 `tap-target` floor on `compact`. Currently no
+  interactive cell in receipts/earnings is icon-only (the action
+  is a text link), so no immediate collision. Worth re-checking if
+  a future migration adds icon-only cell affordances.
+
+**Verify:** typecheck 15/15 ✓ · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings ✓ · 179 domain + 50 web tests ✓ ·
+8/8 build ✓.
 
 ### Bundle 136 — Dropdown menu on Radix (2026-05-28)
 

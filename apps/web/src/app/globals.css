@@ -552,6 +552,62 @@ body {
 
 /*
  * ============================================================================
+ *  M3 density scale (Bundle 9 — P2 #15).
+ *
+ *  Three density steps per M3: `comfortable` (default for desktop
+ *  surfaces, ~56 dp rows), `standard` (~48 dp), `compact` (~36 dp).
+ *  Tokens land on two CSS custom properties — `--md-row-py` and
+ *  `--md-row-px` — that cascade through the DOM so a single density
+ *  class on a parent reaches every consuming descendant.
+ *
+ *  Consumers:
+ *    - `.md-table` (below) — table cells consume `--md-row-py` /
+ *      `--md-row-px` automatically via descendant selector. Cells
+ *      keep their own utility classes (`text-right`, `text-muted`,
+ *      `whitespace-nowrap`, `hidden sm:table-cell`) — only padding
+ *      moves to the token.
+ *
+ *  Responsive density: each `md-density-*` utility participates in
+ *  Tailwind variants, so `md-density-compact md:md-density-comfortable`
+ *  ramps a table from a tight mobile layout up to a roomy desktop
+ *  layout. Matches the audit's prescription ("compact on xs,
+ *  comfortable on md+").
+ * ============================================================================
+ */
+@utility md-density-comfortable {
+  --md-row-py: 0.75rem; /* 12 px */
+  --md-row-px: 1rem; /* 16 px */
+}
+@utility md-density-standard {
+  --md-row-py: 0.5rem; /* 8 px */
+  --md-row-px: 0.75rem; /* 12 px */
+}
+@utility md-density-compact {
+  --md-row-py: 0.375rem; /* 6 px */
+  --md-row-px: 0.5rem; /* 8 px */
+}
+
+/*
+ * `.md-table` — opt-in density consumer for `<table>`. Sets the
+ * `standard` density as the baseline and then any descendant `th` /
+ * `td` picks up the row padding via the cascading custom properties.
+ * Layered density (`md-density-compact md:md-density-comfortable`)
+ * goes on the same `<table>` element and overrides the baseline.
+ */
+.md-table {
+  --md-row-py: 0.5rem;
+  --md-row-px: 0.75rem;
+}
+.md-table > thead > tr > th,
+.md-table > tbody > tr > th,
+.md-table > tbody > tr > td,
+.md-table > tfoot > tr > td {
+  padding-block: var(--md-row-py);
+  padding-inline: var(--md-row-px);
+}
+
+/*
+ * ============================================================================
  *  M3 toast (Snackbar) motion (Bundle 4 — P2 #8).
  *
  *  Applied to Radix `Toast.Root` via `.md-toast-motion`. Enter uses
