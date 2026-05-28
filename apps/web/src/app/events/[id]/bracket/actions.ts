@@ -106,6 +106,7 @@ export async function createBracketFromForm(
         if (Number.isFinite(games) && games >= 1) config.poolGamesPerTeam = games;
       }
     }
+    if (formData.get('require_work_team') != null) config.requireWorkTeam = true;
   }
   await createBracket(
     eventId,

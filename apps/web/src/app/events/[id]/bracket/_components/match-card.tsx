@@ -15,6 +15,7 @@ export function MatchCard(props: {
   const m = props.match;
   const teamA = m.teamAId ? props.teamById.get(m.teamAId) : null;
   const teamB = m.teamBId ? props.teamById.get(m.teamBId) : null;
+  const workTeam = m.workTeamId ? props.teamById.get(m.workTeamId) : null;
   const winner = m.winnerTeamId;
   const canEdit =
     props.isHost ||
@@ -45,6 +46,13 @@ export function MatchCard(props: {
       {m.sets.length > 0 && (
         <p className="text-muted mt-2 text-xs">
           Sets: {m.sets.map((s) => `${s.teamAScore}–${s.teamBScore}`).join(', ')}
+        </p>
+      )}
+
+      {workTeam && (
+        <p className="text-muted mt-2 text-xs">
+          <span className="text-fg/70 font-medium">Work team: </span>
+          {workTeam.name}
         </p>
       )}
 

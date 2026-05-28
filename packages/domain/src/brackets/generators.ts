@@ -81,6 +81,7 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
         teamAId: null,
         teamBId: null,
         winnerTeamId: null,
+        workTeamId: null,
         status: 'pending',
         sets: [],
         advancesToMatchId: feeds ? feeds.id : null,
@@ -196,6 +197,7 @@ export function generateRoundRobin(
         teamAId: a,
         teamBId: b,
         winnerTeamId: null,
+        workTeamId: null,
         status: 'pending',
         sets: [],
         advancesToMatchId: null,
@@ -242,6 +244,7 @@ function emptyMatch(
     teamAId: null,
     teamBId: null,
     winnerTeamId: null,
+    workTeamId: null,
     status: 'pending',
     sets: [],
     advancesToMatchId: null,
@@ -450,6 +453,12 @@ export function distributeIntoPools(seeds: ReadonlyArray<Seed>, poolCount: numbe
  * `match.pool` is set to 'A', 'B', ... so the UI can group by pool, and
  * `match.round` follows the per-pool round-robin round number.
  *
+ * When `options.assignWorkTeam` is true the generator finds the idle
+ * team per (pool, round) — the one not playing — and stamps it as
+ * `workTeamId` on every match in that round. Even-sized pools have no
+ * idle team, so `workTeamId` stays null in that case. Hosts may
+ * override per match in the UI. See ADR 0018.
+ *
  * @throws {ValidationError} propagated from {@link distributeIntoPools}
  *   (bad pool count / too few seeds), or when `schedule === 'fixed_games'`
  *   without a positive `gamesPerTeam`, or when `gamesPerTeam` is greater
@@ -462,6 +471,7 @@ export function generatePoolPlay(
   options: {
     schedule: 'round_robin' | 'fixed_games';
     gamesPerTeam: number | null;
+    assignWorkTeam?: boolean;
   },
   mkId: IdFactory,
 ): Match[] {
@@ -487,12 +497,44 @@ export function generatePoolPlay(
   const out: Match[] = [];
   for (let i = 0; i < pools.length; i++) {
     const label = poolLabel(i);
-    const poolMatches = generateRoundRobin(pools[i]!, mkId, maxRounds);
-    for (const m of poolMatches) {
-      out.push({ ...m, pool: label });
+    const poolSeeds = pools[i]!;
+    const poolMatches = generateRoundRobin(poolSeeds, mkId, maxRounds);
+    const stamped = poolMatches.map((m) => ({ ...m, pool: label }));
+    if (options.assignWorkTeam) {
+      assignIdleWorkTeams(stamped, poolSeeds);
     }
+    out.push(...stamped);
   }
   return out;
+}
+
+/**
+ * Mutates `matches` in place, stamping `workTeamId` on every match whose
+ * round has exactly one idle team (the team in the pool that isn't
+ * playing in that round). No-op for even-sized pools — every team
+ * plays every round, so no idle team exists.
+ */
+function assignIdleWorkTeams(matches: Match[], poolSeeds: ReadonlyArray<Seed>): void {
+  const teamIds = new Set(poolSeeds.map((s) => s.teamId));
+  const byRound = new Map<number, Match[]>();
+  for (const m of matches) {
+    const list = byRound.get(m.round) ?? [];
+    list.push(m);
+    byRound.set(m.round, list);
+  }
+  for (const [, roundMatches] of byRound) {
+    const playing = new Set<TeamId>();
+    for (const m of roundMatches) {
+      if (m.teamAId) playing.add(m.teamAId);
+      if (m.teamBId) playing.add(m.teamBId);
+    }
+    const idle: TeamId[] = [];
+    for (const t of teamIds) if (!playing.has(t)) idle.push(t);
+    if (idle.length === 1) {
+      const work = idle[0]!;
+      for (const m of roundMatches) m.workTeamId = work;
+    }
+  }
 }
 
 /**

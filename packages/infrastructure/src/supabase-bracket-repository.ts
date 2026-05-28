@@ -47,6 +47,7 @@ type MatchRow = {
   team_a_id: string | null;
   team_b_id: string | null;
   winner_team_id: string | null;
+  work_team_id: string | null;
   status: MatchStatus;
   advances_to_match_id: string | null;
   advances_to_slot: 'a' | 'b' | null;
@@ -131,7 +132,7 @@ export class SupabaseBracketRepository implements BracketRepository {
       throw new Error(`bracket matches load failed: ${matchesRes.error.message}`);
 
     const seedRows = (seedsRes.data ?? []) as SeedRow[];
-    const matchRows = (matchesRes.data ?? []) as MatchRow[];
+    const matchRows = (matchesRes.data ?? []) as unknown as MatchRow[];
 
     let setsByMatch = new Map<string, MatchSet[]>();
     if (matchRows.length > 0) {
@@ -160,6 +161,7 @@ export class SupabaseBracketRepository implements BracketRepository {
       teamAId: m.team_a_id ? (m.team_a_id as TeamId) : null,
       teamBId: m.team_b_id ? (m.team_b_id as TeamId) : null,
       winnerTeamId: m.winner_team_id ? (m.winner_team_id as TeamId) : null,
+      workTeamId: m.work_team_id ? (m.work_team_id as TeamId) : null,
       status: m.status,
       sets: setsByMatch.get(m.id) ?? [],
       advancesToMatchId: m.advances_to_match_id ? (m.advances_to_match_id as MatchId) : null,
@@ -236,6 +238,7 @@ export class SupabaseBracketRepository implements BracketRepository {
       team_a_id: m.teamAId,
       team_b_id: m.teamBId,
       winner_team_id: m.winnerTeamId,
+      work_team_id: m.workTeamId,
       status: m.status,
       scheduled_at: m.scheduledAt?.toISOString() ?? null,
       updated_at: new Date().toISOString(),

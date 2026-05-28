@@ -236,6 +236,7 @@ export function FormatPickerForm(props: {
   const [advancePerPool, setAdvancePerPool] = useState(2);
   const [poolSchedule, setPoolSchedule] = useState<'round_robin' | 'fixed_games'>('round_robin');
   const [poolGamesPerTeam, setPoolGamesPerTeam] = useState(2);
+  const [requireWorkTeam, setRequireWorkTeam] = useState(false);
 
   const isPoolPlay = format === 'pool_play_playoff';
   const isFixedGames = isPoolPlay && poolSchedule === 'fixed_games';
@@ -436,6 +437,18 @@ export function FormatPickerForm(props: {
               />
             </label>
           )}
+          <label className="inline-flex basis-full items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="require_work_team"
+              checked={requireWorkTeam}
+              onChange={(e) => setRequireWorkTeam(e.target.checked)}
+              className="border-border-base bg-bg rounded border"
+            />
+            <span className="text-fg/80">
+              Assign a ref / work team per match (the idle team in each pool round)
+            </span>
+          </label>
           <p className="text-muted basis-full text-xs">
             With {props.teamCount} teams in {poolCount} pools, that’s ~{teamsPerPool} per pool. The
             top {advancePerPool} from each pool advance to a single-elim playoff.

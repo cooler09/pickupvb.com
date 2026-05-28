@@ -45,6 +45,12 @@ export interface BracketConfig {
    * plays inside its pool. Ignored (kept as null) for `round_robin`.
    */
   poolGamesPerTeam: number | null;
+  /**
+   * Pool play only: when true, the generator assigns the round's idle
+   * team as `workTeamId` on each match. When false (default) work
+   * teams stay null and the UI hides the column. See ADR 0018.
+   */
+  requireWorkTeam: boolean;
 }
 
 export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
@@ -54,6 +60,7 @@ export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   advancePerPool: 2,
   poolSchedule: 'round_robin',
   poolGamesPerTeam: null,
+  requireWorkTeam: false,
 };
 
 /** `bestOf` values the host can pick. Other odd values are rejected at create-time. */
@@ -232,6 +239,7 @@ export class Bracket extends AggregateRoot<BracketId> {
           {
             schedule: this._config.poolSchedule,
             gamesPerTeam: this._config.poolGamesPerTeam,
+            assignWorkTeam: this._config.requireWorkTeam,
           },
           idFactory,
         );

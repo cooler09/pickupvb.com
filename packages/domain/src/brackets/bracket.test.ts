@@ -236,4 +236,87 @@ describe('generatePoolPlay', () => {
       seen.set(key, set);
     }
   });
+
+  // ---- Phase 2: work / ref team assignment ---------------------------
+
+  it('does not assign work teams when assignWorkTeam is false', () => {
+    const matches = generatePoolPlay(
+      seedTeams(10),
+      2,
+      { schedule: 'round_robin', gamesPerTeam: null },
+      mkIdFactory(),
+    );
+    for (const m of matches) expect(m.workTeamId).toBeNull();
+  });
+
+  it('assigns the idle team as work team in odd-sized pools', () => {
+    // 10 teams / 2 pools = 5-team pools (odd → one idle team per round).
+    const matches = generatePoolPlay(
+      seedTeams(10),
+      2,
+      { schedule: 'round_robin', gamesPerTeam: null, assignWorkTeam: true },
+      mkIdFactory(),
+    );
+    // Every match should have a work team set.
+    for (const m of matches) {
+      expect(m.workTeamId).not.toBeNull();
+      // Work team must not also be playing the match.
+      expect(m.workTeamId).not.toBe(m.teamAId);
+      expect(m.workTeamId).not.toBe(m.teamBId);
+    }
+    // Per (pool, round), the work team is the same on every match in that round.
+    const seen = new Map<string, string>();
+    for (const m of matches) {
+      const key = `${m.pool}|${m.round}`;
+      const prev = seen.get(key);
+      if (prev) expect(m.workTeamId).toBe(prev);
+      else if (m.workTeamId) seen.set(key, m.workTeamId);
+    }
+  });
+
+  it('leaves work team null in even-sized pools (no idle team)', () => {
+    // 8 teams / 2 pools = 4-team pools (even → no idle team per round).
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      { schedule: 'round_robin', gamesPerTeam: null, assignWorkTeam: true },
+      mkIdFactory(),
+    );
+    for (const m of matches) expect(m.workTeamId).toBeNull();
+  });
+
+  it('assigns work team in fixed_games mode too', () => {
+    // 10 teams / 2 pools = 5-team pools. fixed_games=2.
+    const matches = generatePoolPlay(
+      seedTeams(10),
+      2,
+      { schedule: 'fixed_games', gamesPerTeam: 2, assignWorkTeam: true },
+      mkIdFactory(),
+    );
+    for (const m of matches) {
+      expect(m.workTeamId).not.toBeNull();
+      expect(m.workTeamId).not.toBe(m.teamAId);
+      expect(m.workTeamId).not.toBe(m.teamBId);
+    }
+  });
+});
+
+// ---- Bracket.create requireWorkTeam default -------------------------
+
+describe('Bracket.create requireWorkTeam', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  it('defaults requireWorkTeam to false', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff');
+    expect(b.config.requireWorkTeam).toBe(false);
+  });
+
+  it('accepts requireWorkTeam = true', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      requireWorkTeam: true,
+    });
+    expect(b.config.requireWorkTeam).toBe(true);
+  });
 });
