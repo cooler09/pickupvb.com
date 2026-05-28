@@ -177,9 +177,32 @@ export class Bracket extends AggregateRoot<BracketId> {
       case 'round_robin':
         matches = generateRoundRobin(this._seeds, idFactory);
         break;
-      case 'pool_play_playoff':
-        matches = generatePoolPlay(this._seeds, this._config.poolCount, idFactory);
+      case 'pool_play_playoff': {
+        // Snake distribution gives each pool floor(N/poolCount) or
+        // ceil(N/poolCount) teams. For the playoff to be generable later,
+        // even the smallest pool needs at least `advancePerPool` teams,
+        // i.e. seeds.length >= poolCount * advancePerPool. Fail here so
+        // the host can fix the config before pool matches are played —
+        // otherwise the error only surfaces at `generatePlayoff` time
+        // with a cryptic "missing position N" message.
+        const { poolCount, advancePerPool } = this._config;
+        const minTeams = poolCount * advancePerPool;
+        if (this._seeds.length < minTeams) {
+          throw new ValidationError(
+            `Pool play with ${poolCount} pools advancing ${advancePerPool} per pool needs ` +
+              `at least ${minTeams} teams; have ${this._seeds.length}. ` +
+              `Reduce the pool count or advance-per-pool, or add more teams.`,
+            {
+              poolCount,
+              advancePerPool,
+              teamCount: this._seeds.length,
+              minTeams,
+            },
+          );
+        }
+        matches = generatePoolPlay(this._seeds, poolCount, idFactory);
         break;
+      }
       default:
         generateNotImplemented(this._format);
     }

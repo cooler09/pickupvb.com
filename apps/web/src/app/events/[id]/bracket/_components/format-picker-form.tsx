@@ -227,6 +227,12 @@ export function FormatPickerForm(props: {
   const selectedMeta = FORMATS.find((f) => f.value === format)!;
   const belowMin = props.teamCount < selectedMeta.minTeams;
   const estimate = estimateMatches(format, props.teamCount, poolCount, advancePerPool);
+  // Snake distribution gives the smallest pool floor(teams / pools) teams,
+  // so advancing N from each pool requires teams >= pools * advancePerPool.
+  // The domain enforces this at generate() time; mirror it here so the host
+  // doesn't ship a config that's guaranteed to fail later.
+  const poolPlayUnderfilled =
+    isPoolPlay && props.teamCount > 0 && advancePerPool * poolCount > props.teamCount;
 
   return (
     <form
@@ -326,6 +332,13 @@ export function FormatPickerForm(props: {
             {Math.floor(props.teamCount / poolCount)} per pool. The top {advancePerPool} from each
             pool advance to a single-elim playoff.
           </p>
+          {poolPlayUnderfilled && (
+            <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
+              {poolCount} pools advancing {advancePerPool} per pool needs at least{' '}
+              {poolCount * advancePerPool} teams; you have {props.teamCount}. Reduce pools or
+              advance-per-pool, or wait for more teams to register.
+            </p>
+          )}
         </fieldset>
       )}
 
@@ -340,7 +353,7 @@ export function FormatPickerForm(props: {
 
       <div className="flex flex-wrap items-center gap-3">
         <SubmitButton
-          disabled={props.teamCount < 2 || belowMin}
+          disabled={props.teamCount < 2 || belowMin || poolPlayUnderfilled}
           className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50"
         >
           Create bracket
