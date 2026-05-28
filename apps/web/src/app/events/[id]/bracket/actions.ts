@@ -114,6 +114,21 @@ export async function createBracketFromForm(
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     if (courts.length > 0) config.courtLabels = courts;
+    // Per-pool overrides: any field named `pool_courts_<LABEL>` becomes
+    // an entry in courtsByPool. Empty string is treated as "no entry"
+    // (fall back to bracket-wide list) — to explicitly opt a pool out,
+    // the host would need future UI; we keep the form simple for now.
+    const courtsByPool: Record<string, string[]> = {};
+    for (const [key, val] of formData.entries()) {
+      if (!key.startsWith('pool_courts_')) continue;
+      const label = key.slice('pool_courts_'.length);
+      const list = String(val)
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (list.length > 0) courtsByPool[label] = list;
+    }
+    if (Object.keys(courtsByPool).length > 0) config.courtsByPool = courtsByPool;
   }
   await createBracket(
     eventId,

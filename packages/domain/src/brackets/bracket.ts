@@ -60,6 +60,15 @@ export interface BracketConfig {
    * Empty array (default) disables slot/court assignment. See ADR 0018.
    */
   courtLabels: ReadonlyArray<string>;
+  /**
+   * Per-pool court overrides. Keys are pool labels (`'A'`, `'B'`, …);
+   * values are court lists used in place of `courtLabels` for matches
+   * in that pool. Pools missing from this map fall back to
+   * `courtLabels`. An explicitly empty list opts that pool out of
+   * scheduling entirely. Disjoint per-pool court sets schedule fully
+   * in parallel. See ADR 0018.
+   */
+  courtsByPool: Readonly<Record<string, ReadonlyArray<string>>>;
 }
 
 export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
@@ -71,6 +80,7 @@ export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   poolGamesPerTeam: null,
   requireWorkTeam: false,
   courtLabels: [],
+  courtsByPool: {},
 };
 
 /** `bestOf` values the host can pick. Other odd values are rejected at create-time. */
@@ -251,6 +261,7 @@ export class Bracket extends AggregateRoot<BracketId> {
             gamesPerTeam: this._config.poolGamesPerTeam,
             assignWorkTeam: this._config.requireWorkTeam,
             courtLabels: this._config.courtLabels,
+            courtsByPool: this._config.courtsByPool,
           },
           idFactory,
         );
@@ -364,7 +375,10 @@ export class Bracket extends AggregateRoot<BracketId> {
     }
     // Re-run court/slot solver across all pool matches in their new
     // (pool, matchNumber) order so slots reflect the new sequence.
-    if (this._config.courtLabels.length > 0) {
+    const hasAnyCourts =
+      this._config.courtLabels.length > 0 ||
+      Object.values(this._config.courtsByPool).some((l) => l.length > 0);
+    if (hasAnyCourts) {
       const allPoolMatches = this._matches
         .filter((m) => m.pool !== null)
         .sort((a, b) => {
@@ -375,7 +389,7 @@ export class Bracket extends AggregateRoot<BracketId> {
         m.court = null;
         m.slot = null;
       }
-      assignCourtsAndSlots(allPoolMatches, this._config.courtLabels);
+      assignCourtsAndSlots(allPoolMatches, this._config.courtLabels, this._config.courtsByPool);
     }
   }
 

@@ -238,6 +238,8 @@ export function FormatPickerForm(props: {
   const [poolGamesPerTeam, setPoolGamesPerTeam] = useState(2);
   const [requireWorkTeam, setRequireWorkTeam] = useState(false);
   const [courtLabelsText, setCourtLabelsText] = useState('');
+  const [perPoolCourts, setPerPoolCourts] = useState(false);
+  const [poolCourtsText, setPoolCourtsText] = useState<Record<string, string>>({});
 
   const isPoolPlay = format === 'pool_play_playoff';
   const isFixedGames = isPoolPlay && poolSchedule === 'fixed_games';
@@ -465,6 +467,42 @@ export function FormatPickerForm(props: {
               courts at once. Leave blank to skip slot scheduling.
             </span>
           </label>
+          <label className="inline-flex basis-full items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={perPoolCourts}
+              onChange={(e) => setPerPoolCourts(e.target.checked)}
+              className="border-border-base bg-bg rounded border"
+            />
+            <span className="text-fg/80">Use different courts per pool</span>
+          </label>
+          {perPoolCourts && (
+            <div className="basis-full space-y-2">
+              {Array.from({ length: poolCount }, (_, i) => {
+                const label = String.fromCharCode(65 + i);
+                const value = poolCourtsText[label] ?? '';
+                return (
+                  <label key={label} className="flex flex-col text-sm">
+                    <span className="text-fg/80">Pool {label} courts</span>
+                    <input
+                      type="text"
+                      name={`pool_courts_${label}`}
+                      value={value}
+                      onChange={(e) =>
+                        setPoolCourtsText((prev) => ({ ...prev, [label]: e.target.value }))
+                      }
+                      placeholder={`e.g. Court ${i * 2 + 1}, Court ${i * 2 + 2}`}
+                      className="border-border-base bg-bg rounded border px-2 py-1"
+                    />
+                  </label>
+                );
+              })}
+              <p className="text-muted text-xs">
+                Leave a pool blank to fall back to the bracket-wide courts above. Disjoint per-pool
+                courts schedule fully in parallel.
+              </p>
+            </div>
+          )}
           <p className="text-muted basis-full text-xs">
             With {props.teamCount} teams in {poolCount} pools, that’s ~{teamsPerPool} per pool. The
             top {advancePerPool} from each pool advance to a single-elim playoff.

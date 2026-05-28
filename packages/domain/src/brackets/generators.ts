@@ -479,6 +479,7 @@ export function generatePoolPlay(
     gamesPerTeam: number | null;
     assignWorkTeam?: boolean;
     courtLabels?: ReadonlyArray<string>;
+    courtsByPool?: Readonly<Record<string, ReadonlyArray<string>>>;
   },
   mkId: IdFactory,
 ): Match[] {
@@ -512,8 +513,11 @@ export function generatePoolPlay(
     }
     out.push(...stamped);
   }
-  if (options.courtLabels && options.courtLabels.length > 0) {
-    assignCourtsAndSlots(out, options.courtLabels);
+  if (
+    (options.courtLabels && options.courtLabels.length > 0) ||
+    (options.courtsByPool && Object.values(options.courtsByPool).some((l) => l.length > 0))
+  ) {
+    assignCourtsAndSlots(out, options.courtLabels ?? [], options.courtsByPool ?? {});
   }
   return out;
 }
@@ -551,52 +555,78 @@ function assignIdleWorkTeams(matches: Match[], poolSeeds: ReadonlyArray<Seed>): 
  * Mutates `matches` in place, assigning each match a 1-indexed `slot`
  * and a `court` label. Implements greedy graph coloring on the conflict
  * graph: two matches conflict (cannot share a slot) when they share any
- * team (`teamAId`, `teamBId`, or `workTeamId`).
+ * team (`teamAId`, `teamBId`, or `workTeamId`) **or** would land on the
+ * same physical court in that slot.
  *
- * For each match, the lowest-numbered slot that has spare court capacity
- * (`< courtLabels.length` matches already in it) **and** no team conflict
- * with matches already in that slot is chosen. If no existing slot fits,
- * a new slot is appended — slots are unbounded (slots are time, courts
- * are space).
+ * Each match's allowed courts come from `courtsByPool[m.pool]` when set,
+ * otherwise from the bracket-wide `courtLabels`. A pool with an
+ * explicitly empty list is skipped (host opted that pool out of court
+ * scheduling). When both lists are empty the function is a no-op.
  *
- * Court within a slot is assigned in fill order — the Nth match placed in
- * a slot takes `courtLabels[N]`. Hosts may override later in the UI.
- * See ADR 0018.
+ * For each match, the lowest-numbered slot that has a free court in
+ * the match's allowed set **and** no team conflict is chosen. If no
+ * existing slot fits, a new slot is appended — slots are unbounded
+ * (slots are time, courts are space). Within a slot, courts are taken
+ * from each match's allowed list in order, so disjoint per-pool court
+ * sets schedule fully in parallel. See ADR 0018.
  */
-export function assignCourtsAndSlots(matches: Match[], courtLabels: ReadonlyArray<string>): void {
-  const courtCount = courtLabels.length;
-  if (courtCount < 1) return;
-  type SlotState = { teams: Set<TeamId>; size: number };
+export function assignCourtsAndSlots(
+  matches: Match[],
+  courtLabels: ReadonlyArray<string>,
+  courtsByPool: Readonly<Record<string, ReadonlyArray<string>>> = {},
+): void {
+  const hasAny =
+    courtLabels.length > 0 || Object.values(courtsByPool).some((list) => list.length > 0);
+  if (!hasAny) return;
+  type SlotState = { teams: Set<TeamId>; courts: Set<string> };
   const slots: SlotState[] = [];
+  const allowedFor = (m: Match): ReadonlyArray<string> => {
+    if (m.pool && Object.prototype.hasOwnProperty.call(courtsByPool, m.pool)) {
+      return courtsByPool[m.pool]!;
+    }
+    return courtLabels;
+  };
   for (const m of matches) {
+    const allowed = allowedFor(m);
+    if (allowed.length === 0) continue;
     const involved: TeamId[] = [];
     if (m.teamAId) involved.push(m.teamAId);
     if (m.teamBId) involved.push(m.teamBId);
     if (m.workTeamId) involved.push(m.workTeamId);
-    let assigned = -1;
+    let assignedSlot = -1;
+    let assignedCourt: string | null = null;
     for (let s = 0; s < slots.length; s++) {
       const slot = slots[s]!;
-      if (slot.size >= courtCount) continue;
-      let conflicts = false;
+      let teamConflict = false;
       for (const t of involved) {
         if (slot.teams.has(t)) {
-          conflicts = true;
+          teamConflict = true;
           break;
         }
       }
-      if (conflicts) continue;
-      assigned = s;
+      if (teamConflict) continue;
+      let free: string | null = null;
+      for (const c of allowed) {
+        if (!slot.courts.has(c)) {
+          free = c;
+          break;
+        }
+      }
+      if (free === null) continue;
+      assignedSlot = s;
+      assignedCourt = free;
       break;
     }
-    if (assigned === -1) {
-      slots.push({ teams: new Set<TeamId>(), size: 0 });
-      assigned = slots.length - 1;
+    if (assignedSlot === -1) {
+      slots.push({ teams: new Set<TeamId>(), courts: new Set<string>() });
+      assignedSlot = slots.length - 1;
+      assignedCourt = allowed[0]!;
     }
-    const slot = slots[assigned]!;
+    const slot = slots[assignedSlot]!;
     for (const t of involved) slot.teams.add(t);
-    m.slot = assigned + 1;
-    m.court = courtLabels[slot.size] ?? null;
-    slot.size += 1;
+    slot.courts.add(assignedCourt!);
+    m.slot = assignedSlot + 1;
+    m.court = assignedCourt;
   }
 }
 

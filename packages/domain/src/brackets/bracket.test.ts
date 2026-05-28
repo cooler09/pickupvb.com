@@ -444,6 +444,145 @@ describe('Bracket.create courtLabels', () => {
     });
     expect(b.config.courtLabels).toEqual(['Court 1', 'Court 2']);
   });
+
+  it('defaults courtsByPool to empty', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff');
+    expect(b.config.courtsByPool).toEqual({});
+  });
+
+  it('accepts a courtsByPool map', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      courtsByPool: { A: ['Court 1', 'Court 2'], B: ['Court 3'] },
+    });
+    expect(b.config.courtsByPool).toEqual({ A: ['Court 1', 'Court 2'], B: ['Court 3'] });
+  });
+});
+
+// ---- Per-pool courts -----------------------------------------------
+
+describe('assignCourtsAndSlots courtsByPool', () => {
+  it('uses the per-pool court list in place of the bracket-wide list', () => {
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        courtLabels: ['Default'],
+        courtsByPool: { A: ['A-Court'], B: ['B-Court'] },
+      },
+      mkIdFactory(),
+    );
+    for (const m of matches) {
+      if (m.pool === 'A') expect(m.court).toBe('A-Court');
+      else if (m.pool === 'B') expect(m.court).toBe('B-Court');
+    }
+  });
+
+  it('falls back to bracket-wide courtLabels for pools without an override', () => {
+    const matches = generatePoolPlay(
+      seedTeams(12),
+      3,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        courtLabels: ['Fallback'],
+        courtsByPool: { A: ['A-Only'] },
+      },
+      mkIdFactory(),
+    );
+    for (const m of matches) {
+      if (m.pool === 'A') expect(m.court).toBe('A-Only');
+      else expect(m.court).toBe('Fallback');
+    }
+  });
+
+  it('skips a pool when courtsByPool maps it to an empty list', () => {
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        courtLabels: ['C1'],
+        courtsByPool: { B: [] },
+      },
+      mkIdFactory(),
+    );
+    for (const m of matches) {
+      if (m.pool === 'B') {
+        expect(m.court).toBeNull();
+        expect(m.slot).toBeNull();
+      } else {
+        expect(m.court).toBe('C1');
+        expect(m.slot).not.toBeNull();
+      }
+    }
+  });
+
+  it('schedules pools with disjoint court sets fully in parallel', () => {
+    // 2 pools of 4, each with two disjoint courts. A 4-team round-robin
+    // has 3 rounds × 2 matches = 6 matches; two courts per pool fit
+    // those into 3 slots. Disjoint per-pool courts mean both pools
+    // share the same 3 slots → total slots == 3.
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        courtsByPool: { A: ['A1', 'A2'], B: ['B1', 'B2'] },
+      },
+      mkIdFactory(),
+    );
+    const bySlot = new Map<number, Match[]>();
+    for (const m of matches) {
+      const list = bySlot.get(m.slot!) ?? [];
+      list.push(m);
+      bySlot.set(m.slot!, list);
+    }
+    // Every slot must use each court at most once.
+    for (const [, list] of bySlot) {
+      const courts = new Set<string>();
+      for (const m of list) {
+        expect(courts.has(m.court!)).toBe(false);
+        courts.add(m.court!);
+      }
+    }
+    expect(bySlot.size).toBe(3);
+  });
+
+  it('shares slots correctly when pools share a court', () => {
+    // Pool A on [C1, C2], Pool B on [C2, C3]. C2 is the shared court —
+    // no slot may use it for both pools at once, but C1 and C3 can run
+    // concurrently with C2.
+    const matches = generatePoolPlay(
+      seedTeams(8),
+      2,
+      {
+        schedule: 'round_robin',
+        gamesPerTeam: null,
+        courtsByPool: { A: ['C1', 'C2'], B: ['C2', 'C3'] },
+      },
+      mkIdFactory(),
+    );
+    const bySlot = new Map<number, Match[]>();
+    for (const m of matches) {
+      const list = bySlot.get(m.slot!) ?? [];
+      list.push(m);
+      bySlot.set(m.slot!, list);
+    }
+    for (const [, list] of bySlot) {
+      const courts = new Set<string>();
+      for (const m of list) {
+        expect(courts.has(m.court!)).toBe(false);
+        courts.add(m.court!);
+        // Court must be from the match's allowed list.
+        if (m.pool === 'A') expect(['C1', 'C2']).toContain(m.court);
+        else if (m.pool === 'B') expect(['C2', 'C3']).toContain(m.court);
+      }
+    }
+  });
 });
 
 // ---- Phase 1b: reorderPoolMatches ----------------------------------
