@@ -1637,10 +1637,50 @@ green (15/15 typecheck, lint at the existing 3 unrelated warnings,
 
 **Follow-ups remaining on this audit:**
 
-- Carried unchanged: `EventTeamRegistration.forfeitedAt` wiring (the
-  aggregate-side companion to today's port), `LeagueSchedule` RPC
-  (consumer of the forfeit flag), bracket-reader `source='roster'`
-  filter loosening.
+- Carried unchanged: `LeagueSchedule` RPC (consumer of the forfeit
+  flag), bracket-reader `source='roster'` filter loosening.
+
+---
+
+### 2026-12-04 — `EventTeamRegistration.forfeitedAt` aggregate mirror
+
+**Closed (this slice).** Mirrors the `event_team_entries.forfeited_at`
+column onto the aggregate read+write surface so the round-trip is no
+longer port-only.
+
+- **Aggregate.** Added required `forfeitedAt: Date | null` to
+  `RehydrateEventTeamRegistrationProps`, constructor, and a public
+  `get forfeitedAt()`. New mutators `markForfeited(at)` (validates the
+  Date, idempotent on already-forfeited) and `reinstate()` (idempotent
+  on non-forfeited). See
+  [packages/domain/src/events/event-team-registration.ts](../../packages/domain/src/events/event-team-registration.ts).
+- **Infra.** `SupabaseEventTeamRegistrationRepository` now writes
+  `forfeited_at` on upsert and projects it through `findOneBy`'s select
+  and into the `rehydrate({...})` call. See
+  [packages/infrastructure/src/supabase-event-team-registration-repository.ts](../../packages/infrastructure/src/supabase-event-team-registration-repository.ts).
+- **Tests.** Seven new cases on the aggregate: starts null, mark stamps
+  - bumps `updatedAt`, idempotent, rejects invalid Date, reinstate
+    clears, reinstate on active is a no-op, orthogonal to payment status,
+    and a `rehydrate` round-trip.
+
+**Scope note.** The aggregate's find path still filters
+`.neq('source', 'roster')`, so league rosters are still hydrated via
+the port + `BracketTeamLite` reader today. This slice is preemptive —
+it completes the aggregate surface so when the `source='roster'`
+filter loosens (carry-over follow-up), the forfeit flag flows through
+without further changes. Ad-hoc and walk-in entries now also carry
+the field through the aggregate, even though no UI mutates it for
+those sources yet.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green (15/15 typecheck, lint at the existing 3 unrelated warnings,
+33-test event-team-registration suite — 7 new — within the broader
+domain pass, 8/8 build).
+
+**Follow-ups remaining on this audit:**
+
+- Carried unchanged: `LeagueSchedule` RPC (consumer of the forfeit
+  flag), bracket-reader `source='roster'` filter loosening.
 
 ---
 

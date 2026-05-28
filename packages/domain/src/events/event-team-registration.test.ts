@@ -274,3 +274,84 @@ describe('EventTeamRegistration payment transitions', () => {
     expect(reg.rosterSize).toBe(2);
   });
 });
+
+describe('EventTeamRegistration forfeit lifecycle', () => {
+  it('starts unforfeited', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    expect(reg.forfeitedAt).toBeNull();
+  });
+
+  it('markForfeited stamps the timestamp and bumps updatedAt', async () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    const before = reg.updatedAt;
+    await new Promise((r) => setTimeout(r, 2));
+    const at = new Date('2026-10-15T12:00:00Z');
+    reg.markForfeited(at);
+    expect(reg.forfeitedAt).toEqual(at);
+    expect(reg.updatedAt.getTime()).toBeGreaterThan(before.getTime());
+  });
+
+  it('markForfeited is idempotent — keeps the original timestamp', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    const first = new Date('2026-10-15T12:00:00Z');
+    reg.markForfeited(first);
+    reg.markForfeited(new Date('2026-11-01T00:00:00Z'));
+    expect(reg.forfeitedAt).toEqual(first);
+  });
+
+  it('rejects an invalid Date', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    expect(() => reg.markForfeited(new Date('not-a-date'))).toThrow(InvariantViolation);
+  });
+
+  it('reinstate clears the timestamp', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.markForfeited(new Date('2026-10-15T12:00:00Z'));
+    reg.reinstate();
+    expect(reg.forfeitedAt).toBeNull();
+  });
+
+  it('reinstate on an active team is a no-op', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    const before = reg.updatedAt;
+    reg.reinstate();
+    expect(reg.forfeitedAt).toBeNull();
+    expect(reg.updatedAt.getTime()).toBe(before.getTime());
+  });
+
+  it('forfeit is orthogonal to payment status — a paid team can forfeit', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.markCheckoutPending('cs_1');
+    reg.markPaid({
+      paymentIntentId: 'pi_1',
+      amountCents: 12000,
+      paidAt: new Date('2026-09-01T00:00:00Z'),
+    });
+    reg.markForfeited(new Date('2026-10-15T12:00:00Z'));
+    expect(reg.paymentStatus).toBe(RegistrationPaymentStatus.Paid);
+    expect(reg.forfeitedAt).not.toBeNull();
+  });
+
+  it('rehydrate round-trips forfeitedAt', () => {
+    const at = new Date('2026-10-15T12:00:00Z');
+    const reg = EventTeamRegistration.rehydrate({
+      id: REG,
+      eventId: EVENT,
+      divisionId: DIV,
+      captainId: CAP,
+      name: 'Spike Force',
+      members: [userMember('m1', 'u1')],
+      source: RegistrationSource.Captain,
+      paymentStatus: RegistrationPaymentStatus.None,
+      checkoutSessionId: null,
+      paymentIntentId: null,
+      amountPaidCents: null,
+      paidAt: null,
+      paymentNote: null,
+      forfeitedAt: at,
+      createdAt: new Date('2026-09-01T00:00:00Z'),
+      updatedAt: new Date('2026-09-01T00:00:00Z'),
+    });
+    expect(reg.forfeitedAt).toEqual(at);
+  });
+});

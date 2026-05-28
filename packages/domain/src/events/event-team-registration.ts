@@ -125,6 +125,13 @@ export interface RehydrateEventTeamRegistrationProps extends CreateEventTeamRegi
   amountPaidCents: number | null;
   paidAt: Date | null;
   paymentNote: string | null;
+  /**
+   * Mid-season forfeit timestamp (league rostered teams; ad-hoc /
+   * walk-in registrations may also carry it once the bracket reader
+   * loosens its `source='roster'` filter — see audit follow-up). Null
+   * for active registrations.
+   */
+  forfeitedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,6 +168,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     private _amountPaidCents: number | null,
     private _paidAt: Date | null,
     private _paymentNote: string | null,
+    private _forfeitedAt: Date | null,
     public readonly createdAt: Date,
     private _updatedAt: Date,
   ) {
@@ -214,6 +222,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       null,
       null,
       null,
+      null,
       now,
       now,
     );
@@ -241,6 +250,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       props.amountPaidCents,
       props.paidAt,
       props.paymentNote,
+      props.forfeitedAt,
       props.createdAt,
       props.updatedAt,
     );
@@ -280,6 +290,19 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
 
   get paymentNote(): string | null {
     return this._paymentNote;
+  }
+
+  /**
+   * Timestamp at which a host marked this team as withdrawn mid-season
+   * (league context) or null while the registration is active. Mirrors
+   * `event_team_entries.forfeited_at` written by
+   * {@link EventRepository.setRosterTeamForfeited} on the host-tools
+   * panel. Forfeit is orthogonal to payment status — a paid team can
+   * forfeit, and a forfeited team retains its payment row for
+   * accounting.
+   */
+  get forfeitedAt(): Date | null {
+    return this._forfeitedAt;
   }
 
   get updatedAt(): Date {
@@ -413,6 +436,31 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       throw new InvariantViolation(`Cannot refund from payment status "${this._paymentStatus}".`);
     }
     this._paymentStatus = RegistrationPaymentStatus.Refunded;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Mark this registration as withdrawn mid-season. Idempotent on the
+   * already-forfeited state (no-op) so a double-submit doesn't churn
+   * the timestamp. Throws if `at` is not a valid Date.
+   */
+  markForfeited(at: Date): void {
+    if (!(at instanceof Date) || Number.isNaN(at.getTime())) {
+      throw new InvariantViolation('Forfeit timestamp must be a valid Date.');
+    }
+    if (this._forfeitedAt) return;
+    this._forfeitedAt = at;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Clear a previously-recorded forfeit (the host marked the wrong
+   * team or the team changed their mind before the next match).
+   * Idempotent on the not-forfeited state.
+   */
+  reinstate(): void {
+    if (!this._forfeitedAt) return;
+    this._forfeitedAt = null;
     this._updatedAt = new Date();
   }
 }

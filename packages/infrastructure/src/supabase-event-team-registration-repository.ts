@@ -38,6 +38,7 @@ type EntryRow = {
   display_name: string;
   captain_display_name: string | null;
   captain_phone: string | null;
+  forfeited_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -128,6 +129,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       display_name: registration.name,
       captain_display_name: registration.captainDisplayName,
       captain_phone: registration.captainPhone,
+      forfeited_at: registration.forfeitedAt ? registration.forfeitedAt.toISOString() : null,
     };
 
     const { error } = await this.client
@@ -230,7 +232,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     const { data, error } = await this.client
       .from('event_team_entries')
       .select(
-        'id, division_id, source, team_id, captain_id, display_name, captain_display_name, captain_phone, created_at, updated_at, event_divisions!inner(event_id), payments:event_team_payments(payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note)',
+        'id, division_id, source, team_id, captain_id, display_name, captain_display_name, captain_phone, forfeited_at, created_at, updated_at, event_divisions!inner(event_id), payments:event_team_payments(payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note)',
       )
       .eq('id', entryId)
       .neq('source', 'roster')
@@ -254,6 +256,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       display_name: raw.display_name,
       captain_display_name: raw.captain_display_name,
       captain_phone: raw.captain_phone,
+      forfeited_at: raw.forfeited_at,
       created_at: raw.created_at,
       updated_at: raw.updated_at,
     };
@@ -298,6 +301,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       amountPaidCents: payment.amount_paid_cents,
       paidAt: payment.paid_at ? new Date(payment.paid_at) : null,
       paymentNote: payment.payment_note,
+      forfeitedAt: row.forfeited_at ? new Date(row.forfeited_at) : null,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     });
