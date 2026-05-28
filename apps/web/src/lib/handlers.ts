@@ -52,6 +52,7 @@ import {
   RemoveEventDivisionHandler,
   RemoveLeagueScheduleMatchHandler,
   RemoveAdHocTeamMemberHandler,
+  SetLeagueTeamForfeitedHandler,
   RemoveTeamMemberHandler,
   RenameAdHocTeamRegistrationHandler,
   ReportCommunityListingHandler,
@@ -181,6 +182,7 @@ export const handlers = {
   updateLeagueScheduleMatch: new UpdateLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   recordLeagueMatchResult: new RecordLeagueMatchResultHandler(leagueScheduleRepo),
+  setLeagueTeamForfeited: new SetLeagueTeamForfeitedHandler(eventRepo),
   // Community listings
   createCommunityListing: new CreateCommunityListingHandler(communityListingRepo),
   updateCommunityListing: new UpdateCommunityListingHandler(communityListingRepo, isPlatformAdmin),

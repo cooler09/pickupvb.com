@@ -1460,4 +1460,23 @@ export class SupabaseEventRepository implements EventRepository {
       throw new Error(`attachFreeAgentToDivision failed: ${error.message}`);
     }
   }
+
+  async setRosterTeamForfeited(
+    divisionId: string,
+    teamId: string,
+    forfeitedAt: Date | null,
+  ): Promise<void> {
+    // Targets the live roster row only — `source='roster'` excludes ad-hoc
+    // and walk-in entries (which don't have a captain to "forfeit") and
+    // `deleted_at IS NULL` skips withdrawn rows. RLS on event_team_entries
+    // gates the write to the event host.
+    const { error } = await this.client
+      .from('event_team_entries')
+      .update({ forfeited_at: forfeitedAt ? forfeitedAt.toISOString() : null } as never)
+      .eq('division_id', divisionId)
+      .eq('team_id', teamId)
+      .eq('source', 'roster')
+      .is('deleted_at', null);
+    if (error) throw new Error(`setRosterTeamForfeited failed: ${error.message}`);
+  }
 }

@@ -323,14 +323,18 @@ export class SupabaseBracketRepository implements BracketRepository {
     // to be reviewed).
     const scoped = await this.client
       .from('event_team_entries')
-      .select('team_id, teams:teams!inner(name, captain_id)')
+      .select('team_id, forfeited_at, teams:teams!inner(name, captain_id)')
       .eq('division_id', divisionId)
       .eq('source', 'roster')
       .is('deleted_at', null);
     if (scoped.error) {
       throw new Error(`listRegisteredTeams failed: ${scoped.error.message}`);
     }
-    type Row = { team_id: string | null; teams: { name: string; captain_id: string } | null };
+    type Row = {
+      team_id: string | null;
+      forfeited_at: string | null;
+      teams: { name: string; captain_id: string } | null;
+    };
     const rows = (scoped.data as Row[] | null) ?? [];
     return rows
       .filter((r) => r.teams !== null && r.team_id !== null)
@@ -338,6 +342,7 @@ export class SupabaseBracketRepository implements BracketRepository {
         teamId: r.team_id!,
         name: r.teams!.name,
         captainId: r.teams!.captain_id,
+        forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
       }));
   }
 }

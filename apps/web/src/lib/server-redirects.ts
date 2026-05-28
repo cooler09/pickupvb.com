@@ -22,10 +22,11 @@ export async function buildOrigin(): Promise<string> {
  *   - 'tip'    → tip-jar outcomes
  *   - 'fa'     → free-agent signup outcomes
  *   - 'cohost' → add/remove co-host outcomes
+ *   - 'forfeit'→ league-team forfeit/reinstate outcomes
  */
 export function redirectEventNotice(
   eventId: string,
-  key: 'rsvp' | 'tip' | 'fa' | 'cohost',
+  key: 'rsvp' | 'tip' | 'fa' | 'cohost' | 'forfeit',
   code: string,
   msg?: string,
 ): never {

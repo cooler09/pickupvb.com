@@ -114,6 +114,7 @@ export default async function EventDetailPage(props: {
     hostStripeReady,
     primaryHostUserSocial,
     eligibleTeamsByDivision,
+    leagueTeamsByDivision,
     payments,
     viewerPaymentStatus,
     adHocViewerRegistrations,
@@ -307,6 +308,7 @@ export default async function EventDetailPage(props: {
         returnPath={returnPath}
         adHocHostRows={adHocHostRows}
         eligibleTeamsByDivision={eligibleTeamsByDivision}
+        leagueTeamsByDivision={leagueTeamsByDivision}
       />
 
       <AttendeesPanel

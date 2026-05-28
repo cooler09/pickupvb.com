@@ -1578,6 +1578,72 @@ green (15/15 typecheck, lint at the existing 3 unrelated warnings,
 
 ---
 
+### 2026-05-30 — League team forfeit affordance (P2 #7 minimal) ✅
+
+Closes the host-facing slice of P2 #7. The `forfeited_at` column on
+`event_team_entries` has existed since
+[20260805000000_event_team_entries_forfeited_at.sql](../../supabase/migrations/20260805000000_event_team_entries_forfeited_at.sql),
+but nothing in the app surfaced it. This bundle adds the minimum
+end-to-end plumbing for a host to mark a league team as withdrawn
+mid-season (and reinstate them).
+
+**Slice**
+
+- **Domain.** `BracketTeamLite.forfeitedAt: Date | null` on
+  [packages/domain/src/brackets/bracket-repository.ts](../../packages/domain/src/brackets/bracket-repository.ts);
+  new aggregate-light port
+  `EventRepository.setRosterTeamForfeited(divisionId, teamId, forfeitedAt)`
+  on [packages/domain/src/events/event-repository.ts](../../packages/domain/src/events/event-repository.ts).
+  Sized to mirror the existing `attachTeamToDivision` precedent —
+  `event_team_entries` rows have no aggregate of their own.
+- **Application.** `SetLeagueTeamForfeitedCommand` +
+  `SetLeagueTeamForfeitedHandler` in
+  [packages/application/src/commands/league-roster.handler.ts](../../packages/application/src/commands/league-roster.handler.ts).
+  Authorization mirrors the league-schedule handlers: explicit host check
+  (`event.hostId !== requesterId → UnauthorizedError`), event-type guard
+  (`type !== 'league' → ValidationError`), and division-on-event guard
+  (`NotFoundError`). Six handler tests cover happy path, clear, all three
+  error branches, and the type guard.
+- **Infrastructure.**
+  `SupabaseBracketRepository.listRegisteredTeams` now selects
+  `forfeited_at` and maps it onto `BracketTeamLite.forfeitedAt`.
+  `SupabaseEventRepository.setRosterTeamForfeited` issues
+  `UPDATE event_team_entries SET forfeited_at = $1 WHERE division_id = $2
+AND team_id = $3 AND source = 'roster' AND deleted_at IS NULL`.
+- **Web.** New loader `loadLeagueTeamsByDivision` in
+  [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts)
+  gated on `event.canManage && event.type === 'league'`. New server
+  actions `markLeagueTeamForfeitedFromForm` / `reinstateLeagueTeamFromForm`
+  in
+  [apps/web/src/app/events/[id]/league-team-actions.ts](../../apps/web/src/app/events/[id]/league-team-actions.ts)
+  use the `redirectEventNotice` flash-param convention (new key
+  `'forfeit'`) and pair `revalidatePath(returnPath)` with
+  ``updateTag(`event:${eventId}`)``. New server component
+  [apps/web/src/app/events/[id]/\_components/league-teams-panel.tsx](../../apps/web/src/app/events/[id]/_components/league-teams-panel.tsx)
+  renders one form-bound button per rostered team, gated into
+  `HostToolsSection` on `event.type === 'league'`.
+- **Wiring.** `setLeagueTeamForfeited` registered in
+  [apps/web/src/lib/handlers.ts](../../apps/web/src/lib/handlers.ts).
+
+**What's still open on P2 #7.** The schedule-generation half — making
+`LeagueSchedule` honor `forfeitedAt` when generating remaining weeks
+(skip rather than re-list a withdrawn team) — stays deferred until the
+generator RPC lands. The flag is now writable and visible; the consumer
+side has a clear hook.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green (15/15 typecheck, lint at the existing 3 unrelated warnings,
+208+38+50 tests including the 6 new handler tests, 8/8 build).
+
+**Follow-ups remaining on this audit:**
+
+- Carried unchanged: `EventTeamRegistration.forfeitedAt` wiring (the
+  aggregate-side companion to today's port), `LeagueSchedule` RPC
+  (consumer of the forfeit flag), bracket-reader `source='roster'`
+  filter loosening.
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)

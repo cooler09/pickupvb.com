@@ -39,6 +39,12 @@ export type EligibleTeamOption = {
   label: string;
 };
 
+export type LeagueTeamView = {
+  teamId: string;
+  name: string;
+  forfeitedAt: Date | null;
+};
+
 /**
  * Hero price chip label for a multi-division event. Per the rule in
  * AGENTS.md (Patterns surfaced by audits — multi-division pricing):
@@ -143,6 +149,12 @@ export type EventDetailViewModel = {
   hostStripeReady: boolean;
   primaryHostUserSocial: SocialHandles | null;
   eligibleTeamsByDivision: ReadonlyMap<string, EligibleTeamOption[]>;
+  /**
+   * Per-division roster for league events the viewer can manage. Empty
+   * map for non-league events or non-hosts. Used by the host-tools
+   * "League teams" panel to surface forfeit / reinstate controls.
+   */
+  leagueTeamsByDivision: ReadonlyMap<string, LeagueTeamView[]>;
   payments: Map<string, AttendeePaymentInfo> | undefined;
   viewerPaymentStatus: ViewerPaymentStatus | undefined;
 
@@ -575,6 +587,7 @@ export async function loadEventDetail(
     adHocBundle,
     sponsor,
     heroImageUrl,
+    leagueTeamsByDivision,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -594,6 +607,7 @@ export async function loadEventDetail(
     loadAdHocBundle(event, user),
     loadEventSponsorCached(event.id),
     loadHeroImageCached(event.id),
+    loadLeagueTeamsByDivision(event),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -666,6 +680,7 @@ export async function loadEventDetail(
     primaryHostUserSocial,
     hostStripeReady,
     eligibleTeamsByDivision,
+    leagueTeamsByDivision,
     payments,
     viewerPaymentStatus,
     adHocViewerRegistrations: adHocBundle.viewerRegistrations,
@@ -755,6 +770,45 @@ async function loadEligibleTeamsByDivision(
   }
   for (const [k, v] of map) {
     v.sort((a, b) => a.label.localeCompare(b.label));
+    map.set(k, v);
+  }
+  return map;
+}
+
+async function loadLeagueTeamsByDivision(
+  event: EventDetailReadModel,
+): Promise<Map<string, LeagueTeamView[]>> {
+  if (!event.canManage || event.type !== 'league' || event.divisions.length === 0) {
+    return new Map<string, LeagueTeamView[]>();
+  }
+  const sb = await getServerSupabase();
+  const { data: rows } = await sb
+    .from('event_team_entries')
+    .select(
+      'division_id, team_id, forfeited_at, teams!inner(id, name), division:event_divisions!inner(event_id)',
+    )
+    .eq('division.event_id', event.id)
+    .eq('source', 'roster')
+    .is('deleted_at', null);
+  type Row = {
+    division_id: string;
+    team_id: string | null;
+    forfeited_at: string | null;
+    teams: { id: string; name: string } | null;
+  };
+  const map = new Map<string, LeagueTeamView[]>();
+  for (const r of (rows as Row[] | null) ?? []) {
+    if (!r.teams || !r.team_id) continue;
+    const arr = map.get(r.division_id) ?? [];
+    arr.push({
+      teamId: r.team_id,
+      name: r.teams.name,
+      forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
+    });
+    map.set(r.division_id, arr);
+  }
+  for (const [k, v] of map) {
+    v.sort((a, b) => a.name.localeCompare(b.name));
     map.set(k, v);
   }
   return map;

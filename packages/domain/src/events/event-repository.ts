@@ -68,6 +68,18 @@ export interface EventRepository {
    * `JoinEventAsFreeAgentHandler` after `event.joinAsFreeAgent(...)` + save.
    */
   attachFreeAgentToDivision(eventId: string, userId: string, divisionId: string): Promise<void>;
+
+  /**
+   * Mark (or unmark) a rostered team in a league division as forfeited.
+   * Targets `event_team_entries` where `source = 'roster'`. Pass `null`
+   * to clear the flag (reinstate). RLS gates the write to the event
+   * host — the handler doesn't duplicate the check.
+   */
+  setRosterTeamForfeited(
+    divisionId: string,
+    teamId: string,
+    forfeitedAt: Date | null,
+  ): Promise<void>;
 }
 
 // ---- Read-model shapes ----
