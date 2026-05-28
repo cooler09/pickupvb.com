@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
+import { primaryButtonClass } from '@/components/primary-button';
 import { TeamCard, type TeamCardData } from './team-card';
 
 type TeamsByRole = {
@@ -125,9 +126,12 @@ export function MyTeamsPanel() {
           Captained ({captained.length})
         </h2>
         {captained.length === 0 ? (
-          <p className="border-border-base text-muted rounded-lg border border-dashed p-6 text-center text-sm">
-            You don&apos;t captain any teams yet.
-          </p>
+          <div className="border-border-base flex flex-col items-center gap-3 rounded-lg border border-dashed p-6 text-center">
+            <p className="text-fg text-sm">You don&apos;t captain any teams yet.</p>
+            <Link href="/teams/new" className={primaryButtonClass()}>
+              + Create your first team
+            </Link>
+          </div>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {captained.map((t) => (

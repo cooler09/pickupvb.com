@@ -1,6 +1,6 @@
 # Events Page UX Audit
 
-_Last updated: 2026-05-18_
+_Last updated: 2026-05-27_
 
 Audit of [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx).
 Goal: prioritize the most important information and CTAs for visitors landing
@@ -9,6 +9,69 @@ from a share link, while keeping the page useful for hosts and attendees.
 > **Status:** Quick-win bundle + larger-changes bundle both shipped
 > (2026-05-18). Remaining open items live in the "Won't-do / explicit
 > deferrals" section.
+
+> **Status update (2026-05-27, Bundle 127):** Site-wide CTA-vocabulary
+> sweep triggered by a quick UX scan after the bracket creator polish
+> (Bundle 127 first half). Findings + fixes:
+>
+> 1. **Primary-CTA styling had forked.** Two button vocabularies
+>    coexisted for the same role — the canonical
+>    `rounded-md px-3 py-1.5 text-sm font-semibold hover:opacity-90`
+>    used by site-header / share-link, and an older
+>    `rounded px-3 py-1 text-sm` (no `-md`, no `font-semibold`, smaller
+>    hit target) scattered across the events surface. Fix: extracted
+>    [apps/web/src/components/primary-button.tsx](../../apps/web/src/components/primary-button.tsx)
+>    (`primaryButtonClass(size?)` helper + thin `<PrimaryButton>`
+>    wrapper for the `<button>` case). Two sizes: `'sm'` (default,
+>    table-row / list / header CTA) and `'md'` (headline panel CTA).
+>    Migrated five divergent sites:
+>    [page.tsx#L268](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L268)
+>    "Open bracket",
+>    [off-platform-upsell.tsx#L42](../../apps/web/src/app/events/%5Bid%5D/_components/off-platform-upsell.tsx#L42)
+>    "Switch",
+>    [external-registration-card.tsx#L27](../../apps/web/src/app/events/%5Bid%5D/_components/external-registration-card.tsx#L27)
+>    "Register on the host's site",
+>    [host-division-winners-panel.tsx#L91](../../apps/web/src/app/events/%5Bid%5D/_components/host-division-winners-panel.tsx#L91)
+>    "Record winner" (bumped from `text-xs`),
+>    [board-view.tsx#L164](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/board-view.tsx#L164)
+>    "Generate playoff" (bumped from `text-xs`). Future call sites
+>    should `import { primaryButtonClass } from '@/components/primary-button'`
+>    instead of hand-rolling — the audit catches drift fast.
+> 2. **Empty-state lists shipped muted gray text instead of CTAs.**
+>    [/groups](../../apps/web/src/app/groups/page.tsx#L86) and
+>    [/teams](../../apps/web/src/app/teams/page.tsx#L126) both rendered
+>    `"No X yet — be the first to create one."` as a plain `<p>` with
+>    no button. Fix: empty states now render a centered card with the
+>    headline copy, a one-line nudge, and the actual create CTA
+>    inline. `NewGroupButton` self-hides for signed-out viewers so the
+>    button only appears to people who can act on it; `/teams` links
+>    directly to `/teams/new` (the page handles unauth redirect). Also
+>    added a "+ Create your first team" inline CTA to
+>    [my-teams-panel.tsx#L127](../../apps/web/src/app/teams/_components/my-teams-panel.tsx#L127)
+>    "You don't captain any teams yet."
+> 3. **Filter-form "Search" buttons read as secondary** on
+>    [/groups](../../apps/web/src/app/groups/page.tsx) and
+>    [/teams](../../apps/web/src/app/teams/page.tsx) — bordered-gray
+>    style next to the primary search input. Promoted both to
+>    `primaryButtonClass()`.
+> 4. **Bracket creator UX** (Bundle 127 first half, separate from the
+>    site-wide sweep): headline CTAs in
+>    [no-bracket-view.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/no-bracket-view.tsx),
+>    [setup-view.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/setup-view.tsx),
+>    and [format-picker-form.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/format-picker-form.tsx)
+>    got bumped to the standard primary size + new sticky bottom
+>    action bar on the format picker, walk-in form collapsed into a
+>    readiness-aware `<details>`, readiness chip ("8 teams · ready" /
+>    "1 team · need ≥ 2") added to the no-bracket header, top action
+>    card with "Generate bracket" hoisted above seeding in setup-view.
+>
+> Carry-overs noted in the quick scan but **not** in this bundle:
+> position-rsvp-panel tap targets (P3), pending-label coverage on
+> long-running submits (P3), sticky mobile action bar on event-detail
+> (P2). All recorded in the journal entry; pick up when the events
+> page UX is re-opened.
+>
+> See the [Bundle 127 journal](../journal/2026-05-27-bundle-127.md).
 
 > **Status update (2026-05-23, Bundle 66):** **2026-05-22 architectural
 > regression notes both verified-stale and cleared.** The two follow-ups

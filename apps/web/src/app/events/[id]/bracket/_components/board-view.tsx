@@ -9,6 +9,7 @@ import { generatePlayoff, movePoolMatchFromForm, resetBracket } from '../actions
 import { MatchCard } from './match-card';
 import type { TeamLite } from './labels';
 import { SubmitButton } from '@/components/submit-button';
+import { primaryButtonClass } from '@/components/primary-button';
 import { TreeBracket } from './tree-bracket';
 
 /**
@@ -161,9 +162,7 @@ export function BoardView(props: {
               className="flex items-center justify-between gap-2"
             >
               <span>Pool play is complete. Generate the playoff bracket?</span>
-              <SubmitButton className="bg-primary text-primary-fg rounded px-3 py-1 text-xs disabled:opacity-50">
-                Generate playoff
-              </SubmitButton>
+              <SubmitButton className={primaryButtonClass()}>Generate playoff</SubmitButton>
             </form>
           ) : (
             <span className="text-muted">

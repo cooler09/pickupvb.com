@@ -8,6 +8,7 @@ import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { OFF_PLATFORM_UPSELL_COOKIE } from '@/lib/off-platform-upsell';
 import { LocalDateTime } from '@/components/local-datetime';
+import { primaryButtonClass } from '@/components/primary-button';
 import { EventHero } from './_components/event-hero';
 import { EventStickyCta } from './_components/event-sticky-cta';
 import { HostsSection } from './_components/hosts-section';
@@ -264,10 +265,7 @@ export default async function EventDetailPage(props: {
                 Set up the tournament bracket and report match results.
               </p>
             </div>
-            <Link
-              href={`/events/${event.id}/bracket` as Route}
-              className="bg-primary text-primary-fg rounded px-3 py-1 text-sm"
-            >
+            <Link href={`/events/${event.id}/bracket` as Route} className={primaryButtonClass()}>
               Open bracket
             </Link>
           </div>

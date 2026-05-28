@@ -1,3 +1,5 @@
+import { primaryButtonClass } from '@/components/primary-button';
+
 type Props = {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
@@ -24,9 +26,12 @@ export function ExternalRegistrationCard({
           href={externalRegistrationUrl}
           target="_blank"
           rel="noreferrer"
-          className="bg-primary text-primary-fg inline-block rounded px-3 py-1.5 text-sm font-medium"
+          className={primaryButtonClass('md')}
         >
-          Register on the host&apos;s site <span aria-hidden="true">↗</span>
+          Register on the host&apos;s site{' '}
+          <span aria-hidden="true" className="ml-1">
+            ↗
+          </span>
           <span className="sr-only"> (opens in new tab)</span>
         </a>
       )}
