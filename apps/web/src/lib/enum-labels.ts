@@ -71,6 +71,7 @@ export const REGISTRATION_MODE_LABEL: Record<string, string> = {
 export const TYPE_LABEL: Record<string, string> = {
   open_play: 'Open play',
   tournament: 'Tournament',
+  league: 'League',
 };
 
 export const STATUS_LABEL: Record<string, string> = {

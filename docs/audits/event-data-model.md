@@ -638,7 +638,102 @@ findings:
 
 ## Remediation log
 
-_No fixes landed yet._
+- **2026-05-28 — P2 #6 landed.** Renamed `tournament_brackets` →
+  `event_brackets` in
+  [20260728000000_rename_tournament_brackets_to_event_brackets.sql](../../supabase/migrations/20260728000000_rename_tournament_brackets_to_event_brackets.sql).
+  Pure rename: table, three indexes (`event_idx` / `division_uidx`
+  / `division_idx`), three constraints (`pkey` + two FKs), four RLS
+  policies, and the `supabase_realtime` publication membership all
+  flip to the new name. Code sites updated in lockstep:
+  `SupabaseBracketRepository` ([packages/infrastructure/src/supabase-bracket-repository.ts](../../packages/infrastructure/src/supabase-bracket-repository.ts)),
+  Realtime channel filter in
+  [apps/web/src/app/events/[id]/bracket/\_components/realtime-refresher.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/_components/realtime-refresher.tsx),
+  seed snippet in
+  [supabase/snippets/seed-tournament-fixture.sql](../../supabase/snippets/seed-tournament-fixture.sql),
+  generated `database.types.ts` keys + FK names. Migration not
+  applied locally (Docker daemon off); CI/CD will apply on deploy
+  per AGENTS.md. `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` all green.
+
+- **2026-05-29 — P2 #6.5 Bundle A landed.** Dropped the denormalized
+  `event_id` column from `event_brackets` and `event_team_registrations`
+  in [20260729000000_drop_event_id_from_event_brackets_and_registrations.sql](../../supabase/migrations/20260729000000_drop_event_id_from_event_brackets_and_registrations.sql).
+  Both tables now derive `event_id` from `event_divisions.event_id` via
+  the existing `division_id` FK. Migration drops the consistency trigger
+  on `event_team_registrations` (the remaining three triggers + the
+  `assert_division_event_consistency()` function come out in Bundle B
+  once `event_attendees.division_id` is universally NOT NULL — P1 #3).
+  Seven RLS policies rewritten to subquery through `event_divisions`
+  (registrations insert/update/delete, members select/update/delete,
+  brackets insert/update/delete). `event_team_registrations_source_idx`
+  changed from `(event_id, source)` → `(division_id, source)`; the
+  legacy `event_id` supporting indexes on both tables are dropped.
+  Code sites updated: `SupabaseEventTeamRegistrationRepository` flattens
+  through a nested `event_divisions!inner(event_id)` join in `loadOne`
+  and `detachBackingTeamLink`, drops the `event_id` filter from
+  `existsForCaptainInDivision`, and drops `event_id` from the save row;
+  `SupabaseBracketRepository` does the same flatten on `findById` /
+  `findByDivisionId` and drops `event_id` from the upsert payload;
+  `loadEligibleTeamsByDivision` + the two cached ad-hoc loaders in
+  [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+  and the winner-validation read in
+  [apps/web/src/app/events/[id]/record-division-winner-actions.ts](../../apps/web/src/app/events/%5Bid%5D/record-division-winner-actions.ts)
+  switched to inner-join filters. Generated `database.types.ts`
+  hand-edited to remove the two columns and FK relationships (Docker
+  still off locally; CI/CD applies on deploy). Aggregate APIs unchanged
+  — `EventTeamRegistration.eventId` and `Bracket.eventId` continue to
+  expose the value, just derived at the persistence boundary now.
+  `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green.
+
+- **2026-05-29 — P1 #1 scaffolding landed.** Added `'league'` to the
+  `event_type` Postgres enum in [20260729000100_add_league_to_event_type.sql](../../supabase/migrations/20260729000100_add_league_to_event_type.sql)
+  (single `alter type ... add value if not exists` — irreversible by
+  design). Mirrored in the domain enum (`EventType.League = 'league'`),
+  the generated `database.types.ts` stub (enum literal + array), the
+  `AnalyticsEventType` union, the `event-team-pricing-validation` input
+  type, and the `TYPE_LABEL` map. Added the league branch to
+  `assertRegistrationConfigValid` in [packages/domain/src/events/volleyball-event.ts](../../packages/domain/src/events/volleyball-event.ts):
+  every league division must have `teamRegistrationMode === 'roster'`
+  and a non-solo composition; ad-hoc, individual-signup, and solo
+  compositions all throw `InvariantViolation`. Four new domain tests
+  in [volleyball-event.test.ts](../../packages/domain/src/events/volleyball-event.test.ts)
+  cover the happy path + each rejection branch (183 domain tests
+  passing). **Scaffolding only** — create form, filters, listings, and
+  per-event UI are intentionally NOT wired up; that work depends on
+  P1 #2's `league_schedule_matches` table landing first. League events
+  can be inserted via the API today but have no host-facing create
+  flow. `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all
+  green.
+
+- **2026-05-29 — Step 4 (P1 #3 + P2 #5 + P2 #8) landed.** Domain-only
+  invariant tightening; no migration needed (`event_attendees.division_id`
+  is already universally NOT NULL since
+  [20260606000000_team_registration_model.sql](../../supabase/migrations/20260606000000_team_registration_model.sql)).
+  `assertRegistrationConfigValid` in
+  [packages/domain/src/events/volleyball-event.ts](../../packages/domain/src/events/volleyball-event.ts)
+  gained two new guards: (1) open-play events must have at most one
+  division (top-level count check, since the per-division loop can't
+  express it), and (2) open-play divisions cannot have
+  `allow_free_agents = true` (P2 #5 — the field is meaningless when
+  every RSVP is already individual). The audit's other P1 #3 rules
+  (open-play division must be solo + `teamRegistrationMode = null`)
+  remain covered transitively by the existing Rule 1 (forbids non-null
+  mode on open-play) and Rule 3 (forbids non-solo composition on
+  individual-signup divisions); explicit tests pin both. Default
+  open-play division synthesis in
+  [packages/application/src/commands/create-event.handler.ts](../../packages/application/src/commands/create-event.handler.ts)
+  and the analytics-mapper fixture in
+  [event-analytics-mapper.test.ts](../../packages/application/src/analytics/event-analytics-mapper.test.ts)
+  now pass `allowFreeAgents: false` so the new invariant doesn't
+  reject the default. Six new tests added under
+  `'VolleyballEvent open-play invariants (P1 #3 + P2 #5)'` in
+  [volleyball-event.test.ts](../../packages/domain/src/events/volleyball-event.test.ts):
+  multi-division rejection, non-solo rejection, non-null-mode rejection,
+  `allow_free_agents = true` rejection, accepted-shape happy path, and
+  a P2 #8 regression locking in that leagues stay incompatible with
+  ad-hoc divisions (transitive walk-in block via P1 #1). 189 domain
+  tests passing. `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` all green.
 
 ---
 

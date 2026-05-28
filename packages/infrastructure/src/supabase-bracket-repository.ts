@@ -23,12 +23,32 @@ type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type BracketRow = {
   id: string;
+  /** Derived via nested `event_divisions!inner(event_id)` join in the
+   *  loaders below. The column was dropped from `event_brackets` in
+   *  migration `20260729000000_drop_event_id_from_event_brackets_and_registrations.sql`. */
   event_id: string;
   division_id: string;
   format: BracketFormat;
   config: Partial<BracketConfig> | null;
   status: BracketStatus;
 };
+
+type BracketSelectRow = Omit<BracketRow, 'event_id'> & {
+  event_divisions: { event_id: string };
+};
+
+const BRACKET_SELECT = 'id, division_id, format, config, status, event_divisions!inner(event_id)';
+
+function flattenBracket(row: BracketSelectRow): BracketRow {
+  return {
+    id: row.id,
+    event_id: row.event_divisions.event_id,
+    division_id: row.division_id,
+    format: row.format,
+    config: row.config,
+    status: row.status,
+  };
+}
 
 type SeedRow = {
   bracket_id: string;
@@ -83,24 +103,24 @@ export class SupabaseBracketRepository implements BracketRepository {
 
   async findById(id: BracketId): Promise<Bracket | null> {
     const { data, error } = await this.client
-      .from('tournament_brackets')
-      .select('*')
+      .from('event_brackets')
+      .select(BRACKET_SELECT)
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(`bracket findById failed: ${error.message}`);
     if (!data) return null;
-    return this.hydrate(data as unknown as BracketRow);
+    return this.hydrate(flattenBracket(data as unknown as BracketSelectRow));
   }
 
   async findByDivisionId(divisionId: DivisionId): Promise<Bracket | null> {
     const { data, error } = await this.client
-      .from('tournament_brackets')
-      .select('*')
+      .from('event_brackets')
+      .select(BRACKET_SELECT)
       .eq('division_id', divisionId)
       .maybeSingle();
     if (error) throw new Error(`bracket findByDivisionId failed: ${error.message}`);
     if (!data) return null;
-    return this.hydrate(data as unknown as BracketRow);
+    return this.hydrate(flattenBracket(data as unknown as BracketSelectRow));
   }
 
   async findByMatchId(matchId: MatchId): Promise<Bracket | null> {
@@ -191,10 +211,10 @@ export class SupabaseBracketRepository implements BracketRepository {
 
   async save(bracket: Bracket): Promise<void> {
     // Upsert the bracket row.
-    const { error: upErr } = await this.client.from('tournament_brackets').upsert(
+    const { error: upErr } = await this.client.from('event_brackets').upsert(
       {
         id: bracket.id,
-        event_id: bracket.eventId,
+        // event_id removed in Bundle A — derived from division on read.
         division_id: bracket.divisionId,
         format: bracket.format,
         config: bracket.config,

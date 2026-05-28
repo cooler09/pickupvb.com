@@ -29,7 +29,7 @@ export type AnalyticsActorId = string;
 
 /** Coarse event-type axis matching `EventType` but kept loose here to
  * avoid a circular dependency with the events aggregate. */
-export type AnalyticsEventType = 'open_play' | 'tournament';
+export type AnalyticsEventType = 'open_play' | 'tournament' | 'league';
 
 /** Common props attached to every event-scoped capture. Kept narrow so
  * the same set powers all funnels. */

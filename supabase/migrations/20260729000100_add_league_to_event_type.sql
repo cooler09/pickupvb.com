@@ -1,0 +1,27 @@
+-- ============================================================================
+-- P1 #1 — `league` becomes a first-class `EventType`.
+-- See docs/audits/event-data-model.md § P1 #1.
+--
+-- Context: today the `event_type` enum is `('open_play', 'tournament')`.
+-- Leagues — recurring rostered competition across a season — have no
+-- home in the model and have to be faked as either one tournament per
+-- night (fragments the season) or one long tournament (defeats every
+-- per-event read shape: search, JSON-LD, bracket, payouts). Adding the
+-- enum value is the minimum scaffolding that unblocks every downstream
+-- league feature (P1 #2 schedule table, P2 #6.5 Bundle B PK reshapes
+-- that need to know which divisions are leagues, etc.).
+--
+-- Impact:
+--   * `events.type` may now be 'league'. No existing rows change.
+--   * Domain aggregate gains a league branch in
+--     `assertRegistrationConfigValid()` (every league division must be
+--     `team_registration_mode = 'roster'` and `team_composition <> 'solo'`).
+--   * UI / create form / filters are NOT wired up in this bundle —
+--     scaffolding only. League events can be inserted via the API but
+--     have no first-class create flow yet (that's a follow-up bundle
+--     once P1 #2's schedule table lands).
+--   * `ALTER TYPE ... ADD VALUE` is irreversible — Postgres has no
+--     `DROP VALUE`. That's intentional: leagues are part of the brief.
+-- ============================================================================
+
+alter type public.event_type add value if not exists 'league';

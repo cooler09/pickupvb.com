@@ -142,6 +142,10 @@ export class CreateEventHandler {
           prizePurseCents: null,
           startsAt: null,
           endsAt: null,
+          // P2 #5 — open-play events have no free-agent pool by design
+          // (every RSVP is individual). Force it off here so the
+          // aggregate invariant doesn't reject the default division.
+          ...(dto.type === EventType.OpenPlay ? { allowFreeAgents: false } : {}),
         }),
       );
     }

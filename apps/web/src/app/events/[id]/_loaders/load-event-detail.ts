@@ -352,8 +352,10 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
 
       const { data: regData } = await admin
         .from('event_team_registrations')
-        .select('id, name, division_id, captain_id, source, captain_display_name, payment_status')
-        .eq('event_id', eventId)
+        .select(
+          'id, name, division_id, captain_id, source, captain_display_name, payment_status, event_divisions!inner(event_id)',
+        )
+        .eq('event_divisions.event_id', eventId)
         // Admin client bypasses RLS; filter soft-deleted rows explicitly
         // (migration 20260629000000).
         .is('deleted_at', null);
@@ -428,9 +430,9 @@ function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
       const { data } = await getAdminSupabase()
         .from('event_team_registrations')
         .select(
-          'id, name, division_id, captain_id, source, captain_display_name, captain_phone, payment_status, payment_intent_id, amount_paid_cents, payment_note, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order)',
+          'id, name, division_id, captain_id, source, captain_display_name, captain_phone, payment_status, payment_intent_id, amount_paid_cents, payment_note, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order), event_divisions!inner(event_id)',
         )
-        .eq('event_id', eventId)
+        .eq('event_divisions.event_id', eventId)
         // Admin client bypasses RLS; filter soft-deleted rows explicitly
         // (migration 20260629000000).
         .is('deleted_at', null);
@@ -676,7 +678,10 @@ async function loadEligibleTeamsByDivision(
       .from('event_teams')
       .select('division_id, team_id, teams!inner(id, name)')
       .eq('event_id', event.id),
-    sb.from('event_team_registrations').select('id, name, division_id').eq('event_id', event.id),
+    sb
+      .from('event_team_registrations')
+      .select('id, name, division_id, event_divisions!inner(event_id)')
+      .eq('event_divisions.event_id', event.id),
   ]);
   type RosterRow = {
     division_id: string;

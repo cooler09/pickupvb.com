@@ -834,6 +834,17 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * combination can't sneak in by adding a division later.
    */
   private assertRegistrationConfigValid(): void {
+    // P1 #3 — Open-play events are per-product-brief single-division
+    // and individual-only. The per-division loop below already catches
+    // a non-solo composition or non-null `teamRegistrationMode`
+    // (Rules 1 + 3); this top-level guard adds the count check the
+    // per-division loop can't express.
+    if (this.type === EventType.OpenPlay && this._divisions.length > 1) {
+      throw new InvariantViolation(
+        `Open-play events must have at most one division (got ${this._divisions.length}). Change the event type to tournament or remove the extra divisions.`,
+      );
+    }
+
     for (const d of this._divisions) {
       const mode = d.teamRegistrationMode;
       const isTeamLed = mode === TeamRegistrationMode.AdHoc || mode === TeamRegistrationMode.Roster;
@@ -847,6 +858,33 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         throw new InvariantViolation(
           `Open-play events must use individual signup on every division. Division "${d.label}" has team registration mode "${mode}" — set it to "none" or change the event type to tournament.`,
         );
+      }
+
+      // Rule 1c (P2 #5): open-play has no free-agent pool by product
+      // design — RSVP is individual; everyone is effectively their own
+      // free agent. Force `allow_free_agents = false` so the dead code
+      // path can't accidentally light up if the column gets toggled by
+      // a future host-tools panel or an importer.
+      if (this.type === EventType.OpenPlay && d.allowFreeAgents) {
+        throw new InvariantViolation(
+          `Open-play events do not have a free-agent pool. Division "${d.label}" has allow_free_agents = true — set it to false (the field is only meaningful on tournament and league divisions).`,
+        );
+      }
+
+      // Rule 1b (P1 #1 scaffolding): leagues are pre-defined rostered
+      // squads. Every league division must use `roster` mode (no ad-hoc
+      // pickup teams, no individual signup) and a non-solo composition.
+      if (this.type === EventType.League) {
+        if (mode !== TeamRegistrationMode.Roster) {
+          throw new InvariantViolation(
+            `League events require roster-based team registration on every division. Division "${d.label}" has team registration mode "${mode ?? 'none'}" — set it to "roster".`,
+          );
+        }
+        if (composition === TeamComposition.Solo) {
+          throw new InvariantViolation(
+            `League events cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partner_required.`,
+          );
+        }
       }
 
       // Rule 2: team-led division requires team composition.

@@ -16,7 +16,7 @@ import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
  *
  * Distinct from `/events/[id]/bracket` (the host/captain workspace) so the
  * spectator UI stays uncluttered and the page doesn't need to opt out of
- * caching for auth-dependent reasons. RLS on `tournament_brackets`,
+ * caching for auth-dependent reasons. RLS on `event_brackets`,
  * `bracket_matches`, and `bracket_match_sets` is already `for select using
  * (true)`, so anon viewers see the same data.
  */

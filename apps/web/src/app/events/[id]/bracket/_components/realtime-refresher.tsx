@@ -30,7 +30,7 @@ export function BracketRealtimeRefresher({
       {
         event: '*',
         schema: 'public',
-        table: 'tournament_brackets',
+        table: 'event_brackets',
         filter: `division_id=eq.${divisionId}`,
       },
       () => router.refresh(),

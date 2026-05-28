@@ -26,7 +26,7 @@ export type TeamPricingDivisionInput = {
 };
 
 export type TeamPricingValidationInput = {
-  type: 'open_play' | 'tournament';
+  type: 'open_play' | 'tournament' | 'league';
   paymentsOffPlatform: boolean;
   divisions: ReadonlyArray<TeamPricingDivisionInput>;
 };

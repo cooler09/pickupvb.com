@@ -60,8 +60,7 @@ export async function recordDivisionWinner(
   } else {
     const { data, error } = await supabase
       .from('event_team_registrations')
-      .select('id, division_id, event_id')
-      .eq('event_id', eventId)
+      .select('id, division_id')
       .eq('id', id)
       .eq('division_id', divisionId)
       .maybeSingle();

@@ -16,6 +16,9 @@ type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type RegistrationRow = {
   id: string;
+  /** Derived via nested `event_divisions!inner(event_id)` join in {@link loadOne}.
+   *  The column itself was dropped from the table in migration
+   *  `20260729000000_drop_event_id_from_event_brackets_and_registrations.sql`. */
   event_id: string;
   division_id: string;
   captain_id: string | null;
@@ -74,10 +77,14 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     captainId: string,
     divisionId: string,
   ): Promise<boolean> {
+    // `event_id` is intentionally not filtered: `division_id` uniquely scopes
+    // to a single event via the `event_divisions` FK. The `eventId` param is
+    // retained on the port for caller ergonomics and used only in the error
+    // message below.
+    void eventId;
     const { count, error } = await this.client
       .from('event_team_registrations')
       .select('id', { count: 'exact', head: true })
-      .eq('event_id', eventId)
       .eq('captain_id', captainId)
       .eq('division_id', divisionId)
       // A soft-deleted registration must not block re-registration in the
@@ -95,7 +102,6 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
   async save(registration: EventTeamRegistration): Promise<void> {
     const row = {
       id: String(registration.id),
-      event_id: registration.eventId,
       division_id: String(registration.divisionId),
       captain_id: registration.captainId === null ? null : String(registration.captainId),
       name: registration.name,
@@ -268,20 +274,25 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
    * intentionally preserved on withdraw (history per ADR 0013).
    */
   private async detachBackingTeamLink(id: EventTeamRegistrationId): Promise<void> {
+    // Reach `event_id` through the registration's division — the column was
+    // dropped from `event_team_registrations` in Bundle A (migration
+    // `20260729000000_drop_event_id_from_event_brackets_and_registrations.sql`).
+    // `event_teams` still keys on `(event_id, team_id)` until Bundle B
+    // reshapes its PK.
     const { data, error } = await this.client
       .from('event_team_registrations')
-      .select('event_id, team_id')
+      .select('team_id, event_divisions!inner(event_id)')
       .eq('id', String(id))
       .maybeSingle();
     if (error) {
       throw new Error(`EventTeamRegistration.detachBackingTeamLink read failed: ${error.message}`);
     }
-    const row = data as { event_id: string; team_id: string | null } | null;
+    const row = data as { team_id: string | null; event_divisions: { event_id: string } } | null;
     if (!row || !row.team_id) return;
     const { error: etErr } = await this.client
       .from('event_teams')
       .delete()
-      .eq('event_id', row.event_id)
+      .eq('event_id', row.event_divisions.event_id)
       .eq('team_id', row.team_id);
     if (etErr) {
       throw new Error(
@@ -318,10 +329,15 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     column: 'id' | 'checkout_session_id' | 'payment_intent_id',
     value: string,
   ): Promise<EventTeamRegistration | null> {
+    // `event_id` was dropped from the table in Bundle A; we project it back
+    // through `event_divisions!inner(event_id)` so the aggregate (which still
+    // exposes `eventId` for Stripe routing + walk-in host lookup) stays
+    // unchanged. The flattening below remaps the nested object back to the
+    // RegistrationRow shape.
     const { data, error } = await this.client
       .from('event_team_registrations')
       .select(
-        'id, event_id, division_id, captain_id, name, source, captain_display_name, captain_phone, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note, created_at, updated_at',
+        'id, division_id, captain_id, name, source, captain_display_name, captain_phone, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note, created_at, updated_at, event_divisions!inner(event_id)',
       )
       .eq(column, value)
       .maybeSingle();
@@ -329,7 +345,10 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       throw new Error(`EventTeamRegistration.find(${column}=${value}) failed: ${error.message}`);
     }
     if (!data) return null;
-    const row = data as RegistrationRow;
+    const raw = data as unknown as Omit<RegistrationRow, 'event_id'> & {
+      event_divisions: { event_id: string };
+    };
+    const row: RegistrationRow = { ...raw, event_id: raw.event_divisions.event_id };
 
     const { data: memberRows, error: mErr } = await this.client
       .from('event_team_registration_members')

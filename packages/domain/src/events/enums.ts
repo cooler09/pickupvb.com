@@ -184,6 +184,15 @@ export type TeamRegistrationMode = (typeof TeamRegistrationMode)[keyof typeof Te
 export const EventType = {
   OpenPlay: 'open_play',
   Tournament: 'tournament',
+  /**
+   * Recurring rostered competition across a season. Per-division
+   * teams are pre-defined (every division must use
+   * {@link TeamRegistrationMode.Roster} and a non-solo composition);
+   * weekly fixtures live in a dedicated schedule table (P1 #2, not
+   * yet implemented). Scaffolded by
+   * `20260729000100_add_league_to_event_type.sql`.
+   */
+  League: 'league',
 } as const;
 export type EventType = (typeof EventType)[keyof typeof EventType];
 

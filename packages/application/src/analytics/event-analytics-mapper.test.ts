@@ -78,6 +78,7 @@ function makeOpenPlayEvent(opts?: { priceCents?: number | null }): VolleyballEve
         prizePurseCents: null,
         startsAt: null,
         endsAt: null,
+        allowFreeAgents: false,
       }),
     ],
   });

@@ -127,7 +127,7 @@ export type Database = {
             foreignKeyName: 'bracket_matches_bracket_id_fkey';
             columns: ['bracket_id'];
             isOneToOne: false;
-            referencedRelation: 'tournament_brackets';
+            referencedRelation: 'event_brackets';
             referencedColumns: ['id'];
           },
           {
@@ -184,7 +184,7 @@ export type Database = {
             foreignKeyName: 'bracket_seeds_bracket_id_fkey';
             columns: ['bracket_id'];
             isOneToOne: false;
-            referencedRelation: 'tournament_brackets';
+            referencedRelation: 'event_brackets';
             referencedColumns: ['id'];
           },
           {
@@ -991,7 +991,6 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
           division_id: string;
-          event_id: string;
           id: string;
           name: string;
           paid_at: string | null;
@@ -1010,7 +1009,6 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           division_id: string;
-          event_id: string;
           id?: string;
           name: string;
           paid_at?: string | null;
@@ -1029,7 +1027,6 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           division_id?: string;
-          event_id?: string;
           id?: string;
           name?: string;
           paid_at?: string | null;
@@ -1059,20 +1056,6 @@ export type Database = {
             columns: ['division_id'];
             isOneToOne: false;
             referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_team_registrations_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_team_registrations_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events_view';
             referencedColumns: ['id'];
           },
         ];
@@ -2141,12 +2124,11 @@ export type Database = {
           },
         ];
       };
-      tournament_brackets: {
+      event_brackets: {
         Row: {
           config: Json;
           created_at: string;
           division_id: string;
-          event_id: string;
           format: string;
           id: string;
           status: string;
@@ -2156,7 +2138,6 @@ export type Database = {
           config?: Json;
           created_at?: string;
           division_id: string;
-          event_id: string;
           format: string;
           id?: string;
           status?: string;
@@ -2166,7 +2147,6 @@ export type Database = {
           config?: Json;
           created_at?: string;
           division_id?: string;
-          event_id?: string;
           format?: string;
           id?: string;
           status?: string;
@@ -2174,24 +2154,10 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'tournament_brackets_division_id_fkey';
+            foreignKeyName: 'event_brackets_division_id_fkey';
             columns: ['division_id'];
             isOneToOne: false;
             referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'tournament_brackets_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'tournament_brackets_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events_view';
             referencedColumns: ['id'];
           },
         ];
@@ -3538,7 +3504,7 @@ export type Database = {
     Enums: {
       age_group: 'adult' | 'hs' | '18u' | '16u' | '14u' | 'jr_high';
       event_status: 'draft' | 'published' | 'cancelled' | 'completed';
-      event_type: 'open_play' | 'tournament';
+      event_type: 'open_play' | 'tournament' | 'league';
       format: 'sixes' | 'quads' | 'triples' | 'doubles';
       gender: 'mens' | 'womens' | 'coed';
       group_role: 'owner' | 'admin' | 'member';
@@ -4233,7 +4199,7 @@ export const Constants = {
     Enums: {
       age_group: ['adult', 'hs', '18u', '16u', '14u', 'jr_high'],
       event_status: ['draft', 'published', 'cancelled', 'completed'],
-      event_type: ['open_play', 'tournament'],
+      event_type: ['open_play', 'tournament', 'league'],
       format: ['sixes', 'quads', 'triples', 'doubles'],
       gender: ['mens', 'womens', 'coed'],
       group_role: ['owner', 'admin', 'member'],
