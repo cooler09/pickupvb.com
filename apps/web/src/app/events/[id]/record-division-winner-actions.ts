@@ -45,42 +45,44 @@ export async function recordDivisionWinner(
 
   const supabase = await getServerSupabase();
 
-  // Validate the chosen team actually belongs to this division on this event.
+  // Validate the chosen team actually belongs to this division on this event,
+  // and resolve the canonical `event_team_entries.id` to write into
+  // `event_divisions.winner_entry_id`. After Step 5b roster and ad-hoc
+  // winners both live in `event_team_entries`; the `kind` discriminator
+  // only matters for *how* we look the entry up.
+  let entryId: string | null = null;
   if (kind === 'team') {
     const { data, error } = await supabase
-      .from('event_teams')
-      .select('team_id, division_id, event_id')
-      .eq('event_id', eventId)
+      .from('event_team_entries')
+      .select('id')
       .eq('team_id', id)
       .eq('division_id', divisionId)
+      .eq('source', 'roster')
+      .is('deleted_at', null)
       .maybeSingle();
     if (error || !data) {
       redirectEventNotice(eventId, 'rsvp', 'winner_invalid');
     }
+    entryId = (data as { id: string } | null)!.id;
   } else {
     const { data, error } = await supabase
-      .from('event_team_registrations')
-      .select('id, division_id')
+      .from('event_team_entries')
+      .select('id')
       .eq('id', id)
       .eq('division_id', divisionId)
+      .neq('source', 'roster')
+      .is('deleted_at', null)
       .maybeSingle();
     if (error || !data) {
       redirectEventNotice(eventId, 'rsvp', 'winner_invalid');
     }
+    entryId = (data as { id: string } | null)!.id;
   }
 
-  const update =
-    kind === 'team'
-      ? {
-          winner_team_id: id,
-          winner_team_registration_id: null,
-          winner_recorded_at: new Date().toISOString(),
-        }
-      : {
-          winner_team_id: null,
-          winner_team_registration_id: id,
-          winner_recorded_at: new Date().toISOString(),
-        };
+  const update = {
+    winner_entry_id: entryId,
+    winner_recorded_at: new Date().toISOString(),
+  };
 
   const { error: updErr } = await supabase
     .from('event_divisions')
@@ -122,8 +124,7 @@ export async function clearDivisionWinner(
   const { error: updErr } = await supabase
     .from('event_divisions')
     .update({
-      winner_team_id: null,
-      winner_team_registration_id: null,
+      winner_entry_id: null,
       winner_recorded_at: null,
     } as never)
     .eq('id', divisionId)

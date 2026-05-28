@@ -14,26 +14,49 @@ import { createSupabaseAdminClient } from '@pickupvb/supabase';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
-type RegistrationRow = {
+/**
+ * Post-Step-5b shape: the three tables (event_teams, event_team_registrations,
+ * event_team_registration_members) collapsed into `event_team_entries` +
+ * `event_team_entry_members`. The DB `source` enum is `roster | ad_hoc |
+ * walk_in`. As of Step 5b.ii the aggregate enum collapsed to
+ * `captain | walk_in`, so the boundary mapping is a bijection
+ * (`captain <-> ad_hoc`, `walk_in <-> walk_in`).
+ *
+ * `EventTeamRegistration` aggregates only represent ad-hoc / walk-in
+ * entries — `source = 'roster'` rows are read by other adapters
+ * (bracket reader, event_team_payments lookup). All reads here filter
+ * `source != 'roster'`.
+ */
+
+type EntryRow = {
   id: string;
-  /** Derived via nested `event_divisions!inner(event_id)` join in {@link loadOne}.
-   *  The column itself was dropped from the table in migration
-   *  `20260729000000_drop_event_id_from_event_brackets_and_registrations.sql`. */
   event_id: string;
   division_id: string;
+  source: 'roster' | 'ad_hoc' | 'walk_in';
+  team_id: string | null;
   captain_id: string | null;
-  name: string;
-  source: RegistrationSource;
-  captain_display_name: string | null;
+  display_name: string;
   captain_phone: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type PaymentRow = {
   payment_status: RegistrationPaymentStatus;
   checkout_session_id: string | null;
   payment_intent_id: string | null;
   amount_paid_cents: number | null;
   paid_at: string | null;
   payment_note: string | null;
-  created_at: string;
-  updated_at: string;
+};
+
+const DEFAULT_PAYMENT: PaymentRow = {
+  payment_status: 'none' as RegistrationPaymentStatus,
+  checkout_session_id: null,
+  payment_intent_id: null,
+  amount_paid_cents: null,
+  paid_at: null,
+  payment_note: null,
 };
 
 type MemberRow = {
@@ -44,14 +67,15 @@ type MemberRow = {
   sort_order: number;
 };
 
-/**
- * Adapter for the {@link EventTeamRegistration} aggregate. Persists to
- * `event_team_registrations` + `event_team_registration_members`.
- *
- * Roster reconciliation follows the same clear-and-insert pattern as
- * `SupabaseTeamRepository`: rosters are tiny (≤ ~14 even for sixes + subs)
- * so the cost is negligible and the code stays simple.
- */
+function aggregateSourceToDb(source: RegistrationSource): 'ad_hoc' | 'walk_in' {
+  return source === RegistrationSource.WalkIn ? 'walk_in' : 'ad_hoc';
+}
+
+function dbSourceToAggregate(source: 'roster' | 'ad_hoc' | 'walk_in'): RegistrationSource {
+  if (source === 'walk_in') return RegistrationSource.WalkIn;
+  return RegistrationSource.Captain;
+}
+
 export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistrationRepository {
   private _client: SupabaseClient | null = null;
 
@@ -77,19 +101,13 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     captainId: string,
     divisionId: string,
   ): Promise<boolean> {
-    // `event_id` is intentionally not filtered: `division_id` uniquely scopes
-    // to a single event via the `event_divisions` FK. The `eventId` param is
-    // retained on the port for caller ergonomics and used only in the error
-    // message below.
     void eventId;
     const { count, error } = await this.client
-      .from('event_team_registrations')
+      .from('event_team_entries')
       .select('id', { count: 'exact', head: true })
       .eq('captain_id', captainId)
       .eq('division_id', divisionId)
-      // A soft-deleted registration must not block re-registration in the
-      // same division; the row sticks around for audit/refund reconciliation
-      // (see migration 20260629000000) but is logically gone from product.
+      .neq('source', 'roster')
       .is('deleted_at', null);
     if (error) {
       throw new Error(
@@ -100,14 +118,29 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
   }
 
   async save(registration: EventTeamRegistration): Promise<void> {
-    const row = {
+    const entryRow = {
       id: String(registration.id),
       division_id: String(registration.divisionId),
+      source: aggregateSourceToDb(registration.source),
+      team_id: null,
       captain_id: registration.captainId === null ? null : String(registration.captainId),
-      name: registration.name,
-      source: registration.source,
-      captain_display_name: registration.captainDisplayName,
+      display_name: registration.name,
       captain_phone: registration.captainPhone,
+    };
+
+    const { error } = await this.client
+      .from('event_team_entries')
+      .upsert(entryRow as never, { onConflict: 'id' });
+    if (error) {
+      throw new Error(`EventTeamRegistration.save(${registration.id}) failed: ${error.message}`);
+    }
+
+    // Payment columns moved off entries onto event_team_payments
+    // (1:1 via entry_id unique). Always upsert so the row exists even
+    // when the aggregate has no payment activity — keeps reads simple.
+    const paymentRow = {
+      entry_id: String(registration.id),
+      captain_id: registration.captainId === null ? null : String(registration.captainId),
       payment_status: registration.paymentStatus,
       checkout_session_id: registration.checkoutSessionId,
       payment_intent_id: registration.paymentIntentId,
@@ -115,208 +148,51 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       paid_at: registration.paidAt ? registration.paidAt.toISOString() : null,
       payment_note: registration.paymentNote,
     };
-
-    const { error } = await this.client
-      .from('event_team_registrations')
-      .upsert(row as never, { onConflict: 'id' });
-    if (error) {
-      throw new Error(`EventTeamRegistration.save(${registration.id}) failed: ${error.message}`);
+    const { error: payErr } = await this.client
+      .from('event_team_payments')
+      .upsert(paymentRow as never, { onConflict: 'entry_id' });
+    if (payErr) {
+      throw new Error(
+        `EventTeamRegistration.save payment(${registration.id}) failed: ${payErr.message}`,
+      );
     }
 
-    // Reconcile members.
     const { error: delErr } = await this.client
-      .from('event_team_registration_members')
+      .from('event_team_entry_members')
       .delete()
-      .eq('registration_id', String(registration.id));
+      .eq('entry_id', String(registration.id));
     if (delErr) {
       throw new Error(`EventTeamRegistration.save member clear failed: ${delErr.message}`);
     }
 
-    if (registration.members.length === 0) {
-      await this.ensureBackingTeam(registration);
-      return;
-    }
+    if (registration.members.length === 0) return;
 
     const memberRows = registration.members.map((m) => ({
       id: String(m.id),
-      registration_id: String(registration.id),
+      entry_id: String(registration.id),
       user_id: m.userId ? String(m.userId) : null,
       display_name: m.displayName,
       email: m.email,
       sort_order: m.sortOrder,
     }));
     const { error: insErr } = await this.client
-      .from('event_team_registration_members')
+      .from('event_team_entry_members')
       .insert(memberRows as never);
     if (insErr) {
       throw new Error(`EventTeamRegistration.save members insert failed: ${insErr.message}`);
     }
-
-    await this.ensureBackingTeam(registration);
-  }
-
-  /**
-   * Promote (or rename) the backing `teams` + `event_teams` rows that
-   * make the registration first-class for the bracket reader and the
-   * `events_view.team_count` expression. See ADR 0013 (Option B) and
-   * migration `20260705000000_promote_ad_hoc_registrations_to_teams.sql`.
-   *
-   * Idempotent: a follow-up `save` skips creation and only renames the
-   * backing team when the name changed.
-   */
-  private async ensureBackingTeam(registration: EventTeamRegistration): Promise<void> {
-    const { data: regRow, error: regErr } = await this.client
-      .from('event_team_registrations')
-      .select('team_id')
-      .eq('id', String(registration.id))
-      .maybeSingle();
-    if (regErr) {
-      throw new Error(`EventTeamRegistration.ensureBackingTeam read failed: ${regErr.message}`);
-    }
-    const existingTeamId = (regRow as { team_id: string | null } | null)?.team_id ?? null;
-
-    if (existingTeamId) {
-      // Rename path: keep teams.name in sync with the registration.
-      const { error: rnErr } = await this.client
-        .from('teams')
-        .update({ name: registration.name } as never)
-        .eq('id', existingTeamId)
-        .neq('name', registration.name);
-      if (rnErr) {
-        throw new Error(`EventTeamRegistration.ensureBackingTeam rename failed: ${rnErr.message}`);
-      }
-      return;
-    }
-
-    // Need the division's format to populate teams.format. Format lives
-    // on `event_divisions` since migration 20260605000500 (phase 9d
-    // dropped the legacy `events.format` column).
-    const { data: divRow, error: divErr } = await this.client
-      .from('event_divisions')
-      .select('format')
-      .eq('id', String(registration.divisionId))
-      .maybeSingle();
-    if (divErr || !divRow) {
-      throw new Error(
-        `EventTeamRegistration.ensureBackingTeam division lookup failed: ${
-          divErr?.message ?? 'division not found'
-        }`,
-      );
-    }
-    const evtFormat = (divRow as unknown as { format: string }).format;
-
-    // Walk-in registrations (ADR 0017) have no real captain account, but
-    // the backing `teams` row's `captain_id` is NOT NULL. Use the event
-    // host as the team's nominal captain so the bracket reader and the
-    // `events_view.team_count` expression still work — the registration
-    // row itself keeps `captain_id = null`, which is the source of truth
-    // for the public roster.
-    let backingCaptainId: string;
-    if (registration.captainId !== null) {
-      backingCaptainId = String(registration.captainId);
-    } else {
-      const { data: evtRow, error: evtErr } = await this.client
-        .from('events')
-        .select('host_id')
-        .eq('id', registration.eventId)
-        .maybeSingle();
-      if (evtErr || !evtRow) {
-        throw new Error(
-          `EventTeamRegistration.ensureBackingTeam host lookup failed: ${
-            evtErr?.message ?? 'event not found'
-          }`,
-        );
-      }
-      backingCaptainId = (evtRow as unknown as { host_id: string }).host_id;
-    }
-
-    const { data: newTeam, error: tErr } = await this.client
-      .from('teams')
-      .insert({
-        captain_id: backingCaptainId,
-        name: registration.name,
-        format: evtFormat,
-      } as never)
-      .select('id')
-      .single();
-    if (tErr || !newTeam) {
-      throw new Error(
-        `EventTeamRegistration.ensureBackingTeam team insert failed: ${
-          tErr?.message ?? 'no row returned'
-        }`,
-      );
-    }
-    const newTeamId = (newTeam as { id: string }).id;
-
-    const { error: linkErr } = await this.client
-      .from('event_team_registrations')
-      .update({ team_id: newTeamId } as never)
-      .eq('id', String(registration.id));
-    if (linkErr) {
-      throw new Error(`EventTeamRegistration.ensureBackingTeam link failed: ${linkErr.message}`);
-    }
-
-    const { error: etErr } = await this.client.from('event_teams').insert({
-      event_id: registration.eventId,
-      team_id: newTeamId,
-      division_id: String(registration.divisionId),
-    } as never);
-    if (etErr) {
-      throw new Error(
-        `EventTeamRegistration.ensureBackingTeam event_teams insert failed: ${etErr.message}`,
-      );
-    }
-  }
-
-  /**
-   * Read the backing-team link for a registration before removal so we
-   * can clean up the `event_teams` row. The `teams` row itself is
-   * intentionally preserved on withdraw (history per ADR 0013).
-   */
-  private async detachBackingTeamLink(id: EventTeamRegistrationId): Promise<void> {
-    // Reach `event_id` through the registration's division — the column was
-    // dropped from `event_team_registrations` in Bundle A (migration
-    // `20260729000000_drop_event_id_from_event_brackets_and_registrations.sql`).
-    // `event_teams` still keys on `(event_id, team_id)` until Bundle B
-    // reshapes its PK.
-    const { data, error } = await this.client
-      .from('event_team_registrations')
-      .select('team_id, event_divisions!inner(event_id)')
-      .eq('id', String(id))
-      .maybeSingle();
-    if (error) {
-      throw new Error(`EventTeamRegistration.detachBackingTeamLink read failed: ${error.message}`);
-    }
-    const row = data as { team_id: string | null; event_divisions: { event_id: string } } | null;
-    if (!row || !row.team_id) return;
-    const { error: etErr } = await this.client
-      .from('event_teams')
-      .delete()
-      .eq('event_id', row.event_divisions.event_id)
-      .eq('team_id', row.team_id);
-    if (etErr) {
-      throw new Error(
-        `EventTeamRegistration.detachBackingTeamLink event_teams delete failed: ${etErr.message}`,
-      );
-    }
   }
 
   async delete(id: EventTeamRegistrationId): Promise<void> {
-    await this.detachBackingTeamLink(id);
-    // Cascade on the FK handles members; we only need the parent delete.
-    const { error } = await this.client
-      .from('event_team_registrations')
-      .delete()
-      .eq('id', String(id));
+    const { error } = await this.client.from('event_team_entries').delete().eq('id', String(id));
     if (error) {
       throw new Error(`EventTeamRegistration.delete(${id}) failed: ${error.message}`);
     }
   }
 
   async softDelete(id: EventTeamRegistrationId): Promise<void> {
-    await this.detachBackingTeamLink(id);
     const { error } = await this.client
-      .from('event_team_registrations')
+      .from('event_team_entries')
       .update({ deleted_at: new Date().toISOString() } as never)
       .eq('id', String(id))
       .is('deleted_at', null);
@@ -329,31 +205,63 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     column: 'id' | 'checkout_session_id' | 'payment_intent_id',
     value: string,
   ): Promise<EventTeamRegistration | null> {
-    // `event_id` was dropped from the table in Bundle A; we project it back
-    // through `event_divisions!inner(event_id)` so the aggregate (which still
-    // exposes `eventId` for Stripe routing + walk-in host lookup) stays
-    // unchanged. The flattening below remaps the nested object back to the
-    // RegistrationRow shape.
+    // Payment lookups go through event_team_payments — resolve to an
+    // entry_id first, then read the entry.
+    let entryId: string;
+    if (column === 'id') {
+      entryId = value;
+    } else {
+      const { data: payHit, error: payErr } = await this.client
+        .from('event_team_payments')
+        .select('entry_id')
+        .eq(column, value)
+        .maybeSingle();
+      if (payErr) {
+        throw new Error(
+          `EventTeamRegistration.find(${column}=${value}) payment lookup failed: ${payErr.message}`,
+        );
+      }
+      if (!payHit) return null;
+      entryId = (payHit as { entry_id: string }).entry_id;
+    }
+
     const { data, error } = await this.client
-      .from('event_team_registrations')
+      .from('event_team_entries')
       .select(
-        'id, division_id, captain_id, name, source, captain_display_name, captain_phone, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note, created_at, updated_at, event_divisions!inner(event_id)',
+        'id, division_id, source, team_id, captain_id, display_name, captain_phone, created_at, updated_at, event_divisions!inner(event_id), payments:event_team_payments(payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note)',
       )
-      .eq(column, value)
+      .eq('id', entryId)
+      .neq('source', 'roster')
       .maybeSingle();
     if (error) {
       throw new Error(`EventTeamRegistration.find(${column}=${value}) failed: ${error.message}`);
     }
     if (!data) return null;
-    const raw = data as unknown as Omit<RegistrationRow, 'event_id'> & {
+    type Raw = Omit<EntryRow, 'event_id'> & {
       event_divisions: { event_id: string };
+      payments: PaymentRow[] | PaymentRow | null;
     };
-    const row: RegistrationRow = { ...raw, event_id: raw.event_divisions.event_id };
+    const raw = data as unknown as Raw;
+    const row: EntryRow = {
+      id: raw.id,
+      event_id: raw.event_divisions.event_id,
+      division_id: raw.division_id,
+      source: raw.source,
+      team_id: raw.team_id,
+      captain_id: raw.captain_id,
+      display_name: raw.display_name,
+      captain_phone: raw.captain_phone,
+      created_at: raw.created_at,
+      updated_at: raw.updated_at,
+    };
+    const payment: PaymentRow = Array.isArray(raw.payments)
+      ? (raw.payments[0] ?? DEFAULT_PAYMENT)
+      : (raw.payments ?? DEFAULT_PAYMENT);
 
     const { data: memberRows, error: mErr } = await this.client
-      .from('event_team_registration_members')
+      .from('event_team_entry_members')
       .select('id, user_id, display_name, email, sort_order')
-      .eq('registration_id', row.id)
+      .eq('entry_id', row.id)
       .order('sort_order', { ascending: true });
     if (mErr) {
       throw new Error(`EventTeamRegistration.find members(${row.id}) failed: ${mErr.message}`);
@@ -369,27 +277,31 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       }),
     );
 
+    const isWalkIn = row.source === 'walk_in';
+
     return EventTeamRegistration.rehydrate({
       id: row.id as never as EventTeamRegistrationId,
       eventId: row.event_id,
       divisionId: row.division_id as never as DivisionId,
       captainId: row.captain_id === null ? null : (row.captain_id as UserId),
-      name: row.name,
+      name: row.display_name,
       members,
-      source: row.source,
-      captainDisplayName: row.captain_display_name,
+      source: dbSourceToAggregate(row.source),
+      captainDisplayName: isWalkIn ? row.display_name : null,
       captainPhone: row.captain_phone,
-      paymentStatus: row.payment_status,
-      checkoutSessionId: row.checkout_session_id,
-      paymentIntentId: row.payment_intent_id,
-      amountPaidCents: row.amount_paid_cents,
-      paidAt: row.paid_at ? new Date(row.paid_at) : null,
-      paymentNote: row.payment_note,
+      paymentStatus: payment.payment_status,
+      checkoutSessionId: payment.checkout_session_id,
+      paymentIntentId: payment.payment_intent_id,
+      amountPaidCents: payment.amount_paid_cents,
+      paidAt: payment.paid_at ? new Date(payment.paid_at) : null,
+      paymentNote: payment.payment_note,
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at),
     });
   }
 }
+
+void RegistrationPaymentStatus;
 
 /**
  * Convenience for call sites that want a typed `NotFoundError` rather than

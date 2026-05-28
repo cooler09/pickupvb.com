@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { FieldError, fieldA11y } from '@/components/field-error';
 
 type TeamRegistrationMode = 'ad_hoc' | 'roster' | 'none';
-type Composition = 'solo' | 'team' | 'pair_draw' | 'partner_required';
+type Composition = 'solo' | 'team' | 'pair_draw' | 'partners';
 type PriceUnit = 'per_player' | 'per_team';
 
 /**
@@ -27,7 +27,7 @@ type PriceUnit = 'per_player' | 'per_team';
  * invariant will reject.
  */
 function allowedCompositions(mode: TeamRegistrationMode): readonly Composition[] {
-  return mode === 'none' ? ['solo'] : ['team', 'pair_draw', 'partner_required'];
+  return mode === 'none' ? ['solo'] : ['team', 'pair_draw', 'partners'];
 }
 function allowedPriceUnits(mode: TeamRegistrationMode): readonly PriceUnit[] {
   return mode === 'none' ? ['per_player'] : ['per_team'];
@@ -45,7 +45,7 @@ const COMPOSITION_LABELS: Record<Composition, string> = {
   solo: 'Solo signup',
   team: 'Pre-formed team',
   pair_draw: 'Pair draw',
-  partner_required: 'Partner required',
+  partners: 'Partner required',
 };
 const PRICE_UNIT_LABELS: Record<PriceUnit, string> = {
   per_player: 'Per player',

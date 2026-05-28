@@ -27,7 +27,7 @@ export type HostAdHocTeamRow = {
   amountPaidCents: number;
   rosterSize: number;
   /** Who created this registration — ADR 0017. */
-  source: 'captain' | 'host' | 'walk_in';
+  source: 'ad_hoc' | 'walk_in';
   /** Phone for walk-in captains (null for captain/host sources). */
   captainPhone: string | null;
   /** Freeform note attached when the host marked a walk-in paid in cash. */

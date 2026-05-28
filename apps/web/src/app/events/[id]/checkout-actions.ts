@@ -69,7 +69,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   // later; the user can't self-promote (event_attendees_update_own_pending
   // requires the row to stay 'pending').
   const { error: insertErr } = await supabase.from('event_attendees').insert({
-    event_id: eventId,
+    division_id: pricing.divisionId,
     user_id: user.id,
     payment_status: 'pending',
     amount_paid_cents: 0,
@@ -83,7 +83,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
       const { data: existing } = await supabase
         .from('event_attendees')
         .select('payment_status')
-        .eq('event_id', eventId)
+        .eq('division_id', pricing.divisionId)
         .eq('user_id', user.id)
         .maybeSingle();
       const status = (existing as { payment_status: string } | null)?.payment_status;
@@ -152,7 +152,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
     await supabase
       .from('event_attendees')
       .delete()
-      .eq('event_id', eventId)
+      .eq('division_id', pricing.divisionId)
       .eq('user_id', user.id)
       .eq('payment_status', 'pending');
     await log.error('[checkout] session create failed', err, { eventId });
@@ -164,7 +164,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   await supabase
     .from('event_attendees')
     .update({ checkout_session_id: session.id } as never)
-    .eq('event_id', eventId)
+    .eq('division_id', pricing.divisionId)
     .eq('user_id', user.id);
 
   if (!session.url) backWithError(eventId, 'error', 'Stripe did not return a URL.');

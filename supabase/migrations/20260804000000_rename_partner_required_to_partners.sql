@@ -1,0 +1,28 @@
+-- ============================================================================
+-- TeamComposition vocabulary cleanup: rename 'partner_required' to 'partners'.
+-- See docs/audits/event-data-model.md § P2 #4.
+--
+-- Context: the existing `team_composition` enum had two values ("team" and
+-- "partner_required") that meant the same thing at registration time —
+-- "captain shows up with a fixed N-person group, locked in." The only
+-- distinction was whether the N humans came pre-bonded (a persistent
+-- teams row in roster mode) or assembled at signup (an
+-- event_team_registrations row in ad-hoc mode), and that axis is already
+-- encoded by `team_registration_mode` on the division. Hosts saw two
+-- composition choices that did the same thing.
+--
+-- Per the audit's recommended fix, rename the value to "partners" so the
+-- enum names the registration shape directly (partners = doubles /
+-- triples; team = full team-of-N). No data shape change; just the value
+-- label. Postgres 14+ supports in-place enum value renames, which keeps
+-- every existing row's value valid post-migration.
+--
+-- Impact: the enum value literal flips. Every place that referenced
+-- 'partner_required' (TypeScript domain enum, generated DB types, the
+-- divisions repeater + host-divisions manager, enum labels, the events
+-- filter form, ADR 0012 matrix) is updated in the same change-bundle so
+-- typecheck stays green. Pre-launch, no production rows reference the
+-- old value, so no backfill is required.
+-- ============================================================================
+
+alter type team_composition rename value 'partner_required' to 'partners';

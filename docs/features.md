@@ -18,8 +18,10 @@ it on game day.
 - **Surface** — `indoor` / `grass` / `sand`.
 - **Format** — `sixes` / `quads` / `triples` / `doubles`.
 - **Gender** — `mens` / `womens` / `coed`.
-- **SkillLevel** — `beginner` / `intermediate` / `advanced` / `competitive`.
-- **EventType** — `open_play` / `tournament`.
+- **SkillLevel** — `beginner` / `intermediate` / `advanced` / `competitive`
+  (legacy search band; per-division ladder is `SkillTier`
+  `c / b / bb / bb3 / a / aa / open` — see [ADR 0006](adr/0006-event-divisions.md)).
+- **EventType** — `open_play` / `tournament` / `league`.
 - **EventStatus** — `draft` / `published` / `cancelled` / `completed`.
 
 **Surface × format rule** ([packages/domain/src/events/rules.ts](../packages/domain/src/events/rules.ts)):
@@ -28,13 +30,46 @@ triples, or doubles. Enforced in the domain aggregate, the form
 validator, and a Postgres `CHECK` constraint — same predicate in three
 places.
 
-**Open play vs tournament.**
+### Event-type matrix
 
-- *Open play* — capacity is by player count (or unlimited). RSVPs and
+The three first-class event types differ along five axes. The matrix
+below is the canonical reference; the aggregate enforces each row's
+invariants in [packages/domain/src/events/volleyball-event.ts](../packages/domain/src/events/volleyball-event.ts)
+(see `assertRegistrationConfigValid` and the open-play / league
+branches). Source-of-truth audit:
+[docs/audits/event-data-model.md](audits/event-data-model.md#product-requirements-restated).
+
+| Event type     | Cadence         | Roster shape                                                                             | Divisions           | Free agents                        | Bracket / schedule                         |
+| -------------- | --------------- | ---------------------------------------------------------------------------------------- | ------------------- | ---------------------------------- | ------------------------------------------ |
+| **Open Play**  | Single day      | Individuals only (`team_registration_mode = null`, `team_composition = solo`)            | 1 (always)          | N/A                                | None                                       |
+| **Tournament** | 1–N days        | Teams: partners / pair-draw / full team; walk-ins; host-edited day-of                    | 1..N                | Per-division pool, host-toggleable | Bracket per division                       |
+| **League**     | Weekly × season | **Pre-defined rostered teams** (`team_registration_mode = roster`, non-solo composition) | 1..N (skill + type) | Per-division pool, host-toggleable | Season schedule + optional playoff bracket |
+
+Cross-cutting rules:
+
+- Host always retains full edit control over teams, rosters, and the
+  schedule on tournaments and leagues. Open Play stays the simple
+  individual RSVP flow.
+- Payments route through `events.host_id` (a user) regardless of
+  type. `host_group_id` is authorization / display metadata, never
+  payout routing — see [docs/payments.md](payments.md) and
+  [AGENTS.md § Pattern 7](../AGENTS.md).
+- Leagues are **season-fee upfront only** — no recurring billing.
+  The Stripe wiring reuses the one-shot Checkout used by tournament
+  team registration.
+
+**Open play vs tournament vs league.**
+
+- _Open play_ — capacity is by player count (or unlimited). RSVPs and
   the waitlist live in `event_attendees`.
-- *Tournament* — capacity is by team count. Teams sign up via
+- _Tournament_ — capacity is by team count. Teams sign up via
   `event_teams` and players who don't have a team can register as
   **free agents** so captains can pick them up.
+- _League_ — rostered teams are pre-defined (every division must use
+  `team_registration_mode = roster` and a non-solo composition).
+  Weekly fixtures live in a dedicated season-schedule table; the
+  playoff bracket at season end is optional per division (host
+  toggle). See [ADR 0006 § Addendum](adr/0006-event-divisions.md#addendum-2026-05-30--league-event-type).
 
 **Lifecycle.** Draft → Published → (Cancelled | Completed). Publish/
 cancel/complete go through the aggregate so invariants stay enforced
@@ -73,11 +108,11 @@ cancel/complete go through the aggregate so invariants stay enforced
 
 `Visibility` enum gates who can see/find an event:
 
-| Value | Meaning |
-|---|---|
-| `public` | Discoverable by anyone; anyone can sign up |
-| `invite_only` | Only via direct link |
-| `friends_of_host` | Discoverable by the host's friends |
+| Value                  | Meaning                                               |
+| ---------------------- | ----------------------------------------------------- |
+| `public`               | Discoverable by anyone; anyone can sign up            |
+| `invite_only`          | Only via direct link                                  |
+| `friends_of_host`      | Discoverable by the host's friends                    |
 | `friends_of_attendees` | Discoverable by friends of anyone currently attending |
 
 Enforced both in Postgres RLS (source of truth) and replicated to the
@@ -109,10 +144,10 @@ never holds funds.
 
 **Platform fee** (charged by PickupVB, separate from Stripe processing fee):
 
-| Tier | Fee on tickets | Fee on tips |
-|---|---|---|
-| Free | 5% | 5% |
-| Pro Host | 2.5% (`PRO_PLATFORM_FEE_BPS = 250`) | 2.5% |
+| Tier     | Fee on tickets                      | Fee on tips |
+| -------- | ----------------------------------- | ----------- |
+| Free     | 5%                                  | 5%          |
+| Pro Host | 2.5% (`PRO_PLATFORM_FEE_BPS = 250`) | 2.5%        |
 
 Constants in [apps/web/src/lib/pro.ts](../apps/web/src/lib/pro.ts).
 
@@ -151,14 +186,14 @@ runs checkout.
 
 **What Pro unlocks.**
 
-| Capability | Free | Pro |
-|---|---|---|
-| Free events | Unlimited | Unlimited |
-| Paid events / 30 days | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited |
-| Platform fee on tickets | 5% | **2.5%** |
-| Platform fee on tips | 5% | **2.5%** |
-| CSV attendee export | — | ✓ |
-| Pro badge on profile | — | ✓ (opt-out via `show_pro_badge`) |
+| Capability              | Free                                           | Pro                              |
+| ----------------------- | ---------------------------------------------- | -------------------------------- |
+| Free events             | Unlimited                                      | Unlimited                        |
+| Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                        |
+| Platform fee on tickets | 5%                                             | **2.5%**                         |
+| Platform fee on tips    | 5%                                             | **2.5%**                         |
+| CSV attendee export     | —                                              | ✓                                |
+| Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`) |
 
 **Implementation.**
 
@@ -167,7 +202,7 @@ runs checkout.
   which treats `active` and `trialing` as Pro and grace-periods
   `past_due`.
 - Free-tier cap is enforced by `host_paid_event_count_30d` RPC — a
-  rolling 30-day window from "now", *not* a calendar month. Cancelling
+  rolling 30-day window from "now", _not_ a calendar month. Cancelling
   a paid event does **not** free up the slot (prevents abuse).
 - Subscription state is mirrored from Stripe via
   `customer.subscription.{created,updated,deleted}` webhooks into
@@ -196,7 +231,7 @@ attendee — fans out to email, push, and in-app notifications.
 
 - Server action: [apps/web/src/app/events/[id]/broadcast-actions.ts](../apps/web/src/app/events/%5Bid%5D/broadcast-actions.ts).
 - UI panel: `HostBroadcastPanel` under
-  [apps/web/src/app/events/[id]/_components/](../apps/web/src/app/events/%5Bid%5D/_components/).
+  [apps/web/src/app/events/[id]/\_components/](../apps/web/src/app/events/%5Bid%5D/_components/).
 - Teams have their own broadcast: [apps/web/src/app/teams/[id]/broadcast-actions.ts](../apps/web/src/app/teams/%5Bid%5D/broadcast-actions.ts).
 - Notification delivery happens through the worker — see [integrations.md § Resend](integrations.md#resend) and [§ Web Push (VAPID)](integrations.md#web-push-vapid).
 

@@ -11,6 +11,7 @@ import {
   SupabaseEventTeamRegistrationRepository,
   SupabaseHostStripeAccountRepository,
   SupabaseHostSubscriptionRepository,
+  SupabaseLeagueScheduleRepository,
   SupabaseTeamRepository,
 } from '@pickupvb/infrastructure';
 import {
@@ -18,6 +19,7 @@ import {
   AddAdHocTeamMemberHandler,
   AddEventCoHostHandler,
   AddEventDivisionHandler,
+  AddLeagueScheduleMatchHandler,
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
   ApproveCommunityListingClaimHandler,
@@ -41,12 +43,14 @@ import {
   LeaveEventAsFreeAgentHandler,
   LeaveEventHandler,
   MarkWalkInPaidCashHandler,
+  RecordLeagueMatchResultHandler,
   RecordMatchResultHandler,
   RegisterAdHocTeamHandler,
   RegisterTeamHandler,
   RegisterWalkInTeamHandler,
   RemoveEventCoHostHandler,
   RemoveEventDivisionHandler,
+  RemoveLeagueScheduleMatchHandler,
   RemoveAdHocTeamMemberHandler,
   RemoveTeamMemberHandler,
   RenameAdHocTeamRegistrationHandler,
@@ -61,6 +65,7 @@ import {
   UnhideCommunityListingHandler,
   UpdateCommunityListingHandler,
   UpdateEventDivisionHandler,
+  UpdateLeagueScheduleMatchHandler,
   WithdrawAdHocTeamRegistrationHandler,
   WithdrawTeamHandler,
 } from '@pickupvb/application';
@@ -77,6 +82,7 @@ const bracketRepo = new SupabaseBracketRepository();
 const hostStripeAccountRepo = new SupabaseHostStripeAccountRepository();
 const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
 const communityListingRepo = new SupabaseCommunityListingRepository();
+const leagueScheduleRepo = new SupabaseLeagueScheduleRepository();
 
 const isPlatformAdmin = (userId: string) => communityListingRepo.isPlatformAdmin(userId);
 
@@ -170,6 +176,11 @@ export const handlers = {
   reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo),
   recordMatchResult: new RecordMatchResultHandler(bracketRepo),
   resetMatch: new ResetMatchHandler(bracketRepo),
+  // League schedule (per-division weekly slate)
+  addLeagueScheduleMatch: new AddLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
+  updateLeagueScheduleMatch: new UpdateLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
+  removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
+  recordLeagueMatchResult: new RecordLeagueMatchResultHandler(leagueScheduleRepo),
   // Community listings
   createCommunityListing: new CreateCommunityListingHandler(communityListingRepo),
   updateCommunityListing: new UpdateCommunityListingHandler(communityListingRepo, isPlatformAdmin),
@@ -198,6 +209,7 @@ export const repositories = {
   eventRepo,
   eventTeamPaymentRepo,
   eventTeamRegistrationRepo,
+  leagueScheduleRepo,
   hostStripeAccountRepo,
   hostSubscriptionRepo,
   communityListingRepo,

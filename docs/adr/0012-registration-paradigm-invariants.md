@@ -22,7 +22,7 @@ that look orthogonal but are actually highly coupled:
 1. `events.type` — `open_play` | `tournament`.
 2. `events.team_registration_mode` — `ad_hoc` | `roster` | `null`.
 3. `event_divisions.team_composition` — `solo` | `team` | `pair_draw`
-   | `partner_required`.
+   | `partners`.
 4. `event_divisions.price_unit` — `per_player` | `per_team`.
 
 The only rule enforced today (ADR 0007 §3) is that team-led tournaments
@@ -66,12 +66,12 @@ so the host sees a useful error before save.
 
 ### The canonical matrix
 
-| `events.type` | `team_registration_mode` | division `team_composition`                | division `price_unit` | Result                                  |
-| ------------- | ------------------------ | ------------------------------------------ | --------------------- | --------------------------------------- |
-| `open_play`   | `null` (forced)          | `solo` (forced)                            | `per_player`          | ✅                                      |
-| `tournament`  | `null`                   | `solo`                                     | `per_player`          | ✅ (free-agent / individual tournament) |
-| `tournament`  | `ad_hoc` or `roster`     | `team`, `pair_draw`, or `partner_required` | `per_team`            | ✅                                      |
-| anything else | —                        | —                                          | —                     | ❌ rejected with `InvariantViolation`   |
+| `events.type` | `team_registration_mode` | division `team_composition`        | division `price_unit` | Result                                  |
+| ------------- | ------------------------ | ---------------------------------- | --------------------- | --------------------------------------- |
+| `open_play`   | `null` (forced)          | `solo` (forced)                    | `per_player`          | ✅                                      |
+| `tournament`  | `null`                   | `solo`                             | `per_player`          | ✅ (free-agent / individual tournament) |
+| `tournament`  | `ad_hoc` or `roster`     | `team`, `pair_draw`, or `partners` | `per_team`            | ✅                                      |
+| anything else | —                        | —                                  | —                     | ❌ rejected with `InvariantViolation`   |
 
 ### The four rules in plain English
 
@@ -80,7 +80,7 @@ so the host sees a useful error before save.
    `team_composition = 'solo'`.
 2. **Team mode requires team composition.** When
    `team_registration_mode` is `ad_hoc` or `roster`, every division must
-   have `team_composition ∈ { team, pair_draw, partner_required }` and
+   have `team_composition ∈ { team, pair_draw, partners }` and
    `price_unit = 'per_team'`. `solo` compositions and `per_player`
    pricing are rejected.
 3. **Individual mode requires solo / per-player.** When
@@ -100,7 +100,7 @@ so the host sees a useful error before save.
   that we have repeatedly declined to build.
 - Keeps `team_composition` semantically meaningful: it now describes
   the captain's roster (`team` = pre-formed, `pair_draw` = drawn pairs,
-  `partner_required` = N-slot roster the captain must fill), with
+  `partners` = N-slot roster the captain must fill), with
   `solo` reserved for individual signup.
 - Pushes the host toward exactly one of two mental models per event:
   _"my attendees each pay"_ or _"the captain pays for the team."_
@@ -188,7 +188,7 @@ Code references:
 ### What does not change
 
 - The four `team_composition` enum values stay (we may still need
-  `pair_draw` and `partner_required` later — those signup flows remain
+  `pair_draw` and `partners` later — those signup flows remain
   out of scope but the enum is no longer dead metadata once rule 2
   enforces it).
 - The Stripe routing in

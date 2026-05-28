@@ -55,8 +55,8 @@ export async function cancelEventAction(
   // Snapshot attendees BEFORE refund (refunds delete rows).
   const { data: attRows } = await admin
     .from('event_attendees')
-    .select('user_id, payment_status')
-    .eq('event_id', eventId);
+    .select('user_id, payment_status, division:event_divisions!inner(event_id)')
+    .eq('division.event_id', eventId);
   const attendees = (attRows as { user_id: string; payment_status: string }[] | null) ?? [];
 
   // Mark cancelled. RLS allows hosts to update their own event; we use the

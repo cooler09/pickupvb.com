@@ -220,7 +220,7 @@ export async function createEventAction(
           | 'solo'
           | 'team'
           | 'pair_draw'
-          | 'partner_required',
+          | 'partners',
         priceUnit: ((d.priceUnit as string) ?? 'per_player') as 'per_player' | 'per_team',
         priceCents: typeof d.priceCents === 'number' ? d.priceCents : null,
         teamRegistrationMode:

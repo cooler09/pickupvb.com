@@ -54,7 +54,7 @@ export type AdHocTeamPublicEntry = {
    * "Walk-in" pill next to the payment pill on the public roster so
    * viewers can tell same-day adds from pre-registered teams.
    */
-  source: 'captain' | 'host' | 'walk_in';
+  source: 'ad_hoc' | 'walk_in';
   captainName: string | null;
   /**
    * Roster excluding the captain (captain is rendered separately so the

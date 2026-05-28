@@ -300,8 +300,7 @@ type AdHocRegRow = {
   name: string;
   division_id: string;
   captain_id: string | null;
-  source: 'captain' | 'host' | 'walk_in';
-  captain_display_name: string | null;
+  source: 'ad_hoc' | 'walk_in';
   captain_phone: string | null;
   payment_status: 'none' | 'pending' | 'paid' | 'refunded';
   payment_intent_id: string | null;
@@ -314,7 +313,7 @@ type AdHocRegRow = {
 // Public-projection types — no email, no user_id.
 type AdHocMemberPublicRow = {
   id: string;
-  registration_id: string;
+  entry_id: string;
   display_name: string | null;
   sort_order: number;
 };
@@ -324,8 +323,7 @@ type AdHocRegPublicRow = {
   name: string;
   division_id: string;
   captain_id: string | null;
-  source: 'captain' | 'host' | 'walk_in';
-  captain_display_name: string | null;
+  source: 'ad_hoc' | 'walk_in';
   payment_status: 'none' | 'pending' | 'paid' | 'refunded';
   captainDisplayName: string | null;
   members: AdHocMemberPublicRow[];
@@ -351,24 +349,36 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
       const admin = getAdminSupabase();
 
       const { data: regData } = await admin
-        .from('event_team_registrations')
+        .from('event_team_entries')
         .select(
-          'id, name, division_id, captain_id, source, captain_display_name, payment_status, event_divisions!inner(event_id)',
+          'id, display_name, division_id, captain_id, source, event_divisions!inner(event_id), payment:event_team_payments(payment_status)',
         )
         .eq('event_divisions.event_id', eventId)
-        // Admin client bypasses RLS; filter soft-deleted rows explicitly
-        // (migration 20260629000000).
+        .neq('source', 'roster')
         .is('deleted_at', null);
       type RegBase = {
         id: string;
-        name: string;
+        display_name: string;
         division_id: string;
         captain_id: string | null;
-        source: 'captain' | 'host' | 'walk_in';
-        captain_display_name: string | null;
-        payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+        source: 'ad_hoc' | 'walk_in';
+        payment:
+          | { payment_status: 'none' | 'pending' | 'paid' | 'refunded' }
+          | Array<{ payment_status: 'none' | 'pending' | 'paid' | 'refunded' }>
+          | null;
       };
-      const regs = (regData as RegBase[] | null) ?? [];
+      const rawRegs = (regData as RegBase[] | null) ?? [];
+      const regs = rawRegs.map((r) => {
+        const p = Array.isArray(r.payment) ? r.payment[0] : r.payment;
+        return {
+          id: r.id,
+          display_name: r.display_name,
+          division_id: r.division_id,
+          captain_id: r.captain_id,
+          source: r.source,
+          payment_status: (p?.payment_status ?? 'none') as 'none' | 'pending' | 'paid' | 'refunded',
+        };
+      });
       if (regs.length === 0) return [];
 
       const regIds = regs.map((r) => r.id);
@@ -378,17 +388,17 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
 
       const [{ data: memberData }, { data: captainData }] = await Promise.all([
         admin
-          .from('event_team_registration_members_public')
-          .select('id, registration_id, display_name, sort_order')
-          .in('registration_id', regIds),
+          .from('event_team_entry_members_public')
+          .select('id, entry_id, display_name, sort_order')
+          .in('entry_id', regIds),
         admin.from('profiles_public').select('id, display_name').in('id', captainIds),
       ]);
 
       const membersByReg = new Map<string, AdHocMemberPublicRow[]>();
       for (const m of (memberData as AdHocMemberPublicRow[] | null) ?? []) {
-        const arr = membersByReg.get(m.registration_id) ?? [];
+        const arr = membersByReg.get(m.entry_id) ?? [];
         arr.push(m);
-        membersByReg.set(m.registration_id, arr);
+        membersByReg.set(m.entry_id, arr);
       }
 
       const captainMap = new Map<string, string | null>();
@@ -397,12 +407,16 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
       }
 
       return regs.map((r) => ({
-        ...r,
+        id: r.id,
+        name: r.display_name,
+        division_id: r.division_id,
+        captain_id: r.captain_id,
+        source: r.source,
+        payment_status: r.payment_status,
         // Walk-ins (captain_id = null) carry their captain's name on the
-        // registration row itself; for captain/host sources, fall back
-        // to the linked profile.
+        // entry's display_name; for ad-hoc, fall back to the linked profile.
         captainDisplayName:
-          r.captain_id === null ? r.captain_display_name : (captainMap.get(r.captain_id) ?? null),
+          r.captain_id === null ? r.display_name : (captainMap.get(r.captain_id) ?? null),
         members: (membersByReg.get(r.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
       }));
     },
@@ -418,25 +432,54 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
  * projection.
  */
 function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
-  // Viewer-independent: RLS on event_team_registrations is `using (true)`
-  // and the snapshot is shared across viewers, so use the admin client.
-  // Critically, `getServerSupabase()` reads `cookies()` which Next 16
-  // forbids inside `unstable_cache` — the lookup would throw and the
-  // page would render an empty registrations list, hiding teams that
-  // were just created.
+  // Viewer-independent; admin client bypasses RLS and is safe inside
+  // unstable_cache (no cookies() lookup).
   return unstable_cache(
     async () => {
       const { getAdminSupabase } = await import('@/lib/supabase-admin');
       const { data } = await getAdminSupabase()
-        .from('event_team_registrations')
+        .from('event_team_entries')
         .select(
-          'id, name, division_id, captain_id, source, captain_display_name, captain_phone, payment_status, payment_intent_id, amount_paid_cents, payment_note, captain:profiles!event_team_registrations_captain_id_fkey(id, display_name), members:event_team_registration_members(id, user_id, display_name, email, sort_order), event_divisions!inner(event_id)',
+          'id, display_name, division_id, captain_id, source, captain_phone, captain:profiles!event_team_entries_captain_id_fkey(id, display_name), members:event_team_entry_members(id, user_id, display_name, email, sort_order), payment:event_team_payments(payment_status, payment_intent_id, amount_paid_cents, payment_note), event_divisions!inner(event_id)',
         )
         .eq('event_divisions.event_id', eventId)
-        // Admin client bypasses RLS; filter soft-deleted rows explicitly
-        // (migration 20260629000000).
+        .neq('source', 'roster')
         .is('deleted_at', null);
-      return (data as AdHocRegRow[] | null) ?? [];
+      type PaymentEmbed = {
+        payment_status: 'none' | 'pending' | 'paid' | 'refunded';
+        payment_intent_id: string | null;
+        amount_paid_cents: number | null;
+        payment_note: string | null;
+      };
+      type Raw = {
+        id: string;
+        display_name: string;
+        division_id: string;
+        captain_id: string | null;
+        source: 'ad_hoc' | 'walk_in';
+        captain_phone: string | null;
+        captain: { id: string; display_name: string | null } | null;
+        members: AdHocMemberRow[] | null;
+        payment: PaymentEmbed | PaymentEmbed[] | null;
+      };
+      const raw = (data as Raw[] | null) ?? [];
+      return raw.map((r) => {
+        const p = Array.isArray(r.payment) ? r.payment[0] : r.payment;
+        return {
+          id: r.id,
+          name: r.display_name,
+          division_id: r.division_id,
+          captain_id: r.captain_id,
+          source: r.source,
+          captain_phone: r.captain_phone,
+          payment_status: p?.payment_status ?? 'none',
+          payment_intent_id: p?.payment_intent_id ?? null,
+          amount_paid_cents: p?.amount_paid_cents ?? null,
+          payment_note: p?.payment_note ?? null,
+          captain: r.captain,
+          members: r.members,
+        };
+      });
     },
     ['event-ad-hoc-rows', eventId],
     { revalidate: 60, tags: [`event:${eventId}`] },
@@ -675,30 +718,36 @@ async function loadEligibleTeamsByDivision(
   const sb = await getServerSupabase();
   const [{ data: rosterRows }, { data: regOptions }] = await Promise.all([
     sb
-      .from('event_teams')
-      .select('division_id, team_id, teams!inner(id, name)')
-      .eq('event_id', event.id),
+      .from('event_team_entries')
+      .select(
+        'division_id, team_id, teams!inner(id, name), division:event_divisions!inner(event_id)',
+      )
+      .eq('division.event_id', event.id)
+      .eq('source', 'roster')
+      .is('deleted_at', null),
     sb
-      .from('event_team_registrations')
-      .select('id, name, division_id, event_divisions!inner(event_id)')
-      .eq('event_divisions.event_id', event.id),
+      .from('event_team_entries')
+      .select('id, display_name, division_id, event_divisions!inner(event_id)')
+      .eq('event_divisions.event_id', event.id)
+      .neq('source', 'roster')
+      .is('deleted_at', null),
   ]);
   type RosterRow = {
     division_id: string;
-    team_id: string;
+    team_id: string | null;
     teams: { id: string; name: string } | null;
   };
-  type RegOptionRow = { id: string; name: string; division_id: string };
+  type RegOptionRow = { id: string; display_name: string; division_id: string };
   const map = new Map<string, EligibleTeamOption[]>();
   for (const r of (rosterRows as RosterRow[] | null) ?? []) {
-    if (!r.teams || !r.division_id) continue;
+    if (!r.teams || !r.division_id || !r.team_id) continue;
     const arr = map.get(r.division_id) ?? [];
     arr.push({ kind: 'team', id: r.team_id, label: r.teams.name });
     map.set(r.division_id, arr);
   }
   for (const r of (regOptions as RegOptionRow[] | null) ?? []) {
     const arr = map.get(r.division_id) ?? [];
-    arr.push({ kind: 'registration', id: r.id, label: r.name });
+    arr.push({ kind: 'registration', id: r.id, label: r.display_name });
     map.set(r.division_id, arr);
   }
   for (const [k, v] of map) {
@@ -771,10 +820,9 @@ async function loadAdHocBundle(
     event.canManage && privateRows.length > 0
       ? privateRows.map((r) => {
           // Walk-ins (captain_id null) carry their captain's identity on the
-          // registration row itself; for captain/host sources, fall back
-          // to the linked profile.
-          const captainName =
-            r.captain_id === null ? r.captain_display_name : (r.captain?.display_name ?? null);
+          // entry's display_name (which we mapped to `name`); for ad-hoc /
+          // captain sources, fall back to the linked profile.
+          const captainName = r.captain_id === null ? r.name : (r.captain?.display_name ?? null);
           return {
             id: r.id,
             name: r.name,
@@ -807,8 +855,8 @@ async function loadAttendeePayments(eventId: string): Promise<Map<string, Attend
   const { getAdminSupabase } = await import('@/lib/supabase-admin');
   const { data: payRows } = await getAdminSupabase()
     .from('event_attendees')
-    .select('user_id, payment_status, payment_intent_id')
-    .eq('event_id', eventId);
+    .select('user_id, payment_status, payment_intent_id, division:event_divisions!inner(event_id)')
+    .eq('division.event_id', eventId);
   type PayRow = {
     user_id: string;
     payment_status: string;
@@ -831,8 +879,8 @@ async function loadViewerPaymentStatus(
   const sb = await getServerSupabase();
   const { data: row } = await sb
     .from('event_attendees')
-    .select('payment_status')
-    .eq('event_id', eventId)
+    .select('payment_status, division:event_divisions!inner(event_id)')
+    .eq('division.event_id', eventId)
     .eq('user_id', userId)
     .maybeSingle();
   const raw = (row as { payment_status?: string } | null)?.payment_status;

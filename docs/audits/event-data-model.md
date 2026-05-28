@@ -735,6 +735,537 @@ build` all green.
   tests passing. `pnpm typecheck && pnpm lint && pnpm test && pnpm
 build` all green.
 
+- **2026-05-30 — P2 #6.5 Bundle B (Step 5a) landed.** Dropped the
+  denormalized `event_id` column from `event_attendees`, `event_teams`,
+  `event_free_agents`, and `event_team_payments` in
+  [20260730000000_drop_event_id_pk_reshape.sql](../../supabase/migrations/20260730000000_drop_event_id_pk_reshape.sql).
+  All four tables now derive the event through `event_divisions.event_id`
+  via their existing `division_id` FK. **Destructive pre-launch
+  change** — preamble flags the intent. Migration sequence (14 numbered
+  sections): drop dependent views first (0); drop `assert_event_*_consistency`
+  triggers + `fill_default_division_id()` trigger/function (1); drop
+  all RLS policies that read `event_id` (2); backfill + drop
+  `event_team_payments.event_id` (renamed to `division_id` keyed on
+  `event_teams(division_id, team_id)`) (3); reshape `event_teams.pk`
+  from `(event_id, team_id)` → `(division_id, team_id)` (4); recreate
+  `event_team_payments` FK + unique constraint pointing at the new
+  composite (5); reshape `event_free_agents.pk` to
+  `(division_id, user_id)` (6); drop `event_attendees.event_id` +
+  recreate the partial unique on `(division_id, user_id)` + the two
+  reminder partial indexes keyed on `division_id` (7); rewrite all
+  RLS policies via a `event_divisions` subquery / inner-join (8);
+  rewrite `enforce_event_capacity()` to lookup the event through the
+  inserted row's `division_id` (9); rewrite
+  `event_paid_attendee_count(event_id)` to sum across divisions (10);
+  rebuild `events_view` to count attendees across divisions (11);
+  rebuild `metro_health_weekly` + `host_activity_monthly` materialized
+  views (12); index recap comment (13). Critical ordering: the
+  `event_team_payments.division_id` backfill must run before
+  `event_teams.event_id` is dropped — preamble calls this out.
+
+  **Code sites (~24 updated):** `SupabaseEventRepository.findById` /
+  `.getDetail` / `.searchFollowingFeed` use embedded
+  `division:event_divisions!inner(event_id)` joins;
+  `.save()` preloads `divisionIds` up front and scopes all
+  reconciliation reads/deletes via `.in('division_id', divisionIds)`,
+  skipping multi-division inserts silently (those paths go through
+  dedicated handlers that pass `division_id` explicitly).
+  `.attachTeamToDivision()` and `.attachFreeAgentToDivision()`
+  upsert by the composite key (`onConflict: 'division_id,team_id'` /
+  `'division_id,user_id'`); their `eventId` params are now unused
+  (renamed `_eventId`). `SupabaseEventTeamPaymentRepository.save()`
+  pre-resolves `division_id` from `(eventId, teamId)` via
+  `event_teams` and throws if no row; `hydrate()` recovers `eventId`
+  from `row.division.event_id` embedded on the read.
+  `SupabaseBracketRepository.listRegisteredTeams` drops the
+  `event_id` filter. `SupabaseEventTeamRegistrationRepository`
+  drops `event_id` from the insert + flattens via embedded join on
+  detach. App-side, `EventPricing` now carries `divisionId`;
+  `event-pricing.ts`, `checkout-actions.ts`,
+  `manage-payments-actions.ts`, `pricing-lock.ts`,
+  `refund-ticket.ts`, `_loaders/load-event-detail.ts`,
+  `broadcast-actions.ts`, `edit/actions.ts`,
+  `edit/cancel-actions.ts`, `edit/page.tsx`,
+  `record-division-winner-actions.ts`,
+  `roster-team-checkout-actions.ts`,
+  `api/events/[id]/attendees.csv/route.ts`,
+  `api/notifications/reminders/route.ts`,
+  `api/webhooks/stripe/route.ts`,
+  `checkout/cancel/route.ts`, and
+  `checkout/success/route.ts` all migrated to either
+  (a) `pricing.divisionId` (single-division per-player flows),
+  (b) embedded `division:event_divisions!inner(event_id)` join filters,
+  (c) preloaded `divisionIds` + `.in('division_id', divisionIds)`,
+  or (d) `checkout_session_id` / `payment_intent_id` / surrogate `id`
+  for webhook lookups. Browser hook `use-event-attendees.ts`
+  pre-fetches the event's `divisionIds` and subscribes with
+  `filter: division_id=in.(...)` (Realtime supports the `in`
+  operator). Generated `database.types.ts` hand-edited (Docker still
+  off locally; CI/CD applies on deploy).
+
+  **Semantic deltas to remember:** (i) the `fill_default_division_id`
+  trigger is gone — every insert into `event_attendees` /
+  `event_teams` / `event_free_agents` must now pass `division_id`
+  explicitly. (ii) `getEventPricing` returns `null` for events with
+  no divisions (was permissive before). (iii) `SupabaseEventRepository.save()`
+  silently skips child-table inserts when the event has != 1
+  division — dedicated handlers cover those paths. (iv) Webhook
+  attendee lookups switched from `(event_id, user_id)` to
+  `checkout_session_id` (globally unique and already stamped at
+  checkout creation) — more robust than the old composite key.
+
+  189 domain + 17 application + 50 web Vitest tests pass.
+  `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green.
+  Remaining lint warnings (3) are pre-existing
+  `react-hooks/set-state-in-effect` flags in scoreboard pages —
+  untouched by this bundle.
+
+- **2026-05-30 — P2 #6.6 (Step 5b — thin pass) landed.** Collapsed
+  `event_teams` + `event_team_registrations` +
+  `event_team_registration_members` into `event_team_entries` +
+  `event_team_entry_members` with a unified `source` enum
+  (`roster | ad_hoc | walk_in`) in
+  [20260731000000_collapse_team_registration_tables.sql](../../supabase/migrations/20260731000000_collapse_team_registration_tables.sql).
+  Retargeted `event_team_payments` from the composite
+  `(division_id, team_id)` FK onto a single `entry_id` FK (unique).
+  Collapsed `event_divisions.winner_team_id` + `winner_team_registration_id`
+  into one `winner_entry_id` → `event_team_entries(id)`. Destructive
+  pre-launch reshape — all three legacy tables dropped, no dual-write
+  window.
+
+  **Boundary translation chosen to keep this a _thin_ pass:** the
+  `EventTeamRegistration` aggregate still exposes
+  `RegistrationSource = Captain | Host | WalkIn`; the repo lossy-maps
+  aggregate `Captain` / `Host` ↔ DB `ad_hoc` so zero call sites
+  changed. `event_team_entries.display_name` doubles as the walk-in
+  captain name; boundary code reconstructs `captainDisplayName` per
+  source. Payment columns moved off entries onto `event_team_payments`
+  (1:1 via `entry_id`); the registration repo upserts both rows on
+  save and embeds `payment:event_team_payments(...)` on read.
+
+  **Notable workarounds carried over to Step 5b.ii:** (i)
+  `attachTeamToDivision` uses select-then-insert because the partial
+  unique index on `event_team_entries(division_id, team_id) WHERE
+team_id IS NOT NULL AND deleted_at IS NULL` can't be targeted by
+  PostgREST `onConflict`. (ii) Bracket reader keeps the
+  `source='roster'` filter — ad-hoc bracket inclusion is deferred.
+  (iii) The aggregate's `Host` enum variant is now data-equivalent to
+  `Captain` and is a candidate for removal once call sites are
+  re-audited.
+
+  **Code sites (~10 updated):**
+  [packages/infrastructure/src/supabase-event-team-registration-repository.ts](../../packages/infrastructure/src/supabase-event-team-registration-repository.ts)
+  rewritten end-to-end (boundary translation, split payment table);
+  [packages/infrastructure/src/supabase-event-team-payment-repository.ts](../../packages/infrastructure/src/supabase-event-team-payment-repository.ts)
+  rewritten (resolves `entry_id` from `(event_id, team_id)` on save);
+  [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts)
+  (roster reads + winner-label resolution + reconcile delta +
+  `attachTeamToDivision`);
+  [packages/infrastructure/src/supabase-bracket-repository.ts](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  (roster filter);
+  [apps/web/src/app/teams/[id]/delete-actions.ts](../../apps/web/src/app/teams/%5Bid%5D/delete-actions.ts),
+  [apps/web/src/app/events/[id]/record-division-winner-actions.ts](../../apps/web/src/app/events/%5Bid%5D/record-division-winner-actions.ts)
+  (writes `winner_entry_id`),
+  [apps/web/src/app/events/[id]/roster-team-checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/roster-team-checkout-actions.ts),
+  [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+  (public + private cached snapshots; eligibility loader; embedded
+  payments), and two ad-hoc panel components for the narrowed source
+  union.
+
+  All four verify steps green (`pnpm typecheck && pnpm lint && pnpm
+test && pnpm build`). Lint warnings unchanged. Migration not applied
+  locally (Docker off); CI/CD applies on deploy. Follow-ups captured
+  in [journal entry](../journal/2026-05-30-bundle-step-5b.md) and
+  tagged **Step 5b.ii**.
+
+- **2026-05-30 — P2 #6.6 (Step 5b.ii — aggregate + boundary cleanup)
+  landed.** Three of the four 5b.ii follow-ups (bracket-reader
+  promotion stayed deferred):
+  1. **`RegistrationSource` collapsed to `Captain | WalkIn` (true
+     bijection).** Dropped the `Host` variant from the aggregate
+     enum at
+     [packages/domain/src/events/event-team-registration.ts](../../packages/domain/src/events/event-team-registration.ts);
+     `RegisterTeamHandler` always passes `Captain` (host-proxy
+     differentiated locally via `isHostProxy`, no longer leaks into
+     the enum). Boundary translation in
+     [packages/infrastructure/src/supabase-event-team-registration-repository.ts](../../packages/infrastructure/src/supabase-event-team-registration-repository.ts)
+     header tightened from "lossy-map" to bijection.
+  2. **`attach_team_to_division` SQL RPC** in
+     [20260801000000_attach_team_to_division_rpc.sql](../../supabase/migrations/20260801000000_attach_team_to_division_rpc.sql).
+     `SECURITY INVOKER` function does `INSERT … ON CONFLICT … DO
+NOTHING` against the partial unique index in one statement.
+     [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts)
+     `attachTeamToDivision` collapses from select + teams lookup +
+     insert (three round-trips) to one `.rpc()` call.
+  3. **Synthesized `captain_display_name` field dropped from loader
+     projections** in
+     [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts).
+     The DB column is unwritten by the registration repo (which
+     stores only `display_name`), so the loader was synthesizing
+     `r.display_name`; the one consumer (`hostRows[].captain` for
+     walk-ins) now reads `r.name` directly.
+
+  All four verify steps green (189 domain + 17 application + 50 web
+  tests passing). Hand-patched `attach_team_to_division` into
+  `database.types.ts` per the Docker-off convention. **Outstanding
+  P3 follow-ups from this slice:** bracket reader still filters
+  `source='roster'`; the unused `captain_display_name` DB column +
+  check constraint remain on `event_team_entries`; `isHostProxy`'s
+  audit fact has no permanent home if we want to keep the
+  duplicate-check skip but drop the local variable. Full narrative
+  in [journal entry](../journal/2026-05-30-bundle-step-5b-ii.md).
+
+- **2026-05-30 — P2 #6.7 (thin pass with bridge views) landed.**
+  Collapsed `event_attendees` + `event_free_agents` into one
+  canonical table per the Step 5b shape, in
+  [20260802000000_collapse_attendees_free_agents.sql](../../supabase/migrations/20260802000000_collapse_attendees_free_agents.sql):
+  1. **New canonical tables.** `event_participants` (surrogate `id`
+     PK, `division_id` FK, nullable `user_id`, `role` discriminator
+     ∈ `('attendee','free_agent')`, partial unique on
+     `(division_id, user_id) WHERE user_id IS NOT NULL`) +
+     `event_participant_payments` (1:1 with attendee participants,
+     mirrors `event_team_payments` exactly). The partial unique
+     index across roles is the **mutual-exclusion guarantee** the
+     audit was asking for — a user can no longer be both an
+     attendee and a free agent in the same division.
+  2. **Bridge views.** `event_attendees` and `event_free_agents`
+     recreated as `SECURITY INVOKER` views over the canonical
+     tables, with INSTEAD OF INSERT/UPDATE/DELETE triggers that
+     route columns to the right backing table. Every existing
+     `.from('event_attendees')` / `.from('event_free_agents')` call
+     in the app, repo, webhook, reminder cron, CSV export, refund
+     flow, manage-payments, broadcast-actions, edit-actions, and
+     pricing-lock surfaces keeps working unchanged.
+  3. **Capacity trigger rewritten** on `event_participants` with
+     `WHEN (NEW.role = 'attendee')` — INSTEAD OF on the bridge
+     view fires too late for capacity rejection so it had to land
+     on the canonical table.
+  4. **RLS posture mirrored** onto `event_participants`: public
+     read, own-row insert/delete, host insert/update via
+     `is_event_host`, free-agent insert branch keeps the
+     `not is_anon_session()` + `allow_free_agents` + tournament +
+     published checks. Webhook + admin flows continue via the
+     admin client (bypasses RLS).
+  5. **Dependent objects rebuilt:** `events_view`,
+     `metro_health_weekly`, `host_activity_monthly`,
+     `event_paid_attendee_count(uuid)`, and `events_select`
+     (friends_of_attendees branch) all rewritten to join through
+     `event_participants` with `role='attendee'`.
+  6. **Realtime hook updated** —
+     [apps/web/src/hooks/use-event-attendees.ts](../../apps/web/src/hooks/use-event-attendees.ts)
+     now subscribes to `event_participants` and filters the
+     callback by `role === 'attendee'`. Views can't be in the
+     `supabase_realtime` publication, so this was the one
+     unavoidable client-layer edit.
+
+  Verify chain green (typecheck + lint + 256 tests + build). **P3
+  follow-ups deferred:** retarget the ~30 call sites off the bridge
+  views to `.from('event_participants')` opportunistically as each
+  is touched; eventually drop the bridge views + INSTEAD OF
+  triggers once every caller is retargeted; the
+  `event_attendees_bridge_update` payment-coalesce sharp edge (a
+  bare `.update()` that omits `payment_status` will reset the
+  payment row to `'pending'`) — documented in the journal entry
+  but not pre-emptively fixed because every current caller sets
+  the field explicitly. Full narrative in
+  [journal entry](../journal/2026-05-30-bundle-step-6-7.md).
+
+- **2026-05-30 — P1 #2 (thin pass) landed.** Added the
+  `league_schedule_matches` table + `LeagueSchedule` domain
+  aggregate + repository port + Supabase adapter. Scope explicitly
+  limited to schema + domain + repo; application handlers, server
+  actions, and host/public UI are deferred.
+  1. **Migration**
+     [20260803000000_league_schedule_matches.sql](../../supabase/migrations/20260803000000_league_schedule_matches.sql)
+     creates `league_schedule_matches` keyed off `event_divisions.id`
+     per the audit's recommended shape (week_number, scheduled_at,
+     court_label, home/away team ids + scores, status enum
+     `('scheduled','in_progress','completed','forfeit','cancelled')`,
+     notes, timestamps) with a `distinct_teams` check constraint
+     and a `(division_id, week_number, scheduled_at)` composite
+     index. RLS mirrors `event_brackets`: public select, host-only
+     insert/delete, host-or-match-captain update. Two new SQL
+     helpers — `is_event_host_for_division(uuid)` (wraps
+     `is_event_host` via the divisions join) and
+     `is_league_match_captain(uuid)`. Added to the
+     `supabase_realtime` publication so hosts/captains watch the
+     schedule live. Additive only — no existing tables touched.
+
+  2. **Domain aggregate**
+     [packages/domain/src/leagues/league-schedule.ts](../../packages/domain/src/leagues/league-schedule.ts)
+     introduces `LeagueScheduleMatch` (value-shaped entity) and
+     `LeagueSchedule` (aggregate root keyed by `DivisionId`,
+     one-schedule-per-division). Invariants enforced: `weekNumber`
+     ≥ 1, distinct `homeTeamId` / `awayTeamId` when both set,
+     non-negative scores, length-bounded `courtLabel` / `notes`,
+     and **`scheduledAt` falls inside the parent event's
+     `[startsAt, endsAt]` window** (passed in as `EventWindow` at
+     create time, skipped at rehydration so re-dated events still
+     load). Mutators: `addMatch`, `removeMatch`, `replaceMatch`.
+     Strict week-contiguity and per-week team-uniqueness are
+     **explicitly deferred** so hosts can stub sparse weeks
+     while scheduling.
+
+  3. **Repository port**
+     [packages/domain/src/leagues/league-schedule-repository.ts](../../packages/domain/src/leagues/league-schedule-repository.ts)
+     defines `LeagueScheduleRepository` with `nextMatchId()`,
+     `findByDivisionId()`, and `save()`. Exported from
+     [packages/domain/src/index.ts](../../packages/domain/src/index.ts)
+     via a new `./leagues/index.js` barrel.
+
+  4. **Supabase adapter**
+     [packages/infrastructure/src/supabase-league-schedule-repository.ts](../../packages/infrastructure/src/supabase-league-schedule-repository.ts)
+     implements the port. `findByDivisionId` joins
+     `event_divisions → events!inner(starts_at, ends_at)` to
+     reconstruct the `EventWindow`. `save()` uses the same
+     full-replace strategy as `SupabaseBracketRepository.save()`
+     (delete-all + reinsert keyed by `division_id`) — the
+     aggregate owns the whole match list. **Follow-up:** wrap in
+     an RPC for transactional atomicity once the application
+     layer needs it.
+
+  5. **Generated types**
+     [packages/supabase/src/database.types.ts](../../packages/supabase/src/database.types.ts)
+     hand-patched with the new table's `Row` / `Insert` /
+     `Update` / `Relationships` block (consistent with the
+     existing `event_brackets` shape — Docker is off in this
+     environment, so the generated file is kept current
+     manually).
+
+  6. **Tests** —
+     [packages/domain/src/leagues/league-schedule.test.ts](../../packages/domain/src/leagues/league-schedule.test.ts)
+     covers 17 cases: match invariants (week ≥ 1, integer week,
+     distinct teams, null-team placeholders, negative scores) +
+     aggregate invariants (event-window rejection on both ends,
+     duplicate id rejection at construction, `addMatch` /
+     `removeMatch` / `replaceMatch` behaviour, `fromPersistence`
+     skips window check). Brings the domain suite to **206 tests
+     passing**.
+
+  Verify chain green (typecheck + lint + 206 domain + 17
+  application + 50 web tests + build). **Deferred (P1 #2
+  follow-ups):**
+  - Application handlers: `CreateLeagueSchedule`,
+    `UpdateLeagueScheduleMatch`, `RecordLeagueMatchResult`.
+  - Server actions + host schedule-editor page.
+  - Public-facing league schedule view component.
+  - RPC for transactional `save` (today's full-replace runs
+    delete + insert without a transaction).
+  - Strict week-contiguity invariant (1..N no gaps) and per-week
+    team-uniqueness, if hosts report scheduling conflicts.
+  - Wire the new repo into the composition root
+    ([apps/web/src/lib/handlers.ts](../../apps/web/src/lib/handlers.ts))
+    once the first application handler needs it.
+
+### 2026-05-30 — P1 #2 follow-up: application handlers ✅
+
+Added four CQRS handlers on top of the `LeagueSchedule` aggregate so the
+domain has a typed entry point before any server actions land:
+
+- [packages/application/src/commands/league-schedule.handler.ts](../../packages/application/src/commands/league-schedule.handler.ts)
+  — `AddLeagueScheduleMatchHandler`, `UpdateLeagueScheduleMatchHandler`,
+  `RemoveLeagueScheduleMatchHandler`, `RecordLeagueMatchResultHandler`.
+  Host-only mutators look up the event via `EventRepository.findById`,
+  assert `event.type === EventType.League`, assert the division exists,
+  and throw `UnauthorizedError` when the requester isn't the host.
+  `RecordLeagueMatchResultHandler` follows the
+  [bracket convention](../../packages/application/src/commands/bracket.handler.ts)
+  and delegates captain-of-either-team authorization to Postgres RLS;
+  the application layer validates only the score/state machine.
+- [packages/application/src/commands/league-schedule.handler.test.ts](../../packages/application/src/commands/league-schedule.handler.test.ts)
+  — 16 Vitest cases covering happy paths, host gating, non-league events,
+  unknown divisions/matches, score-preservation on metadata updates, and
+  the Completed/Forfeit status whitelist.
+- [packages/application/src/index.ts](../../packages/application/src/index.ts)
+  — exports the new handler bundle.
+
+Deferred follow-ups (still open):
+
+- Composition-root wiring in
+  [apps/web/src/lib/handlers.ts](../../apps/web/src/lib/handlers.ts) —
+  the handlers exist but aren't constructed anywhere yet. A server
+  action will pull them in when the host UI lands.
+- Server actions + host UI for editing the weekly slate.
+- Transactional `save()` (RPC) so the delete-then-reinsert path doesn't
+  leave a partial slate on failure — current adapter matches the
+  bracket adapter's two-step pattern.
+- Strict week contiguity + per-week team uniqueness still deferred at
+  the aggregate level (see thin-pass entry above).
+
+### 2026-05-30 — P1 #2 follow-up: composition root + server actions + host UI ✅
+
+Wired the league-schedule layer end-to-end and shipped a host page for
+managing the weekly slate. Closes the "server actions + host UI" and
+"composition-root wiring" follow-ups from the previous entry.
+
+- [apps/web/src/lib/handlers.ts](../../apps/web/src/lib/handlers.ts) —
+  added `leagueScheduleRepo` and the four `*LeagueSchedule*` /
+  `RecordLeagueMatchResult` handlers.
+- [apps/web/src/app/events/[id]/schedule/actions.ts](../../apps/web/src/app/events/[id]/schedule/actions.ts)
+  — server actions (`addMatchFromForm`, `updateMatchFromForm`,
+  `removeMatch`, `recordResultFromForm`). All four follow the bracket
+  flash-param redirect convention (`?notice=…&msg=…`) and the typed
+  `DomainError` classification helper.
+- [apps/web/src/app/events/[id]/schedule/page.tsx](../../apps/web/src/app/events/[id]/schedule/page.tsx)
+  — server component that loads the per-division schedule + roster
+  (`repositories.leagueScheduleRepo.findByDivisionId` +
+  `repositories.bracketRepo.listRegisteredTeams`), groups matches by
+  week, and renders the host forms only when `event.canManage` is true.
+- [apps/web/src/app/events/[id]/schedule/\_components/match-row.tsx](../../apps/web/src/app/events/[id]/schedule/_components/match-row.tsx)
+  — `AddMatchForm` + `MatchRow` (read-only for guests; expandable host
+  panel with metadata edit + record-result + delete).
+- [apps/web/src/app/events/[id]/schedule/\_components/labels.ts](../../apps/web/src/app/events/[id]/schedule/_components/labels.ts)
+  — shared notice text (mirrors the bracket labels file).
+- [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/[id]/page.tsx)
+  — added a "Schedule" entry-point section for `event.type === 'league'`,
+  mirroring the existing tournament "Bracket" section.
+
+Deferred follow-ups (still open):
+
+- Time-zone aware `datetime-local` handling. The host form currently
+  treats submitted values as UTC; we should parse them against
+  `event.timeZone` and round-trip through the same TZ when echoing
+  defaults. Cheap to add once we pick a date lib.
+- Transactional `save()` (RPC) so the delete-then-reinsert path doesn't
+  leave a partial slate on failure — current adapter matches the
+  bracket adapter's two-step pattern.
+- Strict week contiguity + per-week team uniqueness at the aggregate
+  level.
+- Realtime refresh (the migration already adds the table to the
+  `supabase_realtime` publication; a `RealtimeRefresher` analogous to
+  the bracket page would let captains see their entered scores appear
+  on the host's open page).
+- Public spectator view (read-only schedule outside the host gate;
+  the page is already public-readable but currently bundles the host
+  forms in the same file — split if the page grows).
+
+### 2026-05-30 — Step 6 / P2 #4: `TeamComposition` vocabulary cleanup ✅
+
+Renamed the `partner_required` enum value to `partners` everywhere in
+one bundle (safe pre-launch — no production data to backfill). The
+old name implied a hard requirement that didn't exist; "partners"
+matches the host-facing UI label ("Bring partner(s)") and reads
+naturally next to `solo` / `team` / `pair_draw`.
+
+- New migration:
+  [supabase/migrations/20260804000000_rename_partner_required_to_partners.sql](../../supabase/migrations/20260804000000_rename_partner_required_to_partners.sql)
+  — single `alter type team_composition rename value 'partner_required' to 'partners'`.
+- Domain: [packages/domain/src/events/enums.ts](../../packages/domain/src/events/enums.ts)
+  (`TeamComposition.Partners = 'partners'`), plus call-site updates in
+  [division.ts](../../packages/domain/src/events/division.ts) and
+  [volleyball-event.ts](../../packages/domain/src/events/volleyball-event.ts)
+  (invariant messages now read `team, pair_draw, or partners`).
+- Generated DB types: [packages/supabase/src/database.types.ts](../../packages/supabase/src/database.types.ts)
+  hand-patched (Docker off locally; regenerate next time a migration
+  lands).
+- Web call sites (6 files):
+  [enum-labels.ts](../../apps/web/src/lib/enum-labels.ts),
+  [events/new/actions.ts](../../apps/web/src/app/events/new/actions.ts),
+  [events/new/\_components/divisions-repeater.tsx](../../apps/web/src/app/events/new/_components/divisions-repeater.tsx),
+  [events/[id]/\_components/host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx),
+  [lib/event-team-pricing-validation.ts](../../apps/web/src/lib/event-team-pricing-validation.ts),
+  [events/\_components/event-filter-form.tsx](../../apps/web/src/app/events/_components/event-filter-form.tsx).
+- ADRs refreshed:
+  [0006-event-divisions.md](../adr/0006-event-divisions.md) (2 spots),
+  [0012-registration-paradigm-invariants.md](../adr/0012-registration-paradigm-invariants.md)
+  (5 spots).
+- Intentionally untouched: the original
+  [20260605000100_event_divisions.sql](../../supabase/migrations/20260605000100_event_divisions.sql)
+  migration (applied migrations are immutable — the rename migration
+  supersedes it at runtime) and the historical journal entry that
+  introduced the value.
+- Verify chain green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
+
+We did **not** also collapse `team` and `partners` into a single
+composition: even though the audit body notes both rely on
+`team_registration_mode` for the ad-hoc-vs-roster distinction, the
+host UI still needs to differentiate "fixed N-slot team" from
+"captain + their partner(s)" at the division level — they imply
+different default team sizes and different host messaging.
+
+### 2026-05-30 — Step 8 / P3 #9 (minimal): drop `format`/`gender`/`skillLevel` from the `VolleyballEvent` aggregate ✅
+
+Per [P3 #9](#p3-9-volleyballevent-aggregate-still-mirrors-primary-division-fields-as-read-only-ghosts),
+removed the three primary-division mirror fields from the aggregate
+root. They were already read-only ghosts (the DB columns dropped in
+`20260605000500_phase_9d_drop_legacy_events_cols.sql`; the repo
+synthesized them from the primary division via
+`primaryDivisionFallback`). Files touched:
+
+- [packages/domain/src/events/volleyball-event.ts](../../packages/domain/src/events/volleyball-event.ts)
+  — dropped `format`/`gender`/`skillLevel` from `CreateEventProps`,
+  the private constructor, `create()`, `fromPersistence()`, and the
+  `skillLevel` getter. Removed the aggregate-level
+  `assertFormatAllowedForSurface` call (the rule still fires from
+  `Division.create` — coverage preserved in `rules.test.ts`).
+- [packages/application/src/commands/create-event.handler.ts](../../packages/application/src/commands/create-event.handler.ts)
+  — stop forwarding the three fields into `VolleyballEvent.create`.
+  The DTO and `divisionFromDto` synthesizer still consume them when
+  building the default division.
+- [packages/application/src/commands/team.handler.ts](../../packages/application/src/commands/team.handler.ts)
+  — deleted the now-redundant `event.format !== team.format` check;
+  the division-level format check below it supersedes it.
+- [packages/application/src/queries/event-queries.handler.ts](../../packages/application/src/queries/event-queries.handler.ts)
+  — `GetEventByIdHandler` now sources `format`/`gender`/`skillLevel`
+  from `event.divisions[0]` (converting `skillTier → SkillLevel` via
+  `skillTierBand`). The public `/api/events/[id]` shape is preserved.
+- [packages/infrastructure/src/supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts)
+  — `findById` no longer feeds the three fields into
+  `VolleyballEvent.fromPersistence`. `primaryDivisionFallback` stays
+  (the `getDetail` read-model path and the aggregate's `capacity`
+  fallback still depend on it).
+- [packages/domain/src/events/volleyball-event.test.ts](../../packages/domain/src/events/volleyball-event.test.ts)
+  and
+  [packages/application/src/commands/team.handler.test.ts](../../packages/application/src/commands/team.handler.test.ts)
+  — stripped the three keys from every `VolleyballEvent.create({...})`
+  block; deleted the `'rejects invalid surface ↔ format combo'` test
+  (coverage retained in `rules.test.ts`); rewrote the team-handler
+  "format differs from event format" case as a division-format mismatch.
+
+**Scope notes / deferred:**
+
+- `capacity` stays on the aggregate — drives open-play invariants and
+  per-team team-capacity enforcement.
+- `positionRoster` stays on the aggregate — positional-signup
+  persistence is a separate question (no division column yet); to be
+  addressed in a follow-up bundle (user direction: "keep positional
+  signup for open plays" for now).
+- `EventDetailReadModel` (in
+  [packages/domain/src/events/event-repository.ts](../../packages/domain/src/events/event-repository.ts))
+  still exposes `format`/`gender`/`skillLevel` — it's a read model fed
+  directly from the DB by `getDetail`, not from the aggregate. Web
+  pages consuming it (`apps/web/src/app/events/[id]/page.tsx`,
+  `event-card.tsx`, etc.) are untouched. P3 #9 explicitly scoped to
+  the aggregate.
+
+Verify: typecheck / lint / test / build all green. 205 domain tests +
+32 application tests + 50 web tests pass.
+
+### 2026-05-30 — Step 8 / P3 #12: per-event-type matrix landed in features.md + ADR 0006 ✅
+
+Per [P3 #12](#p3-12--document-the-open-play-vs-tournament-vs-league-matrix-once-leagues-land),
+docs-only bundle:
+
+- [docs/features.md § 1 Event hosting](../features.md#1-event-hosting)
+  — refreshed the `EventType` bullet to list all three values
+  (`open_play / tournament / league`), added an **Event-type matrix**
+  subsection reproducing the audit's product-requirements table, and
+  expanded the "Open play vs tournament" paragraph into three bullets
+  covering league semantics + the season-fee-upfront-only rule.
+- [docs/adr/0006-event-divisions.md](../adr/0006-event-divisions.md)
+  — added an **Addendum: 2026-05-30 — League event type** section
+  capturing the post-ADR additions: per-division registration shape
+  (`roster` + non-solo only), schedule + optional playoff bracket,
+  payments routing (one-shot Checkout, no recurring billing,
+  `events.host_id` payee), and a data-model summary table for the
+  three event types. The addendum cross-references the features
+  matrix as the canonical product source.
+
+No code changes. The audit body's "Product requirements" table at
+the top of this file remains the canonical reference; features.md
+mirrors it for product-doc readers, ADR 0006 cross-references it
+for architecture-doc readers.
+
 ---
 
 ## Cross-references

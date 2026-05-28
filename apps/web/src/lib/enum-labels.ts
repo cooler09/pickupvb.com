@@ -55,7 +55,7 @@ export const TEAM_COMPOSITION_LABEL: Record<string, string> = {
   solo: 'Individual signup',
   team: 'Pre-formed team',
   pair_draw: 'Pair draw',
-  partner_required: 'Bring partner(s)',
+  partners: 'Bring partner(s)',
 };
 
 export const PRICE_UNIT_LABEL: Record<string, string> = {

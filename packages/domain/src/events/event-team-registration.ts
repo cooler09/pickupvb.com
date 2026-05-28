@@ -20,11 +20,12 @@ export type RegistrationPaymentStatus =
 /**
  * Who created this registration (ADR 0017).
  *
- * - `'captain'` — captain self-signup via `AdHocTeamSignupPanel`. Requires
- *   a real account so `captainId` references `profiles(id)`.
- * - `'host'` — host registered an ad-hoc team on behalf of a real
- *   captain account (the captain delegated the form, or signed up at
- *   the table but is on-platform).
+ * - `'captain'` — has a real account, so `captainId` references
+ *   `profiles(id)`. Covers both captain self-signup via
+ *   `AdHocTeamSignupPanel` and host-proxy registration (the host
+ *   creating an ad-hoc team on behalf of an on-platform captain) —
+ *   the two are behaviorally identical at the aggregate level and
+ *   stored as DB `source='ad_hoc'`.
  * - `'walk_in'` — host registered a same-day team at the table for
  *   someone with no account. `captainId` is `null`; `captainDisplayName`
  *   carries the freeform identity. Walk-ins are only legal in `ad_hoc`
@@ -32,7 +33,6 @@ export type RegistrationPaymentStatus =
  */
 export const RegistrationSource = {
   Captain: 'captain',
-  Host: 'host',
   WalkIn: 'walk_in',
 } as const;
 export type RegistrationSource = (typeof RegistrationSource)[keyof typeof RegistrationSource];
@@ -94,8 +94,8 @@ export interface CreateEventTeamRegistrationProps {
   eventId: string;
   divisionId: DivisionId;
   /**
-   * Required for `'captain'` and `'host'` sources; must be `null` for
-   * `'walk_in'`. The factory validates the discriminant.
+   * Required when `source = 'captain'`; must be `null` when
+   * `source = 'walk_in'`. The factory validates the discriminant.
    */
   captainId: UserId | null;
   name: string;
@@ -109,7 +109,7 @@ export interface CreateEventTeamRegistrationProps {
   source?: RegistrationSource;
   /**
    * Required when `source = 'walk_in'`. Optional otherwise (the captain's
-   * profile display name is used for rendering on captain/host rows; this
+   * profile display name is used for rendering on captain rows; this
    * freeform field is for walk-ins who don't have a profile).
    */
   captainDisplayName?: string | null;

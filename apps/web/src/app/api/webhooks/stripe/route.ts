@@ -255,6 +255,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   const amountTotal = session.amount_total ?? 0;
 
   if (meta.kind === 'attendee' && meta.user_id) {
+    // The pending row was stamped with checkout_session_id at checkout
+    // creation; key off it (event_id is no longer on event_attendees
+    // after Step 5a).
     const { error } = await admin
       .from('event_attendees')
       .update({
@@ -263,8 +266,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
         amount_paid_cents: amountTotal,
         paid_at: paidAt,
       } as never)
-      .eq('event_id', meta.event_id)
-      .eq('user_id', meta.user_id);
+      .eq('checkout_session_id', session.id);
     if (error) throw new Error(`mark attendee paid failed: ${error.message}`);
 
     await admin.from('event_payment_audit').insert({
@@ -454,8 +456,7 @@ async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<
     await admin
       .from('event_attendees')
       .delete()
-      .eq('event_id', meta.event_id)
-      .eq('user_id', meta.user_id)
+      .eq('checkout_session_id', session.id)
       .eq('payment_status', 'pending');
   }
 
@@ -519,19 +520,21 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
 
   const { data: attendeeRow } = await admin
     .from('event_attendees')
-    .select('event_id, user_id, amount_paid_cents')
+    .select('id, user_id, amount_paid_cents, division:event_divisions!inner(event_id)')
     .eq('payment_intent_id', piId)
     .maybeSingle();
-  type AttRow = { event_id: string; user_id: string; amount_paid_cents: number };
+  type AttRow = {
+    id: string;
+    user_id: string;
+    amount_paid_cents: number;
+    division: { event_id: string } | null;
+  };
   const att = attendeeRow as unknown as AttRow | null;
-  if (att) {
-    await admin
-      .from('event_attendees')
-      .delete()
-      .eq('event_id', att.event_id)
-      .eq('user_id', att.user_id);
+  if (att && att.division) {
+    const eventId = att.division.event_id;
+    await admin.from('event_attendees').delete().eq('id', att.id);
     await admin.from('event_payment_audit').insert({
-      event_id: att.event_id,
+      event_id: eventId,
       user_id: att.user_id,
       action: 'refunded',
       amount_cents: charge.amount_refunded ?? att.amount_paid_cents,
@@ -543,14 +546,14 @@ async function handleChargeRefunded(charge: Stripe.Charge): Promise<void> {
       const { data: evRow } = await admin
         .from('events')
         .select('title')
-        .eq('id', att.event_id)
+        .eq('id', eventId)
         .maybeSingle();
       const title = (evRow as { title: string } | null)?.title ?? 'event';
       await notify(
         'payment.refunded',
         att.user_id,
         {
-          eventId: att.event_id,
+          eventId,
           eventTitle: title,
           amountCents: charge.amount_refunded ?? att.amount_paid_cents,
         },

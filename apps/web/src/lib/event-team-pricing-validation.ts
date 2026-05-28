@@ -18,7 +18,7 @@
 
 export type TeamPricingDivisionInput = {
   label: string;
-  teamComposition: 'solo' | 'team' | 'pair_draw' | 'partner_required';
+  teamComposition: 'solo' | 'team' | 'pair_draw' | 'partners';
   priceUnit: 'per_player' | 'per_team';
   priceCents: number | null;
   /** ADR 0016: per-division team registration paradigm. */

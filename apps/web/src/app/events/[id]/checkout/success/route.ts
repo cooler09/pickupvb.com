@@ -15,51 +15,50 @@ import { log } from '@/lib/log';
  * idempotent (UPDATE with same data).
  */
 export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-    const { id: eventId } = await params;
-    const sessionId = req.nextUrl.searchParams.get('session') ?? undefined;
-    const origin = req.nextUrl.origin;
-    const redirectBack = (rsvp = 'joined'): NextResponse =>
-        NextResponse.redirect(`${origin}/events/${eventId}?rsvp=${rsvp}`);
+  const { id: eventId } = await params;
+  const sessionId = req.nextUrl.searchParams.get('session') ?? undefined;
+  const origin = req.nextUrl.origin;
+  const redirectBack = (rsvp = 'joined'): NextResponse =>
+    NextResponse.redirect(`${origin}/events/${eventId}?rsvp=${rsvp}`);
 
-    if (!sessionId || !isStripeConfigured()) return redirectBack();
+  if (!sessionId || !isStripeConfigured()) return redirectBack();
 
-    try {
-        const session = await getStripe().checkout.sessions.retrieve(sessionId);
-        if (session.payment_status === 'paid') {
-            const meta = (session.metadata ?? {}) as {
-                event_id?: string;
-                user_id?: string;
-                kind?: string;
-            };
-            if (meta.kind === 'attendee' && meta.user_id && meta.event_id === eventId) {
-                const admin = getAdminSupabase();
-                const piId =
-                    typeof session.payment_intent === 'string'
-                        ? session.payment_intent
-                        : session.payment_intent?.id ?? null;
-                await admin
-                    .from('event_attendees')
-                    .update({
-                        payment_status: 'paid',
-                        payment_intent_id: piId,
-                        amount_paid_cents: session.amount_total ?? 0,
-                        paid_at: new Date().toISOString(),
-                    } as never)
-                    .eq('event_id', eventId)
-                    .eq('user_id', meta.user_id)
-                    .neq('payment_status', 'paid');
-            }
-        }
-    } catch (err) {
-        log.warn('[checkout/success] reconcile failed', {
-            error: err instanceof Error ? err.message : String(err),
-            eventId,
-            sessionId,
-        });
+  try {
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
+    if (session.payment_status === 'paid') {
+      const meta = (session.metadata ?? {}) as {
+        event_id?: string;
+        user_id?: string;
+        kind?: string;
+      };
+      if (meta.kind === 'attendee' && meta.user_id && meta.event_id === eventId) {
+        const admin = getAdminSupabase();
+        const piId =
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : (session.payment_intent?.id ?? null);
+        await admin
+          .from('event_attendees')
+          .update({
+            payment_status: 'paid',
+            payment_intent_id: piId,
+            amount_paid_cents: session.amount_total ?? 0,
+            paid_at: new Date().toISOString(),
+          } as never)
+          .eq('checkout_session_id', session.id)
+          .neq('payment_status', 'paid');
+      }
     }
+  } catch (err) {
+    log.warn('[checkout/success] reconcile failed', {
+      error: err instanceof Error ? err.message : String(err),
+      eventId,
+      sessionId,
+    });
+  }
 
-    return redirectBack();
+  return redirectBack();
 }

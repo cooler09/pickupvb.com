@@ -105,7 +105,7 @@ export class RegisterAdHocTeamHandler {
       captainId: captainId as UserId,
       name,
       members: members.map((m, i) => memberFromInput(m, i)),
-      source: isHostProxy ? RegistrationSource.Host : RegistrationSource.Captain,
+      source: RegistrationSource.Captain,
     });
     await this.registrations.save(registration);
     return { id: String(registration.id) };

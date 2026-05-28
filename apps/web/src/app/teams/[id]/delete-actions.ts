@@ -39,14 +39,16 @@ export async function deleteTeamAction(
       throw new UnauthorizedError('Only the team captain can delete the team.');
 
     // Guard: refuse if registered for any upcoming non-cancelled event.
-    // `event_teams` is the join; we filter the parent event in a nested
-    // select with `!inner` so the row count reflects the join condition.
+    // Post-Step-5b roster registrations live in `event_team_entries`
+    // (source='roster'); we filter the parent event via the division join.
     const { data: futureRegRows } = await supabase
-      .from('event_teams')
-      .select('event_id, events:events!inner(id, status, starts_at)')
+      .from('event_team_entries')
+      .select('id, division:event_divisions!inner(events:events!inner(id, status, starts_at))')
       .eq('team_id', teamId)
-      .neq('events.status', 'cancelled')
-      .gt('events.starts_at', new Date().toISOString());
+      .eq('source', 'roster')
+      .is('deleted_at', null)
+      .neq('division.events.status', 'cancelled')
+      .gt('division.events.starts_at', new Date().toISOString());
     const futureRegs = (futureRegRows as unknown[] | null) ?? [];
     if (futureRegs.length > 0) {
       throw new ConflictError('This team is registered for upcoming events. Withdraw it first.');

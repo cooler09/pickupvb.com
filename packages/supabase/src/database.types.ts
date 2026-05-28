@@ -419,7 +419,6 @@ export type Database = {
           amount_paid_cents: number;
           checkout_session_id: string | null;
           division_id: string;
-          event_id: string;
           id: string;
           joined_at: string;
           paid_at: string | null;
@@ -434,7 +433,6 @@ export type Database = {
           amount_paid_cents?: number;
           checkout_session_id?: string | null;
           division_id: string;
-          event_id: string;
           id?: string;
           joined_at?: string;
           paid_at?: string | null;
@@ -449,7 +447,6 @@ export type Database = {
           amount_paid_cents?: number;
           checkout_session_id?: string | null;
           division_id?: string;
-          event_id?: string;
           id?: string;
           joined_at?: string;
           paid_at?: string | null;
@@ -466,20 +463,6 @@ export type Database = {
             columns: ['division_id'];
             isOneToOne: false;
             referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_attendees_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_attendees_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events_view';
             referencedColumns: ['id'];
           },
           {
@@ -602,8 +585,7 @@ export type Database = {
           tier_label: string | null;
           updated_at: string;
           winner_recorded_at: string | null;
-          winner_team_id: string | null;
-          winner_team_registration_id: string | null;
+          winner_entry_id: string | null;
         };
         Insert: {
           age_group?: Database['public']['Enums']['age_group'];
@@ -631,8 +613,7 @@ export type Database = {
           tier_label?: string | null;
           updated_at?: string;
           winner_recorded_at?: string | null;
-          winner_team_id?: string | null;
-          winner_team_registration_id?: string | null;
+          winner_entry_id?: string | null;
         };
         Update: {
           age_group?: Database['public']['Enums']['age_group'];
@@ -660,8 +641,7 @@ export type Database = {
           tier_label?: string | null;
           updated_at?: string;
           winner_recorded_at?: string | null;
-          winner_team_id?: string | null;
-          winner_team_registration_id?: string | null;
+          winner_entry_id?: string | null;
         };
         Relationships: [
           {
@@ -679,17 +659,10 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'event_divisions_winner_team_id_fkey';
-            columns: ['winner_team_id'];
+            foreignKeyName: 'event_divisions_winner_entry_id_fkey';
+            columns: ['winner_entry_id'];
             isOneToOne: false;
-            referencedRelation: 'teams';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_divisions_winner_team_registration_id_fkey';
-            columns: ['winner_team_registration_id'];
-            isOneToOne: false;
-            referencedRelation: 'event_team_registrations';
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
         ];
@@ -697,21 +670,18 @@ export type Database = {
       event_free_agents: {
         Row: {
           division_id: string;
-          event_id: string;
           joined_at: string;
           notes: string | null;
           user_id: string;
         };
         Insert: {
           division_id: string;
-          event_id: string;
           joined_at?: string;
           notes?: string | null;
           user_id: string;
         };
         Update: {
           division_id?: string;
-          event_id?: string;
           joined_at?: string;
           notes?: string | null;
           user_id?: string;
@@ -722,20 +692,6 @@ export type Database = {
             columns: ['division_id'];
             isOneToOne: false;
             referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_free_agents_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_free_agents_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events_view';
             referencedColumns: ['id'];
           },
         ];
@@ -865,77 +821,87 @@ export type Database = {
           },
         ];
       };
-      event_team_payments: {
+      event_team_entries: {
         Row: {
-          amount_paid_cents: number | null;
+          captain_display_name: string | null;
           captain_id: string | null;
-          checkout_session_id: string | null;
+          captain_phone: string | null;
           created_at: string;
-          event_id: string;
+          deleted_at: string | null;
+          division_id: string;
           id: string;
-          paid_at: string | null;
-          payment_intent_id: string | null;
-          payment_status: string;
-          team_id: string;
+          name: string;
+          registered_at: string;
+          source: string;
+          team_id: string | null;
           updated_at: string;
         };
         Insert: {
-          amount_paid_cents?: number | null;
+          captain_display_name?: string | null;
           captain_id?: string | null;
-          checkout_session_id?: string | null;
+          captain_phone?: string | null;
           created_at?: string;
-          event_id: string;
+          deleted_at?: string | null;
+          division_id: string;
           id?: string;
-          paid_at?: string | null;
-          payment_intent_id?: string | null;
-          payment_status?: string;
-          team_id: string;
+          name: string;
+          registered_at?: string;
+          source: string;
+          team_id?: string | null;
           updated_at?: string;
         };
         Update: {
-          amount_paid_cents?: number | null;
+          captain_display_name?: string | null;
           captain_id?: string | null;
-          checkout_session_id?: string | null;
+          captain_phone?: string | null;
           created_at?: string;
-          event_id?: string;
+          deleted_at?: string | null;
+          division_id?: string;
           id?: string;
-          paid_at?: string | null;
-          payment_intent_id?: string | null;
-          payment_status?: string;
-          team_id?: string;
+          name?: string;
+          registered_at?: string;
+          source?: string;
+          team_id?: string | null;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'event_team_payments_captain_id_fkey';
+            foreignKeyName: 'event_team_entries_captain_id_fkey';
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'event_team_payments_captain_id_fkey';
+            foreignKeyName: 'event_team_entries_captain_id_fkey';
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'event_team_payments_event_team_fk';
-            columns: ['event_id', 'team_id'];
-            isOneToOne: true;
-            referencedRelation: 'event_teams';
-            referencedColumns: ['event_id', 'team_id'];
+            foreignKeyName: 'event_team_entries_division_id_fkey';
+            columns: ['division_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_divisions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_team_entries_team_id_fkey';
+            columns: ['team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
           },
         ];
       };
-      event_team_registration_members: {
+      event_team_entry_members: {
         Row: {
           created_at: string;
           display_name: string | null;
           email: string | null;
+          entry_id: string;
           id: string;
-          registration_id: string;
           sort_order: number;
           user_id: string | null;
         };
@@ -943,8 +909,8 @@ export type Database = {
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
+          entry_id: string;
           id?: string;
-          registration_id: string;
           sort_order?: number;
           user_id?: string | null;
         };
@@ -952,28 +918,28 @@ export type Database = {
           created_at?: string;
           display_name?: string | null;
           email?: string | null;
+          entry_id?: string;
           id?: string;
-          registration_id?: string;
           sort_order?: number;
           user_id?: string | null;
         };
         Relationships: [
           {
-            foreignKeyName: 'event_team_registration_members_registration_id_fkey';
-            columns: ['registration_id'];
+            foreignKeyName: 'event_team_entry_members_entry_id_fkey';
+            columns: ['entry_id'];
             isOneToOne: false;
-            referencedRelation: 'event_team_registrations';
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'event_team_registration_members_user_id_fkey';
+            foreignKeyName: 'event_team_entry_members_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'event_team_registration_members_user_id_fkey';
+            foreignKeyName: 'event_team_entry_members_user_id_fkey';
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles_public';
@@ -981,131 +947,66 @@ export type Database = {
           },
         ];
       };
-      event_team_registrations: {
+      event_team_payments: {
         Row: {
           amount_paid_cents: number | null;
-          captain_display_name: string | null;
           captain_id: string | null;
-          captain_phone: string | null;
           checkout_session_id: string | null;
           created_at: string;
-          deleted_at: string | null;
-          division_id: string;
+          entry_id: string;
           id: string;
-          name: string;
           paid_at: string | null;
           payment_intent_id: string | null;
           payment_note: string | null;
           payment_status: string;
-          source: string;
           updated_at: string;
         };
         Insert: {
           amount_paid_cents?: number | null;
-          captain_display_name?: string | null;
           captain_id?: string | null;
-          captain_phone?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
-          deleted_at?: string | null;
-          division_id: string;
+          entry_id: string;
           id?: string;
-          name: string;
           paid_at?: string | null;
           payment_intent_id?: string | null;
           payment_note?: string | null;
           payment_status?: string;
-          source?: string;
           updated_at?: string;
         };
         Update: {
           amount_paid_cents?: number | null;
-          captain_display_name?: string | null;
           captain_id?: string | null;
-          captain_phone?: string | null;
           checkout_session_id?: string | null;
           created_at?: string;
-          deleted_at?: string | null;
-          division_id?: string;
+          entry_id?: string;
           id?: string;
-          name?: string;
           paid_at?: string | null;
           payment_intent_id?: string | null;
           payment_note?: string | null;
           payment_status?: string;
-          source?: string;
           updated_at?: string;
         };
         Relationships: [
           {
-            foreignKeyName: 'event_team_registrations_captain_id_fkey';
+            foreignKeyName: 'event_team_payments_captain_id_fkey';
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'event_team_registrations_captain_id_fkey';
+            foreignKeyName: 'event_team_payments_captain_id_fkey';
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles_public';
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'event_team_registrations_division_id_fkey';
-            columns: ['division_id'];
-            isOneToOne: false;
-            referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      event_teams: {
-        Row: {
-          division_id: string;
-          event_id: string;
-          registered_at: string;
-          team_id: string;
-        };
-        Insert: {
-          division_id: string;
-          event_id: string;
-          registered_at?: string;
-          team_id: string;
-        };
-        Update: {
-          division_id?: string;
-          event_id?: string;
-          registered_at?: string;
-          team_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'event_teams_division_id_fkey';
-            columns: ['division_id'];
-            isOneToOne: false;
-            referencedRelation: 'event_divisions';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_teams_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_teams_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events_view';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_teams_team_id_fkey';
-            columns: ['team_id'];
-            isOneToOne: false;
-            referencedRelation: 'teams';
+            foreignKeyName: 'event_team_payments_entry_fk';
+            columns: ['entry_id'];
+            isOneToOne: true;
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
         ];
@@ -2162,33 +2063,103 @@ export type Database = {
           },
         ];
       };
+      league_schedule_matches: {
+        Row: {
+          away_score: number | null;
+          away_team_id: string | null;
+          court_label: string | null;
+          created_at: string;
+          division_id: string;
+          home_score: number | null;
+          home_team_id: string | null;
+          id: string;
+          notes: string | null;
+          scheduled_at: string;
+          status: string;
+          updated_at: string;
+          week_number: number;
+        };
+        Insert: {
+          away_score?: number | null;
+          away_team_id?: string | null;
+          court_label?: string | null;
+          created_at?: string;
+          division_id: string;
+          home_score?: number | null;
+          home_team_id?: string | null;
+          id?: string;
+          notes?: string | null;
+          scheduled_at: string;
+          status?: string;
+          updated_at?: string;
+          week_number: number;
+        };
+        Update: {
+          away_score?: number | null;
+          away_team_id?: string | null;
+          court_label?: string | null;
+          created_at?: string;
+          division_id?: string;
+          home_score?: number | null;
+          home_team_id?: string | null;
+          id?: string;
+          notes?: string | null;
+          scheduled_at?: string;
+          status?: string;
+          updated_at?: string;
+          week_number?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'league_schedule_matches_division_id_fkey';
+            columns: ['division_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_divisions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'league_schedule_matches_home_team_id_fkey';
+            columns: ['home_team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'league_schedule_matches_away_team_id_fkey';
+            columns: ['away_team_id'];
+            isOneToOne: false;
+            referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
     };
     Views: {
-      event_team_registration_members_public: {
+      event_team_entry_members_public: {
         Row: {
           display_name: string | null;
+          entry_id: string | null;
           id: string | null;
-          registration_id: string | null;
           sort_order: number | null;
         };
         Insert: {
           display_name?: string | null;
+          entry_id?: string | null;
           id?: string | null;
-          registration_id?: string | null;
           sort_order?: number | null;
         };
         Update: {
           display_name?: string | null;
+          entry_id?: string | null;
           id?: string | null;
-          registration_id?: string | null;
           sort_order?: number | null;
         };
         Relationships: [
           {
-            foreignKeyName: 'event_team_registration_members_registration_id_fkey';
-            columns: ['registration_id'];
+            foreignKeyName: 'event_team_entry_members_entry_id_fkey';
+            columns: ['entry_id'];
             isOneToOne: false;
-            referencedRelation: 'event_team_registrations';
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
         ];
@@ -2493,6 +2464,10 @@ export type Database = {
       };
     };
     Functions: {
+      attach_team_to_division: {
+        Args: { p_division_id: string; p_team_id: string };
+        Returns: undefined;
+      };
       _postgis_deprecate: {
         Args: { newname: string; oldname: string; version: string };
         Returns: undefined;
@@ -3513,7 +3488,7 @@ export type Database = {
       skill_level: 'beginner' | 'intermediate' | 'advanced' | 'competitive';
       skill_tier: 'c' | 'b' | 'bb' | 'bb3' | 'a' | 'aa' | 'open';
       surface: 'indoor' | 'grass' | 'sand';
-      team_composition: 'solo' | 'team' | 'pair_draw' | 'partner_required';
+      team_composition: 'solo' | 'team' | 'pair_draw' | 'partners';
       team_registration_mode: 'ad_hoc' | 'roster';
       visibility: 'public' | 'invite_only' | 'friends_of_host' | 'friends_of_attendees';
     };
@@ -4208,7 +4183,7 @@ export const Constants = {
       skill_level: ['beginner', 'intermediate', 'advanced', 'competitive'],
       skill_tier: ['c', 'b', 'bb', 'bb3', 'a', 'aa', 'open'],
       surface: ['indoor', 'grass', 'sand'],
-      team_composition: ['solo', 'team', 'pair_draw', 'partner_required'],
+      team_composition: ['solo', 'team', 'pair_draw', 'partners'],
       team_registration_mode: ['ad_hoc', 'roster'],
       visibility: ['public', 'invite_only', 'friends_of_host', 'friends_of_attendees'],
     },

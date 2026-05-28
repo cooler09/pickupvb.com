@@ -33,7 +33,7 @@ export interface CreateDivisionProps {
   /** Optional free-form override when the structured tier is insufficient. */
   tierLabel?: string | null;
   teamComposition?: TeamComposition;
-  /** Required when {@link teamComposition} is `PartnerRequired` or `PairDraw`. */
+  /** Required when {@link teamComposition} is `Partners` or `PairDraw`. */
   teamSize?: number | null;
   /** Per-division capacity. `null` = inherit event-level capacity. */
   capacity?: Capacity | null;
@@ -133,7 +133,7 @@ export class Division {
     }
     if (
       (teamComposition === TeamComposition.PairDraw ||
-        teamComposition === TeamComposition.PartnerRequired) &&
+        teamComposition === TeamComposition.Partners) &&
       teamSize === null
     ) {
       throw new InvariantViolation(

@@ -125,7 +125,7 @@ function DivisionForm({
             <option value="solo">Individual signup</option>
             <option value="team">Pre-formed team</option>
             <option value="pair_draw">Pair draw</option>
-            <option value="partner_required">Bring partner(s)</option>
+            <option value="partners">Bring partner(s)</option>
           </select>
         </div>
         <div>

@@ -374,8 +374,8 @@ export async function editEventAction(
       try {
         const { data: attRows } = await admin
           .from('event_attendees')
-          .select('user_id')
-          .eq('event_id', eventId);
+          .select('user_id, division:event_divisions!inner(event_id)')
+          .eq('division.event_id', eventId);
         const attendees = (attRows as { user_id: string }[] | null) ?? [];
         const summary = `Updated: ${changes.join(', ')}`;
         const stamp = Date.now(); // distinct idem per edit

@@ -13,29 +13,30 @@ import { log } from '@/lib/log';
  * leave it alone.
  */
 export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-    const { id: eventId } = await params;
-    const sessionId = req.nextUrl.searchParams.get('session') ?? undefined;
-    const origin = req.nextUrl.origin;
+  const { id: eventId } = await params;
+  const sessionId = req.nextUrl.searchParams.get('session') ?? undefined;
+  const origin = req.nextUrl.origin;
 
-    if (sessionId) {
-        const admin = getAdminSupabase();
-        const { error } = await admin
-            .from('event_attendees')
-            .delete()
-            .eq('event_id', eventId)
-            .eq('checkout_session_id', sessionId)
-            .eq('payment_status', 'pending');
-        if (error) {
-            log.warn('[checkout/cancel] release pending failed', {
-                error: error.message,
-                eventId,
-                sessionId,
-            });
-        }
+  if (sessionId) {
+    const admin = getAdminSupabase();
+    // session_id is globally unique — no need to scope by event_id
+    // (which no longer exists on event_attendees after Step 5a).
+    const { error } = await admin
+      .from('event_attendees')
+      .delete()
+      .eq('checkout_session_id', sessionId)
+      .eq('payment_status', 'pending');
+    if (error) {
+      log.warn('[checkout/cancel] release pending failed', {
+        error: error.message,
+        eventId,
+        sessionId,
+      });
     }
+  }
 
-    return NextResponse.redirect(`${origin}/events/${eventId}?rsvp=cancel`);
+  return NextResponse.redirect(`${origin}/events/${eventId}?rsvp=cancel`);
 }

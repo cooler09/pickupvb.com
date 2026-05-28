@@ -109,7 +109,7 @@ export class SetTeamExtraMembersHandler {
 /**
  * Tournament team registration. Crosses two aggregates:
  *   - the Team must exist and be captained by the requester
- *   - the Team's format must match the Event's format
+ *   - the Team's format must match the chosen Division's format
  *   - the Event aggregate enforces the rest (must be tournament, published, …)
  *
  * Note: we run `event.registerTeam(...)` purely to execute the aggregate's
@@ -134,11 +134,6 @@ export class RegisterTeamHandler {
     }
     const event = await this.events.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    if (event.format && event.format !== team.format) {
-      throw new ValidationError(
-        `Team format (${team.format}) doesn't match event format (${event.format}).`,
-      );
-    }
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
     if (division.format && division.format !== team.format) {

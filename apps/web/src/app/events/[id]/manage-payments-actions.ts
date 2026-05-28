@@ -44,7 +44,7 @@ export async function setAttendeePaymentStatus(
   const { data: row } = await supabase
     .from('event_attendees')
     .select('payment_status, payment_intent_id, amount_paid_cents')
-    .eq('event_id', eventId)
+    .eq('division_id', pricing.divisionId)
     .eq('user_id', userId)
     .maybeSingle();
   type Row = {
@@ -65,7 +65,7 @@ export async function setAttendeePaymentStatus(
       amount_paid_cents: amountCents,
       paid_at: status === 'paid' ? new Date().toISOString() : null,
     } as never)
-    .eq('event_id', eventId)
+    .eq('division_id', pricing.divisionId)
     .eq('user_id', userId);
   if (updErr) return;
 

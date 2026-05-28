@@ -132,15 +132,15 @@ export type AgeGroup = (typeof AgeGroup)[keyof typeof AgeGroup];
 /**
  * How players sign up for a division.
  *   - `Solo`             individuals (open-play style)
- *   - `Team`             full pre-formed team registers
+ *   - `Partners`         fixed N-person team built at signup time (doubles, triples)
  *   - `PairDraw`         sign up as a pair/triple; drawn with another into the playing team
- *   - `PartnerRequired`  fixed N-person team built at signup time
+ *   - `Team`             full pre-formed team registers
  */
 export const TeamComposition = {
   Solo: 'solo',
   Team: 'team',
   PairDraw: 'pair_draw',
-  PartnerRequired: 'partner_required',
+  Partners: 'partners',
 } as const;
 export type TeamComposition = (typeof TeamComposition)[keyof typeof TeamComposition];
 

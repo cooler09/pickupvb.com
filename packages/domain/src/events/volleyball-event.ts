@@ -12,11 +12,8 @@ import {
   EventPosition,
   EventStatus,
   EventType,
-  Format,
-  Gender,
   PriceUnit,
   RegistrationMode,
-  SkillLevel,
   Surface,
   TeamComposition,
   TeamRegistrationMode,
@@ -35,7 +32,6 @@ import {
   TeamWithdrawn,
 } from './events.js';
 import { Location } from './location.js';
-import { assertFormatAllowedForSurface } from './rules.js';
 
 export type EventId = Brand<string, 'EventId'>;
 export type UserId = Brand<string, 'UserId'>;
@@ -75,9 +71,6 @@ export interface CreateEventProps {
   description: string;
   rules: string;
   surface: Surface;
-  format: Format | null;
-  gender: Gender | null;
-  skillLevel: SkillLevel;
   type: EventType;
   visibility: Visibility;
   location: Location;
@@ -263,10 +256,12 @@ function resolveExtensions(
  * Aggregate root for a volleyball event.
  *
  * Owns all consistency rules:
- *   - Surface × format compatibility
  *   - Open-play vs tournament signup mode
  *   - Capacity enforcement
  *   - Status transitions (draft → published → cancelled/completed)
+ *
+ * Per-division attributes (`format`, `gender`, `skillTier`, `capacity`,
+ * …) live on {@link Division}, not on the aggregate root.
  *
  * Mutations only happen through methods. State is read-only externally.
  */
@@ -278,9 +273,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _description: string,
     private _rules: string,
     public readonly surface: Surface,
-    public readonly format: Format | null,
-    public readonly gender: Gender | null,
-    private _skillLevel: SkillLevel,
     public readonly type: EventType,
     private _visibility: Visibility,
     private _location: Location,
@@ -307,14 +299,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * @throws {InvariantViolation} for invalid time range, missing title,
    *   missing open-play capacity, invalid payment config, or any other
    *   broken aggregate invariant.
-   * @throws {ValidationError} from `assertFormatAllowedForSurface` when
-   *   `surface` and `format` are incompatible.
    */
   static create(props: CreateEventProps): VolleyballEvent {
-    if (props.format !== null) {
-      assertFormatAllowedForSurface(props.surface, props.format);
-    }
-
     if (props.endsAt <= props.startsAt) {
       throw new InvariantViolation('Event end time must be after start time.');
     }
@@ -348,9 +334,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       props.description.trim(),
       props.rules.trim(),
       props.surface,
-      props.format,
-      props.gender,
-      props.skillLevel,
       props.type,
       props.visibility,
       props.location,
@@ -382,9 +365,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     description: string;
     rules: string;
     surface: Surface;
-    format: Format | null;
-    gender: Gender | null;
-    skillLevel: SkillLevel;
     type: EventType;
     visibility: Visibility;
     location: Location;
@@ -416,9 +396,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       props.description,
       props.rules,
       props.surface,
-      props.format,
-      props.gender,
-      props.skillLevel,
       props.type,
       props.visibility,
       props.location,
@@ -445,9 +422,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
   get rules(): string {
     return this._rules;
-  }
-  get skillLevel(): SkillLevel {
-    return this._skillLevel;
   }
   get visibility(): Visibility {
     return this._visibility;
@@ -882,7 +856,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         }
         if (composition === TeamComposition.Solo) {
           throw new InvariantViolation(
-            `League events cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partner_required.`,
+            `League events cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partners.`,
           );
         }
       }
@@ -892,7 +866,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       if (isTeamLed) {
         if (composition === TeamComposition.Solo) {
           throw new InvariantViolation(
-            `Team-registered divisions cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partner_required.`,
+            `Team-registered divisions cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partners.`,
           );
         }
         if (!isFree && priceUnit === PriceUnit.PerPlayer) {

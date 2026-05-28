@@ -8,7 +8,6 @@ import {
   Gender,
   Location,
   PriceUnit,
-  SkillLevel,
   SkillTier,
   Surface,
   TeamComposition,
@@ -62,7 +61,7 @@ function makeDivision(format: Format, id = 'div-1'): Division {
   });
 }
 
-function makeTournament(opts: { format: Format; divisions: Division[] }): VolleyballEvent {
+function makeTournament(opts: { divisions: Division[] }): VolleyballEvent {
   const evt = VolleyballEvent.create({
     id: 'event-1' as EventId,
     hostId: 'host' as UserId,
@@ -70,9 +69,6 @@ function makeTournament(opts: { format: Format; divisions: Division[] }): Volley
     description: '',
     rules: '',
     surface: Surface.Indoor,
-    format: opts.format,
-    gender: Gender.Coed,
-    skillLevel: SkillLevel.Intermediate,
     type: EventType.Tournament,
     visibility: Visibility.Public,
     location: LOCATION,
@@ -137,7 +133,7 @@ describe('RegisterTeamHandler', () => {
   it('attaches the team to the chosen division on the happy path', async () => {
     const team = makeTeam();
     const division = makeDivision(Format.Sixes);
-    const event = makeTournament({ format: Format.Sixes, divisions: [division] });
+    const event = makeTournament({ divisions: [division] });
 
     const teams = new InMemoryTeamRepo();
     teams.put(team);
@@ -212,32 +208,14 @@ describe('RegisterTeamHandler', () => {
 
   // Bundle 52 reclassification: cross-event format mismatch is a caller
   // input problem (wrong team picked), not an authorization failure.
-  it('throws ValidationError when team format differs from event format', async () => {
-    const team = makeTeam({ format: Format.Quads });
-    const division = makeDivision(Format.Quads);
-    const event = makeTournament({ format: Format.Sixes, divisions: [division] });
-
-    const teams = new InMemoryTeamRepo();
-    teams.put(team);
-    const events = new InMemoryEventRepo();
-    events.put(event);
-
-    const handler = new RegisterTeamHandler(events as unknown as EventRepository, teams);
-
-    await expect(
-      handler.execute({
-        eventId: 'event-1',
-        teamId: 'team-1',
-        requesterId: 'captain',
-        divisionId: 'div-1',
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
-  });
+  // Step 8 / P3 #9: the check now lives at the division boundary
+  // (the aggregate no longer mirrors a top-level format) — see the
+  // "team format differs from division format" test below.
 
   it('throws NotFoundError when the chosen divisionId is not on the event', async () => {
     const team = makeTeam();
     const division = makeDivision(Format.Sixes);
-    const event = makeTournament({ format: Format.Sixes, divisions: [division] });
+    const event = makeTournament({ divisions: [division] });
 
     const teams = new InMemoryTeamRepo();
     teams.put(team);
@@ -257,19 +235,13 @@ describe('RegisterTeamHandler', () => {
   });
 
   // Bundle 52 reclassification: cross-division format mismatch is also a
-  // caller input problem, not an authorization failure. The event-level
-  // format check is skipped (set to same as team) so this exercises the
-  // division-level branch in isolation.
+  // caller input problem, not an authorization failure. The aggregate no
+  // longer mirrors a top-level format (Step 8 / P3 #9), so this exercises
+  // the division-level branch.
   it('throws ValidationError when team format differs from division format', async () => {
     const team = makeTeam({ format: Format.Sixes });
     const division = makeDivision(Format.Quads);
-    // Construct the event with a matching event-level format, then add a
-    // division whose format differs from the team. We achieve this by
-    // building two divisions: the event accepts the team's Sixes format
-    // overall (event.format = Sixes), but the chosen divisionId points at
-    // a Quads bracket.
     const event = makeTournament({
-      format: Format.Sixes,
       divisions: [division, makeDivision(Format.Sixes, 'div-2')],
     });
 

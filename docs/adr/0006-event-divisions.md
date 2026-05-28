@@ -86,7 +86,7 @@ event_divisions  (the playable bracket — N per event, ≥ 1)
   id, event_id, sort_order, label,           -- "AA", "BB3", "18U Boys"
   surface, format, gender,
   skill_tier, age_group, tier_label,         -- structured + free-form override
-  team_composition,                           -- solo | team | pair_draw | partner_required
+  team_composition,                           -- solo | team | pair_draw | partners
   team_size,                                  -- nullable; min/max players per team
   capacity_kind, max_spots,                   -- per-division capacity
   price_cents, price_unit,                    -- per_player | per_team; nullable -> inherit event
@@ -105,7 +105,7 @@ tournament_brackets  one row per division (FK switched event_id -> division_id i
 ```
 skill_tier         ('c', 'b', 'bb', 'bb3', 'a', 'aa', 'open')
 age_group          ('adult', 'hs', '18u', '16u', '14u', 'jr_high')
-team_composition   ('solo', 'team', 'pair_draw', 'partner_required')
+team_composition   ('solo', 'team', 'pair_draw', 'partners')
 price_unit         ('per_player', 'per_team')
 registration_mode  ('platform', 'external')
 ```
@@ -242,3 +242,52 @@ the next phase starts.
 - **One-event-per-tournament with all variability in `description`.**
   Rejected as the current de-facto state on every other volleyball
   platform; it's exactly what hosts complain about.
+
+## Addendum: 2026-05-30 — League event type
+
+`EventType.League` was added after the original ADR shipped (audit
+[event-data-model.md § P1 #1](../audits/event-data-model.md#p1-1--league-is-not-a-first-class-eventtype),
+migration `20260729000100_add_league_to_event_type.sql`). Leagues
+reuse the event/division container introduced above; the per-division
+record describes one weekly bracket the same way it describes one
+tournament bracket. Two things differ from tournaments:
+
+**Per-division registration shape.** Every league division must use
+`team_registration_mode = 'roster'` and a non-solo
+`team_composition` (`team`, `partners`, or `pair_draw` is rejected —
+pair-draws are not a league shape). Enforced in the aggregate by
+`assertRegistrationConfigValid`'s league branch (see
+[packages/domain/src/events/volleyball-event.ts](../../packages/domain/src/events/volleyball-event.ts)
+and the league-scaffolding tests in `volleyball-event.test.ts`).
+
+**Schedule + optional playoff.** Leagues add a season schedule
+(weekly fixtures keyed to `event_divisions.id`) on top of the
+existing division surface. The end-of-season playoff reuses
+`event_brackets` (post-rename) and is **optional per division** —
+hosts toggle "Run a playoff at season end?" when configuring the
+league. Zero or one bracket row per division. No schema change vs.
+tournaments; the brackets table already permits this shape.
+
+**Payments.** Leagues are season-fee upfront only. No recurring
+billing. The Stripe wiring reuses the one-shot Checkout flow used
+by tournament team registration (`team-checkout-actions.ts` +
+`EventTeamPayment` sidecar). Recurring-billing for leagues is
+explicitly out of scope and dropped from the backlog — do not build
+subscription plumbing for league fees. Payee routing is unchanged:
+through `events.host_id`, not `host_group_id`
+([docs/payments.md](../payments.md),
+[AGENTS.md § Pattern 7](../../AGENTS.md)).
+
+### Data-model summary (three event types)
+
+| Event type     | Divisions | Team mode (per division)              | Composition                                      | Schedule surface                                                   | Bracket surface                                |
+| -------------- | --------- | ------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------ | ---------------------------------------------- |
+| **Open Play**  | exactly 1 | `null` (individual)                   | `solo`                                           | Single event window                                                | None                                           |
+| **Tournament** | 1..N      | `ad_hoc` or `roster` (or `null` solo) | any (`team` / `partners` / `pair_draw` / `solo`) | Single event window (optional per-division override for multi-day) | One `event_brackets` row per division          |
+| **League**     | 1..N      | **`roster` only**                     | **non-solo only** (`team` / `partners`)          | Weekly `league_schedule_matches` keyed to `event_divisions.id`     | **Optional** `event_brackets` row per division |
+
+Canonical product matrix lives in
+[docs/features.md § Event-type matrix](../features.md#event-type-matrix)
+(reproduces the audit's product-requirements table). When this ADR
+and that matrix disagree, the matrix wins — this addendum is the
+ADR-side cross-reference.

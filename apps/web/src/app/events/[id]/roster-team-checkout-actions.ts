@@ -70,15 +70,18 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
   if (team.captain_id !== user.id) backWithError(eventId, 'forbidden');
 
   const { data: regRow } = await supabase
-    .from('event_teams')
-    .select('event_id, team_id, division_id')
-    .eq('event_id', eventId)
+    .from('event_team_entries')
+    .select('id, team_id, division_id, division:event_divisions!inner(event_id)')
+    .eq('division.event_id', eventId)
     .eq('team_id', teamId)
+    .eq('source', 'roster')
+    .is('deleted_at', null)
     .maybeSingle();
   const registration = regRow as {
-    event_id: string;
+    id: string;
     team_id: string;
     division_id: string | null;
+    division: { event_id: string } | null;
   } | null;
   if (!registration) backWithError(eventId, 'team_not_registered');
   if (!registration.division_id) backWithError(eventId, 'division_not_found');

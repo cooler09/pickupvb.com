@@ -3,6 +3,7 @@ export * from './supabase-event-team-payment-repository';
 export * from './supabase-event-team-registration-repository';
 export * from './supabase-team-repository';
 export * from './supabase-bracket-repository';
+export * from './supabase-league-schedule-repository';
 export * from './supabase-host-stripe-account-repository';
 export * from './supabase-host-subscription-repository';
 export * from './supabase-community-listing-repository';

@@ -313,24 +313,29 @@ export class SupabaseBracketRepository implements BracketRepository {
     }
   }
 
-  async listRegisteredTeams(eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]> {
-    // Prefer division-scoped rows. Fall back to event-scoped rows for
-    // legacy registrations whose `division_id` wasn't backfilled (should
-    // be empty after ADR-0006 phase 6 backfill, but defensive here).
+  async listRegisteredTeams(_eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]> {
+    // Post-Step-5b: roster bracket teams live in `event_team_entries` filtered
+    // to `source = 'roster'`. The `team_id` column points at the persistent
+    // teams.id, matching the legacy BracketTeamLite contract. Ad-hoc /
+    // walk-in entries are intentionally excluded here (deferred to a 5b.ii
+    // follow-up that teaches the bracket reader to handle them — at which
+    // point teamId may become an entry id and downstream consumers will need
+    // to be reviewed).
     const scoped = await this.client
-      .from('event_teams')
+      .from('event_team_entries')
       .select('team_id, teams:teams!inner(name, captain_id)')
-      .eq('event_id', eventId)
-      .eq('division_id', divisionId);
+      .eq('division_id', divisionId)
+      .eq('source', 'roster')
+      .is('deleted_at', null);
     if (scoped.error) {
       throw new Error(`listRegisteredTeams failed: ${scoped.error.message}`);
     }
-    type Row = { team_id: string; teams: { name: string; captain_id: string } | null };
+    type Row = { team_id: string | null; teams: { name: string; captain_id: string } | null };
     const rows = (scoped.data as Row[] | null) ?? [];
     return rows
-      .filter((r) => r.teams !== null)
+      .filter((r) => r.teams !== null && r.team_id !== null)
       .map((r) => ({
-        teamId: r.team_id,
+        teamId: r.team_id!,
         name: r.teams!.name,
         captainId: r.teams!.captain_id,
       }));

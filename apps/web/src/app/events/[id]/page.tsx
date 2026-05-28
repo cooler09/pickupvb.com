@@ -272,6 +272,22 @@ export default async function EventDetailPage(props: {
         </section>
       )}
 
+      {event.type === 'league' && (
+        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-fg text-base font-semibold">Schedule</h2>
+              <p className="text-muted text-xs">
+                Manage the weekly slate and record match results.
+              </p>
+            </div>
+            <Link href={`/events/${event.id}/schedule` as Route} className={primaryButtonClass()}>
+              Open schedule
+            </Link>
+          </div>
+        </section>
+      )}
+
       <EventLocationSection event={event} />
 
       <HostsSection
