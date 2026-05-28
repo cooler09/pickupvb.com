@@ -53,10 +53,36 @@ export function SetupView(props: {
 
   return (
     <section className="space-y-4">
-      <div className="border-border-base bg-fg/5 rounded-lg border p-4">
-        <p className="text-muted text-sm">
-          Format: <span className="text-fg font-medium">{FORMAT_LABEL[props.bracketFormat]}</span>
-        </p>
+      {/* Top action card — the primary thing the host came here to do is
+          "Generate bracket". Put it above the fold with the readiness
+          summary (team count, format) so they don't scroll past seeding to
+          find it. Discard sits next to it as a secondary action. */}
+      <div className="border-primary/40 bg-primary/5 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+        <div className="space-y-0.5">
+          <p className="text-fg text-sm font-semibold">
+            {canGenerate ? 'Ready to generate' : 'Add a team to continue'}
+          </p>
+          <p className="text-muted text-xs">
+            Format:{' '}
+            <span className="text-fg/80 font-medium">{FORMAT_LABEL[props.bracketFormat]}</span> ·{' '}
+            {orderedTeams.length} team{orderedTeams.length === 1 ? '' : 's'} seeded
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <form action={generateBracket.bind(null, props.eventId, props.divisionId)}>
+            <SubmitButton
+              disabled={!canGenerate}
+              className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
+            >
+              Generate bracket
+            </SubmitButton>
+          </form>
+          <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
+            <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-2 text-sm disabled:opacity-50">
+              Discard
+            </SubmitButton>
+          </form>
+        </div>
       </div>
 
       {(newlyAdded.length > 0 || droppedSeedCount > 0) && (
@@ -85,23 +111,17 @@ export function SetupView(props: {
         orderedTeams={orderedTeams}
       />
 
-      <WalkInTeamForm eventId={props.eventId} divisionId={props.divisionId} />
-
-      <div className="flex flex-wrap gap-2">
-        <form action={generateBracket.bind(null, props.eventId, props.divisionId)}>
-          <SubmitButton
-            disabled={!canGenerate}
-            className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50"
-          >
-            Generate bracket
-          </SubmitButton>
-        </form>
-        <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
-          <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm disabled:opacity-50">
-            Discard bracket
-          </SubmitButton>
-        </form>
-      </div>
+      {/* Walk-in form is secondary at this stage — the host already has a
+          bracket in setup. Collapse it by default; auto-open when there
+          aren't enough teams to generate yet. */}
+      <details open={!canGenerate} className="border-border-base rounded-lg border border-dashed">
+        <summary className="text-fg/80 hover:bg-fg/5 cursor-pointer rounded-lg px-3 py-2 text-sm font-medium">
+          Add a walk-in team
+        </summary>
+        <div className="border-border-base border-t p-3">
+          <WalkInTeamForm eventId={props.eventId} divisionId={props.divisionId} />
+        </div>
+      </details>
     </section>
   );
 }
@@ -131,13 +151,13 @@ function SeedingForm(props: {
         orderedTeams={props.orderedTeams}
       />
       <div className="flex flex-wrap gap-2 pt-2">
-        <SubmitButton className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50">
+        <SubmitButton className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60">
           Save seeding
         </SubmitButton>
         <SubmitButton
           name="randomize"
           value="1"
-          className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-3 py-1 text-sm disabled:opacity-50"
+          className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
           formAction={randomizeSeedFromForm.bind(null, props.eventId, props.divisionId)}
         >
           Randomize

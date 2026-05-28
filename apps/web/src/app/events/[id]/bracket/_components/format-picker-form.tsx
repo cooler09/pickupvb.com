@@ -534,16 +534,18 @@ export function FormatPickerForm(props: {
         </>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="border-border-base bg-bg sticky bottom-2 z-10 flex flex-wrap items-center gap-3 rounded-lg border p-3 shadow-sm">
         <SubmitButton
           disabled={props.teamCount < 2 || belowMin || poolPlayUnderfilled || fixedGamesInvalid}
-          className="bg-primary text-primary-fg rounded px-3 py-1 text-sm disabled:opacity-50"
+          className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
         >
           Create bracket
         </SubmitButton>
         {estimate !== null && (
-          <span className="text-muted text-xs">
-            Estimated {estimate} match{estimate === 1 ? '' : 'es'} with {props.teamCount} teams.
+          <span className="text-fg/80 text-sm">
+            ~<span className="font-semibold">{estimate}</span> match
+            {estimate === 1 ? '' : 'es'} with {props.teamCount} team
+            {props.teamCount === 1 ? '' : 's'}.
           </span>
         )}
         {props.teamCount < 2 && (
