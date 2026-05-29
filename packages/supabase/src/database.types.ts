@@ -74,13 +74,9 @@ export type Database = {
           round: number;
           scheduled_at: string | null;
           status: string;
-          team_a_id: string | null;
-          team_b_id: string | null;
           updated_at: string;
           winner_entry_id: string | null;
-          winner_team_id: string | null;
           work_entry_id: string | null;
-          work_team_id: string | null;
         };
         Insert: {
           advances_to_match_id?: string | null;
@@ -98,13 +94,9 @@ export type Database = {
           round: number;
           scheduled_at?: string | null;
           status?: string;
-          team_a_id?: string | null;
-          team_b_id?: string | null;
           updated_at?: string;
           winner_entry_id?: string | null;
-          winner_team_id?: string | null;
           work_entry_id?: string | null;
-          work_team_id?: string | null;
         };
         Update: {
           advances_to_match_id?: string | null;
@@ -122,13 +114,9 @@ export type Database = {
           round?: number;
           scheduled_at?: string | null;
           status?: string;
-          team_a_id?: string | null;
-          team_b_id?: string | null;
           updated_at?: string;
           winner_entry_id?: string | null;
-          winner_team_id?: string | null;
           work_entry_id?: string | null;
-          work_team_id?: string | null;
         };
         Relationships: [
           {
@@ -167,31 +155,10 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'bracket_matches_team_a_id_fkey';
-            columns: ['team_a_id'];
-            isOneToOne: false;
-            referencedRelation: 'teams';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'bracket_matches_team_b_id_fkey';
-            columns: ['team_b_id'];
-            isOneToOne: false;
-            referencedRelation: 'teams';
-            referencedColumns: ['id'];
-          },
-          {
             foreignKeyName: 'bracket_matches_winner_entry_id_fkey';
             columns: ['winner_entry_id'];
             isOneToOne: false;
             referencedRelation: 'event_team_entries';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'bracket_matches_winner_team_id_fkey';
-            columns: ['winner_team_id'];
-            isOneToOne: false;
-            referencedRelation: 'teams';
             referencedColumns: ['id'];
           },
           {
@@ -206,24 +173,21 @@ export type Database = {
       bracket_seeds: {
         Row: {
           bracket_id: string;
-          entry_id: string | null;
+          entry_id: string;
           pool: string | null;
           seed: number;
-          team_id: string | null;
         };
         Insert: {
           bracket_id: string;
-          entry_id?: string | null;
+          entry_id: string;
           pool?: string | null;
           seed: number;
-          team_id?: string | null;
         };
         Update: {
           bracket_id?: string;
-          entry_id?: string | null;
+          entry_id?: string;
           pool?: string | null;
           seed?: number;
-          team_id?: string | null;
         };
         Relationships: [
           {
@@ -238,13 +202,6 @@ export type Database = {
             columns: ['entry_id'];
             isOneToOne: false;
             referencedRelation: 'event_team_entries';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'bracket_seeds_team_id_fkey';
-            columns: ['team_id'];
-            isOneToOne: false;
-            referencedRelation: 'teams';
             referencedColumns: ['id'];
           },
         ];
@@ -2522,6 +2479,19 @@ export type Database = {
     Functions: {
       attach_team_to_division: {
         Args: { p_division_id: string; p_team_id: string };
+        Returns: undefined;
+      };
+      save_bracket: {
+        Args: {
+          p_bracket_id: string;
+          p_division_id: string;
+          p_format: string;
+          p_config: Json;
+          p_status: string;
+          p_seeds: Json;
+          p_matches: Json;
+          p_match_sets: Json;
+        };
         Returns: undefined;
       };
       save_league_schedule: {

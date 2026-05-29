@@ -2135,14 +2135,125 @@ pass, 8/8 build). No schema or migration changes — the column
 already lives at `bracket_seeds.entry_id`; this slice just brings
 the rest of the names into the same vocabulary.
 
-**Follow-ups remaining on this audit:**
+---
 
-- Cleanup migration drops the legacy `team_*_id` columns from
-  `bracket_seeds` + `bracket_matches` after a soak period (and
-  removes the hydrate fallback in the infra repo).
-- Mirror the `save_league_schedule` RPC shape onto
-  `SupabaseBracketRepository.save` if the parallel partial-state
-  failure mode ever surfaces (lower priority).
+### 2026-12-04 — Drop legacy `team_*_id` columns from `bracket_seeds` + `bracket_matches`
+
+**Closed (this slice).** Removes the legacy participant pointers
+that the 2026-12-04 cutover replaced with `entry_*_id`. Pre-launch
+posture allows the destructive drop without a soak period — the
+audit's "after a soak period" qualifier was about wanting cutover
+reads to settle, which has now happened.
+
+- **Migration.**
+  [supabase/migrations/20260813000000_drop_legacy_team_id_columns.sql](../../supabase/migrations/20260813000000_drop_legacy_team_id_columns.sql)
+  drops:
+  - `bracket_seeds.team_id` — column, partial unique
+    (`bracket_seeds_bracket_team_uidx`), and the exactly-one
+    `bracket_seeds_team_or_entry` check. `entry_id` is promoted
+    to `NOT NULL`; the existing partial unique on
+    `(bracket_id, entry_id) WHERE entry_id IS NOT NULL` keeps
+    its predicate (covers every row now) rather than rewriting
+    the index to drop the WHERE clause.
+  - `bracket_matches.{team_a_id, team_b_id, winner_team_id, work_team_id}`
+    — columns, FKs → `teams(id)`, supporting indexes
+    (`bracket_matches_team_a_idx` / `team_b_idx` /
+    `work_team_idx` auto-drop with their columns), and the four
+    `bracket_matches_team_xor_*` at-most-one polymorphic checks.
+  - `is_bracket_match_captain` is rewritten to resolve captains
+    through `event_team_entries.captain_id` via `entry_a_id` /
+    `entry_b_id`. Walk-in entries have `captain_id IS NULL`, so
+    they correctly never grant captain affordances (only host
+    updates apply to walk-ins).
+- **Infra.**
+  [`SupabaseBracketRepository`](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  drops the legacy fields from `SeedRow` / `MatchRow`, drops the
+  `team_id` column from the seed select, and removes the
+  `?? s.team_id` / `?? m.team_*_id` fallback in `hydrate()`. The
+  bracket reader path is now purely entry-keyed.
+- **Types stub.**
+  [`packages/supabase/src/database.types.ts`](../../packages/supabase/src/database.types.ts)
+  drops the four `team_*_id` fields from `bracket_matches`
+  Row/Insert/Update + the matching FK relationships, drops
+  `team_id` from `bracket_seeds` Row/Insert/Update + the FK
+  relationship to `teams`, and promotes `entry_id` to non-null
+  on `bracket_seeds`.
+
+**Stale fixture noted but untouched.**
+[`supabase/snippets/seed-tournament-fixture.sql`](../../supabase/snippets/seed-tournament-fixture.sql)
+still inserts into `event_teams` (dropped in
+[20260731000000_collapse_team_registration_tables.sql](../../supabase/migrations/20260731000000_collapse_team_registration_tables.sql))
+and writes `bracket_seeds.team_id` / `bracket_matches.team_*_id`.
+The snippet was already broken pre-this-slice and remains broken
+post-slice — refreshing it to the `event_team_entries` /
+`entry_*_id` shape is a separate dev-fixture pass.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+scoreboard warnings, 216 domain + 38 application + 50 web tests
+pass, 8/8 build). Migration not applied locally (Docker off);
+CI/CD applies on deploy.
+
+---
+
+### 2026-12-04 — `save_bracket` RPC (atomic full-replace)
+
+**Closed (this slice).** Mirrors the `save_league_schedule`
+shape onto `SupabaseBracketRepository.save`. The current adapter
+was the same multi-statement upsert / delete / insert / update
+pattern that the league-schedule RPC bundle fixed — bracket
+saves were vulnerable to the identical partial-state failure
+mode. This slice doesn't wait for the failure to surface; same
+posture as the league side.
+
+- **Migration.**
+  [supabase/migrations/20260813000100_save_bracket_rpc.sql](../../supabase/migrations/20260813000100_save_bracket_rpc.sql)
+  defines `save_bracket(p_bracket_id uuid, p_division_id uuid,
+p_format text, p_config jsonb, p_status text, p_seeds jsonb,
+p_matches jsonb, p_match_sets jsonb) returns void`. PL/pgSQL
+  body, `SECURITY INVOKER`, four numbered sections:
+  (1) upsert `event_brackets`;
+  (2) `DELETE bracket_seeds` + bulk `INSERT … SELECT` from
+  `jsonb_array_elements(p_seeds)`;
+  (3) `DELETE bracket_matches` + bulk `INSERT … SELECT` with
+  `advances_to_*` wiring included in the same statement (the
+  self-FK resolves at statement boundary, so the prior two-pass
+  "insert without wiring, then UPDATE wiring" dance is gone);
+  (4) bulk `INSERT bracket_match_sets`. `bracket_match_sets`
+  cascade-deletes with `bracket_matches`, so the prior DELETE
+  in (3) clears them automatically.
+- **Adapter.**
+  [`SupabaseBracketRepository.save`](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  replaces seven PostgREST calls (upsert + delete + insert +
+  delete + insert + N wiring updates + insert) with a single
+  `.rpc('save_bracket', {...})` call. The two-pass wiring
+  update is gone — `advances_to_*` flow through the matches
+  payload as plain fields.
+- **Types stub.**
+  [`packages/supabase/src/database.types.ts`](../../packages/supabase/src/database.types.ts)
+  adds `save_bracket` to the public-schema `Functions` block,
+  alongside `attach_team_to_division` and
+  `save_league_schedule`.
+
+**Scope notes.** Same caveat as `save_league_schedule`: the
+captain-update branch on `RecordMatchResultHandler` keeps
+flowing through `save()` and the admin client bypasses RLS.
+Narrow per-match RPCs + a user-scoped client are a separate
+slice if/when the captain auth gap actually matters.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+scoreboard warnings, 216 domain + 38 application + 50 web tests
+pass, 8/8 build). Migration not applied locally (Docker off);
+CI/CD applies on deploy.
+
+**Audit backlog.** With these two slices landed, every numbered
+follow-up from the original 2026-05-28 audit has either been
+closed via a remediation entry above, documented as a
+no-change decision (P3 #10), or carried forward into the
+out-of-scope tracker (the captain-RLS gap on bracket + league
+match-result writes — a separate auth slice, not an
+event-data-model concern).
 
 ---
 

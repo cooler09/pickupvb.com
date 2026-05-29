@@ -52,8 +52,7 @@ function flattenBracket(row: BracketSelectRow): BracketRow {
 
 type SeedRow = {
   bracket_id: string;
-  team_id: string | null;
-  entry_id: string | null;
+  entry_id: string;
   seed: number;
   pool: string | null;
 };
@@ -65,10 +64,6 @@ type MatchRow = {
   match_number: number;
   pool: string | null;
   bracket_side: BracketSide | null;
-  team_a_id: string | null;
-  team_b_id: string | null;
-  winner_team_id: string | null;
-  work_team_id: string | null;
   entry_a_id: string | null;
   entry_b_id: string | null;
   winner_entry_id: string | null;
@@ -144,7 +139,7 @@ export class SupabaseBracketRepository implements BracketRepository {
     const [seedsRes, matchesRes] = await Promise.all([
       this.client
         .from('bracket_seeds')
-        .select('bracket_id, team_id, entry_id, seed, pool')
+        .select('bracket_id, entry_id, seed, pool')
         .eq('bracket_id', row.id)
         .order('seed', { ascending: true }),
       this.client
@@ -174,12 +169,7 @@ export class SupabaseBracketRepository implements BracketRepository {
     }
 
     const seeds: Seed[] = seedRows.map((s) => ({
-      // Prefer `entry_id` (post-cutover writes); fall back to legacy
-      // `team_id` for rows the backfill missed. Either is treated as an
-      // opaque `EntryId` downstream — UI lookups go through a dual-keyed
-      // map (by both `teamId` and `entryId`) so a legacy value still
-      // resolves.
-      entryId: (s.entry_id ?? s.team_id) as EntryId,
+      entryId: s.entry_id as EntryId,
       seed: s.seed,
       pool: s.pool,
     }));
@@ -190,10 +180,10 @@ export class SupabaseBracketRepository implements BracketRepository {
       matchNumber: m.match_number,
       pool: m.pool,
       bracketSide: m.bracket_side,
-      entryAId: (m.entry_a_id ?? m.team_a_id) as EntryId | null,
-      entryBId: (m.entry_b_id ?? m.team_b_id) as EntryId | null,
-      winnerEntryId: (m.winner_entry_id ?? m.winner_team_id) as EntryId | null,
-      workTeamId: (m.work_entry_id ?? m.work_team_id) as EntryId | null,
+      entryAId: m.entry_a_id as EntryId | null,
+      entryBId: m.entry_b_id as EntryId | null,
+      winnerEntryId: m.winner_entry_id as EntryId | null,
+      workTeamId: m.work_entry_id as EntryId | null,
       court: m.court,
       slot: m.slot,
       status: m.status,
@@ -220,51 +210,25 @@ export class SupabaseBracketRepository implements BracketRepository {
   }
 
   async save(bracket: Bracket): Promise<void> {
-    // Upsert the bracket row.
-    const { error: upErr } = await this.client.from('event_brackets').upsert(
-      {
-        id: bracket.id,
-        // event_id removed in Bundle A — derived from division on read.
-        division_id: bracket.divisionId,
-        format: bracket.format,
-        config: bracket.config,
-        status: bracket.status,
-        updated_at: new Date().toISOString(),
-      } as never,
-      { onConflict: 'id' },
-    );
-    if (upErr) throw new Error(`bracket upsert failed: ${upErr.message}`);
-
-    // Reconcile seeds (delete + reinsert; small set, simple semantics).
-    const { error: dsErr } = await this.client
-      .from('bracket_seeds')
-      .delete()
-      .eq('bracket_id', bracket.id);
-    if (dsErr) throw new Error(`bracket seed delete failed: ${dsErr.message}`);
-    if (bracket.seeds.length > 0) {
-      const seedRows = bracket.seeds.map((s) => ({
-        bracket_id: bracket.id,
-        entry_id: s.entryId,
-        seed: s.seed,
-        pool: s.pool,
-      }));
-      const { error: isErr } = await this.client.from('bracket_seeds').insert(seedRows as never);
-      if (isErr) throw new Error(`bracket seed insert failed: ${isErr.message}`);
-    }
-
-    // Reconcile matches: full delete + reinsert without wiring, then a
-    // second pass to attach `advances_to_*` (avoids forward-FK ordering).
-    const { error: dmErr } = await this.client
-      .from('bracket_matches')
-      .delete()
-      .eq('bracket_id', bracket.id);
-    if (dmErr) throw new Error(`bracket match delete failed: ${dmErr.message}`);
-
-    if (bracket.matches.length === 0) return;
-
-    const matchRows = bracket.matches.map((m) => ({
+    // Full-replace via a single `save_bracket` SECURITY INVOKER RPC
+    // (migration 20260813000100). PostgREST runs the function body in
+    // one transaction so a failed insert anywhere in the seed/match/set
+    // chain rolls back the entire upsert — replaces the prior pattern
+    // of independent .upsert / .delete / .insert / .update calls that
+    // could leave the bracket in a partial state on transient failure.
+    //
+    // Forward references between matches (e.g. `advances_to_match_id`
+    // pointing at a sibling match in the same batch) resolve because
+    // Postgres checks the self-FK at statement boundary; the RPC
+    // inserts every match in a single `INSERT … SELECT` so the prior
+    // two-pass wiring update is gone.
+    const seeds = bracket.seeds.map((s) => ({
+      entry_id: s.entryId,
+      seed: s.seed,
+      pool: s.pool,
+    }));
+    const matches = bracket.matches.map((m) => ({
       id: m.id,
-      bracket_id: bracket.id,
       round: m.round,
       match_number: m.matchNumber,
       pool: m.pool,
@@ -277,37 +241,15 @@ export class SupabaseBracketRepository implements BracketRepository {
       slot: m.slot,
       status: m.status,
       scheduled_at: m.scheduledAt?.toISOString() ?? null,
-      updated_at: new Date().toISOString(),
+      advances_to_match_id: m.advancesToMatchId,
+      advances_to_slot: m.advancesToSlot,
+      loser_advances_to_match_id: m.loserAdvancesToMatchId,
+      loser_advances_to_slot: m.loserAdvancesToSlot,
     }));
-    const { error: imErr } = await this.client.from('bracket_matches').insert(matchRows as never);
-    if (imErr) throw new Error(`bracket match insert failed: ${imErr.message}`);
-
-    // Wiring update (only matches that actually feed somewhere).
-    const wired = bracket.matches.filter(
-      (m) =>
-        m.advancesToMatchId ||
-        m.advancesToSlot ||
-        m.loserAdvancesToMatchId ||
-        m.loserAdvancesToSlot,
-    );
-    for (const m of wired) {
-      const { error } = await this.client
-        .from('bracket_matches')
-        .update({
-          advances_to_match_id: m.advancesToMatchId,
-          advances_to_slot: m.advancesToSlot,
-          loser_advances_to_match_id: m.loserAdvancesToMatchId,
-          loser_advances_to_slot: m.loserAdvancesToSlot,
-        } as never)
-        .eq('id', m.id);
-      if (error) throw new Error(`bracket match wire update failed: ${error.message}`);
-    }
-
-    // Insert sets.
-    const setRows: SetRow[] = [];
+    const matchSets: SetRow[] = [];
     for (const m of bracket.matches) {
       for (const s of m.sets) {
-        setRows.push({
+        matchSets.push({
           match_id: m.id,
           set_number: s.setNumber,
           team_a_score: s.teamAScore,
@@ -315,12 +257,17 @@ export class SupabaseBracketRepository implements BracketRepository {
         });
       }
     }
-    if (setRows.length > 0) {
-      const { error: isetErr } = await this.client
-        .from('bracket_match_sets')
-        .insert(setRows as never);
-      if (isetErr) throw new Error(`bracket sets insert failed: ${isetErr.message}`);
-    }
+    const { error } = await this.client.rpc('save_bracket', {
+      p_bracket_id: bracket.id,
+      p_division_id: bracket.divisionId,
+      p_format: bracket.format,
+      p_config: bracket.config,
+      p_status: bracket.status,
+      p_seeds: seeds,
+      p_matches: matches,
+      p_match_sets: matchSets,
+    } as never);
+    if (error) throw new Error(`bracket save failed: ${error.message}`);
   }
 
   async listRegisteredTeams(_eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]> {
