@@ -26,6 +26,9 @@ function rehydrated(
     },
     autoAcceptTeamInvites: false,
     showProBadge: true,
+    themePreference: 'dark',
+    heroImageUrl: 'https://img/hero.png',
+    businessInfo: { businessName: 'Bumps LLC', businessAddress: '1 Net St', taxId: '12-345' },
     ...overrides,
   });
 }
@@ -150,6 +153,50 @@ describe('UserProfile.changeHandle', () => {
   it('rejects uppercase / underscores', () => {
     const p = rehydrated();
     expect(() => p.changeHandle('Bad_Handle')).toThrow(ValidationError);
+  });
+});
+
+describe('UserProfile auxiliary writes', () => {
+  it('rehydrates theme / hero / business info', () => {
+    const p = rehydrated();
+    expect(p.themePreference).toBe('dark');
+    expect(p.heroImageUrl).toBe('https://img/hero.png');
+    expect(p.businessInfo).toEqual({
+      businessName: 'Bumps LLC',
+      businessAddress: '1 Net St',
+      taxId: '12-345',
+    });
+  });
+
+  it('setTheme replaces the stored preference', () => {
+    const p = rehydrated();
+    p.setTheme('light');
+    expect(p.themePreference).toBe('light');
+  });
+
+  it('setHeroImage sets and clears the url', () => {
+    const p = rehydrated();
+    p.setHeroImage('https://img/new.png');
+    expect(p.heroImageUrl).toBe('https://img/new.png');
+    p.setHeroImage(null);
+    expect(p.heroImageUrl).toBeNull();
+  });
+
+  it('setBusinessInfo replaces the fields and does not alias the input', () => {
+    const p = rehydrated();
+    const info = { businessName: 'New Co', businessAddress: null, taxId: null };
+    p.setBusinessInfo(info);
+    info.businessName = 'mutated';
+    expect(p.businessInfo.businessName).toBe('New Co');
+  });
+
+  it('aux writes leave the editable details untouched', () => {
+    const p = rehydrated();
+    p.setTheme('light');
+    p.setHeroImage(null);
+    expect(p.displayName).toBe('Alice');
+    expect(p.handle).toBe('alice-ace');
+    expect(p.positions.primary).toBe('setter');
   });
 });
 

@@ -1,5 +1,27 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 2b inc. 9 — theme / hero / business writes):**
+> **Three more profile writes drained behind the `UserProfile` aggregate**,
+> following the inc. 8 seam + the [ADR 0020](../adr/0020-user-profile-write-aggregate.md)
+> migration table. The aggregate gained `themePreference` / `heroImageUrl` /
+> `businessInfo` with `setTheme` / `setHeroImage` / `setBusinessInfo` mutators
+> (and `findById`/`save` now round-trip those columns); three thin command
+> handlers (`SetProfileThemeHandler`, `SetProfileHeroImageHandler`,
+> `UpdateBusinessInfoHandler`) join `getUserProfileHandlers()`. Migrated:
+> [theme-actions.ts](../../apps/web/src/app/theme-actions.ts) `setTheme` (cookie
+> write stays at the boundary; profile mirror now best-effort through the handler,
+> which also fixes the latent "anon visitor with no profile row" edge), the
+> **profile branch** of [hero-image-actions.ts](../../apps/web/src/app/hero-image-actions.ts)
+> (events/groups branches stay raw — different aggregates), and
+> [business-info-actions.ts](../../apps/web/src/app/profile/receipts/business-info-actions.ts).
+> All three lose their raw `supabase.from('profiles').update(... as never)`.
+> New domain tests for the mutators. Verify quad green (domain 239, application
+> 42, web 50, infra 7; lint 0 errors). No DB change. Remaining P2-1 profile
+> work: the `friendships` add/remove **writes** (inc. 10 — focused
+> `addFriendEdge`/`removeFriendEdge` repo ops) + the deferred host-social-handles
+> read. See the
+> [inc. 9 journal](../journal/2026-05-29-bundle-phase-2b-inc9-theme-hero-business-writes.md).
+>
 > **Status update (2026-05-29, Phase 2b inc. 8 — UserProfile write aggregate):**
 > **The P2-1 profile _writes_ have started** — the substantive piece the read
 > drain (inc. 1–7) was building toward. The orphan, anemic `UserProfile`
@@ -310,19 +332,26 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 2b inc. 9 — theme / hero / business writes):**
+> three more profile-column writes drained behind the aggregate (ADR 0020
+> migration table). `UserProfile` gained `themePreference` / `heroImageUrl` /
+> `businessInfo` (+ `setTheme` / `setHeroImage` / `setBusinessInfo`); thin
+> handlers join `getUserProfileHandlers()`. Migrated `theme-actions.ts`,
+> `hero-image-actions.ts` (profile branch only — events/groups stay raw), and
+> `business-info-actions.ts` off raw `profiles` updates. **Remaining profile
+> work:** the `friendships` add/remove **writes** (inc. 10 — focused
+> `addFriendEdge`/`removeFriendEdge` repo ops, per ADR 0020 §5) + the deferred
+> `load-event-detail.ts` host-social-handles read.
+>
 > **Progress (2026-05-29, Phase 2b inc. 8 — writes started):** the profile
-> **write** drain has begun. `UserProfile` is promoted to a real write aggregate
+> **write** drain began. `UserProfile` is promoted to a real write aggregate
 > ([ADR 0020](../adr/0020-user-profile-write-aggregate.md)) owning the editable
 > profile fields + the handle/display-name invariants; a client-injected
 > `SupabaseUserRepository` (`findById`/`save`, `23505` → `ConflictError`) is wired
 > per-request behind `getUserProfileHandlers()` (user-scoped, RLS-enforced).
 > `profile/actions.ts` `updateProfile` + `updateHandle` migrated off raw
 > `supabase.from('profiles').update(... as never)` to `UpdateProfileCommand` /
-> `ChangeHandleCommand`. Remaining profile-writes sliced into follow-ups reusing
-> the seam: theme (`theme-actions.ts`), hero (`hero-image-actions.ts` profile
-> branch), business-info (`business-info-actions.ts`), and the `friendships`
-> add/remove writes (`friends/actions.ts` → focused `addFriendEdge`/
-> `removeFriendEdge` repo ops, per ADR 0020 §5).
+> `ChangeHandleCommand`.
 >
 > **Progress (2026-05-29, Phase 2b inc. 1–6):** the social-graph reads moved to
 > `SocialGraphQueries` (Phase 2a), and the profile-read drain is underway via a

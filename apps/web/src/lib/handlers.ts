@@ -66,7 +66,10 @@ import {
   SeedBracketHandler,
   SetTeamExtraMembersHandler,
   ChangeHandleHandler,
+  SetProfileHeroImageHandler,
+  SetProfileThemeHandler,
   UnhideCommunityListingHandler,
+  UpdateBusinessInfoHandler,
   UpdateCommunityListingHandler,
   UpdateEventDivisionHandler,
   UpdateProfileHandler,
@@ -252,12 +255,18 @@ export async function getMatchResultHandlers(): Promise<{
 export async function getUserProfileHandlers(): Promise<{
   updateProfile: UpdateProfileHandler;
   changeHandle: ChangeHandleHandler;
+  setTheme: SetProfileThemeHandler;
+  setHeroImage: SetProfileHeroImageHandler;
+  updateBusinessInfo: UpdateBusinessInfoHandler;
 }> {
   const client = await getServerSupabase();
   const userRepo = new SupabaseUserRepository(client);
   return {
     updateProfile: new UpdateProfileHandler(userRepo),
     changeHandle: new ChangeHandleHandler(userRepo),
+    setTheme: new SetProfileThemeHandler(userRepo),
+    setHeroImage: new SetProfileHeroImageHandler(userRepo),
+    updateBusinessInfo: new UpdateBusinessInfoHandler(userRepo),
   };
 }
 

@@ -2,7 +2,9 @@
 
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import { SetProfileThemeCommand } from '@pickupvb/application';
 import { getServerSupabase } from '@/lib/supabase';
+import { getUserProfileHandlers } from '@/lib/handlers';
 import { isThemePreference, THEME_COOKIE, type ThemePreference } from '@/lib/theme';
 
 const ONE_YEAR = 60 * 60 * 24 * 365;
@@ -32,11 +34,14 @@ export async function setTheme(pref: ThemePreference): Promise<void> {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      // Best-effort; ignore errors so the toggle never blocks the UI.
-      await supabase
-        .from('profiles')
-        .update({ theme_preference: pref } as never)
-        .eq('id', user.id);
+      // Best-effort; ignore errors (e.g. an anon visitor with no profile row)
+      // so the toggle never blocks the UI.
+      try {
+        const { setTheme: handler } = await getUserProfileHandlers();
+        await handler.execute(new SetProfileThemeCommand(user.id, pref));
+      } catch {
+        // ignore
+      }
     }
   }
 

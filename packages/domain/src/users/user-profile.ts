@@ -36,6 +36,17 @@ export interface ProfileDetailsEdit {
   showProBadge: boolean;
 }
 
+/** Buyer-side business fields rendered on printable receipts. */
+export interface ProfileBusinessInfo {
+  businessName: string | null;
+  businessAddress: string | null;
+  taxId: string | null;
+}
+
+/** Persisted theme preference. `'system'` is a device-only choice (cookie) and
+ * is intentionally never stored on the profile — the column is `light | dark`. */
+export type StoredThemePreference = 'light' | 'dark';
+
 /** Handle shape: 3–65 chars, lowercase alphanumerics with internal dashes
  * only (no leading/trailing dash). Enforced in the domain so the rule can't
  * drift between the form and any future caller. */
@@ -80,6 +91,9 @@ export class UserProfile extends AggregateRoot<UserId> {
     private _socialHandles: ProfileSocialHandles,
     private _autoAcceptTeamInvites: boolean,
     private _showProBadge: boolean,
+    private _themePreference: string,
+    private _heroImageUrl: string | null,
+    private _businessInfo: ProfileBusinessInfo,
     private _friends: Set<UserId>,
   ) {
     super(id);
@@ -113,6 +127,9 @@ export class UserProfile extends AggregateRoot<UserId> {
       emptySocialHandles(),
       false,
       false,
+      'light',
+      null,
+      { businessName: null, businessAddress: null, taxId: null },
       new Set(),
     );
   }
@@ -135,6 +152,9 @@ export class UserProfile extends AggregateRoot<UserId> {
     socialHandles: ProfileSocialHandles;
     autoAcceptTeamInvites: boolean;
     showProBadge: boolean;
+    themePreference: string;
+    heroImageUrl: string | null;
+    businessInfo: ProfileBusinessInfo;
   }): UserProfile {
     return new UserProfile(
       props.id,
@@ -147,6 +167,9 @@ export class UserProfile extends AggregateRoot<UserId> {
       { ...props.socialHandles },
       props.autoAcceptTeamInvites,
       props.showProBadge,
+      props.themePreference,
+      props.heroImageUrl,
+      { ...props.businessInfo },
       new Set(),
     );
   }
@@ -178,6 +201,15 @@ export class UserProfile extends AggregateRoot<UserId> {
   get showProBadge(): boolean {
     return this._showProBadge;
   }
+  get themePreference(): string {
+    return this._themePreference;
+  }
+  get heroImageUrl(): string | null {
+    return this._heroImageUrl;
+  }
+  get businessInfo(): Readonly<ProfileBusinessInfo> {
+    return this._businessInfo;
+  }
   get friends(): ReadonlySet<UserId> {
     return this._friends;
   }
@@ -208,6 +240,22 @@ export class UserProfile extends AggregateRoot<UserId> {
       throw new ValidationError(HANDLE_ERROR);
     }
     this._handle = handle;
+  }
+
+  /** Persist a cross-device theme preference (`'system'` stays a device cookie
+   * and never reaches here — the column is `light | dark`). */
+  setTheme(theme: StoredThemePreference): void {
+    this._themePreference = theme;
+  }
+
+  /** Set (or clear, with `null`) the profile hero/banner image URL. */
+  setHeroImage(url: string | null): void {
+    this._heroImageUrl = url;
+  }
+
+  /** Replace the buyer-side business/receipt fields. */
+  setBusinessInfo(info: ProfileBusinessInfo): void {
+    this._businessInfo = { ...info };
   }
 
   addFriend(friendId: UserId): void {

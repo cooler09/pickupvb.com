@@ -12,7 +12,8 @@ const EDITABLE_COLUMNS =
   'id, display_name, first_name, last_name, home_city, handle, ' +
   'primary_position, secondary_position, tertiary_position, ' +
   'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url, ' +
-  'auto_accept_team_invites, show_pro_badge';
+  'auto_accept_team_invites, show_pro_badge, ' +
+  'theme_preference, hero_image_url, business_name, business_address, tax_id';
 
 type EditableRow = {
   id: string;
@@ -32,6 +33,11 @@ type EditableRow = {
   website_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
+  theme_preference: string | null;
+  hero_image_url: string | null;
+  business_name: string | null;
+  business_address: string | null;
+  tax_id: string | null;
 };
 
 /**
@@ -81,6 +87,13 @@ export class SupabaseUserRepository implements UserRepository {
       },
       autoAcceptTeamInvites: row.auto_accept_team_invites ?? false,
       showProBadge: row.show_pro_badge ?? false,
+      themePreference: row.theme_preference ?? 'light',
+      heroImageUrl: row.hero_image_url,
+      businessInfo: {
+        businessName: row.business_name,
+        businessAddress: row.business_address,
+        taxId: row.tax_id,
+      },
     });
   }
 
@@ -104,6 +117,11 @@ export class SupabaseUserRepository implements UserRepository {
         website_url: user.socialHandles.website,
         auto_accept_team_invites: user.autoAcceptTeamInvites,
         show_pro_badge: user.showProBadge,
+        theme_preference: user.themePreference,
+        hero_image_url: user.heroImageUrl,
+        business_name: user.businessInfo.businessName,
+        business_address: user.businessInfo.businessAddress,
+        tax_id: user.businessInfo.taxId,
       } as never)
       .eq('id', user.id);
 
