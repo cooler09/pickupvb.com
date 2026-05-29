@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { Group, GroupId, NotFoundError, UserId, type GroupRepository } from '@pickupvb/domain';
+import {
+  ConflictError,
+  Group,
+  GroupId,
+  NotFoundError,
+  UserId,
+  type GroupRepository,
+} from '@pickupvb/domain';
 import {
   AddGroupMemberCommand,
   ChangeGroupMemberRoleCommand,
   CreateGroupCommand,
+  DeleteGroupCommand,
   FollowGroupCommand,
   RemoveGroupMemberCommand,
   UnfollowGroupCommand,
@@ -113,5 +121,34 @@ export class UnfollowGroupHandler {
 
   async execute({ groupId, userId }: UnfollowGroupCommand): Promise<void> {
     await this.repo.removeFollowEdge(GroupId(groupId), UserId(userId));
+  }
+}
+
+/**
+ * Soft-delete a group (ADR 0021). The aggregate enforces owner-only
+ * authorization; the cross-aggregate "no upcoming hosted events" guard and the
+ * RLS-quirk admin soft-delete write are injected closures (the composition root
+ * owns those clients — the `loadEventClaimFacts` precedent). Because the owner
+ * check is enforced in the application layer first, the admin-client write is a
+ * sanctioned bypass (AGENTS.md pitfall #8).
+ */
+export class DeleteGroupHandler {
+  constructor(
+    private readonly repo: GroupRepository,
+    private readonly hostsUpcomingEvents: (groupId: string) => Promise<boolean>,
+    private readonly softDelete: (groupId: string) => Promise<void>,
+  ) {}
+
+  async execute({ groupId, actorId }: DeleteGroupCommand): Promise<{ slug: string }> {
+    const group = await this.repo.findById(GroupId(groupId));
+    if (!group) throw new NotFoundError('group', groupId);
+    group.assertCanDelete(UserId(actorId));
+    if (await this.hostsUpcomingEvents(groupId)) {
+      throw new ConflictError(
+        'This group is hosting upcoming events. Cancel or reassign them first.',
+      );
+    }
+    await this.softDelete(groupId);
+    return { slug: group.slug };
   }
 }

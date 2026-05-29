@@ -502,3 +502,11 @@ export class UnfollowGroupCommand {
     public readonly userId: string,
   ) {}
 }
+
+export class DeleteGroupCommand {
+  constructor(
+    public readonly groupId: string,
+    /** The caller; must be the group owner. */
+    public readonly actorId: string,
+  ) {}
+}

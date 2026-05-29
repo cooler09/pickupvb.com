@@ -276,3 +276,21 @@ describe('Group.memberDiff', () => {
     expect(g.memberDiff()).toEqual({ added: [], removed: [], roleChanged: [] });
   });
 });
+
+describe('Group.assertCanDelete', () => {
+  it('allows an owner', () => {
+    const g = withRoster([[OWNER, 'owner']]);
+    expect(() => g.assertCanDelete(OWNER)).not.toThrow();
+  });
+
+  it('rejects an admin, member, or outsider (UnauthorizedError)', () => {
+    const g = withRoster([
+      [OWNER, 'owner'],
+      [ADMIN, 'admin'],
+      [MEMBER, 'member'],
+    ]);
+    expect(() => g.assertCanDelete(ADMIN)).toThrow(UnauthorizedError);
+    expect(() => g.assertCanDelete(MEMBER)).toThrow(UnauthorizedError);
+    expect(() => g.assertCanDelete(OUTSIDER)).toThrow(UnauthorizedError);
+  });
+});

@@ -232,6 +232,16 @@ export class Group extends AggregateRoot<GroupId> {
     this._members.set(userId, role);
   }
 
+  /** Authorize a (soft) delete — owner-only (mirrors the `groups_delete` RLS).
+   * A guard, not a state change: `deleted_at` isn't modeled on the aggregate
+   * (a loaded `Group` is always non-deleted), so the write is a focused
+   * repository op done after this check. */
+  assertCanDelete(actorId: UserId): void {
+    if (this._members.get(actorId) !== 'owner') {
+      throw new UnauthorizedError('Only the group owner can delete it.');
+    }
+  }
+
   /** Delta between the current roster and the loaded baseline. */
   memberDiff(): GroupMemberDiff {
     const added: GroupMemberChange[] = [];

@@ -1,5 +1,23 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 4 — group delete; group _writes_ complete):**
+> `deleteGroupAction` folded onto the aggregate — **with this, every group
+> _write_ (create/update, membership, follow, delete) is behind `GroupRepository`.**
+> The owner-only delete rule is now `Group.assertCanDelete` (the domain rule,
+> using the roster); a new `DeleteGroupHandler` does owner-authz then runs two
+> injected closures (the `loadEventClaimFacts` precedent): a `hostsUpcomingEvents`
+> cross-aggregate guard (user-client `events` count) and a `softDelete`
+> admin-client `deleted_at` flip (the documented RLS-quirk write — sanctioned
+> because the owner check runs first, AGENTS.md pitfall #8).
+> [delete-actions.ts](../../apps/web/src/app/groups/%5Bid%5D/edit/delete-actions.ts)
+> is now a thin orchestrator with **zero raw `supabase` queries**. +2
+> `assertCanDelete` domain tests. Verify quad green (domain 267, application 42,
+> web 50, infra 7; lint 0 errors). No DB change. **Remaining P2-1:** the group
+> _read_ sites (`groups/**` pages, sitemap, profile, events/new) → a
+> `GroupQueries` read port (opportunistic), the deferred host-social-handles
+> read, and the notification outbox. See the
+> [Phase 3 inc. 4 journal](../journal/2026-05-29-bundle-phase-3-inc4-group-delete.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 3 — group follow edges):**
 > The `group_followers` follow/unfollow writes moved to focused
 > `GroupRepository.addFollowEdge` / `removeFollowEdge` ops (idempotent upsert /
@@ -411,6 +429,13 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 4 — group delete; group writes done):**
+> `deleteGroupAction` folded onto the aggregate (`Group.assertCanDelete` owner
+> rule) + a `DeleteGroupHandler` with injected events-guard + admin soft-delete
+> closures; the action is now query-free. **All group _writes_ are behind
+> `GroupRepository`.** Remaining: the group _read_ sites → a `GroupQueries`
+> read port (opportunistic).
+>
 > **Progress (2026-05-29, Phase 3 inc. 3 — follow edges):** `group_followers`
 > follow/unfollow moved to focused `GroupRepository.addFollowEdge` /
 > `removeFollowEdge` (idempotent upsert / delete; no aggregate, no group-side

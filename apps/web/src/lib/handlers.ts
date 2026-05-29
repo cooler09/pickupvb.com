@@ -71,6 +71,7 @@ import {
   ChangeGroupMemberRoleHandler,
   ChangeHandleHandler,
   CreateGroupHandler,
+  DeleteGroupHandler,
   FollowGroupHandler,
   RemoveGroupMemberHandler,
   UnfollowGroupHandler,
@@ -88,6 +89,7 @@ import {
   WithdrawTeamHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
+import { getAdminSupabase } from './supabase-admin';
 import { analytics } from './analytics';
 
 export { analytics };
@@ -298,9 +300,38 @@ export async function getGroupHandlers(): Promise<{
   changeGroupMemberRole: ChangeGroupMemberRoleHandler;
   followGroup: FollowGroupHandler;
   unfollowGroup: UnfollowGroupHandler;
+  deleteGroup: DeleteGroupHandler;
 }> {
   const client = await getServerSupabase();
   const groupRepo = new SupabaseGroupRepository(client);
+
+  // Cross-aggregate guard: does the group host any upcoming, non-cancelled
+  // event? Read on the user-scoped client (the owner can see their group's
+  // events via the events_select policy).
+  const hostsUpcomingEvents = async (groupId: string): Promise<boolean> => {
+    const { count } = await client
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_group_id', groupId)
+      .neq('status', 'cancelled')
+      .gt('starts_at', new Date().toISOString());
+    return (count ?? 0) > 0;
+  };
+
+  // RLS quirk: the `groups_select` policy (deleted_at is null) is applied as an
+  // implicit WITH CHECK on UPDATE, so flipping `deleted_at` via the user client
+  // fails (the after-image would be invisible). Owner authorization is enforced
+  // by `Group.assertCanDelete` first, so the admin-client write is sanctioned
+  // (AGENTS.md pitfall #8).
+  const softDeleteGroup = async (groupId: string): Promise<void> => {
+    const admin = getAdminSupabase();
+    const { error } = await admin
+      .from('groups')
+      .update({ deleted_at: new Date().toISOString() } as never)
+      .eq('id', groupId);
+    if (error) throw new Error(`Group soft-delete failed: ${error.message}`);
+  };
+
   return {
     createGroup: new CreateGroupHandler(groupRepo),
     updateGroupProfile: new UpdateGroupProfileHandler(groupRepo),
@@ -309,6 +340,7 @@ export async function getGroupHandlers(): Promise<{
     changeGroupMemberRole: new ChangeGroupMemberRoleHandler(groupRepo),
     followGroup: new FollowGroupHandler(groupRepo),
     unfollowGroup: new UnfollowGroupHandler(groupRepo),
+    deleteGroup: new DeleteGroupHandler(groupRepo, hostsUpcomingEvents, softDeleteGroup),
   };
 }
 
