@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { hasProBenefits } from '@/lib/admin';
@@ -32,15 +33,10 @@ export default async function NewEventPage(props: {
   }
 
   // Groups the user can host as (must be owner/admin).
-  const { data: groupRows } = await supabase
-    .from('group_members')
-    .select('role, groups:groups!inner(id, name)')
-    .eq('user_id', user.id)
-    .in('role', ['owner', 'admin']);
-  type Row = { role: string; groups: { id: string; name: string } | null };
-  const hostableGroups = ((groupRows as Row[] | null) ?? [])
-    .map((r) => r.groups)
-    .filter((g): g is { id: string; name: string } => g !== null);
+  const manageableGroups = await new SupabaseGroupQueryRepository(supabase).listManageableGroups(
+    user.id,
+  );
+  const hostableGroups = manageableGroups.map((g) => ({ id: g.id, name: g.name }));
 
   // Stripe payout readiness drives whether on-platform payment controls
   // are rendered at all. `getHostStripeAccount` returns the connected

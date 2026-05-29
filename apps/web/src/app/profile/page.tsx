@@ -5,7 +5,10 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
-import { SupabaseSocialGraphRepository } from '@pickupvb/infrastructure';
+import {
+  SupabaseGroupQueryRepository,
+  SupabaseSocialGraphRepository,
+} from '@pickupvb/infrastructure';
 import { FriendsList } from '@/components/friends-list';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
@@ -96,30 +99,16 @@ export default async function ProfilePage() {
   ]);
 
   // Groups the user is a member of (with role).
-  const { data: myGroupRows } = await supabase
-    .from('group_members')
-    .select('role, groups:groups!inner(id, slug, name, avatar_url, home_city)')
-    .eq('user_id', user.id);
-  type MyGroupRow = {
-    role: 'owner' | 'admin' | 'member';
-    groups: {
-      id: string;
-      slug: string;
-      name: string;
-      avatar_url: string | null;
-      home_city: string | null;
-    } | null;
-  };
-  const myGroups = ((myGroupRows as MyGroupRow[] | null) ?? []).filter(
-    (r): r is MyGroupRow & { groups: NonNullable<MyGroupRow['groups']> } => r.groups !== null,
+  const memberships = await new SupabaseGroupQueryRepository(supabase).listMembershipsForUser(
+    user.id,
   );
-  const groupsForSection: MyGroup[] = myGroups.map((r) => ({
-    id: r.groups.id,
-    slug: r.groups.slug,
-    name: r.groups.name,
-    avatarUrl: r.groups.avatar_url,
-    homeCity: r.groups.home_city,
-    role: r.role,
+  const groupsForSection: MyGroup[] = memberships.map((m) => ({
+    id: m.group.id,
+    slug: m.group.slug,
+    name: m.group.name,
+    avatarUrl: m.group.avatarUrl,
+    homeCity: m.group.homeCity,
+    role: m.role,
   }));
 
   // Outstanding team invites.

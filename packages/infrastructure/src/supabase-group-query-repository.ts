@@ -4,8 +4,10 @@ import type {
   GroupDirectoryPage,
   GroupDirectoryQuery,
   GroupMemberCard,
+  GroupMembership,
   GroupQueries,
   GroupRole,
+  GroupSlugEntry,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { SupabaseProfileRepository, escapeLike } from './supabase-profile-repository.js';
@@ -14,6 +16,10 @@ type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 const CARD_COLUMNS = 'id, slug, name, description, avatar_url, home_city, region';
 const DETAIL_COLUMNS = `${CARD_COLUMNS}, hero_image_url, created_by`;
+// Embedded card via the single-valued group_members → groups FK.
+const MEMBERSHIP_COLUMNS = `role, groups:groups!inner(${CARD_COLUMNS})`;
+
+type MembershipRow = { role: string; groups: CardRow | null };
 
 type CardRow = {
   id: string;
@@ -135,5 +141,43 @@ export class SupabaseGroupQueryRepository implements GroupQueries {
       .maybeSingle();
     if (error) throw new Error(`findViewerRole failed: ${error.message}`);
     return ((data as { role: string } | null)?.role as GroupRole | undefined) ?? null;
+  }
+
+  async listMembershipsForUser(userId: string): Promise<GroupMembership[]> {
+    const { data, error } = await this.client
+      .from('group_members')
+      .select(MEMBERSHIP_COLUMNS)
+      .eq('user_id', userId);
+    if (error) throw new Error(`listMembershipsForUser failed: ${error.message}`);
+    const rows = (data as unknown as MembershipRow[] | null) ?? [];
+    return rows
+      .filter((r): r is MembershipRow & { groups: CardRow } => r.groups !== null)
+      .map((r) => ({ group: toCard(r.groups), role: r.role as GroupRole }));
+  }
+
+  async listManageableGroups(userId: string): Promise<GroupCard[]> {
+    const { data, error } = await this.client
+      .from('group_members')
+      .select(MEMBERSHIP_COLUMNS)
+      .eq('user_id', userId)
+      .in('role', ['owner', 'admin']);
+    if (error) throw new Error(`listManageableGroups failed: ${error.message}`);
+    const rows = (data as unknown as MembershipRow[] | null) ?? [];
+    return rows
+      .map((r) => r.groups)
+      .filter((g): g is CardRow => g !== null)
+      .map(toCard);
+  }
+
+  async listSlugs(): Promise<GroupSlugEntry[]> {
+    const { data, error } = await this.client
+      .from('groups')
+      .select('slug, updated_at')
+      .is('deleted_at', null);
+    if (error) throw new Error(`listSlugs failed: ${error.message}`);
+    return ((data as { slug: string; updated_at: string | null }[] | null) ?? []).map((r) => ({
+      slug: r.slug,
+      updatedAt: r.updated_at,
+    }));
   }
 }

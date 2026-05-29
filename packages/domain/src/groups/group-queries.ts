@@ -51,6 +51,18 @@ export interface GroupMemberCard {
   profile: ProfileCard | null;
 }
 
+/** A group the viewer belongs to, with their role (the "my groups" section). */
+export interface GroupMembership {
+  group: GroupCard;
+  role: GroupRole;
+}
+
+/** Minimal entry for the sitemap. */
+export interface GroupSlugEntry {
+  slug: string;
+  updatedAt: string | null;
+}
+
 export interface GroupQueries {
   /** Paginated public directory, optionally filtered by a search term. */
   searchDirectory(query: GroupDirectoryQuery): Promise<GroupDirectoryPage>;
@@ -65,4 +77,10 @@ export interface GroupQueries {
   /** The viewer's role in the group, or `null` if not a member — for the
    * owner/admin gates on the manage/edit pages. */
   findViewerRole(groupId: string, userId: string): Promise<GroupRole | null>;
+  /** Every group the user is a member of, with their role (profile "my groups"). */
+  listMembershipsForUser(userId: string): Promise<GroupMembership[]>;
+  /** Groups the user can host events under (owner/admin only). */
+  listManageableGroups(userId: string): Promise<GroupCard[]>;
+  /** All public (non-deleted) group slugs + last-modified, for the sitemap. */
+  listSlugs(): Promise<GroupSlugEntry[]>;
 }

@@ -1,5 +1,23 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 8 — group membership joins + sitemap; groups subdomain drained):**
+> The last group reads — `listMembershipsForUser` (profile "my groups", `GroupMembership[]`),
+> `listManageableGroups` (owner/admin groups for `events/new`), and `listSlugs`
+> (sitemap) — moved onto `GroupQueries`. [profile/page.tsx](../../apps/web/src/app/profile/page.tsx),
+> [events/new/page.tsx](../../apps/web/src/app/events/new/page.tsx), and
+> [sitemap.ts](../../apps/web/src/app/sitemap.ts) migrated off their raw
+> `group_members` / `groups` reads (the nested `groups!inner` join now lives in
+> the adapter). **With this, the groups subdomain (Phase 3) is effectively
+> drained** — every group page/action read+write is behind `GroupRepository` /
+> `GroupQueries`, save three documented exceptions: the cross-aggregate
+> `hero-image-actions.ts` groups branch, the `group-viewer-actions.tsx`
+> browser-island follow-state read, and the sanctioned admin soft-delete closure
+> in `handlers.ts`. Verify quad green (domain 267, application 42, web 50,
+> infra 7; lint 0 errors). No DB change. **Remaining P2-1:** the notification
+> outbox (`notification_outbox` / `broadcasts` / `push_subscriptions`, a separate
+> subdomain) and the deferred `load-event-detail.ts` host-social read. See the
+> [Phase 3 inc. 8 journal](../journal/2026-05-29-bundle-phase-3-inc8-group-membership-joins.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 7 — group roster + viewer-role reads):**
 > The members roster + the owner/admin gates moved behind the read port:
 > `GroupQueries.listMembers(groupId)` (a `GroupMemberCard[]` joining the roster to
@@ -483,6 +501,16 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 8 — membership joins + sitemap; subdomain
+> drained):** `listMembershipsForUser` / `listManageableGroups` / `listSlugs`
+> landed; `profile`, `events/new`, and `sitemap` migrated off their raw
+> `group_members` / `groups` reads. **The groups subdomain is now drained** —
+> all page/action reads+writes go through `GroupRepository` / `GroupQueries`
+> except three documented exceptions (cross-aggregate `hero-image-actions.ts`
+> branch, the `group-viewer-actions.tsx` browser-island follow read, the
+> sanctioned admin soft-delete closure). Fix item #1 (GroupRepository + Group
+> aggregate) is **done**.
+>
 > **Progress (2026-05-29, Phase 3 inc. 7 — roster + viewer-role reads):** the
 > members roster + owner/admin gates moved to `GroupQueries.listMembers`
 > (`GroupMemberCard`, composing `ProfileQueries.findCardsByIds`) +

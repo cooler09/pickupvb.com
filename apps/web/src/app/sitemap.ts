@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { IS_PROD_HOST, PROD_APP_URL } from '@/lib/app-url';
 
@@ -59,12 +60,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }));
 
-    const { data: groupRows } = await supabase.from('groups').select('slug, updated_at');
-    type GroupRow = { slug: string; updated_at: string | null };
-    const groups = (groupRows as GroupRow[] | null) ?? [];
+    const groups = await new SupabaseGroupQueryRepository(supabase).listSlugs();
     const groupEntries: MetadataRoute.Sitemap = groups.map((g) => ({
       url: `${BASE}/groups/${g.slug}`,
-      lastModified: g.updated_at ? new Date(g.updated_at) : now,
+      lastModified: g.updatedAt ? new Date(g.updatedAt) : now,
       changeFrequency: 'weekly',
       priority: 0.5,
     }));
