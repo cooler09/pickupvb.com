@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { Group, GroupId, NotFoundError, UserId, type GroupRepository } from '@pickupvb/domain';
-import { CreateGroupCommand, UpdateGroupProfileCommand } from '../messages';
+import {
+  AddGroupMemberCommand,
+  ChangeGroupMemberRoleCommand,
+  CreateGroupCommand,
+  RemoveGroupMemberCommand,
+  UpdateGroupProfileCommand,
+} from '../messages';
 
 /**
  * Create a group (ADR 0021). The aggregate validates the name + slug; the
@@ -39,5 +45,50 @@ export class UpdateGroupProfileHandler {
     group.editProfile(edit);
     await this.repo.save(group);
     return { slug: group.slug };
+  }
+}
+
+/**
+ * Add a member to a group (ADR 0021). The aggregate enforces owner/admin
+ * authorization; `saveMembers` persists the single new row.
+ */
+export class AddGroupMemberHandler {
+  constructor(private readonly repo: GroupRepository) {}
+
+  async execute({ groupId, actorId, userId, role }: AddGroupMemberCommand): Promise<void> {
+    const group = await this.repo.findById(GroupId(groupId));
+    if (!group) throw new NotFoundError('group', groupId);
+    group.addMember(UserId(actorId), UserId(userId), role);
+    await this.repo.saveMembers(group);
+  }
+}
+
+/**
+ * Remove a member (owner/admin, or self-leave). The aggregate refuses to remove
+ * the last owner; `saveMembers` deletes the single row.
+ */
+export class RemoveGroupMemberHandler {
+  constructor(private readonly repo: GroupRepository) {}
+
+  async execute({ groupId, actorId, userId }: RemoveGroupMemberCommand): Promise<void> {
+    const group = await this.repo.findById(GroupId(groupId));
+    if (!group) throw new NotFoundError('group', groupId);
+    group.removeMember(UserId(actorId), UserId(userId));
+    await this.repo.saveMembers(group);
+  }
+}
+
+/**
+ * Change a member's role (owner/admin). The aggregate refuses to demote the
+ * last owner; `saveMembers` updates the single row.
+ */
+export class ChangeGroupMemberRoleHandler {
+  constructor(private readonly repo: GroupRepository) {}
+
+  async execute({ groupId, actorId, userId, role }: ChangeGroupMemberRoleCommand): Promise<void> {
+    const group = await this.repo.findById(GroupId(groupId));
+    if (!group) throw new NotFoundError('group', groupId);
+    group.changeMemberRole(UserId(actorId), UserId(userId), role);
+    await this.repo.saveMembers(group);
   }
 }

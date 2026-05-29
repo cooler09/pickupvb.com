@@ -1,4 +1,11 @@
-import { ConflictError, Group, GroupId, UserId, type GroupRepository } from '@pickupvb/domain';
+import {
+  ConflictError,
+  Group,
+  GroupId,
+  UserId,
+  type GroupRepository,
+  type GroupRole,
+} from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
@@ -16,6 +23,8 @@ type GroupRow = {
   created_by: string | null;
 };
 
+type MemberRow = { user_id: string; role: string };
+
 /**
  * Supabase adapter for the `Group` write aggregate (ADR 0021).
  *
@@ -32,15 +41,25 @@ export class SupabaseGroupRepository implements GroupRepository {
   constructor(private readonly client: SupabaseClient) {}
 
   async findById(id: GroupId): Promise<Group | null> {
-    const { data, error } = await this.client
-      .from('groups')
-      .select(GROUP_COLUMNS)
-      .eq('id', id)
-      .is('deleted_at', null)
-      .maybeSingle();
-    if (error) throw new Error(`Group.findById failed: ${error.message}`);
-    if (!data) return null;
-    const row = data as unknown as GroupRow;
+    const [groupRes, memberRes] = await Promise.all([
+      this.client
+        .from('groups')
+        .select(GROUP_COLUMNS)
+        .eq('id', id)
+        .is('deleted_at', null)
+        .maybeSingle(),
+      this.client.from('group_members').select('user_id, role').eq('group_id', id),
+    ]);
+    if (groupRes.error) throw new Error(`Group.findById failed: ${groupRes.error.message}`);
+    if (!groupRes.data) return null;
+    if (memberRes.error) {
+      throw new Error(`Group.findById members failed: ${memberRes.error.message}`);
+    }
+    const row = groupRes.data as unknown as GroupRow;
+    const members = ((memberRes.data as MemberRow[] | null) ?? []).map((m) => ({
+      userId: UserId(m.user_id),
+      role: m.role as GroupRole,
+    }));
     return Group.fromPersistence({
       id: GroupId(row.id),
       slug: row.slug,
@@ -50,6 +69,7 @@ export class SupabaseGroupRepository implements GroupRepository {
       region: row.region,
       avatarUrl: row.avatar_url,
       createdBy: UserId(row.created_by ?? ''),
+      members,
     });
   }
 
@@ -92,6 +112,33 @@ export class SupabaseGroupRepository implements GroupRepository {
         throw new ConflictError('That slug is taken — pick another.', { slug: group.slug });
       }
       throw new Error(`Group.save failed: ${error.message}`);
+    }
+  }
+
+  async saveMembers(group: Group): Promise<void> {
+    const diff = group.memberDiff();
+
+    for (const m of diff.added) {
+      const { error } = await this.client
+        .from('group_members')
+        .insert({ group_id: group.id, user_id: m.userId, role: m.role } as never);
+      if (error) throw new Error(`Group.saveMembers insert failed: ${error.message}`);
+    }
+    for (const m of diff.roleChanged) {
+      const { error } = await this.client
+        .from('group_members')
+        .update({ role: m.role } as never)
+        .eq('group_id', group.id)
+        .eq('user_id', m.userId);
+      if (error) throw new Error(`Group.saveMembers role update failed: ${error.message}`);
+    }
+    for (const userId of diff.removed) {
+      const { error } = await this.client
+        .from('group_members')
+        .delete()
+        .eq('group_id', group.id)
+        .eq('user_id', userId);
+      if (error) throw new Error(`Group.saveMembers delete failed: ${error.message}`);
     }
   }
 }

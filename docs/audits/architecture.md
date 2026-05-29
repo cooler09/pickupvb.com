@@ -1,5 +1,25 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 2 — group membership + last-owner invariant):**
+> The `Group` aggregate gained its **membership roster** (`Map<UserId,
+GroupRole>`, loaded by `findById`) with `addMember` / `removeMember` /
+> `changeMemberRole` enforcing owner/admin authorization **and a new invariant
+> nothing enforced before — a group can't lose its last owner** (RLS never
+> guarded this, so a group could be orphaned). Roster changes persist via a
+> focused `GroupRepository.saveMembers` that applies only the `memberDiff`
+> (single-row INSERT/DELETE/UPDATE) — deliberately **not** clear-and-insert (a
+> member's self-leave can't satisfy the `group_members`/`groups` RLS as a
+> clear-all, and it'd drop `joined_at`) and **not** the profile `save()` (a
+> self-leave can't UPDATE the `groups` row). `AddGroupMemberHandler` /
+> `RemoveGroupMemberHandler` / `ChangeGroupMemberRoleHandler` join
+> `getGroupHandlers()`; [member-actions.ts](../../apps/web/src/app/groups/member-actions.ts)
+> migrated off raw `supabase.from('group_members')` — expected `DomainError`s are
+> swallowed to preserve the prior silent-block UX, unexpected failures bubble.
+> +15 `Group` membership domain tests. Verify quad green (domain 265, application
+> 42, web 50, infra 7; lint 0 errors). No DB change. **Next:** follow edges
+> (inc. 3), then delete (inc. 4). See the
+> [Phase 3 inc. 2 journal](../journal/2026-05-29-bundle-phase-3-inc2-group-membership.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 1 — Group aggregate + create/update):**
 > **Phase 3 (the groups subdomain) has begun.** Stood up a `Group` aggregate
 > ([group.ts](../../packages/domain/src/groups/group.ts), new `GroupId` brand +
@@ -374,6 +394,15 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 2 — group membership):** the `Group`
+> aggregate gained its membership roster + `addMember`/`removeMember`/
+> `changeMemberRole` (owner/admin authz + the **last-owner invariant**, which
+> nothing enforced before); `GroupRepository.saveMembers` persists the
+> `memberDiff` via focused per-row writes (RLS-safe self-leave, `joined_at`
+> preserved). `member-actions.ts` migrated off raw `supabase.from('group_members')`.
+> Remaining group writes: follow edges (inc. 3), soft-delete (inc. 4); reads →
+> `GroupQueries`.
+>
 > **Progress (2026-05-29, Phase 3 inc. 1 — Group aggregate; groups subdomain
 > started):** Fix item #1 below (stand up `GroupRepository` + `Group` aggregate)
 > is underway. [ADR 0021](../adr/0021-group-aggregate-and-repository.md) + a

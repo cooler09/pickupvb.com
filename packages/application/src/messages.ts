@@ -11,6 +11,7 @@ import type {
   CoHostParty,
   FollowingFeedFilters,
   GroupProfileEdit,
+  GroupRole,
   ProfileBusinessInfo,
   ProfileDetailsEdit,
   StoredThemePreference,
@@ -458,5 +459,32 @@ export class UpdateGroupProfileCommand {
   constructor(
     public readonly groupId: string,
     public readonly edit: GroupProfileEdit,
+  ) {}
+}
+
+export class AddGroupMemberCommand {
+  constructor(
+    public readonly groupId: string,
+    /** The caller; must be an owner/admin of the group. */
+    public readonly actorId: string,
+    public readonly userId: string,
+    public readonly role: GroupRole,
+  ) {}
+}
+
+export class RemoveGroupMemberCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly actorId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+export class ChangeGroupMemberRoleCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly actorId: string,
+    public readonly userId: string,
+    public readonly role: GroupRole,
   ) {}
 }

@@ -67,8 +67,11 @@ import {
   SeedBracketHandler,
   SetTeamExtraMembersHandler,
   AddFriendHandler,
+  AddGroupMemberHandler,
+  ChangeGroupMemberRoleHandler,
   ChangeHandleHandler,
   CreateGroupHandler,
+  RemoveGroupMemberHandler,
   RemoveFriendHandler,
   SetProfileHeroImageHandler,
   SetProfileThemeHandler,
@@ -288,12 +291,18 @@ export async function getUserProfileHandlers(): Promise<{
 export async function getGroupHandlers(): Promise<{
   createGroup: CreateGroupHandler;
   updateGroupProfile: UpdateGroupProfileHandler;
+  addGroupMember: AddGroupMemberHandler;
+  removeGroupMember: RemoveGroupMemberHandler;
+  changeGroupMemberRole: ChangeGroupMemberRoleHandler;
 }> {
   const client = await getServerSupabase();
   const groupRepo = new SupabaseGroupRepository(client);
   return {
     createGroup: new CreateGroupHandler(groupRepo),
     updateGroupProfile: new UpdateGroupProfileHandler(groupRepo),
+    addGroupMember: new AddGroupMemberHandler(groupRepo),
+    removeGroupMember: new RemoveGroupMemberHandler(groupRepo),
+    changeGroupMemberRole: new ChangeGroupMemberRoleHandler(groupRepo),
   };
 }
 

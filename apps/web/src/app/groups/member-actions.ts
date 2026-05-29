@@ -1,20 +1,46 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import {
+  AddGroupMemberCommand,
+  ChangeGroupMemberRoleCommand,
+  RemoveGroupMemberCommand,
+} from '@pickupvb/application';
+import { DomainError } from '@pickupvb/domain';
 import { requireSession } from '@/lib/server-auth';
+import { getGroupHandlers } from '@/lib/handlers';
+
+type Role = 'owner' | 'admin' | 'member';
+
+/**
+ * These run via plain `<form action={…}>` submissions (no client state). Before
+ * the ADR 0021 migration they relied on RLS and silently swallowed the write
+ * error, so an unauthorized attempt was a no-op. We preserve that UX: expected
+ * `DomainError`s (unauthorized, last-owner invariant, conflict, not-found) are
+ * swallowed; only genuinely unexpected failures bubble.
+ */
+async function runMemberOp(op: () => Promise<void>, returnPath?: string): Promise<void> {
+  try {
+    await op();
+  } catch (err) {
+    if (!(err instanceof DomainError)) throw err;
+    return;
+  }
+  if (returnPath) revalidatePath(returnPath);
+}
 
 export async function addGroupMember(
   groupId: string,
   userId: string,
-  role: 'owner' | 'admin' | 'member',
+  role: Role,
   returnPath?: string,
 ): Promise<void> {
   if (!groupId || !userId) return;
-  const { supabase } = await requireSession();
-  await supabase
-    .from('group_members')
-    .insert({ group_id: groupId, user_id: userId, role } as never);
-  if (returnPath) revalidatePath(returnPath);
+  const { user } = await requireSession();
+  await runMemberOp(async () => {
+    const { addGroupMember: handler } = await getGroupHandlers();
+    await handler.execute(new AddGroupMemberCommand(groupId, user.id, userId, role));
+  }, returnPath);
 }
 
 export async function removeGroupMember(
@@ -23,23 +49,23 @@ export async function removeGroupMember(
   returnPath?: string,
 ): Promise<void> {
   if (!groupId || !userId) return;
-  const { supabase } = await requireSession();
-  await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', userId);
-  if (returnPath) revalidatePath(returnPath);
+  const { user } = await requireSession();
+  await runMemberOp(async () => {
+    const { removeGroupMember: handler } = await getGroupHandlers();
+    await handler.execute(new RemoveGroupMemberCommand(groupId, user.id, userId));
+  }, returnPath);
 }
 
 export async function changeGroupMemberRole(
   groupId: string,
   userId: string,
-  role: 'owner' | 'admin' | 'member',
+  role: Role,
   returnPath?: string,
 ): Promise<void> {
   if (!groupId || !userId) return;
-  const { supabase } = await requireSession();
-  await supabase
-    .from('group_members')
-    .update({ role } as never)
-    .eq('group_id', groupId)
-    .eq('user_id', userId);
-  if (returnPath) revalidatePath(returnPath);
+  const { user } = await requireSession();
+  await runMemberOp(async () => {
+    const { changeGroupMemberRole: handler } = await getGroupHandlers();
+    await handler.execute(new ChangeGroupMemberRoleCommand(groupId, user.id, userId, role));
+  }, returnPath);
 }
