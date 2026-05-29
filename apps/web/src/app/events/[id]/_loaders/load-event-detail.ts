@@ -13,6 +13,7 @@ import { unstable_cache } from 'next/cache';
 import type { Route } from 'next';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError, type EventDetailReadModel, type EventPosition } from '@pickupvb/domain';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { handlers } from '@/lib/handlers';
 import type { ViewerSession } from '@/lib/server-auth';
 import { isAnonymousUser } from '@/lib/server-auth';
@@ -399,12 +400,14 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
         ...new Set(regs.map((r) => r.captain_id).filter((id): id is string => !!id)),
       ];
 
-      const [{ data: memberData }, { data: captainData }] = await Promise.all([
+      const [{ data: memberData }, captainCards] = await Promise.all([
         admin
           .from('event_team_entry_members_public')
           .select('id, entry_id, display_name, sort_order')
           .in('entry_id', regIds),
-        admin.from('profiles_public').select('id, display_name').in('id', captainIds),
+        // Captain display names via the ProfileQueries port (admin client —
+        // safe inside unstable_cache, no cookies).
+        new SupabaseProfileRepository(admin).findCardsByIds(captainIds),
       ]);
 
       const membersByReg = new Map<string, AdHocMemberPublicRow[]>();
@@ -412,11 +415,6 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
         const arr = membersByReg.get(m.entry_id) ?? [];
         arr.push(m);
         membersByReg.set(m.entry_id, arr);
-      }
-
-      const captainMap = new Map<string, string | null>();
-      for (const c of (captainData as { id: string; display_name: string | null }[] | null) ?? []) {
-        captainMap.set(c.id, c.display_name);
       }
 
       return regs.map((r) => ({
@@ -429,7 +427,9 @@ function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPublicRow[]
         // Walk-ins (captain_id = null) carry their captain's name on the
         // entry's display_name; for ad-hoc, fall back to the linked profile.
         captainDisplayName:
-          r.captain_id === null ? r.display_name : (captainMap.get(r.captain_id) ?? null),
+          r.captain_id === null
+            ? r.display_name
+            : (captainCards.get(r.captain_id)?.displayName ?? null),
         members: (membersByReg.get(r.id) ?? []).sort((a, b) => a.sort_order - b.sort_order),
       }));
     },

@@ -295,13 +295,16 @@ pages and `*-actions.ts`.
 > pinning `escapeLike` (inc. 5), and the **friend-edges read** — `loadFriendEdges`
 > moved onto `SocialGraphQueries.getFriendEdges` (composing
 > `ProfileQueries.findCardsByIds`), the `lib/mappers/friend.ts` web mapper
-> deleted, `FriendsList` on camelCase `ProfileCard` (inc. 6). The survey refined
-> the count to **42 profile/friend query occurrences** (`profiles` ×21,
-> `profiles_public` ×16, `friendships` ×5) across ~32 files; heterogeneity
-> (3 clients, id-vs-handle, card-vs-full, PII split) makes this multi-increment.
-> Next: the `load-event-detail.ts` profile reads (deferred — admin-client
-> `unstable_cache` loader), then the `friendships`/`profiles` **writes**
-> (→ `UserProfile` aggregate — the read seam now sits in front of it).
+> deleted, `FriendsList` on camelCase `ProfileCard` (inc. 6); and the
+> `load-event-detail.ts` cached captain-names read (inc. 7, `findCardsByIds`
+> with the admin client — confirms the port works inside `unstable_cache`). The
+> survey refined the count to **42 profile/friend query occurrences**
+> (`profiles` ×21, `profiles_public` ×16, `friendships` ×5) across ~32 files;
+> heterogeneity (3 clients, id-vs-handle, card-vs-full, PII split) makes this
+> multi-increment. **Reads are now nearly fully drained.** Remaining: the
+> `load-event-detail.ts` L705 host-social-handles read (distinct shape), then
+> the `friendships`/`profiles` **writes** (→ `UserProfile` aggregate — the read
+> seam now sits in front of it; the next substantive piece, ADR-worthy).
 > `GroupRepository` (#1 below) and the notification outbox (#3) are untouched.
 
 - **Where:** 76 files under [apps/web/src/app](../../apps/web/src/app). Worst offenders are the loaders/actions for entity families with no port: `groups/**` (`groups`, `group_members`, `group_followers`), `profile/**` + `players/**` + `friends/**` (`profiles`, `profiles_public`, `friendships`), notifications (`notification_outbox`, `broadcasts`, `push_subscriptions`), and event sidecars (`event_tips`, `event_sponsors`, `event_payment_audit`).
