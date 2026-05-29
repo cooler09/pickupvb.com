@@ -2524,6 +2524,10 @@ export type Database = {
         Args: { p_division_id: string; p_team_id: string };
         Returns: undefined;
       };
+      save_league_schedule: {
+        Args: { p_division_id: string; p_matches: Json };
+        Returns: undefined;
+      };
       _postgis_deprecate: {
         Args: { newname: string; oldname: string; version: string };
         Returns: undefined;

@@ -90,20 +90,13 @@ export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepositor
 
   async save(schedule: LeagueSchedule): Promise<void> {
     // Full-replace strategy mirrors SupabaseBracketRepository.save — the
-    // aggregate owns the entire match list, so a delete-all + reinsert keeps
-    // adapter complexity bounded. Wrap in a transaction once we have an RPC
-    // layer (follow-up).
-    const { error: delErr } = await this.client
-      .from('league_schedule_matches')
-      .delete()
-      .eq('division_id', schedule.divisionId);
-    if (delErr) throw new Error(`league schedule clear failed: ${delErr.message}`);
-
-    if (schedule.matches.length === 0) return;
-
-    const rows = schedule.matches.map((m) => ({
+    // aggregate owns the entire match list. The delete + insert pair is
+    // wrapped in a single SECURITY INVOKER RPC
+    // (`save_league_schedule`, migration 20260812000000) so PostgREST
+    // runs both as one transaction; a failed insert rolls back the
+    // delete instead of leaving the division with a partial slate.
+    const matches = schedule.matches.map((m) => ({
       id: m.id,
-      division_id: schedule.divisionId,
       week_number: m.weekNumber,
       scheduled_at: m.scheduledAt.toISOString(),
       court_label: m.courtLabel,
@@ -114,9 +107,10 @@ export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepositor
       status: m.status,
       notes: m.notes,
     }));
-    const { error: insErr } = await this.client
-      .from('league_schedule_matches')
-      .insert(rows as never);
-    if (insErr) throw new Error(`league schedule insert failed: ${insErr.message}`);
+    const { error } = await this.client.rpc('save_league_schedule', {
+      p_division_id: schedule.divisionId,
+      p_matches: matches,
+    } as never);
+    if (error) throw new Error(`league schedule save failed: ${error.message}`);
   }
 }

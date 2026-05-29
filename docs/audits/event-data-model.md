@@ -1999,6 +1999,86 @@ build).
 
 ---
 
+### 2026-12-04 — `save_league_schedule` RPC (atomic full-replace)
+
+**Closed (this slice).** Wraps the league-schedule adapter's
+delete-then-reinsert in a single SQL function so PostgREST runs both
+in one transaction — a failed insert rolls back the delete instead of
+leaving the division with a partial slate. Closes the
+`LeagueSchedule` RPC follow-up that the original P1 #2 thin-pass
+landed.
+
+- **Migration.**
+  [supabase/migrations/20260812000000_save_league_schedule_rpc.sql](../../supabase/migrations/20260812000000_save_league_schedule_rpc.sql)
+  defines `save_league_schedule(p_division_id uuid, p_matches jsonb)
+returns void`. Single `language sql`, `security invoker` body —
+  one `delete … where division_id = p_division_id` followed by an
+  `insert … select … from jsonb_array_elements(p_matches)`.
+  `SECURITY INVOKER` matches the
+  [`attach_team_to_division`](../../supabase/migrations/20260801000000_attach_team_to_division_rpc.sql)
+  precedent: the production adapter uses the admin client and
+  bypasses RLS, but the INVOKER posture leaves the existing
+  `league_schedule_matches_insert` / `_delete` policies in place
+  for any future user-scoped caller. JSON nulls and missing keys
+  both cast cleanly to SQL null for every nullable column, so the
+  adapter sends one shape regardless of which fields a match row
+  populates.
+- **Adapter.**
+  [`SupabaseLeagueScheduleRepository.save`](../../packages/infrastructure/src/supabase-league-schedule-repository.ts)
+  replaced the separate `.from('league_schedule_matches').delete()`
+  - `.insert()` pair with one `.rpc('save_league_schedule', {
+p_division_id, p_matches })` call. The match-row shape stays
+    identical apart from dropping the duplicate `division_id` key
+    (the RPC takes it once as `p_division_id` instead of stamping it
+    onto every row). Two round-trips → one.
+- **Types stub.**
+  [`packages/supabase/src/database.types.ts`](../../packages/supabase/src/database.types.ts)
+  hand-patched per the Docker-off convention — added
+  `save_league_schedule` to the public-schema `Functions` block,
+  alongside `attach_team_to_division`.
+
+**Scope notes.**
+
+- The captain-update branch on `league_schedule_matches` (the RLS
+  policy allows update by `is_league_match_captain`) keeps routing
+  through `save()` via `RecordLeagueMatchResultHandler`. Today's
+  admin-client adapter bypasses the policy entirely; tightening
+  that path is a separate slice — the right shape is a narrow
+  `record_league_match_result` RPC plus a user-scoped client. Not
+  in this bundle.
+- The bracket adapter (`SupabaseBracketRepository.save`) still
+  uses the unwrapped delete+insert pattern. Equivalent
+  vulnerability, but lower priority — host bracket edits are
+  bursty (setup window), while league hosts edit weekly. Logged
+  here as a parallel follow-up: apply the same RPC shape to
+  `event_brackets` + `bracket_seeds` + `bracket_matches` +
+  `bracket_match_sets` if/when an outage actually exhibits the
+  partial-state failure mode.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 4 unrelated
+warnings — 3 scoreboard `react-hooks/set-state-in-effect`, 1
+domain `no-unused-vars` for `SkillLevel` in
+`volleyball-event.test.ts` — 216 domain + 38 application + 50 web
+tests pass, 8/8 build). Migration not applied locally (Docker
+off); CI/CD applies on deploy.
+
+**Follow-ups remaining on this audit:**
+
+- Rename `Seed.teamId` / `PoolStanding.teamId` to `entryId`
+  (and the form field name `team_id` → `entry_id` in
+  `seedBracketFromForm` / `randomizeSeedFromForm`) — mechanical
+  rename touching every seed/standings call site.
+- Cleanup migration drops the legacy `team_*_id` columns from
+  `bracket_seeds` + `bracket_matches` after a soak period (and
+  removes the hydrate fallback in the infra repo).
+- Mirror the `save_league_schedule` RPC shape onto
+  `SupabaseBracketRepository.save` if the parallel partial-state
+  failure mode ever surfaces (lower priority — see scope notes
+  above).
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)
