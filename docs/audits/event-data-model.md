@@ -1746,6 +1746,69 @@ deploy.
 
 ---
 
+### 2026-12-04 — Bracket seeds `entry_id` groundwork (companion to matches bundle)
+
+**Closed (this slice).** Schema-only companion to the bracket-matches
+`entry_*_id` bundle above. Lands the polymorphic pair on
+`bracket_seeds` so the same future filter-loosening bundle can flip
+seeds and matches together rather than leaving seeds on the
+roster-only path indefinitely. Application layer is again deliberately
+unchanged — `SupabaseBracketRepository` continues to insert
+`team_id` only.
+
+- **Migration.**
+  [supabase/migrations/20260810000000_bracket_seeds_entry_id_column.sql](../../supabase/migrations/20260810000000_bracket_seeds_entry_id_column.sql).
+  Adds nullable `entry_id uuid references public.event_team_entries(id)
+on delete cascade` + supporting index. Backfills via the same
+  `event_brackets.division_id` join used for matches (rostered live
+  entries, deleted_at IS NULL, source='roster', same team_id).
+- **Primary-key rotation.** The original PK was
+  `(bracket_id, team_id)` — incompatible with making `team_id`
+  nullable. The existing `unique (bracket_id, seed)` was promoted to
+  PK (seeds are unique per bracket by construction; no synthetic id
+  column required). A `DO` block drops all auto-named unique
+  constraints to be robust to whatever name Postgres assigned to the
+  original `unique (bracket_id, seed)`.
+- **Exactly-one check** (`(team_id IS NULL) <> (entry_id IS NULL)`) —
+  contrast with the at-most-one constraints on `bracket_matches`. A
+  match slot can legitimately be unwired (both null = upstream
+  feeder hasn't produced a winner yet); a seed without a participant
+  is meaningless, so exactly-one is the right invariant.
+- **Participant uniqueness.** Two partial unique indexes:
+  `bracket_seeds_bracket_team_uidx` WHERE `team_id IS NOT NULL` and
+  `bracket_seeds_bracket_entry_uidx` WHERE `entry_id IS NOT NULL`.
+  Same shape as the existing partial-unique pattern on
+  `event_team_entries`.
+- **FK retention.** `team_id`'s existing FK to `teams(id)` stays —
+  nullable FK columns are valid; `null` means "no rostered team
+  reference," not "broken reference."
+- **Types stub.** Hand-patched per the Docker-off convention —
+  `team_id` flipped to `string | null` on Row, became optional on
+  Insert/Update; added `entry_id: string | null` plus its FK
+  Relationships entry, sorted alphabetically.
+- **Out of scope (deferred).** No change to `SupabaseBracketRepository`
+  (the inserts at line ~230 still write `team_id` only — the
+  exactly-one check is satisfied because they don't supply
+  `entry_id`). No domain or application-layer changes.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+warnings, test counts unchanged from prior bundle, 8/8 build).
+Migration not applied locally (Docker off); CI/CD applies on
+deploy.
+
+**Follow-ups remaining on this audit:**
+
+- `LeagueSchedule` RPC (consumer of the forfeit flag).
+- Bracket-reader `source='roster'` filter loosening (the application
+  half — `BracketTeamLite.entryId` + `listRegisteredTeams`, plus
+  the write-side cutover on `SupabaseBracketRepository.save`,
+  `record-division-winner-actions.ts`, and the seed-insert path —
+  followed eventually by dropping the `team_*_id` columns once
+  callers cut over). Both schema halves now landed.
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)

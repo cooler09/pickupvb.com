@@ -193,21 +193,24 @@ export type Database = {
       bracket_seeds: {
         Row: {
           bracket_id: string;
+          entry_id: string | null;
           pool: string | null;
           seed: number;
-          team_id: string;
+          team_id: string | null;
         };
         Insert: {
           bracket_id: string;
+          entry_id?: string | null;
           pool?: string | null;
           seed: number;
-          team_id: string;
+          team_id?: string | null;
         };
         Update: {
           bracket_id?: string;
+          entry_id?: string | null;
           pool?: string | null;
           seed?: number;
-          team_id?: string;
+          team_id?: string | null;
         };
         Relationships: [
           {
@@ -215,6 +218,13 @@ export type Database = {
             columns: ['bracket_id'];
             isOneToOne: false;
             referencedRelation: 'event_brackets';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'bracket_seeds_entry_id_fkey';
+            columns: ['entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
           {
