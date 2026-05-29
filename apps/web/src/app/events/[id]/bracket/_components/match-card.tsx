@@ -13,10 +13,10 @@ export function MatchCard(props: {
   viewerId: string | null;
 }) {
   const m = props.match;
-  const teamA = m.teamAId ? props.teamById.get(m.teamAId) : null;
-  const teamB = m.teamBId ? props.teamById.get(m.teamBId) : null;
+  const teamA = m.entryAId ? props.teamById.get(m.entryAId) : null;
+  const teamB = m.entryBId ? props.teamById.get(m.entryBId) : null;
   const workTeam = m.workTeamId ? props.teamById.get(m.workTeamId) : null;
-  const winner = m.winnerTeamId;
+  const winner = m.winnerEntryId;
   const canEdit =
     props.isHost ||
     (props.viewerId !== null &&
@@ -46,8 +46,8 @@ export function MatchCard(props: {
         </p>
       )}
       <ul className="space-y-1">
-        <TeamRow team={teamA} wins={aWins} isWinner={winner === m.teamAId} />
-        <TeamRow team={teamB} wins={bWins} isWinner={winner === m.teamBId} />
+        <TeamRow team={teamA} wins={aWins} isWinner={winner === m.entryAId} />
+        <TeamRow team={teamB} wins={bWins} isWinner={winner === m.entryBId} />
       </ul>
 
       {m.sets.length > 0 && (

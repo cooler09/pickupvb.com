@@ -1,5 +1,4 @@
-import type { TeamId } from '../events/volleyball-event.js';
-import type { Match, MatchId, Seed } from './match.js';
+import type { EntryId, Match, MatchId, Seed } from './match.js';
 import { InvariantViolation, ValidationError } from '../shared/result.js';
 
 /**
@@ -55,7 +54,7 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
   const slots = bracketSlots(P);
 
   // teamForSlot[slotIdx] = team at canonical slot position (1-indexed)
-  const teamForSlot = new Map<number, TeamId>();
+  const teamForSlot = new Map<number, EntryId>();
   for (const s of sorted) teamForSlot.set(s.seed, s.teamId);
 
   const totalRounds = Math.log2(P);
@@ -78,9 +77,9 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
         matchNumber: m + 1,
         pool: null,
         bracketSide: null,
-        teamAId: null,
-        teamBId: null,
-        winnerTeamId: null,
+        entryAId: null,
+        entryBId: null,
+        winnerEntryId: null,
         workTeamId: null,
         court: null,
         slot: null,
@@ -107,15 +106,15 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
     const teamB = teamForSlot.get(slotB) ?? null;
     const m = round1[i];
     if (!m) continue;
-    m.teamAId = teamA;
-    m.teamBId = teamB;
+    m.entryAId = teamA;
+    m.entryBId = teamB;
     if (teamA && !teamB) {
       m.status = 'bye';
-      m.winnerTeamId = teamA;
+      m.winnerEntryId = teamA;
       placeAdvancedTeam(matchesByRound, m, teamA);
     } else if (teamB && !teamA) {
       m.status = 'bye';
-      m.winnerTeamId = teamB;
+      m.winnerEntryId = teamB;
       placeAdvancedTeam(matchesByRound, m, teamB);
     } else if (!teamA && !teamB) {
       // Phantom-vs-phantom: should not happen with sensible seeding.
@@ -127,12 +126,12 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
   return matches;
 }
 
-function placeAdvancedTeam(matchesByRound: Match[][], fromMatch: Match, teamId: TeamId): void {
+function placeAdvancedTeam(matchesByRound: Match[][], fromMatch: Match, teamId: EntryId): void {
   if (!fromMatch.advancesToMatchId || !fromMatch.advancesToSlot) return;
   const next = findMatch(matchesByRound, fromMatch.advancesToMatchId);
   if (!next) return;
-  if (fromMatch.advancesToSlot === 'a') next.teamAId = teamId;
-  else next.teamBId = teamId;
+  if (fromMatch.advancesToSlot === 'a') next.entryAId = teamId;
+  else next.entryBId = teamId;
 }
 
 function findMatch(matchesByRound: Match[][], id: MatchId): Match | null {
@@ -170,7 +169,7 @@ export function generateRoundRobin(
     throw new ValidationError('maxRounds must be >= 1.', { maxRounds });
   }
   const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
-  const teams: (TeamId | null)[] = sorted.map((s) => s.teamId);
+  const teams: (EntryId | null)[] = sorted.map((s) => s.teamId);
   if (teams.length % 2 === 1) teams.push(null); // bye marker
 
   const n = teams.length;
@@ -180,10 +179,10 @@ export function generateRoundRobin(
   const matches: Match[] = [];
 
   // Fix team 0; rotate the rest.
-  let rotation: (TeamId | null)[] = teams.slice(1);
+  let rotation: (EntryId | null)[] = teams.slice(1);
   const fixed = teams[0] ?? null;
   for (let round = 1; round <= rounds; round++) {
-    const arrangement: (TeamId | null)[] = [fixed, ...rotation];
+    const arrangement: (EntryId | null)[] = [fixed, ...rotation];
     let matchNum = 1;
     for (let i = 0; i < half; i++) {
       const a = arrangement[i] ?? null;
@@ -196,9 +195,9 @@ export function generateRoundRobin(
         matchNumber: matchNum++,
         pool: null,
         bracketSide: null,
-        teamAId: a,
-        teamBId: b,
-        winnerTeamId: null,
+        entryAId: a,
+        entryBId: b,
+        winnerEntryId: null,
         workTeamId: null,
         court: null,
         slot: null,
@@ -245,9 +244,9 @@ function emptyMatch(
     matchNumber,
     pool: null,
     bracketSide: side,
-    teamAId: null,
-    teamBId: null,
-    winnerTeamId: null,
+    entryAId: null,
+    entryBId: null,
+    winnerEntryId: null,
     workTeamId: null,
     court: null,
     slot: null,
@@ -396,7 +395,7 @@ export function generateDoubleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
   // ---- Place WB R1 teams in canonical bracket order -------------------
   const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
   const slots = bracketSlots(P);
-  const teamForSlot = new Map<number, TeamId>();
+  const teamForSlot = new Map<number, EntryId>();
   for (const s of sorted) teamForSlot.set(s.seed, s.teamId);
   const wbR1 = wb[0]!;
   for (let i = 0; i < wbR1.length; i++) {
@@ -404,8 +403,8 @@ export function generateDoubleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
     const slotB = slots[i * 2 + 1];
     if (slotA === undefined || slotB === undefined) continue;
     const m = wbR1[i]!;
-    m.teamAId = teamForSlot.get(slotA) ?? null;
-    m.teamBId = teamForSlot.get(slotB) ?? null;
+    m.entryAId = teamForSlot.get(slotA) ?? null;
+    m.entryBId = teamForSlot.get(slotB) ?? null;
   }
 
   return [...wb.flat(), ...lb.flat(), grandFinal];
@@ -537,12 +536,12 @@ function assignIdleWorkTeams(matches: Match[], poolSeeds: ReadonlyArray<Seed>): 
     byRound.set(m.round, list);
   }
   for (const [, roundMatches] of byRound) {
-    const playing = new Set<TeamId>();
+    const playing = new Set<EntryId>();
     for (const m of roundMatches) {
-      if (m.teamAId) playing.add(m.teamAId);
-      if (m.teamBId) playing.add(m.teamBId);
+      if (m.entryAId) playing.add(m.entryAId);
+      if (m.entryBId) playing.add(m.entryBId);
     }
-    const idle: TeamId[] = [];
+    const idle: EntryId[] = [];
     for (const t of teamIds) if (!playing.has(t)) idle.push(t);
     if (idle.length === 1) {
       const work = idle[0]!;
@@ -555,7 +554,7 @@ function assignIdleWorkTeams(matches: Match[], poolSeeds: ReadonlyArray<Seed>): 
  * Mutates `matches` in place, assigning each match a 1-indexed `slot`
  * and a `court` label. Implements greedy graph coloring on the conflict
  * graph: two matches conflict (cannot share a slot) when they share any
- * team (`teamAId`, `teamBId`, or `workTeamId`) **or** would land on the
+ * team (`entryAId`, `entryBId`, or `workTeamId`) **or** would land on the
  * same physical court in that slot.
  *
  * Each match's allowed courts come from `courtsByPool[m.pool]` when set,
@@ -578,7 +577,7 @@ export function assignCourtsAndSlots(
   const hasAny =
     courtLabels.length > 0 || Object.values(courtsByPool).some((list) => list.length > 0);
   if (!hasAny) return;
-  type SlotState = { teams: Set<TeamId>; courts: Set<string> };
+  type SlotState = { teams: Set<EntryId>; courts: Set<string> };
   const slots: SlotState[] = [];
   const allowedFor = (m: Match): ReadonlyArray<string> => {
     if (m.pool && Object.prototype.hasOwnProperty.call(courtsByPool, m.pool)) {
@@ -589,9 +588,9 @@ export function assignCourtsAndSlots(
   for (const m of matches) {
     const allowed = allowedFor(m);
     if (allowed.length === 0) continue;
-    const involved: TeamId[] = [];
-    if (m.teamAId) involved.push(m.teamAId);
-    if (m.teamBId) involved.push(m.teamBId);
+    const involved: EntryId[] = [];
+    if (m.entryAId) involved.push(m.entryAId);
+    if (m.entryBId) involved.push(m.entryBId);
     if (m.workTeamId) involved.push(m.workTeamId);
     let assignedSlot = -1;
     let assignedCourt: string | null = null;
@@ -618,7 +617,7 @@ export function assignCourtsAndSlots(
       break;
     }
     if (assignedSlot === -1) {
-      slots.push({ teams: new Set<TeamId>(), courts: new Set<string>() });
+      slots.push({ teams: new Set<EntryId>(), courts: new Set<string>() });
       assignedSlot = slots.length - 1;
       assignedCourt = allowed[0]!;
     }
@@ -642,14 +641,14 @@ export function assignCourtsAndSlots(
  *   pool's standings are short of `advancingPerPool` entries.
  */
 export function generatePlayoffFromStandings(
-  poolStandings: ReadonlyArray<ReadonlyArray<TeamId>>,
+  poolStandings: ReadonlyArray<ReadonlyArray<EntryId>>,
   advancingPerPool: number,
   mkId: IdFactory,
   roundOffset: number,
 ): Match[] {
   if (advancingPerPool < 1)
     throw new ValidationError('Must advance at least 1 per pool.', { advancingPerPool });
-  const advancing: TeamId[] = [];
+  const advancing: EntryId[] = [];
   for (let pos = 0; pos < advancingPerPool; pos++) {
     for (const standings of poolStandings) {
       const t = standings[pos];

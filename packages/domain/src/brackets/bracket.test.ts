@@ -7,17 +7,18 @@ import {
   generatePoolPlay,
   generateRoundRobin,
   type BracketId,
+  type EntryId,
   type Match,
   type MatchId,
   type Seed,
 } from './index.js';
 import type { DivisionId } from '../events/division.js';
-import type { EventId, TeamId } from '../events/volleyball-event.js';
+import type { EventId } from '../events/volleyball-event.js';
 import { ValidationError } from '../shared/result.js';
 
 // ---- Helpers ----------------------------------------------------------
 
-const tid = (n: number): TeamId => `team-${n}` as TeamId;
+const tid = (n: number): EntryId => `team-${n}` as unknown as EntryId;
 
 function seedTeams(n: number): Seed[] {
   return Array.from({ length: n }, (_, i) => ({
@@ -132,7 +133,7 @@ describe('generateRoundRobin', () => {
     const matches = generateRoundRobin(seeds, mkIdFactory(), 2);
     const counts = new Map<string, number>();
     for (const m of matches) {
-      for (const t of [m.teamAId, m.teamBId]) {
+      for (const t of [m.entryAId, m.entryBId]) {
         if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
       }
     }
@@ -176,7 +177,7 @@ describe('generatePoolPlay', () => {
     // Each team appears in exactly 2 matches.
     const counts = new Map<string, number>();
     for (const m of matches) {
-      for (const t of [m.teamAId, m.teamBId]) {
+      for (const t of [m.entryAId, m.entryBId]) {
         if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
       }
     }
@@ -229,7 +230,7 @@ describe('generatePoolPlay', () => {
     for (const m of matches) {
       const key = `${m.pool}|${m.round}`;
       const set = seen.get(key) ?? new Set<string>();
-      for (const t of [m.teamAId, m.teamBId]) {
+      for (const t of [m.entryAId, m.entryBId]) {
         if (t) {
           expect(set.has(t)).toBe(false);
           set.add(t);
@@ -263,8 +264,8 @@ describe('generatePoolPlay', () => {
     for (const m of matches) {
       expect(m.workTeamId).not.toBeNull();
       // Work team must not also be playing the match.
-      expect(m.workTeamId).not.toBe(m.teamAId);
-      expect(m.workTeamId).not.toBe(m.teamBId);
+      expect(m.workTeamId).not.toBe(m.entryAId);
+      expect(m.workTeamId).not.toBe(m.entryBId);
     }
     // Per (pool, round), the work team is the same on every match in that round.
     const seen = new Map<string, string>();
@@ -297,8 +298,8 @@ describe('generatePoolPlay', () => {
     );
     for (const m of matches) {
       expect(m.workTeamId).not.toBeNull();
-      expect(m.workTeamId).not.toBe(m.teamAId);
-      expect(m.workTeamId).not.toBe(m.teamBId);
+      expect(m.workTeamId).not.toBe(m.entryAId);
+      expect(m.workTeamId).not.toBe(m.entryBId);
     }
   });
 });
@@ -358,7 +359,7 @@ describe('assignCourtsAndSlots', () => {
     for (const [, list] of bySlot) {
       const teams = new Set<string>();
       for (const m of list) {
-        for (const t of [m.teamAId, m.teamBId]) {
+        for (const t of [m.entryAId, m.entryBId]) {
           if (t) {
             expect(teams.has(t)).toBe(false);
             teams.add(t);
@@ -415,7 +416,7 @@ describe('assignCourtsAndSlots', () => {
     for (const [, list] of bySlot) {
       const involved = new Set<string>();
       for (const m of list) {
-        for (const t of [m.teamAId, m.teamBId, m.workTeamId]) {
+        for (const t of [m.entryAId, m.entryBId, m.workTeamId]) {
           if (t) {
             expect(involved.has(t)).toBe(false);
             involved.add(t);
@@ -624,7 +625,7 @@ describe('Bracket.reorderPoolMatches', () => {
   it('does not change opponents', () => {
     const b = setupPoolPlay();
     const before = new Map(
-      b.matches.filter((m) => m.pool === 'A').map((m) => [String(m.id), [m.teamAId, m.teamBId]]),
+      b.matches.filter((m) => m.pool === 'A').map((m) => [String(m.id), [m.entryAId, m.entryBId]]),
     );
     const reversed = b.matches
       .filter((m) => m.pool === 'A')
@@ -634,7 +635,7 @@ describe('Bracket.reorderPoolMatches', () => {
     b.reorderPoolMatches('A', reversed);
     for (const m of b.matches.filter((m) => m.pool === 'A')) {
       const orig = before.get(String(m.id))!;
-      expect([m.teamAId, m.teamBId]).toEqual(orig);
+      expect([m.entryAId, m.entryBId]).toEqual(orig);
     }
   });
 
@@ -659,7 +660,7 @@ describe('Bracket.reorderPoolMatches', () => {
     for (const [, list] of bySlot) {
       const teams = new Set<string>();
       for (const m of list) {
-        for (const t of [m.teamAId, m.teamBId]) {
+        for (const t of [m.entryAId, m.entryBId]) {
           if (t) {
             expect(teams.has(t)).toBe(false);
             teams.add(t);
@@ -697,7 +698,7 @@ describe('Bracket.reorderPoolMatches', () => {
     const b = setupPoolPlay();
     const poolA = b.matches.filter((m) => m.pool === 'A');
     // Record a result on the first non-bye match in pool A.
-    const target = poolA.find((m) => m.status === 'pending' && m.teamAId && m.teamBId)!;
+    const target = poolA.find((m) => m.status === 'pending' && m.entryAId && m.entryBId)!;
     b.recordResult({
       matchId: target.id,
       sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }],

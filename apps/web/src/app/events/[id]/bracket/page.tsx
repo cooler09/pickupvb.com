@@ -73,7 +73,15 @@ export default async function BracketPage(props: {
     repositories.bracketRepo.listRegisteredTeams(event.id as never, selectedDivision.id as never),
   ]);
 
-  const teamById = new Map(registeredTeams.map((t) => [t.teamId, t]));
+  // Dual-keyed: rows are indexed under both `teamId` (FK → teams.id, used by
+  // pre-cutover bracket data) and `entryId` (FK → event_team_entries.id,
+  // used by post-cutover writes). Match-card and standings lookups stringify
+  // the id and hit whichever variant the underlying row carries.
+  const teamById = new Map<string, (typeof registeredTeams)[number]>();
+  for (const t of registeredTeams) {
+    teamById.set(t.entryId, t);
+    teamById.set(t.teamId, t);
+  }
   const isHost = !!event.canManage && isRealUser;
   const viewerId = user?.id ?? null;
   const noticeCode = pickQuery(searchParams, 'notice');

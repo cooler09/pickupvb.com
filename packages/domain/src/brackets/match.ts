@@ -1,9 +1,17 @@
 import type { Brand } from '../shared/brand.js';
-import type { TeamId } from '../events/volleyball-event.js';
 import type { AdvanceSlot, BracketSide, MatchStatus } from './enums.js';
 
 export type BracketId = Brand<string, 'BracketId'>;
 export type MatchId = Brand<string, 'MatchId'>;
+/**
+ * Identifier for an `event_team_entries` row — the polymorphic
+ * participant identity (covers both roster `event_teams` and ad-hoc
+ * `event_team_registrations`). Bracket matches store this for the
+ * A/B/winner/work slots; persistence writes the `entry_*_id` columns on
+ * `bracket_matches`. Legacy `team_*_id` columns stay nullable for
+ * backwards compatibility but are no longer written.
+ */
+export type EntryId = Brand<string, 'EntryId'>;
 
 /** A single set/game within a match (e.g. 25-21). */
 export interface MatchSet {
@@ -14,7 +22,13 @@ export interface MatchSet {
 
 /** A team's seeding within the bracket. `pool` only set for pool play. */
 export interface Seed {
-  readonly teamId: TeamId;
+  /**
+   * Participant identity — points at `event_team_entries.id`. The field
+   * keeps its legacy `teamId` name (cleanup is a follow-up bundle) but
+   * the type now reflects what the bracket persists into
+   * `bracket_seeds.entry_id`.
+   */
+  readonly teamId: EntryId;
   readonly seed: number;
   readonly pool: string | null;
 }
@@ -25,17 +39,26 @@ export interface Match {
   readonly matchNumber: number;
   readonly pool: string | null;
   readonly bracketSide: BracketSide | null;
-  teamAId: TeamId | null;
-  teamBId: TeamId | null;
-  winnerTeamId: TeamId | null;
   /**
-   * Working / ref team — the team responsible for officiating this match.
+   * Polymorphic participant identifiers — point at
+   * `event_team_entries.id`. Persisted as `entry_a_id` / `entry_b_id` /
+   * `winner_entry_id` on `bracket_matches`. May be null until feeder
+   * matches complete and place a winner here.
+   */
+  entryAId: EntryId | null;
+  entryBId: EntryId | null;
+  winnerEntryId: EntryId | null;
+  /**
+   * Working / ref team \u2014 the team responsible for officiating this match.
    * Set by the pool generator (the idle team in the same pool's rotation
    * round) when `BracketConfig.requireWorkTeam` is true; null otherwise
    * and for formats that don't have a natural idle slot. Hosts may
-   * override per-match in the UI. See ADR 0018.
+   * override per-match in the UI. See ADR 0018. Persisted as
+   * `bracket_matches.work_entry_id` (parallel to A/B/winner); the legacy
+   * `work_team_id` column stays nullable for backwards compatibility but
+   * is no longer written.
    */
-  workTeamId: TeamId | null;
+  workTeamId: EntryId | null;
   status: MatchStatus;
   sets: MatchSet[];
   /**

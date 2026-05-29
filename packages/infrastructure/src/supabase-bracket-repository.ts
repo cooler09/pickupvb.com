@@ -9,13 +9,13 @@ import {
   type BracketStatus,
   type BracketTeamLite,
   type DivisionId,
+  type EntryId,
   type EventId,
   type Match,
   type MatchId,
   type MatchSet,
   type MatchStatus,
   type Seed,
-  type TeamId,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 
@@ -52,7 +52,8 @@ function flattenBracket(row: BracketSelectRow): BracketRow {
 
 type SeedRow = {
   bracket_id: string;
-  team_id: string;
+  team_id: string | null;
+  entry_id: string | null;
   seed: number;
   pool: string | null;
 };
@@ -68,6 +69,10 @@ type MatchRow = {
   team_b_id: string | null;
   winner_team_id: string | null;
   work_team_id: string | null;
+  entry_a_id: string | null;
+  entry_b_id: string | null;
+  winner_entry_id: string | null;
+  work_entry_id: string | null;
   court: string | null;
   slot: number | null;
   status: MatchStatus;
@@ -139,7 +144,7 @@ export class SupabaseBracketRepository implements BracketRepository {
     const [seedsRes, matchesRes] = await Promise.all([
       this.client
         .from('bracket_seeds')
-        .select('bracket_id, team_id, seed, pool')
+        .select('bracket_id, team_id, entry_id, seed, pool')
         .eq('bracket_id', row.id)
         .order('seed', { ascending: true }),
       this.client
@@ -169,7 +174,12 @@ export class SupabaseBracketRepository implements BracketRepository {
     }
 
     const seeds: Seed[] = seedRows.map((s) => ({
-      teamId: s.team_id as TeamId,
+      // Prefer `entry_id` (post-cutover writes); fall back to legacy
+      // `team_id` for rows the backfill missed. Either is treated as an
+      // opaque `EntryId` downstream — UI lookups go through a dual-keyed
+      // map (by both `teamId` and `entryId`) so a legacy value still
+      // resolves.
+      teamId: (s.entry_id ?? s.team_id) as EntryId,
       seed: s.seed,
       pool: s.pool,
     }));
@@ -180,10 +190,10 @@ export class SupabaseBracketRepository implements BracketRepository {
       matchNumber: m.match_number,
       pool: m.pool,
       bracketSide: m.bracket_side,
-      teamAId: m.team_a_id ? (m.team_a_id as TeamId) : null,
-      teamBId: m.team_b_id ? (m.team_b_id as TeamId) : null,
-      winnerTeamId: m.winner_team_id ? (m.winner_team_id as TeamId) : null,
-      workTeamId: m.work_team_id ? (m.work_team_id as TeamId) : null,
+      entryAId: (m.entry_a_id ?? m.team_a_id) as EntryId | null,
+      entryBId: (m.entry_b_id ?? m.team_b_id) as EntryId | null,
+      winnerEntryId: (m.winner_entry_id ?? m.winner_team_id) as EntryId | null,
+      workTeamId: (m.work_entry_id ?? m.work_team_id) as EntryId | null,
       court: m.court,
       slot: m.slot,
       status: m.status,
@@ -234,7 +244,7 @@ export class SupabaseBracketRepository implements BracketRepository {
     if (bracket.seeds.length > 0) {
       const seedRows = bracket.seeds.map((s) => ({
         bracket_id: bracket.id,
-        team_id: s.teamId,
+        entry_id: s.teamId,
         seed: s.seed,
         pool: s.pool,
       }));
@@ -259,10 +269,10 @@ export class SupabaseBracketRepository implements BracketRepository {
       match_number: m.matchNumber,
       pool: m.pool,
       bracket_side: m.bracketSide,
-      team_a_id: m.teamAId,
-      team_b_id: m.teamBId,
-      winner_team_id: m.winnerTeamId,
-      work_team_id: m.workTeamId,
+      entry_a_id: m.entryAId,
+      entry_b_id: m.entryBId,
+      winner_entry_id: m.winnerEntryId,
+      work_entry_id: m.workTeamId,
       court: m.court,
       slot: m.slot,
       status: m.status,

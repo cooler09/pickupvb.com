@@ -38,7 +38,7 @@ export function pickLatestMatchId(matches: ReadonlyArray<Match>): string | null 
     const m = [...done].sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0]!;
     return String(m.id);
   }
-  const next = matches.filter((m) => m.status === 'pending' && m.teamAId && m.teamBId);
+  const next = matches.filter((m) => m.status === 'pending' && m.entryAId && m.entryBId);
   if (next.length > 0) {
     const m = [...next].sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber)[0]!;
     return String(m.id);

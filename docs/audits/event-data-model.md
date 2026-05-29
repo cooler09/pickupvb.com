@@ -1845,19 +1845,84 @@ warnings, test counts unchanged from prior bundle, 8/8 build).
 
 - `LeagueSchedule` RPC (consumer of the forfeit flag).
 - Bracket-reader filter loosening — remaining application work:
-  (a) match write-path cutover — flip
-  `SupabaseBracketRepository.save` +
-  `record-division-winner-actions.ts` onto the `entry_*_id`
-  columns (likely requires renaming `Match.teamAId` / `teamBId` /
-  `winnerTeamId` to `entryAId` / `entryBId` / `winnerEntryId`
-  across the domain + `standings.ts` + `generators.ts` + UI
-  consumers); (b) seed write-path cutover — flip the
-  `bracket_seeds` insert onto `entry_id`; (c) once readers +
-  writers are fully off `team_*_id`, drop the
+  (a) **superseded by the 2026-12-04 cutover below**;
+  (b) **superseded by the 2026-12-04 cutover below**;
+  (c) once readers + writers are fully off `team_*_id`, drop the
   `.not('team_id', 'is', null)` filter from `listRegisteredTeams`
   and let ad-hoc / walk-in entries flow through; (d) cleanup
   migration drops the legacy `team_*_id` columns from
   `bracket_seeds` + `bracket_matches`.
+
+---
+
+### 2026-12-04 — Bracket matches + seeds + work-team write-path cutover
+
+**Closed (this slice).** Combined sweep that flips the bracket
+write path off `team_*_id` and onto `entry_*_id` end-to-end.
+Originally scoped as match-only but expanded after discovering
+hard coupling: generators copy `seed.teamId` straight into
+`match.entryAId`, and `assignIdleWorkTeams` stamps `workTeamId`
+from pool seeds — splitting the cutovers would have left the FK
+on each new column failing against the other half's payload.
+
+- **Domain.** New `EntryId` brand in
+  [`packages/domain/src/brackets/match.ts`](../../packages/domain/src/brackets/match.ts).
+  `Match.teamAId` / `teamBId` / `winnerTeamId` renamed to
+  `entryAId` / `entryBId` / `winnerEntryId`; `Match.workTeamId`
+  retyped to `EntryId | null` (field name kept — would have rippled
+  too far; lie called out in the docstring as a follow-up cleanup).
+  `Seed.teamId` and `PoolStanding.teamId` field names also kept
+  but retyped to `EntryId`. Generators, standings, bracket
+  aggregate, `MatchResultRecorded` event, and the bracket test
+  fixtures all renamed in lockstep.
+- **Schema.** Two new migrations:
+  [`20260811000000_bracket_matches_work_entry_id.sql`](../../supabase/migrations/20260811000000_bracket_matches_work_entry_id.sql)
+  adds the `work_entry_id uuid` column + FK to
+  `event_team_entries` + at-most-one polymorphic check; and
+  [`20260811000100_backfill_bracket_entry_ids.sql`](../../supabase/migrations/20260811000100_backfill_bracket_entry_ids.sql)
+  atomically rewrites every populated `team_*_id` /
+  `bracket_seeds.team_id` row into its `entry_*_id` /
+  `bracket_seeds.entry_id` counterpart via a join through
+  `event_brackets` → `event_team_entries`.
+- **Infra.**
+  [`SupabaseBracketRepository`](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  reads prefer `entry_*_id` and fall back to `team_*_id` (covers
+  any pre-backfill rows); writes drop the `team_*_id` columns
+  from both seed inserts and match inserts. Stub
+  [`database.types.ts`](../../packages/supabase/src/database.types.ts)
+  gains `work_team_id` + `work_entry_id` Row/Insert/Update fields
+  and the `bracket_matches_work_entry_id_fkey` relationship.
+- **Web.** `teamById` on
+  [`bracket/page.tsx`](../../apps/web/src/app/events/[id]/bracket/page.tsx)
+  and
+  [`bracket/watch/page.tsx`](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx)
+  is now dual-keyed by `teamId` **and** `entryId` so the same
+  consumer code resolves both pre- and post-cutover ids without
+  touching every call site.
+  [`match-card.tsx`](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx),
+  [`board-view.tsx`](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx),
+  and
+  [`watch/_og.tsx`](../../apps/web/src/app/events/[id]/bracket/watch/_og.tsx)
+  read the renamed `Match` fields.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+warnings, 304 tests pass, 8/8 build). Migrations not applied
+locally (Docker off); CI/CD applies on deploy.
+
+**Follow-ups remaining on this audit:**
+
+- `LeagueSchedule` RPC (consumer of the forfeit flag).
+- Drop the `.not('team_id', 'is', null)` filter from
+  `listRegisteredTeams` and project ad-hoc / walk-in entries
+  (which have no `teams` row) through a different name source —
+  unblocks brackets for ad-hoc and walk-in registrations.
+- Rename `Seed.teamId` / `PoolStanding.teamId` to `entryId` to
+  drop the field-name lie now that the type is `EntryId`.
+  Mechanical follow-up touching every seed/standings call site.
+- Cleanup migration drops the legacy `team_*_id` columns from
+  `bracket_seeds` + `bracket_matches` after a soak period (and
+  removes the hydrate fallback in the infra repo).
 
 ---
 

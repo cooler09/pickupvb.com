@@ -79,6 +79,8 @@ export type Database = {
           updated_at: string;
           winner_entry_id: string | null;
           winner_team_id: string | null;
+          work_entry_id: string | null;
+          work_team_id: string | null;
         };
         Insert: {
           advances_to_match_id?: string | null;
@@ -101,6 +103,8 @@ export type Database = {
           updated_at?: string;
           winner_entry_id?: string | null;
           winner_team_id?: string | null;
+          work_entry_id?: string | null;
+          work_team_id?: string | null;
         };
         Update: {
           advances_to_match_id?: string | null;
@@ -123,6 +127,8 @@ export type Database = {
           updated_at?: string;
           winner_entry_id?: string | null;
           winner_team_id?: string | null;
+          work_entry_id?: string | null;
+          work_team_id?: string | null;
         };
         Relationships: [
           {
@@ -186,6 +192,13 @@ export type Database = {
             columns: ['winner_team_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'bracket_matches_work_entry_id_fkey';
+            columns: ['work_entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
         ];

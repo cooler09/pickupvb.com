@@ -1,5 +1,6 @@
 import type { DivisionId } from '../events/division.js';
-import type { EventId, TeamId } from '../events/volleyball-event.js';
+import type { EventId } from '../events/volleyball-event.js';
+import type { EntryId } from './match.js';
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import {
   ConflictError,
@@ -195,7 +196,7 @@ export class Bracket extends AggregateRoot<BracketId> {
    * are reassigned 1..N in the order provided so the host can drag-reorder
    * without worrying about gaps.
    */
-  seedTeams(teamIds: ReadonlyArray<TeamId>, pools?: ReadonlyArray<string | null>): void {
+  seedTeams(teamIds: ReadonlyArray<EntryId>, pools?: ReadonlyArray<string | null>): void {
     if (this._status !== 'setup') {
       throw new InvariantViolation(
         'Cannot reseed after the bracket has been generated. Reset the bracket first.',
@@ -415,7 +416,7 @@ export class Bracket extends AggregateRoot<BracketId> {
     if (match.status === 'bye') {
       throw new InvariantViolation('Cannot record a result for a bye match.');
     }
-    if (!match.teamAId || !match.teamBId) {
+    if (!match.entryAId || !match.entryBId) {
       throw new InvariantViolation('Both teams must be set before recording a result.');
     }
     // Validate sets.
@@ -427,22 +428,22 @@ export class Bracket extends AggregateRoot<BracketId> {
         throw new ValidationError('Sets cannot be tied.');
       }
     }
-    const winner = determineWinner(input.sets, match.teamAId, match.teamBId, this._config.bestOf);
+    const winner = determineWinner(input.sets, match.entryAId, match.entryBId, this._config.bestOf);
 
     // Reverting an existing wired-forward result first.
-    if (match.winnerTeamId && match.winnerTeamId !== winner) {
+    if (match.winnerEntryId && match.winnerEntryId !== winner) {
       this.unwireAdvancement(match);
     }
 
     match.sets = input.sets.map((s) => ({ ...s }));
     if (winner) {
-      match.winnerTeamId = winner as TeamId;
+      match.winnerEntryId = winner as EntryId;
       match.status = 'completed';
       this.applyAdvancement(match);
       this.raise(new MatchResultRecorded(this.id, match.id, winner));
       this.maybeComplete();
     } else {
-      match.winnerTeamId = null;
+      match.winnerEntryId = null;
       match.status = input.sets.length > 0 ? 'in_progress' : 'pending';
     }
   }
@@ -454,10 +455,10 @@ export class Bracket extends AggregateRoot<BracketId> {
     }
     const match = this.matchOrThrow(matchId);
     if (match.status === 'bye') return;
-    if (match.winnerTeamId) this.unwireAdvancement(match);
+    if (match.winnerEntryId) this.unwireAdvancement(match);
     match.sets = [];
-    match.winnerTeamId = null;
-    match.status = match.teamAId && match.teamBId ? 'pending' : 'pending';
+    match.winnerEntryId = null;
+    match.status = match.entryAId && match.entryBId ? 'pending' : 'pending';
     this.raise(new MatchReset(this.id, match.id));
   }
 
@@ -469,11 +470,11 @@ export class Bracket extends AggregateRoot<BracketId> {
   }
 
   private applyAdvancement(match: Match): void {
-    if (!match.advancesToMatchId || !match.advancesToSlot || !match.winnerTeamId) return;
+    if (!match.advancesToMatchId || !match.advancesToSlot || !match.winnerEntryId) return;
     const next = this._matches.find((m) => m.id === match.advancesToMatchId);
     if (!next) return;
-    if (match.advancesToSlot === 'a') next.teamAId = match.winnerTeamId;
-    else next.teamBId = match.winnerTeamId;
+    if (match.advancesToSlot === 'a') next.entryAId = match.winnerEntryId;
+    else next.entryBId = match.winnerEntryId;
   }
 
   private unwireAdvancement(match: Match): void {
@@ -490,12 +491,12 @@ export class Bracket extends AggregateRoot<BracketId> {
       visited.add(matchId);
       const m = this._matches.find((x) => x.id === matchId);
       if (!m) continue;
-      const removed = slot === 'a' ? m.teamAId : m.teamBId;
-      if (slot === 'a') m.teamAId = null;
-      else m.teamBId = null;
+      const removed = slot === 'a' ? m.entryAId : m.entryBId;
+      if (slot === 'a') m.entryAId = null;
+      else m.entryBId = null;
       // If this downstream match had a result, that result is now stale.
-      if (m.winnerTeamId === removed) {
-        m.winnerTeamId = null;
+      if (m.winnerEntryId === removed) {
+        m.winnerEntryId = null;
         m.sets = [];
         m.status = 'pending';
         if (m.advancesToMatchId && m.advancesToSlot) {
