@@ -1,5 +1,24 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 5 — GroupQueries read port (cards)):**
+> The groups **read** side opens with a CQRS read port (mirroring `ProfileQueries`).
+> New `GroupQueries` domain port + `GroupCard` read model
+> ([group-queries.ts](../../packages/domain/src/groups/group-queries.ts)) +
+> client-injected [SupabaseGroupQueryRepository](../../packages/infrastructure/src/supabase-group-query-repository.ts)
+> (`searchDirectory` + `listCards`; filters `deleted_at is null`, reuses the
+> shared `escapeLike` guard). Migrated the two card-shaped sites — the
+> [groups directory](../../apps/web/src/app/groups/page.tsx) (paginated + search)
+> and the [home-page rail](../../apps/web/src/app/page.tsx) — off raw
+> `supabase.from('groups')`, render now on camelCase `GroupCard`. Like
+> `ProfileQueries`, the group reads are heterogeneous (directory cards, detail +
+> members, my-groups/hostable joins, sitemap, OG) so they drain across
+> increments; this is the foundational card slice. No new tests (read
+> projections; `escapeLike` already pinned). Verify quad green (domain 267,
+> application 42, web 50, infra 7; lint 0 errors). No DB change. **Next reads:**
+> group detail + metadata/OG by slug/id (inc. 6), then members roster +
+> my-groups/hostable joins + sitemap. See the
+> [Phase 3 inc. 5 journal](../journal/2026-05-29-bundle-phase-3-inc5-group-queries-cards.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 4 — group delete; group _writes_ complete):**
 > `deleteGroupAction` folded onto the aggregate — **with this, every group
 > _write_ (create/update, membership, follow, delete) is behind `GroupRepository`.**
@@ -429,6 +448,15 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 5 — GroupQueries read port):** the group
+> read side opened with a `GroupQueries` port + `GroupCard` read model +
+> client-injected `SupabaseGroupQueryRepository` (`searchDirectory` / `listCards`).
+> The directory + home-page card reads migrated off raw `supabase.from('groups')`.
+> Remaining reads (drain across increments, `ProfileQueries`-style): group detail
+>
+> - metadata/OG (by slug/id), members roster, my-groups / hostable-groups joins
+>   (`profile`, `events/new`), sitemap.
+>
 > **Progress (2026-05-29, Phase 3 inc. 4 — group delete; group writes done):**
 > `deleteGroupAction` folded onto the aggregate (`Group.assertCanDelete` owner
 > rule) + a `DeleteGroupHandler` with injected events-guard + admin soft-delete

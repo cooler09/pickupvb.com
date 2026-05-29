@@ -3,20 +3,12 @@ import Image from 'next/image';
 import type { Route } from 'next';
 import { redirect } from 'next/navigation';
 import { SearchEventsQuery } from '@pickupvb/application';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { EventCard } from './events/_components/event-card';
 import { Icon } from '@/components/icon';
-
-type GroupRow = {
-  id: string;
-  slug: string;
-  name: string;
-  avatar_url: string | null;
-  home_city: string | null;
-  region: string | null;
-};
 
 export default async function HomePage(props: {
   searchParams?: Promise<{ code?: string; type?: string }>;
@@ -45,12 +37,7 @@ export default async function HomePage(props: {
         }),
       )
       .catch(() => []),
-    supabase
-      .from('groups')
-      .select('id, slug, name, avatar_url, home_city, region')
-      .order('name', { ascending: true })
-      .limit(6)
-      .then((res) => (res.data as GroupRow[] | null) ?? []),
+    new SupabaseGroupQueryRepository(supabase).listCards(6).catch(() => []),
   ]);
 
   return (
@@ -198,9 +185,9 @@ export default async function HomePage(props: {
                   href={`/groups/${g.slug}` as Route}
                   className="border-border-base bg-surface hover:border-primary/40 flex items-start gap-3 rounded-lg border p-3"
                 >
-                  {g.avatar_url ? (
+                  {g.avatarUrl ? (
                     <Image
-                      src={g.avatar_url}
+                      src={g.avatarUrl}
                       alt=""
                       width={48}
                       height={48}
@@ -213,9 +200,9 @@ export default async function HomePage(props: {
                   )}
                   <div className="min-w-0">
                     <p className="truncate font-medium">{g.name}</p>
-                    {(g.home_city || g.region) && (
+                    {(g.homeCity || g.region) && (
                       <p className="text-muted truncate text-xs">
-                        {[g.home_city, g.region].filter(Boolean).join(', ')}
+                        {[g.homeCity, g.region].filter(Boolean).join(', ')}
                       </p>
                     )}
                   </div>

@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
 import { NewGroupButton } from './_components/new-group-button';
@@ -27,16 +28,6 @@ export const metadata = {
 
 const PAGE_SIZE = 24;
 
-type GroupRow = {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  avatar_url: string | null;
-  home_city: string | null;
-  region: string | null;
-};
-
 export default async function GroupsIndexPage(props: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
@@ -45,20 +36,14 @@ export default async function GroupsIndexPage(props: {
   const q = (searchParams.q ?? '').trim();
   const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const from = (pageNum - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
 
-  let query = supabase
-    .from('groups')
-    .select('id, slug, name, description, avatar_url, home_city, region', {
-      count: 'exact',
-    })
-    .order('name', { ascending: true })
-    .range(from, to);
-  if (q) query = query.or(`name.ilike.%${q}%,slug.ilike.%${q}%,home_city.ilike.%${q}%`);
-
-  const { data, count } = await query;
-  const groups = (data as GroupRow[] | null) ?? [];
-  const total = count ?? groups.length;
+  const { cards: groups, total } = await new SupabaseGroupQueryRepository(supabase).searchDirectory(
+    {
+      ...(q ? { search: q } : {}),
+      limit: PAGE_SIZE,
+      offset: from,
+    },
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
@@ -104,9 +89,9 @@ export default async function GroupsIndexPage(props: {
                 href={`/groups/${g.slug}`}
                 className="border-border-base bg-surface hover:border-primary/40 flex items-start gap-3 rounded-lg border p-3"
               >
-                {g.avatar_url ? (
+                {g.avatarUrl ? (
                   <Image
-                    src={g.avatar_url}
+                    src={g.avatarUrl}
                     alt=""
                     width={48}
                     height={48}
@@ -122,9 +107,9 @@ export default async function GroupsIndexPage(props: {
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{g.name}</p>
-                  {g.home_city && (
+                  {g.homeCity && (
                     <p className="text-muted truncate text-xs">
-                      {g.home_city}
+                      {g.homeCity}
                       {g.region ? `, ${g.region}` : ''}
                     </p>
                   )}
