@@ -33,7 +33,7 @@ export class SeedBracketCommand {
   constructor(
     public readonly divisionId: string,
     public readonly requesterId: string,
-    public readonly teamIdsInOrder: ReadonlyArray<string>,
+    public readonly entryIdsInOrder: ReadonlyArray<string>,
     public readonly pools?: ReadonlyArray<string | null>,
   ) {}
 }
@@ -153,7 +153,7 @@ export class SeedBracketHandler {
     const evt = await loadEventForBracket(this.events, bracket);
     assertHost(evt.hostId, cmd.requesterId);
     bracket.seedTeams(
-      cmd.teamIdsInOrder.map((t) => t as never),
+      cmd.entryIdsInOrder.map((t) => t as never),
       cmd.pools,
     );
     await this.brackets.save(bracket);

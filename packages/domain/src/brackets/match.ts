@@ -23,12 +23,10 @@ export interface MatchSet {
 /** A team's seeding within the bracket. `pool` only set for pool play. */
 export interface Seed {
   /**
-   * Participant identity — points at `event_team_entries.id`. The field
-   * keeps its legacy `teamId` name (cleanup is a follow-up bundle) but
-   * the type now reflects what the bracket persists into
-   * `bracket_seeds.entry_id`.
+   * Participant identity — points at `event_team_entries.id`. Persisted
+   * as `bracket_seeds.entry_id`.
    */
-  readonly teamId: EntryId;
+  readonly entryId: EntryId;
   readonly seed: number;
   readonly pool: string | null;
 }

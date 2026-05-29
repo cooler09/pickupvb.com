@@ -352,9 +352,9 @@ function PoolStandingsTable(props: {
       </thead>
       <tbody>
         {props.standings.map((s, i) => {
-          const team = props.teamById.get(String(s.teamId));
+          const team = props.teamById.get(String(s.entryId));
           return (
-            <tr key={String(s.teamId)} className="border-border-base/40 border-b">
+            <tr key={String(s.entryId)} className="border-border-base/40 border-b">
               <td className="text-muted px-2 py-1 tabular-nums">{i + 1}</td>
               <td className="text-fg px-2 py-1">{team?.name ?? '—'}</td>
               <td className="px-2 py-1 text-right tabular-nums">{s.wins}</td>

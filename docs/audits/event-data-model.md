@@ -2065,10 +2065,6 @@ off); CI/CD applies on deploy.
 
 **Follow-ups remaining on this audit:**
 
-- Rename `Seed.teamId` / `PoolStanding.teamId` to `entryId`
-  (and the form field name `team_id` → `entry_id` in
-  `seedBracketFromForm` / `randomizeSeedFromForm`) — mechanical
-  rename touching every seed/standings call site.
 - Cleanup migration drops the legacy `team_*_id` columns from
   `bracket_seeds` + `bracket_matches` after a soak period (and
   removes the hydrate fallback in the infra repo).
@@ -2076,6 +2072,77 @@ off); CI/CD applies on deploy.
   `SupabaseBracketRepository.save` if the parallel partial-state
   failure mode ever surfaces (lower priority — see scope notes
   above).
+
+---
+
+### 2026-12-04 — `Seed.teamId` / `PoolStanding.teamId` → `entryId` rename
+
+**Closed (this slice).** Mechanical rename across the seed +
+standings call surface. The previous bracket-reader bundle had
+already established that these fields carry `EntryId` values
+post-cutover; the names were the last lie left over from the
+pre-2026-12-04 era.
+
+- **Domain types.**
+  [`Seed.teamId` → `Seed.entryId`](../../packages/domain/src/brackets/match.ts)
+  in `packages/domain/src/brackets/match.ts`;
+  [`PoolStanding.teamId` → `PoolStanding.entryId`](../../packages/domain/src/brackets/standings.ts)
+  in `packages/domain/src/brackets/standings.ts` (plus the internal
+  `stats` map and the `ensure()` helper that builds it).
+- **Generators + bracket aggregate.**
+  [`packages/domain/src/brackets/generators.ts`](../../packages/domain/src/brackets/generators.ts)
+  replaces every `s.teamId` read with `s.entryId` and renames the
+  one outer-scope `(teamId, i) => ({ teamId, ... })` mapper to
+  `(entryId, i) => ({ entryId, ... })`.
+  [`Bracket.seedTeams`](../../packages/domain/src/brackets/bracket.ts)
+  parameter name flipped from `teamIds` to `entryIds` to match;
+  the playoff-from-standings branch reads `s.entryId` instead of
+  `s.teamId`.
+- **Domain tests.**
+  [`bracket.test.ts`](../../packages/domain/src/brackets/bracket.test.ts)
+  fixture builder switched to `entryId`; the one
+  `seedTeams(6).map((s) => s.teamId)` site flipped.
+- **Application command.**
+  [`SeedBracketCommand.teamIdsInOrder` → `.entryIdsInOrder`](../../packages/application/src/commands/bracket.handler.ts)
+  on `packages/application/src/commands/bracket.handler.ts`; the
+  one consumer (`SeedBracketHandler.execute`) reads
+  `cmd.entryIdsInOrder` accordingly.
+- **Infrastructure.**
+  [`SupabaseBracketRepository`](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  hydrate path now populates `Seed.entryId`; the `save` insert
+  reads `s.entryId` for the `bracket_seeds.entry_id` column.
+- **Web seed/standings consumers.**
+  [bracket/page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx)
+  shapes the `SetupView.seeds` prop with `entryId`;
+  [setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)
+  prop type + reconcile lookups switched (`t.entryId === s.entryId`);
+  [board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)
+  pool-standings table reads `s.entryId` for the row key and
+  `teamById` lookup.
+- **Form field name.**
+  [seeding-list.tsx](../../apps/web/src/app/events/[id]/bracket/_components/seeding-list.tsx)
+  hidden input renamed `name="team_id"` → `name="entry_id"`;
+  [actions.ts](../../apps/web/src/app/events/[id]/bracket/actions.ts)
+  `seedBracketFromForm` and `randomizeSeedFromForm` read
+  `formData.getAll('entry_id')`. Closes the parenthetical form-
+  field rename the prior follow-up tracked alongside the type
+  rename.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+scoreboard warnings, 216 domain + 38 application + 50 web tests
+pass, 8/8 build). No schema or migration changes — the column
+already lives at `bracket_seeds.entry_id`; this slice just brings
+the rest of the names into the same vocabulary.
+
+**Follow-ups remaining on this audit:**
+
+- Cleanup migration drops the legacy `team_*_id` columns from
+  `bracket_seeds` + `bracket_matches` after a soak period (and
+  removes the hydrate fallback in the infra repo).
+- Mirror the `save_league_schedule` RPC shape onto
+  `SupabaseBracketRepository.save` if the parallel partial-state
+  failure mode ever surfaces (lower priority).
 
 ---
 

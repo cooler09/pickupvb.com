@@ -139,7 +139,7 @@ export async function createBracketFromForm(
 }
 
 /**
- * Reseed: the form posts hidden `team_id` inputs in the desired order.
+ * Reseed: the form posts hidden `entry_id` inputs in the desired order.
  */
 export async function seedBracketFromForm(
   eventId: string,
@@ -147,12 +147,12 @@ export async function seedBracketFromForm(
   formData: FormData,
 ): Promise<void> {
   const { user } = await requireRealUser();
-  const teamIds = formData
-    .getAll('team_id')
+  const entryIds = formData
+    .getAll('entry_id')
     .map((v) => String(v))
     .filter((v) => v.length > 0);
   try {
-    await handlers.seedBracket.execute(new SeedBracketCommand(divisionId, user.id, teamIds));
+    await handlers.seedBracket.execute(new SeedBracketCommand(divisionId, user.id, entryIds));
   } catch (err) {
     const { code, msg } = classify(err);
     revalidate(eventId);
@@ -171,7 +171,7 @@ export async function randomizeSeedFromForm(
   divisionId: string,
   formData: FormData,
 ): Promise<void> {
-  const ids = formData.getAll('team_id').map((v) => String(v));
+  const ids = formData.getAll('entry_id').map((v) => String(v));
   for (let i = ids.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const a = ids[i] as string;
@@ -180,7 +180,7 @@ export async function randomizeSeedFromForm(
     ids[j] = a;
   }
   const out = new FormData();
-  for (const id of ids) out.append('team_id', id);
+  for (const id of ids) out.append('entry_id', id);
   await seedBracketFromForm(eventId, divisionId, out);
 }
 

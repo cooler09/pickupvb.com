@@ -15,7 +15,7 @@ export function SetupView(props: {
   eventId: string;
   divisionId: string;
   bracketFormat: BracketFormat;
-  seeds: ReadonlyArray<{ teamId: string; seed: number }>;
+  seeds: ReadonlyArray<{ entryId: string; seed: number }>;
   registeredTeams: ReadonlyArray<TeamLite>;
   isHost: boolean;
 }) {
@@ -31,8 +31,6 @@ export function SetupView(props: {
   //  - Drop seeds for teams that have unregistered.
   //  - Append newly-registered teams to the end so the host can re-save
   //    seeding to include them.
-  // `Seed.teamId` is an `EntryId` post the 2026-12-04 cutover; match it
-  // against `entryId` on the registered team rows.
   let orderedTeams: TeamLite[];
   let newlyAdded: TeamLite[] = [];
   if (props.seeds.length === 0) {
@@ -41,7 +39,7 @@ export function SetupView(props: {
     const seededInOrder = props.seeds
       .slice()
       .sort((a, b) => a.seed - b.seed)
-      .map((s) => props.registeredTeams.find((t) => t.entryId === s.teamId))
+      .map((s) => props.registeredTeams.find((t) => t.entryId === s.entryId))
       .filter((t): t is TeamLite => !!t);
     const seededIds = new Set(seededInOrder.map((t) => t.entryId));
     newlyAdded = props.registeredTeams.filter((t) => !seededIds.has(t.entryId));
@@ -50,7 +48,7 @@ export function SetupView(props: {
 
   const droppedSeedCount =
     props.seeds.length -
-    props.seeds.filter((s) => props.registeredTeams.some((t) => t.entryId === s.teamId)).length;
+    props.seeds.filter((s) => props.registeredTeams.some((t) => t.entryId === s.entryId)).length;
 
   const canGenerate = orderedTeams.length >= 2;
 
@@ -150,11 +148,11 @@ export function SetupView(props: {
 }
 
 /**
- * Seeding form. Submits hidden `team_id` inputs in the order shown — the
- * field name is legacy and now carries `event_team_entries.id` values
- * (the seed-write path stamps them into `bracket_seeds.entry_id`). The
- * "Randomize" button uses `formAction` to override the submit handler
- * with a server action that re-seeds and revalidates.
+ * Seeding form. Submits hidden `entry_id` inputs in the order shown.
+ * The values are `event_team_entries.id`s that the seed-write path
+ * stamps into `bracket_seeds.entry_id`. The "Randomize" button uses
+ * `formAction` to override the submit handler with a server action
+ * that re-seeds and revalidates.
  */
 function SeedingForm(props: {
   eventId: string;

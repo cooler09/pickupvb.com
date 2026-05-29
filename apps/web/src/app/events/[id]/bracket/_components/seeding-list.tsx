@@ -5,14 +5,12 @@ import { useState } from 'react';
 type Team = { entryId: string; name: string };
 
 /**
- * Drag-to-reorder seeding list. Renders one `<input type="hidden" name="team_id" />`
+ * Drag-to-reorder seeding list. Renders one `<input type="hidden" name="entry_id" />`
  * per team in the current order, so the parent server-action form
- * (`seedBracketFromForm`) reads the order from `formData.getAll('team_id')`
- * unchanged. The value posted is the `event_team_entries.id` for the
- * participant — the seed write path stamps it into
- * `bracket_seeds.entry_id`. The `team_id` field name itself is legacy
- * and tracked for cleanup in the audit's separate "rename
- * `Seed.teamId` → `entryId`" follow-up.
+ * (`seedBracketFromForm`) reads the order from
+ * `formData.getAll('entry_id')`. The value posted is the
+ * `event_team_entries.id` for the participant — the seed write path
+ * stamps it into `bracket_seeds.entry_id`.
  *
  * Two reorder affordances:
  *   - HTML5 native drag-and-drop (desktop, mouse) — driven by the grip
@@ -109,7 +107,7 @@ export function SeedingList({ orderedTeams }: { orderedTeams: ReadonlyArray<Team
             >
               ↓
             </button>
-            <input type="hidden" name="team_id" value={t.entryId} />
+            <input type="hidden" name="entry_id" value={t.entryId} />
           </li>
         );
       })}

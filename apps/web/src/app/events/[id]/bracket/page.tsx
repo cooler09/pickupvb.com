@@ -187,7 +187,7 @@ export default async function BracketPage(props: {
           divisionId={selectedDivision.id}
           bracketFormat={bracket.format}
           seeds={bracket.seeds.map((s) => ({
-            teamId: s.teamId,
+            entryId: s.entryId,
             seed: s.seed,
           }))}
           registeredTeams={registeredTeams}

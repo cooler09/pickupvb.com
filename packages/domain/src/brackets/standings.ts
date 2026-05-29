@@ -11,12 +11,8 @@ import type { Match, EntryId } from './match.js';
  * logic predictable; teams above can break ties manually if needed.
  */
 export interface PoolStanding {
-  /**
-   * Participant identity — points at `event_team_entries.id`. The field
-   * keeps its legacy `teamId` name so existing UI lookups continue to
-   * work; rename is a follow-up cleanup bundle.
-   */
-  readonly teamId: EntryId;
+  /** Participant identity — points at `event_team_entries.id`. */
+  readonly entryId: EntryId;
   readonly matchesPlayed: number;
   readonly wins: number;
   readonly losses: number;
@@ -33,7 +29,7 @@ export function computePoolStandings(matches: ReadonlyArray<Match>, pool: string
   const stats = new Map<
     string,
     {
-      teamId: EntryId;
+      entryId: EntryId;
       wins: number;
       losses: number;
       setsWon: number;
@@ -49,7 +45,7 @@ export function computePoolStandings(matches: ReadonlyArray<Match>, pool: string
     const existing = stats.get(key);
     if (existing) return existing;
     const fresh = {
-      teamId: id,
+      entryId: id,
       wins: 0,
       losses: 0,
       setsWon: 0,
@@ -98,7 +94,7 @@ export function computePoolStandings(matches: ReadonlyArray<Match>, pool: string
   }
 
   const out: PoolStanding[] = Array.from(stats.values()).map((s) => ({
-    teamId: s.teamId,
+    entryId: s.entryId,
     matchesPlayed: s.matchesPlayed,
     wins: s.wins,
     losses: s.losses,

@@ -22,7 +22,7 @@ const tid = (n: number): EntryId => `team-${n}` as unknown as EntryId;
 
 function seedTeams(n: number): Seed[] {
   return Array.from({ length: n }, (_, i) => ({
-    teamId: tid(i + 1),
+    entryId: tid(i + 1),
     seed: i + 1,
     pool: null,
   }));
@@ -598,7 +598,7 @@ describe('Bracket.reorderPoolMatches', () => {
       bestOf: 1,
       ...(opts.courtLabels ? { courtLabels: opts.courtLabels } : {}),
     });
-    b.seedTeams(seedTeams(6).map((s) => s.teamId));
+    b.seedTeams(seedTeams(6).map((s) => s.entryId));
     b.generate(mkIdFactory());
     return b;
   }

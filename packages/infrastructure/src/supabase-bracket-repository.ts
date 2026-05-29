@@ -179,7 +179,7 @@ export class SupabaseBracketRepository implements BracketRepository {
       // opaque `EntryId` downstream — UI lookups go through a dual-keyed
       // map (by both `teamId` and `entryId`) so a legacy value still
       // resolves.
-      teamId: (s.entry_id ?? s.team_id) as EntryId,
+      entryId: (s.entry_id ?? s.team_id) as EntryId,
       seed: s.seed,
       pool: s.pool,
     }));
@@ -244,7 +244,7 @@ export class SupabaseBracketRepository implements BracketRepository {
     if (bracket.seeds.length > 0) {
       const seedRows = bracket.seeds.map((s) => ({
         bracket_id: bracket.id,
-        entry_id: s.teamId,
+        entry_id: s.entryId,
         seed: s.seed,
         pool: s.pool,
       }));

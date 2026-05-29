@@ -55,7 +55,7 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
 
   // teamForSlot[slotIdx] = team at canonical slot position (1-indexed)
   const teamForSlot = new Map<number, EntryId>();
-  for (const s of sorted) teamForSlot.set(s.seed, s.teamId);
+  for (const s of sorted) teamForSlot.set(s.seed, s.entryId);
 
   const totalRounds = Math.log2(P);
   const matches: Match[] = [];
@@ -169,7 +169,7 @@ export function generateRoundRobin(
     throw new ValidationError('maxRounds must be >= 1.', { maxRounds });
   }
   const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
-  const teams: (EntryId | null)[] = sorted.map((s) => s.teamId);
+  const teams: (EntryId | null)[] = sorted.map((s) => s.entryId);
   if (teams.length % 2 === 1) teams.push(null); // bye marker
 
   const n = teams.length;
@@ -396,7 +396,7 @@ export function generateDoubleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
   const sorted = [...seeds].sort((a, b) => a.seed - b.seed);
   const slots = bracketSlots(P);
   const teamForSlot = new Map<number, EntryId>();
-  for (const s of sorted) teamForSlot.set(s.seed, s.teamId);
+  for (const s of sorted) teamForSlot.set(s.seed, s.entryId);
   const wbR1 = wb[0]!;
   for (let i = 0; i < wbR1.length; i++) {
     const slotA = slots[i * 2];
@@ -443,7 +443,7 @@ export function distributeIntoPools(seeds: ReadonlyArray<Seed>, poolCount: numbe
     const poolIdx = round % 2 === 0 ? within : poolCount - 1 - within;
     const team = sorted[i]!;
     pools[poolIdx]!.push({
-      teamId: team.teamId,
+      entryId: team.entryId,
       seed: pools[poolIdx]!.length + 1,
       pool: poolLabel(poolIdx),
     });
@@ -528,7 +528,7 @@ export function generatePoolPlay(
  * plays every round, so no idle team exists.
  */
 function assignIdleWorkTeams(matches: Match[], poolSeeds: ReadonlyArray<Seed>): void {
-  const teamIds = new Set(poolSeeds.map((s) => s.teamId));
+  const teamIds = new Set(poolSeeds.map((s) => s.entryId));
   const byRound = new Map<number, Match[]>();
   for (const m of matches) {
     const list = byRound.get(m.round) ?? [];
@@ -662,8 +662,8 @@ export function generatePlayoffFromStandings(
       advancing.push(t);
     }
   }
-  const seeds: Seed[] = advancing.map((teamId, i) => ({
-    teamId,
+  const seeds: Seed[] = advancing.map((entryId, i) => ({
+    entryId,
     seed: i + 1,
     pool: null,
   }));

@@ -196,17 +196,17 @@ export class Bracket extends AggregateRoot<BracketId> {
    * are reassigned 1..N in the order provided so the host can drag-reorder
    * without worrying about gaps.
    */
-  seedTeams(teamIds: ReadonlyArray<EntryId>, pools?: ReadonlyArray<string | null>): void {
+  seedTeams(entryIds: ReadonlyArray<EntryId>, pools?: ReadonlyArray<string | null>): void {
     if (this._status !== 'setup') {
       throw new InvariantViolation(
         'Cannot reseed after the bracket has been generated. Reset the bracket first.',
       );
     }
-    if (new Set(teamIds).size !== teamIds.length) {
+    if (new Set(entryIds).size !== entryIds.length) {
       throw new ConflictError('Each team can only be seeded once.');
     }
-    this._seeds = teamIds.map((teamId, i) => ({
-      teamId,
+    this._seeds = entryIds.map((entryId, i) => ({
+      entryId,
       seed: i + 1,
       pool: pools?.[i] ?? null,
     }));
@@ -305,7 +305,7 @@ export class Bracket extends AggregateRoot<BracketId> {
     }
     const pools = distinctPools(poolMatches);
     const standingsByPool = pools.map((p) =>
-      computePoolStandings(this._matches, p).map((s) => s.teamId),
+      computePoolStandings(this._matches, p).map((s) => s.entryId),
     );
     const maxPoolRound = poolMatches.reduce((acc, m) => Math.max(acc, m.round), 0);
     const playoff = generatePlayoffFromStandings(
