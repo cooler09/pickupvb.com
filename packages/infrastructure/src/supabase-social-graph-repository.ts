@@ -7,11 +7,15 @@ import {
   skillTierBand,
   type FollowingFeedFilters,
   type FollowingFeedItem,
+  type FriendEdges,
   type FriendProfile,
+  type ProfileCard,
+  type ProfileQueries,
   type SkillBand,
   type SocialGraphQueries,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { SupabaseProfileRepository } from './supabase-profile-repository.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -26,14 +30,44 @@ type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
  */
 export class SupabaseSocialGraphRepository implements SocialGraphQueries {
   private _client: SupabaseClient | null = null;
+  private _profiles: ProfileQueries | null = null;
 
-  constructor(client?: SupabaseClient) {
+  constructor(client?: SupabaseClient, profiles?: ProfileQueries) {
     this._client = client ?? null;
+    this._profiles = profiles ?? null;
   }
 
   private get client(): SupabaseClient {
     if (!this._client) this._client = createSupabaseAdminClient();
     return this._client;
+  }
+
+  /** Profile-card reads are delegated to ProfileQueries (same client). */
+  private get profiles(): ProfileQueries {
+    if (!this._profiles) this._profiles = new SupabaseProfileRepository(this.client);
+    return this._profiles;
+  }
+
+  async getFriendEdges(viewerId: string): Promise<FriendEdges> {
+    const [outRes, inRes] = await Promise.all([
+      this.client.from('friendships').select('friend_id').eq('user_id', viewerId),
+      this.client.from('friendships').select('user_id').eq('friend_id', viewerId),
+    ]);
+    if (outRes.error) throw new Error(`getFriendEdges (outgoing) failed: ${outRes.error.message}`);
+    if (inRes.error) throw new Error(`getFriendEdges (incoming) failed: ${inRes.error.message}`);
+
+    const friendIds = ((outRes.data as { friend_id: string }[] | null) ?? []).map(
+      (r) => r.friend_id,
+    );
+    const cards = await this.profiles.findCardsByIds(friendIds);
+    // Preserve edge order; drop any id without a public profile.
+    const friends = friendIds
+      .map((id) => cards.get(id))
+      .filter((c): c is ProfileCard => c !== undefined);
+    const mutualIds = new Set(
+      ((inRes.data as { user_id: string }[] | null) ?? []).map((r) => r.user_id),
+    );
+    return { friends, mutualIds };
   }
 
   async getViewerFriends(viewerId: string): Promise<FriendProfile[]> {

@@ -1,24 +1,17 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { ProfileCard } from '@pickupvb/domain';
 import { removeFriend } from '@/app/friends/actions';
 import { SubmitButton } from '@/components/submit-button';
 
-type FriendProfile = {
-  id: string;
-  handle: string;
-  display_name: string;
-  avatar_url: string | null;
-  home_city: string | null;
-};
-
-function initialsOf(p: FriendProfile): string {
-  const parts = (p.display_name ?? '').trim().split(/\s+/).filter(Boolean);
+function initialsOf(p: ProfileCard): string {
+  const parts = (p.displayName ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return (p.display_name ?? '?').slice(0, 2).toUpperCase();
+  return (p.displayName ?? '?').slice(0, 2).toUpperCase();
 }
 
-function nameOf(p: FriendProfile): string {
-  return p.display_name || 'Player';
+function nameOf(p: ProfileCard): string {
+  return p.displayName || 'Player';
 }
 
 export function FriendsList({
@@ -26,7 +19,7 @@ export function FriendsList({
   mutualIds,
   returnPath,
 }: {
-  friends: FriendProfile[];
+  friends: ProfileCard[];
   mutualIds: Set<string>;
   returnPath: string;
 }) {
@@ -56,9 +49,9 @@ export function FriendsList({
               href={`/players/${p.handle}`}
               className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
             >
-              {p.avatar_url ? (
+              {p.avatarUrl ? (
                 <Image
-                  src={p.avatar_url}
+                  src={p.avatarUrl}
                   alt=""
                   width={36}
                   height={36}
@@ -93,8 +86,8 @@ export function FriendsList({
                     </span>
                   )}
                 </div>
-                {p.home_city && (
-                  <span className="text-muted block truncate text-xs">{p.home_city}</span>
+                {p.homeCity && (
+                  <span className="text-muted block truncate text-xs">{p.homeCity}</span>
                 )}
               </div>
             </Link>

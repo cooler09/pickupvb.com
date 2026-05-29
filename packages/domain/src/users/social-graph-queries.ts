@@ -1,4 +1,5 @@
 import type { EventType, SkillLevel, Surface } from '../events/enums.js';
+import type { ProfileCard } from './profile-queries.js';
 
 /**
  * Read-side port for the social graph (friends + the friend-activity feed).
@@ -16,6 +17,14 @@ export interface SocialGraphQueries {
   getViewerFriends(viewerId: string): Promise<FriendProfile[]>;
 
   /**
+   * The viewer's outgoing friend edges as full profile cards, plus the set of
+   * incoming-edge user ids (people who follow the viewer) for mutual-friend
+   * flagging in the UI. One round-trip via the adapter; cards are resolved
+   * through `ProfileQueries`.
+   */
+  getFriendEdges(viewerId: string): Promise<FriendEdges>;
+
+  /**
    * Public upcoming events hosted by — or attended by — the viewer's friends.
    * `friendIds` is supplied by the caller (it already has the friend list on
    * hand), so this method doesn't re-derive the graph.
@@ -30,6 +39,13 @@ export interface SocialGraphQueries {
 export interface FriendProfile {
   id: string;
   displayName: string;
+}
+
+export interface FriendEdges {
+  /** Profiles the viewer follows (outgoing edges). */
+  friends: ProfileCard[];
+  /** User ids who follow the viewer (incoming edges) — for mutual flagging. */
+  mutualIds: Set<string>;
 }
 
 export interface FollowingFeedFilters {

@@ -5,8 +5,8 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import { SupabaseSocialGraphRepository } from '@pickupvb/infrastructure';
 import { FriendsList } from '@/components/friends-list';
-import { loadFriendEdges } from '@/lib/mappers/friend';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 import { HandleEditor } from './_components/handle-editor';
@@ -80,9 +80,11 @@ export default async function ProfilePage() {
   };
 
   // Outgoing friend edges (people you've added) + incoming-edge user-id
-  // set, used to flag mutual friendships in the FriendsList UI. Shared
-  // mapper also used by /friends.
-  const { friends, mutualIds } = await loadFriendEdges(supabase, user.id);
+  // set, used to flag mutual friendships in the FriendsList UI. Same
+  // SocialGraphQueries port read as /friends.
+  const { friends, mutualIds } = await new SupabaseSocialGraphRepository(supabase).getFriendEdges(
+    user.id,
+  );
 
   const hostedEvents = await loadVisibleHostedEvents(supabase, user.id, {
     startsAfter: new Date(),

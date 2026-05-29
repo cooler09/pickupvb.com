@@ -283,25 +283,26 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
-> **Progress (2026-05-29, Phase 2b inc. 1–5):** the social-graph reads moved to
+> **Progress (2026-05-29, Phase 2b inc. 1–6):** the social-graph reads moved to
 > `SocialGraphQueries` (Phase 2a), and the profile-read drain is underway via a
 > `ProfileQueries` read port + client-injected `SupabaseProfileRepository`
 > (reads `profiles_public`, owns LIKE-escaping). The port now offers
 > `searchCards` / `searchDirectory` / `findCardById` / `findCardByHandle` /
 > `findCardsByIds` / `findPlayerByHandle`. Drained so far: people search
-> (inc. 1), the players directory `/players` (inc. 2), the player profile page
-> `/players/[handle]` (inc. 3, rich `PlayerProfile`, camelCase at the boundary),
-> the member/roster batch reads — `teams/page`, `teams/[id]`, `groups/[id]`,
-> `groups/[id]/members` (inc. 4) — plus the OG-image id/handle bug fix (inc. 4),
-> and the community pending-claim read (inc. 5). Inc. 5 also added the first
-> `packages/infrastructure` test, pinning the shared `escapeLike` guard. The
-> survey refined the count to **42 profile/friend query occurrences**
-> (`profiles` ×21, `profiles_public` ×16, `friendships` ×5) across ~32 files;
-> heterogeneity (3 clients, id-vs-handle, card-vs-full, PII split) makes this
-> multi-increment. Next: the `load-event-detail.ts` profile reads (deferred —
-> admin-client `unstable_cache` loader), the `friendships` reads, then the
-> `profiles` writes (→ `UserProfile` aggregate). `GroupRepository` (#1 below)
-> and the notification outbox (#3) are untouched.
+> (inc. 1), players directory (inc. 2), player profile page (inc. 3, rich
+> `PlayerProfile`), member/roster batch reads (inc. 4) + OG-image id/handle fix
+> (inc. 4), community pending-claim read + first `packages/infrastructure` test
+> pinning `escapeLike` (inc. 5), and the **friend-edges read** — `loadFriendEdges`
+> moved onto `SocialGraphQueries.getFriendEdges` (composing
+> `ProfileQueries.findCardsByIds`), the `lib/mappers/friend.ts` web mapper
+> deleted, `FriendsList` on camelCase `ProfileCard` (inc. 6). The survey refined
+> the count to **42 profile/friend query occurrences** (`profiles` ×21,
+> `profiles_public` ×16, `friendships` ×5) across ~32 files; heterogeneity
+> (3 clients, id-vs-handle, card-vs-full, PII split) makes this multi-increment.
+> Next: the `load-event-detail.ts` profile reads (deferred — admin-client
+> `unstable_cache` loader), then the `friendships`/`profiles` **writes**
+> (→ `UserProfile` aggregate — the read seam now sits in front of it).
+> `GroupRepository` (#1 below) and the notification outbox (#3) are untouched.
 
 - **Where:** 76 files under [apps/web/src/app](../../apps/web/src/app). Worst offenders are the loaders/actions for entity families with no port: `groups/**` (`groups`, `group_members`, `group_followers`), `profile/**` + `players/**` + `friends/**` (`profiles`, `profiles_public`, `friendships`), notifications (`notification_outbox`, `broadcasts`, `push_subscriptions`), and event sidecars (`event_tips`, `event_sponsors`, `event_payment_audit`).
 - **Issue:** ADR 0001 mandates `apps/web → @pickupvb/application → @pickupvb/domain` with infrastructure behind ports. That holds for events/teams/brackets/etc., but **whole subdomains never got a domain model**: group membership roles, friend mutuality, notification fan-out, and tip/sponsor rules are all enforced (or not) inline in JSX/actions, with the DB row shape (`snake_case`) leaking into components and **no unit-test seam**. Every new feature touching these re-pays the cost, and bugs fixed in one query string aren't fixed in the 19 others hitting the same table.
