@@ -64,6 +64,8 @@ export type Database = {
           bracket_id: string;
           bracket_side: string | null;
           created_at: string;
+          entry_a_id: string | null;
+          entry_b_id: string | null;
           id: string;
           loser_advances_to_match_id: string | null;
           loser_advances_to_slot: string | null;
@@ -75,6 +77,7 @@ export type Database = {
           team_a_id: string | null;
           team_b_id: string | null;
           updated_at: string;
+          winner_entry_id: string | null;
           winner_team_id: string | null;
         };
         Insert: {
@@ -83,6 +86,8 @@ export type Database = {
           bracket_id: string;
           bracket_side?: string | null;
           created_at?: string;
+          entry_a_id?: string | null;
+          entry_b_id?: string | null;
           id?: string;
           loser_advances_to_match_id?: string | null;
           loser_advances_to_slot?: string | null;
@@ -94,6 +99,7 @@ export type Database = {
           team_a_id?: string | null;
           team_b_id?: string | null;
           updated_at?: string;
+          winner_entry_id?: string | null;
           winner_team_id?: string | null;
         };
         Update: {
@@ -102,6 +108,8 @@ export type Database = {
           bracket_id?: string;
           bracket_side?: string | null;
           created_at?: string;
+          entry_a_id?: string | null;
+          entry_b_id?: string | null;
           id?: string;
           loser_advances_to_match_id?: string | null;
           loser_advances_to_slot?: string | null;
@@ -113,6 +121,7 @@ export type Database = {
           team_a_id?: string | null;
           team_b_id?: string | null;
           updated_at?: string;
+          winner_entry_id?: string | null;
           winner_team_id?: string | null;
         };
         Relationships: [
@@ -128,6 +137,20 @@ export type Database = {
             columns: ['bracket_id'];
             isOneToOne: false;
             referencedRelation: 'event_brackets';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'bracket_matches_entry_a_id_fkey';
+            columns: ['entry_a_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_entries';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'bracket_matches_entry_b_id_fkey';
+            columns: ['entry_b_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
           {
@@ -149,6 +172,13 @@ export type Database = {
             columns: ['team_b_id'];
             isOneToOne: false;
             referencedRelation: 'teams';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'bracket_matches_winner_entry_id_fkey';
+            columns: ['winner_entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
           {

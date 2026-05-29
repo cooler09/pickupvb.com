@@ -1684,6 +1684,68 @@ domain pass, 8/8 build).
 
 ---
 
+### 2026-12-04 — Bracket matches `entry_*_id` groundwork (filter-loosening pre-work)
+
+**Closed (this slice).** Schema-only groundwork for the carry-over
+"bracket-reader `source='roster'` filter loosening" follow-up.
+Lands the polymorphic pair the existing Step 5b comment in
+`SupabaseBracketRepository.listRegisteredTeams` explicitly defers
+to a follow-up: _"teamId may become an entry id and downstream
+consumers will need to be reviewed."_ Application layer is
+deliberately unchanged — this bundle exists so the next bundle is
+not gated on a coordinated migration.
+
+- **Migration.**
+  [supabase/migrations/20260809000000_bracket_matches_entry_id_columns.sql](../../supabase/migrations/20260809000000_bracket_matches_entry_id_columns.sql).
+  Adds nullable `entry_a_id`, `entry_b_id`, `winner_entry_id`
+  columns on `bracket_matches`, FK → `event_team_entries(id)`
+  `on delete set null`. Indexes match the existing
+  `bracket_matches_team_*_idx` pattern. Backfill: for every
+  existing rostered wiring, find the matching live
+  `event_team_entries` row (source='roster', deleted*at is null,
+  same division as the match's bracket) by `team_id = m.team*\*\_id`
+  and copy its id into the new column.
+- **Check constraints.** Three new constraints, one per slot:
+  `team_*_id IS NULL OR entry_*_id IS NULL`. At-most-one (not
+  exactly-one) is intentional — both-null is a valid unwired
+  state, and at-most-one lets call sites flip one at a time
+  during the read+write transition.
+- **Types stub.** Hand-patched per the Docker-off convention —
+  three new `string | null` fields on `bracket_matches` Row /
+  Insert / Update, plus three new FK Relationships entries
+  pointing at `event_team_entries`. Sorted alphabetically to
+  match the regenerator's output.
+- **Out of scope (deferred).** No change to
+  `BracketTeamLite`, `SupabaseBracketRepository`,
+  `record-division-winner-actions.ts`, bracket UI components, or
+  `bracket_seeds` (also FK → `teams.id` — its own follow-up).
+  Application reads + writes still use `team_*_id` exclusively.
+
+**Next bundles in this thread:** (a) extend
+`SupabaseBracketRepository.listRegisteredTeams` to drop the
+`.eq('source', 'roster')` filter and emit `entryId` on
+`BracketTeamLite`; (b) flip bracket-match writes (`save`,
+record-winner action) onto the entry columns; (c) eventually drop
+`team_*_id` columns after callers have cut over; (d) the same
+polymorphic-pair pattern on `bracket_seeds` for ad-hoc seeding.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+warnings, test counts unchanged from prior bundle, 8/8 build).
+Migration not applied locally (Docker off); CI/CD applies on
+deploy.
+
+**Follow-ups remaining on this audit:**
+
+- `LeagueSchedule` RPC (consumer of the forfeit flag).
+- Bracket-reader `source='roster'` filter loosening (the
+  application half — `BracketTeamLite.entryId` + `listRegisteredTeams`
+  - write-side cutover + eventual `team_*_id` drop). Schema groundwork
+    landed this bundle.
+- `bracket_seeds.team_id` polymorphic pair for ad-hoc seeding.
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)
