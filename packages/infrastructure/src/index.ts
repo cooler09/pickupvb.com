@@ -10,5 +10,6 @@ export * from './supabase-community-listing-repository';
 export * from './supabase-social-graph-repository';
 export * from './supabase-profile-repository';
 export * from './supabase-user-repository';
+export * from './supabase-group-repository';
 export * from './noop-analytics';
 export * from './posthog-analytics';

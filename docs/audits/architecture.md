@@ -1,5 +1,26 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 1 — Group aggregate + create/update):**
+> **Phase 3 (the groups subdomain) has begun.** Stood up a `Group` aggregate
+> ([group.ts](../../packages/domain/src/groups/group.ts), new `GroupId` brand +
+> `GroupRole`) + a `GroupRepository` port, per
+> [ADR 0021](../adr/0021-group-aggregate-and-repository.md). This first slice
+> models the group **profile** (slug, name, description, home city, region,
+> avatar, createdBy) with `create` / `editProfile`; the name (1–80) + slug-format
+> rules move into the domain (field-tagged `ValidationError`). A client-injected
+> `SupabaseGroupRepository` (`findById` / `add` / `save`; slug `23505` →
+> `ConflictError`) is wired per request behind a new `getGroupHandlers()`
+> (user-scoped, so the `created_by = auth.uid()` + owner/admin RLS stays the
+> gate). [group-form-actions.ts](../../apps/web/src/app/groups/group-form-actions.ts)
+> `createGroupAction` + `updateGroupAction` migrated off raw
+> `supabase.from('groups')` to `CreateGroupCommand` / `UpdateGroupProfileCommand`.
+> The founding-owner `group_members` row is still inserted by the DB trigger —
+> the aggregate doesn't model the roster yet. New `Group` domain tests
+> (10 cases). Verify quad green (domain 250, application 42, web 50, infra 7;
+> lint 0 errors). No DB change. **Next:** membership roster + role rules + the
+> last-owner invariant (inc. 2), then follow edges (inc. 3), then delete. See the
+> [Phase 3 inc. 1 journal](../journal/2026-05-29-bundle-phase-3-inc1-group-aggregate.md).
+>
 > **Status update (2026-05-29, Phase 2b inc. 10 — friend writes; profile drain complete):**
 > **The `friendships` add/remove writes are migrated — the profile read+write
 > drain (P2-1, the profiles/friendships slice) is now effectively done.**
@@ -353,6 +374,17 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 1 — Group aggregate; groups subdomain
+> started):** Fix item #1 below (stand up `GroupRepository` + `Group` aggregate)
+> is underway. [ADR 0021](../adr/0021-group-aggregate-and-repository.md) + a
+> `Group` aggregate (profile fields, `GroupId`/`GroupRole`) + `GroupRepository`
+> (`findById`/`add`/`save`, slug → `ConflictError`) landed, wired per-request via
+> `getGroupHandlers()` (user-scoped/RLS). `group-form-actions.ts` create/update
+> migrated off raw `supabase.from('groups')`. Remaining group writes sliced into
+> follow-ups (ADR 0021 table): membership roster + role rules + **last-owner
+> invariant** (inc. 2), follow edges (inc. 3), soft-delete (inc. 4); the group
+> read sites → a `GroupQueries` port, opportunistic.
+>
 > **Progress (2026-05-29, Phase 2b inc. 10 — friend writes; profiles/friendships
 > slice complete):** the `friendships` add/remove writes moved to focused
 > `UserRepository.addFriendEdge` / `removeFriendEdge` ops (surgical idempotent

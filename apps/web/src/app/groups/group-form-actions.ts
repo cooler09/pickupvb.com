@@ -2,21 +2,28 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { CreateGroupCommand, UpdateGroupProfileCommand } from '@pickupvb/application';
+import { ConflictError, NotFoundError, ValidationError } from '@pickupvb/domain';
 import { field } from '@/lib/form-data';
 import { requireSession } from '@/lib/server-auth';
-
-const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+import { getGroupHandlers } from '@/lib/handlers';
 
 export type GroupFormState = {
   error?: string;
   fieldErrors?: Record<string, string>;
 };
 
+/** Map a field-tagged ValidationError from the Group aggregate to the form. */
+function fieldErrorState(err: ValidationError): GroupFormState {
+  const fieldName = (err.details as { field?: string } | undefined)?.field ?? 'name';
+  return { error: 'Please fix the highlighted fields.', fieldErrors: { [fieldName]: err.message } };
+}
+
 export async function createGroupAction(
   _prev: GroupFormState,
   formData: FormData,
 ): Promise<GroupFormState> {
-  const { supabase, user } = await requireSession();
+  const { user } = await requireSession();
 
   const name = field(formData, 'name');
   const slug = field(formData, 'slug').toLowerCase();
@@ -25,40 +32,33 @@ export async function createGroupAction(
   const region = field(formData, 'region');
   const avatarUrl = field(formData, 'avatar_url');
 
-  const fieldErrors: Record<string, string> = {};
-  if (name.length < 1 || name.length > 80) fieldErrors.name = 'Name is required (1–80 chars).';
-  if (!SLUG_RE.test(slug))
-    fieldErrors.slug = 'Slug must be 3–40 chars, lowercase letters, numbers, dashes.';
-  if (Object.keys(fieldErrors).length > 0)
-    return { error: 'Please fix the highlighted fields.', fieldErrors };
-
-  const { data, error } = await supabase
-    .from('groups')
-    .insert({
-      slug,
-      name,
-      description,
-      home_city: homeCity || null,
-      region: region || null,
-      avatar_url: avatarUrl || null,
-      created_by: user.id,
-    } as never)
-    .select('id, slug')
-    .single();
-
-  if (error) {
-    if (error.code === '23505')
+  let slugCreated: string;
+  try {
+    const { createGroup } = await getGroupHandlers();
+    const created = await createGroup.execute(
+      new CreateGroupCommand(user.id, {
+        slug,
+        name,
+        description,
+        homeCity: homeCity || null,
+        region: region || null,
+        avatarUrl: avatarUrl || null,
+      }),
+    );
+    slugCreated = created.slug;
+  } catch (err) {
+    if (err instanceof ConflictError)
       return {
         error: 'That slug is taken — pick another.',
         fieldErrors: { slug: 'Already taken.' },
       };
-    return { error: error.message };
+    if (err instanceof ValidationError) return fieldErrorState(err);
+    throw err;
   }
 
-  const created = data as { id: string; slug: string };
   revalidatePath('/groups');
   revalidatePath('/profile');
-  redirect(`/groups/${created.slug}`);
+  redirect(`/groups/${slugCreated}`);
 }
 
 export async function updateGroupAction(
@@ -66,7 +66,7 @@ export async function updateGroupAction(
   _prev: GroupFormState,
   formData: FormData,
 ): Promise<GroupFormState> {
-  const { supabase } = await requireSession();
+  await requireSession();
 
   const name = field(formData, 'name');
   const description = field(formData, 'description');
@@ -74,32 +74,26 @@ export async function updateGroupAction(
   const region = field(formData, 'region');
   const avatarUrl = field(formData, 'avatar_url');
 
-  const fieldErrors: Record<string, string> = {};
-  if (name.length < 1 || name.length > 80) fieldErrors.name = 'Name is required (1–80 chars).';
-  if (Object.keys(fieldErrors).length > 0)
-    return { error: 'Please fix the highlighted fields.', fieldErrors };
+  let slug: string;
+  try {
+    const { updateGroupProfile } = await getGroupHandlers();
+    const res = await updateGroupProfile.execute(
+      new UpdateGroupProfileCommand(groupId, {
+        name,
+        description,
+        homeCity: homeCity || null,
+        region: region || null,
+        avatarUrl: avatarUrl || null,
+      }),
+    );
+    slug = res.slug;
+  } catch (err) {
+    if (err instanceof ValidationError) return fieldErrorState(err);
+    if (err instanceof NotFoundError) return { error: 'Group not found.' };
+    throw err;
+  }
 
-  const { error } = await supabase
-    .from('groups')
-    .update({
-      name,
-      description,
-      home_city: homeCity || null,
-      region: region || null,
-      avatar_url: avatarUrl || null,
-      updated_at: new Date().toISOString(),
-    } as never)
-    .eq('id', groupId);
-
-  if (error) return { error: error.message };
-
-  // Look up the slug to revalidate the public URL.
-  const { data: slugRow } = await supabase
-    .from('groups')
-    .select('slug')
-    .eq('id', groupId)
-    .maybeSingle();
-  const slug = (slugRow as { slug: string } | null)?.slug;
-  if (slug) revalidatePath(`/groups/${slug}`);
+  // The handler returns the slug so we can revalidate the public URL.
+  revalidatePath(`/groups/${slug}`);
   return {};
 }

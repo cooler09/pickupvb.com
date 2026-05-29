@@ -12,6 +12,7 @@ import {
   SupabaseHostStripeAccountRepository,
   SupabaseHostSubscriptionRepository,
   SupabaseLeagueScheduleRepository,
+  SupabaseGroupRepository,
   SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
   SupabaseUserRepository,
@@ -67,6 +68,7 @@ import {
   SetTeamExtraMembersHandler,
   AddFriendHandler,
   ChangeHandleHandler,
+  CreateGroupHandler,
   RemoveFriendHandler,
   SetProfileHeroImageHandler,
   SetProfileThemeHandler,
@@ -74,6 +76,7 @@ import {
   UpdateBusinessInfoHandler,
   UpdateCommunityListingHandler,
   UpdateEventDivisionHandler,
+  UpdateGroupProfileHandler,
   UpdateProfileHandler,
   UpdateLeagueScheduleMatchHandler,
   WithdrawAdHocTeamRegistrationHandler,
@@ -273,6 +276,24 @@ export async function getUserProfileHandlers(): Promise<{
     updateBusinessInfo: new UpdateBusinessInfoHandler(userRepo),
     addFriend: new AddFriendHandler(userRepo),
     removeFriend: new RemoveFriendHandler(userRepo),
+  };
+}
+
+/**
+ * Per-request handlers for group writes (ADR 0021). Built around a *user-scoped*
+ * client so the `groups` RLS policies (`created_by = auth.uid()` on insert,
+ * owner/admin on update) are the real authorization gate — never the
+ * module-singleton admin-client `handlers`.
+ */
+export async function getGroupHandlers(): Promise<{
+  createGroup: CreateGroupHandler;
+  updateGroupProfile: UpdateGroupProfileHandler;
+}> {
+  const client = await getServerSupabase();
+  const groupRepo = new SupabaseGroupRepository(client);
+  return {
+    createGroup: new CreateGroupHandler(groupRepo),
+    updateGroupProfile: new UpdateGroupProfileHandler(groupRepo),
   };
 }
 

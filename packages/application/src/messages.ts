@@ -10,6 +10,7 @@ import type {
 import type {
   CoHostParty,
   FollowingFeedFilters,
+  GroupProfileEdit,
   ProfileBusinessInfo,
   ProfileDetailsEdit,
   StoredThemePreference,
@@ -438,5 +439,24 @@ export class RemoveFriendCommand {
   constructor(
     public readonly viewerId: string,
     public readonly friendId: string,
+  ) {}
+}
+
+// ---- Group commands (ADR 0021) ------------------------------------------
+export interface CreateGroupInput extends GroupProfileEdit {
+  slug: string;
+}
+
+export class CreateGroupCommand {
+  constructor(
+    public readonly createdBy: string,
+    public readonly input: CreateGroupInput,
+  ) {}
+}
+
+export class UpdateGroupProfileCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly edit: GroupProfileEdit,
   ) {}
 }
