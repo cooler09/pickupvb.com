@@ -426,3 +426,17 @@ export class UpdateBusinessInfoCommand {
     public readonly info: ProfileBusinessInfo,
   ) {}
 }
+
+export class AddFriendCommand {
+  constructor(
+    public readonly viewerId: string,
+    public readonly friendId: string,
+  ) {}
+}
+
+export class RemoveFriendCommand {
+  constructor(
+    public readonly viewerId: string,
+    public readonly friendId: string,
+  ) {}
+}

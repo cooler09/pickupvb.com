@@ -258,10 +258,20 @@ export class UserProfile extends AggregateRoot<UserId> {
     this._businessInfo = { ...info };
   }
 
-  addFriend(friendId: UserId): void {
-    if (friendId === this.id) {
+  /**
+   * Guard for the friend-graph edge writes (ADR 0020 §5). Static so the
+   * focused `UserRepository.addFriendEdge` path can enforce the rule without
+   * loading + discarding the whole aggregate (the load-and-discard anti-pattern
+   * ADR 0019 removed elsewhere).
+   */
+  static assertCanFriend(viewerId: UserId, friendId: UserId): void {
+    if (viewerId === friendId) {
       throw new InvariantViolation('Cannot friend yourself.');
     }
+  }
+
+  addFriend(friendId: UserId): void {
+    UserProfile.assertCanFriend(this.id, friendId);
     this._friends.add(friendId);
   }
 
@@ -277,4 +287,12 @@ export class UserProfile extends AggregateRoot<UserId> {
 export interface UserRepository {
   findById(id: UserId): Promise<UserProfile | null>;
   save(user: UserProfile): Promise<void>;
+  /**
+   * Friend-graph edge writes (ADR 0020 §5) — a surgical INSERT / DELETE on the
+   * `friendships` edge table keyed on `(viewerId, friendId)`, not a whole-set
+   * reconcile through `save`. `addFriendEdge` is idempotent (re-adding an
+   * existing edge is a no-op).
+   */
+  addFriendEdge(viewerId: UserId, friendId: UserId): Promise<void>;
+  removeFriendEdge(viewerId: UserId, friendId: UserId): Promise<void>;
 }

@@ -65,7 +65,9 @@ import {
   SearchEventsHandler,
   SeedBracketHandler,
   SetTeamExtraMembersHandler,
+  AddFriendHandler,
   ChangeHandleHandler,
+  RemoveFriendHandler,
   SetProfileHeroImageHandler,
   SetProfileThemeHandler,
   UnhideCommunityListingHandler,
@@ -258,6 +260,8 @@ export async function getUserProfileHandlers(): Promise<{
   setTheme: SetProfileThemeHandler;
   setHeroImage: SetProfileHeroImageHandler;
   updateBusinessInfo: UpdateBusinessInfoHandler;
+  addFriend: AddFriendHandler;
+  removeFriend: RemoveFriendHandler;
 }> {
   const client = await getServerSupabase();
   const userRepo = new SupabaseUserRepository(client);
@@ -267,6 +271,8 @@ export async function getUserProfileHandlers(): Promise<{
     setTheme: new SetProfileThemeHandler(userRepo),
     setHeroImage: new SetProfileHeroImageHandler(userRepo),
     updateBusinessInfo: new UpdateBusinessInfoHandler(userRepo),
+    addFriend: new AddFriendHandler(userRepo),
+    removeFriend: new RemoveFriendHandler(userRepo),
   };
 }
 

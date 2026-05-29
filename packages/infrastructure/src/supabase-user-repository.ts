@@ -134,4 +134,25 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error(`UserProfile.save failed: ${error.message}`);
     }
   }
+
+  async addFriendEdge(viewerId: UserId, friendId: UserId): Promise<void> {
+    // Idempotent: re-following an existing edge must not error. The edge table
+    // is keyed on (user_id, friend_id), so ignore the duplicate on conflict.
+    const { error } = await this.client
+      .from('friendships')
+      .upsert({ user_id: viewerId, friend_id: friendId } as never, {
+        onConflict: 'user_id,friend_id',
+        ignoreDuplicates: true,
+      });
+    if (error) throw new Error(`addFriendEdge failed: ${error.message}`);
+  }
+
+  async removeFriendEdge(viewerId: UserId, friendId: UserId): Promise<void> {
+    const { error } = await this.client
+      .from('friendships')
+      .delete()
+      .eq('user_id', viewerId)
+      .eq('friend_id', friendId);
+    if (error) throw new Error(`removeFriendEdge failed: ${error.message}`);
+  }
 }

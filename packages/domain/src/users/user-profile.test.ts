@@ -213,4 +213,9 @@ describe('UserProfile friend graph', () => {
     const p = rehydrated();
     expect(() => p.addFriend(ME)).toThrow(InvariantViolation);
   });
+
+  it('assertCanFriend guards self-friend without an instance (edge-write path)', () => {
+    expect(() => UserProfile.assertCanFriend(ME, ME)).toThrow(InvariantViolation);
+    expect(() => UserProfile.assertCanFriend(ME, OTHER)).not.toThrow();
+  });
 });

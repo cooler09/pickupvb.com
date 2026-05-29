@@ -1,6 +1,8 @@
-import { NotFoundError, UserId, type UserRepository } from '@pickupvb/domain';
+import { NotFoundError, UserId, UserProfile, type UserRepository } from '@pickupvb/domain';
 import {
+  AddFriendCommand,
   ChangeHandleCommand,
+  RemoveFriendCommand,
   SetProfileHeroImageCommand,
   SetProfileThemeCommand,
   UpdateBusinessInfoCommand,
@@ -70,5 +72,29 @@ export class UpdateBusinessInfoHandler {
     if (!profile) throw new NotFoundError('profile', userId);
     profile.setBusinessInfo(info);
     await this.repo.save(profile);
+  }
+}
+
+/**
+ * Add a directed friend/follow edge (ADR 0020 §5). Uses the aggregate's static
+ * invariant guard + a focused edge write — no full aggregate load/save.
+ */
+export class AddFriendHandler {
+  constructor(private readonly repo: UserRepository) {}
+
+  async execute({ viewerId, friendId }: AddFriendCommand): Promise<void> {
+    const viewer = UserId(viewerId);
+    const friend = UserId(friendId);
+    UserProfile.assertCanFriend(viewer, friend);
+    await this.repo.addFriendEdge(viewer, friend);
+  }
+}
+
+/** Remove a directed friend/follow edge (ADR 0020 §5). */
+export class RemoveFriendHandler {
+  constructor(private readonly repo: UserRepository) {}
+
+  async execute({ viewerId, friendId }: RemoveFriendCommand): Promise<void> {
+    await this.repo.removeFriendEdge(UserId(viewerId), UserId(friendId));
   }
 }

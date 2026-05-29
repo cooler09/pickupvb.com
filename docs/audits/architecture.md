@@ -1,5 +1,26 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 2b inc. 10 — friend writes; profile drain complete):**
+> **The `friendships` add/remove writes are migrated — the profile read+write
+> drain (P2-1, the profiles/friendships slice) is now effectively done.**
+> `UserRepository` gained focused edge ops `addFriendEdge` / `removeFriendEdge`
+> ([user-profile.ts](../../packages/domain/src/users/user-profile.ts)) — a
+> surgical INSERT (idempotent upsert, `ignoreDuplicates`) / DELETE on the
+> `friendships` table, **not** a whole-set reconcile through `save` (ADR 0020 §5).
+> The self-friend invariant moved to a static `UserProfile.assertCanFriend`
+> guard so the edge path enforces it **without** loading + discarding the
+> aggregate (the anti-pattern ADR 0019 removed). `AddFriendHandler` /
+> `RemoveFriendHandler` join `getUserProfileHandlers()`;
+> [friends/actions.ts](../../apps/web/src/app/friends/actions.ts) `addFriend` /
+> `removeFriend` migrated off raw `supabase.from('friendships')`. (The
+> `player-viewer-actions.tsx` follow-state **read** stays — it's a browser-client
+> hydration read in a client island, not a server-layer port concern.) Verify
+> quad green (domain 240, application 42, web 50, infra 7; lint 0 errors). No DB
+> change. **Remaining on P2-1:** the deferred `load-event-detail.ts` host
+> social-handles read; then `GroupRepository` (Phase 3, ~28 raw hits) + the
+> notification outbox — the next big subdomains. See the
+> [inc. 10 journal](../journal/2026-05-29-bundle-phase-2b-inc10-friend-writes.md).
+>
 > **Status update (2026-05-29, Phase 2b inc. 9 — theme / hero / business writes):**
 > **Three more profile writes drained behind the `UserProfile` aggregate**,
 > following the inc. 8 seam + the [ADR 0020](../adr/0020-user-profile-write-aggregate.md)
@@ -332,16 +353,25 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 2b inc. 10 — friend writes; profiles/friendships
+> slice complete):** the `friendships` add/remove writes moved to focused
+> `UserRepository.addFriendEdge` / `removeFriendEdge` ops (surgical idempotent
+> INSERT / DELETE, not a whole-set reconcile), with the self-friend invariant as
+> a static `UserProfile.assertCanFriend` guard so the edge path enforces it
+> without load-and-discard. `AddFriendHandler` / `RemoveFriendHandler` join
+> `getUserProfileHandlers()`; `friends/actions.ts` migrated. **With this, the
+> `profiles` + `friendships` read+write drain is effectively done** —
+> `player-viewer-actions.tsx`'s follow-state read stays (browser-client island
+> hydration). Remaining P2-1: the deferred `load-event-detail.ts` host
+> social-handles read, then `GroupRepository` (#1) + the notification outbox (#3).
+>
 > **Progress (2026-05-29, Phase 2b inc. 9 — theme / hero / business writes):**
 > three more profile-column writes drained behind the aggregate (ADR 0020
 > migration table). `UserProfile` gained `themePreference` / `heroImageUrl` /
 > `businessInfo` (+ `setTheme` / `setHeroImage` / `setBusinessInfo`); thin
 > handlers join `getUserProfileHandlers()`. Migrated `theme-actions.ts`,
 > `hero-image-actions.ts` (profile branch only — events/groups stay raw), and
-> `business-info-actions.ts` off raw `profiles` updates. **Remaining profile
-> work:** the `friendships` add/remove **writes** (inc. 10 — focused
-> `addFriendEdge`/`removeFriendEdge` repo ops, per ADR 0020 §5) + the deferred
-> `load-event-detail.ts` host-social-handles read.
+> `business-info-actions.ts` off raw `profiles` updates.
 >
 > **Progress (2026-05-29, Phase 2b inc. 8 — writes started):** the profile
 > **write** drain began. `UserProfile` is promoted to a real write aggregate
