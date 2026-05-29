@@ -46,47 +46,11 @@ create index bracket_matches_entry_a_idx      on public.bracket_matches (entry_a
 create index bracket_matches_entry_b_idx      on public.bracket_matches (entry_b_id);
 create index bracket_matches_winner_entry_idx on public.bracket_matches (winner_entry_id);
 
--- Backfill: for every existing roster match wiring, find the corresponding
--- `event_team_entries` row (source='roster', live, in the same division as the
--- match's bracket) and copy its id into the new column. Division scoping is
--- required because a single persistent team may have roster entries in
--- multiple divisions across history.
-
-update public.bracket_matches m
-   set entry_a_id = e.id
-  from public.event_brackets b,
-       public.event_team_entries e
- where m.bracket_id = b.id
-   and m.team_a_id is not null
-   and m.entry_a_id is null
-   and e.division_id = b.division_id
-   and e.source = 'roster'
-   and e.deleted_at is null
-   and e.team_id = m.team_a_id;
-
-update public.bracket_matches m
-   set entry_b_id = e.id
-  from public.event_brackets b,
-       public.event_team_entries e
- where m.bracket_id = b.id
-   and m.team_b_id is not null
-   and m.entry_b_id is null
-   and e.division_id = b.division_id
-   and e.source = 'roster'
-   and e.deleted_at is null
-   and e.team_id = m.team_b_id;
-
-update public.bracket_matches m
-   set winner_entry_id = e.id
-  from public.event_brackets b,
-       public.event_team_entries e
- where m.bracket_id = b.id
-   and m.winner_team_id is not null
-   and m.winner_entry_id is null
-   and e.division_id = b.division_id
-   and e.source = 'roster'
-   and e.deleted_at is null
-   and e.team_id = m.winner_team_id;
+-- No backfill: the polymorphic guard below requires that at most one of
+-- (team_*_id, entry_*_id) is set per slot. Populating entry_*_id while
+-- leaving team_*_id set would violate the constraint. Follow-up bundles
+-- flip callers one at a time, writing entry_*_id and nulling team_*_id
+-- in the same statement.
 
 -- Polymorphic guard: each slot is identified by at most one of
 -- (team_*_id, entry_*_id). Both null is allowed (unwired slot / pending
