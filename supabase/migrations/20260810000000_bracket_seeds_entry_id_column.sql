@@ -43,19 +43,11 @@ alter table public.bracket_seeds
 create index bracket_seeds_entry_idx
     on public.bracket_seeds (entry_id);
 
--- 2. Backfill entry_id for existing rostered seeds (same join pattern as the
---    bracket_matches backfill in 20260809000000).
-update public.bracket_seeds s
-   set entry_id = e.id
-  from public.event_brackets b,
-       public.event_team_entries e
- where s.bracket_id = b.id
-   and s.team_id is not null
-   and s.entry_id is null
-   and e.division_id = b.division_id
-   and e.source = 'roster'
-   and e.deleted_at is null
-   and e.team_id = s.team_id;
+-- 2. No backfill: see the matching note in
+--    20260809000000_bracket_matches_entry_id_columns.sql. Populating entry_id
+--    while team_id is still set would conflict with cutover semantics; the
+--    app still writes team_id today. Follow-up bundles flip writes onto
+--    entry_id and null team_id in the same statement.
 
 -- 3. Rotate PK: drop (bracket_id, team_id) and the auto-named unique
 --    (bracket_id, seed), then promote (bracket_id, seed) to the new PK.
@@ -94,9 +86,11 @@ create unique index bracket_seeds_bracket_entry_uidx
     on public.bracket_seeds (bracket_id, entry_id)
     where entry_id is not null;
 
--- 6. Exactly-one check: every seed identifies a participant via exactly one
---    of (team_id, entry_id). Both-null is rejected (orphan seed); both-set is
---    rejected (ambiguous identity).
+-- 6. Orphan guard: every seed must identify a participant via at least one
+--    of (team_id, entry_id). Both-null is rejected (orphan seed). Both-set
+--    is permitted during the team_id → entry_id cutover; a follow-up bundle
+--    tightens this to xor once writes have flipped and team_id is being
+--    dropped.
 alter table public.bracket_seeds
-    add constraint bracket_seeds_team_xor_entry
-        check ((team_id is null) <> (entry_id is null));
+    add constraint bracket_seeds_team_or_entry
+        check (team_id is not null or entry_id is not null);
