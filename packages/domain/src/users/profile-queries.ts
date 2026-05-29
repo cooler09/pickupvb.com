@@ -28,6 +28,9 @@ export interface ProfileQueries {
    */
   findCardsByIds(ids: ReadonlyArray<string>): Promise<Map<string, ProfileCard>>;
 
+  /** A single public profile card by id (null when missing). */
+  findCardById(id: string): Promise<ProfileCard | null>;
+
   /** A single public profile card by vanity handle (e.g. for page metadata). */
   findCardByHandle(handle: string): Promise<ProfileCard | null>;
 

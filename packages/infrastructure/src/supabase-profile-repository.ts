@@ -11,7 +11,7 @@ import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 /** Escape LIKE/ILIKE metacharacters so user text is matched literally. */
-function escapeLike(value: string): string {
+export function escapeLike(value: string): string {
   return value.replace(/[%_]/g, (m) => `\\${m}`);
 }
 
@@ -137,6 +137,16 @@ export class SupabaseProfileRepository implements ProfileQueries {
       out.set(row.id, toCard(row));
     }
     return out;
+  }
+
+  async findCardById(id: string): Promise<ProfileCard | null> {
+    const { data, error } = await this.client
+      .from('profiles_public')
+      .select(CARD_COLUMNS)
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`findCardById failed: ${error.message}`);
+    return data ? toCard(data as CardRow) : null;
   }
 
   async findCardByHandle(handle: string): Promise<ProfileCard | null> {

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next/types';
 import { GetCommunityListingDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
 import { SubmitButton } from '@/components/submit-button';
@@ -186,20 +187,16 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   } | null = null;
   if (detail.status === 'claim_pending' && detail.claimedEventId && detail.claimedByUserId) {
     const sb = await getServerSupabase();
-    const [evRes, profileRes] = await Promise.all([
+    const [evRes, claimantCard] = await Promise.all([
       sb.from('events').select('id, title, slug').eq('id', detail.claimedEventId).maybeSingle(),
-      sb
-        .from('profiles_public')
-        .select('display_name')
-        .eq('id', detail.claimedByUserId)
-        .maybeSingle(),
+      new SupabaseProfileRepository(sb).findCardById(detail.claimedByUserId),
     ]);
     pendingClaim = {
       eventId: detail.claimedEventId,
       eventTitle: (evRes.data as { title?: string } | null)?.title ?? null,
       eventSlug: (evRes.data as { slug?: string | null } | null)?.slug ?? null,
       claimantId: detail.claimedByUserId,
-      claimantName: (profileRes.data as { display_name?: string } | null)?.display_name ?? 'A host',
+      claimantName: claimantCard?.displayName ?? 'A host',
     };
   }
 
