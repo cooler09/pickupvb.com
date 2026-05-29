@@ -1,5 +1,32 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 2b inc. 8 — UserProfile write aggregate):**
+> **The P2-1 profile _writes_ have started** — the substantive piece the read
+> drain (inc. 1–7) was building toward. The orphan, anemic `UserProfile`
+> aggregate ([user-profile.ts](../../packages/domain/src/users/user-profile.ts))
+> is promoted to a real **write aggregate** ([ADR 0020](../adr/0020-user-profile-write-aggregate.md)):
+> it now owns the user-editable profile fields (names, home city, handle, three
+> positions, six social handles, the two preference flags) with `fromPersistence`
+>
+> - `editDetails` / `changeHandle` mutators, and the handle-format +
+>   display-name-required rules move **into the domain** (previously inline regex
+>   in the action). A client-injected `SupabaseUserRepository`
+>   ([supabase-user-repository.ts](../../packages/infrastructure/src/supabase-user-repository.ts))
+>   implements `UserRepository.findById/save` (full UPDATE of the modeled columns;
+>   `23505` → `ConflictError`), wired per-request behind `getUserProfileHandlers()`
+>   ([handlers.ts](../../apps/web/src/lib/handlers.ts)) — a user-scoped factory
+>   mirroring `getMatchResultHandlers()` so the `id = auth.uid()` RLS policy stays
+>   the real gate. [profile/actions.ts](../../apps/web/src/app/profile/actions.ts)
+>   `updateProfile` + `updateHandle` now go through `UpdateProfileCommand` /
+>   `ChangeHandleCommand` (the `as never` write casts gone). New `UserProfile`
+>   domain tests + an `isUniqueViolation` infra test land (also chips at **P3-4** —
+>   `users/user-profile` was on the untested list). Verify quad green (domain 234,
+>   application 42, web 50, infra 7; lint 0 errors). No DB change. **Sliced
+>   deliberately:** theme / hero / business-info writes + friend-edge writes
+>   (focused repo ops) are sequenced as follow-ups reusing this seam — see the
+>   ADR 0020 migration table and the
+>   [inc. 8 journal](../journal/2026-05-29-bundle-phase-2b-inc8-user-profile-write-aggregate.md).
+>
 > **Status update (2026-05-29, Phase 2b inc. 1 — ProfileQueries foundation):**
 > **P2-1 web-layer DB leakage — started.** A survey found 42 raw profile/friend
 > query occurrences (`profiles` ×21, `profiles_public` ×16, `friendships` ×5)
@@ -283,6 +310,20 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 2b inc. 8 — writes started):** the profile
+> **write** drain has begun. `UserProfile` is promoted to a real write aggregate
+> ([ADR 0020](../adr/0020-user-profile-write-aggregate.md)) owning the editable
+> profile fields + the handle/display-name invariants; a client-injected
+> `SupabaseUserRepository` (`findById`/`save`, `23505` → `ConflictError`) is wired
+> per-request behind `getUserProfileHandlers()` (user-scoped, RLS-enforced).
+> `profile/actions.ts` `updateProfile` + `updateHandle` migrated off raw
+> `supabase.from('profiles').update(... as never)` to `UpdateProfileCommand` /
+> `ChangeHandleCommand`. Remaining profile-writes sliced into follow-ups reusing
+> the seam: theme (`theme-actions.ts`), hero (`hero-image-actions.ts` profile
+> branch), business-info (`business-info-actions.ts`), and the `friendships`
+> add/remove writes (`friends/actions.ts` → focused `addFriendEdge`/
+> `removeFriendEdge` repo ops, per ADR 0020 §5).
+>
 > **Progress (2026-05-29, Phase 2b inc. 1–6):** the social-graph reads moved to
 > `SocialGraphQueries` (Phase 2a), and the profile-read drain is underway via a
 > `ProfileQueries` read port + client-injected `SupabaseProfileRepository`
@@ -362,7 +403,7 @@ pages and `*-actions.ts`.
 - **P3-1. Oversized client form.** [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx) is **1,402 LOC** with 21 hook calls — the whole create-event wizard in one `'use client'` component, well past ADR 0005's ~200-LOC cap. **Fix:** decompose into step components under `events/new/_components/` sharing a form-state context, continuing the [divisions-repeater.tsx](../../apps/web/src/app/events/new/_components/divisions-repeater.tsx) extraction. [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx) (592 LOC) is the same shape and should share the extracted pieces (DRY).
 - **P3-2. Stripe webhook is an 833-LOC god-handler.** [route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts) handles all 8 event types with inline business logic writing directly to many tables, **bypassing the payment repos that already exist** (`hostSubscriptionRepo`, `eventTeamPaymentRepo`). It's the most critical money path with the least structure. **Fix:** extract one handler per Stripe event into `lib/webhooks/`, route file becomes a dispatch switch, and route the DB writes through the existing payment repositories.
 - **P3-3. Payment aggregates bypass the application layer (CQRS bypass).** `HostStripeAccount` / `HostSubscription` aggregates + repos exist but are consumed via thin `lib/` facades ([pro.ts](../../apps/web/src/lib/pro.ts), [host-stripe-account.ts](../../apps/web/src/lib/host-stripe-account.ts)) that call the repos directly — no command/query handlers, so they sit outside the handler registry the rest of the app uses. **Fix:** decide intentionally — either add `application` handlers (consistency) or document the facades as a sanctioned read-projection shortcut in `AGENTS.md` so it's not mistaken for drift.
-- **P3-4. Thin domain test coverage for newer units.** 9 domain test files for ~40 non-test source files. Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port. **Untested:** `community-listing`, `division`, `brackets/standings`, `payments/host-stripe-account`, `payments/host-subscription`, `users/user-profile`, `events/location`, `community-listings/external-url`. **Fix:** backfill invariant tests as these units are touched (per AGENTS.md "add a test when adding a domain rule"); prioritize `standings` (scoring math) and `community-listing` (claim/approve state machine).
+- **P3-4. Thin domain test coverage for newer units.** 10 domain test files for ~40 non-test source files. Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port, `users/user-profile` (added Phase 2b inc. 8 — display-name/handle invariants + friend-graph guard). **Untested:** `community-listing`, `division`, `brackets/standings`, `payments/host-stripe-account`, `payments/host-subscription`, `events/location`, `community-listings/external-url`. **Fix:** backfill invariant tests as these units are touched (per AGENTS.md "add a test when adding a domain rule"); prioritize `standings` (scoring math) and `community-listing` (claim/approve state machine).
 
 ---
 

@@ -9,5 +9,6 @@ export * from './supabase-host-subscription-repository';
 export * from './supabase-community-listing-repository';
 export * from './supabase-social-graph-repository';
 export * from './supabase-profile-repository';
+export * from './supabase-user-repository';
 export * from './noop-analytics';
 export * from './posthog-analytics';

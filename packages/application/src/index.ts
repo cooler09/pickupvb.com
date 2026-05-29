@@ -11,5 +11,6 @@ export * from './commands/league-roster.handler';
 export * from './queries/event-queries.handler';
 export * from './queries/event-detail.handler';
 export * from './commands/community-listing.handler';
+export * from './commands/user-profile.handler';
 export * from './queries/community-listing-queries.handler';
 export * from './analytics/index';

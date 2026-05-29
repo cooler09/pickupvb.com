@@ -7,7 +7,7 @@ import type {
   UpdateCommunityListingDto,
   SearchCommunityListingsDto,
 } from '@pickupvb/types';
-import type { CoHostParty, FollowingFeedFilters } from '@pickupvb/domain';
+import type { CoHostParty, FollowingFeedFilters, ProfileDetailsEdit } from '@pickupvb/domain';
 
 // ---- Commands -------------------------------------------------------------
 export class CreateEventCommand {
@@ -376,5 +376,24 @@ export class GetCommunityListingDetailQuery {
   constructor(
     public readonly idOrSlug: string,
     public readonly viewerId: string | null,
+  ) {}
+}
+
+// ---- User profile commands (ADR 0020) -----------------------------------
+export class UpdateProfileCommand {
+  constructor(
+    public readonly userId: string,
+    /** Already-normalized editable fields (trimming / handle normalization
+     * happen at the web boundary). The handler defends invariants. */
+    public readonly details: ProfileDetailsEdit,
+  ) {}
+}
+
+export class ChangeHandleCommand {
+  constructor(
+    public readonly userId: string,
+    /** Already lower-cased / trimmed; the aggregate validates the shape and
+     * the DB unique constraint surfaces as `ConflictError` on save. */
+    public readonly handle: string,
   ) {}
 }

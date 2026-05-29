@@ -14,6 +14,7 @@ import {
   SupabaseLeagueScheduleRepository,
   SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
+  SupabaseUserRepository,
 } from '@pickupvb/infrastructure';
 import {
   AcceptTeamInviteHandler,
@@ -64,9 +65,11 @@ import {
   SearchEventsHandler,
   SeedBracketHandler,
   SetTeamExtraMembersHandler,
+  ChangeHandleHandler,
   UnhideCommunityListingHandler,
   UpdateCommunityListingHandler,
   UpdateEventDivisionHandler,
+  UpdateProfileHandler,
   UpdateLeagueScheduleMatchHandler,
   WithdrawAdHocTeamRegistrationHandler,
   WithdrawTeamHandler,
@@ -235,6 +238,26 @@ export async function getMatchResultHandlers(): Promise<{
     recordMatchResult: new RecordMatchResultHandler(userBracketRepo),
     resetMatch: new ResetMatchHandler(userBracketRepo),
     recordLeagueMatchResult: new RecordLeagueMatchResultHandler(userLeagueScheduleRepo),
+  };
+}
+
+/**
+ * Per-request handlers for the user's own profile writes (ADR 0020).
+ *
+ * Like `getMatchResultHandlers()`, these are built per request around a
+ * *user-scoped* Supabase client so the `profiles` RLS policy (`id = auth.uid()`)
+ * is the real authorization gate — a profile edit is a self-write, so it must
+ * not share the admin-client path of the module-singleton `handlers`.
+ */
+export async function getUserProfileHandlers(): Promise<{
+  updateProfile: UpdateProfileHandler;
+  changeHandle: ChangeHandleHandler;
+}> {
+  const client = await getServerSupabase();
+  const userRepo = new SupabaseUserRepository(client);
+  return {
+    updateProfile: new UpdateProfileHandler(userRepo),
+    changeHandle: new ChangeHandleHandler(userRepo),
   };
 }
 

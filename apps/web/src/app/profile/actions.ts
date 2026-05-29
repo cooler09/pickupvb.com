@@ -1,10 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { ChangeHandleCommand, UpdateProfileCommand } from '@pickupvb/application';
+import { ConflictError, NotFoundError, ValidationError } from '@pickupvb/domain';
 import { fieldOrNull, bool } from '@/lib/form-data';
 import { isPosition, type Position } from '@/lib/enum-labels';
 import { normalizeHandle, normalizeWebsiteUrl } from '@/lib/social-handles';
 import { requireSession } from '@/lib/server-auth';
+import { getUserProfileHandlers } from '@/lib/handlers';
 
 export type ProfileFormState = {
   error: string | null;
@@ -21,7 +24,7 @@ export async function updateProfile(
   _prev: ProfileFormState,
   formData: FormData,
 ): Promise<ProfileFormState> {
-  const { supabase, user } = await requireSession();
+  const { user } = await requireSession();
 
   const firstName = fieldOrNull(formData, 'first_name', 60);
   const lastName = fieldOrNull(formData, 'last_name', 60);
@@ -52,29 +55,35 @@ export async function updateProfile(
     return { error: 'Please enter a display name (or first/last name).', success: false };
   }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({
-      first_name: firstName,
-      last_name: lastName,
-      home_city: homeCity,
-      display_name: displayName,
-      auto_accept_team_invites: autoAcceptTeamInvites,
-      show_pro_badge: showProBadge,
-      primary_position: primaryPosition,
-      secondary_position: secondaryPosition,
-      tertiary_position: tertiaryPosition,
-      instagram_handle: instagramHandle,
-      tiktok_handle: tiktokHandle,
-      twitter_handle: twitterHandle,
-      facebook_handle: facebookHandle,
-      youtube_handle: youtubeHandle,
-      website_url: websiteUrl,
-    } as never)
-    .eq('id', user.id);
-
-  if (error) {
-    return { error: error.message, success: false };
+  const { updateProfile: handler } = await getUserProfileHandlers();
+  try {
+    await handler.execute(
+      new UpdateProfileCommand(user.id, {
+        displayName,
+        firstName,
+        lastName,
+        homeCity,
+        positions: {
+          primary: primaryPosition,
+          secondary: secondaryPosition,
+          tertiary: tertiaryPosition,
+        },
+        socialHandles: {
+          instagram: instagramHandle,
+          tiktok: tiktokHandle,
+          twitter: twitterHandle,
+          facebook: facebookHandle,
+          youtube: youtubeHandle,
+          website: websiteUrl,
+        },
+        autoAcceptTeamInvites,
+        showProBadge,
+      }),
+    );
+  } catch (err) {
+    if (err instanceof ValidationError) return { error: err.message, success: false };
+    if (err instanceof NotFoundError) return { error: 'Profile not found.', success: false };
+    throw err;
   }
 
   revalidatePath('/profile');
@@ -87,8 +96,6 @@ export type HandleFormState = {
   success: boolean;
 };
 
-const HANDLE_RE = /^[a-z0-9][a-z0-9-]{1,63}[a-z0-9]$/;
-
 export async function updateHandle(
   _prev: HandleFormState,
   formData: FormData,
@@ -99,14 +106,10 @@ export async function updateHandle(
     .trim()
     .toLowerCase();
   if (!raw) return { error: 'Pick a handle.', success: false };
-  if (!HANDLE_RE.test(raw)) {
-    return {
-      error: 'Use 3–65 lowercase letters, numbers, or dashes (no leading/trailing dash).',
-      success: false,
-    };
-  }
 
-  // Look up old handle so we can revalidate its public URL too.
+  // Look up old handle so we can revalidate its public URL too (a trivial
+  // self-scoped read; the handle-shape rule + uniqueness now live in the
+  // UserProfile aggregate / repository — ADR 0020).
   const { data: oldRow } = await supabase
     .from('profiles')
     .select('handle')
@@ -114,16 +117,16 @@ export async function updateHandle(
     .maybeSingle();
   const oldHandle = (oldRow as { handle: string } | null)?.handle ?? null;
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ handle: raw } as never)
-    .eq('id', user.id);
-
-  if (error) {
-    if (error.code === '23505') {
+  const { changeHandle: handler } = await getUserProfileHandlers();
+  try {
+    await handler.execute(new ChangeHandleCommand(user.id, raw));
+  } catch (err) {
+    if (err instanceof ConflictError) {
       return { error: 'That handle is already taken — try another.', success: false };
     }
-    return { error: error.message, success: false };
+    if (err instanceof ValidationError) return { error: err.message, success: false };
+    if (err instanceof NotFoundError) return { error: 'Profile not found.', success: false };
+    throw err;
   }
 
   revalidatePath('/profile');
