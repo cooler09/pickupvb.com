@@ -28,53 +28,69 @@
 -- ============================================================================
 
 -- 1. bracket_matches slots (A, B, winner, work)
+--
+-- Postgres forbids referencing the UPDATE target (`m`) from inside a
+-- FROM-clause JOIN's ON. Use comma-separated FROM tables and put the
+-- cross-table predicates in WHERE instead. `source='roster'` +
+-- `deleted_at is null` mirror the filters used by the original
+-- (later-removed) backfills in 20260809/20260810.
 update public.bracket_matches m
    set entry_a_id = e.id,
        team_a_id  = null
-  from public.event_brackets b
-       join public.event_team_entries e
-         on e.division_id = b.division_id
-        and e.team_id     = m.team_a_id
+  from public.event_brackets b,
+       public.event_team_entries e
  where b.id = m.bracket_id
-   and m.team_a_id is not null;
+   and m.team_a_id is not null
+   and e.division_id = b.division_id
+   and e.source = 'roster'
+   and e.deleted_at is null
+   and e.team_id = m.team_a_id;
 
 update public.bracket_matches m
    set entry_b_id = e.id,
        team_b_id  = null
-  from public.event_brackets b
-       join public.event_team_entries e
-         on e.division_id = b.division_id
-        and e.team_id     = m.team_b_id
+  from public.event_brackets b,
+       public.event_team_entries e
  where b.id = m.bracket_id
-   and m.team_b_id is not null;
+   and m.team_b_id is not null
+   and e.division_id = b.division_id
+   and e.source = 'roster'
+   and e.deleted_at is null
+   and e.team_id = m.team_b_id;
 
 update public.bracket_matches m
    set winner_entry_id = e.id,
        winner_team_id  = null
-  from public.event_brackets b
-       join public.event_team_entries e
-         on e.division_id = b.division_id
-        and e.team_id     = m.winner_team_id
+  from public.event_brackets b,
+       public.event_team_entries e
  where b.id = m.bracket_id
-   and m.winner_team_id is not null;
+   and m.winner_team_id is not null
+   and e.division_id = b.division_id
+   and e.source = 'roster'
+   and e.deleted_at is null
+   and e.team_id = m.winner_team_id;
 
 update public.bracket_matches m
    set work_entry_id = e.id,
        work_team_id  = null
-  from public.event_brackets b
-       join public.event_team_entries e
-         on e.division_id = b.division_id
-        and e.team_id     = m.work_team_id
+  from public.event_brackets b,
+       public.event_team_entries e
  where b.id = m.bracket_id
-   and m.work_team_id is not null;
+   and m.work_team_id is not null
+   and e.division_id = b.division_id
+   and e.source = 'roster'
+   and e.deleted_at is null
+   and e.team_id = m.work_team_id;
 
 -- 2. bracket_seeds
 update public.bracket_seeds s
    set entry_id = e.id,
        team_id  = null
-  from public.event_brackets b
-       join public.event_team_entries e
-         on e.division_id = b.division_id
-        and e.team_id     = s.team_id
+  from public.event_brackets b,
+       public.event_team_entries e
  where b.id = s.bracket_id
-   and s.team_id is not null;
+   and s.team_id is not null
+   and e.division_id = b.division_id
+   and e.source = 'roster'
+   and e.deleted_at is null
+   and e.team_id = s.team_id;
