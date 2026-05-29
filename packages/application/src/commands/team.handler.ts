@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  DivisionId,
   NotFoundError,
   Team,
   TeamId,
@@ -112,13 +113,10 @@ export class SetTeamExtraMembersHandler {
  *   - the Team's format must match the chosen Division's format
  *   - the Event aggregate enforces the rest (must be tournament, published, …)
  *
- * Note: we run `event.registerTeam(...)` purely to execute the aggregate's
- * invariants (status / type / start-time / duplicate guards) but we do
- * **not** call `events.save(event)`. The aggregate's `_teams` set carries
- * only team ids and has no slot for the captain-chosen `divisionId`, which
- * is NOT NULL on `event_teams`. We persist the join row via the dedicated
- * `attachTeamToDivision` port instead. The aggregate's in-memory mutation
- * is discarded; the next `findById` rehydrates `_teams` from the DB.
+ * The aggregate owns the team↔division registration (ADR 0019):
+ * `registerTeam(teamId, divisionId)` records which division the team joined
+ * and re-checks that the division exists, so `events.save(event)` persists
+ * the join in a single write path — no aggregate-sidestepping port.
  */
 export class RegisterTeamHandler {
   constructor(
@@ -141,10 +139,10 @@ export class RegisterTeamHandler {
         `Team format (${team.format}) doesn't match division format (${division.format}).`,
       );
     }
-    // Run aggregate invariants (status / start-time / duplicate guard).
-    event.registerTeam(team.id);
-    event.pullEvents();
-    await this.events.attachTeamToDivision(eventId, String(team.id), divisionId);
+    // Aggregate invariants (status / start-time / division-exists / duplicate)
+    // run inside registerTeam; save() persists the team↔division join.
+    event.registerTeam(team.id, DivisionId(divisionId));
+    await this.events.save(event);
   }
 }
 

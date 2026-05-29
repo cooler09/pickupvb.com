@@ -1,5 +1,25 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 1 — P1 resolved):** **Division-scoped
+> aggregate entries landed** ([ADR 0019](../adr/0019-division-scoped-aggregate-entries.md),
+> [journal](../journal/2026-05-29-bundle-phase-1-division-scoped-entries.md)).
+> The `VolleyballEvent` aggregate now carries the division on each team
+> (`_teams: Map<TeamId, DivisionId | null>`) and free-agent
+> (`_freeAgents: Map<UserId, FreeAgentEntry>`) entry; `registerTeam(teamId,
+divisionId)` validates the division and `joinAsFreeAgent` stores it, so
+> `save(event)` persists registrations in one write path. The two
+> aggregate-sidestepping ports (`attachTeamToDivision` /
+> `attachFreeAgentToDivision`) are **deleted** from the port + adapter + both
+> handlers; `save()`'s `soleDivisionId` skip-branches for teams/free agents are
+> gone (team inserts reuse the existing `attach_team_to_division` RPC for its
+> partial-unique `ON CONFLICT`; FA inserts upsert idempotently). New domain
+> tests assert the division is carried; verify quad green (309 tests), no
+> migration. **Honest re-grade:** on close reading this was a
+> consistency-boundary / structural defect, not the active data-loss the P1 first
+> implied (the single-division FA double-write was redundant-but-harmless; team
+> register was already a single write). Deferred: true multi-statement `save()`
+> atomicity (a separate, broader RPC effort — also affects attendees/divisions).
+>
 > **Status update (2026-05-29, Phase 0 — guardrails):** **First refactor phase
 > landed.** Added string-constrained smart constructors (`idConstructor<B>()`
 > in [shared/brand.ts](../../packages/domain/src/shared/brand.ts)) for all 12
@@ -210,7 +230,17 @@ pages and `*-actions.ts`.
 
 ---
 
-### P1 — Split, non-atomic registration write path (data-integrity hazard)
+### P1 — Split, non-atomic registration write path ✅ Resolved 2026-05-29 (ADR 0019)
+
+> **Resolved (Phase 1, 2026-05-29):** the aggregate now owns the division on
+> each team / free-agent entry; `registerTeam(teamId, divisionId)` +
+> `joinAsFreeAgent` persist via `save(event)` in one write path, and both
+> `attach…` ports are deleted. See
+> [ADR 0019](../adr/0019-division-scoped-aggregate-entries.md) and the
+> [Phase 1 journal](../journal/2026-05-29-bundle-phase-1-division-scoped-entries.md).
+> Re-graded on implementation: structural consistency-boundary defect, not
+> active data loss. Remaining: true multi-statement `save()` atomicity
+> (deferred — separate RPC effort, also affects attendees/divisions).
 
 - **Where:** [join-event.handler.ts](../../packages/application/src/commands/join-event.handler.ts#L60-L78) (`JoinEventAsFreeAgentHandler`), [team.handler.ts](../../packages/application/src/commands/team.handler.ts) (`RegisterTeamHandler`), and the ports they lean on: [event-repository.ts](../../packages/domain/src/events/event-repository.ts#L54-L70) (`attachTeamToDivision`, `attachFreeAgentToDivision`), implemented in [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts#L499-L621).
 - **Issue:** The aggregate cannot hold a `divisionId` on its free-agent / team entries (its `_freeAgents` map is `userId → notes`; `_teams` is a `Set<teamId>`), but `event_teams` / `event_team_entries` require `division_id` **NOT NULL**. So a registration is **two sequential writes through two code paths**: `event.joinAsFreeAgent(...)` + `repo.save(event)` (which, for multi-division events, _skips_ inserting the row — see `if (!soleDivisionId) continue` at [L590-L600](../../packages/infrastructure/src/supabase-event-repository.ts#L585-L612)), then `repo.attachFreeAgentToDivision(eventId, userId, divisionId)` to do the real attach. There is no transaction spanning the two. A failure (or RLS denial) between `save()` and `attach…()` leaves the event aggregate's persisted state and the division-attachment table inconsistent — and for single-division events the `save()` path _also_ inserts with `soleDivisionId`, so the two paths can both touch the same row with divergent logic. The aggregate is no longer the consistency boundary it claims to be.

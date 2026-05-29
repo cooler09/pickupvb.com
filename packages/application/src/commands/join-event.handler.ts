@@ -74,12 +74,11 @@ export class JoinEventAsFreeAgentHandler {
   }: JoinEventAsFreeAgentCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    // Aggregate owns division existence + allowFreeAgents check.
+    // The aggregate owns the division-existence + allowFreeAgents check and
+    // now carries the chosen division on the entry (ADR 0019), so save()
+    // persists it in one write path — no separate attach step.
     event.joinAsFreeAgent(UserId(userId), DivisionId(divisionId), notes);
     await this.repo.save(event);
-    // Persist the division pick via dedicated port (aggregate's
-    // `_freeAgents` map has no slot for division_id).
-    await this.repo.attachFreeAgentToDivision(eventId, userId, divisionId);
   }
 }
 

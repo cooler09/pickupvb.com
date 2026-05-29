@@ -2,6 +2,7 @@ import {
   AgeGroup,
   Capacity,
   Division,
+  DivisionId,
   EventStatus,
   EventType,
   Format,
@@ -13,7 +14,9 @@ import {
   SkillTier,
   Surface,
   TeamComposition,
+  TeamId,
   TeamRegistrationMode,
+  UserId,
   Visibility,
   VolleyballEvent,
   isEventPosition,
@@ -298,13 +301,13 @@ export class SupabaseEventRepository implements EventRepository {
         .eq('division.event_id', id),
       this.client
         .from('event_team_entries')
-        .select('team_id, division:event_divisions!inner(event_id)')
+        .select('team_id, division_id, division:event_divisions!inner(event_id)')
         .eq('division.event_id', id)
         .eq('source', 'roster')
         .is('deleted_at', null),
       this.client
         .from('event_participants')
-        .select('user_id, notes, division:event_divisions!inner(event_id)')
+        .select('user_id, notes, division_id, division:event_divisions!inner(event_id)')
         .eq('role', 'free_agent')
         .eq('division.event_id', id),
       this.client
@@ -347,9 +350,21 @@ export class SupabaseEventRepository implements EventRepository {
       attendees: ((attendees ?? []) as Array<{ user_id: string; position: string | null }>).map(
         (a) => [a.user_id as never, isEventPosition(a.position) ? a.position : null] as const,
       ),
-      teams: ((teams ?? []) as Array<{ team_id: string }>).map((t) => t.team_id as never),
-      freeAgents: ((freeAgents ?? []) as Array<{ user_id: string; notes: string | null }>).map(
-        (f) => [f.user_id as never, f.notes] as const,
+      teams: ((teams ?? []) as Array<{ team_id: string; division_id: string | null }>).map(
+        (t) => [TeamId(t.team_id), t.division_id ? DivisionId(t.division_id) : null] as const,
+      ),
+      freeAgents: (
+        (freeAgents ?? []) as Array<{
+          user_id: string;
+          notes: string | null;
+          division_id: string | null;
+        }>
+      ).map(
+        (f) =>
+          [
+            UserId(f.user_id),
+            { divisionId: f.division_id ? DivisionId(f.division_id) : null, notes: f.notes },
+          ] as const,
       ),
       positionRoster: divisionRowToPositionRoster(divisionRows[0]),
       extensions: rowToExtensions(row),
@@ -416,12 +431,11 @@ export class SupabaseEventRepository implements EventRepository {
     //
     //   * Read the current rows via `.in('division_id', divisionIds)`.
     //   * Delete only rows no longer in the aggregate.
-    //   * Insert only rows newly added — when the event has exactly one
-    //     division, supply that id; multi-division joins go through
-    //     dedicated handlers (`attachTeamToDivision`,
-    //     `attachFreeAgentToDivision`, etc.) that write the child tables
-    //     directly with the chosen division_id, so the aggregate save
-    //     should never need to insert there.
+    //   * Insert only rows newly added. Attendees are open-play only and
+    //     open-play is single-division by invariant, so a new attendee uses
+    //     `soleDivisionId`. Teams and free agents now carry their own
+    //     division on the aggregate (ADR 0019), so their inserts below use
+    //     that — no division-less skip, no side-channel attach port.
     //   * UPDATE rows whose position changed.
     const eventIdForChildren = String(event.id);
     const { data: divIdRows, error: divIdErr } = await this.client
@@ -497,9 +511,16 @@ export class SupabaseEventRepository implements EventRepository {
     }
 
     // Same delta pattern for the roster-mode entries in event_team_entries,
-    // scoped through divisionIds. Ad-hoc / walk-in entries are owned by the
-    // EventTeamRegistration aggregate and are intentionally skipped here.
-    const desiredTeams = new Set(Array.from(event.teams).map((t) => String(t)));
+    // scoped through divisionIds. Each desired entry now carries its own
+    // division (ADR 0019), so inserts work for single- and multi-division
+    // events alike — they route through the `attach_team_to_division` RPC,
+    // which resolves captain/name and honours the partial unique index via
+    // INSERT … ON CONFLICT DO NOTHING. Ad-hoc / walk-in entries are owned by
+    // the EventTeamRegistration aggregate and are intentionally skipped here.
+    const desiredTeamDivision = new Map(
+      event.teamEntries.map(([t, d]) => [String(t), d ? String(d) : null] as const),
+    );
+    const desiredTeams = new Set(desiredTeamDivision.keys());
     const { data: existingTeamRows, error: selTErr } = await this.client
       .from('event_team_entries')
       .select('team_id')
@@ -526,41 +547,16 @@ export class SupabaseEventRepository implements EventRepository {
         .in('team_id', teamsToDelete);
       if (delTErr) throw new Error(`save teams delete failed: ${delTErr.message}`);
     }
-    if (teamsToInsert.length > 0) {
-      // Multi-division: `attachTeamToDivision` is the dedicated path.
-      if (soleDivisionId) {
-        const sole = soleDivisionId;
-        // Need teams.name + captain_id to populate the entry.
-        const { data: teamMeta, error: teamMetaErr } = await this.client
-          .from('teams')
-          .select('id, name, captain_id')
-          .in('id', teamsToInsert);
-        if (teamMetaErr) throw new Error(`save teams meta lookup failed: ${teamMetaErr.message}`);
-        const metaById = new Map<string, { name: string; captain_id: string }>(
-          ((teamMeta as Array<{ id: string; name: string; captain_id: string }> | null) ?? []).map(
-            (t) => [t.id, { name: t.name, captain_id: t.captain_id }],
-          ),
-        );
-        const rowsToInsert = teamsToInsert.flatMap((team_id) => {
-          const meta = metaById.get(team_id);
-          if (!meta) return [];
-          return [
-            {
-              division_id: sole,
-              source: 'roster' as const,
-              team_id,
-              captain_id: meta.captain_id,
-              display_name: meta.name,
-            },
-          ];
-        });
-        if (rowsToInsert.length > 0) {
-          const { error: insTErr } = await this.client
-            .from('event_team_entries')
-            .insert(rowsToInsert as never);
-          if (insTErr) throw new Error(`save teams insert failed: ${insTErr.message}`);
-        }
-      }
+    for (const teamId of teamsToInsert) {
+      // Per-entry division (ADR 0019); fall back to the sole division for
+      // legacy rows that carry none.
+      const teamDivisionId = desiredTeamDivision.get(teamId) ?? soleDivisionId;
+      if (!teamDivisionId) continue;
+      const { error: insTErr } = await this.client.rpc('attach_team_to_division', {
+        p_division_id: teamDivisionId,
+        p_team_id: teamId,
+      } as never);
+      if (insTErr) throw new Error(`save teams insert failed: ${insTErr.message}`);
     }
 
     // Free agents — delta on membership + notes update.
@@ -578,8 +574,11 @@ export class SupabaseEventRepository implements EventRepository {
         (r) => [r.user_id, r.notes],
       ),
     );
-    const desiredFa = new Map<string, string | null>(
-      Array.from(event.freeAgents.entries()).map(([u, notes]) => [String(u), notes]),
+    const desiredFa = new Map<string, { divisionId: string | null; notes: string | null }>(
+      event.freeAgentEntries.map(([u, e]) => [
+        String(u),
+        { divisionId: e.divisionId ? String(e.divisionId) : null, notes: e.notes },
+      ]),
     );
     const faToDelete: string[] = [];
     for (const userId of existingFa.keys()) {
@@ -587,14 +586,15 @@ export class SupabaseEventRepository implements EventRepository {
     }
     const faToInsert: Array<{ division_id: string; user_id: string; notes: string | null }> = [];
     const faToUpdate: Array<{ user_id: string; notes: string | null }> = [];
-    for (const [userId, notes] of desiredFa.entries()) {
+    for (const [userId, entry] of desiredFa.entries()) {
       if (!existingFa.has(userId)) {
-        // Multi-division: `attachFreeAgentToDivision` writes the row in
-        // the chosen division. Skip aggregate-driven insert here.
-        if (!soleDivisionId) continue;
-        faToInsert.push({ division_id: soleDivisionId, user_id: userId, notes });
-      } else if (existingFa.get(userId) !== notes) {
-        faToUpdate.push({ user_id: userId, notes });
+        // Per-entry division (ADR 0019); fall back to the sole division for
+        // legacy rows that carry none.
+        const faDivisionId = entry.divisionId ?? soleDivisionId;
+        if (!faDivisionId) continue;
+        faToInsert.push({ division_id: faDivisionId, user_id: userId, notes: entry.notes });
+      } else if (existingFa.get(userId) !== entry.notes) {
+        faToUpdate.push({ user_id: userId, notes: entry.notes });
       }
     }
     if (faToDelete.length > 0) {
@@ -608,7 +608,12 @@ export class SupabaseEventRepository implements EventRepository {
     }
     if (faToInsert.length > 0) {
       const rows = faToInsert.map((f) => ({ ...f, role: 'free_agent' as const }));
-      const { error: insFErr } = await this.client.from('event_participants').insert(rows as never);
+      // Upsert on the (division_id, user_id) unique index so a concurrent
+      // double-submit is idempotent (matches the removed
+      // attachFreeAgentToDivision behaviour — ADR 0019).
+      const { error: insFErr } = await this.client
+        .from('event_participants')
+        .upsert(rows as never, { onConflict: 'division_id,user_id', ignoreDuplicates: true });
       if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
     }
     for (const row of faToUpdate) {
@@ -1427,39 +1432,11 @@ export class SupabaseEventRepository implements EventRepository {
     if (error) throw new Error(`removeCoHost failed: ${error.message}`);
   }
 
-  async attachTeamToDivision(_eventId: string, teamId: string, divisionId: string): Promise<void> {
-    // Roster entries are guarded by a partial unique index on
-    // (division_id, team_id) WHERE team_id IS NOT NULL AND deleted_at IS NULL.
-    // PostgREST upserts can't target partial unique indexes, so this routes
-    // through `attach_team_to_division`, a SECURITY INVOKER RPC that does
-    // INSERT … ON CONFLICT DO NOTHING in one statement. RLS still applies
-    // (caller must be the team's captain, per `event_team_entries_insert`).
-    const { error } = await this.client.rpc('attach_team_to_division', {
-      p_division_id: divisionId,
-      p_team_id: teamId,
-    } as never);
-    if (error) throw new Error(`attachTeamToDivision failed: ${error.message}`);
-  }
-
-  async attachFreeAgentToDivision(
-    _eventId: string,
-    userId: string,
-    divisionId: string,
-  ): Promise<void> {
-    // After Step 5a free agents are stored as event_participants rows with
-    // role='free_agent', keyed by (division_id, user_id). Upsert so the
-    // multi-division flow (where `save(event)` skips the insert because
-    // it can't pick a division on its own) installs the row, and a
-    // re-classification into a different division is a clean overwrite.
-    const { error } = await this.client
-      .from('event_participants')
-      .upsert({ division_id: divisionId, user_id: userId, role: 'free_agent' } as never, {
-        onConflict: 'division_id,user_id',
-      });
-    if (error) {
-      throw new Error(`attachFreeAgentToDivision failed: ${error.message}`);
-    }
-  }
+  // ADR 0019: `attachTeamToDivision` and `attachFreeAgentToDivision` were
+  // removed. The `VolleyballEvent` aggregate now carries the division on each
+  // team / free-agent entry, so `save(event)` persists the join directly
+  // (team inserts still route through the `attach_team_to_division` RPC from
+  // inside `save`, preserving the partial-unique ON CONFLICT semantics).
 
   async setRosterTeamForfeited(
     divisionId: string,

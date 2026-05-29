@@ -97,13 +97,9 @@ class InMemoryTeamRepo implements TeamRepository {
   }
 }
 
-class InMemoryEventRepo implements Pick<
-  EventRepository,
-  'findById' | 'save' | 'attachTeamToDivision'
-> {
+class InMemoryEventRepo implements Pick<EventRepository, 'findById' | 'save'> {
   private store = new Map<string, VolleyballEvent>();
   saved: VolleyballEvent[] = [];
-  attached: Array<{ eventId: string; teamId: string; divisionId: string }> = [];
 
   put(evt: VolleyballEvent) {
     this.store.set(String(evt.id), evt);
@@ -114,9 +110,6 @@ class InMemoryEventRepo implements Pick<
   async save(evt: VolleyballEvent): Promise<void> {
     this.saved.push(evt);
     this.store.set(String(evt.id), evt);
-  }
-  async attachTeamToDivision(eventId: string, teamId: string, divisionId: string): Promise<void> {
-    this.attached.push({ eventId, teamId, divisionId });
   }
 }
 
@@ -130,7 +123,7 @@ function makeTeam(opts: { id?: string; captainId?: string; format?: Format } = {
 }
 
 describe('RegisterTeamHandler', () => {
-  it('attaches the team to the chosen division on the happy path', async () => {
+  it('registers the team into the chosen division and saves the aggregate', async () => {
     const team = makeTeam();
     const division = makeDivision(Format.Sixes);
     const event = makeTournament({ divisions: [division] });
@@ -149,12 +142,10 @@ describe('RegisterTeamHandler', () => {
       divisionId: 'div-1',
     });
 
-    expect(events.attached).toEqual([
-      { eventId: 'event-1', teamId: 'team-1', divisionId: 'div-1' },
-    ]);
-    // Aggregate is intentionally NOT saved — division id lives only on the
-    // join row, persisted by `attachTeamToDivision`.
-    expect(events.saved).toHaveLength(0);
+    // ADR 0019: the aggregate carries the team↔division join and is persisted
+    // in one write path — no attach side-channel.
+    expect(events.saved).toHaveLength(1);
+    expect(events.saved[0]!.teamEntries).toContainEqual(['team-1', 'div-1']);
   });
 
   it('throws NotFoundError when the team does not exist', async () => {

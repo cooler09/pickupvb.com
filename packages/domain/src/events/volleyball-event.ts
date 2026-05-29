@@ -41,6 +41,17 @@ export type TeamId = Brand<string, 'TeamId'>;
 export const TeamId = idConstructor<'TeamId'>();
 
 /**
+ * A tournament free-agent signup as the aggregate owns it (ADR 0019): the
+ * division the player signed up for plus their optional captain-facing notes.
+ * `divisionId` is `null` only for legacy rows read from persistence that
+ * predate a clean division assignment — new signups always carry one.
+ */
+export interface FreeAgentEntry {
+  divisionId: DivisionId | null;
+  notes: string | null;
+}
+
+/**
  * Validate and copy a position roster: integers ≥ 0, at least one position
  * with a positive count, and unknown keys rejected.
  */
@@ -285,8 +296,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _capacity: Capacity | null,
     private _status: EventStatus,
     private _attendees: Map<UserId, EventPosition | null>,
-    private _teams: Set<TeamId>,
-    private _freeAgents: Map<UserId, string | null>,
+    private _teams: Map<TeamId, DivisionId | null>,
+    private _freeAgents: Map<UserId, FreeAgentEntry>,
     private _positionRoster: Map<EventPosition, number> | null,
     private _extensions: EventExtensions,
     private _divisions: Division[],
@@ -346,7 +357,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       capacity,
       EventStatus.Draft,
       new Map(),
-      new Set(),
+      new Map(),
       new Map(),
       positionRoster,
       extensions,
@@ -377,9 +388,19 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     capacity: Capacity | null;
     status: EventStatus;
     attendees: ReadonlyArray<UserId> | ReadonlyArray<readonly [UserId, EventPosition | null]>;
-    teams: ReadonlyArray<TeamId>;
-    /** Tuples of `[userId, notes]`. Notes default to `null` when absent. */
-    freeAgents?: ReadonlyArray<readonly [UserId, string | null]>;
+    /**
+     * Either bare team ids (legacy / division-less) or `[teamId, divisionId]`
+     * tuples (ADR 0019). Bare ids hydrate with a `null` division.
+     */
+    teams: ReadonlyArray<TeamId> | ReadonlyArray<readonly [TeamId, DivisionId | null]>;
+    /**
+     * Either `[userId, notes]` tuples (legacy) or `[userId, FreeAgentEntry]`
+     * tuples carrying the division (ADR 0019). Legacy tuples hydrate with a
+     * `null` division.
+     */
+    freeAgents?:
+      | ReadonlyArray<readonly [UserId, string | null]>
+      | ReadonlyArray<readonly [UserId, FreeAgentEntry]>;
     positionRoster?: ReadonlyMap<EventPosition, number> | null;
     extensions?: Partial<EventExtensionsInput>;
     divisions?: ReadonlyArray<Division>;
@@ -389,6 +410,18 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         Array.isArray(a)
           ? (a as readonly [UserId, EventPosition | null])
           : ([a as UserId, null] as const),
+    );
+    const teamEntries: Array<readonly [TeamId, DivisionId | null]> = props.teams.map(
+      (t): readonly [TeamId, DivisionId | null] =>
+        Array.isArray(t)
+          ? (t as readonly [TeamId, DivisionId | null])
+          : ([t as TeamId, null] as const),
+    );
+    const freeAgentEntries: Array<readonly [UserId, FreeAgentEntry]> = (props.freeAgents ?? []).map(
+      ([userId, value]): readonly [UserId, FreeAgentEntry] =>
+        typeof value === 'object' && value !== null
+          ? [userId, value]
+          : [userId, { divisionId: null, notes: value }],
     );
     const roster =
       props.positionRoster && props.positionRoster.size > 0 ? new Map(props.positionRoster) : null;
@@ -408,8 +441,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       props.capacity,
       props.status,
       new Map(attendeeEntries),
-      new Set(props.teams),
-      new Map(props.freeAgents ?? []),
+      new Map(teamEntries),
+      new Map(freeAgentEntries),
       roster,
       resolveExtensions(props.extensions, props.endsAt),
       (props.divisions ?? []).slice(),
@@ -456,12 +489,21 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   get positionRoster(): ReadonlyMap<EventPosition, number> | null {
     return this._positionRoster;
   }
+  /** Registered tournament teams (ids only). See {@link teamEntries} for divisions. */
   get teams(): ReadonlySet<TeamId> {
-    return this._teams;
+    return new Set(this._teams.keys());
+  }
+  /** Registered teams with the division each is registered for (ADR 0019). */
+  get teamEntries(): ReadonlyArray<readonly [TeamId, DivisionId | null]> {
+    return Array.from(this._teams.entries());
   }
   /** Free-agent signups, mapped to their optional notes blurb. */
   get freeAgents(): ReadonlyMap<UserId, string | null> {
-    return this._freeAgents;
+    return new Map(Array.from(this._freeAgents, ([userId, entry]) => [userId, entry.notes]));
+  }
+  /** Free-agent signups with the division each chose (ADR 0019). */
+  get freeAgentEntries(): ReadonlyArray<readonly [UserId, FreeAgentEntry]> {
+    return Array.from(this._freeAgents.entries());
   }
   /** Divisions on this event. Empty when the event has not been split yet. */
   get divisions(): ReadonlyArray<Division> {
@@ -647,13 +689,17 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * Tournament signup.
+   * Tournament signup. The team is registered into a specific division
+   * (ADR 0019) — the aggregate is the authority for "which team, which
+   * division," so `save()` can persist the join atomically without a
+   * side-channel.
    *
    * @throws {InvariantViolation} if the event is not a Tournament, is not
    *   Published, or has already started.
+   * @throws {NotFoundError} if `divisionId` does not belong to this event.
    * @throws {ConflictError} if the team is already registered.
    */
-  registerTeam(teamId: TeamId): void {
+  registerTeam(teamId: TeamId, divisionId: DivisionId): void {
     if (this.type !== EventType.Tournament) {
       throw new InvariantViolation('Open-play events require player signup.');
     }
@@ -663,13 +709,16 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; team registration is closed.');
     }
+    if (!this._divisions.some((d) => d.id === divisionId)) {
+      throw new NotFoundError('division', String(divisionId), 'Division not found on this event.');
+    }
     if (this._teams.has(teamId)) {
       throw new ConflictError('Team is already registered.', {
         eventId: this.id,
         teamId,
       });
     }
-    this._teams.add(teamId);
+    this._teams.set(teamId, divisionId);
     this.raise(new TeamRegistered(this.id, teamId));
   }
 
@@ -723,7 +772,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     if (trimmed && trimmed.length > 280) {
       throw new InvariantViolation('Free-agent notes are limited to 280 characters.');
     }
-    this._freeAgents.set(userId, trimmed && trimmed.length > 0 ? trimmed : null);
+    this._freeAgents.set(userId, {
+      divisionId,
+      notes: trimmed && trimmed.length > 0 ? trimmed : null,
+    });
     this.raise(new FreeAgentJoined(this.id, userId));
   }
 

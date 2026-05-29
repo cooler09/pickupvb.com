@@ -274,22 +274,52 @@ describe('leave', () => {
 });
 
 describe('tournament signup', () => {
-  it('registerTeam adds the team', () => {
+  const TEAM_DIV = 'div-team' as DivisionId;
+  function tournamentWithTeamDivision(): VolleyballEvent {
     const t = makeTournament();
+    t.addDivision(
+      Division.create({
+        id: TEAM_DIV,
+        sortOrder: 0,
+        label: 'Open',
+        surface: Surface.Sand,
+        format: Format.Quads,
+        gender: Gender.Coed,
+        skillTier: SkillTier.BB,
+        teamComposition: TeamComposition.Team,
+        priceCents: null,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.Roster,
+      }),
+    );
+    return t;
+  }
+
+  it('registerTeam adds the team and records its division (ADR 0019)', () => {
+    const t = tournamentWithTeamDivision();
     t.publish();
-    t.registerTeam(TEAM_A);
+    t.registerTeam(TEAM_A, TEAM_DIV);
     expect(t.teams.has(TEAM_A)).toBe(true);
+    // The division is carried on the aggregate entry — this is what lets
+    // save() persist the join in one write path instead of a side-channel.
+    expect(t.teamEntries).toContainEqual([TEAM_A, TEAM_DIV]);
   });
 
   it('registerTeam rejects duplicates with ConflictError', () => {
-    const t = makeTournament();
+    const t = tournamentWithTeamDivision();
     t.publish();
-    t.registerTeam(TEAM_A);
-    expect(() => t.registerTeam(TEAM_A)).toThrow(ConflictError);
+    t.registerTeam(TEAM_A, TEAM_DIV);
+    expect(() => t.registerTeam(TEAM_A, TEAM_DIV)).toThrow(ConflictError);
+  });
+
+  it('registerTeam rejects an unknown division with NotFoundError (ADR 0019)', () => {
+    const t = tournamentWithTeamDivision();
+    t.publish();
+    expect(() => t.registerTeam(TEAM_A, 'nope' as DivisionId)).toThrow(NotFoundError);
   });
 
   it('withdrawTeam throws NotFoundError when team not registered', () => {
-    const t = makeTournament();
+    const t = tournamentWithTeamDivision();
     t.publish();
     expect(() => t.withdrawTeam(TEAM_A)).toThrow(NotFoundError);
   });
@@ -297,7 +327,7 @@ describe('tournament signup', () => {
   it('rejects registerTeam on an open-play event', () => {
     const open = makeOpenPlay();
     open.publish();
-    expect(() => open.registerTeam(TEAM_A)).toThrow(InvariantViolation);
+    expect(() => open.registerTeam(TEAM_A, TEAM_DIV)).toThrow(InvariantViolation);
   });
 
   it('rejects joinAsPlayer on a tournament', () => {
@@ -330,11 +360,16 @@ describe('free agent (tournament only)', () => {
     return t;
   }
 
-  it('joinAsFreeAgent records the user', () => {
+  it('joinAsFreeAgent records the user and the chosen division (ADR 0019)', () => {
     const t = tournamentWithFADivision();
     t.publish();
     t.joinAsFreeAgent(ALICE, FA_DIV, 'OH/RS, can bring own ball');
     expect(t.freeAgents.has(ALICE)).toBe(true);
+    // The division rides on the entry so save() persists it directly.
+    expect(t.freeAgentEntries).toContainEqual([
+      ALICE,
+      { divisionId: FA_DIV, notes: 'OH/RS, can bring own ball' },
+    ]);
   });
 
   it('rejects duplicate free-agent signup', () => {
