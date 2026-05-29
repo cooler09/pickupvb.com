@@ -1,5 +1,23 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 6 — GroupQueries find-one reads):**
+> The four "fetch one group by slug" reads moved behind a new
+> `GroupQueries.findDetailBySlug` + `GroupDetail` read model (`GroupCard` +
+> `heroImageUrl` + `createdBy`): the [detail page](../../apps/web/src/app/groups/%5Bid%5D/page.tsx)
+> group load + `generateMetadata`, the
+> [edit page](../../apps/web/src/app/groups/%5Bid%5D/edit/page.tsx) load (+ its
+> `EditGroupForm` prop now camelCase), and the
+> [OG image](../../apps/web/src/app/groups/%5Bid%5D/opengraph-image.tsx). **Drive-by
+> fix:** the OG image was querying the `id` column with the route's _slug_ value
+> (so it never resolved and always showed the generic title); routed through
+> `findDetailBySlug` like the detail page, it now resolves. Verify quad green
+> (domain 267, application 42, web 50, infra 7; lint 0 errors). No DB change.
+> **Remaining group reads:** the members roster (detail + members pages) +
+> viewer-role gates → `listMembers` composing `ProfileQueries.findCardsByIds`
+> (inc. 7), then the my-groups / hostable-groups joins (`profile`, `events/new`)
+> and the sitemap. See the
+> [Phase 3 inc. 6 journal](../journal/2026-05-29-bundle-phase-3-inc6-group-detail-reads.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 5 — GroupQueries read port (cards)):**
 > The groups **read** side opens with a CQRS read port (mirroring `ProfileQueries`).
 > New `GroupQueries` domain port + `GroupCard` read model
@@ -448,6 +466,12 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 6 — find-one reads):** the group detail /
+> metadata / OG / edit-page reads moved to `GroupQueries.findDetailBySlug`
+> (`GroupDetail` read model); the OG-image slug-vs-id lookup bug was fixed in
+> passing. Remaining reads: members roster + viewer-role gates (inc. 7), my-groups
+> / hostable-groups joins (`profile`, `events/new`), sitemap.
+>
 > **Progress (2026-05-29, Phase 3 inc. 5 — GroupQueries read port):** the group
 > read side opened with a `GroupQueries` port + `GroupCard` read model +
 > client-injected `SupabaseGroupQueryRepository` (`searchDirectory` / `listCards`).

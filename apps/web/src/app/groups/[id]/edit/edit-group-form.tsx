@@ -26,8 +26,8 @@ type Group = {
   id: string;
   name: string;
   description: string;
-  avatar_url: string | null;
-  home_city: string | null;
+  avatarUrl: string | null;
+  homeCity: string | null;
   region: string | null;
 };
 
@@ -72,7 +72,7 @@ export default function EditGroupForm({ group }: { group: Group }) {
             id="home_city"
             name="home_city"
             maxLength={80}
-            defaultValue={group.home_city ?? ''}
+            defaultValue={group.homeCity ?? ''}
             className={inputClass}
           />
         </div>
@@ -97,7 +97,7 @@ export default function EditGroupForm({ group }: { group: Group }) {
           id="avatar_url"
           name="avatar_url"
           type="url"
-          defaultValue={group.avatar_url ?? ''}
+          defaultValue={group.avatarUrl ?? ''}
           className={inputClass}
         />
       </div>

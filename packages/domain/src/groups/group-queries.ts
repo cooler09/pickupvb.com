@@ -16,6 +16,20 @@ export interface GroupCard {
   region: string | null;
 }
 
+/** A group's full public profile (detail page, edit form, OG image). The card
+ * fields plus the hero image and the creator id. */
+export interface GroupDetail {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  avatarUrl: string | null;
+  heroImageUrl: string | null;
+  homeCity: string | null;
+  region: string | null;
+  createdBy: string | null;
+}
+
 export interface GroupDirectoryQuery {
   /** Free-text term matched (case-insensitive) against name / slug / home city. */
   search?: string;
@@ -33,4 +47,7 @@ export interface GroupQueries {
   searchDirectory(query: GroupDirectoryQuery): Promise<GroupDirectoryPage>;
   /** Up to `limit` group cards ordered by name (e.g. the home-page rail). */
   listCards(limit: number): Promise<GroupCard[]>;
+  /** The full public profile for a group by its slug, or `null` if missing /
+   * soft-deleted. Backs the detail page, metadata, OG image, and edit form. */
+  findDetailBySlug(slug: string): Promise<GroupDetail | null>;
 }

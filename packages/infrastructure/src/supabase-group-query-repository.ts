@@ -1,5 +1,6 @@
 import type {
   GroupCard,
+  GroupDetail,
   GroupDirectoryPage,
   GroupDirectoryQuery,
   GroupQueries,
@@ -10,6 +11,7 @@ import { escapeLike } from './supabase-profile-repository.js';
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 const CARD_COLUMNS = 'id, slug, name, description, avatar_url, home_city, region';
+const DETAIL_COLUMNS = `${CARD_COLUMNS}, hero_image_url, created_by`;
 
 type CardRow = {
   id: string;
@@ -21,6 +23,11 @@ type CardRow = {
   region: string | null;
 };
 
+type DetailRow = CardRow & {
+  hero_image_url: string | null;
+  created_by: string | null;
+};
+
 function toCard(row: CardRow): GroupCard {
   return {
     id: row.id,
@@ -30,6 +37,14 @@ function toCard(row: CardRow): GroupCard {
     avatarUrl: row.avatar_url,
     homeCity: row.home_city,
     region: row.region,
+  };
+}
+
+function toDetail(row: DetailRow): GroupDetail {
+  return {
+    ...toCard(row),
+    heroImageUrl: row.hero_image_url,
+    createdBy: row.created_by,
   };
 }
 
@@ -75,5 +90,16 @@ export class SupabaseGroupQueryRepository implements GroupQueries {
       .limit(limit);
     if (error) throw new Error(`listCards failed: ${error.message}`);
     return ((data as CardRow[] | null) ?? []).map(toCard);
+  }
+
+  async findDetailBySlug(slug: string): Promise<GroupDetail | null> {
+    const { data, error } = await this.client
+      .from('groups')
+      .select(DETAIL_COLUMNS)
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (error) throw new Error(`findDetailBySlug failed: ${error.message}`);
+    return data ? toDetail(data as unknown as DetailRow) : null;
   }
 }

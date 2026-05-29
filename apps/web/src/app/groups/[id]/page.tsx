@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
+import { SupabaseGroupQueryRepository, SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
@@ -24,18 +24,6 @@ export const revalidate = 60;
 const PAST_EVENTS_PER_PAGE = 10;
 const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
 
-type GroupRow = {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  avatar_url: string | null;
-  hero_image_url: string | null;
-  home_city: string | null;
-  region: string | null;
-  created_by: string;
-};
-
 type MemberRow = {
   user_id: string;
   role: 'owner' | 'admin' | 'member';
@@ -44,20 +32,9 @@ type MemberRow = {
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = createSupabaseAnonClient();
-  const { data } = await supabase
-    .from('groups')
-    .select('slug, name, description, home_city, region')
-    .eq('slug', params.id)
-    .maybeSingle();
-  const row = data as {
-    slug: string;
-    name: string;
-    description: string | null;
-    home_city: string | null;
-    region: string | null;
-  } | null;
+  const row = await new SupabaseGroupQueryRepository(supabase).findDetailBySlug(params.id);
   if (!row) return { title: 'Group' };
-  const place = [row.home_city, row.region].filter(Boolean).join(', ');
+  const place = [row.homeCity, row.region].filter(Boolean).join(', ');
   const description = row.description
     ? row.description.slice(0, 200)
     : `${row.name}${place ? ` — ${place}` : ''}. A volleyball group on PickupVB.`;
@@ -87,14 +64,7 @@ export default async function GroupProfilePage(props: {
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
 
-  const { data: groupData } = await supabase
-    .from('groups')
-    .select(
-      'id, slug, name, description, avatar_url, hero_image_url, home_city, region, created_by',
-    )
-    .eq('slug', params.id)
-    .maybeSingle();
-  const group = groupData as GroupRow | null;
+  const group = await new SupabaseGroupQueryRepository(supabase).findDetailBySlug(params.id);
   if (!group) notFound();
 
   // Members and hosted events (upcoming + past split at SQL) are independent.
@@ -152,11 +122,11 @@ export default async function GroupProfilePage(props: {
         slug={group.slug}
         name={group.name}
         description={group.description}
-        homeCity={group.home_city}
+        homeCity={group.homeCity}
         region={group.region}
-        avatarUrl={group.avatar_url}
+        avatarUrl={group.avatarUrl}
       />
-      <HeroImage url={group.hero_image_url} alt={group.name} priority />
+      <HeroImage url={group.heroImageUrl} alt={group.name} priority />
 
       <GroupHeader
         group={{
@@ -164,8 +134,8 @@ export default async function GroupProfilePage(props: {
           slug: group.slug,
           name: group.name,
           description: group.description,
-          avatarUrl: group.avatar_url,
-          homeCity: group.home_city,
+          avatarUrl: group.avatarUrl,
+          homeCity: group.homeCity,
           region: group.region,
         }}
         stats={{ members: members.length, upcoming: upcoming.length }}
