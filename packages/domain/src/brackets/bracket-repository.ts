@@ -8,18 +8,30 @@ import type { BracketId, MatchId } from './match.js';
  * the domain doesn't carry (names, captain ids for permission checks).
  */
 export interface BracketTeamLite {
-  readonly teamId: string;
   /**
-   * The `event_team_entries.id` row backing this team's registration in
-   * the division. Always populated; stable across the polymorphic-pair
-   * transition. Future bundles flip seed + match writes from `teamId`
-   * (FK → `teams.id`) onto `entryId` (FK → `event_team_entries.id`)
-   * so ad-hoc and walk-in entries — which have no persistent `teams`
-   * row — can be wired into brackets.
+   * The persistent `teams.id` for roster-mode entries. Null for ad-hoc
+   * and walk-in entries, which exist only as `event_team_entries` rows
+   * and have no recurring `teams` identity. Downstream lookups should
+   * use `entryId` as the stable identifier; `teamId` is retained for
+   * league-side surfaces (`league_schedule_matches.home_team_id` /
+   * `away_team_id` still FK into `teams.id`) and is filtered out at
+   * those boundaries.
+   */
+  readonly teamId: string | null;
+  /**
+   * The `event_team_entries.id` row backing this entry. Always populated
+   * for every registered participant regardless of source — the right
+   * identifier for bracket seed/match wiring after the 2026-12-04 cutover.
    */
   readonly entryId: string;
   readonly name: string;
-  readonly captainId: string;
+  /**
+   * Account id of the captain for permission checks (e.g. "can the
+   * viewer record this match's score?"). Null for walk-in entries
+   * (no captain user account stands behind them — only a freeform
+   * `captain_display_name` on the entry row).
+   */
+  readonly captainId: string | null;
   /**
    * For league rostered teams, the timestamp at which the host marked
    * the team as withdrawn mid-season. Null for active teams and for

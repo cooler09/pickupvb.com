@@ -2,13 +2,17 @@
 
 import { useState } from 'react';
 
-type Team = { teamId: string; name: string };
+type Team = { entryId: string; name: string };
 
 /**
  * Drag-to-reorder seeding list. Renders one `<input type="hidden" name="team_id" />`
  * per team in the current order, so the parent server-action form
  * (`seedBracketFromForm`) reads the order from `formData.getAll('team_id')`
- * unchanged.
+ * unchanged. The value posted is the `event_team_entries.id` for the
+ * participant — the seed write path stamps it into
+ * `bracket_seeds.entry_id`. The `team_id` field name itself is legacy
+ * and tracked for cleanup in the audit's separate "rename
+ * `Seed.teamId` → `entryId`" follow-up.
  *
  * Two reorder affordances:
  *   - HTML5 native drag-and-drop (desktop, mouse) — driven by the grip
@@ -16,8 +20,8 @@ type Team = { teamId: string; name: string };
  *   - up/down arrow buttons (touch + keyboard) — every reorder works
  *     without a pointer.
  *
- * The component is keyed in the parent by the joined team-id sequence so
- * a server-driven reorder (e.g. the Randomize button) re-mounts the
+ * The component is keyed in the parent by the joined entry-id sequence
+ * so a server-driven reorder (e.g. the Randomize button) re-mounts the
  * component and resyncs state with fresh props.
  */
 export function SeedingList({ orderedTeams }: { orderedTeams: ReadonlyArray<Team> }) {
@@ -36,8 +40,8 @@ export function SeedingList({ orderedTeams }: { orderedTeams: ReadonlyArray<Team
   }
 
   function onDrop(targetId: string) {
-    const from = teams.findIndex((t) => t.teamId === draggingId);
-    const to = teams.findIndex((t) => t.teamId === targetId);
+    const from = teams.findIndex((t) => t.entryId === draggingId);
+    const to = teams.findIndex((t) => t.entryId === targetId);
     if (from >= 0 && to >= 0) move(from, to);
     setDraggingId(null);
     setOverId(null);
@@ -46,29 +50,29 @@ export function SeedingList({ orderedTeams }: { orderedTeams: ReadonlyArray<Team
   return (
     <ol className="space-y-1">
       {teams.map((t, i) => {
-        const isDragging = draggingId === t.teamId;
-        const isOver = overId === t.teamId && draggingId !== t.teamId;
+        const isDragging = draggingId === t.entryId;
+        const isOver = overId === t.entryId && draggingId !== t.entryId;
         return (
           <li
-            key={t.teamId}
+            key={t.entryId}
             draggable
             onDragStart={(e) => {
-              setDraggingId(t.teamId);
+              setDraggingId(t.entryId);
               e.dataTransfer.effectAllowed = 'move';
               // Required for Firefox to start the drag.
-              e.dataTransfer.setData('text/plain', t.teamId);
+              e.dataTransfer.setData('text/plain', t.entryId);
             }}
             onDragOver={(e) => {
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
-              if (overId !== t.teamId) setOverId(t.teamId);
+              if (overId !== t.entryId) setOverId(t.entryId);
             }}
             onDragLeave={() => {
-              if (overId === t.teamId) setOverId(null);
+              if (overId === t.entryId) setOverId(null);
             }}
             onDrop={(e) => {
               e.preventDefault();
-              onDrop(t.teamId);
+              onDrop(t.entryId);
             }}
             onDragEnd={() => {
               setDraggingId(null);
@@ -105,7 +109,7 @@ export function SeedingList({ orderedTeams }: { orderedTeams: ReadonlyArray<Team
             >
               ↓
             </button>
-            <input type="hidden" name="team_id" value={t.teamId} />
+            <input type="hidden" name="team_id" value={t.entryId} />
           </li>
         );
       })}

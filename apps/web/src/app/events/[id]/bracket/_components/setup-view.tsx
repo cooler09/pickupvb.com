@@ -31,6 +31,8 @@ export function SetupView(props: {
   //  - Drop seeds for teams that have unregistered.
   //  - Append newly-registered teams to the end so the host can re-save
   //    seeding to include them.
+  // `Seed.teamId` is an `EntryId` post the 2026-12-04 cutover; match it
+  // against `entryId` on the registered team rows.
   let orderedTeams: TeamLite[];
   let newlyAdded: TeamLite[] = [];
   if (props.seeds.length === 0) {
@@ -39,16 +41,16 @@ export function SetupView(props: {
     const seededInOrder = props.seeds
       .slice()
       .sort((a, b) => a.seed - b.seed)
-      .map((s) => props.registeredTeams.find((t) => t.teamId === s.teamId))
+      .map((s) => props.registeredTeams.find((t) => t.entryId === s.teamId))
       .filter((t): t is TeamLite => !!t);
-    const seededIds = new Set(seededInOrder.map((t) => t.teamId));
-    newlyAdded = props.registeredTeams.filter((t) => !seededIds.has(t.teamId));
+    const seededIds = new Set(seededInOrder.map((t) => t.entryId));
+    newlyAdded = props.registeredTeams.filter((t) => !seededIds.has(t.entryId));
     orderedTeams = [...seededInOrder, ...newlyAdded];
   }
 
   const droppedSeedCount =
     props.seeds.length -
-    props.seeds.filter((s) => props.registeredTeams.some((t) => t.teamId === s.teamId)).length;
+    props.seeds.filter((s) => props.registeredTeams.some((t) => t.entryId === s.teamId)).length;
 
   const canGenerate = orderedTeams.length >= 2;
 
@@ -148,14 +150,16 @@ export function SetupView(props: {
 }
 
 /**
- * Seeding form. Submits hidden `team_id` inputs in the order shown. The
- * "Randomize" button uses `formAction` to override the submit handler with
- * a server action that re-seeds and revalidates.
+ * Seeding form. Submits hidden `team_id` inputs in the order shown — the
+ * field name is legacy and now carries `event_team_entries.id` values
+ * (the seed-write path stamps them into `bracket_seeds.entry_id`). The
+ * "Randomize" button uses `formAction` to override the submit handler
+ * with a server action that re-seeds and revalidates.
  */
 function SeedingForm(props: {
   eventId: string;
   divisionId: string;
-  orderedTeams: ReadonlyArray<{ teamId: string; name: string }>;
+  orderedTeams: ReadonlyArray<{ entryId: string; name: string }>;
 }) {
   return (
     <form
@@ -168,7 +172,7 @@ function SeedingForm(props: {
         shuffle, or save the current order as-is.
       </p>
       <SeedingList
-        key={props.orderedTeams.map((t) => t.teamId).join(',')}
+        key={props.orderedTeams.map((t) => t.entryId).join(',')}
         orderedTeams={props.orderedTeams}
       />
       <div className="flex flex-wrap gap-2 pt-2">

@@ -1926,6 +1926,79 @@ locally (Docker off); CI/CD applies on deploy.
 
 ---
 
+### 2026-12-04 — Bracket-reader filter loosening (ad-hoc + walk-in unlock)
+
+**Closed (this slice).** Drops the
+`.not('team_id', 'is', null)` filter from
+`SupabaseBracketRepository.listRegisteredTeams` and re-sources the
+read straight from `event_team_entries` (name + captain are both
+columns on the entry row itself for every source — no `teams` join
+needed). Ad-hoc and walk-in entries now flow into the bracket
+seeding UI alongside roster entries, which was the audit's
+"unblocks brackets for ad-hoc and walk-in registrations" outcome.
+
+- **Domain.** [`BracketTeamLite`](../../packages/domain/src/brackets/bracket-repository.ts)
+  `teamId` and `captainId` widened to `string | null`. Walk-in
+  entries have no captain account; ad-hoc and walk-in entries have
+  no persistent `teams.id`. `entryId` (the `event_team_entries.id`)
+  remains the stable identifier for downstream wiring.
+- **Infra.** [`SupabaseBracketRepository.listRegisteredTeams`](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  drops the roster filter and the `teams!inner` join entirely;
+  reads `id, team_id, captain_id, display_name, forfeited_at` from
+  `event_team_entries` and maps `display_name → name`,
+  `captain_id → captainId` (null for walk-in).
+- **Web: bracket pages.** [bracket/page.tsx](../../apps/web/src/app/events/[id]/bracket/page.tsx)
+  and [bracket/watch/page.tsx](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx)
+  guard the dual-keyed map (`if (t.teamId) teamById.set(t.teamId, t)`).
+- **Web: OG card.** [bracket/watch/\_og.tsx](../../apps/web/src/app/events/[id]/bracket/watch/_og.tsx)
+  `teamNameById` rekeyed from `teamId` → `entryId` so champion lookup
+  (which reads `match.winnerEntryId` — an `EntryId` post the
+  2026-12-04 sweep) resolves correctly. Latent post-cutover bug
+  fixed in passing.
+- **Web: seeding.** [setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)
+  reconcile lookups switched from `t.teamId === s.teamId` to
+  `t.entryId === s.teamId` — `Seed.teamId` is an `EntryId`, so the
+  previous comparison would have reported every seed as dropped
+  post-cutover. [seeding-list.tsx](../../apps/web/src/app/events/[id]/bracket/_components/seeding-list.tsx)
+  now keyed on `entryId`; hidden `name="team_id"` input value
+  switched to `t.entryId` so the seed-write path stamps the
+  correct id into `bracket_seeds.entry_id`. (The `team_id` field
+  name itself stays — the rename is the audit's separate
+  `Seed.teamId → entryId` follow-up.)
+- **Web: match-card.** [match-card.tsx](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx)
+  inner `TeamRow` prop narrowed to `{ name }` (the `teamId` it was
+  carrying was unused). Captain affordance still gates on
+  `captainId === viewerId`, which now correctly no-ops for
+  walk-in entries with `captainId === null`.
+- **Web: labels.** [labels.ts](../../apps/web/src/app/events/[id]/bracket/_components/labels.ts)
+  `TeamLite` rewritten to mirror `BracketTeamLite` (`teamId` and
+  `captainId` nullable; `entryId` added).
+- **Web: league schedule.** [schedule/page.tsx](../../apps/web/src/app/events/[id]/schedule/page.tsx)
+  filters the participant list to `t.teamId != null` before
+  passing to the schedule UI — league rosters always have a
+  `teams.id` by the league invariant, so this is belt-and-
+  suspenders, but it pins the `ScheduleTeam = { teamId: string; name: string }`
+  contract the league forms expect (the `league_schedule_matches`
+  FK is still to `teams.id`).
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+warnings, 216 domain + 38 application + 50 web tests pass, 8/8
+build).
+
+**Follow-ups remaining on this audit:**
+
+- `LeagueSchedule` RPC (consumer of the forfeit flag).
+- Rename `Seed.teamId` / `PoolStanding.teamId` to `entryId`
+  (and the form field name `team_id` → `entry_id` in
+  `seedBracketFromForm` / `randomizeSeedFromForm`) — mechanical
+  rename touching every seed/standings call site.
+- Cleanup migration drops the legacy `team_*_id` columns from
+  `bracket_seeds` + `bracket_matches` after a soak period (and
+  removes the hydrate fallback in the infra repo).
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)

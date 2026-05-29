@@ -63,13 +63,20 @@ export default async function SchedulePage(props: {
   const divParam = pickQuery(searchParams, 'division');
   const selectedDivision = event.divisions.find((d) => d.id === divParam) ?? event.divisions[0]!;
 
-  const [schedule, teams] = await Promise.all([
+  const [schedule, allEntries] = await Promise.all([
     repositories.leagueScheduleRepo.findByDivisionId(selectedDivision.id as DivisionId),
     repositories.bracketRepo.listRegisteredTeams(
       event.id as EventId,
       selectedDivision.id as DivisionId,
     ),
   ]);
+  // League schedule writes home/away into `league_schedule_matches.home_team_id`
+  // / `away_team_id`, which FK into `teams.id`. Filter out any non-roster
+  // entries (no persistent `teams.id`) before passing to the schedule UI.
+  // For league events the leagues invariant in `assertRegistrationConfigValid`
+  // already forbids ad-hoc / walk-in entries, so this filter is a belt-and-
+  // suspenders guard rather than a regular pruning step.
+  const teams = allEntries.flatMap((t) => (t.teamId ? [{ teamId: t.teamId, name: t.name }] : []));
 
   const isHost = !!event.canManage && isRealUser;
   const returnPath = `/events/${event.id}/schedule?division=${selectedDivision.id}`;

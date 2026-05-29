@@ -37,7 +37,10 @@ export async function renderBracketWatchOg(
       repositories.bracketRepo.listRegisteredTeams(event.id as never, division.id as never),
     ]);
 
-    const teamNameById = new Map(teams.map((t) => [t.teamId, t.name]));
+    // Key on `entryId` — `pickChampion` returns a `winnerEntryId` (FK →
+    // event_team_entries.id), and ad-hoc / walk-in entries have no
+    // `teams.id` to fall back on.
+    const teamNameById = new Map(teams.map((t) => [t.entryId, t.name]));
     const formatLabel = bracket ? FORMAT_LABEL[bracket.format] : null;
     const isMulti = event.divisions.length > 1;
 

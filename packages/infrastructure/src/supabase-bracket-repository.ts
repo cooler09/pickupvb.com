@@ -324,21 +324,22 @@ export class SupabaseBracketRepository implements BracketRepository {
   }
 
   async listRegisteredTeams(_eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]> {
-    // Filter on the FK shape (`team_id IS NOT NULL`) rather than the
-    // discriminator (`source = 'roster'`). The two are equivalent today
-    // — the `event_team_entries_team_matches_source` check constraint
-    // pins `(source = 'roster') = (team_id IS NOT NULL)` — but framing
-    // the filter in terms of the shape downstream actually needs
-    // (a persistent `teams.id` for the legacy `bracket_seeds.team_id` /
-    // `bracket_matches.team_*_id` FKs) is the right boundary as ad-hoc
-    // and walk-in entries get folded in via the polymorphic `entry_id`
-    // columns (migrations 20260809000000 + 20260810000000). Once the
-    // write-side cutover lands, this filter drops entirely.
+    // Source `name` and `captain_id` straight from `event_team_entries`
+    // — the entry row carries both fields directly for every source
+    // (roster / ad_hoc / walk_in), so the prior `teams!inner` join
+    // (which had to be filtered to roster-only entries via
+    // `team_id IS NOT NULL`) is no longer needed. `team_id` itself
+    // is preserved on the projection because the league schedule
+    // surface still writes into `league_schedule_matches.home_team_id`
+    // / `away_team_id` (FK → `teams.id`); roster-only consumers
+    // continue to filter on the non-null teamId at their boundary.
+    // Closes the bracket-reader filter-loosening follow-up from
+    // docs/audits/event-data-model.md (the read half — write paths
+    // already cut over to `entry_*_id` in the 2026-12-04 sweep).
     const scoped = await this.client
       .from('event_team_entries')
-      .select('id, team_id, forfeited_at, teams:teams!inner(name, captain_id)')
+      .select('id, team_id, captain_id, display_name, forfeited_at')
       .eq('division_id', divisionId)
-      .not('team_id', 'is', null)
       .is('deleted_at', null);
     if (scoped.error) {
       throw new Error(`listRegisteredTeams failed: ${scoped.error.message}`);
@@ -346,19 +347,18 @@ export class SupabaseBracketRepository implements BracketRepository {
     type Row = {
       id: string;
       team_id: string | null;
+      captain_id: string | null;
+      display_name: string;
       forfeited_at: string | null;
-      teams: { name: string; captain_id: string } | null;
     };
     const rows = (scoped.data as Row[] | null) ?? [];
-    return rows
-      .filter((r) => r.teams !== null && r.team_id !== null)
-      .map((r) => ({
-        teamId: r.team_id!,
-        entryId: r.id,
-        name: r.teams!.name,
-        captainId: r.teams!.captain_id,
-        forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
-      }));
+    return rows.map((r) => ({
+      teamId: r.team_id,
+      entryId: r.id,
+      name: r.display_name,
+      captainId: r.captain_id,
+      forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
+    }));
   }
 }
 

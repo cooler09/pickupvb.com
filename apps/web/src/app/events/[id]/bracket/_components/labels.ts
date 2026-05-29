@@ -1,6 +1,18 @@
 import type { BracketFormat } from '@pickupvb/domain';
 
-export type TeamLite = { teamId: string; name: string; captainId: string };
+/**
+ * Mirrors the shape of `BracketTeamLite` returned by the domain repo:
+ * `teamId` is null for ad-hoc / walk-in entries (no persistent `teams`
+ * row), and `captainId` is null for walk-in entries (no captain user
+ * account). The `entryId` is always populated and is the right key for
+ * bracket seed / match lookups post the 2026-12-04 cutover.
+ */
+export type TeamLite = {
+  teamId: string | null;
+  entryId: string;
+  name: string;
+  captainId: string | null;
+};
 
 export const FORMAT_LABEL: Record<BracketFormat, string> = {
   single_elimination: 'Single elimination',

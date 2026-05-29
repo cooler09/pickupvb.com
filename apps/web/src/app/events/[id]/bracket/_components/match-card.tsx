@@ -121,7 +121,7 @@ export function MatchCard(props: {
 }
 
 function TeamRow(props: {
-  team: { teamId: string; name: string } | null | undefined;
+  team: { name: string } | null | undefined;
   wins: number;
   isWinner: boolean;
 }) {

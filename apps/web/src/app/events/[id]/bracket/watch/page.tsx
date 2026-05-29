@@ -123,11 +123,12 @@ export default async function BracketWatchPage(props: {
     repositories.bracketRepo.listRegisteredTeams(event.id as never, selectedDivision.id as never),
   ]);
 
-  // Dual-keyed by both `teamId` and `entryId` — see page.tsx for rationale.
+  // Dual-keyed by both `entryId` and (when set) `teamId` — see page.tsx
+  // for rationale. Ad-hoc / walk-in entries have no `teams.id`.
   const teamById = new Map<string, (typeof registeredTeams)[number]>();
   for (const t of registeredTeams) {
     teamById.set(t.entryId, t);
-    teamById.set(t.teamId, t);
+    if (t.teamId) teamById.set(t.teamId, t);
   }
 
   const divisionSummary = [
