@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
+import type { PlayerProfile } from '@pickupvb/domain';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
@@ -26,60 +28,32 @@ const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const supabase = createSupabaseAnonClient();
-  const { data } = await supabase
-    .from('profiles_public')
-    .select('handle, display_name, home_city')
-    .eq('handle', params.id)
-    .maybeSingle();
-  const row = data as {
-    handle: string;
-    display_name: string | null;
-    home_city: string | null;
-  } | null;
-  if (!row) return { title: 'Player' };
-  const name = row.display_name || 'Player';
-  const description = `${name}${row.home_city ? ` of ${row.home_city}` : ''} — volleyball player on PickupVB.`;
+  const profiles = new SupabaseProfileRepository(createSupabaseAnonClient());
+  const card = await profiles.findCardByHandle(params.id);
+  if (!card) return { title: 'Player' };
+  const name = card.displayName || 'Player';
+  const description = `${name}${card.homeCity ? ` of ${card.homeCity}` : ''} — volleyball player on PickupVB.`;
   return {
     title: name,
     description,
-    alternates: { canonical: `/players/${row.handle}` },
+    alternates: { canonical: `/players/${card.handle}` },
     openGraph: {
       title: `${name} · PickupVB`,
       description,
-      url: `/players/${row.handle}`,
+      url: `/players/${card.handle}`,
       type: 'profile',
     },
   };
 }
 
-type PlayerProfile = {
-  id: string;
-  handle: string;
-  display_name: string;
-  avatar_url: string | null;
-  hero_image_url: string | null;
-  home_city: string | null;
-  show_pro_badge: boolean | null;
-  primary_position: string | null;
-  secondary_position: string | null;
-  tertiary_position: string | null;
-  instagram_handle: string | null;
-  tiktok_handle: string | null;
-  twitter_handle: string | null;
-  facebook_handle: string | null;
-  youtube_handle: string | null;
-  website_url: string | null;
-};
-
 function initialsOf(p: PlayerProfile): string {
-  const parts = (p.display_name ?? '').trim().split(/\s+/).filter(Boolean);
+  const parts = (p.displayName ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return (p.display_name ?? '?').slice(0, 2).toUpperCase();
+  return (p.displayName ?? '?').slice(0, 2).toUpperCase();
 }
 
 function nameOf(p: PlayerProfile): string {
-  return p.display_name || 'Player';
+  return p.displayName || 'Player';
 }
 
 export default async function PlayerProfilePage(props: {
@@ -94,15 +68,7 @@ export default async function PlayerProfilePage(props: {
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
 
-  const { data: profileRow } = await supabase
-    .from('profiles_public')
-    .select(
-      'id, handle, display_name, avatar_url, hero_image_url, home_city, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
-    )
-    .eq('handle', params.id)
-    .maybeSingle();
-
-  const profile = profileRow as PlayerProfile | null;
+  const profile = await new SupabaseProfileRepository(supabase).findPlayerByHandle(params.id);
   if (!profile) notFound();
 
   // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.
@@ -111,18 +77,14 @@ export default async function PlayerProfilePage(props: {
     // RLS handles visibility — anon viewers only see public events.
     loadVisibleHostedEvents(supabase, profile.id, { startsAfter: now }),
     loadVisibleHostedEvents(supabase, profile.id, { startsBefore: now }),
-    profile.show_pro_badge !== false ? isPro(profile.id) : Promise.resolve(false),
+    profile.showProBadge !== false ? isPro(profile.id) : Promise.resolve(false),
     isPlatformAdmin(profile.id),
   ]);
 
   const returnPath = `/players/${profile.handle}`;
   const name = nameOf(profile);
 
-  const positions = [
-    profile.primary_position,
-    profile.secondary_position,
-    profile.tertiary_position,
-  ]
+  const positions = [profile.primaryPosition, profile.secondaryPosition, profile.tertiaryPosition]
     .filter((p): p is string => !!p)
     .map((p) => POSITION_LABEL[p] ?? p);
 
@@ -135,14 +97,14 @@ export default async function PlayerProfilePage(props: {
           { name, url: `https://pickupvb.com/players/${profile.handle}` },
         ]}
       />
-      <HeroImage url={profile.hero_image_url} alt={name} priority />
+      <HeroImage url={profile.heroImageUrl} alt={name} priority />
 
       {/* ── Identity card ─────────────────────────────────────── */}
       <header className="border-border-base bg-surface rounded-lg border p-5">
         <div className="flex items-start gap-4">
-          {profile.avatar_url ? (
+          {profile.avatarUrl ? (
             <Image
-              src={profile.avatar_url}
+              src={profile.avatarUrl}
               alt=""
               width={72}
               height={72}
@@ -162,19 +124,19 @@ export default async function PlayerProfilePage(props: {
               {isAdmin && <AdminBadge />}
               {isProHost && <ProBadge />}
             </div>
-            <p className="text-muted text-sm">{profile.home_city ?? 'No home city set'}</p>
+            <p className="text-muted text-sm">{profile.homeCity ?? 'No home city set'}</p>
             {positions.length > 0 && (
               <p className="text-muted mt-1 text-xs">{positions.join(' · ')}</p>
             )}
             <SocialLinks
               className="mt-3"
               handles={{
-                instagramHandle: profile.instagram_handle,
-                tiktokHandle: profile.tiktok_handle,
-                twitterHandle: profile.twitter_handle,
-                facebookHandle: profile.facebook_handle,
-                youtubeHandle: profile.youtube_handle,
-                websiteUrl: profile.website_url,
+                instagramHandle: profile.instagramHandle,
+                tiktokHandle: profile.tiktokHandle,
+                twitterHandle: profile.twitterHandle,
+                facebookHandle: profile.facebookHandle,
+                youtubeHandle: profile.youtubeHandle,
+                websiteUrl: profile.websiteUrl,
               }}
             />
           </div>

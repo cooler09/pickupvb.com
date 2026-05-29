@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { ProfileCard } from '@pickupvb/domain';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { Pagination } from '@/components/pagination';
 
@@ -26,52 +28,31 @@ export const metadata = {
 
 const PAGE_SIZE = 24;
 
-type Row = {
-  id: string;
-  handle: string;
-  display_name: string;
-  home_city: string | null;
-  avatar_url: string | null;
-};
-
-function nameOf(p: Row): string {
-  return p.display_name || 'Player';
+function nameOf(p: ProfileCard): string {
+  return p.displayName || 'Player';
 }
 
-function initialsOf(p: Row): string {
-  const parts = (p.display_name ?? '').trim().split(/\s+/).filter(Boolean);
+function initialsOf(p: ProfileCard): string {
+  const parts = (p.displayName ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return (p.display_name ?? '?').slice(0, 2).toUpperCase();
+  return (p.displayName ?? '?').slice(0, 2).toUpperCase();
 }
 
 export default async function PlayersIndexPage(props: {
   searchParams: Promise<{ q?: string; city?: string; page?: string }>;
 }) {
   const searchParams = await props.searchParams;
-  const supabase = createSupabaseAnonClient();
   const q = (searchParams.q ?? '').trim();
   const city = (searchParams.city ?? '').trim();
   const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
-  const from = (pageNum - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
 
-  let query = supabase
-    .from('profiles_public')
-    .select('id, handle, display_name, home_city, avatar_url', { count: 'exact' })
-    .order('display_name', { ascending: true })
-    .range(from, to);
-
-  if (q) {
-    const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
-    query = query.ilike('display_name', like);
-  }
-  if (city) {
-    query = query.ilike('home_city', `%${city.replace(/[%_]/g, (m) => `\\${m}`)}%`);
-  }
-
-  const { data, count } = await query;
-  const players = (data as Row[] | null) ?? [];
-  const total = count ?? players.length;
+  const profiles = new SupabaseProfileRepository(createSupabaseAnonClient());
+  const { cards: players, total } = await profiles.searchDirectory({
+    ...(q ? { nameLike: q } : {}),
+    ...(city ? { cityLike: city } : {}),
+    limit: PAGE_SIZE,
+    offset: (pageNum - 1) * PAGE_SIZE,
+  });
   const hasFilter = q.length > 0 || city.length > 0;
 
   return (
@@ -118,9 +99,9 @@ export default async function PlayersIndexPage(props: {
                 href={`/players/${p.handle}`}
                 className="border-border-base bg-surface hover:border-primary/40 flex items-center gap-3 rounded-lg border p-3"
               >
-                {p.avatar_url ? (
+                {p.avatarUrl ? (
                   <Image
-                    src={p.avatar_url}
+                    src={p.avatarUrl}
                     alt=""
                     width={40}
                     height={40}
@@ -136,7 +117,7 @@ export default async function PlayersIndexPage(props: {
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{nameOf(p)}</p>
-                  {p.home_city && <p className="text-muted truncate text-xs">{p.home_city}</p>}
+                  {p.homeCity && <p className="text-muted truncate text-xs">{p.homeCity}</p>}
                 </div>
               </Link>
             </li>
