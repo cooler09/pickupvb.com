@@ -488,3 +488,17 @@ export class ChangeGroupMemberRoleCommand {
     public readonly role: GroupRole,
   ) {}
 }
+
+export class FollowGroupCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+export class UnfollowGroupCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly userId: string,
+  ) {}
+}

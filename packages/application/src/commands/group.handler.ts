@@ -4,7 +4,9 @@ import {
   AddGroupMemberCommand,
   ChangeGroupMemberRoleCommand,
   CreateGroupCommand,
+  FollowGroupCommand,
   RemoveGroupMemberCommand,
+  UnfollowGroupCommand,
   UpdateGroupProfileCommand,
 } from '../messages';
 
@@ -90,5 +92,26 @@ export class ChangeGroupMemberRoleHandler {
     if (!group) throw new NotFoundError('group', groupId);
     group.changeMemberRole(UserId(actorId), UserId(userId), role);
     await this.repo.saveMembers(group);
+  }
+}
+
+/**
+ * Follow a group (ADR 0021). A follow is the viewer's own self-scoped edge with
+ * no group-side invariant, so it's a focused edge write — no aggregate load.
+ */
+export class FollowGroupHandler {
+  constructor(private readonly repo: GroupRepository) {}
+
+  async execute({ groupId, userId }: FollowGroupCommand): Promise<void> {
+    await this.repo.addFollowEdge(GroupId(groupId), UserId(userId));
+  }
+}
+
+/** Unfollow a group (ADR 0021). Focused edge delete. */
+export class UnfollowGroupHandler {
+  constructor(private readonly repo: GroupRepository) {}
+
+  async execute({ groupId, userId }: UnfollowGroupCommand): Promise<void> {
+    await this.repo.removeFollowEdge(GroupId(groupId), UserId(userId));
   }
 }

@@ -1,5 +1,22 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 3 — group follow edges):**
+> The `group_followers` follow/unfollow writes moved to focused
+> `GroupRepository.addFollowEdge` / `removeFollowEdge` ops (idempotent upsert /
+> delete on the self-scoped edge table) — the same shape as the friend edges
+> (ADR 0020 §5). A follow is a viewer's own edge with no group-side invariant, so
+> these **don't** go through the aggregate; `FollowGroupHandler` /
+> `UnfollowGroupHandler` join `getGroupHandlers()` and
+> [follow-actions.ts](../../apps/web/src/app/groups/follow-actions.ts) migrated off
+> raw `supabase.from('group_followers')`. They stay best-effort (swallow on
+> failure) since they're plain-form submissions in a client island with no
+> error handling — matching the prior raw insert/delete that ignored its error.
+> No new tests (pure edge plumbing, no domain rule). Verify quad green (domain
+> 265, application 42, web 50, infra 7; lint 0 errors). No DB change. **Remaining
+> group writes:** soft-delete (inc. 4); then the read sites → a `GroupQueries`
+> port. See the
+> [Phase 3 inc. 3 journal](../journal/2026-05-29-bundle-phase-3-inc3-group-follow-edges.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 2 — group membership + last-owner invariant):**
 > The `Group` aggregate gained its **membership roster** (`Map<UserId,
 GroupRole>`, loaded by `findById`) with `addMember` / `removeMember` /
@@ -394,6 +411,12 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 3 — follow edges):** `group_followers`
+> follow/unfollow moved to focused `GroupRepository.addFollowEdge` /
+> `removeFollowEdge` (idempotent upsert / delete; no aggregate, no group-side
+> invariant). `follow-actions.ts` migrated off raw `supabase.from('group_followers')`.
+> **Remaining group writes:** soft-delete (inc. 4); reads → `GroupQueries`.
+>
 > **Progress (2026-05-29, Phase 3 inc. 2 — group membership):** the `Group`
 > aggregate gained its membership roster + `addMember`/`removeMember`/
 > `changeMemberRole` (owner/admin authz + the **last-owner invariant**, which

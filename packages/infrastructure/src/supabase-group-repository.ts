@@ -141,4 +141,25 @@ export class SupabaseGroupRepository implements GroupRepository {
       if (error) throw new Error(`Group.saveMembers delete failed: ${error.message}`);
     }
   }
+
+  async addFollowEdge(groupId: GroupId, userId: UserId): Promise<void> {
+    // Idempotent: re-following an existing edge must not error. PK is
+    // (group_id, user_id), so ignore the duplicate on conflict.
+    const { error } = await this.client
+      .from('group_followers')
+      .upsert({ group_id: groupId, user_id: userId } as never, {
+        onConflict: 'group_id,user_id',
+        ignoreDuplicates: true,
+      });
+    if (error) throw new Error(`addFollowEdge failed: ${error.message}`);
+  }
+
+  async removeFollowEdge(groupId: GroupId, userId: UserId): Promise<void> {
+    const { error } = await this.client
+      .from('group_followers')
+      .delete()
+      .eq('group_id', groupId)
+      .eq('user_id', userId);
+    if (error) throw new Error(`removeFollowEdge failed: ${error.message}`);
+  }
 }

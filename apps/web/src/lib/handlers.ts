@@ -71,7 +71,9 @@ import {
   ChangeGroupMemberRoleHandler,
   ChangeHandleHandler,
   CreateGroupHandler,
+  FollowGroupHandler,
   RemoveGroupMemberHandler,
+  UnfollowGroupHandler,
   RemoveFriendHandler,
   SetProfileHeroImageHandler,
   SetProfileThemeHandler,
@@ -294,6 +296,8 @@ export async function getGroupHandlers(): Promise<{
   addGroupMember: AddGroupMemberHandler;
   removeGroupMember: RemoveGroupMemberHandler;
   changeGroupMemberRole: ChangeGroupMemberRoleHandler;
+  followGroup: FollowGroupHandler;
+  unfollowGroup: UnfollowGroupHandler;
 }> {
   const client = await getServerSupabase();
   const groupRepo = new SupabaseGroupRepository(client);
@@ -303,6 +307,8 @@ export async function getGroupHandlers(): Promise<{
     addGroupMember: new AddGroupMemberHandler(groupRepo),
     removeGroupMember: new RemoveGroupMemberHandler(groupRepo),
     changeGroupMemberRole: new ChangeGroupMemberRoleHandler(groupRepo),
+    followGroup: new FollowGroupHandler(groupRepo),
+    unfollowGroup: new UnfollowGroupHandler(groupRepo),
   };
 }
 

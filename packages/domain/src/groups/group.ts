@@ -273,4 +273,10 @@ export interface GroupRepository {
    * added, DELETE removed, UPDATE role-changed. Leaves the `groups` row alone so
    * a member's self-leave doesn't trip the owner/admin `groups_update` policy. */
   saveMembers(group: Group): Promise<void>;
+  /** Follow-graph edge writes (ADR 0021) — a surgical INSERT / DELETE on the
+   * self-scoped `group_followers` table. `addFollowEdge` is idempotent. There's
+   * no group-side invariant (a follow is a viewer's own edge), so these don't go
+   * through the aggregate. */
+  addFollowEdge(groupId: GroupId, userId: UserId): Promise<void>;
+  removeFollowEdge(groupId: GroupId, userId: UserId): Promise<void>;
 }
