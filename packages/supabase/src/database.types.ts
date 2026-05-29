@@ -2498,6 +2498,29 @@ export type Database = {
         Args: { p_division_id: string; p_matches: Json };
         Returns: undefined;
       };
+      record_league_match_result: {
+        Args: {
+          p_match_id: string;
+          p_home_score: number;
+          p_away_score: number;
+          p_status: string;
+        };
+        Returns: undefined;
+      };
+      record_bracket_match_result: {
+        Args: {
+          p_actor_match_id: string;
+          p_bracket_id: string;
+          p_division_id: string;
+          p_format: string;
+          p_config: Json;
+          p_status: string;
+          p_seeds: Json;
+          p_matches: Json;
+          p_match_sets: Json;
+        };
+        Returns: undefined;
+      };
       _postgis_deprecate: {
         Args: { newname: string; oldname: string; version: string };
         Returns: undefined;

@@ -2252,8 +2252,62 @@ follow-up from the original 2026-05-28 audit has either been
 closed via a remediation entry above, documented as a
 no-change decision (P3 #10), or carried forward into the
 out-of-scope tracker (the captain-RLS gap on bracket + league
-match-result writes — a separate auth slice, not an
-event-data-model concern).
+match-result writes — a separate auth slice, **now closed; see the
+2026-12-04 entry below and [security.md](security.md) P2 #4**).
+
+---
+
+### 2026-12-04 — Captain-RLS gap on match-result writes closed
+
+**Closed (this slice).** The last carry-forward from this audit — the
+captain-RLS gap flagged in the `save_league_schedule` / `save_bracket`
+scope notes — is fixed. It's an authorization concern, so the finding
+
+- full write-up live in [security.md § P2 #4](security.md) and the
+  [journal entry](../journal/2026-12-04-bundle-captain-rls-match-result.md);
+  recorded here because the follow-up was tracked on this audit.
+
+**The gap.** Recording a match result (bracket: `RecordMatchResultHandler`
+/ `ResetMatchHandler`; league: `RecordLeagueMatchResultHandler`) persisted
+through the full-replace `save_bracket` / `save_league_schedule` RPCs on
+the **service-role admin client**, which bypasses RLS. The handlers
+delegate authorization to the `bracket_matches_update` /
+`bracket_match_sets_write` / `league_schedule_matches_update` policies
+("host or either captain") — but those never fired, so any signed-in
+real user could overwrite any match's score. The bracket actions even
+passed `requesterId = ''`, confirming the intent was DB-side enforcement.
+
+**The fix.** Route the captain-reachable writes through a **user-scoped**
+client so RLS is the real gate:
+
+- **League** — narrow single-row UPDATE RPC `record_league_match_result`
+  ([20260814000000](../../supabase/migrations/20260814000000_record_league_match_result_rpc.sql)),
+  `SECURITY INVOKER` so `league_schedule_matches_update` (host or captain)
+  enforces. New `LeagueScheduleRepository.recordMatchResult` port.
+- **Bracket** — recording a result legitimately mutates rows the captain
+  has no direct grant on (the downstream match the winner advances into;
+  the bracket header on completion), so pure INVOKER can't work. New
+  `record_bracket_match_result` RPC
+  ([20260814000100](../../supabase/migrations/20260814000100_record_bracket_match_result_rpc.sql))
+  is `SECURITY DEFINER` with an explicit `is_event_host(event) OR
+is_bracket_match_captain(actor_match)` gate, then delegates to
+  `save_bracket`. The advancement/completion logic stays in the tested TS
+  aggregate. New `BracketRepository.saveAsMatchActor(bracket, actorMatchId)`
+  port. Both record + reset route through it.
+- Composition root grows `getMatchResultHandlers()` (per-request,
+  user-scoped); the three handlers were dropped from the module-singleton
+  `handlers` so the admin-bypass path can't be reused by accident.
+- Regression guards: `bracket.handler.test.ts` (new) +
+  `league-schedule.handler.test.ts` pin that record/reset go through the
+  narrow RLS-enforced methods, never the host-only full-replace `save`.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` green
+(216 domain + 42 application + 50 web tests; lint at the 4 pre-existing
+warnings). Migrations not applied locally (Docker off); CI/CD applies on
+deploy.
+
+**Audit fully drained.** No numbered findings and no carry-forwards
+remain open on this audit.
 
 ---
 

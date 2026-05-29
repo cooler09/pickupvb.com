@@ -2,10 +2,13 @@ import {
   LeagueMatchStatus,
   LeagueSchedule,
   LeagueScheduleMatch,
+  NotFoundError,
+  UnauthorizedError,
   type DivisionId,
   type EventWindow,
   type LeagueScheduleMatchId,
   type LeagueScheduleRepository,
+  type RecordLeagueMatchResultInput,
   type TeamId,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
@@ -35,7 +38,19 @@ const MATCH_COLUMNS =
   'id, division_id, week_number, scheduled_at, court_label, home_team_id, away_team_id, home_score, away_score, status, notes';
 
 export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepository {
-  private _client: SupabaseClient | null = null;
+  private _client: SupabaseClient | null;
+
+  /**
+   * @param client Optional Supabase client. The composition root's
+   *   module-singleton instance omits it and lazily builds the service-role
+   *   admin client for host-gated writes. The captain-reachable
+   *   `recordMatchResult` path constructs a per-request instance with a
+   *   *user-scoped* client so the `league_schedule_matches_update` RLS
+   *   policy (host or either captain) is actually enforced.
+   */
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
 
   private get client(): SupabaseClient {
     if (!this._client) this._client = createSupabaseAdminClient();
@@ -112,5 +127,31 @@ export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepositor
       p_matches: matches,
     } as never);
     if (error) throw new Error(`league schedule save failed: ${error.message}`);
+  }
+
+  async recordMatchResult(input: RecordLeagueMatchResultInput): Promise<void> {
+    // Narrow, single-row UPDATE via `record_league_match_result`
+    // (migration 20260814000000) — a SECURITY INVOKER RPC, so the
+    // `league_schedule_matches_update` RLS policy (host or either captain)
+    // is the authorization gate. Must be invoked through a user-scoped
+    // client (the module-singleton admin client would bypass RLS and
+    // re-open the captain-auth gap). The RPC raises insufficient_privilege
+    // (42501) when the caller is neither host nor captain and no_data_found
+    // (P0002) when the match is unknown.
+    const { error } = await this.client.rpc('record_league_match_result', {
+      p_match_id: input.matchId,
+      p_home_score: input.homeScore,
+      p_away_score: input.awayScore,
+      p_status: input.status,
+    } as never);
+    if (error) {
+      if (error.code === '42501') {
+        throw new UnauthorizedError('You can only record results for matches you host or captain.');
+      }
+      if (error.code === 'P0002') {
+        throw new NotFoundError('LeagueScheduleMatch', String(input.matchId));
+      }
+      throw new Error(`league match result save failed: ${error.message}`);
+    }
   }
 }

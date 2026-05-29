@@ -28,6 +28,7 @@ import {
   type EventWindow,
   type LeagueScheduleMatchId,
   type LeagueScheduleRepository,
+  type RecordLeagueMatchResultInput,
   type TeamId,
   type UserId,
 } from '@pickupvb/domain';
@@ -134,6 +135,7 @@ class InMemoryEventRepo implements Pick<EventRepository, 'findById' | 'save'> {
 class InMemoryScheduleRepo implements LeagueScheduleRepository {
   private store = new Map<string, LeagueSchedule>();
   saveCount = 0;
+  recordCount = 0;
   private nextId = 1;
 
   putSchedule(schedule: LeagueSchedule) {
@@ -148,6 +150,31 @@ class InMemoryScheduleRepo implements LeagueScheduleRepository {
   async save(schedule: LeagueSchedule): Promise<void> {
     this.saveCount += 1;
     this.store.set(String(schedule.divisionId), schedule);
+  }
+  // Stands in for the narrow, RLS-enforced single-row UPDATE. Applies the
+  // scores so the score-assertion tests still observe the change, and counts
+  // calls so a test can pin that the record path uses THIS method, not the
+  // host-only full-replace `save`.
+  async recordMatchResult(input: RecordLeagueMatchResultInput): Promise<void> {
+    this.recordCount += 1;
+    const schedule = this.store.get(String(input.divisionId));
+    if (!schedule) throw new NotFoundError('LeagueScheduleMatch', String(input.matchId));
+    const existing = schedule.matches.find((m) => String(m.id) === String(input.matchId));
+    if (!existing) throw new NotFoundError('LeagueScheduleMatch', String(input.matchId));
+    schedule.replaceMatch(
+      LeagueScheduleMatch.create({
+        id: existing.id,
+        weekNumber: existing.weekNumber,
+        scheduledAt: existing.scheduledAt,
+        courtLabel: existing.courtLabel,
+        homeTeamId: existing.homeTeamId,
+        awayTeamId: existing.awayTeamId,
+        homeScore: input.homeScore,
+        awayScore: input.awayScore,
+        status: input.status,
+        notes: existing.notes,
+      }),
+    );
   }
 }
 
@@ -509,6 +536,30 @@ describe('RecordLeagueMatchResultHandler', () => {
 
     const saved = await schedules.findByDivisionId(DIVISION_ID);
     expect(saved?.matches[0]?.status).toBe(LeagueMatchStatus.Forfeit);
+  });
+
+  it('persists via the narrow RLS-enforced recordMatchResult, never the full-replace save', async () => {
+    // Regression guard for the captain-RLS fix: the host-only `save`
+    // full-replace runs through the admin client and bypasses the
+    // `league_schedule_matches_update` policy. Score entry MUST use the
+    // single-row `recordMatchResult` path so RLS (host or either captain)
+    // is the authorization gate. If this flips back to `save`, the auth
+    // gap re-opens. See docs/audits/event-data-model.md.
+    const { schedule, matchId } = scheduleWithMatch();
+    const schedules = new InMemoryScheduleRepo();
+    schedules.putSchedule(schedule);
+    const handler = new RecordLeagueMatchResultHandler(schedules);
+
+    await handler.execute({
+      divisionId: String(DIVISION_ID),
+      matchId: String(matchId),
+      requesterId: 'captain',
+      homeScore: 25,
+      awayScore: 17,
+    });
+
+    expect(schedules.recordCount).toBe(1);
+    expect(schedules.saveCount).toBe(0);
   });
 
   it('rejects status values that are not completed or forfeit', async () => {

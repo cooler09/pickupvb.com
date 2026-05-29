@@ -227,16 +227,20 @@ export class RecordMatchResultHandler {
   constructor(private readonly brackets: BracketRepository) {}
 
   async execute(cmd: RecordMatchResultCommand): Promise<void> {
-    // Permissions for "captain of either team" are enforced by Postgres
-    // RLS at the persistence boundary; the domain only enforces match
-    // state-machine guards.
+    // Permissions for "host or captain of either team" are enforced by
+    // Postgres RLS at the persistence boundary — but only because the write
+    // goes through `saveAsMatchActor`, which routes the domain-computed
+    // bracket through the authorization-gated `record_bracket_match_result`
+    // RPC (keyed on `cmd.matchId`) via a user-scoped client. The plain
+    // host-only `save` would bypass that gate. The domain enforces the
+    // match state-machine guards; the DB has the final say on who may write.
     const bracket = await this.brackets.findByMatchId(cmd.matchId as never);
     if (!bracket) throw new NotFoundError('bracket', cmd.matchId);
     bracket.recordResult({
       matchId: cmd.matchId as never,
       sets: cmd.sets,
     });
-    await this.brackets.save(bracket);
+    await this.brackets.saveAsMatchActor(bracket, cmd.matchId as never);
   }
 }
 
@@ -244,9 +248,12 @@ export class ResetMatchHandler {
   constructor(private readonly brackets: BracketRepository) {}
 
   async execute(cmd: ResetMatchCommand): Promise<void> {
+    // Same authorization model as RecordMatchResultHandler: clearing a
+    // match's result is gated on host-or-captain-of-`cmd.matchId` by the
+    // `record_bracket_match_result` RPC behind `saveAsMatchActor`.
     const bracket = await this.brackets.findByMatchId(cmd.matchId as never);
     if (!bracket) throw new NotFoundError('bracket', cmd.matchId);
     bracket.resetMatch(cmd.matchId as never);
-    await this.brackets.save(bracket);
+    await this.brackets.saveAsMatchActor(bracket, cmd.matchId as never);
   }
 }

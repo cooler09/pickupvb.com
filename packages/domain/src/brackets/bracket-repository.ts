@@ -55,7 +55,28 @@ export interface BracketRepository {
   /** Used by the match-result handler which only knows the match id. */
   findByMatchId(matchId: MatchId): Promise<Bracket | null>;
   findById(id: BracketId): Promise<Bracket | null>;
+  /**
+   * Host-only full-replace persist. Used by the host-gated bracket
+   * operations (create / seed / generate / reset / reorder), which are
+   * authorized in the application layer and run through the service-role
+   * client.
+   */
   save(bracket: Bracket): Promise<void>;
+  /**
+   * Persist the full bracket state on behalf of the captain (or host) who
+   * just acted on `actorMatchId` — recording or clearing that match's
+   * result. Distinct from {@link save} because recording a result legitimately
+   * mutates rows the captain has no direct RLS grant on (the downstream
+   * match the winner advances into; the bracket header on completion), so
+   * the write can't run as a plain user under RLS. The adapter routes
+   * through a user-scoped client to an authorization-gated RPC that admits
+   * the write only when the caller is the event host or a captain of
+   * `actorMatchId`. The aggregate still owns the advancement/completion
+   * logic; this method only persists the result it computed. Throws
+   * `UnauthorizedError` when the caller is neither host nor a captain of
+   * `actorMatchId`, `NotFoundError` when the match is unknown.
+   */
+  saveAsMatchActor(bracket: Bracket, actorMatchId: MatchId): Promise<void>;
   /**
    * Teams eligible for seeding into the bracket: those registered for the
    * given event division. Note: the parent event's `event_teams` rows may

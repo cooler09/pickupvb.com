@@ -175,13 +175,15 @@ export const handlers = {
   generatePlayoff: new GeneratePlayoffHandler(eventRepo, bracketRepo),
   resetBracket: new ResetBracketHandler(eventRepo, bracketRepo),
   reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo),
-  recordMatchResult: new RecordMatchResultHandler(bracketRepo),
-  resetMatch: new ResetMatchHandler(bracketRepo),
+  // NOTE: the captain-reachable match-result writes (bracket record/reset,
+  // league score entry) are intentionally NOT here. They must run through a
+  // user-scoped client so RLS enforces "host or captain of this match" —
+  // see `getMatchResultHandlers()` below. The module-singleton repos use the
+  // service-role admin client, which would bypass that gate.
   // League schedule (per-division weekly slate)
   addLeagueScheduleMatch: new AddLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   updateLeagueScheduleMatch: new UpdateLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
-  recordLeagueMatchResult: new RecordLeagueMatchResultHandler(leagueScheduleRepo),
   setLeagueTeamForfeited: new SetLeagueTeamForfeitedHandler(eventRepo),
   // Community listings
   createCommunityListing: new CreateCommunityListingHandler(communityListingRepo),
@@ -205,6 +207,34 @@ export const handlers = {
   searchCommunityListings: new SearchCommunityListingsHandler(communityListingRepo),
   getCommunityListingDetail: new GetCommunityListingDetailHandler(communityListingRepo),
 };
+
+/**
+ * Per-request handlers for the captain-reachable match-result writes
+ * (bracket record/reset, league score entry).
+ *
+ * Unlike the module-singleton `handlers` above — which run through the
+ * service-role admin client and bypass RLS — these are built per request
+ * around a *user-scoped* Supabase client bound to the caller's auth cookies.
+ * That is what lets the `is_bracket_match_captain` / `is_league_match_captain`
+ * / `is_event_host` RLS policies (and the `record_*_match_result` RPCs that
+ * call them) actually enforce "host or captain of this match." Recording a
+ * result is the one mutation a non-host may perform, so it cannot share the
+ * admin-client path. See docs/audits/event-data-model.md.
+ */
+export async function getMatchResultHandlers(): Promise<{
+  recordMatchResult: RecordMatchResultHandler;
+  resetMatch: ResetMatchHandler;
+  recordLeagueMatchResult: RecordLeagueMatchResultHandler;
+}> {
+  const client = await getServerSupabase();
+  const userBracketRepo = new SupabaseBracketRepository(client);
+  const userLeagueScheduleRepo = new SupabaseLeagueScheduleRepository(client);
+  return {
+    recordMatchResult: new RecordMatchResultHandler(userBracketRepo),
+    resetMatch: new ResetMatchHandler(userBracketRepo),
+    recordLeagueMatchResult: new RecordLeagueMatchResultHandler(userLeagueScheduleRepo),
+  };
+}
 
 export const repositories = {
   bracketRepo,

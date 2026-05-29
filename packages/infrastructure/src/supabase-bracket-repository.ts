@@ -11,6 +11,8 @@ import {
   type DivisionId,
   type EntryId,
   type EventId,
+  NotFoundError,
+  UnauthorizedError,
   type Match,
   type MatchId,
   type MatchSet,
@@ -86,7 +88,20 @@ type SetRow = {
 };
 
 export class SupabaseBracketRepository implements BracketRepository {
-  private _client: SupabaseClient | null = null;
+  private _client: SupabaseClient | null;
+
+  /**
+   * @param client Optional Supabase client. The composition root's
+   *   module-singleton instance omits it and lazily builds the service-role
+   *   admin client used by the host-gated operations (create / seed /
+   *   generate / reset / reorder). The captain-reachable
+   *   {@link saveAsMatchActor} path constructs a per-request instance with a
+   *   *user-scoped* client so the authorization-gated
+   *   `record_bracket_match_result` RPC sees the real `auth.uid()`.
+   */
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
 
   private get client(): SupabaseClient {
     if (!this._client) this._client = createSupabaseAdminClient();
@@ -222,6 +237,49 @@ export class SupabaseBracketRepository implements BracketRepository {
     // Postgres checks the self-FK at statement boundary; the RPC
     // inserts every match in a single `INSERT … SELECT` so the prior
     // two-pass wiring update is gone.
+    const { error } = await this.client.rpc('save_bracket', this.buildSaveArgs(bracket) as never);
+    if (error) throw new Error(`bracket save failed: ${error.message}`);
+  }
+
+  async saveAsMatchActor(bracket: Bracket, actorMatchId: MatchId): Promise<void> {
+    // Captain-reachable persist for recording / clearing a single match's
+    // result. Routes the same domain-computed full-replace payload through
+    // `record_bracket_match_result` (migration 20260814000100) instead of
+    // `save_bracket` directly. That RPC authorizes the write against the
+    // *actor* match — `is_event_host(event)` OR
+    // `is_bracket_match_captain(actor_match_id)` — before delegating to
+    // `save_bracket`. Must be invoked through a user-scoped client so the
+    // RPC sees the real `auth.uid()`; the admin client would make the host
+    // check pass for nobody and bypass the gate entirely. The RPC raises
+    // insufficient_privilege (42501) when unauthorized and no_data_found
+    // (P0002) when the actor match is unknown.
+    const { error } = await this.client.rpc('record_bracket_match_result', {
+      p_actor_match_id: actorMatchId,
+      ...this.buildSaveArgs(bracket),
+    } as never);
+    if (error) {
+      if (error.code === '42501') {
+        throw new UnauthorizedError('You can only record results for matches you host or captain.');
+      }
+      if (error.code === 'P0002') {
+        throw new NotFoundError('match', String(actorMatchId));
+      }
+      throw new Error(`bracket match result save failed: ${error.message}`);
+    }
+  }
+
+  /** Shared `save_bracket` argument shape for {@link save} and
+   *  {@link saveAsMatchActor}. */
+  private buildSaveArgs(bracket: Bracket): {
+    p_bracket_id: string;
+    p_division_id: string;
+    p_format: BracketFormat;
+    p_config: BracketConfig;
+    p_status: BracketStatus;
+    p_seeds: Array<{ entry_id: string; seed: number; pool: string | null }>;
+    p_matches: Array<Record<string, unknown>>;
+    p_match_sets: SetRow[];
+  } {
     const seeds = bracket.seeds.map((s) => ({
       entry_id: s.entryId,
       seed: s.seed,
@@ -257,7 +315,7 @@ export class SupabaseBracketRepository implements BracketRepository {
         });
       }
     }
-    const { error } = await this.client.rpc('save_bracket', {
+    return {
       p_bracket_id: bracket.id,
       p_division_id: bracket.divisionId,
       p_format: bracket.format,
@@ -266,8 +324,7 @@ export class SupabaseBracketRepository implements BracketRepository {
       p_seeds: seeds,
       p_matches: matches,
       p_match_sets: matchSets,
-    } as never);
-    if (error) throw new Error(`bracket save failed: ${error.message}`);
+    };
   }
 
   async listRegisteredTeams(_eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]> {

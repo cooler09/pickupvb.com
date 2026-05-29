@@ -17,7 +17,7 @@ import {
   UnauthorizedError,
   ValidationError,
 } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { getMatchResultHandlers, handlers } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 
@@ -216,7 +216,12 @@ export async function recordResultFromForm(
   }
   const status = parseStatus(fieldOrUndefined(formData, 'status')) ?? LeagueMatchStatus.Completed;
   try {
-    await handlers.recordLeagueMatchResult.execute(
+    // User-scoped handler: the `record_league_match_result` RPC behind it is
+    // a single-row UPDATE gated by the `league_schedule_matches_update` RLS
+    // policy (host or either captain). See getMatchResultHandlers /
+    // docs/audits/event-data-model.md.
+    const matchHandlers = await getMatchResultHandlers();
+    await matchHandlers.recordLeagueMatchResult.execute(
       new RecordLeagueMatchResultCommand(
         divisionId,
         matchId,

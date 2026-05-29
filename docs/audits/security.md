@@ -9,6 +9,15 @@ RLS policies, third-party integrations, secrets handling, logging.
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
+**Status update (2026-12-04):** New instance of P2 #4 (admin client →
+RLS bypass) found and closed — the match-result writes (bracket
+record/reset, league score entry) persisted through the service-role
+admin client, so the "host or either captain" RLS policies never
+enforced and any signed-in user could overwrite any match's score.
+Now routed through a user-scoped client + authorization-gated RPCs.
+See [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes) and
+the [remediation log](#2026-12-04--captain-rls-on-match-result-writes-p2-4-follow-on).
+
 **Status update (2026-05-23, Bundle 53):** All three remaining P3
 findings closed in audit text. #9 (FormData hard cap) and #10
 (Turnstile freshness) were code-closed in Bundle 17 (2026-05-24) but
@@ -155,6 +164,20 @@ adds self-service policies for `event_attendees` /
 host-insert policy for `event_payment_audit`. Stripe webhook handlers
 continue to use the admin client (correct — they run with no user
 session). See the [Bundle 14 journal](../journal/2026-05-24-bundle-14.md).
+
+**Follow-on (2026-12-04):** a second instance of this same pattern
+surfaced in the bracket / league **match-result** writes — the repos
+(`SupabaseBracketRepository`, `SupabaseLeagueScheduleRepository`) build
+their own admin client, and the record/reset handlers delegated authz
+entirely to RLS policies that the admin client bypassed. Closed via
+user-scoped clients + authorization-gated RPCs; see the
+[2026-12-04 remediation entry](#2026-12-04--captain-rls-on-match-result-writes-p2-4-follow-on)
+and the
+[journal entry](../journal/2026-12-04-bundle-captain-rls-match-result.md).
+**Durable lesson:** "swap admin → server client" only fixes the call
+sites you can see — an adapter that self-constructs the admin client
+internally hides the same gap behind the port. Audit repository
+adapters, not just page/action code, when chasing RLS-bypass.
 
 **Files:**
 
@@ -351,6 +374,43 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-12-04 — Captain-RLS on match-result writes (P2 #4 follow-on)
+
+**Problem.** The captain-reachable match-result writes persisted through
+the service-role admin client, bypassing the RLS policies meant to gate
+them, so any signed-in real user could record/overwrite any match:
+
+- **Bracket** — `RecordMatchResultHandler` / `ResetMatchHandler` →
+  `SupabaseBracketRepository.save` (full-replace `save_bracket` RPC) on the
+  admin client. The bracket server actions even passed `requesterId = ''`,
+  delegating authz wholly to the `bracket_matches_update` /
+  `bracket_match_sets_write` policies — which never fired.
+- **League** — `RecordLeagueMatchResultHandler` →
+  `SupabaseLeagueScheduleRepository.save` (`save_league_schedule`) on the
+  admin client; `league_schedule_matches_update` (host or captain) never
+  fired.
+
+The repos self-construct the admin client internally, so Bundle 14's
+"swap admin → server client" sweep across pages/actions didn't reach them.
+
+**Fix.**
+
+| Piece                                   | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migration `record_league_match_result`  | [20260814000000](../../supabase/migrations/20260814000000_record_league_match_result_rpc.sql) — `SECURITY INVOKER` single-row UPDATE; `league_schedule_matches_update` (host or either captain) is the gate. Raises `42501` (not authorized) / `P0002` (not found); 0-rows-after-update is treated as not-authorized since the public SELECT policy makes the row otherwise visible.                                                                                                                                                                                                                                                                                                                 |
+| Migration `record_bracket_match_result` | [20260814000100](../../supabase/migrations/20260814000100_record_bracket_match_result_rpc.sql) — `SECURITY DEFINER`. Recording a result mutates rows a captain has no grant on (the downstream match the winner advances into; the bracket header on completion), so pure INVOKER can't work. Resolves the event behind the actor match, requires `is_event_host(event) OR is_bracket_match_captain(actor_match)`, then delegates to `save_bracket` (advancement/completion logic stays in the tested TS aggregate). `auth.uid()` is the end user inside the DEFINER body; the nested INVOKER `save_bracket` runs as the BYPASSRLS owner, so the downstream writes land _after_ the per-match authz. |
+| Domain ports                            | `LeagueScheduleRepository.recordMatchResult`; `BracketRepository.saveAsMatchActor(bracket, actorMatchId)`. The host-only full-replace `save` stays for create/seed/generate/reset/reorder (authorized in the app layer, admin client).                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Adapters                                | Both repos gained an optional user-scoped-client constructor arg and map `42501` → `UnauthorizedError`, `P0002` → `NotFoundError`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Composition root                        | `getMatchResultHandlers()` builds the three handlers per request around `getServerSupabase()` (user-scoped). The three were removed from the module-singleton `handlers` so the admin-bypass path can't be reused.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Server actions                          | `bracket/actions.ts` + `schedule/actions.ts` call `getMatchResultHandlers()` and pass the real `user.id`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Tests                                   | New `bracket.handler.test.ts` + extended `league-schedule.handler.test.ts` pin that record/reset use the narrow RLS-enforced methods, never the host-only `save` (the regression that re-opens the gap).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+Stripe webhook handlers and the host-gated bracket/league operations keep
+the admin client (correct — webhooks run session-less; host ops are
+app-layer-authorized). `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green. Full narrative:
+[journal](../journal/2026-12-04-bundle-captain-rls-match-result.md).
 
 ### 2026-05-23 — Bundle 53: Security P3 audit-text closure (#9, #10, #11)
 

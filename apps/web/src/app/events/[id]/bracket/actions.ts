@@ -24,7 +24,7 @@ import {
   type BracketFormat,
   type MatchSet,
 } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { getMatchResultHandlers, handlers } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 
 /**
@@ -280,7 +280,7 @@ export async function recordMatchResultFromForm(
   matchId: string,
   formData: FormData,
 ): Promise<void> {
-  await requireRealUser();
+  const { user } = await requireRealUser();
   const sets: MatchSet[] = [];
   let n = 1;
   while (true) {
@@ -302,7 +302,13 @@ export async function recordMatchResultFromForm(
     n += 1;
   }
   try {
-    await handlers.recordMatchResult.execute(new RecordMatchResultCommand(matchId, '', sets));
+    // User-scoped handler: the `record_bracket_match_result` RPC behind it
+    // authorizes the write against `auth.uid()` (host or captain of this
+    // match). See getMatchResultHandlers / docs/audits/event-data-model.md.
+    const matchHandlers = await getMatchResultHandlers();
+    await matchHandlers.recordMatchResult.execute(
+      new RecordMatchResultCommand(matchId, user.id, sets),
+    );
   } catch (err) {
     const { code, msg } = classify(err);
     revalidate(eventId);
@@ -318,9 +324,10 @@ export async function resetMatch(
   divisionId: string,
   matchId: string,
 ): Promise<void> {
-  await requireRealUser();
+  const { user } = await requireRealUser();
   try {
-    await handlers.resetMatch.execute(new ResetMatchCommand(matchId, ''));
+    const matchHandlers = await getMatchResultHandlers();
+    await matchHandlers.resetMatch.execute(new ResetMatchCommand(matchId, user.id));
   } catch (err) {
     const { code, msg } = classify(err);
     revalidate(eventId);

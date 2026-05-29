@@ -207,9 +207,12 @@ export class RecordLeagueMatchResultHandler {
 
   async execute(cmd: RecordLeagueMatchResultCommand): Promise<void> {
     // Permissions for "host or captain of either team" are enforced by
-    // Postgres RLS at the persistence boundary (mirrors the bracket
-    // RecordMatchResultHandler convention). The domain only validates
-    // the resulting match shape.
+    // Postgres RLS at the persistence boundary — but only because the write
+    // goes through the narrow `recordMatchResult` port (a single-row UPDATE
+    // gated by the `league_schedule_matches_update` policy) invoked with a
+    // user-scoped client. The host-only full-replace `save` would bypass
+    // that gate. The domain validates the resulting match shape before the
+    // persist; the DB has the final say on authorization.
     const schedule = await loadScheduleOrThrow(this.schedules, cmd.divisionId);
     const existing = schedule.matches.find((m) => String(m.id) === cmd.matchId);
     if (!existing) throw new NotFoundError('LeagueScheduleMatch', cmd.matchId);
@@ -219,7 +222,11 @@ export class RecordLeagueMatchResultHandler {
         status,
       });
     }
-    const updated = LeagueScheduleMatch.create({
+    // Construct through the value object so its invariants (non-negative
+    // integer scores, etc.) run before we hit the DB — mirrors the
+    // `league_schedule_matches` CHECK constraints. The result is discarded;
+    // persistence is the narrow, RLS-enforced UPDATE below.
+    LeagueScheduleMatch.create({
       id: existing.id,
       weekNumber: existing.weekNumber,
       scheduledAt: existing.scheduledAt,
@@ -231,7 +238,12 @@ export class RecordLeagueMatchResultHandler {
       status,
       notes: existing.notes,
     });
-    schedule.replaceMatch(updated);
-    await this.schedules.save(schedule);
+    await this.schedules.recordMatchResult({
+      divisionId: cmd.divisionId as DivisionId,
+      matchId: existing.id,
+      homeScore: cmd.homeScore,
+      awayScore: cmd.awayScore,
+      status,
+    });
   }
 }

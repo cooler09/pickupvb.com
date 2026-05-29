@@ -571,3 +571,32 @@ Stripe-readiness checks in
 and [edit/actions.ts](apps/web/src/app/events/[id]/edit/actions.ts)
 gate on the host **user**, not the group. Full write-up:
 [docs/payments.md](docs/payments.md).
+
+### 8. Don't enforce authorization on the admin (service-role) client
+
+`createSupabaseAdminClient()` bypasses RLS. A write that delegates its
+"may this user do this?" check to a Postgres RLS policy is **unprotected**
+if it runs on the admin client — the policy never fires. This bit us
+twice (security audit P2 #4): once in the checkout/tip/manage-payments
+actions (Bundle 14), and again in the bracket/league **match-result**
+writes, where the repos self-construct the admin client so the gap hid
+behind the port. Rules:
+
+- **Caller-is-the-resource-owner / captain writes** must run on a
+  user-scoped client (`getServerSupabase()`), so RLS enforces. Build the
+  handler per request — see `getMatchResultHandlers()` in
+  [apps/web/src/lib/handlers.ts](apps/web/src/lib/handlers.ts).
+- **When a single-row UPDATE under RLS isn't enough** (the action's
+  legitimate side-effects touch rows the caller has no grant on — e.g.
+  bracket winner advancement into a downstream match), use a
+  `SECURITY DEFINER` RPC with an **explicit** `is_event_host(...) OR
+is_*_captain(...)` gate, then delegate to the shared save. Reference:
+  [`record_bracket_match_result`](supabase/migrations/20260814000100_record_bracket_match_result_rpc.sql)
+  vs. the pure-INVOKER
+  [`record_league_match_result`](supabase/migrations/20260814000000_record_league_match_result_rpc.sql).
+- **Admin client is correct only** for session-less contexts (Stripe
+  webhooks, crons) and host-gated operations already authorized in the
+  application layer.
+- When chasing an RLS-bypass, **audit the repository adapters**, not just
+  page/action code — an adapter that lazily builds its own admin client
+  hides the same gap.
