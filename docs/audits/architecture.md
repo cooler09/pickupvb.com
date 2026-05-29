@@ -1,5 +1,20 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 2a — social-graph port):** **First Phase 2
+> increment landed**, attacking the **P2-2 god-port**. The friend-graph reads
+> (`getViewerFriends`, `searchFollowingFeed`) + their read-model types
+> (`FriendProfile`, `FollowingFeedItem`, `FollowingFeedFilters`) moved off
+> `EventRepository` onto a dedicated `SocialGraphQueries` port
+> ([packages/domain/src/users/social-graph-queries.ts](../../packages/domain/src/users/social-graph-queries.ts)),
+> implemented by the new
+> [SupabaseSocialGraphRepository](../../packages/infrastructure/src/supabase-social-graph-repository.ts);
+> `GetViewerFriendsHandler` / `GetFollowingFeedHandler` now depend on the focused
+> port. Pure structural move (verify quad green, 309 tests, no DB change). **P2-2
+> partially closed** — the rest of the `EventRepository` ISP split (read-vs-write,
+> co-host, `setRosterTeamForfeited`) and **P2-1** (ProfileRepository + the ~38
+> raw web-layer `profiles`/`friendships` queries) remain as Phase 2b. See the
+> [Phase 2a journal](../journal/2026-05-29-bundle-phase-2a-social-graph-port.md).
+>
 > **Status update (2026-05-29, Phase 1 — P1 resolved):** **Division-scoped
 > aggregate entries landed** ([ADR 0019](../adr/0019-division-scoped-aggregate-entries.md),
 > [journal](../journal/2026-05-29-bundle-phase-1-division-scoped-entries.md)).
@@ -261,11 +276,20 @@ pages and `*-actions.ts`.
   3. Add a `NotificationOutboxPort` for `notification_outbox` / `broadcasts` / `push_subscriptions` fan-out.
   - Don't boil the ocean: genuinely trivial viewer-scoped reads (e.g. "is this row mine") can stay inline; the target is _entity reads/writes with rules or >2 call sites_. Track progress with the same `49 vs 76` ratio.
 
-#### P2-2. `EventRepository` is a god-port (ISP + SRP + CQRS-mixing)
+#### P2-2. `EventRepository` is a god-port (ISP + SRP + CQRS-mixing) 🟡 Partial (2026-05-29)
+
+> **Progress (2026-05-29):** two of the conflated responsibilities are gone.
+> Phase 1 (ADR 0019) deleted the **aggregate-sidestepping** `attachTeamToDivision`
+> / `attachFreeAgentToDivision`. Phase 2a moved the **social-graph reads**
+> (`getViewerFriends`, `searchFollowingFeed`) onto a dedicated
+> `SocialGraphQueries` port. Remaining on `EventRepository`: write-side
+> (`findById`/`save`), read models (`search`/`getDetail`/`findIdByShortCode`),
+> co-host mutation, and `setRosterTeamForfeited` — the read-vs-write ISP split
+> is the next increment.
 
 - **Where:** [event-repository.ts](../../packages/domain/src/events/event-repository.ts#L29-L83).
-- **Issue:** One interface conflates **four** responsibilities: write-side aggregate persistence (`findById`/`save`), denormalized **read models** (`search`/`getDetail`/`findIdByShortCode`), **social-graph reads that are not event concerns** (`getViewerFriends`, `searchFollowingFeed`), co-host sub-resource mutation (`addCoHost`/`removeCoHost`), and **aggregate-sidestepping** division mutations (`attachTeamToDivision`/`attachFreeAgentToDivision`/`setRosterTeamForfeited`). The header comment openly admits the read/write CQRS mixing. `getViewerFriends`/`searchFollowingFeed` have nothing to do with the `VolleyballEvent` aggregate — they only live here because there's no `ProfileRepository` (see P2-1).
-- **Fix:** Segregate the interface (ISP): `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail; findIdByShortCode }`, move `getViewerFriends`/`searchFollowingFeed` onto the new `SocialGraphQueries` port from P2-1, and put co-host + division-attach behind a focused `EventMembershipStore` (or delete the attach methods entirely per **P1**). The Supabase class can still implement all of them, but handlers depend only on the slice they use.
+- **Issue:** One interface conflates **four** responsibilities: write-side aggregate persistence (`findById`/`save`), denormalized **read models** (`search`/`getDetail`/`findIdByShortCode`), ~~**social-graph reads that are not event concerns** (`getViewerFriends`, `searchFollowingFeed`)~~ (moved to `SocialGraphQueries`, Phase 2a), co-host sub-resource mutation (`addCoHost`/`removeCoHost`), and ~~**aggregate-sidestepping** division mutations (`attachTeamToDivision`/`attachFreeAgentToDivision`~~ deleted in Phase 1)`/setRosterTeamForfeited`). The header comment openly admits the read/write CQRS mixing.
+- **Fix (remaining):** Segregate the interface (ISP): `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail; findIdByShortCode }`, and put co-host + `setRosterTeamForfeited` behind a focused `EventMembershipStore`. The Supabase class can still implement all of them, but handlers depend only on the slice they use.
 
 #### P2-3. `SupabaseEventRepository` is a 1,482-LOC adapter; `getDetail` alone is ~480 LOC (SRP)
 

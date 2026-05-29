@@ -103,3 +103,15 @@ Verify: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green
 - **Attendees** keep the `soleDivisionId` path — correct because open-play is
   single-division by invariant, so they're intentionally out of ADR 0019's
   scope.
+- **Write-path e2e coverage is a gap (pre-existing).** The registration
+  flows this bundle rewrote — pre-rostered team registration (`registerTeam` →
+  full `save()`) and free-agent signup (`joinAsFreeAgent`) — are all
+  `test.fixme` stubs in
+  [tournament.authed.spec.ts](../../apps/web/tests/e2e/tournament.authed.spec.ts).
+  The active e2e only covers the _read_ path (seeded roster fixture lists
+  teams; bracket shows the registered-team count), which does exercise the
+  `findById` select change. The new write shapes mirror the removed `attach…`
+  behaviour (same `attach_team_to_division` RPC, same `(division_id, user_id)`
+  FA upsert key), so risk is bounded — but a manual smoke (register a roster
+  team + free-agent signup on a real env) or de-`fixme`-ing those two specs is
+  the proper real-DB validation, since unit tests mock the adapter.

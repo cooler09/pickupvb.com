@@ -12,6 +12,7 @@ import {
   SupabaseHostStripeAccountRepository,
   SupabaseHostSubscriptionRepository,
   SupabaseLeagueScheduleRepository,
+  SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
 } from '@pickupvb/infrastructure';
 import {
@@ -84,6 +85,7 @@ const hostStripeAccountRepo = new SupabaseHostStripeAccountRepository();
 const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
 const communityListingRepo = new SupabaseCommunityListingRepository();
 const leagueScheduleRepo = new SupabaseLeagueScheduleRepository();
+const socialGraphRepo = new SupabaseSocialGraphRepository();
 
 const isPlatformAdmin = (userId: string) => communityListingRepo.isPlatformAdmin(userId);
 
@@ -144,8 +146,8 @@ export const handlers = {
   searchEvents: new SearchEventsHandler(eventRepo),
   getEventById: new GetEventByIdHandler(eventRepo),
   getEventDetail: new GetEventDetailHandler(eventRepo),
-  getFollowingFeed: new GetFollowingFeedHandler(eventRepo),
-  getViewerFriends: new GetViewerFriendsHandler(eventRepo),
+  getFollowingFeed: new GetFollowingFeedHandler(socialGraphRepo),
+  getViewerFriends: new GetViewerFriendsHandler(socialGraphRepo),
   addEventCoHost: new AddEventCoHostHandler(eventRepo),
   removeEventCoHost: new RemoveEventCoHostHandler(eventRepo),
   addEventDivision: new AddEventDivisionHandler(eventRepo),
@@ -245,4 +247,5 @@ export const repositories = {
   hostStripeAccountRepo,
   hostSubscriptionRepo,
   communityListingRepo,
+  socialGraphRepo,
 };

@@ -40,12 +40,11 @@ export interface EventRepository {
    * event UUID. Returns null when no event matches.
    */
   findIdByShortCode(shortCode: string): Promise<string | null>;
-  searchFollowingFeed(
-    viewerId: string,
-    friendIds: ReadonlyArray<string>,
-    filters: FollowingFeedFilters,
-  ): Promise<FollowingFeedItem[]>;
-  getViewerFriends(viewerId: string): Promise<FriendProfile[]>;
+
+  // NOTE (architecture audit P2-2): the friend-graph reads
+  // `getViewerFriends` / `searchFollowingFeed` moved to the dedicated
+  // `SocialGraphQueries` port (packages/domain/src/users) — they were never
+  // the event aggregate's concern.
 
   // ---- Co-host management (separate sub-resource) ----
   addCoHost(eventId: string, party: CoHostParty, addedBy: string): Promise<void>;
@@ -273,34 +272,8 @@ export interface EventDetailReadModel {
   divisions: ReadonlyArray<DivisionLite>;
 }
 
-export interface FollowingFeedFilters {
-  surface?: Surface;
-  type?: EventType;
-  skillLevel?: SkillLevel;
-  startsAfter: Date;
-  limit?: number;
-}
-
-export interface FollowingFeedItem {
-  id: string;
-  title: string;
-  surface: Surface;
-  skillLevel: SkillLevel;
-  type: EventType;
-  startsAt: Date;
-  timeZone: string | null;
-  city: string;
-  region: string;
-  /** Friend who is hosting this event (if any). */
-  hostFriendId: string | null;
-  /** Friend ids attending (excluding the host). */
-  attendingFriendIds: ReadonlyArray<string>;
-}
-
-export interface FriendProfile {
-  id: string;
-  displayName: string;
-}
+// FollowingFeedFilters / FollowingFeedItem / FriendProfile moved to
+// packages/domain/src/users/social-graph-queries.ts (architecture audit P2-2).
 
 export interface CoHostParty {
   userId?: string;
