@@ -1,8 +1,10 @@
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import type { AdvanceSlot, BracketSide, MatchStatus } from './enums.js';
 
 export type BracketId = Brand<string, 'BracketId'>;
+export const BracketId = idConstructor<'BracketId'>();
 export type MatchId = Brand<string, 'MatchId'>;
+export const MatchId = idConstructor<'MatchId'>();
 /**
  * Identifier for an `event_team_entries` row — the polymorphic
  * participant identity (covers both roster `event_teams` and ad-hoc
@@ -12,6 +14,7 @@ export type MatchId = Brand<string, 'MatchId'>;
  * backwards compatibility but are no longer written.
  */
 export type EntryId = Brand<string, 'EntryId'>;
+export const EntryId = idConstructor<'EntryId'>();
 
 /** A single set/game within a match (e.g. 25-21). */
 export interface MatchSet {

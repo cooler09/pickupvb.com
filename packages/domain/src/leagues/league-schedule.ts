@@ -1,10 +1,11 @@
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { ConflictError, InvariantViolation, NotFoundError } from '../shared/result.js';
 import type { DivisionId } from '../events/division.js';
 import type { TeamId } from '../events/volleyball-event.js';
 
 export type LeagueScheduleMatchId = Brand<string, 'LeagueScheduleMatchId'>;
+export const LeagueScheduleMatchId = idConstructor<'LeagueScheduleMatchId'>();
 
 export const LeagueMatchStatus = {
   Scheduled: 'scheduled',

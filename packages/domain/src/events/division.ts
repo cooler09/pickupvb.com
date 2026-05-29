@@ -1,4 +1,4 @@
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import { InvariantViolation } from '../shared/result.js';
 import { Capacity } from './capacity.js';
 import {
@@ -14,6 +14,7 @@ import {
 import { assertFormatAllowedForSurface } from './rules.js';
 
 export type DivisionId = Brand<string, 'DivisionId'>;
+export const DivisionId = idConstructor<'DivisionId'>();
 
 const MAX_LABEL_LEN = 60;
 const MAX_TIER_LABEL_LEN = 40;

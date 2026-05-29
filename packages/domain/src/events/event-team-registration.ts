@@ -1,11 +1,13 @@
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { InvariantViolation } from '../shared/result.js';
 import type { DivisionId } from './division.js';
 import type { UserId } from './volleyball-event.js';
 
 export type EventTeamRegistrationId = Brand<string, 'EventTeamRegistrationId'>;
+export const EventTeamRegistrationId = idConstructor<'EventTeamRegistrationId'>();
 export type EventTeamRegistrationMemberId = Brand<string, 'EventTeamRegistrationMemberId'>;
+export const EventTeamRegistrationMemberId = idConstructor<'EventTeamRegistrationMemberId'>();
 
 /** Captain-checkout state for a per-team-priced division (ADR 0007). */
 export const RegistrationPaymentStatus = {

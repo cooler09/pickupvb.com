@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { InvariantViolation } from '../shared/result.js';
-import { EventTeamPayment, type EventTeamPaymentId } from './event-team-payment.js';
+import { EventTeamPayment, EventTeamPaymentId } from './event-team-payment.js';
 import { RegistrationPaymentStatus } from './event-team-registration.js';
-import type { UserId } from './volleyball-event.js';
+import { UserId } from './volleyball-event.js';
 
-const ID = 'p1' as never as EventTeamPaymentId;
-const CAPTAIN = 'u1' as UserId;
+const ID = EventTeamPaymentId('p1');
+const CAPTAIN = UserId('u1');
 
 function fresh(): EventTeamPayment {
   return EventTeamPayment.create({

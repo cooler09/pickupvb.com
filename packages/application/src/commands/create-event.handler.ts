@@ -3,12 +3,15 @@ import {
   AgeGroup,
   Capacity,
   Division,
+  DivisionId,
+  EventId,
   EventType,
   Format,
   Gender,
   Location,
   PriceUnit,
   TeamComposition,
+  UserId,
   VolleyballEvent,
   isEventPosition,
   skillTierFromLegacy,
@@ -56,7 +59,7 @@ function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventEx
 export function divisionFromDto(input: DivisionInputDto, sortOrder: number): Division {
   const cap = input.capacity ?? null;
   return Division.create({
-    id: randomUUID() as never,
+    id: DivisionId(randomUUID()),
     sortOrder: input.sortOrder ?? sortOrder,
     label: input.label,
     surface: input.surface,
@@ -91,7 +94,7 @@ export class CreateEventHandler {
   constructor(private readonly repo: EventRepository) {}
 
   async execute({ hostId, dto }: CreateEventCommand): Promise<{ id: string }> {
-    const id = randomUUID() as never;
+    const id = EventId(randomUUID());
 
     let positionRoster: Map<EventPosition, number> | null = null;
     if (
@@ -123,7 +126,7 @@ export class CreateEventHandler {
     if (divisions.length === 0) {
       divisions.push(
         Division.create({
-          id: randomUUID() as never,
+          id: DivisionId(randomUUID()),
           sortOrder: 0,
           label: 'All',
           surface: dto.surface,
@@ -152,7 +155,7 @@ export class CreateEventHandler {
 
     const event = VolleyballEvent.create({
       id,
-      hostId: hostId as never,
+      hostId: UserId(hostId),
       title: dto.title,
       description: dto.description,
       rules: dto.rules,

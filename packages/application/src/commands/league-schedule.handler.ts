@@ -87,7 +87,7 @@ async function loadEventOrThrow(
   events: EventRepository,
   eventId: string,
 ): Promise<VolleyballEvent> {
-  const evt = await events.findById(eventId as never);
+  const evt = await events.findById(eventId);
   if (!evt) throw new NotFoundError('event', eventId);
   return evt;
 }

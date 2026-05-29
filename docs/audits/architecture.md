@@ -1,5 +1,22 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 0 — guardrails):** **First refactor phase
+> landed.** Added string-constrained smart constructors (`idConstructor<B>()`
+> in [shared/brand.ts](../../packages/domain/src/shared/brand.ts)) for all 12
+> branded id types and migrated the **37 application-layer `as never` brand
+> casts** (+ 1 domain test) to them. Stood up the Onion-layer **lint ratchets**
+> via a shared `purityRatchet()` in
+> [packages/config/eslint.base.mjs](../../packages/config/eslint.base.mjs),
+> wired into the domain + application configs: `as never` is now an **error**
+> in both layers, and outward/framework imports (`@supabase/*`, `next`,
+> `react`, `@pickupvb/infrastructure`, and for domain also `@pickupvb/application`)
+> are banned — turning the verified-good layer purity into an enforced ratchet.
+> Both probes confirmed firing; full verify quad green. **P2-5 partially
+> closed** (application done; web + infra deferred — see the finding). The
+> sweep surfaced a nuance: infra's `as never` is ~half Supabase write-payload
+> casts, not brand casts, so the ban is intentionally domain+application only.
+> See the [Phase 0 journal](../journal/2026-05-29-bundle-phase-0-architecture-guardrails.md).
+>
 > **Reevaluation (2026-05-29):** **Fresh full re-audit against current HEAD
 > (`8668288`).** The 2026-05-17 backlog is effectively closed; this pass
 > re-grades the architecture as it stands after ~6 months of growth
@@ -232,11 +249,12 @@ pages and `*-actions.ts`.
 - **Issue:** `Bracket` raises domain events that **nobody dispatches**; [team.handler.ts#L146](../../packages/application/src/commands/team.handler.ts#L146) calls `event.pullEvents()` purely to _drain and discard_; `publish`/`cancel`/`registerTeam`/`addDivision` raise events no handler drains. The pattern looks complete but only join/leave/join-with-position actually emit analytics — a trap for the next agent who assumes `raise()` ⇒ delivered.
 - **Fix:** Pick one. Either (a) dispatch uniformly — wrap every command handler's post-`save()` step in a shared `withOutbox(aggregate)` helper (or a base-handler `dispatch()` call) so any raised event is delivered; or (b) delete the unused `raise()` calls and document the outbox as "join/leave analytics only" in [analytics-port.ts](../../packages/domain/src/shared/analytics-port.ts). The half-state is the bug.
 
-#### P2-5. Branded-type boundary leaks — 114 `as never` casts
+#### P2-5. Branded-type boundary leaks — `as never` casts 🟡 Partial (Phase 0, 2026-05-29)
 
-- **Where:** 114 `as never` occurrences across `packages/application` + `apps/web` (e.g. [join-event.handler.ts#L21](../../packages/application/src/commands/join-event.handler.ts#L21) `userId as never`).
-- **Issue:** `UserId`/`TeamId`/`DivisionId` are branded types, but there's no smart constructor, so every call site launders a plain `string` through `as never`. This **defeats the brand** (a `teamId` passed where `userId` is expected casts through silently) and is a constant DX tax that discourages using the typed handlers at all (a contributor to P2-1).
-- **Fix:** Export smart constructors from domain — `export const UserId = (v: string): UserId => v as UserId;` (+ `TeamId`, `DivisionId`) — and use them at the boundary instead of `as never`. Then add an ESLint `no-restricted-syntax` rule banning `as never` so it can't creep back. Cross-refs ADR 0009.
+- **Where:** Originally ~171 `as never` across `packages/application` (37), `apps/web` (84), `packages/infrastructure` (50), e.g. [join-event.handler.ts#L21](../../packages/application/src/commands/join-event.handler.ts#L21).
+- **Issue:** `UserId`/`TeamId`/`DivisionId` etc. are branded types, but there was no smart constructor, so call sites laundered a plain `string` through `as never`. This **defeats the brand** (a `teamId` passed where `userId` is expected casts through silently) and is a constant DX tax that discourages using the typed handlers at all (a contributor to P2-1).
+- **Phase 0 (2026-05-29) — done for the pure layers:** Added `idConstructor<B>()` in [shared/brand.ts](../../packages/domain/src/shared/brand.ts) + a value-level constructor next to each of the 12 branded id types. Migrated all **37 application casts** (+ 1 domain test) to `UserId(x)` / `DivisionId(x)` / `MatchId(x)` / … (and dropped spurious `findById(x as never)` casts where the port already takes `string`). Banned `as never` as an ESLint **error** in domain + application via `purityRatchet()`.
+- **Still open (web + infra):** `apps/web` (84) and `packages/infrastructure` (50) are **not** migrated. Key nuance discovered: infra's `as never` is overloaded — roughly half are brand casts, the rest are **Supabase write-payload casts** (`row as never` on `.insert/.upsert/.rpc`, documented as temporary until `gen:types`). So the ban is scoped to the pure layers only. **Fix:** migrate web brand casts opportunistically as their files move behind ports (Phases 2–4); treat the infra Supabase casts as a separate `gen:types` task. Cross-refs ADR 0009.
 
 #### P2-6. Event-detail read path is fragmented across three layers + a caching hack
 
@@ -272,11 +290,15 @@ pages and `*-actions.ts`.
 Ordered so each phase makes the next cheaper. Each is independently shippable
 and verify-clean (`pnpm typecheck && pnpm lint && pnpm test && pnpm build`).
 
-**Phase 0 — guardrails first (½ day, unblocks everything).**
-Add the brand smart constructors + `as never` lint ban (P2-5), and an ESLint
-boundary rule that flags `supabase.from(` outside `lib/mappers/`, `_loaders/`,
-and `*-repository.ts` (turns P2-1 into a ratchet that can't regress). These are
-mechanical and create the safety rails the structural phases lean on.
+**Phase 0 — guardrails first. ✅ Landed 2026-05-29 (mostly).**
+Brand smart constructors + `as never` lint ban (P2-5) **done for domain +
+application**; layer-purity import ban (`@supabase/*`, `next`, `react`, outer
+layers) wired as an enforced ratchet via `purityRatchet()` in
+[packages/config/eslint.base.mjs](../../packages/config/eslint.base.mjs). The
+`apps/web` `supabase.from(` boundary ratchet is **deferred** — enforcing it now
+needs a 76-file grandfather baseline, so it lands per-directory as each
+subdomain migrates behind a port (Phases 2–4). See the
+[Phase 0 journal](../journal/2026-05-29-bundle-phase-0-architecture-guardrails.md).
 
 **Phase 1 — close the P1 (1–2 days).** Division-scoped aggregate entries + ADR
 0019; delete the attach-port double-write. Ship with a domain test that fails

@@ -1,11 +1,12 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import { ConflictError, InvariantViolation } from '../shared/result.js';
 import type { EventId, UserId } from '../events/volleyball-event.js';
 import type { Format, SkillLevel, Surface } from '../events/enums.js';
 import { ExternalUrl } from './external-url.js';
 
 export type CommunityListingId = Brand<string, 'CommunityListingId'>;
+export const CommunityListingId = idConstructor<'CommunityListingId'>();
 
 export type CommunityListingStatus = 'active' | 'hidden' | 'claim_pending' | 'claimed' | 'removed';
 

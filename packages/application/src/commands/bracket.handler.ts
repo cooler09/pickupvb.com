@@ -7,6 +7,9 @@ import type {
 } from '@pickupvb/domain';
 import {
   Bracket,
+  DivisionId,
+  EntryId,
+  MatchId,
   NotFoundError,
   UnauthorizedError,
   ValidationError,
@@ -89,13 +92,13 @@ async function loadBracketOrThrow(
   brackets: BracketRepository,
   divisionId: string,
 ): Promise<Bracket> {
-  const b = await brackets.findByDivisionId(divisionId as never);
+  const b = await brackets.findByDivisionId(DivisionId(divisionId));
   if (!b) throw new NotFoundError('bracket', divisionId);
   return b;
 }
 
 async function loadEventForBracket(events: EventRepository, bracket: Bracket) {
-  const evt = await events.findById(bracket.eventId as never);
+  const evt = await events.findById(bracket.eventId);
   if (!evt) throw new NotFoundError('event', String(bracket.eventId));
   return evt;
 }
@@ -117,13 +120,13 @@ export class CreateBracketHandler {
   ) {}
 
   async execute(cmd: CreateBracketCommand): Promise<{ bracketId: string }> {
-    const evt = await this.events.findById(cmd.eventId as never);
+    const evt = await this.events.findById(cmd.eventId);
     if (!evt) throw new NotFoundError('event', cmd.eventId);
     assertHost(evt.hostId, cmd.requesterId);
-    const existing = await this.brackets.findByDivisionId(cmd.divisionId as never);
+    const existing = await this.brackets.findByDivisionId(DivisionId(cmd.divisionId));
     if (existing) return { bracketId: existing.id };
     const min = minTeamsForFormat(cmd.format);
-    const teams = await this.brackets.listRegisteredTeams(evt.id, cmd.divisionId as never);
+    const teams = await this.brackets.listRegisteredTeams(evt.id, DivisionId(cmd.divisionId));
     if (teams.length < min) {
       throw new ValidationError(
         `This format needs at least ${min} registered teams (only ${teams.length} so far).`,
@@ -133,7 +136,7 @@ export class CreateBracketHandler {
     const bracket = Bracket.create(
       this.brackets.nextBracketId(),
       evt.id,
-      cmd.divisionId as never,
+      DivisionId(cmd.divisionId),
       cmd.format,
       cmd.config,
     );
@@ -153,7 +156,7 @@ export class SeedBracketHandler {
     const evt = await loadEventForBracket(this.events, bracket);
     assertHost(evt.hostId, cmd.requesterId);
     bracket.seedTeams(
-      cmd.entryIdsInOrder.map((t) => t as never),
+      cmd.entryIdsInOrder.map((t) => EntryId(t)),
       cmd.pools,
     );
     await this.brackets.save(bracket);
@@ -217,7 +220,7 @@ export class ReorderPoolMatchesHandler {
     assertHost(evt.hostId, cmd.requesterId);
     bracket.reorderPoolMatches(
       cmd.pool,
-      cmd.matchIdsInOrder.map((id) => id as never),
+      cmd.matchIdsInOrder.map((id) => MatchId(id)),
     );
     await this.brackets.save(bracket);
   }
@@ -234,13 +237,13 @@ export class RecordMatchResultHandler {
     // RPC (keyed on `cmd.matchId`) via a user-scoped client. The plain
     // host-only `save` would bypass that gate. The domain enforces the
     // match state-machine guards; the DB has the final say on who may write.
-    const bracket = await this.brackets.findByMatchId(cmd.matchId as never);
+    const bracket = await this.brackets.findByMatchId(MatchId(cmd.matchId));
     if (!bracket) throw new NotFoundError('bracket', cmd.matchId);
     bracket.recordResult({
-      matchId: cmd.matchId as never,
+      matchId: MatchId(cmd.matchId),
       sets: cmd.sets,
     });
-    await this.brackets.saveAsMatchActor(bracket, cmd.matchId as never);
+    await this.brackets.saveAsMatchActor(bracket, MatchId(cmd.matchId));
   }
 }
 
@@ -251,9 +254,9 @@ export class ResetMatchHandler {
     // Same authorization model as RecordMatchResultHandler: clearing a
     // match's result is gated on host-or-captain-of-`cmd.matchId` by the
     // `record_bracket_match_result` RPC behind `saveAsMatchActor`.
-    const bracket = await this.brackets.findByMatchId(cmd.matchId as never);
+    const bracket = await this.brackets.findByMatchId(MatchId(cmd.matchId));
     if (!bracket) throw new NotFoundError('bracket', cmd.matchId);
-    bracket.resetMatch(cmd.matchId as never);
-    await this.brackets.saveAsMatchActor(bracket, cmd.matchId as never);
+    bracket.resetMatch(MatchId(cmd.matchId));
+    await this.brackets.saveAsMatchActor(bracket, MatchId(cmd.matchId));
   }
 }

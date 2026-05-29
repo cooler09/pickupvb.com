@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto';
 import {
   NotFoundError,
   Team,
+  TeamId,
   UnauthorizedError,
   ValidationError,
   type EventRepository,
   type Format,
-  type TeamId,
   type TeamRepository,
   type UserId,
 } from '@pickupvb/domain';
@@ -24,7 +24,7 @@ export class CreateTeamHandler {
   constructor(private readonly repo: TeamRepository) {}
 
   async execute({ captainId, name, format }: CreateTeamCommand): Promise<{ id: string }> {
-    const id = randomUUID() as never as TeamId;
+    const id = TeamId(randomUUID());
     const team = Team.create({
       id,
       captainId: captainId as UserId,

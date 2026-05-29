@@ -1,5 +1,11 @@
 import type { AnalyticsPort, EventRepository } from '@pickupvb/domain';
-import { NotFoundError, isEventPosition, ValidationError } from '@pickupvb/domain';
+import {
+  DivisionId,
+  NotFoundError,
+  UserId,
+  isEventPosition,
+  ValidationError,
+} from '@pickupvb/domain';
 import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   JoinEventAsFreeAgentCommand,
@@ -18,7 +24,7 @@ export class JoinEventHandler {
   async execute({ eventId, userId }: JoinEventCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.joinAsPlayer(userId as never);
+    event.joinAsPlayer(UserId(userId));
     await this.repo.save(event);
     if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
@@ -36,7 +42,7 @@ export class JoinEventWithPositionHandler {
     }
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.joinAsPlayerWithPosition(userId as never, position);
+    event.joinAsPlayerWithPosition(UserId(userId), position);
     await this.repo.save(event);
     if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
@@ -51,7 +57,7 @@ export class LeaveEventHandler {
   async execute({ eventId, userId }: LeaveEventCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.leave(userId as never);
+    event.leave(UserId(userId));
     await this.repo.save(event);
     if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
@@ -69,7 +75,7 @@ export class JoinEventAsFreeAgentHandler {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     // Aggregate owns division existence + allowFreeAgents check.
-    event.joinAsFreeAgent(userId as never, divisionId as never, notes);
+    event.joinAsFreeAgent(UserId(userId), DivisionId(divisionId), notes);
     await this.repo.save(event);
     // Persist the division pick via dedicated port (aggregate's
     // `_freeAgents` map has no slot for division_id).
@@ -83,7 +89,7 @@ export class LeaveEventAsFreeAgentHandler {
   async execute({ eventId, userId }: LeaveEventAsFreeAgentCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.leaveAsFreeAgent(userId as never);
+    event.leaveAsFreeAgent(UserId(userId));
     await this.repo.save(event);
   }
 }

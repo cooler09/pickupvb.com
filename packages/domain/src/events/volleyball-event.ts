@@ -1,5 +1,5 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import {
   CapacityExceededError,
   ConflictError,
@@ -34,8 +34,11 @@ import {
 import { Location } from './location.js';
 
 export type EventId = Brand<string, 'EventId'>;
+export const EventId = idConstructor<'EventId'>();
 export type UserId = Brand<string, 'UserId'>;
+export const UserId = idConstructor<'UserId'>();
 export type TeamId = Brand<string, 'TeamId'>;
+export const TeamId = idConstructor<'TeamId'>();
 
 /**
  * Validate and copy a position roster: integers ≥ 0, at least one position

@@ -1,18 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import {
-  EventTeamRegistration,
-  EventType,
   ConflictError,
+  DivisionId,
+  EventTeamRegistration,
+  EventTeamRegistrationId,
+  EventTeamRegistrationMemberId,
+  EventType,
+  InvariantViolation,
   NotFoundError,
   RegistrationMember,
   RegistrationSource,
   TeamRegistrationMode,
   UnauthorizedError,
-  InvariantViolation,
-  type DivisionId,
   type EventRepository,
-  type EventTeamRegistrationId,
-  type EventTeamRegistrationMemberId,
   type EventTeamRegistrationRepository,
   type UserId,
 } from '@pickupvb/domain';
@@ -40,7 +40,7 @@ function memberFromInput(
   sortOrder: number,
 ): RegistrationMember {
   return RegistrationMember.create({
-    id: randomUUID() as never as EventTeamRegistrationMemberId,
+    id: EventTeamRegistrationMemberId(randomUUID()),
     userId: (input.userId ?? null) as UserId | null,
     displayName: input.displayName ?? null,
     email: input.email ?? null,
@@ -99,9 +99,9 @@ export class RegisterAdHocTeamHandler {
     }
 
     const registration = EventTeamRegistration.create({
-      id: randomUUID() as never as EventTeamRegistrationId,
+      id: EventTeamRegistrationId(randomUUID()),
       eventId,
-      divisionId: division.id as never as DivisionId,
+      divisionId: DivisionId(division.id),
       captainId: captainId as UserId,
       name,
       members: members.map((m, i) => memberFromInput(m, i)),
@@ -117,7 +117,7 @@ async function loadOwned(
   registrationId: string,
   requesterId: string,
 ): Promise<EventTeamRegistration> {
-  const reg = await repo.findById(registrationId as never as EventTeamRegistrationId);
+  const reg = await repo.findById(EventTeamRegistrationId(registrationId));
   if (!reg) throw new NotFoundError('event_team_registration', registrationId);
   if (String(reg.captainId) !== requesterId) {
     throw new UnauthorizedError('Only the team captain can manage this registration.');
@@ -164,7 +164,7 @@ export class RemoveAdHocTeamMemberHandler {
     memberId,
   }: RemoveAdHocTeamMemberCommand): Promise<void> {
     const reg = await loadOwned(this.repo, registrationId, requesterId);
-    reg.removeMember(memberId as never as EventTeamRegistrationMemberId);
+    reg.removeMember(EventTeamRegistrationMemberId(memberId));
     await this.repo.save(reg);
   }
 }
@@ -228,9 +228,9 @@ export class RegisterWalkInTeamHandler {
     }
 
     const registration = EventTeamRegistration.create({
-      id: randomUUID() as never as EventTeamRegistrationId,
+      id: EventTeamRegistrationId(randomUUID()),
       eventId,
-      divisionId: division.id as never as DivisionId,
+      divisionId: DivisionId(division.id),
       captainId: null,
       name,
       members: members.map((m, i) => memberFromInput(m, i)),
@@ -258,9 +258,7 @@ export class MarkWalkInPaidCashHandler {
   ) {}
 
   async execute({ registrationId, requesterId, note }: MarkWalkInPaidCashCommand): Promise<void> {
-    const reg = await this.registrations.findById(
-      registrationId as never as EventTeamRegistrationId,
-    );
+    const reg = await this.registrations.findById(EventTeamRegistrationId(registrationId));
     if (!reg) throw new NotFoundError('event_team_registration', registrationId);
     const event = await this.events.findById(reg.eventId);
     if (!event) throw new NotFoundError('event', reg.eventId);

@@ -2,6 +2,7 @@ import {
   AgeGroup,
   Capacity,
   Division,
+  DivisionId,
   NotFoundError,
   PriceUnit,
   TeamComposition,
@@ -97,7 +98,7 @@ export class RemoveEventDivisionHandler {
   async execute({ eventId, divisionId }: RemoveEventDivisionCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.removeDivision(divisionId as never);
+    event.removeDivision(DivisionId(divisionId));
     await this.repo.save(event);
   }
 }
