@@ -3,10 +3,12 @@ import type {
   GroupDetail,
   GroupDirectoryPage,
   GroupDirectoryQuery,
+  GroupMemberCard,
   GroupQueries,
+  GroupRole,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
-import { escapeLike } from './supabase-profile-repository.js';
+import { SupabaseProfileRepository, escapeLike } from './supabase-profile-repository.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -101,5 +103,37 @@ export class SupabaseGroupQueryRepository implements GroupQueries {
       .maybeSingle();
     if (error) throw new Error(`findDetailBySlug failed: ${error.message}`);
     return data ? toDetail(data as unknown as DetailRow) : null;
+  }
+
+  async listMembers(groupId: string): Promise<GroupMemberCard[]> {
+    const { data, error } = await this.client
+      .from('group_members')
+      .select('user_id, role')
+      .eq('group_id', groupId)
+      .order('joined_at', { ascending: true });
+    if (error) throw new Error(`listMembers failed: ${error.message}`);
+    const rows = (data as { user_id: string; role: string }[] | null) ?? [];
+    // Compose the profile read adapter on the same client (adapter-composes-
+    // adapter): the roster owns the edge, profile cards stay owned by
+    // ProfileQueries. `profiles_public` has no FK to join, so resolve in JS.
+    const cards = await new SupabaseProfileRepository(this.client).findCardsByIds(
+      rows.map((r) => r.user_id),
+    );
+    return rows.map((r) => ({
+      userId: r.user_id,
+      role: r.role as GroupRole,
+      profile: cards.get(r.user_id) ?? null,
+    }));
+  }
+
+  async findViewerRole(groupId: string, userId: string): Promise<GroupRole | null> {
+    const { data, error } = await this.client
+      .from('group_members')
+      .select('role')
+      .eq('group_id', groupId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) throw new Error(`findViewerRole failed: ${error.message}`);
+    return ((data as { role: string } | null)?.role as GroupRole | undefined) ?? null;
   }
 }

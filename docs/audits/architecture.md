@@ -1,5 +1,22 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 3 inc. 7 — group roster + viewer-role reads):**
+> The members roster + the owner/admin gates moved behind the read port:
+> `GroupQueries.listMembers(groupId)` (a `GroupMemberCard[]` joining the roster to
+> each member's `ProfileCard` — composing `ProfileQueries.findCardsByIds` on the
+> same client, the adapter-composes-adapter seam from Phase 2b inc. 6) and
+> `findViewerRole(groupId, userId)`. Migrated the
+> [detail page](../../apps/web/src/app/groups/%5Bid%5D/page.tsx) roster, the
+> [members page](../../apps/web/src/app/groups/%5Bid%5D/members/page.tsx) (group
+> load + role gate + roster), and the
+> [edit page](../../apps/web/src/app/groups/%5Bid%5D/edit/page.tsx) role gate
+> (the leftover raw read from inc. 6) — all off raw `supabase.from('group_members')`.
+> Verify quad green (domain 267, application 42, web 50, infra 7; lint 0 errors).
+> No DB change. **Remaining group reads:** the my-groups / hostable-groups
+> membership joins (`profile/page.tsx`, `events/new/page.tsx`) and the sitemap
+> `slug` list. See the
+> [Phase 3 inc. 7 journal](../journal/2026-05-29-bundle-phase-3-inc7-group-roster-reads.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 6 — GroupQueries find-one reads):**
 > The four "fetch one group by slug" reads moved behind a new
 > `GroupQueries.findDetailBySlug` + `GroupDetail` read model (`GroupCard` +
@@ -466,6 +483,13 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 3 inc. 7 — roster + viewer-role reads):** the
+> members roster + owner/admin gates moved to `GroupQueries.listMembers`
+> (`GroupMemberCard`, composing `ProfileQueries.findCardsByIds`) +
+> `findViewerRole`; the detail / members / edit pages migrated off raw
+> `supabase.from('group_members')`. Remaining reads: my-groups /
+> hostable-groups joins (`profile`, `events/new`), sitemap.
+>
 > **Progress (2026-05-29, Phase 3 inc. 6 — find-one reads):** the group detail /
 > metadata / OG / edit-page reads moved to `GroupQueries.findDetailBySlug`
 > (`GroupDetail` read model); the OG-image slug-vs-id lookup bug was fixed in

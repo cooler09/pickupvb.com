@@ -4,6 +4,8 @@
  * aggregate; this is purely the display/read side, so the shapes are plain
  * camelCase read models with no behavior.
  */
+import type { GroupRole } from './group.js';
+import type { ProfileCard } from '../users/profile-queries.js';
 
 /** A group as shown in lists, cards, and directory results. */
 export interface GroupCard {
@@ -42,6 +44,13 @@ export interface GroupDirectoryPage {
   total: number;
 }
 
+/** A roster entry joined to the member's public profile card. */
+export interface GroupMemberCard {
+  userId: string;
+  role: GroupRole;
+  profile: ProfileCard | null;
+}
+
 export interface GroupQueries {
   /** Paginated public directory, optionally filtered by a search term. */
   searchDirectory(query: GroupDirectoryQuery): Promise<GroupDirectoryPage>;
@@ -50,4 +59,10 @@ export interface GroupQueries {
   /** The full public profile for a group by its slug, or `null` if missing /
    * soft-deleted. Backs the detail page, metadata, OG image, and edit form. */
   findDetailBySlug(slug: string): Promise<GroupDetail | null>;
+  /** The group's roster (ordered by join date) joined to each member's public
+   * profile card. */
+  listMembers(groupId: string): Promise<GroupMemberCard[]>;
+  /** The viewer's role in the group, or `null` if not a member — for the
+   * owner/admin gates on the manage/edit pages. */
+  findViewerRole(groupId: string, userId: string): Promise<GroupRole | null>;
 }

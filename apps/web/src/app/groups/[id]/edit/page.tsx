@@ -15,16 +15,11 @@ export default async function EditGroupPage(props: { params: Promise<{ id: strin
   } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=/groups/${params.id}/edit`);
 
-  const group = await new SupabaseGroupQueryRepository(supabase).findDetailBySlug(params.id);
+  const groupQueries = new SupabaseGroupQueryRepository(supabase);
+  const group = await groupQueries.findDetailBySlug(params.id);
   if (!group) notFound();
 
-  const { data: roleRow } = await supabase
-    .from('group_members')
-    .select('role')
-    .eq('group_id', group.id)
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const role = (roleRow as { role: string } | null)?.role;
+  const role = await groupQueries.findViewerRole(group.id, user.id);
   if (role !== 'owner' && role !== 'admin') {
     redirect(`/groups/${group.slug}`);
   }

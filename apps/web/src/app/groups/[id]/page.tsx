@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { SupabaseGroupQueryRepository, SupabaseProfileRepository } from '@pickupvb/infrastructure';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
@@ -23,11 +23,6 @@ export const revalidate = 60;
 
 const PAST_EVENTS_PER_PAGE = 10;
 const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
-
-type MemberRow = {
-  user_id: string;
-  role: 'owner' | 'admin' | 'member';
-};
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -63,51 +58,40 @@ export default async function GroupProfilePage(props: {
   const mpage = Math.max(1, Number.parseInt(searchParams.mpage ?? '1', 10) || 1);
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
+  const groupQueries = new SupabaseGroupQueryRepository(supabase);
 
-  const group = await new SupabaseGroupQueryRepository(supabase).findDetailBySlug(params.id);
+  const group = await groupQueries.findDetailBySlug(params.id);
   if (!group) notFound();
 
   // Members and hosted events (upcoming + past split at SQL) are independent.
   const now = new Date();
-  const [{ data: memberRows }, upcoming, past] = await Promise.all([
-    supabase
-      .from('group_members')
-      .select('user_id, role')
-      .eq('group_id', group.id)
-      .order('joined_at', { ascending: true }),
+  const [memberCards, upcoming, past] = await Promise.all([
+    groupQueries.listMembers(group.id),
     loadVisibleGroupHostedEvents(supabase, group.id, { startsAfter: now }),
     loadVisibleGroupHostedEvents(supabase, group.id, { startsBefore: now }),
   ]);
-  const memberRowsTyped = (memberRows as MemberRow[] | null) ?? [];
 
-  // profiles_public has no FK relationships so the nested join syntax won't
-  // work — fetch profiles separately and merge in JS.
-  const memberUserIds = memberRowsTyped.map((m) => m.user_id);
-  const profilesMap = await new SupabaseProfileRepository(supabase).findCardsByIds(memberUserIds);
-
-  const managerIds = memberRowsTyped
+  const managerIds = memberCards
     .filter((m) => m.role === 'owner' || m.role === 'admin')
-    .map((m) => m.user_id);
+    .map((m) => m.userId);
 
   const returnPath = `/groups/${group.slug}`;
 
-  // Map row shape to the component's camelCase prop shape.
-  const members: GroupMember[] = memberRowsTyped.map((m) => {
-    const p = profilesMap.get(m.user_id) ?? null;
-    return {
-      userId: m.user_id,
-      role: m.role,
-      profile: p
-        ? {
-            displayName: p.displayName,
-            firstName: null,
-            lastName: null,
-            avatarUrl: p.avatarUrl,
-            handle: p.handle,
-          }
-        : null,
-    };
-  });
+  // Map the read model to the component's prop shape (first/last name aren't
+  // part of the public profile card).
+  const members: GroupMember[] = memberCards.map((m) => ({
+    userId: m.userId,
+    role: m.role,
+    profile: m.profile
+      ? {
+          displayName: m.profile.displayName,
+          firstName: null,
+          lastName: null,
+          avatarUrl: m.profile.avatarUrl,
+          handle: m.profile.handle,
+        }
+      : null,
+  }));
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
