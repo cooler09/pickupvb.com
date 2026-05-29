@@ -9,6 +9,15 @@ import type { BracketId, MatchId } from './match.js';
  */
 export interface BracketTeamLite {
   readonly teamId: string;
+  /**
+   * The `event_team_entries.id` row backing this team's registration in
+   * the division. Always populated; stable across the polymorphic-pair
+   * transition. Future bundles flip seed + match writes from `teamId`
+   * (FK → `teams.id`) onto `entryId` (FK → `event_team_entries.id`)
+   * so ad-hoc and walk-in entries — which have no persistent `teams`
+   * row — can be wired into brackets.
+   */
+  readonly entryId: string;
   readonly name: string;
   readonly captainId: string;
   /**

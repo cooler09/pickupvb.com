@@ -1809,6 +1809,58 @@ deploy.
 
 ---
 
+### 2026-12-04 — Bracket-reader `entryId` projection + filter swap (read-half pre-work)
+
+**Closed (this slice).** First slice of the application half of the
+carry-over filter loosening. `BracketTeamLite` now carries
+`entryId: string` alongside `teamId`, and
+`SupabaseBracketRepository.listRegisteredTeams` filters on the FK
+shape (`team_id IS NOT NULL`) rather than the discriminator
+(`source = 'roster'`). The two predicates are equivalent today —
+[`event_team_entries_team_matches_source`](../../supabase/migrations/20260731000000_collapse_team_registration_tables.sql)
+pins `(source = 'roster') = (team_id IS NOT NULL)` — but the
+shape-based framing is the right boundary as ad-hoc / walk-in
+entries get folded in via the polymorphic `entry_id` columns
+landed in 20260809000000 + 20260810000000.
+
+- **Domain.** [`BracketTeamLite.entryId: string`](../../packages/domain/src/brackets/bracket-repository.ts).
+  Always populated from `event_team_entries.id`; stable across the
+  pending write-side cutover. `teamId` stays `string` (non-null);
+  the field's meaning is unchanged.
+- **Infra.** [`SupabaseBracketRepository.listRegisteredTeams`](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  selects `id` (projected as `entryId`) and swaps
+  `.eq('source', 'roster')` for `.not('team_id', 'is', null)`. No
+  RLS impact (the policies on `event_team_entries` are scoped on
+  division/host membership, not on `source`).
+- **No consumer changes.** The new field is additive — `entryId`
+  is unused by callers in this bundle. Next bundle (match
+  write-path cutover) reads it to populate the polymorphic
+  `entry_*_id` slots on `bracket_matches`.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` green (15/15 typecheck, lint at the existing 3 unrelated
+warnings, test counts unchanged from prior bundle, 8/8 build).
+
+**Follow-ups remaining on this audit:**
+
+- `LeagueSchedule` RPC (consumer of the forfeit flag).
+- Bracket-reader filter loosening — remaining application work:
+  (a) match write-path cutover — flip
+  `SupabaseBracketRepository.save` +
+  `record-division-winner-actions.ts` onto the `entry_*_id`
+  columns (likely requires renaming `Match.teamAId` / `teamBId` /
+  `winnerTeamId` to `entryAId` / `entryBId` / `winnerEntryId`
+  across the domain + `standings.ts` + `generators.ts` + UI
+  consumers); (b) seed write-path cutover — flip the
+  `bracket_seeds` insert onto `entry_id`; (c) once readers +
+  writers are fully off `team_*_id`, drop the
+  `.not('team_id', 'is', null)` filter from `listRegisteredTeams`
+  and let ad-hoc / walk-in entries flow through; (d) cleanup
+  migration drops the legacy `team_*_id` columns from
+  `bracket_seeds` + `bracket_matches`.
+
+---
+
 ## Cross-references
 
 - Registration mechanics: [registration-workflow.md](registration-workflow.md)

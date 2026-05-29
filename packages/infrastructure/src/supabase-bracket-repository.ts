@@ -314,23 +314,27 @@ export class SupabaseBracketRepository implements BracketRepository {
   }
 
   async listRegisteredTeams(_eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]> {
-    // Post-Step-5b: roster bracket teams live in `event_team_entries` filtered
-    // to `source = 'roster'`. The `team_id` column points at the persistent
-    // teams.id, matching the legacy BracketTeamLite contract. Ad-hoc /
-    // walk-in entries are intentionally excluded here (deferred to a 5b.ii
-    // follow-up that teaches the bracket reader to handle them — at which
-    // point teamId may become an entry id and downstream consumers will need
-    // to be reviewed).
+    // Filter on the FK shape (`team_id IS NOT NULL`) rather than the
+    // discriminator (`source = 'roster'`). The two are equivalent today
+    // — the `event_team_entries_team_matches_source` check constraint
+    // pins `(source = 'roster') = (team_id IS NOT NULL)` — but framing
+    // the filter in terms of the shape downstream actually needs
+    // (a persistent `teams.id` for the legacy `bracket_seeds.team_id` /
+    // `bracket_matches.team_*_id` FKs) is the right boundary as ad-hoc
+    // and walk-in entries get folded in via the polymorphic `entry_id`
+    // columns (migrations 20260809000000 + 20260810000000). Once the
+    // write-side cutover lands, this filter drops entirely.
     const scoped = await this.client
       .from('event_team_entries')
-      .select('team_id, forfeited_at, teams:teams!inner(name, captain_id)')
+      .select('id, team_id, forfeited_at, teams:teams!inner(name, captain_id)')
       .eq('division_id', divisionId)
-      .eq('source', 'roster')
+      .not('team_id', 'is', null)
       .is('deleted_at', null);
     if (scoped.error) {
       throw new Error(`listRegisteredTeams failed: ${scoped.error.message}`);
     }
     type Row = {
+      id: string;
       team_id: string | null;
       forfeited_at: string | null;
       teams: { name: string; captain_id: string } | null;
@@ -340,6 +344,7 @@ export class SupabaseBracketRepository implements BracketRepository {
       .filter((r) => r.teams !== null && r.team_id !== null)
       .map((r) => ({
         teamId: r.team_id!,
+        entryId: r.id,
         name: r.teams!.name,
         captainId: r.teams!.captain_id,
         forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
