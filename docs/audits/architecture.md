@@ -283,23 +283,23 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
-> **Progress (2026-05-29, Phase 2b inc. 1–3):** the social-graph reads moved to
+> **Progress (2026-05-29, Phase 2b inc. 1–4):** the social-graph reads moved to
 > `SocialGraphQueries` (Phase 2a), and the profile-read drain is underway via a
 > `ProfileQueries` read port + client-injected `SupabaseProfileRepository`
 > (reads `profiles_public`, owns LIKE-escaping). Migrated so far: `searchPeople`
 > (inc. 1), the **players directory** `/players` (inc. 2, `searchDirectory`),
-> and the **player profile page** `/players/[handle]` (inc. 3,
-> `findPlayerByHandle` + `findCardByHandle` for metadata, camelCase
-> `PlayerProfile` at the boundary). The survey refined the count to **42
-> profile/friend query occurrences** (`profiles` ×21, `profiles_public` ×16,
-> `friendships` ×5) across ~32 files; heterogeneity (3 clients, id-vs-handle,
-> card-vs-full, PII split) makes this multi-increment. Next: `profiles_public`
-> reads in community/teams/groups + event loaders, attendee/member batch reads
-> (`findCardsByIds`), the `friendships` reads, then the `profiles` writes
-> (→ `UserProfile` aggregate). `GroupRepository` (#1 below) and the notification
-> outbox (#3) are untouched. **Side-finding:** `players/[id]/opengraph-image.tsx`
-> reads by `id` but the param is a handle → OG cards never resolve a name/city
-> (latent bug; fix separately, not bundled into this refactor).
+> the **player profile page** `/players/[handle]` (inc. 3, `findPlayerByHandle`
+>
+> - `findCardByHandle`, camelCase `PlayerProfile`), and the **member/roster
+>   batch reads** — `teams/page` (captains), `teams/[id]`, `groups/[id]`,
+>   `groups/[id]/members` (inc. 4, `findCardsByIds`); inc. 4 also **fixed the
+>   OG-image id/handle bug** via `findCardByHandle`. The survey refined the count
+>   to **42 profile/friend query occurrences** (`profiles` ×21, `profiles_public`
+>   ×16, `friendships` ×5) across ~32 files; heterogeneity (3 clients,
+>   id-vs-handle, card-vs-full, PII split) makes this multi-increment. Next:
+>   `profiles_public` reads in community + event loaders, the `friendships`
+>   reads, then the `profiles` writes (→ `UserProfile` aggregate).
+>   `GroupRepository` (#1 below) and the notification outbox (#3) are untouched.
 
 - **Where:** 76 files under [apps/web/src/app](../../apps/web/src/app). Worst offenders are the loaders/actions for entity families with no port: `groups/**` (`groups`, `group_members`, `group_followers`), `profile/**` + `players/**` + `friends/**` (`profiles`, `profiles_public`, `friendships`), notifications (`notification_outbox`, `broadcasts`, `push_subscriptions`), and event sidecars (`event_tips`, `event_sponsors`, `event_payment_audit`).
 - **Issue:** ADR 0001 mandates `apps/web → @pickupvb/application → @pickupvb/domain` with infrastructure behind ports. That holds for events/teams/brackets/etc., but **whole subdomains never got a domain model**: group membership roles, friend mutuality, notification fan-out, and tip/sponsor rules are all enforced (or not) inline in JSX/actions, with the DB row shape (`snake_case`) leaking into components and **no unit-test seam**. Every new feature touching these re-pays the cost, and bugs fixed in one query string aren't fixed in the 19 others hitting the same table.

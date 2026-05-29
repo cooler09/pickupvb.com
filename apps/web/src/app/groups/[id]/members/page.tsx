@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { AddMemberForm } from './_components/add-member-form';
 import { MemberRowItem, type MemberListItem } from './_components/member-row-item';
@@ -15,12 +16,6 @@ type MemberRow = {
   user_id: string;
   role: 'owner' | 'admin' | 'member';
   joined_at: string;
-};
-
-type ProfilePublicRow = {
-  id: string;
-  handle: string;
-  display_name: string;
 };
 
 export default async function GroupMembersPage(props: { params: Promise<{ id: string }> }) {
@@ -58,16 +53,7 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
   const rows = (memberRows as MemberRow[] | null) ?? [];
 
   const memberUserIds = rows.map((r) => r.user_id);
-  const profileMap = new Map<string, ProfilePublicRow>();
-  if (memberUserIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from('profiles_public')
-      .select('id, handle, display_name')
-      .in('id', memberUserIds);
-    for (const p of (profileRows as ProfilePublicRow[] | null) ?? []) {
-      profileMap.set(p.id, p);
-    }
-  }
+  const profileMap = await new SupabaseProfileRepository(supabase).findCardsByIds(memberUserIds);
 
   const members: MemberListItem[] = rows.map((m) => {
     const p = profileMap.get(m.user_id) ?? null;
@@ -75,7 +61,7 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
       userId: m.user_id,
       role: m.role,
       profile: p
-        ? { displayName: p.display_name, firstName: null, lastName: null, handle: p.handle }
+        ? { displayName: p.displayName, firstName: null, lastName: null, handle: p.handle }
         : null,
     };
   });

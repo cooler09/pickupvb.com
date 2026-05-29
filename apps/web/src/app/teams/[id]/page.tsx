@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
@@ -57,11 +58,6 @@ type MemberRow = {
   status: 'active' | 'pending' | null;
 };
 
-type ProfilePublicRow = {
-  id: string;
-  display_name: string;
-};
-
 export default async function TeamDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = createSupabaseAnonClient();
@@ -82,25 +78,17 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
     .eq('team_id', team.id);
   const rows = (memberRows as MemberRow[] | null) ?? [];
 
-  // Fetch profiles separately from profiles_public (no FK join on views).
+  // Resolve member profiles via the ProfileQueries port (no FK join on the
+  // public view).
   const userIds = rows.map((r) => r.user_id);
-  const profileMap = new Map<string, ProfilePublicRow>();
-  if (userIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from('profiles_public')
-      .select('id, display_name')
-      .in('id', userIds);
-    for (const p of (profileRows as ProfilePublicRow[] | null) ?? []) {
-      profileMap.set(p.id, p);
-    }
-  }
+  const profileMap = await new SupabaseProfileRepository(supabase).findCardsByIds(userIds);
 
   const members: TeamRosterMember[] = rows.map((m) => {
     const p = profileMap.get(m.user_id) ?? null;
     return {
       userId: m.user_id,
       status: m.status ?? 'active',
-      profile: p ? { displayName: p.display_name, firstName: null, lastName: null } : null,
+      profile: p ? { displayName: p.displayName, firstName: null, lastName: null } : null,
     };
   });
 

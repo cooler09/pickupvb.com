@@ -21,6 +21,13 @@ export interface ProfileQueries {
    */
   searchDirectory(query: ProfileDirectoryQuery): Promise<ProfileDirectoryPage>;
 
+  /**
+   * Batch-fetch public profile cards by id, keyed by id for O(1) lookup —
+   * for member/attendee/roster lists that resolve a set of user ids to cards.
+   * Missing ids are simply absent from the map.
+   */
+  findCardsByIds(ids: ReadonlyArray<string>): Promise<Map<string, ProfileCard>>;
+
   /** A single public profile card by vanity handle (e.g. for page metadata). */
   findCardByHandle(handle: string): Promise<ProfileCard | null>;
 

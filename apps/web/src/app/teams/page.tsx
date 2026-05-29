@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { Pagination } from '@/components/pagination';
@@ -64,18 +65,10 @@ export default async function TeamsIndexPage(props: {
   const discoverTotal = discoverCount ?? discoverTeams.length;
   const hasFilter = q.length > 0 || !!format;
 
-  // Fetch captain display names from profiles_public (no FK join on views).
+  // Resolve captain display names via the ProfileQueries port (no FK join on
+  // the public view).
   const captainIds = [...new Set(discoverTeams.map((t) => t.captain_id).filter(Boolean))];
-  const captainNameMap = new Map<string, string>();
-  if (captainIds.length > 0) {
-    const { data: captainRows } = await supabase
-      .from('profiles_public')
-      .select('id, display_name')
-      .in('id', captainIds);
-    for (const c of (captainRows as { id: string; display_name: string }[] | null) ?? []) {
-      captainNameMap.set(c.id, c.display_name);
-    }
-  }
+  const captainCards = await new SupabaseProfileRepository(supabase).findCardsByIds(captainIds);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-4">
@@ -145,7 +138,7 @@ export default async function TeamsIndexPage(props: {
                 key={t.id}
                 team={t}
                 role="public"
-                captainName={captainNameMap.get(t.captain_id) ?? null}
+                captainName={captainCards.get(t.captain_id)?.displayName ?? null}
               />
             ))}
           </ul>

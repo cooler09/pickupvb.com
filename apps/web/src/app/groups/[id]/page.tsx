@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
@@ -38,13 +39,6 @@ type GroupRow = {
 type MemberRow = {
   user_id: string;
   role: 'owner' | 'admin' | 'member';
-};
-
-type ProfilePublicRow = {
-  id: string;
-  handle: string;
-  display_name: string;
-  avatar_url: string | null;
 };
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
@@ -119,16 +113,7 @@ export default async function GroupProfilePage(props: {
   // profiles_public has no FK relationships so the nested join syntax won't
   // work — fetch profiles separately and merge in JS.
   const memberUserIds = memberRowsTyped.map((m) => m.user_id);
-  const profilesMap = new Map<string, ProfilePublicRow>();
-  if (memberUserIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from('profiles_public')
-      .select('id, handle, display_name, avatar_url')
-      .in('id', memberUserIds);
-    for (const p of (profileRows as ProfilePublicRow[] | null) ?? []) {
-      profilesMap.set(p.id, p);
-    }
-  }
+  const profilesMap = await new SupabaseProfileRepository(supabase).findCardsByIds(memberUserIds);
 
   const managerIds = memberRowsTyped
     .filter((m) => m.role === 'owner' || m.role === 'admin')
@@ -144,10 +129,10 @@ export default async function GroupProfilePage(props: {
       role: m.role,
       profile: p
         ? {
-            displayName: p.display_name,
+            displayName: p.displayName,
             firstName: null,
             lastName: null,
-            avatarUrl: p.avatar_url,
+            avatarUrl: p.avatarUrl,
             handle: p.handle,
           }
         : null,

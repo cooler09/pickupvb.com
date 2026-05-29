@@ -125,6 +125,20 @@ export class SupabaseProfileRepository implements ProfileQueries {
     return { cards, total: count ?? cards.length };
   }
 
+  async findCardsByIds(ids: ReadonlyArray<string>): Promise<Map<string, ProfileCard>> {
+    if (ids.length === 0) return new Map();
+    const { data, error } = await this.client
+      .from('profiles_public')
+      .select(CARD_COLUMNS)
+      .in('id', ids as string[]);
+    if (error) throw new Error(`findCardsByIds failed: ${error.message}`);
+    const out = new Map<string, ProfileCard>();
+    for (const row of (data as CardRow[] | null) ?? []) {
+      out.set(row.id, toCard(row));
+    }
+    return out;
+  }
+
   async findCardByHandle(handle: string): Promise<ProfileCard | null> {
     const { data, error } = await this.client
       .from('profiles_public')
