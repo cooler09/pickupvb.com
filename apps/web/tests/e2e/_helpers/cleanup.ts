@@ -95,35 +95,137 @@ export async function deleteCommunityListingBySlug(slug: string): Promise<void> 
 
 // ---------------------------------------------------------------------------
 // Broad sweep — for a maintenance script or `globalTeardown`.
-// Matches the `E2E Test ...` naming convention every leaky spec uses.
+// Matches the `E2E ` naming convention every leaky spec + fixture uses.
 // ---------------------------------------------------------------------------
 
+const SWEEP_CHUNK = 100;
+
+function sweepChunks<T>(items: readonly T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += SWEEP_CHUNK) out.push(items.slice(i, i + SWEEP_CHUNK));
+  return out;
+}
+
 /**
- * Delete every fixture row tagged with the `E2E Test ` name convention.
- * Returns a per-table count for logging. Idempotent.
+ * Delete every fixture row tagged with the `E2E ` name convention — events,
+ * groups, teams, community listings. Returns a per-table count for logging.
+ * Idempotent.
  *
- * NOTE: groups / teams hard-delete CASCADEs to members + followers +
- * any registrations, so don't run this against a live host's group.
- * The `E2E Test ` prefix prevents collisions with real data — keep
- * test fixtures named accordingly.
+ * Order matters: events go first so their CASCADE (divisions → entries →
+ * brackets → payments) clears the `event_team_entries` rows that would
+ * otherwise FK-block the team deletes. Any team still referenced afterwards
+ * belongs to a surviving fixture — the persistent bracketed `[E2E] …` seed
+ * tournaments — and is intentionally kept. The `E2E ` prefix (note the
+ * trailing space) does NOT match `[E2E] …`, so the seed events are never swept.
+ *
+ * Deletes are chunked and drained page-by-page: a single bulk delete of
+ * hundreds of events times out under PostgREST because each one CASCADEs
+ * across half a dozen child tables. This is why the suite's old sweep (which
+ * only covered groups/teams/listings and never events) let 700+ events
+ * accumulate on dev — see docs/audits/data-lifecycle.md P2 #4.
+ *
+ * NOTE: groups / teams hard-delete CASCADEs to members + followers + any
+ * registrations, so don't run this against a live host's group. The `E2E `
+ * prefix prevents collisions with real data — keep test fixtures named
+ * accordingly.
  */
 export async function sweepLeakedE2EFixtures(): Promise<{
+  events: number;
   groups: number;
   teams: number;
   community_listings: number;
 }> {
   const c = getCleanupClient();
-  if (!c) return { groups: 0, teams: 0, community_listings: 0 };
+  if (!c) return { events: 0, groups: 0, teams: 0, community_listings: 0 };
 
-  const [groupsRes, teamsRes, listingsRes] = await Promise.all([
-    c.from('groups').delete().like('name', 'E2E Test Group %').select('id'),
-    c.from('teams').delete().like('name', 'E2E Test Team %').select('id'),
-    c.from('community_listings').delete().like('title', 'E2E Test Club %').select('id'),
-  ]);
+  // 1) Events first — CASCADE frees the event_team_entries that FK-block teams.
+  let events = 0;
+  for (;;) {
+    const { data } = await c.from('events').select('id').ilike('title', 'E2E %').limit(500);
+    const ids = (data ?? []).map((r) => r.id);
+    if (ids.length === 0) break;
+    let progressed = 0;
+    for (const batch of sweepChunks(ids)) {
+      const { error } = await c.from('events').delete().in('id', batch);
+      if (!error) progressed += batch.length;
+    }
+    events += progressed;
+    if (progressed === 0) break; // unexpected FK — avoid an infinite re-fetch loop.
+  }
 
-  return {
-    groups: groupsRes.data?.length ?? 0,
-    teams: teamsRes.data?.length ?? 0,
-    community_listings: listingsRes.data?.length ?? 0,
-  };
+  // 2) Groups — CASCADE clears members + followers.
+  let groups = 0;
+  for (;;) {
+    const { data } = await c.from('groups').select('id').ilike('name', 'E2E %').limit(500);
+    const ids = (data ?? []).map((r) => r.id);
+    if (ids.length === 0) break;
+    let progressed = 0;
+    for (const batch of sweepChunks(ids)) {
+      const { error } = await c.from('groups').delete().in('id', batch);
+      if (!error) progressed += batch.length;
+    }
+    groups += progressed;
+    if (progressed === 0) break;
+  }
+
+  // 3) Teams — named `E2E …` (UI fixtures) or slugged `e2e-…` (admin-client
+  //    league/bracket fixtures). Skip any still referenced by a surviving
+  //    event (the `[E2E] …` seed); drop members first, then delete.
+  const teamIds = new Set<string>();
+  for (const [col, pat] of [
+    ['name', 'E2E %'],
+    ['slug', 'e2e-%'],
+  ] as const) {
+    for (let from = 0; ; from += 1000) {
+      const { data } = await c
+        .from('teams')
+        .select('id')
+        .ilike(col, pat)
+        .range(from, from + 999);
+      const rows = data ?? [];
+      for (const r of rows) teamIds.add(r.id);
+      if (rows.length < 1000) break;
+    }
+  }
+  const referenced = new Set<string>();
+  for (const batch of sweepChunks([...teamIds])) {
+    const { data } = await c.from('event_team_entries').select('team_id').in('team_id', batch);
+    for (const r of data ?? []) if (r.team_id) referenced.add(r.team_id);
+  }
+  const orphanTeamIds = [...teamIds].filter((id) => !referenced.has(id));
+  let teams = 0;
+  for (const batch of sweepChunks(orphanTeamIds)) {
+    await c.from('team_members').delete().in('team_id', batch);
+    const { error } = await c.from('teams').delete().in('id', batch);
+    if (!error) {
+      teams += batch.length;
+    } else {
+      // An unexpected FK on a single row shouldn't sink the whole batch.
+      for (const id of batch) {
+        const { error: rowErr } = await c.from('teams').delete().eq('id', id);
+        if (!rowErr) teams += 1;
+      }
+    }
+  }
+
+  // 4) Community listings.
+  let community_listings = 0;
+  for (;;) {
+    const { data } = await c
+      .from('community_listings')
+      .select('id')
+      .ilike('title', 'E2E %')
+      .limit(500);
+    const ids = (data ?? []).map((r) => r.id);
+    if (ids.length === 0) break;
+    let progressed = 0;
+    for (const batch of sweepChunks(ids)) {
+      const { error } = await c.from('community_listings').delete().in('id', batch);
+      if (!error) progressed += batch.length;
+    }
+    community_listings += progressed;
+    if (progressed === 0) break;
+  }
+
+  return { events, groups, teams, community_listings };
 }
