@@ -277,7 +277,13 @@ function loadEventTipTotalCached(id: string): Promise<number> {
 
 function loadPrimaryHostSocialCached(hostUserId: string): Promise<SocialHandles | null> {
   return unstable_cache(
-    async () => loadPrimaryHostSocialFresh(hostUserId),
+    async () => {
+      // Admin client via dynamic import — never call cookies() inside
+      // unstable_cache. The host's public social links are viewer-independent
+      // (read from `profiles_public`), so the service-role read is safe here.
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      return new SupabaseProfileRepository(getAdminSupabase()).findSocialLinksById(hostUserId);
+    },
     ['profile-social', hostUserId],
     { revalidate: 300, tags: [`profile:${hostUserId}`] },
   )();
@@ -698,34 +704,6 @@ export async function loadEventDetail(
 // -----------------------------------------------------------------------------
 // Side-load helpers
 // -----------------------------------------------------------------------------
-
-async function loadPrimaryHostSocialFresh(hostUserId: string): Promise<SocialHandles | null> {
-  const sb = await getServerSupabase();
-  const { data: socialRow } = await sb
-    .from('profiles_public')
-    .select(
-      'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
-    )
-    .eq('id', hostUserId)
-    .maybeSingle();
-  const r = socialRow as {
-    instagram_handle: string | null;
-    tiktok_handle: string | null;
-    twitter_handle: string | null;
-    facebook_handle: string | null;
-    youtube_handle: string | null;
-    website_url: string | null;
-  } | null;
-  if (!r) return null;
-  return {
-    instagramHandle: r.instagram_handle,
-    tiktokHandle: r.tiktok_handle,
-    twitterHandle: r.twitter_handle,
-    facebookHandle: r.facebook_handle,
-    youtubeHandle: r.youtube_handle,
-    websiteUrl: r.website_url,
-  };
-}
 
 async function loadEligibleTeamsByDivision(
   event: EventDetailReadModel,

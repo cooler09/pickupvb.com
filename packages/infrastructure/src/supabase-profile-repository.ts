@@ -5,6 +5,7 @@ import type {
   ProfileDirectoryQuery,
   ProfileQueries,
   ProfileSearchQuery,
+  ProfileSocialLinks,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 
@@ -51,6 +52,18 @@ type PlayerRow = {
   primary_position: string | null;
   secondary_position: string | null;
   tertiary_position: string | null;
+  instagram_handle: string | null;
+  tiktok_handle: string | null;
+  twitter_handle: string | null;
+  facebook_handle: string | null;
+  youtube_handle: string | null;
+  website_url: string | null;
+};
+
+const SOCIAL_COLUMNS =
+  'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url';
+
+type SocialRow = {
   instagram_handle: string | null;
   tiktok_handle: string | null;
   twitter_handle: string | null;
@@ -167,5 +180,24 @@ export class SupabaseProfileRepository implements ProfileQueries {
       .maybeSingle();
     if (error) throw new Error(`findPlayerByHandle failed: ${error.message}`);
     return data ? toPlayer(data as unknown as PlayerRow) : null;
+  }
+
+  async findSocialLinksById(id: string): Promise<ProfileSocialLinks | null> {
+    const { data, error } = await this.client
+      .from('profiles_public')
+      .select(SOCIAL_COLUMNS)
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`findSocialLinksById failed: ${error.message}`);
+    if (!data) return null;
+    const r = data as unknown as SocialRow;
+    return {
+      instagramHandle: r.instagram_handle,
+      tiktokHandle: r.tiktok_handle,
+      twitterHandle: r.twitter_handle,
+      facebookHandle: r.facebook_handle,
+      youtubeHandle: r.youtube_handle,
+      websiteUrl: r.website_url,
+    };
   }
 }

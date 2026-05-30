@@ -36,6 +36,20 @@ export interface ProfileQueries {
 
   /** The full public player-profile projection by handle (the profile page). */
   findPlayerByHandle(handle: string): Promise<PlayerProfile | null>;
+
+  /** Just the public social links by id (null when missing) — for surfaces that
+   * render a host/player's socials without the rest of the profile. */
+  findSocialLinksById(id: string): Promise<ProfileSocialLinks | null>;
+}
+
+/** A profile's public social links (no other profile fields). */
+export interface ProfileSocialLinks {
+  instagramHandle: string | null;
+  tiktokHandle: string | null;
+  twitterHandle: string | null;
+  facebookHandle: string | null;
+  youtubeHandle: string | null;
+  websiteUrl: string | null;
 }
 
 /** The common public "profile card" projection shared by directory/picker UIs. */

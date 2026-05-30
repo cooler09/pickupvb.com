@@ -1,5 +1,21 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, host social-handles read — Phase 2b remnant closed):**
+> The last deferred profile read (host social handles in
+> [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts),
+> deferred at Phase 2b inc. 7) moved onto `ProfileQueries.findSocialLinksById`
+> (new `ProfileSocialLinks` read model) + `SupabaseProfileRepository`. **Drive-by
+> fix:** the old `loadPrimaryHostSocialFresh` called `getServerSupabase()`
+> (cookies) **inside `unstable_cache`** — the AGENTS.md pitfall (would throw /
+> return empty). The cached loader now resolves the admin client via dynamic
+> `import()` inside the cache callback (the documented pattern; the host's public
+> socials are viewer-independent), and the raw fresh loader is deleted. **With
+> this, the entire profiles/friendships read+write surface is drained.** Verify
+> quad green (domain 267, application 42, web 55, infra 7; lint 0 errors). No DB
+> change. **Remaining P2-1:** the notification subdomain's push-subscribe,
+> broadcasts, and prefs surfaces. See the
+> [host-social journal](../journal/2026-05-29-bundle-host-social-handles-read.md).
+>
 > **Status update (2026-05-29, Phase 4 inc. 2 — outbox drain: cron worker + purge):**
 > The outbox **drain side** moved behind two ISP-segregated ports. A
 > `NotificationOutboxDrainPort` (`claimBatch` / `markSent` / `markSkipped` /
@@ -541,6 +557,13 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, host social-handles read):** the last deferred profile
+> read (`load-event-detail.ts` host socials) moved to
+> `ProfileQueries.findSocialLinksById` (+ fixed a latent `getServerSupabase()`-
+> inside-`unstable_cache` bug). **The profiles/friendships surface is now fully
+> drained** (reads + writes). Remaining P2-1: the notification subdomain's
+> push-subscribe / broadcasts / prefs.
+>
 > **Progress (2026-05-29, Phase 4 inc. 2 — outbox drain):** the cron worker +
 > purge moved behind a `NotificationOutboxDrainPort` (claim/markSent/markSkipped/
 > markFailed/purge\*) + a `PushSubscriptionPort` (listByUsers/deleteByEndpoints);
