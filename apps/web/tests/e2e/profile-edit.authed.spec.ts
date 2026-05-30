@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Authenticated profile-edit flows.
@@ -258,16 +259,12 @@ test.describe('billing and account pages', () => {
     expect(response?.ok()).toBeTruthy();
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
     // Either shows an upgrade prompt or actual analytics content.
-    const hasUpgrade = await page
-      .getByText(/upgrade|pro|analytics.*included/i)
-      .first()
-      .isVisible()
-      .catch(() => false);
-    const hasAnalytics = await page
-      .getByText(/impressions|views|attendance|chart/i)
-      .first()
-      .isVisible()
-      .catch(() => false);
+    const hasUpgrade = await isVisibleOrTimeout(
+      page.getByText(/upgrade|pro|analytics.*included/i).first(),
+    );
+    const hasAnalytics = await isVisibleOrTimeout(
+      page.getByText(/impressions|views|attendance|chart/i).first(),
+    );
     expect(hasUpgrade || hasAnalytics).toBe(true);
   });
 

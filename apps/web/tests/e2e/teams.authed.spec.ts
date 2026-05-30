@@ -146,7 +146,7 @@ test.describe('create team', () => {
       // redirect to /teams?deleted=1 and that the team page now 404s
       // (RLS SELECT filter on deleted_at).
       const openDeleteBtn = page.getByRole('button', { name: /^delete team…?$/i });
-      if (await openDeleteBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      if (await isVisibleOrTimeout(openDeleteBtn, 5_000)) {
         await openDeleteBtn.click();
         await page.getByRole('button', { name: /yes, delete team/i }).click();
         await page.waitForURL(/\/teams(\?.*)?$/, { timeout: 15_000 });
@@ -348,12 +348,10 @@ test.describe('team invites', () => {
       // Reload as captain — attendee-b should not appear on the roster.
       await page.goto(teamUrl!);
       await page.waitForLoadState('domcontentloaded');
-      const hasSearchTerm = await page
-        .locator('main')
-        .getByText(searchTerm!)
-        .first()
-        .isVisible({ timeout: 5_000 })
-        .catch(() => false);
+      const hasSearchTerm = await isVisibleOrTimeout(
+        page.locator('main').getByText(searchTerm!).first(),
+        5_000,
+      );
       expect(hasSearchTerm, 'Declined invite — attendee-b should not be on roster').toBe(false);
     } finally {
       // Cleanup: cancel any remaining pending invite from captain's side.
@@ -477,11 +475,10 @@ test.describe('team broadcast', () => {
       await sendBtn.click();
       await page.waitForLoadState('domcontentloaded');
 
-      const success = await page
-        .getByText(/sent|delivered|message sent/i)
-        .first()
-        .isVisible({ timeout: 10_000 })
-        .catch(() => false);
+      const success = await isVisibleOrTimeout(
+        page.getByText(/sent|delivered|message sent/i).first(),
+        10_000,
+      );
       const formReset = (await bodyTextarea.inputValue().catch(() => 'x')) === '';
       expect(success || formReset, 'Broadcast should send without error').toBe(true);
     } finally {

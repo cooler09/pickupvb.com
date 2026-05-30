@@ -183,6 +183,19 @@ content-type) rather than a full page nav.
 
 #### C7 (P2) — Reliability remediation incomplete (carries P1 #1 / #2 forward)
 
+> **Update (2026-05-30):** the **`.catch(() => false)` sweep is done** —
+> 42 → 1 suite-wide; the one survivor is a response-promise coercion in
+> `event-host`, not a visibility probe. **`networkidle` was already done**
+> (the remaining grep hits are comments explaining why it's avoided; zero
+> real `waitForLoadState('networkidle')` calls). Both verified type-clean
+> (e2e tsc baseline unchanged at 23) and `playwright --list` parses all
+> 186 tests. See the remediation log and the
+> [Phase 0 increment-A journal entry](../journal/2026-05-30-bundle-e2e-phase0-increment-a.md).
+> Still open under C7: the `browser.ts` / `navigation.ts` helpers and the
+> skip-budget guard (deferred to a later increment), plus a latent
+> follow-up — `isVisibleOrTimeout`'s `timeout` arg is a Playwright no-op
+> (`isVisible({ timeout })` is ignored), so it never actually waits.
+
 `isVisibleOrTimeout` exists but isn't fully adopted, and `networkidle`
 survives in only ~5 occurrences across 3 specs (`authorization`, `event-host`, `profile-edit`); the larger residue is the ~42 raw `.catch(() => false)` sites, and `isVisibleOrTimeout` is adopted in only 10 specs (e.g.
 [event-attendance.authed.spec.ts](../../apps/web/tests/e2e/event-attendance.authed.spec.ts),
@@ -540,6 +553,26 @@ it's instantly familiar.
    inline TODOs? Leaning drop.
 
 ## Remediation log
+
+### 2026-05-30 — Phase 0 increment A: defensive-`catch` sweep (C7, partial)
+
+- **`.catch(() => false)` visibility probes → `isVisibleOrTimeout`** across
+  13 specs (`authorization`, `profile-edit`, `hero-image`, `admin`,
+  `auth-extended.public`, `event-attendance`, `notifications`,
+  `billing-stripe`, `player-social`, `groups`, `groups-manage`, `teams`,
+  `event-host`). Suite-wide count **42 → 1** (the survivor is a
+  response-promise coercion, not a probe).
+- **`networkidle`: confirmed already done** — no real calls remain; the
+  grep hits are explanatory comments. C7's "finish the sweep" is, for the
+  code half, complete.
+- **Verified:** e2e tsc baseline unchanged (23 pre-existing errors, zero
+  added — confirmed by a throwaway `tests/**` tsconfig, since e2e specs are
+  excluded from `pnpm typecheck`/`lint`); `playwright --list` parses all
+  186 tests; prettier-clean. No app code or config touched.
+- **Deferred** (still open under C7 / Phase 0): `browser.ts`
+  `withAuthContext` (#8), `navigation.ts` (#6), skip-budget guard (C1), and
+  fixing `isVisibleOrTimeout`'s no-op `timeout` arg.
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-a](../journal/2026-05-30-bundle-e2e-phase0-increment-a.md).
 
 ### 2026-05-30 — helper layer landed; coverage pass added
 

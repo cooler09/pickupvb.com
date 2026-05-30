@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Authorization checks (Section 18.2 of the test plan).
@@ -35,12 +36,13 @@ test.describe('non-owner cannot edit an event', () => {
     }
 
     // Check if the test user is the host — if so, the edit page would load legitimately.
-    const isHostPage = await page
-      .getByRole('link', { name: /edit event|manage event/i })
-      .or(page.getByRole('button', { name: /edit event|cancel event/i }))
-      .first()
-      .isVisible({ timeout: 2_000 })
-      .catch(() => false);
+    const isHostPage = await isVisibleOrTimeout(
+      page
+        .getByRole('link', { name: /edit event|manage event/i })
+        .or(page.getByRole('button', { name: /edit event|cancel event/i }))
+        .first(),
+      2_000,
+    );
 
     if (isHostPage) {
       test.skip(
@@ -54,11 +56,10 @@ test.describe('non-owner cannot edit an event', () => {
     await page.goto(editUrl);
 
     // Should redirect to login, the event page, or show a 404/403 — NOT the edit form.
-    const editFormVisible = await page
-      .getByRole('button', { name: /save changes|cancel event/i })
-      .first()
-      .isVisible({ timeout: 3_000 })
-      .catch(() => false);
+    const editFormVisible = await isVisibleOrTimeout(
+      page.getByRole('button', { name: /save changes|cancel event/i }).first(),
+      3_000,
+    );
 
     expect(editFormVisible).toBe(false);
 
@@ -91,11 +92,10 @@ test.describe('non-member cannot access group members page', () => {
       test.skip(true, 'Group page did not load; skipping');
     }
 
-    const isMemberAdmin = await page
-      .getByRole('link', { name: /manage members|settings|edit group/i })
-      .first()
-      .isVisible({ timeout: 2_000 })
-      .catch(() => false);
+    const isMemberAdmin = await isVisibleOrTimeout(
+      page.getByRole('link', { name: /manage members|settings|edit group/i }).first(),
+      2_000,
+    );
 
     if (isMemberAdmin) {
       test.skip(
@@ -109,11 +109,10 @@ test.describe('non-member cannot access group members page', () => {
     await page.goto(membersUrl);
 
     // Should redirect or show access denied — not a member management UI.
-    const membersFormVisible = await page
-      .getByRole('button', { name: /add member|invite|remove/i })
-      .first()
-      .isVisible({ timeout: 3_000 })
-      .catch(() => false);
+    const membersFormVisible = await isVisibleOrTimeout(
+      page.getByRole('button', { name: /add member|invite|remove/i }).first(),
+      3_000,
+    );
 
     // Non-members should not see the member management form.
     expect(membersFormVisible).toBe(false);
@@ -127,16 +126,12 @@ test.describe('non-Pro analytics guard', () => {
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
 
     // Either shows an upgrade CTA (non-Pro) or actual analytics (Pro user).
-    const hasUpgradePrompt = await page
-      .getByText(/upgrade|pro|unlock analytics|analytics.*included/i)
-      .first()
-      .isVisible()
-      .catch(() => false);
-    const hasAnalytics = await page
-      .getByText(/impressions|fill rate|gmv|attendees.*chart/i)
-      .first()
-      .isVisible()
-      .catch(() => false);
+    const hasUpgradePrompt = await isVisibleOrTimeout(
+      page.getByText(/upgrade|pro|unlock analytics|analytics.*included/i).first(),
+    );
+    const hasAnalytics = await isVisibleOrTimeout(
+      page.getByText(/impressions|fill rate|gmv|attendees.*chart/i).first(),
+    );
 
     // One or the other must be true.
     expect(hasUpgradePrompt || hasAnalytics).toBe(true);

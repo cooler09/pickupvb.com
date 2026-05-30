@@ -101,7 +101,7 @@ test.describe('create group', () => {
       await page.goto(`${groupUrl}/edit`);
       await page.waitForLoadState('domcontentloaded');
       const openDeleteBtn = page.getByRole('button', { name: /^delete group…?$/i });
-      if (await openDeleteBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      if (await isVisibleOrTimeout(openDeleteBtn, 5_000)) {
         await openDeleteBtn.click();
         await page.getByRole('button', { name: /yes, delete group/i }).click();
         await page.waitForURL(/\/groups(\?.*)?$/, { timeout: 15_000 });
@@ -148,20 +148,18 @@ test.describe('create group', () => {
     const finalUrl = page.url();
 
     // If a new group was mistakenly created, the page would show our test name.
-    const erroneouslyCreated = await page
-      .locator('main')
-      .getByText(/E2E Duplicate Slug Test/i)
-      .isVisible({ timeout: 3_000 })
-      .catch(() => false);
+    const erroneouslyCreated = await isVisibleOrTimeout(
+      page.locator('main').getByText(/E2E Duplicate Slug Test/i),
+      3_000,
+    );
     expect(erroneouslyCreated, 'Duplicate slug must not create a new group').toBe(false);
 
     // Expect either to remain on the form page or to see a conflict error.
     const stayedOnForm = finalUrl.includes('/groups/new');
-    const hasConflictError = await page
-      .getByText(/taken|conflict|already exists|in use|unavailable|duplicate/i)
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const hasConflictError = await isVisibleOrTimeout(
+      page.getByText(/taken|conflict|already exists|in use|unavailable|duplicate/i).first(),
+      5_000,
+    );
     expect(stayedOnForm || hasConflictError).toBe(true);
   });
 });
@@ -272,11 +270,10 @@ test.describe('group members', () => {
     const membersUrl = `${groupUrl}/members`;
     await page.goto(membersUrl);
     await page.waitForLoadState('domcontentloaded');
-    const canManage = await page
-      .getByRole('combobox', { name: /find a player/i })
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const canManage = await isVisibleOrTimeout(
+      page.getByRole('combobox', { name: /find a player/i }).first(),
+      5_000,
+    );
     if (!canManage) {
       test.skip(true, 'Test user is not owner/admin of the discovered group; skipping');
     }

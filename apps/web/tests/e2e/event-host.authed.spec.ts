@@ -364,7 +364,7 @@ test.describe('event host flows', () => {
       // the page has two buttons named "Join this event" once the dialog
       // is open).
       const joinDialog = bPage.getByRole('dialog', { name: /join this event/i });
-      if (await joinDialog.isVisible().catch(() => false)) {
+      if (await isVisibleOrTimeout(joinDialog)) {
         await joinDialog.getByRole('button', { name: /join this event/i }).click();
       }
       await bPage.waitForLoadState('domcontentloaded');
@@ -456,7 +456,7 @@ test.describe('event host flows', () => {
         // Leave is also a two-step: scope the confirm click to the dialog
         // so we don't re-click the trigger button.
         const leaveDialog = bPage.getByRole('dialog', { name: /leave|confirm/i });
-        if (await leaveDialog.isVisible().catch(() => false)) {
+        if (await isVisibleOrTimeout(leaveDialog)) {
           const confirmInDialog = leaveDialog
             .getByRole('button', { name: /leave event|confirm|yes/i })
             .filter({ hasNotText: /cancel/i })

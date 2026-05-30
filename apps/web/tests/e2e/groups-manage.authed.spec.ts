@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Group management flows (Sections 7.2–7.6 of the test plan).
@@ -55,11 +56,10 @@ test.describe('group edit', () => {
 
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
     // Edit form should have a description or name field.
-    const hasForm = await page
-      .locator('textarea, input[name="description"], input[name="name"]')
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const hasForm = await isVisibleOrTimeout(
+      page.locator('textarea, input[name="description"], input[name="name"]').first(),
+      5_000,
+    );
     expect(hasForm).toBe(true);
   });
 
