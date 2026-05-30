@@ -40,7 +40,13 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pin a concrete version. `version: latest` makes the action query the
+          # GitHub releases API to resolve "latest", which hits the anonymous
+          # rate limit on shared runners ("Failed to resolve latest Supabase CLI
+          # release: rate limit exceeded"). A pinned version skips that call.
+          # Bump deliberately; keep in sync with the local CLI and the
+          # `supabase` devDependency in package.json (^2.98.2).
+          version: 2.102.0
 
       - name: Link project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
