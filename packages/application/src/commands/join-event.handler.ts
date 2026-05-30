@@ -1,4 +1,4 @@
-import type { AnalyticsPort, EventRepository } from '@pickupvb/domain';
+import type { AnalyticsPort, EventWriteStore } from '@pickupvb/domain';
 import {
   DivisionId,
   NotFoundError,
@@ -17,7 +17,7 @@ import {
 
 export class JoinEventHandler {
   constructor(
-    private readonly repo: EventRepository,
+    private readonly repo: EventWriteStore,
     private readonly analytics?: AnalyticsPort,
   ) {}
 
@@ -32,7 +32,7 @@ export class JoinEventHandler {
 
 export class JoinEventWithPositionHandler {
   constructor(
-    private readonly repo: EventRepository,
+    private readonly repo: EventWriteStore,
     private readonly analytics?: AnalyticsPort,
   ) {}
 
@@ -50,7 +50,7 @@ export class JoinEventWithPositionHandler {
 
 export class LeaveEventHandler {
   constructor(
-    private readonly repo: EventRepository,
+    private readonly repo: EventWriteStore,
     private readonly analytics?: AnalyticsPort,
   ) {}
 
@@ -64,7 +64,7 @@ export class LeaveEventHandler {
 }
 
 export class JoinEventAsFreeAgentHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventWriteStore) {}
 
   async execute({
     eventId,
@@ -83,7 +83,7 @@ export class JoinEventAsFreeAgentHandler {
 }
 
 export class LeaveEventAsFreeAgentHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventWriteStore) {}
 
   async execute({ eventId, userId }: LeaveEventAsFreeAgentCommand): Promise<void> {
     const event = await this.repo.findById(eventId);

@@ -1,6 +1,6 @@
 import type {
   EventDetailReadModel,
-  EventRepository,
+  EventReadModels,
   FollowingFeedItem,
   FriendProfile,
   SocialGraphQueries,
@@ -9,7 +9,7 @@ import { NotFoundError } from '@pickupvb/domain';
 import { GetEventDetailQuery, GetFollowingFeedQuery, GetViewerFriendsQuery } from '../messages.js';
 
 export class GetEventDetailHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventReadModels) {}
 
   async execute({ id, viewerId }: GetEventDetailQuery): Promise<EventDetailReadModel> {
     const detail = await this.repo.getDetail(id, viewerId);

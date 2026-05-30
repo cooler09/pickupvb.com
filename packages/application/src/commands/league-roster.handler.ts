@@ -3,7 +3,8 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
-  type EventRepository,
+  type EventMembershipStore,
+  type EventWriteStore,
 } from '@pickupvb/domain';
 
 /**
@@ -31,7 +32,7 @@ export class SetLeagueTeamForfeitedCommand {
 }
 
 export class SetLeagueTeamForfeitedHandler {
-  constructor(private readonly events: EventRepository) {}
+  constructor(private readonly events: EventWriteStore & EventMembershipStore) {}
 
   async execute(cmd: SetLeagueTeamForfeitedCommand): Promise<void> {
     const evt = await this.events.findById(cmd.eventId);

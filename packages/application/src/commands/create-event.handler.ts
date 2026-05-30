@@ -16,7 +16,7 @@ import {
   isEventPosition,
   skillTierFromLegacy,
   type EventPosition,
-  type EventRepository,
+  type EventWriteStore,
   type EventExtensionsInput,
 } from '@pickupvb/domain';
 import type { DivisionInputDto, EventExtensionsDto } from '@pickupvb/types';
@@ -87,11 +87,11 @@ export function divisionFromDto(input: DivisionInputDto, sortOrder: number): Div
 }
 
 /**
- * Pure handler — takes a port (EventRepository), returns a result.
+ * Pure handler — takes a port (EventWriteStore), returns a result.
  * No DI framework, no decorators, no HTTP coupling.
  */
 export class CreateEventHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventWriteStore) {}
 
   async execute({ hostId, dto }: CreateEventCommand): Promise<{ id: string }> {
     const id = EventId(randomUUID());

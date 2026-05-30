@@ -6,7 +6,7 @@ import {
   TeamId,
   UnauthorizedError,
   ValidationError,
-  type EventRepository,
+  type EventWriteStore,
   type Format,
   type TeamRepository,
   type UserId,
@@ -120,7 +120,7 @@ export class SetTeamExtraMembersHandler {
  */
 export class RegisterTeamHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly teams: TeamRepository,
   ) {}
 
@@ -148,7 +148,7 @@ export class RegisterTeamHandler {
 
 export class WithdrawTeamHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly teams: TeamRepository,
   ) {}
 

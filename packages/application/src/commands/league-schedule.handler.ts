@@ -6,7 +6,7 @@ import {
   UnauthorizedError,
   ValidationError,
   type DivisionId,
-  type EventRepository,
+  type EventWriteStore,
   type LeagueSchedule,
   type LeagueScheduleMatchId,
   type LeagueScheduleRepository,
@@ -84,7 +84,7 @@ export class RecordLeagueMatchResultCommand {
 // ---- Helpers -------------------------------------------------------------
 
 async function loadEventOrThrow(
-  events: EventRepository,
+  events: EventWriteStore,
   eventId: string,
 ): Promise<VolleyballEvent> {
   const evt = await events.findById(eventId);
@@ -145,7 +145,7 @@ function buildMatch(
 
 export class AddLeagueScheduleMatchHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly schedules: LeagueScheduleRepository,
   ) {}
 
@@ -163,7 +163,7 @@ export class AddLeagueScheduleMatchHandler {
 
 export class UpdateLeagueScheduleMatchHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly schedules: LeagueScheduleRepository,
   ) {}
 
@@ -188,7 +188,7 @@ export class UpdateLeagueScheduleMatchHandler {
 
 export class RemoveLeagueScheduleMatchHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly schedules: LeagueScheduleRepository,
   ) {}
 

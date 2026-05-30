@@ -6,7 +6,7 @@ import {
   NotFoundError,
   PriceUnit,
   TeamComposition,
-  type EventRepository,
+  type EventWriteStore,
 } from '@pickupvb/domain';
 import { divisionFromDto } from './create-event.handler';
 import {
@@ -25,7 +25,7 @@ import {
  * `requesterId` is reserved for future audit columns.
  */
 export class AddEventDivisionHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventWriteStore) {}
 
   async execute({ eventId, input }: AddEventDivisionCommand): Promise<{ id: string }> {
     const event = await this.repo.findById(eventId);
@@ -41,7 +41,7 @@ export class AddEventDivisionHandler {
 }
 
 export class UpdateEventDivisionHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventWriteStore) {}
 
   async execute({ eventId, divisionId, updates }: UpdateEventDivisionCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
@@ -93,7 +93,7 @@ export class UpdateEventDivisionHandler {
 }
 
 export class RemoveEventDivisionHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventWriteStore) {}
 
   async execute({ eventId, divisionId }: RemoveEventDivisionCommand): Promise<void> {
     const event = await this.repo.findById(eventId);

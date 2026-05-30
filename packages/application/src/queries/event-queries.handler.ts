@@ -1,9 +1,14 @@
-import type { EventRepository, EventSearchQuery, VolleyballEventSummary } from '@pickupvb/domain';
+import type {
+  EventReadModels,
+  EventSearchQuery,
+  EventWriteStore,
+  VolleyballEventSummary,
+} from '@pickupvb/domain';
 import { NotFoundError, skillTierBand } from '@pickupvb/domain';
 import { GetEventByIdQuery, SearchEventsQuery } from '../messages';
 
 export class SearchEventsHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventReadModels) {}
 
   execute({ viewerId, filters }: SearchEventsQuery): Promise<VolleyballEventSummary[]> {
     const query: EventSearchQuery = {};
@@ -16,7 +21,7 @@ export class SearchEventsHandler {
 }
 
 export class GetEventByIdHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(private readonly repo: EventWriteStore) {}
 
   async execute({ id }: GetEventByIdQuery) {
     const event = await this.repo.findById(id);

@@ -1,5 +1,28 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 4 (EventRepository) inc. 1 — ISP split of the god-port):**
+> **The roadmap's structural "Phase 4" (split `EventRepository` + decompose the
+> adapter — P2-2 / P2-3 / P2-6) has begun.** Note the label collision: the
+> execution log's earlier "Phase 4 inc. 1–5" was the **notification subdomain**
+> (P2-1 fix #3, now complete); this is a _different_ track — the
+> `EventRepository` teardown — so its increments are labeled **"Phase 4
+> (EventRepository) inc. N"**. This first increment closes the **P2-2 ISP
+> violation**: the four-responsibility god-port is split into
+> `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail;
+findIdByShortCode }`, and `EventMembershipStore { addCoHost; removeCoHost;
+setRosterTeamForfeited }`, with `EventRepository` surviving only as the
+> composed union the Supabase adapter `implements`. Every application handler
+> now depends on the **narrow slice it uses** (writers → `EventWriteStore`,
+> `Search`/`GetEventDetail` → `EventReadModels`, co-host → `EventMembershipStore`,
+> `league-roster` → `EventWriteStore & EventMembershipStore`). Pure type-level
+> refactor — zero churn in the composition root or the four test files (the
+> single concrete adapter satisfies all slices), no new tests. Verify quad green
+> (domain 267, application 42, web 55, infra 7; lint 0 errors). No DB change.
+> **Remaining on this track:** P2-3 (decompose the 1,482-LOC adapter / ~480-LOC
+> `getDetail` into testable loaders) and P2-6 (consolidate the event-detail read
+> path behind one handler). See the
+> [Phase 4 (EventRepository) inc. 1 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc1-isp-split.md).
+>
 > **Status update (2026-05-29, Phase 4 inc. 5 — notification prefs; all three P2-1 fixes complete):**
 > The settings page (`profile/notifications`) read + write moved behind a
 > user-scoped `NotificationPreferencesPort` (`find` / `upsertChannels`) +
@@ -779,20 +802,34 @@ pages and `*-actions.ts`.
   3. Add a `NotificationOutboxPort` for `notification_outbox` / `broadcasts` / `push_subscriptions` fan-out.
   - Don't boil the ocean: genuinely trivial viewer-scoped reads (e.g. "is this row mine") can stay inline; the target is _entity reads/writes with rules or >2 call sites_. Track progress with the same `49 vs 76` ratio.
 
-#### P2-2. `EventRepository` is a god-port (ISP + SRP + CQRS-mixing) 🟡 Partial (2026-05-29)
+#### P2-2. `EventRepository` is a god-port (ISP + SRP + CQRS-mixing) ✅ ISP split done (2026-05-29); adapter SRP (P2-3) remains
 
-> **Progress (2026-05-29):** two of the conflated responsibilities are gone.
-> Phase 1 (ADR 0019) deleted the **aggregate-sidestepping** `attachTeamToDivision`
-> / `attachFreeAgentToDivision`. Phase 2a moved the **social-graph reads**
-> (`getViewerFriends`, `searchFollowingFeed`) onto a dedicated
-> `SocialGraphQueries` port. Remaining on `EventRepository`: write-side
-> (`findById`/`save`), read models (`search`/`getDetail`/`findIdByShortCode`),
-> co-host mutation, and `setRosterTeamForfeited` — the read-vs-write ISP split
-> is the next increment.
+> **Progress (2026-05-29, Phase 4 (EventRepository) inc. 1 — ISP split):** the
+> **interface segregation is done.** `EventRepository` is split into
+> `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail;
+findIdByShortCode }`, and `EventMembershipStore { addCoHost; removeCoHost;
+setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
+> survives only as the composed union the Supabase adapter `implements` (and the
+> test fakes `Pick<>`). **Every handler now depends on the narrow slice it
+> uses** — writers on `EventWriteStore`, `Search`/`GetEventDetail` on
+> `EventReadModels`, co-host on `EventMembershipStore`, `league-roster` on the
+> explicit `EventWriteStore & EventMembershipStore` intersection. Zero churn in
+> the composition root or tests (the single concrete adapter satisfies all
+> slices). Verify quad green (domain 267, application 42, web 55, infra 7; lint
+> 0 errors). No DB change. See the
+> [Phase 4 (EventRepository) inc. 1 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc1-isp-split.md).
+> **Remaining:** the adapter-side SRP teardown (P2-3) + read-path consolidation
+> (P2-6) — the next increments.
+>
+> **Progress (2026-05-29, Phases 1 + 2a):** two of the conflated responsibilities
+> were removed earlier. Phase 1 (ADR 0019) deleted the **aggregate-sidestepping**
+> `attachTeamToDivision` / `attachFreeAgentToDivision`. Phase 2a moved the
+> **social-graph reads** (`getViewerFriends`, `searchFollowingFeed`) onto a
+> dedicated `SocialGraphQueries` port.
 
-- **Where:** [event-repository.ts](../../packages/domain/src/events/event-repository.ts#L29-L83).
-- **Issue:** One interface conflates **four** responsibilities: write-side aggregate persistence (`findById`/`save`), denormalized **read models** (`search`/`getDetail`/`findIdByShortCode`), ~~**social-graph reads that are not event concerns** (`getViewerFriends`, `searchFollowingFeed`)~~ (moved to `SocialGraphQueries`, Phase 2a), co-host sub-resource mutation (`addCoHost`/`removeCoHost`), and ~~**aggregate-sidestepping** division mutations (`attachTeamToDivision`/`attachFreeAgentToDivision`~~ deleted in Phase 1)`/setRosterTeamForfeited`). The header comment openly admits the read/write CQRS mixing.
-- **Fix (remaining):** Segregate the interface (ISP): `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail; findIdByShortCode }`, and put co-host + `setRosterTeamForfeited` behind a focused `EventMembershipStore`. The Supabase class can still implement all of them, but handlers depend only on the slice they use.
+- **Where:** [event-repository.ts](../../packages/domain/src/events/event-repository.ts) — now `EventWriteStore` / `EventReadModels` / `EventMembershipStore` + the composed `EventRepository` union.
+- **Issue (original):** One interface conflated **four** responsibilities: write-side aggregate persistence (`findById`/`save`), denormalized **read models** (`search`/`getDetail`/`findIdByShortCode`), ~~**social-graph reads that are not event concerns** (`getViewerFriends`, `searchFollowingFeed`)~~ (moved to `SocialGraphQueries`, Phase 2a), co-host sub-resource mutation (`addCoHost`/`removeCoHost`), and ~~**aggregate-sidestepping** division mutations (`attachTeamToDivision`/`attachFreeAgentToDivision`~~ deleted in Phase 1)`/setRosterTeamForfeited`). The header comment openly admitted the read/write CQRS mixing.
+- **Fix:** ~~Segregate the interface (ISP): `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail; findIdByShortCode }`, and put co-host + `setRosterTeamForfeited` behind a focused `EventMembershipStore`. The Supabase class can still implement all of them, but handlers depend only on the slice they use.~~ **Done (Phase 4 (EventRepository) inc. 1)** exactly as prescribed.
 
 #### P2-3. `SupabaseEventRepository` is a 1,482-LOC adapter; `getDetail` alone is ~480 LOC (SRP)
 

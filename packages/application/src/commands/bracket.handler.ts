@@ -2,7 +2,7 @@ import type {
   BracketConfig,
   BracketFormat,
   BracketRepository,
-  EventRepository,
+  EventWriteStore,
   MatchSet,
 } from '@pickupvb/domain';
 import {
@@ -97,7 +97,7 @@ async function loadBracketOrThrow(
   return b;
 }
 
-async function loadEventForBracket(events: EventRepository, bracket: Bracket) {
+async function loadEventForBracket(events: EventWriteStore, bracket: Bracket) {
   const evt = await events.findById(bracket.eventId);
   if (!evt) throw new NotFoundError('event', String(bracket.eventId));
   return evt;
@@ -115,7 +115,7 @@ function assertHost(eventHostId: string, requesterId: string): void {
 
 export class CreateBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
   ) {}
 
@@ -147,7 +147,7 @@ export class CreateBracketHandler {
 
 export class SeedBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
   ) {}
 
@@ -165,7 +165,7 @@ export class SeedBracketHandler {
 
 export class GenerateBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
   ) {}
 
@@ -180,7 +180,7 @@ export class GenerateBracketHandler {
 
 export class GeneratePlayoffHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
   ) {}
 
@@ -195,7 +195,7 @@ export class GeneratePlayoffHandler {
 
 export class ResetBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
   ) {}
 
@@ -210,7 +210,7 @@ export class ResetBracketHandler {
 
 export class ReorderPoolMatchesHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
   ) {}
 

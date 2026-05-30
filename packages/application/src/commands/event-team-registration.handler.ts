@@ -12,7 +12,7 @@ import {
   RegistrationSource,
   TeamRegistrationMode,
   UnauthorizedError,
-  type EventRepository,
+  type EventWriteStore,
   type EventTeamRegistrationRepository,
   type UserId,
 } from '@pickupvb/domain';
@@ -50,7 +50,7 @@ function memberFromInput(
 
 export class RegisterAdHocTeamHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly registrations: EventTeamRegistrationRepository,
   ) {}
 
@@ -200,7 +200,7 @@ export class WithdrawAdHocTeamRegistrationHandler {
  */
 export class RegisterWalkInTeamHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly registrations: EventTeamRegistrationRepository,
   ) {}
 
@@ -253,7 +253,7 @@ export class RegisterWalkInTeamHandler {
  */
 export class MarkWalkInPaidCashHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly registrations: EventTeamRegistrationRepository,
   ) {}
 
