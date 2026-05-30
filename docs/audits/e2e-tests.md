@@ -18,8 +18,13 @@
 > increments A + B): the `.catch(() => false)` / `networkidle` sweep (C7),
 > `navigation.ts` (#6), `browser.ts` / `withAuthContext` (#8), the
 > `isVisibleOrTimeout` no-op-timeout fix, the skip-budget guard (C1), and
-> (increment C) per-worker storage state (#3). **Phase 0 is complete** — the
-> next pass is Phase 1 (brackets, C3).
+> (increment C) per-worker storage state (#3). **Phase 0 is complete.**
+>
+> **Phase 1 (brackets, C3) is also done:** [bracket.authed.spec.ts](../../apps/web/tests/e2e/bracket.authed.spec.ts)
+> (4 tests) self-provisions a disposable tournament via walk-in teams and asserts
+> result-advances-winner, a read-only board for a non-host/non-captain viewer
+> (UI-level authz), record-all → champion, and reset-reverts-and-clears-downstream.
+> Next: Phase 2 (leagues, C2). Live dev run still to confirm.
 >
 > **Headline:** the suite is _broad_ (~30 specs, ~180 `test()` cases) but
 > _shallow exactly where the risk is_. The newest, highest-stakes features —
@@ -125,6 +130,26 @@ generation, standings update after a recorded result, and team forfeit. Drive
 and [schedule/actions.ts](../../apps/web/src/app/events/[id]/schedule/actions.ts).
 
 #### C3 (P1) — Brackets: read-only only; advancement + captain RLS untested
+
+> **Resolved 2026-05-30 (Phase 1).** New
+> [bracket.authed.spec.ts](../../apps/web/tests/e2e/bracket.authed.spec.ts)
+> self-provisions a disposable ad-hoc tournament (host = the default per-worker
+> attendee-a) and drives the whole pipeline via the host-only **walk-in team**
+> escape hatch — create → seed → generate → record → reset — with one account,
+> no Stripe. **Four tests:** (1) a recorded semifinal **advances exactly that
+> match's winner into the final** (the winner is the one team appearing in two
+> cards); (2) a non-host / non-captain viewer (attendee-b) sees the board
+> **read-only** — no result-entry form, no score inputs; (3) recording **all**
+> matches resolves a **champion** (🏆 banner + "Final results", nothing left to
+> play); (4) **resetting** a recorded semifinal reverts it to unplayed and pulls
+> the advanced team back out of the final (recursive downstream clear). The
+> authorization assertion is intentionally **UI-level** (the form is only
+> rendered to host/captain); the RPC-gate rejection itself
+> (`record_bracket_match_result`) stays owned by the DB `SECURITY DEFINER`
+> policy + a future application-layer test. The persistent `E2ETFR` seed stays
+> read-only. Helper: [\_helpers/tournament.ts](../../apps/web/tests/e2e/_helpers/tournament.ts).
+> Live dev run still to confirm (see the increment journal). The only remaining
+> bracket fixme in `tournament.authed.spec.ts` is division-winner (Phase 3, C4).
 
 [tournament.authed.spec.ts](../../apps/web/tests/e2e/tournament.authed.spec.ts)
 asserts the bracket _page renders_; all six mutations (register / withdraw /
@@ -580,6 +605,43 @@ it's instantly familiar.
    inline TODOs? Leaning drop.
 
 ## Remediation log
+
+### 2026-05-30 — Phase 1: bracket result-advances-winner + read-only authz (closes C3)
+
+- **C3 — RESOLVED (UI coverage); live dev run pending.** New
+  [bracket.authed.spec.ts](../../apps/web/tests/e2e/bracket.authed.spec.ts)
+  (**4 tests**) + [\_helpers/tournament.ts](../../apps/web/tests/e2e/_helpers/tournament.ts)
+  (`createAdHocTournament` / `addWalkInTeam` / `createAndGenerateBracket` /
+  `recordFirstPendingMatch` / `resetFirstCompletedMatch`).
+- **Self-provisioning, single account.** The host-only walk-in escape hatch
+  (`addAdHocTeamFromForm`) lets the default per-worker attendee-a register ≥ 2
+  teams and run create → seed → generate → record → reset with no second actor
+  and no Stripe. Each test owns its fixture and tears it down (`cancelEvent` +
+  `deleteEventById`); the persistent `E2ETFR` seed stays read-only.
+- **The four tests:** (1) **advancement** — record one semifinal of a 4-team
+  single-elim → **exactly one team appears in two match cards** (winner-agnostic
+  signal it advanced into the final); (2) **authorization** (UI-level) —
+  attendee-b sees the board but no `Enter/Edit result` form and no score inputs;
+  (3) **champion** — record all three matches → the bracket completes, the
+  `🏆 Champion decided …` banner (tree-bracket.tsx, `role="status"`) shows, the
+  header flips to "Final results", and no `Enter result` forms remain;
+  (4) **reset** — record one semifinal, then **Clear** it → the match reverts to
+  pending (2 playable semis again, 0 completed) and the advanced team is pulled
+  back out of the final (no team in two cards), exercising the recursive
+  `resetMatch` downstream-clear contract.
+- **Gotcha encoded in the helper:** `CreateBracketHandler` creates the bracket
+  with **zero seeds**; `bracket.generate()` throws "Need at least 2 seeded
+  teams" until the host clicks **Save seeding**. The helper does Create → Save
+  seeding → Generate (the save step is harmless even if seeds already existed).
+- **Retired** three now-covered `tournament.authed.spec.ts` fixmes (advancement,
+  reset-match, champion → pointer comments to the new spec); the
+  division-winner fixme stays for Phase 3 (C4).
+- **Verified:** e2e tsc **23 → 20** (new files add 0; retiring the three
+  single-arg `test.fixme('string')` calls — each one of the pre-existing errors
+  — took `tournament` 14 → 11); `playwright --list` = **190 tests / 31 files**
+  (was 186/30); prettier-clean. **Not verified:** a live run against
+  `dev.pickupvb.com` (no creds here) — maintainer to confirm green. Full
+  rationale: [journal 2026-05-30-bundle-e2e-phase1-brackets](../journal/2026-05-30-bundle-e2e-phase1-brackets.md).
 
 ### 2026-05-30 — Phase 0 increment C: per-worker auth (closes #3 → Phase 0 done)
 

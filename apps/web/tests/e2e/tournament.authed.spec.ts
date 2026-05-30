@@ -118,15 +118,18 @@ test.describe('free agent signup', () => {
 });
 
 test.describe('bracket management', () => {
-  test.fixme(
-    'host sets seeding → "Generate bracket" → bracket renders with all teams → record match result → winner advances',
-  );
+  // "host seeds → generate → record result → winner advances" and the
+  // non-host/non-captain authorization assertion now live in
+  // bracket.authed.spec.ts (e2e audit C3, Phase 1) — they self-provision a
+  // disposable tournament via walk-in teams rather than mutating the
+  // persistent E2ETFR seed.
 
-  test.fixme(
-    'reset a recorded match result → match reverts to unplayed → downstream results cleared',
-  );
+  // "reset a recorded match → reverts to unplayed → downstream cleared" and
+  // "record all matches → champion → bracket fully resolved" now live in
+  // bracket.authed.spec.ts (e2e audit C3, Phase 1), self-provisioned via
+  // walk-in teams.
 
-  test.fixme('record all matches → champion displayed → bracket fully resolved');
-
+  // Division-winner recording is Phase 3 (C4) — see divisions.authed.spec.ts
+  // when it lands.
   test.fixme('division winner recorded → displayed on event page');
 });
