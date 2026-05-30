@@ -3,59 +3,8 @@ import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { deleteGroupBySlug } from './_helpers/cleanup';
-
-/**
- * Find a group the signed-in user is listed under on /profile. Mirrors
- * findOwnedGroupUrl in groups-manage.authed.spec.ts. Returns the group URL
- * (path) or null. The caller probes `/<url>/members` to confirm management
- * rights.
- */
-async function findOwnedGroupUrl(page: import('@playwright/test').Page): Promise<string | null> {
-  await page.goto('/profile');
-  await page.waitForLoadState('domcontentloaded');
-  const groupLinks = page.locator('a[href*="/groups/"]');
-  const count = await groupLinks.count();
-  for (let i = 0; i < count; i++) {
-    const href = await groupLinks.nth(i).getAttribute('href');
-    if (!href || href.includes('/edit') || href.includes('/members') || href.includes('/new'))
-      continue;
-    return href.replace(/\/$/, '');
-  }
-  return null;
-}
-
-/**
- * Make sure the signed-in profile has a unique, searchable display_name that
- * the UserPicker's ilike search can hit. Idempotent. Mirrors the helper in
- * teams.authed.spec.ts.
- */
-async function ensureSearchableDisplayName(
-  page: import('@playwright/test').Page,
-  prefix: string,
-): Promise<string> {
-  await page.goto('/profile');
-  await page.waitForLoadState('domcontentloaded');
-  const dnInput = page.locator('input[name="display_name"]').first();
-  await expect(dnInput).toBeVisible({ timeout: 10_000 });
-  const current = await dnInput.inputValue();
-  if (current && current.startsWith(prefix)) return current;
-
-  const next = `${prefix} ${Math.random().toString(36).slice(2, 7)}`;
-  await dnInput.fill(next);
-  await page
-    .getByRole('button', { name: /save changes|save profile|update profile/i })
-    .first()
-    .click();
-  await page
-    .getByText(/profile updated/i)
-    .first()
-    .waitFor({ timeout: 10_000 })
-    .catch(() => {
-      /* tolerate no alert */
-    });
-  await page.waitForLoadState('domcontentloaded');
-  return next;
-}
+import { withAuthContext } from './_helpers/browser';
+import { ensureSearchableDisplayName, findOwnedGroupUrl } from './_helpers/navigation';
 
 /**
  * Authenticated group flows.
@@ -279,17 +228,13 @@ test.describe('group members', () => {
     }
 
     // Resolve a searchable display_name for attendee-b.
-    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
-    const bPage = await bContext.newPage();
     let searchTerm: string | null = null;
     try {
-      searchTerm = await ensureSearchableDisplayName(bPage, 'E2E Attendee B');
+      searchTerm = await withAuthContext(browser, STORAGE_PATHS.attendeeB, (bPage) =>
+        ensureSearchableDisplayName(bPage, 'E2E Attendee B'),
+      );
     } catch {
       /* fall through; searchTerm stays null */
-    } finally {
-      await bContext.close().catch(() => {
-        /* tolerate teardown errors */
-      });
     }
     if (!searchTerm) {
       test.skip(true, 'Could not determine attendee-b display_name; skipping');

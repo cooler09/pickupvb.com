@@ -38,7 +38,13 @@ export default defineConfig({
   // without provoking the race; against localhost, leave Playwright to
   // pick (most local devs run a fresh DB and the refresh path is rare).
   workers: process.env.CI ? 1 : IS_LOCAL ? undefined : 2,
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
+  // The skip-budget reporter (e2e audit C1) is appended in every mode. It is
+  // warn-only until `E2E_SKIP_BUDGET=<N>` is exported, at which point it fails
+  // the run when the skipped-test count exceeds N — a ratchet against silent
+  // coverage loss. See tests/e2e/_helpers/skip-budget-reporter.ts.
+  reporter: process.env.CI
+    ? [['github'], ['html', { open: 'never' }], ['./tests/e2e/_helpers/skip-budget-reporter.ts']]
+    : [['list'], ['./tests/e2e/_helpers/skip-budget-reporter.ts']],
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',

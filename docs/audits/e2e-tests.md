@@ -14,10 +14,11 @@
 > `pickFutureDateTime`), [cleanup.ts](../../apps/web/tests/e2e/_helpers/cleanup.ts)
 > (opt-in admin deletes), and [stripe.ts](../../apps/web/tests/e2e/_helpers/stripe.ts)
 > (Checkout drivers). That **resolves P2 #4, #5, #7** and the proposed
-> `events.ts` helper — see the remediation log. **Still open** from that
-> pass: `navigation.ts` (#6), `browser.ts` / `withAuthContext` (#8),
-> per-worker storage state (#3), and full adoption of `isVisibleOrTimeout`
-> / removal of `networkidle` (~5 occurrences remain — now tracked as **C7**).
+> `events.ts` helper — see the remediation log. **Resolved since** (Phase 0
+> increments A + B): the `.catch(() => false)` / `networkidle` sweep (C7),
+> `navigation.ts` (#6), `browser.ts` / `withAuthContext` (#8), the
+> `isVisibleOrTimeout` no-op-timeout fix, and the skip-budget guard (C1).
+> **Still open** from that pass: per-worker storage state (#3).
 >
 > **Headline:** the suite is _broad_ (~30 specs, ~180 `test()` cases) but
 > _shallow exactly where the risk is_. The newest, highest-stakes features —
@@ -183,6 +184,18 @@ content-type) rather than a full page nav.
 
 #### C7 (P2) — Reliability remediation incomplete (carries P1 #1 / #2 forward)
 
+> **Update (2026-05-30, increment B):** Phase 0's remaining items are **done.**
+> `navigation.ts` (#6) and `browser.ts` / `withAuthContext` (#8) now exist and
+> are adopted (see remediation log); the skip-budget guard (C1) is wired into
+> `playwright.config.ts` (warn-only until `E2E_SKIP_BUDGET=<N>` is exported, then
+> it fails the run when the skip count exceeds N); and the `isVisibleOrTimeout`
+> no-op flagged below is **fixed** — it now uses `waitFor({ state: 'visible',
+timeout })`, so the `timeout` arg actually polls. Verified: e2e tsc baseline
+> unchanged at 23 (identical per-file: tournament 14 / groups-manage 6 /
+> auth-extended 2 / player-social 1), `playwright --list` parses all 186 tests.
+> Only **#3 (per-worker storage state)** remains open in Phase 0. See the
+> [increment-B journal entry](../journal/2026-05-30-bundle-e2e-phase0-increment-b.md).
+>
 > **Update (2026-05-30):** the **`.catch(() => false)` sweep is done** —
 > 42 → 1 suite-wide; the one survivor is a response-promise coercion in
 > `event-host`, not a visibility probe. **`networkidle` was already done**
@@ -237,14 +250,14 @@ The pattern every **mutating** test must follow once Phase 0 lands:
 Ordered by risk-reduction per unit of work. Each phase ends green with **no
 new silent skips**.
 
-| Phase | Theme                  | Findings       | Exit criteria                                                                                                           |
-| :---: | ---------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| **0** | Reliability foundation | C1, C7, #6, #8 | `networkidle` gone; `isVisibleOrTimeout` adopted; `navigation.ts` + `browser.ts` helpers exist; skip-budget guard in CI |
-| **1** | Brackets               | C3             | Result-advances-winner + captain/host authorization tested against a self-provisioned bracket                           |
-| **2** | Leagues                | C2             | `league.authed.spec.ts`: schedule gen, standings, forfeit                                                               |
-| **3** | Divisions              | C4             | Multi-division registration lands in the chosen division; division winner recorded                                      |
-| **4** | Payments / Stripe      | C5             | Paid RSVP, team/roster checkout, tip, refund-window, Pro — green on dev; localhost auto-skips                           |
-| **5** | Surface fill-in        | C6             | schedule, scoreboard, short links, claim, CSV/API smoke                                                                 |
+|  Phase   | Theme                  | Findings       | Exit criteria                                                                                                                                                                                                                       |
+| :------: | ---------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0** ✅ | Reliability foundation | C1, C7, #6, #8 | **Done** (increments A+B; per-worker storage #3 deferred): `networkidle`/`catch` swept; `isVisibleOrTimeout` fixed; `navigation.ts` + `browser.ts` exist + adopted; skip-budget guard wired (warn-only until `E2E_SKIP_BUDGET` set) |
+|  **1**   | Brackets               | C3             | Result-advances-winner + captain/host authorization tested against a self-provisioned bracket                                                                                                                                       |
+|  **2**   | Leagues                | C2             | `league.authed.spec.ts`: schedule gen, standings, forfeit                                                                                                                                                                           |
+|  **3**   | Divisions              | C4             | Multi-division registration lands in the chosen division; division winner recorded                                                                                                                                                  |
+|  **4**   | Payments / Stripe      | C5             | Paid RSVP, team/roster checkout, tip, refund-window, Pro — green on dev; localhost auto-skips                                                                                                                                       |
+|  **5**   | Surface fill-in        | C6             | schedule, scoreboard, short links, claim, CSV/API smoke                                                                                                                                                                             |
 
 **Phase 0 — Reliability foundation (do first; everything else compounds on it).**
 Finish C7's `networkidle`/`catch` sweep. Add the two missing helpers the
@@ -553,6 +566,40 @@ it's instantly familiar.
    inline TODOs? Leaning drop.
 
 ## Remediation log
+
+### 2026-05-30 — Phase 0 increment B: helpers, `withAuthContext`, skip-budget (closes #6, #8, C1)
+
+- **#6 (`navigation.ts`) — RESOLVED.**
+  [\_helpers/navigation.ts](../../apps/web/tests/e2e/_helpers/navigation.ts)
+  now owns `findOwnedGroupUrl` / `findCaptainedTeamUrl` /
+  `ensureSearchableDisplayName`; the copies in `groups`, `groups-manage`, and
+  `teams` are deleted and import from it. `findOwnedGroupUrl` unified to the
+  trailing-slash-stripping variant (idempotent for the `groups-manage` callers).
+- **#8 (`browser.ts` / `withAuthContext`) — RESOLVED.**
+  [\_helpers/browser.ts](../../apps/web/tests/e2e/_helpers/browser.ts) wraps
+  `newContext → newPage → try/finally close`; adopted at the self-contained
+  second-context blocks in `event-host` (`beforeAll`/`afterAll`/pro-sponsor/
+  co-host name-fetch), `groups`, and `groups-manage`. The interleaved-context
+  sites (`teams`, `player-social`, `event-host` broadcast) are intentionally
+  left for the Phase 1+ rewrite — wrapping them would rewrite test control flow.
+- **C1 (skip-budget guard) — RESOLVED (mechanism); threshold deferred.**
+  [\_helpers/skip-budget-reporter.ts](../../apps/web/tests/e2e/_helpers/skip-budget-reporter.ts)
+  is wired into [playwright.config.ts](../../apps/web/playwright.config.ts).
+  Warn-only by default; fails the run when `skipped > E2E_SKIP_BUDGET`. Open
+  decision #1 (the N, and fail-vs-warn in CI) preserved for the maintainer.
+- **`isVisibleOrTimeout` no-op `timeout` — FIXED.** Now
+  `waitFor({ state: 'visible', timeout })` instead of the ignored
+  `isVisible({ timeout })`.
+- **Verified:** e2e tsc baseline unchanged at **23**, identical per-file to
+  stashed HEAD (tournament 14, groups-manage 6, auth-extended 2, player-social 1
+  — increment A's "tournament 14" was correct; count with `incremental: false`,
+  since the base config's `incremental: true` leaves a stale `.tsbuildinfo` that
+  wobbles repeated counts). `playwright --list` = 186 tests / 30 files (reporter
+  loads); prettier-clean. Throwaway `tsconfig.e2e.tmp.json` used and deleted.
+  One self-inflicted reporter type error (`onEnd` return type, TS2416) was
+  caught by this check and fixed before hand-off.
+- **Still open in Phase 0:** #3 (per-worker storage state) only.
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-b](../journal/2026-05-30-bundle-e2e-phase0-increment-b.md).
 
 ### 2026-05-30 — Phase 0 increment A: defensive-`catch` sweep (C7, partial)
 
