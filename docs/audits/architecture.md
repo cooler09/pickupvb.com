@@ -1,5 +1,26 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 4 inc. 1 — NotificationOutboxPort (notify fan-out)):**
+> **P2-1 Fix #3 (the notification outbox) has begun.** The core fan-out in
+> [lib/notify.ts](../../apps/web/src/lib/notify.ts) — the single entry point every
+> trigger calls — now writes through a `NotificationOutboxPort`
+> ([domain](../../packages/domain/src/notifications/outbox-port.ts)) implemented by
+> [SupabaseNotificationOutboxRepository](../../packages/infrastructure/src/supabase-notification-outbox-repository.ts)
+> (service-role client — session-less fan-out, pitfall #8). `notify()` keeps its
+> signature + best-effort `try/catch`; the fan-out moved into an exported
+> `dispatch(port, …)` so it finally has a **test seam** — 5 Vitest cases pin the
+> channel selection (transactional bypass, prefs gating, email-absent skip,
+> idempotency-key namespacing) on this previously-untested silent-in-prod path.
+> Raw admin `supabase.from('notification_preferences'/'notifications'/'notification_outbox')`
+> gone from `notify.ts`; row-insert failures are now **logged** (the old code
+> dropped the `{ error }` silently). Port placement: `@pickupvb/domain` with
+> plain-string kind/channel to keep `domain` dependency-free (see
+> [ADR 0022](../adr/0022-notification-outbox-port.md)). Verify quad green (domain
+> 267, application 42, web 55, infra 7; lint 0 errors). No DB change. **Remaining
+> notification surfaces:** the cron worker/purge, push subscribe, broadcasts, and
+> the prefs page (ADR 0022 table). See the
+> [Phase 4 inc. 1 journal](../journal/2026-05-29-bundle-phase-4-inc1-notification-outbox-port.md).
+>
 > **Status update (2026-05-29, Phase 3 inc. 8 — group membership joins + sitemap; groups subdomain drained):**
 > The last group reads — `listMembershipsForUser` (profile "my groups", `GroupMembership[]`),
 > `listManageableGroups` (owner/admin groups for `events/new`), and `listSlugs`
@@ -501,6 +522,13 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 4 inc. 1 — NotificationOutboxPort):** Fix item #3
+> (notification outbox) started. The `lib/notify.ts` fan-out now writes through a
+> `NotificationOutboxPort` + `SupabaseNotificationOutboxRepository` (service-role
+> client); the fan-out moved to a testable `dispatch(port, …)` (+5 tests).
+> [ADR 0022](../adr/0022-notification-outbox-port.md). Remaining notification
+> surfaces: cron worker/purge, push subscribe, broadcasts, prefs page.
+>
 > **Progress (2026-05-29, Phase 3 inc. 8 — membership joins + sitemap; subdomain
 > drained):** `listMembershipsForUser` / `listManageableGroups` / `listSlugs`
 > landed; `profile`, `events/new`, and `sitemap` migrated off their raw

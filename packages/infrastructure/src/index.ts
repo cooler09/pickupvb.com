@@ -12,5 +12,6 @@ export * from './supabase-profile-repository';
 export * from './supabase-user-repository';
 export * from './supabase-group-repository';
 export * from './supabase-group-query-repository';
+export * from './supabase-notification-outbox-repository';
 export * from './noop-analytics';
 export * from './posthog-analytics';
