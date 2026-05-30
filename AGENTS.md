@@ -628,3 +628,43 @@ takes `AggregateRoot<unknown>` but reads `VolleyballEvent`-only props, so it
 guards `de instanceof SpotFilled && aggregate instanceof VolleyballEvent` — the
 narrow satisfies the compiler _and_ prevents a wrong-aggregate crash when a
 `Bracket` flows through the same outbox.
+
+### 10. Payment state is a sanctioned facade-over-port shortcut — not a CQRS gap
+
+The host-payment "aggregates" — `HostStripeAccount` and `HostSubscription`
+([packages/domain/src/payments/](packages/domain/src/payments/)) — are
+**deliberately not consumed through `application` command/query handlers.**
+The thin `lib/` facades [pro.ts](apps/web/src/lib/pro.ts) and
+[host-stripe-account.ts](apps/web/src/lib/host-stripe-account.ts) call the
+repository ports (`repositories.hostSubscriptionRepo` /
+`repositories.hostStripeAccountRepo`) directly. This is **intentional and
+correct** (architecture audit P3-3, resolved 2026-05-30 — option (b)). Do not
+"fix" it by wrapping each call in a handler; that adds a layer with zero
+behaviour and would mislead the next reader (playbook item 4 — partial patterns
+cost more than no pattern).
+
+Why a handler earns nothing here:
+
+- **The aggregates carry no invariants.** Both are pure type aliases over a
+  Stripe-shaped row + a repository `interface` (verified in P3-4 — nothing to
+  unit-test). There is no state machine to protect, so a command handler would
+  be a pure pass-through.
+- **The reads are CQRS read projections.** `isPro` / `getHostStripeAccount` /
+  `getHostSubscription` are viewer-or-host-scoped lookups (often backed by a
+  Postgres function like `is_pro_host`), exactly the "trivial read" the playbook
+  reserves for direct port access.
+- **`isPro` must stay in the web layer regardless.** It's wrapped in
+  `React.cache` for per-request dedup across event-detail side-loads
+  (performance audit P3 #12); `react` is banned from `@pickupvb/application` by
+  the purity ratchet, so the memoized read cannot move inward.
+- **The writes are session-less Stripe mirrors.** `seedCustomer` /
+  `upsertFromStripe` / `create` / `updateStatusBy*` run from the
+  `lib/webhooks/*` handlers on the admin client (no user, no RLS to enforce), so
+  a command handler adds no authorization value.
+
+**The trigger to revisit:** if either type ever grows a real invariant or a
+multi-step state transition (e.g. an enforced subscription lifecycle, a
+proration rule, a cross-aggregate guard), promote that rule into the domain and
+add a command handler for the mutation — at that point the facade stops being a
+read shortcut and the handler earns its place. Until then, the facade-over-port
+shape is the sanctioned convention.

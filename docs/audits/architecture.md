@@ -1,5 +1,57 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-30, Phase 5 inc. 6 — payment-facade decision; P3-3 resolved):**
+> **Resolved P3-3 — chose option (b): the host-payment `lib/` facades over the
+> repository ports are a _sanctioned_ shortcut, not a CQRS gap.** Investigation
+> (callsite survey + reading both facades + the two "aggregates"): `pro.ts`
+> (10 importers) and `host-stripe-account.ts` (11 importers) are thin
+> pass-throughs to `repositories.hostSubscriptionRepo` /
+> `hostStripeAccountRepo`. Adding `application` handlers would buy **nothing**,
+> for four concrete reasons — (1) `HostStripeAccount`/`HostSubscription` are
+> **pure type aliases + a port `interface` with zero invariants** (the same
+> finding that closed their P3-4 slice — no state machine for a handler to
+> protect); (2) the reads are CQRS read projections (often a Postgres function
+> like `is_pro_host`); (3) **`isPro` literally can't move inward** — it's
+> `React.cache`-memoized for per-request dedup (perf audit P3 #12) and `react`
+> is purity-banned from `@pickupvb/application`; (4) the writes are
+> **session-less Stripe mirrors** run from `lib/webhooks/*` on the admin client
+> (no user / no RLS → a handler adds no authz). So wrapping them in handlers
+> would add a zero-behaviour layer that misleads (playbook item 4). Documented
+> as **AGENTS.md "Patterns surfaced by audits" item #10** with an explicit
+> re-open trigger (promote to a handler the moment either type grows a real
+> invariant / multi-step transition). **Doc-only — no code or DB change**;
+> verify quad still green (domain 350, application 47, web 55, infra 23; lint 0
+> errors). **Remaining Phase 5 (both the explicitly-deferred behaviour-sensitive
+> halves):** P3-1 remainder (form-state context + edit-form DRY) and P3-2
+> remainder (route the webhook attendee/tip/sponsor writes through payment repos
+> — needs characterization tests first). See the
+> [Phase 5 inc. 6 journal](../journal/2026-05-30-bundle-phase-5-inc6-payment-facade-decision.md).
+>
+> **Status update (2026-05-30, Phase 5 inc. 5 — domain test backfill; P3-4 resolved):**
+> Backfilled the **last two domain units with real invariant logic** that the
+> P3-4 finding named as still-untested: `events/division` (**+33** — every
+> `create()` guard: label required/≤60 + trim, sortOrder non-negative integer,
+> surface×format compatibility, tierLabel ≤40/null-coerce, teamSize range +
+> required-for-Partners/PairDraw, priceCents range incl. free, prize text/purse,
+> the `endsAt > startsAt` schedule window, all documented defaults, and the
+> `fromPersistence` no-validation rehydration path) + `events/location` (**+10**
+> — lat/long range incl. the ±90 / ±180 boundaries, required city/country, field
+> trimming, blank-address/region/postal allowed). **+43 tests, domain 307 → 350,
+> zero production change.** The two _other_ units the finding listed —
+> `payments/host-stripe-account` and `payments/host-subscription` — turned out to
+> be **pure type aliases + a repository `interface` with no logic** (Stripe-shaped
+> read models; all behaviour is in the infra adapters, which are integration
+> seams not pure units), so per AGENTS.md "skip the test for a pure type tweak"
+> there is nothing to unit-test there. **With this, every domain unit carrying
+> invariant logic is covered and P3-4 is closed.** Same safe-half-first shape as
+> Phase 5 inc. 2 — locks in behaviour, needs no product decision. Verify quad
+> green (domain 350, application 47, web 55, infra 23; lint 0 errors). No DB
+> change. **Remaining Phase 5:** P3-1 remainder (form-state context + edit-form
+> DRY), P3-2 remainder (route DB writes through payment repos, needs
+> characterization tests first), P3-3 (payment-handler decision — needs a product
+> call). See the
+> [Phase 5 inc. 5 journal](../journal/2026-05-30-bundle-phase-5-inc5-domain-test-backfill.md).
+>
 > **Status update (2026-05-30, Phase 5 inc. 4 — Stripe webhook decomposition; P3-2 partial):**
 > Extracted the 7 event handlers + the team-payment mediators out of the
 > **833-LOC** [stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts)
@@ -1050,8 +1102,8 @@ setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
 
 - **P3-1. Oversized client form.** 🟡 Partial (2026-05-30, Phase 5 inc. 3). [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx) was **1,402 LOC**; the already-parameterized branch/leaf components were relocated into four cohesive `_components/` files (`form-primitives.tsx` — tokens + `val`/`chk` + `SkillTierSelect`/`SubmitButton`/`TypeCard`/`SegmentedControl`; `payment-fields.tsx` — `StripeOnboardingBanner`/`RefundWindowField`/`PricingSubsection`/`PaymentSettingsSubsection`; `open-play-body.tsx`; `external-fields.tsx`), dropping the file to **698 LOC** (byte-for-byte JSX, no behaviour change). **Remaining:** the stateful `NewEventForm` orchestrator (≈660 LOC, 23 hooks) still holds all form state inline — lifting its section JSX behind a form-state context (to hit ADR 0005's ~200-LOC target) + having [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx) (592 LOC) consume the shared `_components/` pieces (DRY) is the deferred, behaviour-sensitive half. See the [Phase 5 inc. 3 journal](../journal/2026-05-30-bundle-phase-5-inc3-new-event-form-decomposition.md).
 - **P3-2. Stripe webhook is an 833-LOC god-handler.** 🟡 Partial (2026-05-30, Phase 5 inc. 4). The handlers were extracted out of [route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts) into five cohesive `lib/webhooks/` modules (`connect` — account/payout; `checkout` — completed/expired + `CheckoutMetadata` + `lookupHostId`; `charge` — refunded/payment-failed; `subscription`; `team-payment-mediators` — the 6 aggregate helpers), and **route.ts is now a 156-LOC signature/idempotency boundary + dispatch switch** (was 833). Verbatim relocation — **zero behaviour change**, parity-audited (all 8 `analytics.capture`, both `notify`, every captured event/kind, and the full table-op distribution match the original). **Remaining (the behavioural half):** the checkout/charge handlers still write the attendee/tip/sponsor rows via inline `admin.from(...)` instead of through payment repos — routing those through repos changes the live write path and **needs characterization tests first** (deferred; the team-payment branches already go through aggregates). See the [Phase 5 inc. 4 journal](../journal/2026-05-30-bundle-phase-5-inc4-stripe-webhook-decomposition.md).
-- **P3-3. Payment aggregates bypass the application layer (CQRS bypass).** `HostStripeAccount` / `HostSubscription` aggregates + repos exist but are consumed via thin `lib/` facades ([pro.ts](../../apps/web/src/lib/pro.ts), [host-stripe-account.ts](../../apps/web/src/lib/host-stripe-account.ts)) that call the repos directly — no command/query handlers, so they sit outside the handler registry the rest of the app uses. **Fix:** decide intentionally — either add `application` handlers (consistency) or document the facades as a sanctioned read-projection shortcut in `AGENTS.md` so it's not mistaken for drift.
-- **P3-4. Thin domain test coverage for newer units.** 🟢 Both audit-named priorities covered (2026-05-29, Phase 5 inc. 2). Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port, `users/user-profile` (Phase 2b inc. 8), and **`brackets/standings` + `brackets/match` (determineWinner) + `community-listings/community-listing` + `community-listings/external-url`** (Phase 5 inc. 2, +40 tests → domain 307). **Still untested (deferred, lower priority):** `division`, `payments/host-stripe-account`, `payments/host-subscription`, `events/location`. **Fix:** backfill the rest as those units are touched (per AGENTS.md "add a test when adding a domain rule"). The two prioritized units (`standings` scoring math + `community-listing` claim/approve state machine) are done — see the [Phase 5 inc. 2 journal](../journal/2026-05-29-bundle-phase-5-inc2-domain-test-backfill.md).
+- **P3-3. Payment aggregates bypass the application layer (CQRS bypass).** ✅ Resolved 2026-05-30 (Phase 5 inc. 6 — decided: option (b), sanctioned facade). `HostStripeAccount` / `HostSubscription` are consumed via the thin `lib/` facades ([pro.ts](../../apps/web/src/lib/pro.ts), [host-stripe-account.ts](../../apps/web/src/lib/host-stripe-account.ts)) over the repository ports — and that is **intentionally kept, not drift.** The investigation: (1) both "aggregates" are **pure type aliases + a repository `interface` with no invariants** (the same P3-4 finding — nothing for a command handler to enforce); (2) the reads (`isPro`, `getHostStripeAccount`, `getHostSubscription`) are CQRS read projections, often backed by a Postgres function (`is_pro_host`); (3) **`isPro` can't move inward** — it's `React.cache`-memoized for per-request dedup (perf audit P3 #12) and `react` is purity-banned from `@pickupvb/application`; (4) the writes (`seedCustomer`/`upsertFromStripe`/`create`/`updateStatusBy*`) are **session-less Stripe mirrors** run from `lib/webhooks/*` on the admin client — no user, no RLS, so a handler adds no authz. Wrapping these in handlers would add a zero-behaviour layer (playbook item 4 — partial patterns mislead). **Documented as AGENTS.md "Patterns surfaced by audits" item #10**, with the explicit re-open trigger: if either type grows a real invariant / multi-step state transition, promote the rule into the domain and add a command handler then. See the [Phase 5 inc. 6 journal](../journal/2026-05-30-bundle-phase-5-inc6-payment-facade-decision.md).
+- **P3-4. Thin domain test coverage for newer units.** ✅ Resolved 2026-05-30 (Phase 5 inc. 5 — last testable units backfilled). Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port, `users/user-profile` (Phase 2b inc. 8), `brackets/standings` + `brackets/match` (determineWinner) + `community-listings/community-listing` + `community-listings/external-url` (Phase 5 inc. 2), and **`events/division` (33 — every `create()` invariant: label / sortOrder / surface×format / tierLabel / teamSize-required-for-pairs / priceCents / prize / schedule-window + defaults + `fromPersistence` no-validation round-trip) + `events/location` (10 — lat/long bounds incl. boundaries, required city/country, trim, blank-address allowed)** (Phase 5 inc. 5, +43 tests → domain 350). **The two remaining "untested" units the finding named — `payments/host-stripe-account` and `payments/host-subscription` — are pure type aliases + a repository `interface` with zero logic** (Stripe-shaped read models + their ports; all behaviour lives in the infra adapters, which are integration seams, not pure units). Per AGENTS.md "skip the test when the change is a pure type tweak," there is nothing to unit-test there — so **every domain unit with actual invariant logic is now covered** and P3-4 is closed. See the [Phase 5 inc. 5 journal](../journal/2026-05-30-bundle-phase-5-inc5-domain-test-backfill.md).
 
 ---
 
