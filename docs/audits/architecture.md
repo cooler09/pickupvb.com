@@ -1,5 +1,24 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 5 inc. 2 — domain test backfill; P3-4 priorities covered):**
+> Backfilled the two units the P3-4 finding named as priorities, plus two cheap
+> adjacent pure units — **+40 domain tests (267 → 307), zero production change.**
+> New: `brackets/standings.test.ts` (8 — tally + 3-key tiebreak sort + pool
+> filter + incomplete/missing-participant handling; `distinctPools`),
+> `brackets/match.test.ts` (7 — `determineWinner` best-of-N majority / null-until-
+> clinched / tied-set-invalid / null-ids), `community-listings/community-listing.test.ts`
+> (18 — create invariants + the full claim/approve/reject + hide/unhide/remove/
+> update state machine incl. every `ConflictError` guard), and
+> `community-listings/external-url.test.ts` (7 — https-only / absolute /
+> blocked-host). Picked as the safe, high-compounding step (locks in behaviour
+> so the riskier Phase-5 items — esp. the P3-2 webhook teardown — run against a
+> green suite; no product decision needed). Still-deferred P3-4 units:
+> `division`, the two payments aggregates, `events/location`. Verify quad green
+> (domain 307, application 47, web 55, infra 23; lint 0 errors). No DB change.
+> **Remaining Phase 5:** P3-2 (Stripe webhook), P3-1 (new-event-form), P3-3
+> (payment-handler decision). See the
+> [Phase 5 inc. 2 journal](../journal/2026-05-29-bundle-phase-5-inc2-domain-test-backfill.md).
+>
 > **Status update (2026-05-29, Phase 5 inc. 1 — uniform analytics-outbox dispatch; P2-4 resolved):**
 > **Phase 5 (opportunistic) has begun, closing P2-4** (half-wired domain-event
 > outbox). User chose option (a) — dispatch uniformly. `dispatchAnalyticsOutbox`
@@ -994,7 +1013,7 @@ setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
 - **P3-1. Oversized client form.** [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx) is **1,402 LOC** with 21 hook calls — the whole create-event wizard in one `'use client'` component, well past ADR 0005's ~200-LOC cap. **Fix:** decompose into step components under `events/new/_components/` sharing a form-state context, continuing the [divisions-repeater.tsx](../../apps/web/src/app/events/new/_components/divisions-repeater.tsx) extraction. [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx) (592 LOC) is the same shape and should share the extracted pieces (DRY).
 - **P3-2. Stripe webhook is an 833-LOC god-handler.** [route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts) handles all 8 event types with inline business logic writing directly to many tables, **bypassing the payment repos that already exist** (`hostSubscriptionRepo`, `eventTeamPaymentRepo`). It's the most critical money path with the least structure. **Fix:** extract one handler per Stripe event into `lib/webhooks/`, route file becomes a dispatch switch, and route the DB writes through the existing payment repositories.
 - **P3-3. Payment aggregates bypass the application layer (CQRS bypass).** `HostStripeAccount` / `HostSubscription` aggregates + repos exist but are consumed via thin `lib/` facades ([pro.ts](../../apps/web/src/lib/pro.ts), [host-stripe-account.ts](../../apps/web/src/lib/host-stripe-account.ts)) that call the repos directly — no command/query handlers, so they sit outside the handler registry the rest of the app uses. **Fix:** decide intentionally — either add `application` handlers (consistency) or document the facades as a sanctioned read-projection shortcut in `AGENTS.md` so it's not mistaken for drift.
-- **P3-4. Thin domain test coverage for newer units.** 10 domain test files for ~40 non-test source files. Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port, `users/user-profile` (added Phase 2b inc. 8 — display-name/handle invariants + friend-graph guard). **Untested:** `community-listing`, `division`, `brackets/standings`, `payments/host-stripe-account`, `payments/host-subscription`, `events/location`, `community-listings/external-url`. **Fix:** backfill invariant tests as these units are touched (per AGENTS.md "add a test when adding a domain rule"); prioritize `standings` (scoring math) and `community-listing` (claim/approve state machine).
+- **P3-4. Thin domain test coverage for newer units.** 🟢 Both audit-named priorities covered (2026-05-29, Phase 5 inc. 2). Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port, `users/user-profile` (Phase 2b inc. 8), and **`brackets/standings` + `brackets/match` (determineWinner) + `community-listings/community-listing` + `community-listings/external-url`** (Phase 5 inc. 2, +40 tests → domain 307). **Still untested (deferred, lower priority):** `division`, `payments/host-stripe-account`, `payments/host-subscription`, `events/location`. **Fix:** backfill the rest as those units are touched (per AGENTS.md "add a test when adding a domain rule"). The two prioritized units (`standings` scoring math + `community-listing` claim/approve state machine) are done — see the [Phase 5 inc. 2 journal](../journal/2026-05-29-bundle-phase-5-inc2-domain-test-backfill.md).
 
 ---
 
