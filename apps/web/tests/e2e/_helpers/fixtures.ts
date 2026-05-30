@@ -67,17 +67,25 @@ export const test = base.extend<NonNullable<unknown>, WorkerAuthFixtures>({
         );
       }
 
-      // Fresh, sessionless page → independent sign-in → independent refresh
-      // token family for this worker. `browser.newPage()` creates its own
-      // anonymous context (it does NOT inherit the project-level
-      // `use.storageState`, which only applies to the fixture-built `page`), so
-      // no explicit `storageState: undefined` is needed — and passing it would
-      // trip `exactOptionalPropertyTypes`.
-      const page = await browser.newPage();
+      // Fresh, sessionless context → independent sign-in → independent refresh
+      // token family for this worker. `browser.newContext()` does NOT inherit
+      // the project-level `use` options — that includes `use.storageState`
+      // (good: we want an anonymous context) but ALSO `use.baseURL` and
+      // `use.extraHTTPHeaders` (bad: `signIn`'s relative `/login` nav needs the
+      // baseURL, and the e2e/Vercel-bypass headers keep this sign-in traffic
+      // filtered out of telemetry and let preview deployment-protection through).
+      // So carry those two across explicitly — spread, not pass-`undefined`, to
+      // satisfy `exactOptionalPropertyTypes`.
+      const { baseURL, extraHTTPHeaders } = test.info().project.use;
+      const context = await browser.newContext({
+        ...(baseURL ? { baseURL } : {}),
+        ...(extraHTTPHeaders ? { extraHTTPHeaders } : {}),
+      });
+      const page = await context.newPage();
       await signIn(page, email, password);
       fs.mkdirSync(path.dirname(fileName), { recursive: true });
-      await page.context().storageState({ path: fileName });
-      await page.close();
+      await context.storageState({ path: fileName });
+      await context.close();
 
       await use(fileName);
     },

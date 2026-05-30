@@ -317,7 +317,9 @@ export class SupabaseEventRepository implements EventRepository {
         .eq('division.event_id', id),
       this.client
         .from('event_team_entries')
-        .select('team_id, division_id, division:event_divisions!inner(event_id)')
+        .select(
+          'team_id, division_id, division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+        )
         .eq('division.event_id', id)
         .eq('source', 'roster')
         .is('deleted_at', null),
@@ -841,7 +843,7 @@ export class SupabaseEventRepository implements EventRepository {
       this.client
         .from('event_team_entries')
         .select(
-          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!inner(event_id)',
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
         )
         .eq('division.event_id', id)
         .eq('source', 'roster')

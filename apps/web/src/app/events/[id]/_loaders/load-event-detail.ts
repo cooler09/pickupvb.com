@@ -364,14 +364,16 @@ async function loadEligibleTeamsByDivision(
     sb
       .from('event_team_entries')
       .select(
-        'division_id, team_id, teams!inner(id, name), division:event_divisions!inner(event_id)',
+        'division_id, team_id, teams!inner(id, name), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
       )
       .eq('division.event_id', event.id)
       .eq('source', 'roster')
       .is('deleted_at', null),
     sb
       .from('event_team_entries')
-      .select('id, display_name, division_id, event_divisions!inner(event_id)')
+      .select(
+        'id, display_name, division_id, event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+      )
       .eq('event_divisions.event_id', event.id)
       .neq('source', 'roster')
       .is('deleted_at', null),
@@ -411,7 +413,7 @@ async function loadLeagueTeamsByDivision(
   const { data: rows } = await sb
     .from('event_team_entries')
     .select(
-      'division_id, team_id, forfeited_at, teams!inner(id, name), division:event_divisions!inner(event_id)',
+      'division_id, team_id, forfeited_at, teams!inner(id, name), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
     )
     .eq('division.event_id', event.id)
     .eq('source', 'roster')

@@ -39,7 +39,7 @@ type PaymentRow = {
 };
 
 const SELECT_COLS =
-  'id, entry_id, captain_id, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note, created_at, updated_at, entry:event_team_entries!inner(team_id, division:event_divisions!inner(event_id))';
+  'id, entry_id, captain_id, payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note, created_at, updated_at, entry:event_team_entries!inner(team_id, division:event_divisions!event_team_entries_division_id_fkey!inner(event_id))';
 
 export class SupabaseEventTeamPaymentRepository implements EventTeamPaymentRepository {
   private _client: SupabaseClient | null = null;
@@ -106,7 +106,7 @@ export class SupabaseEventTeamPaymentRepository implements EventTeamPaymentRepos
   private async resolveEntryId(eventId: string, teamId: string): Promise<string | null> {
     const { data, error } = await this.client
       .from('event_team_entries')
-      .select('id, division:event_divisions!inner(event_id)')
+      .select('id, division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)')
       .eq('team_id', teamId)
       .eq('source', 'roster')
       .eq('division.event_id', eventId)

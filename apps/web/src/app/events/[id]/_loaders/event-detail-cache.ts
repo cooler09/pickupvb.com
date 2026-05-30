@@ -199,7 +199,7 @@ export function loadAdHocPublicRowsCached(eventId: string): Promise<AdHocRegPubl
       const { data: regData } = await admin
         .from('event_team_entries')
         .select(
-          'id, display_name, division_id, captain_id, source, event_divisions!inner(event_id), payment:event_team_payments(payment_status)',
+          'id, display_name, division_id, captain_id, source, event_divisions!event_team_entries_division_id_fkey!inner(event_id), payment:event_team_payments(payment_status)',
         )
         .eq('event_divisions.event_id', eventId)
         .neq('source', 'roster')
@@ -286,7 +286,7 @@ export function loadAdHocRowsCached(eventId: string): Promise<AdHocRegRow[]> {
       const { data } = await getAdminSupabase()
         .from('event_team_entries')
         .select(
-          'id, display_name, division_id, captain_id, source, captain_display_name, captain_phone, captain:profiles!event_team_entries_captain_id_fkey(id, display_name), members:event_team_entry_members(id, user_id, display_name, email, sort_order), payment:event_team_payments(payment_status, payment_intent_id, amount_paid_cents, payment_note), event_divisions!inner(event_id)',
+          'id, display_name, division_id, captain_id, source, captain_display_name, captain_phone, captain:profiles!event_team_entries_captain_id_fkey(id, display_name), members:event_team_entry_members(id, user_id, display_name, email, sort_order), payment:event_team_payments(payment_status, payment_intent_id, amount_paid_cents, payment_note), event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
         )
         .eq('event_divisions.event_id', eventId)
         .neq('source', 'roster')

@@ -43,7 +43,9 @@ export async function deleteTeamAction(
     // (source='roster'); we filter the parent event via the division join.
     const { data: futureRegRows } = await supabase
       .from('event_team_entries')
-      .select('id, division:event_divisions!inner(events:events!inner(id, status, starts_at))')
+      .select(
+        'id, division:event_divisions!event_team_entries_division_id_fkey!inner(events:events!inner(id, status, starts_at))',
+      )
       .eq('team_id', teamId)
       .eq('source', 'roster')
       .is('deleted_at', null)

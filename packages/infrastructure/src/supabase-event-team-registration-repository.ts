@@ -232,7 +232,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     const { data, error } = await this.client
       .from('event_team_entries')
       .select(
-        'id, division_id, source, team_id, captain_id, display_name, captain_display_name, captain_phone, forfeited_at, created_at, updated_at, event_divisions!inner(event_id), payments:event_team_payments(payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note)',
+        'id, division_id, source, team_id, captain_id, display_name, captain_display_name, captain_phone, forfeited_at, created_at, updated_at, event_divisions!event_team_entries_division_id_fkey!inner(event_id), payments:event_team_payments(payment_status, checkout_session_id, payment_intent_id, amount_paid_cents, paid_at, payment_note)',
       )
       .eq('id', entryId)
       .neq('source', 'roster')

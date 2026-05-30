@@ -71,7 +71,9 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
 
   const { data: regRow } = await supabase
     .from('event_team_entries')
-    .select('id, team_id, division_id, division:event_divisions!inner(event_id)')
+    .select(
+      'id, team_id, division_id, division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+    )
     .eq('division.event_id', eventId)
     .eq('team_id', teamId)
     .eq('source', 'roster')
