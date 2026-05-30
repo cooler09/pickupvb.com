@@ -6,6 +6,31 @@
 **Method:** read-only static review. Server actions, API routes, auth flows,
 RLS policies, third-party integrations, secrets handling, logging.
 
+**Status update (2026-05-30) — fresh re-audit:** read-only pass over the
+feature surface added since the 2026-05-17 audit (brackets, leagues, event
+divisions, ad-hoc + walk-in registrations, community listings, host
+payments). Opened **1 P1 + 1 P2** — full write-up + recommended fixes in
+[§ Reevaluation — 2026-05-30](#reevaluation--2026-05-30).
+
+- **P1 #12 — division CRUD + co-host add/remove bypass authorization (new
+  instance of the [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes)
+  admin-client → RLS-bypass class).** The `AddEventDivision` / `UpdateEventDivision`
+  / `RemoveEventDivision` and `AddEventCoHost` / `RemoveEventCoHost` handlers
+  explicitly delegate authorization to RLS ("the repo will throw a Postgres
+  permission error"), but the shared `SupabaseEventRepository` lazily
+  constructs a **service-role** client, so RLS never fires and there is **no
+  app-layer host check** anywhere on these paths. Any signed-in (incl.
+  anonymous) user can **add themselves as a co-host of any event** →
+  `canManage` flips true → full host management surface (privilege
+  escalation), or **add / edit / delete divisions on any event** (integrity
+  damage; remove can cascade registration data → data loss). This is exactly
+  the adapter-hides-the-gap warning in AGENTS.md pitfall #8.
+- **P2 #13 — cron routes fail _open_ when `CRON_SECRET` is unset.** All three
+  admin-client cron endpoints (`worker`, `reminders`, `outbox-purge`) return
+  `true` from their auth guard when the secret is missing. A prod
+  misconfiguration leaves email/push fan-out and the destructive outbox purge
+  publicly invokable.
+
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
@@ -326,6 +351,139 @@ client code that calls Supabase Storage `upload()` / `createSignedUploadUrl()`.
 No file uploads in the app today. If/when added (avatars, broadcast
 images), validate `Content-Type` and `Content-Length` at the API boundary,
 not just trust the client.
+
+---
+
+## Reevaluation — 2026-05-30
+
+Read-only re-audit against HEAD, graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = bug /
+data-loss / broken behavior; P2 = important hardening/quality; P3 =
+nice-to-have). Scope: the feature surface added since the 2026-05-17 audit
+— brackets, leagues, event divisions, ad-hoc + walk-in registrations,
+community listings, host payments — plus the cron / data-export routes that
+grew alongside them. Lens: authorization on write paths, admin-client (RLS
+bypass) usage, route auth.
+
+### What changed since the last audit
+
+The 2026-05-17 → 05-24 backlog (open-redirect, CSP, admin-client refactor of
+the checkout/tip/manage-payments actions, rate limiting, FormData cap,
+Turnstile freshness) is **closed**. The codebase roughly doubled since: the
+new aggregates each added their own server actions and command handlers.
+Most follow the sanctioned patterns — community-listing actions delegate to
+host-authorized handlers; walk-in / mark-paid-cash handlers carry explicit
+`event.hostId === requesterId` guards; `recordDivisionWinner` checks
+`canManage` on a **user-scoped** client; team delete/broadcast enforce the
+captain check in the app layer before any admin write. Two paths did not.
+
+---
+
+### P1 #12 — Division CRUD + co-host add/remove bypass authorization (admin-client → RLS-bypass; privilege escalation + data loss) 🆕 2026-05-30
+
+**Category:** Broken authorization / privilege escalation
+**Files:**
+
+- [packages/infrastructure/src/supabase-event-repository.ts#L289-L295](../../packages/infrastructure/src/supabase-event-repository.ts#L289-L295) — `SupabaseEventRepository` lazily builds a **service-role** client (`createSupabaseAdminClient()`) when none is injected.
+- [apps/web/src/lib/handlers.ts#L171-L175](../../apps/web/src/lib/handlers.ts#L171-L175) — `eventRepo` is constructed with **no client**, then handed to all five handlers.
+- [packages/application/src/commands/event-division.handler.ts#L20-L47](../../packages/application/src/commands/event-division.handler.ts#L20-L47) — `Add/Update/RemoveEventDivisionHandler`: comment says auth "lives at the DB layer (RLS) … we intentionally don't duplicate that check here."
+- [packages/application/src/commands/co-host.handler.ts#L6-L12](../../packages/application/src/commands/co-host.handler.ts#L6-L12) — `Add/RemoveEventCoHostHandler`: same RLS-reliance comment.
+- [apps/web/src/app/events/[id]/division-actions.ts#L91](../../apps/web/src/app/events/%5Bid%5D/division-actions.ts#L91) and [co-host-actions.ts#L48](../../apps/web/src/app/events/%5Bid%5D/co-host-actions.ts#L48) — both server actions only `requireSession()` (anonymous-allowed); no host check.
+
+**Issue:** The five handlers do **no** application-layer authorization. They
+load the event, mutate it (`event.addDivision(division)`,
+`repo.addCoHost(eventId, party, requesterId)`, …) and `save()` — and the
+aggregate mutators take **no actor**, so they cannot enforce host identity
+either. The handler comments document the intent: authorization is delegated
+to the RLS policies on `event_divisions` / `event_co_hosts`. But those
+mutations run through `eventRepo`, which — constructed with no client —
+lazily self-builds a **service-role** client that **bypasses RLS entirely**.
+The policy never executes; nothing throws. The bound server actions only
+`requireSession()`, which is satisfied by any logged-in user, including
+Supabase **anonymous** users. Both `eventId` and the co-host `party` are
+attacker-supplied server-action arguments.
+
+This is the precise scenario AGENTS.md pitfall #8 warns about — _"an adapter
+that lazily builds its own admin client hides the same gap"_ — and a third
+instance of the [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes)
+class (after the checkout/tip/manage-payments actions and the bracket/league
+match-result writes), this time with **zero** app-layer guard. The
+neighbouring `recordDivisionWinner`/`league-roster`/`league-schedule`
+handlers already do the right thing (explicit `canManage` / `hostId` check),
+which makes these two paths a clear oversight rather than a design choice.
+
+**Why P1:** Production-exploitable broken authorization on write paths.
+
+- **Co-host:** an attacker calls `addEventCoHost(eventId, { userId: <self> })`
+  for any event → becomes a co-host → `GetEventDetailQuery.canManage` returns
+  true → the entire host surface opens up (edit event, cancel, manage
+  payments, **Pro attendee CSV export of PII**, record winners, broadcasts).
+  Privilege escalation.
+- **Division:** `removeEventDivision(eventId, divisionId)` on someone else's
+  event deletes a division; depending on FK cascade this can take registered
+  teams / free-agents / attendees / bracket rows with it → **data loss** on a
+  live event. `add`/`update` let an attacker corrupt another host's
+  tournament configuration (pricing, capacity, format).
+
+**Fix:** Mirror the resolved match-result fix (security P2 #4 follow-on) and
+the correct `recordDivisionWinner` pattern — two equivalent options:
+
+1. **(preferred, consistent with `league-schedule`/`league-roster`)** Add an
+   explicit host/co-host/group-admin authorization check at the top of each
+   of the five handlers using the `requesterId` / `userId` they already
+   receive (it's currently "reserved for future audit columns"). Load the
+   event, and throw `UnauthorizedError` unless the requester is the host, an
+   existing co-host, or an owner/admin of the primary host group. Then update
+   the now-false RLS-reliance comments.
+2. Route these mutations through a **per-request user-scoped** repository
+   (like `getMatchResultHandlers()` in
+   [handlers.ts](../../apps/web/src/lib/handlers.ts)) so the RLS policies the
+   comments rely on actually fire.
+
+Either way, add handler tests asserting **non-host → `UnauthorizedError`**
+(the test name encodes the why, per AGENTS.md testing guidance). While here,
+audit the other handlers wired to the singleton admin-backed `eventRepo`
+([handlers.ts](../../apps/web/src/lib/handlers.ts)) for the same gap; the
+walk-in, free-agent, and create-event paths were verified to self-authorize,
+but the pattern is easy to re-introduce.
+
+---
+
+### P2 #13 — Cron routes fail _open_ when `CRON_SECRET` is unset 🆕 2026-05-30
+
+**Category:** Authentication / fail-safe defaults
+**Files:**
+
+- [apps/web/src/app/api/notifications/worker/route.ts#L45-L50](../../apps/web/src/app/api/notifications/worker/route.ts#L45-L50)
+- [apps/web/src/app/api/notifications/reminders/route.ts#L36-L41](../../apps/web/src/app/api/notifications/reminders/route.ts#L36-L41)
+- [apps/web/src/app/api/notifications/outbox-purge/route.ts#L23-L28](../../apps/web/src/app/api/notifications/outbox-purge/route.ts#L23-L28)
+
+**Issue:** Each route's auth guard is `const secret = process.env['CRON_SECRET']; if (!secret) return true; …` — i.e. **no secret configured ⇒ request authorized**. All three run on the **service-role** admin client. The "dev fallback" is convenient locally, but it is a fail-**open** posture: if `CRON_SECRET` is ever absent in the production env (rotation slip, new-environment bootstrap, typo'd key name), these endpoints become world-invokable:
+
+- `worker` drains the notification outbox → fires real email (Resend) + web-push. Repeated anonymous hits → cost + sender-reputation damage.
+- `reminders` triggers reminder fan-out to attendees → spam vector.
+- `outbox-purge` **deletes** outbox rows older than the cutoff → destructive history loss.
+
+Minor sub-point: the comparison `header === \`Bearer ${secret}\``is not constant-time. Over network jitter this is not practically exploitable, but a`crypto.timingSafeEqual` on the decoded token is the standard hardening.
+
+**Why P2:** Conditional on a prod misconfiguration rather than exploitable as-shipped, but the failure mode is severe (destructive + cost-bearing on the admin client) and the fix is a one-liner per route — a fail-safe-defaults issue worth closing now.
+
+**Fix:** Fail **closed** in production. Replace the dev fallback with:
+
+```ts
+function isAuthorized(req: Request): boolean {
+  const secret = process.env['CRON_SECRET'];
+  if (!secret) {
+    // Fail closed in prod; only the local dev fallback may run unauthenticated.
+    return process.env.NODE_ENV !== 'production';
+  }
+  const header = req.headers.get('authorization') ?? '';
+  const expected = `Bearer ${secret}`;
+  return header.length === expected.length && timingSafeEqual(header, expected);
+}
+```
+
+Better still, validate `CRON_SECRET` presence at module load in production and throw `InvariantViolation` so a misconfigured deploy fails fast rather than silently opening the routes. Factor the guard into one shared helper (`lib/cron-auth.ts`) so all three routes — and any future cron endpoint — inherit the fix.
 
 ---
 
