@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError, type DivisionId, type EventId } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
+import { isPro } from '@/lib/pro';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { AddMatchForm, MatchRow, type ScheduleMatchVm } from './_components/match-row';
 import { NOTICE_LABEL } from './_components/labels';
@@ -80,6 +81,10 @@ export default async function SchedulePage(props: {
 
   const isHost = !!event.canManage && isRealUser;
   const returnPath = `/events/${event.id}/schedule?division=${selectedDivision.id}`;
+  // ADR 0023: live scoreboard scoring is a Pro-host perk (re-checked server-side
+  // by the finalize action). Enabled for every match in the event when the host
+  // is Pro.
+  const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
 
   const matches: ScheduleMatchVm[] = (schedule?.matches ?? []).map((m) => ({
     id: String(m.id),
@@ -189,6 +194,7 @@ export default async function SchedulePage(props: {
                     teams={teams}
                     timeZone={event.timeZone}
                     isHost={isHost}
+                    liveScoringEnabled={liveScoringEnabled}
                   />
                 ))}
               </ul>

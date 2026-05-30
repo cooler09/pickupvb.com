@@ -58,6 +58,8 @@ export function BoardView(props: {
   format: BracketFormat;
   /** When set, the matching card is rendered with a ring and a "Jump to latest" link appears at the top. */
   highlightMatchId?: string | null;
+  /** Host is Pro → MatchCards offer the "Score live" launcher (ADR 0023). */
+  liveScoringEnabled?: boolean;
 }) {
   const isPoolPlay = props.format === 'pool_play_playoff';
   const isDoubleElim = props.format === 'double_elimination';
@@ -95,6 +97,7 @@ export function BoardView(props: {
           bestOf={props.bestOf}
           isHost={props.isHost}
           viewerId={props.viewerId}
+          liveScoringEnabled={props.liveScoringEnabled ?? false}
         />
       </div>
     );
@@ -151,6 +154,7 @@ export function BoardView(props: {
           isHost={props.isHost}
           viewerId={props.viewerId}
           highlightMatchId={props.highlightMatchId ?? null}
+          liveScoringEnabled={props.liveScoringEnabled ?? false}
         />
       )}
 
@@ -214,6 +218,7 @@ function PoolsView(props: {
   isHost: boolean;
   viewerId: string | null;
   highlightMatchId: string | null;
+  liveScoringEnabled?: boolean;
 }) {
   const pools = distinctPools(props.matches);
   return (
@@ -260,6 +265,7 @@ function PoolsView(props: {
                       bestOf={props.bestOf}
                       isHost={props.isHost}
                       viewerId={props.viewerId}
+                      liveScoringEnabled={props.liveScoringEnabled ?? false}
                     />
                   </div>
                 );

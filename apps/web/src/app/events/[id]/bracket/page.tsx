@@ -5,6 +5,7 @@ import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
+import { isPro } from '@/lib/pro';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { BoardView, pickLatestMatchId } from './_components/board-view';
 import { LatestMatchTracker } from './_components/latest-match-tracker';
@@ -86,6 +87,11 @@ export default async function BracketPage(props: {
   }
   const isHost = !!event.canManage && isRealUser;
   const viewerId = user?.id ?? null;
+  // ADR 0023: live scoreboard scoring is a Pro-host perk, enabled for every
+  // match in the event when the event's host is Pro. The button still only
+  // renders for the host/captains (MatchCard's `canEdit`); the finalize action
+  // re-checks this gate server-side.
+  const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
   const noticeCode = pickQuery(searchParams, 'notice');
   const noticeMsg = pickQuery(searchParams, 'msg');
   const notice = noticeCode ? (NOTICE_LABEL[noticeCode] ?? null) : null;
@@ -213,6 +219,7 @@ export default async function BracketPage(props: {
             status={bracket.status}
             format={bracket.format}
             highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
+            liveScoringEnabled={liveScoringEnabled}
           />
         </>
       )}

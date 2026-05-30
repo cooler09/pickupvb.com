@@ -1,5 +1,6 @@
 import type { Match } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
+import { ScoreLiveButton } from '../../_components/score-live-button';
 import { recordMatchResultFromForm, resetMatch } from '../actions';
 import type { TeamLite } from './labels';
 
@@ -11,6 +12,8 @@ export function MatchCard(props: {
   bestOf: number;
   isHost: boolean;
   viewerId: string | null;
+  /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
+  liveScoringEnabled?: boolean;
 }) {
   const m = props.match;
   const teamA = m.entryAId ? props.teamById.get(m.entryAId) : null;
@@ -61,6 +64,21 @@ export function MatchCard(props: {
           <span className="text-fg/70 font-medium">Work team: </span>
           {workTeam.name}
         </p>
+      )}
+
+      {props.liveScoringEnabled && canEdit && m.status !== 'bye' && teamA && teamB && (
+        <div className="mt-2">
+          <ScoreLiveButton
+            kind="bracket"
+            eventId={props.eventId}
+            divisionId={props.divisionId}
+            matchId={String(m.id)}
+            teamA={teamA.name}
+            teamB={teamB.name}
+            bestOf={props.bestOf}
+            returnPath={`/events/${props.eventId}/bracket?division=${props.divisionId}`}
+          />
+        </div>
       )}
 
       {canEdit && m.status !== 'bye' && teamA && teamB && (

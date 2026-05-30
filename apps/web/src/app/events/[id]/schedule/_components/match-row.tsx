@@ -6,6 +6,7 @@ import {
 } from '../actions';
 import { LocalDateTime } from '@/components/local-datetime';
 import { primaryButtonClass } from '@/components/primary-button';
+import { ScoreLiveButton } from '../../_components/score-live-button';
 
 type Status = 'scheduled' | 'in_progress' | 'completed' | 'forfeit' | 'cancelled';
 
@@ -118,6 +119,8 @@ export function MatchRow(props: {
   teams: ReadonlyArray<ScheduleTeam>;
   timeZone: string | null;
   isHost: boolean;
+  /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
+  liveScoringEnabled?: boolean;
 }) {
   const { eventId, divisionId, matchId, returnPath, match, teams, timeZone, isHost } = props;
   return (
@@ -147,6 +150,19 @@ export function MatchRow(props: {
       </div>
 
       {match.notes && <p className="text-muted text-xs whitespace-pre-wrap">{match.notes}</p>}
+
+      {isHost && props.liveScoringEnabled && match.homeTeamId && match.awayTeamId && (
+        <ScoreLiveButton
+          kind="league"
+          eventId={eventId}
+          divisionId={divisionId}
+          matchId={matchId}
+          teamA={teamLabel(teams, match.homeTeamId)}
+          teamB={teamLabel(teams, match.awayTeamId)}
+          bestOf={1}
+          returnPath={returnPath}
+        />
+      )}
 
       {isHost && (
         <details className="text-sm">
