@@ -5,8 +5,7 @@
  * reservation so the spot re-opens. Both key off `session.metadata.kind`.
  */
 import type Stripe from 'stripe';
-import { getAdminSupabase } from '@/lib/supabase-admin';
-import { analytics } from '@/lib/handlers';
+import { analytics, repositories } from '@/lib/handlers';
 import { log } from '@/lib/log';
 import {
   expireRosterTeamPaymentCheckout,
@@ -61,7 +60,6 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
     }
   }
 
-  const admin = getAdminSupabase();
   const paidAt = new Date().toISOString();
   const piId =
     typeof session.payment_intent === 'string'
@@ -72,24 +70,19 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
   if (meta.kind === 'attendee' && meta.user_id) {
     // The pending payment row was stamped with checkout_session_id at
     // checkout creation; key off it.
-    const { error } = await admin
-      .from('event_participant_payments')
-      .update({
-        payment_status: 'paid',
-        payment_intent_id: piId,
-        amount_paid_cents: amountTotal,
-        paid_at: paidAt,
-      } as never)
-      .eq('checkout_session_id', session.id);
-    if (error) throw new Error(`mark attendee paid failed: ${error.message}`);
+    await repositories.eventPaymentRepo.markAttendeePaymentPaidByCheckoutSession(session.id, {
+      paymentIntentId: piId,
+      amountCents: amountTotal,
+      paidAt,
+    });
 
-    await admin.from('event_payment_audit').insert({
-      event_id: meta.event_id,
-      user_id: meta.user_id,
+    await repositories.eventPaymentRepo.recordPaymentAudit({
+      eventId: meta.event_id,
+      userId: meta.user_id,
       action: 'paid',
-      amount_cents: amountTotal,
-      payment_intent_id: piId,
-    } as never);
+      amountCents: amountTotal,
+      paymentIntentId: piId,
+    });
 
     const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
     if (hostId) {
@@ -110,15 +103,10 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
   }
 
   if (meta.kind === 'tip' && meta.tip_id) {
-    const { error } = await admin
-      .from('event_tips')
-      .update({
-        status: 'paid',
-        stripe_payment_intent_id: piId,
-        paid_at: paidAt,
-      } as never)
-      .eq('id', meta.tip_id);
-    if (error) throw new Error(`mark tip paid failed: ${error.message}`);
+    await repositories.eventPaymentRepo.markTipPaid(meta.tip_id, {
+      paymentIntentId: piId,
+      paidAt,
+    });
 
     const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
     if (hostId && meta.user_id) {
@@ -209,23 +197,18 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
     const sponsorLogoUrl = (meta.sponsor_logo_url ?? '').trim() || null;
     const sponsorDiscountCode = (meta.sponsor_discount_code ?? '').trim() || null;
 
-    const { error } = await admin.from('event_sponsors').upsert(
-      {
-        event_id: meta.event_id,
-        name: sponsorName,
-        blurb: sponsorBlurb,
-        link_url: sponsorLinkUrl,
-        logo_url: sponsorLogoUrl,
-        discount_code: sponsorDiscountCode,
-        access_kind: 'ala_carte',
-        purchased_by_user_id: meta.user_id,
-        stripe_checkout_session_id: session.id,
-        stripe_payment_intent_id: piId,
-        paid_at: paidAt,
-      } as never,
-      { onConflict: 'event_id' },
-    );
-    if (error) throw new Error(`mark sponsor slot paid failed: ${error.message}`);
+    await repositories.eventPaymentRepo.upsertSponsorSlot({
+      eventId: meta.event_id,
+      name: sponsorName,
+      blurb: sponsorBlurb,
+      linkUrl: sponsorLinkUrl,
+      logoUrl: sponsorLogoUrl,
+      discountCode: sponsorDiscountCode,
+      purchasedByUserId: meta.user_id,
+      checkoutSessionId: session.id,
+      paymentIntentId: piId,
+      paidAt,
+    });
 
     const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
     if (hostId) {
@@ -252,9 +235,7 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
  * deleted between checkout creation and webhook delivery.
  */
 async function lookupHostId(eventId: string): Promise<string | null> {
-  const admin = getAdminSupabase();
-  const { data } = await admin.from('events').select('host_id').eq('id', eventId).maybeSingle();
-  return (data as { host_id: string } | null)?.host_id ?? null;
+  return repositories.eventPaymentRepo.findEventHostId(eventId);
 }
 
 /**
@@ -264,27 +245,17 @@ async function lookupHostId(eventId: string): Promise<string | null> {
 export async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<void> {
   const meta = (session.metadata ?? {}) as CheckoutMetadata;
   if (!meta.event_id || !meta.kind) return;
-  const admin = getAdminSupabase();
 
   if (meta.kind === 'attendee' && meta.user_id) {
     // Delete the pending participant; payment row cascades. Look it up
     // by checkout_session_id on the payment side first.
-    const { data: payRow } = await admin
-      .from('event_participant_payments')
-      .select('participant_id')
-      .eq('checkout_session_id', session.id)
-      .eq('payment_status', 'pending')
-      .maybeSingle();
-    const pid = (payRow as { participant_id: string } | null)?.participant_id;
-    if (pid) {
-      await admin.from('event_participants').delete().eq('id', pid);
-    }
+    await repositories.eventPaymentRepo.deletePendingAttendeeByCheckoutSession(session.id);
   }
 
   if (meta.kind === 'tip' && meta.tip_id) {
     // Drop pending tip rows on expiry; failed payments hit payment_failed
     // separately.
-    await admin.from('event_tips').delete().eq('id', meta.tip_id).eq('status', 'pending');
+    await repositories.eventPaymentRepo.deletePendingTip(meta.tip_id);
   }
 
   if (meta.kind === 'team_registration' && meta.registration_id) {

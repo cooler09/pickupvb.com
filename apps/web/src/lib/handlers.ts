@@ -6,6 +6,7 @@
 import {
   SupabaseBracketRepository,
   SupabaseCommunityListingRepository,
+  SupabaseEventPaymentRepository,
   SupabaseEventRepository,
   SupabaseEventTeamPaymentRepository,
   SupabaseEventTeamRegistrationRepository,
@@ -98,6 +99,7 @@ const eventRepo = new SupabaseEventRepository();
 const teamRepo = new SupabaseTeamRepository();
 const eventTeamRegistrationRepo = new SupabaseEventTeamRegistrationRepository();
 const eventTeamPaymentRepo = new SupabaseEventTeamPaymentRepository();
+const eventPaymentRepo = new SupabaseEventPaymentRepository();
 const bracketRepo = new SupabaseBracketRepository();
 const hostStripeAccountRepo = new SupabaseHostStripeAccountRepository();
 const hostSubscriptionRepo = new SupabaseHostSubscriptionRepository();
@@ -347,6 +349,7 @@ export async function getGroupHandlers(): Promise<{
 export const repositories = {
   bracketRepo,
   eventRepo,
+  eventPaymentRepo,
   eventTeamPaymentRepo,
   eventTeamRegistrationRepo,
   leagueScheduleRepo,

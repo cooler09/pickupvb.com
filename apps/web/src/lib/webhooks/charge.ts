@@ -5,8 +5,8 @@
  * drop pending reservations. Both are idempotent.
  */
 import type Stripe from 'stripe';
-import { getAdminSupabase } from '@/lib/supabase-admin';
 import { notify } from '@/lib/notify';
+import { repositories } from '@/lib/handlers';
 import {
   refundRosterTeamPaymentIfAny,
   refundTeamRegistrationIfAny,
@@ -18,26 +18,11 @@ import {
  * matching session here (Stripe sends both), but cleanup is idempotent.
  */
 export async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
-  const admin = getAdminSupabase();
-  // Drop pending attendee reservations attached to this PI. Look up via
-  // payments table, then delete the participant (payment cascades).
-  const { data: pendingPay } = await admin
-    .from('event_participant_payments')
-    .select('participant_id')
-    .eq('payment_intent_id', pi.id)
-    .eq('payment_status', 'pending');
-  const pids = ((pendingPay as { participant_id: string }[] | null) ?? []).map(
-    (r) => r.participant_id,
-  );
-  if (pids.length > 0) {
-    await admin.from('event_participants').delete().in('id', pids);
-  }
-  // Tips: mark failed rather than delete so the host can see attempted tips.
-  await admin
-    .from('event_tips')
-    .update({ status: 'failed' } as never)
-    .eq('stripe_payment_intent_id', pi.id)
-    .eq('status', 'pending');
+  // Drop pending attendee reservations attached to this PI (the payment
+  // cascades). Tips: mark failed rather than delete so the host can see
+  // attempted tips.
+  await repositories.eventPaymentRepo.deletePendingAttendeesByPaymentIntent(pi.id);
+  await repositories.eventPaymentRepo.markPendingTipsFailedByPaymentIntent(pi.id);
 }
 
 /**
@@ -52,55 +37,31 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
       : (charge.payment_intent?.id ?? null);
   if (!piId) return;
 
-  const admin = getAdminSupabase();
-
   // Refund could be on a tip or an attendee charge. Try tip first (cheap).
-  await admin
-    .from('event_tips')
-    .update({
-      status: 'refunded',
-      refunded_at: new Date().toISOString(),
-    } as never)
-    .eq('stripe_payment_intent_id', piId);
+  await repositories.eventPaymentRepo.markTipsRefundedByPaymentIntent(
+    piId,
+    new Date().toISOString(),
+  );
 
-  const { data: attendeeRow } = await admin
-    .from('event_participants')
-    .select(
-      'id, user_id, payment:event_participant_payments!inner(amount_paid_cents, payment_intent_id), division:event_divisions!inner(event_id)',
-    )
-    .eq('role', 'attendee')
-    .eq('payment.payment_intent_id', piId)
-    .maybeSingle();
-  type AttRow = {
-    id: string;
-    user_id: string;
-    payment: { amount_paid_cents: number } | null;
-    division: { event_id: string } | null;
-  };
-  const att = attendeeRow as unknown as AttRow | null;
-  if (att && att.division) {
-    const eventId = att.division.event_id;
-    const amountPaid = att.payment?.amount_paid_cents ?? 0;
-    await admin.from('event_participants').delete().eq('id', att.id);
-    await admin.from('event_payment_audit').insert({
-      event_id: eventId,
-      user_id: att.user_id,
+  const att = await repositories.eventPaymentRepo.findRefundableAttendeeByPaymentIntent(piId);
+  if (att) {
+    const eventId = att.eventId;
+    const amountPaid = att.amountPaidCents;
+    await repositories.eventPaymentRepo.deleteAttendee(att.participantId);
+    await repositories.eventPaymentRepo.recordPaymentAudit({
+      eventId,
+      userId: att.userId,
       action: 'refunded',
-      amount_cents: charge.amount_refunded ?? amountPaid,
-      payment_intent_id: piId,
-    } as never);
+      amountCents: charge.amount_refunded ?? amountPaid,
+      paymentIntentId: piId,
+    });
 
     // Notify the attendee. Best-effort; failures don't fail the webhook.
     try {
-      const { data: evRow } = await admin
-        .from('events')
-        .select('title')
-        .eq('id', eventId)
-        .maybeSingle();
-      const title = (evRow as { title: string } | null)?.title ?? 'event';
+      const title = (await repositories.eventPaymentRepo.findEventTitle(eventId)) ?? 'event';
       await notify(
         'payment.refunded',
-        att.user_id,
+        att.userId,
         {
           eventId,
           eventTitle: title,

@@ -1,3 +1,4 @@
+export * from './supabase-event-payment-repository';
 export * from './supabase-event-repository';
 export * from './supabase-event-team-payment-repository';
 export * from './supabase-event-team-registration-repository';
