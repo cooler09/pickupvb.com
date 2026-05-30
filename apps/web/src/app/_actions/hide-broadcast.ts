@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { NotFoundError, UnauthorizedError } from '@pickupvb/domain';
 import { SupabaseBroadcastRepository } from '@pickupvb/infrastructure';
 import { requireRealUser } from '@/lib/server-auth';
@@ -52,7 +53,7 @@ export async function hideBroadcastAction(
     await new SupabaseBroadcastRepository(getAdminSupabase()).softDelete(broadcastId);
 
     revalidatePath(eventOrTeamPath);
-    if (eventId) updateTag(`event:${eventId}`);
+    if (eventId) updateTag(eventCacheTag(eventId));
     return { ok: true };
   } catch (err) {
     if (err instanceof UnauthorizedError) return { error: err.message };

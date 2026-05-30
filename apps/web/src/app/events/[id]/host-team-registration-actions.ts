@@ -13,6 +13,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import {
   InvariantViolation,
@@ -208,6 +209,6 @@ export async function hostForceWithdrawTeamRegistration(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_force_withdrawn');
 }

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
@@ -114,6 +115,6 @@ export async function cancelEventAction(
 
   revalidatePath(`/events/${eventId}`);
   revalidatePath('/events');
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirect(`/events/${eventId}`);
 }

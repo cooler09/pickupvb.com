@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { getViewer } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
@@ -361,7 +362,7 @@ export async function editEventAction(
   // detail page reads through helpers tagged `event:<id>` (see
   // _loaders/load-event-detail.ts), so we must also bust the tag or the
   // detail page will keep rendering the stale title/time/etc.
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
 
   // Notify attendees if user-visible fields changed. Best-effort.
   if (c) {

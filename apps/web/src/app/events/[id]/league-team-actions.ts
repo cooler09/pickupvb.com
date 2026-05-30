@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { SetLeagueTeamForfeitedCommand } from '@pickupvb/application';
 import { DomainError, NotFoundError, UnauthorizedError, ValidationError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
@@ -44,7 +45,7 @@ async function setForfeited(
   } catch (err) {
     mapErrorAndFlash(eventId, err);
   }
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   revalidatePath(returnPath);
 }
 

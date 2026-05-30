@@ -1,5 +1,25 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 4 (EventRepository) inc. 3 — event-detail read-path consolidation; Phase 4 structurally complete):**
+> **P2-6 addressed — the roadmap's structural Phase 4 (`EventRepository`
+> teardown: P2-2 + P2-3 + P2-6) is now complete.** All `unstable_cache` usage
+> for `/events/[id]` moved into one module
+> [event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts);
+> [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+> shrank **999 → 625 LOC** (now purely the orchestrator). The scattered
+> `event:{id}` tag — a magic string in ~25 places — is centralized in
+> [lib/cache-tags.ts](../../apps/web/src/lib/cache-tags.ts) (`eventCacheTag` /
+> `profileCacheTag` / `hostStripeCacheTag`) and adopted at the cache sites + all
+> 16 `updateTag` eviction sites across 9 action files. **Deliberate deviation:**
+> caching is **not** pushed into `@pickupvb/application` (the audit's Fix text) —
+> `unstable_cache` is a `next/*` primitive the purity ratchet bans from the
+> application layer, so it stays in the web layer, consolidated. No runtime
+> behaviour change (same keys / windows / tags), no DB change. Verify quad green
+> (domain 267, application 42, web 55, infra 23; lint 0 errors). The
+> `EventDetailReadModel` per-surface split stays deferred (the audit's own
+> lower-priority design call). See the
+> [Phase 4 (EventRepository) inc. 3 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc3-event-detail-cache.md).
+>
 > **Status update (2026-05-29, Phase 4 (EventRepository) inc. 2 — getDetail → testable mappers):**
 > **P2-3 advanced.** `SupabaseEventRepository.getDetail` (the ~480-LOC method
 > the audit flagged as un-unit-testable) now delegates all parsing to a new pure
@@ -895,11 +915,38 @@ setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
 - **Phase 0 (2026-05-29) — done for the pure layers:** Added `idConstructor<B>()` in [shared/brand.ts](../../packages/domain/src/shared/brand.ts) + a value-level constructor next to each of the 12 branded id types. Migrated all **37 application casts** (+ 1 domain test) to `UserId(x)` / `DivisionId(x)` / `MatchId(x)` / … (and dropped spurious `findById(x as never)` casts where the port already takes `string`). Banned `as never` as an ESLint **error** in domain + application via `purityRatchet()`.
 - **Still open (web + infra):** `apps/web` (84) and `packages/infrastructure` (50) are **not** migrated. Key nuance discovered: infra's `as never` is overloaded — roughly half are brand casts, the rest are **Supabase write-payload casts** (`row as never` on `.insert/.upsert/.rpc`, documented as temporary until `gen:types`). So the ban is scoped to the pure layers only. **Fix:** migrate web brand casts opportunistically as their files move behind ports (Phases 2–4); treat the infra Supabase casts as a separate `gen:types` task. Cross-refs ADR 0009.
 
-#### P2-6. Event-detail read path is fragmented across three layers + a caching hack
+#### P2-6. Event-detail read path is fragmented across three layers + a caching hack 🟢 Caching consolidated + tags centralized (2026-05-29); per-surface read models deferred
 
-- **Where:** [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts) — **999 LOC**, ~10 `unstable_cache` helpers (`loadEventPricingCached`, `loadEventTipTotalCached`, `loadPrimaryHostSocialCached`, `loadHostStripeReadyCached`, `loadAdHocRowsCached`, `loadHeroImageCached`, `loadEventSponsorCached`, …) **plus** `repo.getDetail()` **plus** admin-client direct reads, with a `reviveEventDetailDates()` hack ([L237](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L236-L255)) to undo `unstable_cache`'s Date-flattening.
-- **Issue:** "The data for one page" is spread across the infra read model, ten web-layer cached queries, and ad-hoc admin reads — three caching strategies, scattered tag bookkeeping, and a serialization workaround. The god `EventDetailReadModel` (~80 fields, [L203-L285](../../packages/domain/src/events/event-repository.ts#L203-L285)) serves every branch (open-play / tournament / league / external / closed), so consumers get fields irrelevant to their surface and adding a surface grows the shared type.
-- **Fix:** Consolidate behind a single application-layer `GetEventDetailHandler` that owns the full composition + caching policy (the cached helpers move into infra read services from P2-3), returning a view-model the loader maps 1:1 — killing the Date-revival hack and the scattered tags. Longer-term, consider per-surface read models or a discriminated union keyed on `registrationMode`/`type` (design call; lower priority).
+> **Progress (2026-05-29, Phase 4 (EventRepository) inc. 3 — read-path consolidation):**
+> All `unstable_cache` usage now lives in **one module**,
+> [event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts)
+> (the read-model-public loader + revive hack + the 8 cached side-loads + ad-hoc
+> row types). [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+> shrank **999 → 625 LOC** and is now purely the orchestrator (read-model load,
+> two side-load waves, view-model assembly, non-cached per-request helpers). The
+> **scattered tag bookkeeping** is closed: a new
+> [lib/cache-tags.ts](../../apps/web/src/lib/cache-tags.ts) owns
+> `eventCacheTag`/`profileCacheTag`/`hostStripeCacheTag`, adopted at the cache
+> sites **and all 16 `updateTag` eviction sites across 9 action files** — the
+> tag string is no longer a magic literal copy-pasted in ~25 places.
+> **Deliberate deviation from the Fix text:** the caching is **not** moved into
+> `@pickupvb/application` — `unstable_cache` is a `next/*` primitive and the
+> purity ratchet bans `next` from the application layer, so Next caching stays
+> in the web layer (consolidated into one file); `GetEventDetailHandler` already
+> owns the read-model _composition_. The `reviveEventDetailDates` hack is kept
+> (inherent to caching a `Date`-bearing model through `unstable_cache`) but
+> co-located with its sole cache. Verify quad green (domain 267, application 42,
+> web 55, infra 23; lint 0 errors). No DB change, no runtime behaviour change
+> (same keys / windows / tag strings). See the
+> [Phase 4 (EventRepository) inc. 3 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc3-event-detail-cache.md).
+> **Deferred (the audit's own "design call, lower priority"):** the god
+> `EventDetailReadModel` still serves every surface — per-surface read models /
+> a discriminated union is a larger redesign, not worth it until a surface's
+> field set diverges enough to hurt.
+
+- **Where:** [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts) (orchestrator) + [event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts) (all caching) + [lib/cache-tags.ts](../../apps/web/src/lib/cache-tags.ts) (tag contract).
+- **Issue (original):** "The data for one page" was spread across the infra read model, ten web-layer cached queries, and ad-hoc admin reads — three caching strategies, scattered tag bookkeeping, and a serialization workaround. The god `EventDetailReadModel` (~80 fields) serves every branch (open-play / tournament / league / external / closed).
+- **Fix:** ~~Consolidate behind a single application-layer `GetEventDetailHandler` that owns the full composition + caching policy (the cached helpers move into infra read services).~~ **Caching consolidated within the web layer (inc. 3)** — the application layer can't own `unstable_cache` (framework-free ratchet), so the achievable consolidation gathers all caching into one web module + centralizes the tag contract. Per-surface read models / discriminated union remain the deferred design call.
 
 ---
 

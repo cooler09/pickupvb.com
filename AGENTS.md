@@ -494,13 +494,18 @@ evict.
 
 **If the page reads from `unstable_cache` with tags, also call
 `updateTag(tag)`.** `revalidatePath` only busts the page render cache,
-not tagged `unstable_cache` entries. Match the tag string used at the
-cache site (we use `` `event:${id}` `` for event-scoped helpers). In
+not tagged `unstable_cache` entries. **Don't hand-write the tag string —
+import the builder from [apps/web/src/lib/cache-tags.ts](apps/web/src/lib/cache-tags.ts)**
+(`eventCacheTag(id)` / `profileCacheTag(id)` / `hostStripeCacheTag(id)`).
+The tag is the contract between the cache site (the event-detail
+side-loads) and every eviction site; a literal copy-pasted in ~25 places
+silently breaks read-your-own-writes on a typo. Add a new builder there
+rather than introducing a new magic string (architecture audit P2-6). In
 Next 16 use `updateTag(tag)` from `next/cache` — the new `revalidateTag`
 requires a profile arg and targets the `'use cache'` model. Reference
 fix: every mutator in
 [apps/web/src/app/events/[id]/ad-hoc-team-actions.ts](apps/web/src/app/events/[id]/ad-hoc-team-actions.ts)
-calls both `revalidatePath(returnPath)` and ``updateTag(`event:${eventId}`)``.
+calls both `revalidatePath(returnPath)` and `updateTag(eventCacheTag(eventId))`.
 
 **Exception — Stripe-redirecting actions:** when the action redirects to a
 Stripe Checkout session and the eventual revalidation is driven by a
