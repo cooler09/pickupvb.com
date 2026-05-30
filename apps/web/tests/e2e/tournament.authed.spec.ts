@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 
 /**
  * Tournament feature flows (Section 6 of the test plan).

@@ -29,15 +29,17 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // Workers vs. shared-account auth: all `authed` specs read the same
-  // storageState (attendee-a). Supabase rotates refresh tokens on use —
-  // when several parallel workers each trigger a token refresh, the
-  // first rotation invalidates the others' refresh tokens and the rest
-  // of the suite starts redirecting to /login mid-run. CI runs serial.
-  // Locally against a remote env, cap at 2 to keep some parallelism
-  // without provoking the race; against localhost, leave Playwright to
-  // pick (most local devs run a fresh DB and the refresh path is rare).
-  workers: process.env.CI ? 1 : IS_LOCAL ? undefined : 2,
+  // Per-worker auth ([tests/e2e/_helpers/fixtures.ts]) signs attendee-a in
+  // independently once per worker (→ worker-<parallelIndex>.json), so the
+  // Supabase refresh-token race that used to force a low cap is gone (e2e
+  // audit P2 #3): independent sessions don't share a refresh-token family,
+  // so one worker's rotation can't invalidate another's. Let Playwright pick
+  // the count locally. CI stays serial *by choice* now — not for the race,
+  // but to keep load on the shared dev env + dev Supabase auth rate limits
+  // predictable; raise it once a parallel CI run is validated. Caveat: these
+  // specs still read/write shared dev data, so very high worker counts can
+  // surface data contention unrelated to auth.
+  workers: process.env.CI ? 1 : undefined,
   // The skip-budget reporter (e2e audit C1) is appended in every mode. It is
   // warn-only until `E2E_SKIP_BUDGET=<N>` is exported, at which point it fails
   // the run when the skipped-test count exceeds N — a ratchet against silent

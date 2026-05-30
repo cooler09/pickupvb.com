@@ -17,8 +17,9 @@
 > `events.ts` helper — see the remediation log. **Resolved since** (Phase 0
 > increments A + B): the `.catch(() => false)` / `networkidle` sweep (C7),
 > `navigation.ts` (#6), `browser.ts` / `withAuthContext` (#8), the
-> `isVisibleOrTimeout` no-op-timeout fix, and the skip-budget guard (C1).
-> **Still open** from that pass: per-worker storage state (#3).
+> `isVisibleOrTimeout` no-op-timeout fix, the skip-budget guard (C1), and
+> (increment C) per-worker storage state (#3). **Phase 0 is complete** — the
+> next pass is Phase 1 (brackets, C3).
 >
 > **Headline:** the suite is _broad_ (~30 specs, ~180 `test()` cases) but
 > _shallow exactly where the risk is_. The newest, highest-stakes features —
@@ -193,7 +194,8 @@ content-type) rather than a full page nav.
 timeout })`, so the `timeout` arg actually polls. Verified: e2e tsc baseline
 > unchanged at 23 (identical per-file: tournament 14 / groups-manage 6 /
 > auth-extended 2 / player-social 1), `playwright --list` parses all 186 tests.
-> Only **#3 (per-worker storage state)** remains open in Phase 0. See the
+> **#3 (per-worker storage state) closed in increment C** (per-worker auth
+> fixture; see below) — Phase 0 is now done. See the
 > [increment-B journal entry](../journal/2026-05-30-bundle-e2e-phase0-increment-b.md).
 >
 > **Update (2026-05-30):** the **`.catch(() => false)` sweep is done** —
@@ -250,14 +252,14 @@ The pattern every **mutating** test must follow once Phase 0 lands:
 Ordered by risk-reduction per unit of work. Each phase ends green with **no
 new silent skips**.
 
-|  Phase   | Theme                  | Findings       | Exit criteria                                                                                                                                                                                                                       |
-| :------: | ---------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0** ✅ | Reliability foundation | C1, C7, #6, #8 | **Done** (increments A+B; per-worker storage #3 deferred): `networkidle`/`catch` swept; `isVisibleOrTimeout` fixed; `navigation.ts` + `browser.ts` exist + adopted; skip-budget guard wired (warn-only until `E2E_SKIP_BUDGET` set) |
-|  **1**   | Brackets               | C3             | Result-advances-winner + captain/host authorization tested against a self-provisioned bracket                                                                                                                                       |
-|  **2**   | Leagues                | C2             | `league.authed.spec.ts`: schedule gen, standings, forfeit                                                                                                                                                                           |
-|  **3**   | Divisions              | C4             | Multi-division registration lands in the chosen division; division winner recorded                                                                                                                                                  |
-|  **4**   | Payments / Stripe      | C5             | Paid RSVP, team/roster checkout, tip, refund-window, Pro — green on dev; localhost auto-skips                                                                                                                                       |
-|  **5**   | Surface fill-in        | C6             | schedule, scoreboard, short links, claim, CSV/API smoke                                                                                                                                                                             |
+|  Phase   | Theme                  | Findings           | Exit criteria                                                                                                                                                                                                                                                                       |
+| :------: | ---------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0** ✅ | Reliability foundation | C1, C7, #3, #6, #8 | **Done** (increments A–C): `networkidle`/`catch` swept; `isVisibleOrTimeout` fixed; `navigation.ts` + `browser.ts` exist + adopted; skip-budget guard wired (warn-only until `E2E_SKIP_BUDGET` set); per-worker auth fixture (#3) — live `--workers=4+` run on dev still to confirm |
+|  **1**   | Brackets               | C3                 | Result-advances-winner + captain/host authorization tested against a self-provisioned bracket                                                                                                                                                                                       |
+|  **2**   | Leagues                | C2                 | `league.authed.spec.ts`: schedule gen, standings, forfeit                                                                                                                                                                                                                           |
+|  **3**   | Divisions              | C4                 | Multi-division registration lands in the chosen division; division winner recorded                                                                                                                                                                                                  |
+|  **4**   | Payments / Stripe      | C5                 | Paid RSVP, team/roster checkout, tip, refund-window, Pro — green on dev; localhost auto-skips                                                                                                                                                                                       |
+|  **5**   | Surface fill-in        | C6                 | schedule, scoreboard, short links, claim, CSV/API smoke                                                                                                                                                                                                                             |
 
 **Phase 0 — Reliability foundation (do first; everything else compounds on it).**
 Finish C7's `networkidle`/`catch` sweep. Add the two missing helpers the
@@ -368,6 +370,18 @@ For teardown, accept only `Target closed` / `already closed`; rethrow
 everything else.
 
 #### 3. Supabase refresh-token race + shared storageState
+
+> **Resolved 2026-05-30 (increment C).** Per-worker auth landed in
+> [\_helpers/fixtures.ts](../../apps/web/tests/e2e/_helpers/fixtures.ts): one
+> **independent** attendee-a sign-in per worker → `worker-<parallelIndex>.json`,
+> with the test-scoped `storageState` overridden to return it. The 20 authed
+> specs import `test` from the fixture (pure import-path swap), and the `workers`
+> cap is lifted (`undefined` locally; **CI stays `1` by choice**, not for the
+> race). This is Playwright's documented "account per parallel worker" recipe, so
+> the fix is structural — but a live `--workers=4+` run against dev is still
+> needed to confirm the race is gone in practice, and the secondary roles
+> (attendee-b / hosts / admin) still share files (follow-up). See the
+> [increment-C journal](../journal/2026-05-30-bundle-e2e-phase0-increment-c.md).
 
 [playwright.config.ts#L31-L40](../../apps/web/playwright.config.ts#L31-L40)
 documents the issue: `fullyParallel: true` + shared `STORAGE_STATE` +
@@ -566,6 +580,30 @@ it's instantly familiar.
    inline TODOs? Leaning drop.
 
 ## Remediation log
+
+### 2026-05-30 — Phase 0 increment C: per-worker auth (closes #3 → Phase 0 done)
+
+- **#3 (refresh-token race + shared storageState) — RESOLVED (structural).**
+  New [\_helpers/fixtures.ts](../../apps/web/tests/e2e/_helpers/fixtures.ts)
+  implements Playwright's worker-scoped "account per parallel worker" pattern:
+  attendee-a signs in **independently** once per `parallelIndex` →
+  `.playwright/.auth/worker-<i>.json`, and the test-scoped `storageState` option
+  is overridden to use it. Independent sessions ⇒ independent refresh-token
+  families ⇒ no cross-worker invalidation.
+- **20 authed specs migrated** — `from '@playwright/test'` →
+  `from './_helpers/fixtures'` (the fixture `export *`s the rest, so `expect` /
+  `type Page` are unchanged). No other spec edits.
+- **`workers` cap lifted** — remote-local `2` → `undefined`; CI kept at `1`
+  **by choice** (avoid an unverified load change on shared dev data + dev
+  Supabase `/token` rate limits), not because the race requires it.
+- **Kept the `setup` projects + `user.json` + role files** — the fixture fixes
+  the **primary** session only; direct `STORAGE_PATHS.*` contexts and secondary
+  roles still load shared files (per-worker for those is a follow-up).
+- **Verified:** e2e tsc unchanged at **23** (identical per-file; `fixtures.ts`
+  clean), `playwright --list` = 186 tests / 30 files (all migrated specs
+  collect), reporter fires. **Not verified:** the live parallel-load payoff —
+  needs a `--workers=4+` run against `dev.pickupvb.com` (maintainer).
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-c](../journal/2026-05-30-bundle-e2e-phase0-increment-c.md).
 
 ### 2026-05-30 — Phase 0 increment B: helpers, `withAuthContext`, skip-budget (closes #6, #8, C1)
 
