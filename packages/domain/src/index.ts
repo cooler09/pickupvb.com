@@ -8,3 +8,4 @@ export * from './leagues/index.js';
 export * from './payments/index.js';
 export * from './community-listings/index.js';
 export * from './notifications/index.js';
+export * from './scoring/index.js';

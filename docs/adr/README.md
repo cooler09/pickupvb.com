@@ -24,6 +24,10 @@ status to `Superseded by NNNN`.
 | [0017](0017-walk-in-registrations.md)               | Walk-in team registrations: source discriminator + nullable captain + cash payment   | Accepted                                                             |
 | [0018](0018-pool-play-configuration.md)             | Pool play configuration: bestOf, schedule mode, work team, courts                    | Proposed                                                             |
 | [0019](0019-division-scoped-aggregate-entries.md)   | Division-scoped team & free-agent entries live inside the event aggregate            | Accepted                                                             |
+| [0020](0020-user-profile-write-aggregate.md)        | `UserProfile` aggregate owns user-editable profile writes                            | Accepted                                                             |
+| [0021](0021-group-aggregate-and-repository.md)      | `Group` aggregate + `GroupRepository` — draining the groups subdomain                | Accepted                                                             |
+| [0022](0022-notification-outbox-port.md)            | `NotificationOutboxPort` — draining the notification subdomain                       | Accepted                                                             |
+| [0023](0023-live-match-scoring.md)                  | Live match scoring — scoreboard ↔ scheduled match, Pro-gated                         | Proposed                                                             |
 
 ## Template
 
