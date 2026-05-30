@@ -24,7 +24,21 @@
 > (4 tests) self-provisions a disposable tournament via walk-in teams and asserts
 > result-advances-winner, a read-only board for a non-host/non-captain viewer
 > (UI-level authz), record-all → champion, and reset-reverts-and-clears-downstream.
-> Next: Phase 2 (leagues, C2). Live dev run still to confirm.
+>
+> **Phase 2 (leagues, C2) is also done:** [league.authed.spec.ts](../../apps/web/tests/e2e/league.authed.spec.ts)
+> (3 tests) + [\_helpers/league.ts](../../apps/web/tests/e2e/_helpers/league.ts). Leagues
+> have **no UI provisioning path at all** (the `/events/new` type chooser offers only
+> Open Play / Tournament; the signup area renders nothing for `type === 'league'`), so
+> the helper self-provisions the league (event + roster division + N rostered teams) via
+> the opt-in service-role admin client and the spec drives the schedule / forfeit
+> surfaces through the real UI. Tests: host adds a match → records the result through the
+> RLS-gated `record_league_match_result` RPC; a non-host viewer sees the schedule
+> read-only; host forfeits and reinstates a rostered team. **Reality-check:** the audit
+> framed C2 as "schedule gen, standings, forfeit," but the _built_ surface is narrower —
+> hosts add matches **manually** (no auto schedule-generation), there is **no standings
+> UI** (standings code is bracket-only), so "standings" is exercised as "the recorded
+> score + Final status render on the schedule row." Live dev run still to confirm.
+> Next: Phase 3 (divisions, C4).
 >
 > **Headline:** the suite is _broad_ (~30 specs, ~180 `test()` cases) but
 > _shallow exactly where the risk is_. The newest, highest-stakes features —
@@ -115,6 +129,30 @@ run, email inbox, deploy-flag), gate those behind explicit env flags, and add
 a **skip-budget** guard so a regression can't silently inflate the skip count.
 
 #### C2 (P1) — Leagues: zero coverage
+
+> **Resolved 2026-05-30 (Phase 2).** New
+> [league.authed.spec.ts](../../apps/web/tests/e2e/league.authed.spec.ts) (**3 tests**) +
+> [\_helpers/league.ts](../../apps/web/tests/e2e/_helpers/league.ts). **Key constraint
+> discovered:** leagues have **no UI create or team-registration path** — the event-type
+> chooser offers only Open Play / Tournament and the event-detail signup area skips
+> `type === 'league'` entirely. So the bracket phase's "self-provision through the UI"
+> shape is impossible here; the helper instead inserts the league (event + one `roster`
+> division + N rostered teams captained by the host) through the **opt-in service-role
+> admin client** (`E2E_CLEANUP_SUPABASE_*`, the same client `cleanup.ts` uses) and the
+> spec drives only the schedule + forfeit UI. Each test owns + tears down its fixture
+> (`deleteLeagueFixture` CASCADEs the event; standalone teams are hard-deleted). The
+> three tests: (1) host adds a match then records 25–10 through the user-scoped,
+> RLS-gated `record_league_match_result` RPC; (2) a non-host/non-captain viewer
+> (attendee-b) sees the schedule **read-only** — no add form, no result-entry disclosure,
+> no score inputs (the schedule renders result entry to hosts only); (3) host **marks a
+> team forfeited** in the host-tools "League teams" panel then **reinstates** it (toggle
+> verified via button counts). **The audit's framing was partly aspirational:** there is
+> no auto schedule-generation (hosts add matches by hand) and no league standings UI
+> (standings code is bracket-only), so "standings after a result" is covered as the
+> recorded score + `Final` status rendering on the schedule row. Because there is no
+> non-admin way to stand a league up, the whole spec is a **sanctioned infra-gated skip**
+> when the admin client isn't configured — loud, counted against the skip budget, not a
+> silent `test.fixme`. Live dev run still to confirm.
 
 No league spec exists; the only references are zero — not one `test.fixme` exists in
 [tournament.authed.spec.ts](../../apps/web/tests/e2e/tournament.authed.spec.ts).
@@ -281,7 +319,7 @@ new silent skips**.
 | :------: | ---------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **0** ✅ | Reliability foundation | C1, C7, #3, #6, #8 | **Done** (increments A–C): `networkidle`/`catch` swept; `isVisibleOrTimeout` fixed; `navigation.ts` + `browser.ts` exist + adopted; skip-budget guard wired (warn-only until `E2E_SKIP_BUDGET` set); per-worker auth fixture (#3) — live `--workers=4+` run on dev still to confirm |
 |  **1**   | Brackets               | C3                 | Result-advances-winner + captain/host authorization tested against a self-provisioned bracket                                                                                                                                                                                       |
-|  **2**   | Leagues                | C2                 | `league.authed.spec.ts`: schedule gen, standings, forfeit                                                                                                                                                                                                                           |
+| **2** ✅ | Leagues                | C2                 | **Done:** `league.authed.spec.ts` + `_helpers/league.ts` (admin-client self-provision, no UI create path) — host add-match → record via RLS RPC, non-host read-only, forfeit/reinstate. Live dev run to confirm                                                                     |
 |  **3**   | Divisions              | C4                 | Multi-division registration lands in the chosen division; division winner recorded                                                                                                                                                                                                  |
 |  **4**   | Payments / Stripe      | C5                 | Paid RSVP, team/roster checkout, tip, refund-window, Pro — green on dev; localhost auto-skips                                                                                                                                                                                       |
 |  **5**   | Surface fill-in        | C6                 | schedule, scoreboard, short links, claim, CSV/API smoke                                                                                                                                                                                                                             |
@@ -605,6 +643,53 @@ it's instantly familiar.
    inline TODOs? Leaning drop.
 
 ## Remediation log
+
+### 2026-05-30 — Phase 2: league schedule + record + forfeit (closes C2)
+
+- **C2 — RESOLVED (UI coverage); live dev run pending.** New
+  [league.authed.spec.ts](../../apps/web/tests/e2e/league.authed.spec.ts) (**3 tests**) +
+  [\_helpers/league.ts](../../apps/web/tests/e2e/_helpers/league.ts)
+  (`createLeagueFixture` / `deleteLeagueFixture` / `leagueFixtureAvailable`).
+- **Leagues have no UI provisioning path — admin-client self-provision instead.**
+  Unlike brackets (walk-in escape hatch + `/events/new` flow), the event-type chooser
+  offers only Open Play / Tournament and `EventSignupArea` skips `type === 'league'`, so
+  there is no UI to create a league or register a league team. The helper inserts the
+  event (`type='league'`, host = the default per-worker attendee-a, wide/live window so
+  the `LeagueSchedule.addMatch` in-window invariant is easy to satisfy) + one `roster`
+  division + N rostered teams (captained by the host, so one account drives everything)
+  through the **opt-in service-role client** shared with `cleanup.ts`. Mirrors the row
+  recipe in `supabase/snippets/seed-tournament-fixture.sql`, but writes
+  `event_team_entries` (the table the league loaders + `listRegisteredTeams` actually
+  read), not the older `event_teams`.
+- **The three tests:** (1) **schedule + record** — host adds a Week-1 match between the
+  two teams, then records 25–10 via the per-row "Edit / record result" disclosure, which
+  drives `recordResultFromForm` → the user-scoped, RLS-gated
+  `record_league_match_result` RPC (host passes `is_event_host_for_division`); the score
+  - `Final` status render on the row. (2) **authz (UI-level)** — attendee-b (neither
+    host/co-host nor a captain; the host captains both teams) sees the schedule but **no
+    add form, no result-entry disclosure, no score inputs** — the schedule renders result
+    entry to hosts only. (3) **forfeit** — host **marks a team forfeited** in the
+    host-tools "League teams" panel then **reinstates** it; the toggle is asserted via
+    button counts (2 "Mark forfeited" ↔ 1 "Reinstate"), reopening the collapsed Host-tools
+    `<details>` after each redirect.
+- **Audit framing corrected.** C2 said "schedule gen, standings, forfeit," but the built
+  surface has **no auto schedule-generation** (hosts add matches by hand — the
+  forfeit-action comment confirms generation is a deferred follow-up) and **no league
+  standings UI** (the only `standings` code is bracket-only). "Standings after a result"
+  is therefore exercised as the recorded score + `Final` status on the schedule row.
+- **Sanctioned infra gate, not a silent fixme.** Because leagues can't be created without
+  service-role access, the spec `test.skip`s loudly (counted against the skip budget)
+  when `E2E_CLEANUP_SUPABASE_*` / `TEST_USER_EMAIL` are unset, per the reliability
+  contract's "sanctioned infra gate" exception.
+- **Verified:** typed `.insert(...)` calls compile clean against the generated `Database`
+  types (validates every required column / enum / the EWKT `geo` write); `playwright
+--list` = **9 tests / 2 files** for the league spec (all 3 collect), skip-budget
+  reporter clean; `pnpm typecheck` + `pnpm lint` unchanged (e2e is excluded from both;
+  the throwaway `tests/**` tsc shows zero new real errors — only the pre-existing,
+  config-artifact `process` warning shared by every helper); prettier-clean. **Not
+  verified:** a live run against `dev.pickupvb.com` (no creds here; tests mutate via the
+  admin client). Full rationale:
+  [journal 2026-05-30-bundle-e2e-phase2-leagues](../journal/2026-05-30-bundle-e2e-phase2-leagues.md).
 
 ### 2026-05-30 — Phase 1: bracket result-advances-winner + read-only authz (closes C3)
 
