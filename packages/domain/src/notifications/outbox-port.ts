@@ -56,3 +56,41 @@ export interface NotificationOutboxPort {
   /** Enqueue an email / sms / push message for the cron worker to deliver. */
   enqueue(message: OutboxMessage): Promise<void>;
 }
+
+/** A claimed outbox row, handed to the worker for delivery. */
+export interface OutboxRecord {
+  id: string;
+  channel: string;
+  kind: string;
+  toAddress: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+}
+
+/** A delivery failure outcome from the worker. `retryAt = null` gives up
+ * (marks the row terminally failed); a value reschedules it (status pending). */
+export interface OutboxFailure {
+  attempts: number;
+  lastError: string;
+  retryAt: string | null;
+}
+
+/**
+ * Drain side of the outbox (the cron worker + purge). Segregated from the
+ * enqueue-side `NotificationOutboxPort` (ISP) — delivery callers only enqueue,
+ * the worker only claims/completes. The same adapter implements both.
+ */
+export interface NotificationOutboxDrainPort {
+  /** Claim up to `limit` due `pending` rows (flips them to `sending`). */
+  claimBatch(limit: number): Promise<OutboxRecord[]>;
+  /** Mark a row delivered (optionally recording the provider's message id). */
+  markSent(id: string, providerId?: string): Promise<void>;
+  /** Mark a row intentionally not delivered (sms-not-wired, no push subs, …). */
+  markSkipped(id: string, reason: string): Promise<void>;
+  /** Record a delivery failure — reschedule with backoff, or give up. */
+  markFailed(id: string, failure: OutboxFailure): Promise<void>;
+  /** Purge terminal (`sent`/`skipped`) rows whose `sent_at` predates the cutoff. */
+  purgeTerminal(sentBefore: string): Promise<number>;
+  /** Purge `failed` rows whose `created_at` predates the cutoff. */
+  purgeFailed(createdBefore: string): Promise<number>;
+}

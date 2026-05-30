@@ -1,5 +1,24 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 4 inc. 2 — outbox drain: cron worker + purge):**
+> The outbox **drain side** moved behind two ISP-segregated ports. A
+> `NotificationOutboxDrainPort` (`claimBatch` / `markSent` / `markSkipped` /
+> `markFailed` / `purgeTerminal` / `purgeFailed`) — implemented by the existing
+> `SupabaseNotificationOutboxRepository` (now also a drain adapter) — and a new
+> `PushSubscriptionPort` (`listByUsers` / `deleteByEndpoints`) +
+> [SupabasePushSubscriptionRepository](../../packages/infrastructure/src/supabase-push-subscription-repository.ts).
+> The [worker route](../../apps/web/src/app/api/notifications/worker/route.ts)
+> and the [purge route](../../apps/web/src/app/api/notifications/outbox-purge/route.ts)
+> migrated off raw `supabase.from('notification_outbox'/'push_subscriptions')` —
+> the email/web-push **delivery providers and the retry/backoff policy stay in
+> the route** (orchestration), only the DB ops moved. The purge's
+> `community_listing_reports` delete (a different subdomain) stays a direct
+> admin delete, noted. Verify quad green (domain 267, application 42, web 55,
+> infra 7; lint 0 errors). No DB change. **Remaining notification surfaces:**
+> push subscribe (adds `upsert` to `PushSubscriptionPort`), broadcasts, and the
+> prefs page. See the
+> [Phase 4 inc. 2 journal](../journal/2026-05-29-bundle-phase-4-inc2-outbox-drain-worker-purge.md).
+>
 > **Status update (2026-05-29, Phase 4 inc. 1 — NotificationOutboxPort (notify fan-out)):**
 > **P2-1 Fix #3 (the notification outbox) has begun.** The core fan-out in
 > [lib/notify.ts](../../apps/web/src/lib/notify.ts) — the single entry point every
@@ -522,6 +541,12 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 4 inc. 2 — outbox drain):** the cron worker +
+> purge moved behind a `NotificationOutboxDrainPort` (claim/markSent/markSkipped/
+> markFailed/purge\*) + a `PushSubscriptionPort` (listByUsers/deleteByEndpoints);
+> delivery providers + retry policy stay in the worker route. Remaining
+> notification surfaces: push subscribe, broadcasts, prefs page.
+>
 > **Progress (2026-05-29, Phase 4 inc. 1 — NotificationOutboxPort):** Fix item #3
 > (notification outbox) started. The `lib/notify.ts` fan-out now writes through a
 > `NotificationOutboxPort` + `SupabaseNotificationOutboxRepository` (service-role

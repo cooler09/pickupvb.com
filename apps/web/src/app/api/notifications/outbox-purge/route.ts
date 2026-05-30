@@ -12,6 +12,7 @@
  * Schedule: once daily at 04:00 UTC (see vercel.json).
  */
 import { NextResponse } from 'next/server';
+import { SupabaseNotificationOutboxRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { log } from '@/lib/log';
 
@@ -32,6 +33,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const admin = createSupabaseAdminClient();
+  const outbox = new SupabaseNotificationOutboxRepository(admin);
   const now = new Date();
 
   const cutoff30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -39,29 +41,23 @@ export async function GET(request: Request): Promise<NextResponse> {
   const cutoff180 = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    const [{ count: purgedTerminal }, { count: purgedFailed }, { count: purgedReports }] =
-      await Promise.all([
-        admin
-          .from('notification_outbox')
-          .delete({ count: 'exact' })
-          .in('status', ['sent', 'skipped'])
-          .lt('sent_at', cutoff30),
-        admin
-          .from('notification_outbox')
-          .delete({ count: 'exact' })
-          .eq('status', 'failed')
-          .lt('created_at', cutoff90),
-        admin
-          .from('community_listing_reports')
-          .delete({ count: 'exact' })
-          .lt('created_at', cutoff180),
-      ]);
+    // The notification_outbox purges go through the drain port; the
+    // community_listing_reports purge belongs to the community-listings
+    // subdomain (not the notification port) and stays a direct admin delete.
+    const [purgedTerminal, purgedFailed, { count: purgedReports }] = await Promise.all([
+      outbox.purgeTerminal(cutoff30),
+      outbox.purgeFailed(cutoff90),
+      admin
+        .from('community_listing_reports')
+        .delete({ count: 'exact' })
+        .lt('created_at', cutoff180),
+    ]);
 
     return NextResponse.json({
       ok: true,
       purged: {
-        outbox_terminal: purgedTerminal ?? 0,
-        outbox_failed: purgedFailed ?? 0,
+        outbox_terminal: purgedTerminal,
+        outbox_failed: purgedFailed,
         listing_reports: purgedReports ?? 0,
       },
     });

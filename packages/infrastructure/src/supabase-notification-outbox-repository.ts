@@ -1,12 +1,26 @@
 import type {
   InAppNotification,
+  NotificationOutboxDrainPort,
   NotificationOutboxPort,
   NotificationPreferences,
+  OutboxFailure,
   OutboxMessage,
+  OutboxRecord,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
+
+const CLAIM_COLUMNS = 'id, channel, kind, to_address, payload, attempts';
+
+type OutboxRow = {
+  id: string;
+  channel: string;
+  kind: string;
+  to_address: string;
+  payload: Record<string, unknown>;
+  attempts: number;
+};
 
 type PrefsRow = {
   email_enabled: boolean;
@@ -26,7 +40,9 @@ type PrefsRow = {
  * client-injected so the caller (`lib/notify.ts`) constructs it with the admin
  * client explicitly, keeping the privileged context visible at the boundary.
  */
-export class SupabaseNotificationOutboxRepository implements NotificationOutboxPort {
+export class SupabaseNotificationOutboxRepository
+  implements NotificationOutboxPort, NotificationOutboxDrainPort
+{
   constructor(private readonly admin: SupabaseClient) {}
 
   async loadPreferences(userId: string): Promise<NotificationPreferences | null> {
@@ -79,5 +95,81 @@ export class SupabaseNotificationOutboxRepository implements NotificationOutboxP
       ...(message.idempotencyKey ? { idempotency_key: message.idempotencyKey } : {}),
     } as never);
     if (error) throw new Error(`enqueue failed: ${error.message}`);
+  }
+
+  // ---- Drain side (cron worker + purge) -------------------------------------
+
+  async claimBatch(limit: number): Promise<OutboxRecord[]> {
+    // Claim by flipping due pending rows to `sending`. Not a real SKIP LOCKED —
+    // for the volumes we expect, the race is acceptable.
+    const { data, error } = await this.admin
+      .from('notification_outbox')
+      .update({ status: 'sending' } as never)
+      .eq('status', 'pending')
+      .lte('scheduled_for', new Date().toISOString())
+      .select(CLAIM_COLUMNS)
+      .limit(limit);
+    if (error) throw new Error(`claimBatch failed: ${error.message}`);
+    return ((data as unknown as OutboxRow[] | null) ?? []).map((r) => ({
+      id: r.id,
+      channel: r.channel,
+      kind: r.kind,
+      toAddress: r.to_address,
+      payload: r.payload,
+      attempts: r.attempts,
+    }));
+  }
+
+  async markSent(id: string, providerId?: string): Promise<void> {
+    const { error } = await this.admin
+      .from('notification_outbox')
+      .update({
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        ...(providerId ? { provider_id: providerId } : {}),
+      } as never)
+      .eq('id', id);
+    if (error) throw new Error(`markSent failed: ${error.message}`);
+  }
+
+  async markSkipped(id: string, reason: string): Promise<void> {
+    const { error } = await this.admin
+      .from('notification_outbox')
+      .update({ status: 'skipped', last_error: reason } as never)
+      .eq('id', id);
+    if (error) throw new Error(`markSkipped failed: ${error.message}`);
+  }
+
+  async markFailed(id: string, failure: OutboxFailure): Promise<void> {
+    const { error } = await this.admin
+      .from('notification_outbox')
+      .update({
+        status: failure.retryAt ? 'pending' : 'failed',
+        attempts: failure.attempts,
+        last_error: failure.lastError,
+        ...(failure.retryAt ? { scheduled_for: failure.retryAt } : {}),
+      } as never)
+      .eq('id', id);
+    if (error) throw new Error(`markFailed failed: ${error.message}`);
+  }
+
+  async purgeTerminal(sentBefore: string): Promise<number> {
+    const { count, error } = await this.admin
+      .from('notification_outbox')
+      .delete({ count: 'exact' })
+      .in('status', ['sent', 'skipped'])
+      .lt('sent_at', sentBefore);
+    if (error) throw new Error(`purgeTerminal failed: ${error.message}`);
+    return count ?? 0;
+  }
+
+  async purgeFailed(createdBefore: string): Promise<number> {
+    const { count, error } = await this.admin
+      .from('notification_outbox')
+      .delete({ count: 'exact' })
+      .eq('status', 'failed')
+      .lt('created_at', createdBefore);
+    if (error) throw new Error(`purgeFailed failed: ${error.message}`);
+    return count ?? 0;
   }
 }
