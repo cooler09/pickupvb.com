@@ -47,3 +47,4 @@ supabase/.env
 # Stale temp file from a failed `gen:types` run
 packages/supabase/src/database.types.ts.tmp
 .vercel
+.env.prod
