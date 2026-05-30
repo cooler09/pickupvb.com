@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import {
+  ClearLiveMatchScoreCommand,
   RecordLeagueMatchResultCommand,
   RecordMatchResultCommand,
+  UpsertLiveMatchScoreCommand,
   liveMatchScoreToLeagueScore,
   liveMatchScoreToMatchSets,
 } from '@pickupvb/application';
@@ -19,7 +21,7 @@ import {
 import { getMatchResultHandlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { isPro } from '@/lib/pro';
-import { requireRealUser } from '@/lib/server-auth';
+import { getViewer, requireRealUser } from '@/lib/server-auth';
 import type { MatchBinding } from '../_lib/binding';
 
 /**
@@ -77,8 +79,8 @@ export async function finalizeMatchFromScoreboard(
     return { ok: false, reason: 'pro_required' };
   }
 
+  const matchHandlers = await getMatchResultHandlers();
   try {
-    const matchHandlers = await getMatchResultHandlers();
     if (binding.kind === 'bracket') {
       const sets = liveMatchScoreToMatchSets(state);
       if (sets.length === 0) {
@@ -106,7 +108,40 @@ export async function finalizeMatchFromScoreboard(
     return classify(err);
   }
 
+  // Result is now in the canonical record — drop the live row so the public
+  // view stops showing "live" for this match. Best-effort: a stale live row is
+  // harmless (overwritten on the next score, ignored once the match completes).
+  try {
+    await matchHandlers.clearLiveMatchScore.execute(
+      new ClearLiveMatchScoreCommand(binding.matchId),
+    );
+  } catch {
+    // ignore
+  }
+
   revalidatePath(`/events/${binding.eventId}`);
   if (binding.returnPath) revalidatePath(binding.returnPath);
   return { ok: true };
+}
+
+/**
+ * Per-point live persistence (ADR 0023 Phase 5 write side). Called (debounced)
+ * from the bound scoreboard as the score changes so the public bracket /
+ * standings can show the match live. Best-effort and fire-and-forget:
+ * authorization ("host or captain of this match") is enforced by the
+ * `upsert_match_live_score` RPC; a failed tick just isn't mirrored, so we
+ * swallow it rather than disrupt the scorer. The Pro gate lives on the entry
+ * button + finalize, keeping the per-point path a single cheap write.
+ */
+export async function pushLiveScore(binding: MatchBinding, state: LiveMatchScore): Promise<void> {
+  const viewer = await getViewer();
+  if (!viewer || viewer.isAnonymous) return;
+  try {
+    const matchHandlers = await getMatchResultHandlers();
+    await matchHandlers.upsertLiveMatchScore.execute(
+      new UpsertLiveMatchScoreCommand(binding.matchId, binding.kind, state),
+    );
+  } catch {
+    // best-effort — finalize is the source of truth for the official record
+  }
 }

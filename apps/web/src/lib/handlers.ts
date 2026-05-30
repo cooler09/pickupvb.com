@@ -13,6 +13,7 @@ import {
   SupabaseHostStripeAccountRepository,
   SupabaseHostSubscriptionRepository,
   SupabaseLeagueScheduleRepository,
+  SupabaseLiveMatchScoreRepository,
   SupabaseGroupRepository,
   SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
@@ -28,6 +29,7 @@ import {
   ClaimCommunityListingHandler,
   ApproveCommunityListingClaimHandler,
   RejectCommunityListingClaimHandler,
+  ClearLiveMatchScoreHandler,
   CreateBracketHandler,
   CreateCommunityListingHandler,
   CreateEventHandler,
@@ -86,6 +88,7 @@ import {
   UpdateGroupProfileHandler,
   UpdateProfileHandler,
   UpdateLeagueScheduleMatchHandler,
+  UpsertLiveMatchScoreHandler,
   WithdrawAdHocTeamRegistrationHandler,
   WithdrawTeamHandler,
 } from '@pickupvb/application';
@@ -247,14 +250,22 @@ export async function getMatchResultHandlers(): Promise<{
   recordMatchResult: RecordMatchResultHandler;
   resetMatch: ResetMatchHandler;
   recordLeagueMatchResult: RecordLeagueMatchResultHandler;
+  upsertLiveMatchScore: UpsertLiveMatchScoreHandler;
+  clearLiveMatchScore: ClearLiveMatchScoreHandler;
 }> {
   const client = await getServerSupabase();
   const userBracketRepo = new SupabaseBracketRepository(client);
   const userLeagueScheduleRepo = new SupabaseLeagueScheduleRepository(client);
+  // ADR 0023: the live (in-progress) score is captain-reachable, so it shares
+  // the user-scoped client — the `upsert_match_live_score` / `clear_match_live_score`
+  // RPCs enforce "host or captain of this match" against auth.uid().
+  const userLiveScoreRepo = new SupabaseLiveMatchScoreRepository(client);
   return {
     recordMatchResult: new RecordMatchResultHandler(userBracketRepo, analytics),
     resetMatch: new ResetMatchHandler(userBracketRepo, analytics),
     recordLeagueMatchResult: new RecordLeagueMatchResultHandler(userLeagueScheduleRepo),
+    upsertLiveMatchScore: new UpsertLiveMatchScoreHandler(userLiveScoreRepo),
+    clearLiveMatchScore: new ClearLiveMatchScoreHandler(userLiveScoreRepo),
   };
 }
 

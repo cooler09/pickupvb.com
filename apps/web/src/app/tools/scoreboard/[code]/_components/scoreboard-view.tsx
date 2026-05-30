@@ -18,7 +18,11 @@ import {
   type TeamId,
 } from '../../_lib/types.js';
 import type { MatchBinding } from '../../_lib/binding.js';
-import { finalizeMatchFromScoreboard, type FinalizeReason } from '../finalize-actions.js';
+import {
+  finalizeMatchFromScoreboard,
+  pushLiveScore,
+  type FinalizeReason,
+} from '../finalize-actions.js';
 
 type Props = {
   code: string;
@@ -91,6 +95,17 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
       if (sentinel) void sentinel.release();
     };
   }, []);
+
+  // When bound to a scheduled match, mirror the live score to the public
+  // bracket/standings (ADR 0023). Debounced: each change resets the timer, so
+  // we persist ~0.8s after the last tap rather than on every point.
+  useEffect(() => {
+    if (!binding) return;
+    const timer = setTimeout(() => {
+      void pushLiveScore(binding, state);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [binding, state]);
 
   const winner = matchWinner(state);
   const setPointA = isSetWon(state, 'A');

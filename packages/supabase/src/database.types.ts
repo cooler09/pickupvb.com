@@ -2076,6 +2076,54 @@ export type Database = {
           },
         ];
       };
+      match_live_scores: {
+        Row: {
+          created_at: string;
+          division_id: string;
+          event_id: string;
+          kind: string;
+          live_state: Json;
+          match_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          division_id: string;
+          event_id: string;
+          kind: string;
+          live_state: Json;
+          match_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          division_id?: string;
+          event_id?: string;
+          kind?: string;
+          live_state?: Json;
+          match_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'match_live_scores_division_id_fkey';
+            columns: ['division_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_divisions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'match_live_scores_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       league_schedule_matches: {
         Row: {
           away_score: number | null;
@@ -2519,6 +2567,14 @@ export type Database = {
           p_matches: Json;
           p_match_sets: Json;
         };
+        Returns: undefined;
+      };
+      upsert_match_live_score: {
+        Args: { p_match_id: string; p_kind: string; p_live_state: Json };
+        Returns: undefined;
+      };
+      clear_match_live_score: {
+        Args: { p_match_id: string };
         Returns: undefined;
       };
       _postgis_deprecate: {
