@@ -1,5 +1,26 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 4 (EventRepository) inc. 2 — getDetail → testable mappers):**
+> **P2-3 advanced.** `SupabaseEventRepository.getDetail` (the ~480-LOC method
+> the audit flagged as un-unit-testable) now delegates all parsing to a new pure
+> module [event-detail/mappers.ts](../../packages/infrastructure/src/event-detail/mappers.ts)
+> (`mapAttendees` with the waitlist + `filledByPosition` pass, `mapRegisteredTeams`,
+> `mapWinnerLabels`, `computeSpotsRemaining`, `mapCoHosts`,
+> `mapViewerHostableGroups`, `mapViewerCaptainedTeams`, `mapFreeAgents`, +
+> `toProfileLite`/`toGroupLite`). `getDetail` shrank **~480 → ~291 LOC** (just
+> the two `Promise.all` query waves + assembly now) and the adapter file **1,310
+> → 1,141 LOC**; the duplicated `rowToCapacity`/`divisionRowToCapacity` collapse
+> into one `capacityFromRow`. **+16 mapper unit tests** (infra suite 7 → 23) pin
+> the logic that had no seam before (also chips at P3-4). I **kept the queries in
+> `getDetail`** rather than splitting into query-owning `loadX` loaders as the
+> Fix text suggested — the deliberate two-wave batching is a perf characteristic,
+> and the testability the finding wants lives in the _parsing_, not the I/O.
+> `getDetail`'s public contract + query behaviour are byte-for-byte preserved.
+> Verify quad green (domain 267, application 42, web 55, infra 23; lint 0
+> errors). No DB change. **Remaining on this track:** P2-6 (consolidate the
+> 999-LOC web-layer `load-event-detail.ts` read path behind one handler). See the
+> [Phase 4 (EventRepository) inc. 2 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc2-getdetail-mappers.md).
+>
 > **Status update (2026-05-29, Phase 4 (EventRepository) inc. 1 — ISP split of the god-port):**
 > **The roadmap's structural "Phase 4" (split `EventRepository` + decompose the
 > adapter — P2-2 / P2-3 / P2-6) has begun.** Note the label collision: the
@@ -831,11 +852,35 @@ setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
 - **Issue (original):** One interface conflated **four** responsibilities: write-side aggregate persistence (`findById`/`save`), denormalized **read models** (`search`/`getDetail`/`findIdByShortCode`), ~~**social-graph reads that are not event concerns** (`getViewerFriends`, `searchFollowingFeed`)~~ (moved to `SocialGraphQueries`, Phase 2a), co-host sub-resource mutation (`addCoHost`/`removeCoHost`), and ~~**aggregate-sidestepping** division mutations (`attachTeamToDivision`/`attachFreeAgentToDivision`~~ deleted in Phase 1)`/setRosterTeamForfeited`). The header comment openly admitted the read/write CQRS mixing.
 - **Fix:** ~~Segregate the interface (ISP): `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail; findIdByShortCode }`, and put co-host + `setRosterTeamForfeited` behind a focused `EventMembershipStore`. The Supabase class can still implement all of them, but handlers depend only on the slice they use.~~ **Done (Phase 4 (EventRepository) inc. 1)** exactly as prescribed.
 
-#### P2-3. `SupabaseEventRepository` is a 1,482-LOC adapter; `getDetail` alone is ~480 LOC (SRP)
+#### P2-3. `SupabaseEventRepository` is a 1,482-LOC adapter; `getDetail` alone is ~480 LOC (SRP) ✅ getDetail parsing extracted + tested (2026-05-29)
 
-- **Where:** [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts) — `getDetail` spans [L766-L1245](../../packages/infrastructure/src/supabase-event-repository.ts#L766-L1245).
-- **Issue:** A single method runs ~15 queries and assembles the ~80-field read model inline; it can't be unit-tested in pieces and any change risks the whole event-detail surface. `rowToCapacity` / `divisionRowToCapacity` / position-roster parsing are duplicated within the file ([L117-L164](../../packages/infrastructure/src/supabase-event-repository.ts#L117-L164)).
-- **Fix:** Extract per-concern, independently-testable mappers/loaders (`loadAttendees`, `loadTeamsWithPayments`, `loadFreeAgents`, `loadCoHosts`, `loadDivisions`, `computeViewerFlags`) into a sibling `event-detail/` folder; `getDetail` becomes orchestration (`Promise.all` of the loaders + assembly). Hoist the shared row→VO mappers into `event-row-mappers.ts`. This is the adapter-side mirror of P2-2.
+> **Progress (2026-05-29, Phase 4 (EventRepository) inc. 2 — getDetail mappers):**
+> `getDetail`'s parsing is now **pure + unit-tested**. A new sibling module
+> [event-detail/mappers.ts](../../packages/infrastructure/src/event-detail/mappers.ts)
+> holds the getDetail-local row types + pure mappers (`mapAttendees` —
+> waitlist + `filledByPosition`; `mapFreeAgents`; `mapCoHosts`;
+> `mapRegisteredTeams` + `tallyTeamMembers` + `indexPaymentsByTeam`;
+> `mapViewerCaptainedTeams`; `mapViewerHostableGroups`; `mapWinnerLabels`;
+> `computeSpotsRemaining`; `toProfileLite`/`toGroupLite`), and `getDetail`
+> delegates all parsing to them — shrinking **~480 → ~291 LOC** (the remainder
+> is the two `Promise.all` query waves + assembly) and the file **1,310 → 1,141
+> LOC**. The duplicated `rowToCapacity`/`divisionRowToCapacity` collapse into one
+> `capacityFromRow({ capacity_kind, max_spots })`. **+16 mapper tests** (infra
+> suite 7 → 23) pin the waitlist/spots/payment-merge/winner-label logic that
+> previously had no seam (also chips at P3-4). **Deliberate deviation from the
+> Fix text:** kept the queries in `getDetail` rather than splitting into
+> query-owning `loadX` loaders — the two-wave batching (Wave 2 depends on Wave
+> 1's `registeredTeamIds`/`format`) is a perf characteristic, and the
+> testability the finding wants is in the _parsing_, not the I/O. Verify quad
+> green (domain 267, application 42, web 55, infra 23; lint 0 errors). No DB
+> change. See the
+> [Phase 4 (EventRepository) inc. 2 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc2-getdetail-mappers.md).
+> **Remaining:** P2-6 (consolidate the web-layer event-detail read path); and
+> optionally the same treatment for the still-large `save`/`search` paths.
+
+- **Where:** [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts) + [event-detail/mappers.ts](../../packages/infrastructure/src/event-detail/mappers.ts).
+- **Issue (original):** A single method ran ~15 queries and assembled the ~80-field read model inline; it couldn't be unit-tested in pieces and any change risked the whole event-detail surface. `rowToCapacity` / `divisionRowToCapacity` / position-roster parsing were duplicated within the file.
+- **Fix:** ~~Extract per-concern, independently-testable mappers/loaders into a sibling `event-detail/` folder; `getDetail` becomes orchestration. Hoist the shared row→VO mappers.~~ **Done (inc. 2)** — pure mappers extracted to `event-detail/mappers.ts` + 16 tests; `capacityFromRow` dedup landed. Modulo the deliberate "keep the query waves in `getDetail`" deviation noted above. The shared row→VO mappers (`divisionRowToDomain`, `divisionToRow`, `rowToExtensions`) stay in the adapter for now — hoist to `event-row-mappers.ts` if `save`/`search` get the same treatment.
 
 #### P2-4. Domain-event / outbox infrastructure is half-wired
 
