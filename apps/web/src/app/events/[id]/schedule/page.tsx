@@ -6,6 +6,7 @@ import { NotFoundError, type DivisionId, type EventId } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
+import { LiveScoresProvider } from '../_components/live-scores-provider';
 import { AddMatchForm, MatchRow, type ScheduleMatchVm } from './_components/match-row';
 import { NOTICE_LABEL } from './_components/labels';
 
@@ -178,29 +179,31 @@ export default async function SchedulePage(props: {
       {weeks.length === 0 ? (
         <p className="text-muted text-sm">No matches have been scheduled yet.</p>
       ) : (
-        <div className="space-y-6">
-          {weeks.map((w) => (
-            <section key={w} className="space-y-2">
-              <h2 className="text-fg text-sm font-semibold">Week {w}</h2>
-              <ul className="space-y-2">
-                {matchesByWeek.get(w)!.map((m) => (
-                  <MatchRow
-                    key={m.id}
-                    eventId={event.id}
-                    divisionId={selectedDivision.id}
-                    matchId={m.id}
-                    returnPath={returnPath}
-                    match={m}
-                    teams={teams}
-                    timeZone={event.timeZone}
-                    isHost={isHost}
-                    liveScoringEnabled={liveScoringEnabled}
-                  />
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <LiveScoresProvider enabled={liveScoringEnabled} divisionId={selectedDivision.id}>
+          <div className="space-y-6">
+            {weeks.map((w) => (
+              <section key={w} className="space-y-2">
+                <h2 className="text-fg text-sm font-semibold">Week {w}</h2>
+                <ul className="space-y-2">
+                  {matchesByWeek.get(w)!.map((m) => (
+                    <MatchRow
+                      key={m.id}
+                      eventId={event.id}
+                      divisionId={selectedDivision.id}
+                      matchId={m.id}
+                      returnPath={returnPath}
+                      match={m}
+                      teams={teams}
+                      timeZone={event.timeZone}
+                      isHost={isHost}
+                      liveScoringEnabled={liveScoringEnabled}
+                    />
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        </LiveScoresProvider>
       )}
     </article>
   );

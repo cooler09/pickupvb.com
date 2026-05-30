@@ -1,5 +1,6 @@
 import type { Match } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
+import { LiveScore } from '../../_components/live-score';
 import { ScoreLiveButton } from '../../_components/score-live-button';
 import { recordMatchResultFromForm, resetMatch } from '../actions';
 import type { TeamLite } from './labels';
@@ -52,6 +53,8 @@ export function MatchCard(props: {
         <TeamRow team={teamA} wins={aWins} isWinner={winner === m.entryAId} />
         <TeamRow team={teamB} wins={bWins} isWinner={winner === m.entryBId} />
       </ul>
+
+      {m.status !== 'completed' && m.status !== 'bye' && <LiveScore matchId={String(m.id)} />}
 
       {m.sets.length > 0 && (
         <p className="text-muted mt-2 text-xs">

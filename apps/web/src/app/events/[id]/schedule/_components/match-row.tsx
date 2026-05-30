@@ -6,6 +6,7 @@ import {
 } from '../actions';
 import { LocalDateTime } from '@/components/local-datetime';
 import { primaryButtonClass } from '@/components/primary-button';
+import { LiveScore } from '../../_components/live-score';
 import { ScoreLiveButton } from '../../_components/score-live-button';
 
 type Status = 'scheduled' | 'in_progress' | 'completed' | 'forfeit' | 'cancelled';
@@ -148,6 +149,10 @@ export function MatchRow(props: {
           </span>
         )}
       </div>
+
+      {(match.status === 'scheduled' || match.status === 'in_progress') && (
+        <LiveScore matchId={matchId} />
+      )}
 
       {match.notes && <p className="text-muted text-xs whitespace-pre-wrap">{match.notes}</p>}
 

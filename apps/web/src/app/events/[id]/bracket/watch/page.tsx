@@ -5,6 +5,8 @@ import { GetEventDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
+import { isPro } from '@/lib/pro';
+import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
 import { LatestMatchTracker } from '../_components/latest-match-tracker';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
@@ -139,6 +141,10 @@ export default async function BracketWatchPage(props: {
     .filter((s) => !!s && s !== 'open')
     .join(' · ');
 
+  // ADR 0023: spectators see in-progress scoreboard scores live, but only for
+  // Pro-host events (matches the gate on the scorer's entry button).
+  const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
+
   return (
     <article className="mx-auto max-w-5xl space-y-6 p-4">
       <Link href={`/events/${event.id}`} className="text-primary text-sm hover:underline">
@@ -205,7 +211,7 @@ export default async function BracketWatchPage(props: {
       )}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <>
+        <LiveScoresProvider enabled={liveScoringEnabled} divisionId={selectedDivision.id}>
           <LatestMatchTracker
             matchId={pickLatestMatchId(bracket.matches)}
             autoScroll
@@ -223,7 +229,7 @@ export default async function BracketWatchPage(props: {
             format={bracket.format}
             highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
           />
-        </>
+        </LiveScoresProvider>
       )}
     </article>
   );

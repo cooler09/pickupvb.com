@@ -7,6 +7,7 @@ import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
+import { LiveScoresProvider } from '../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from './_components/board-view';
 import { LatestMatchTracker } from './_components/latest-match-tracker';
 import { NoBracketView } from './_components/no-bracket-view';
@@ -202,7 +203,7 @@ export default async function BracketPage(props: {
       )}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <>
+        <LiveScoresProvider enabled={liveScoringEnabled} divisionId={selectedDivision.id}>
           <LatestMatchTracker
             matchId={pickLatestMatchId(bracket.matches)}
             autoScroll={false}
@@ -221,7 +222,7 @@ export default async function BracketPage(props: {
             highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
             liveScoringEnabled={liveScoringEnabled}
           />
-        </>
+        </LiveScoresProvider>
       )}
     </article>
   );
