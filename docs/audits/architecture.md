@@ -1,5 +1,19 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 4 inc. 3 — push subscribe):**
+> The push-subscription **write** side (`api/notifications/subscribe`) moved
+> behind the port. `PushSubscriptionPort` gained `upsert(userId, sub)` +
+> `removeForUser(userId, endpoint)` (with a `PushSubscriptionUpsert` DTO); the
+> [subscribe route](../../apps/web/src/app/api/notifications/subscribe/route.ts)
+> POST/DELETE migrated off raw `supabase.from('push_subscriptions')`. The
+> adapter is **client-injected** — the subscribe route passes the viewer's
+> session client (RLS-scoped self upsert/delete), the worker passes the admin
+> client (session-less read/prune) — so the same `SupabasePushSubscriptionRepository`
+> serves both. `push_subscriptions` is now fully behind the port. Verify quad
+> green (domain 267, application 42, web 55, infra 7; lint 0 errors). No DB
+> change. **Remaining P2-1:** broadcasts + the prefs page. See the
+> [Phase 4 inc. 3 journal](../journal/2026-05-29-bundle-phase-4-inc3-push-subscribe.md).
+>
 > **Status update (2026-05-29, host social-handles read — Phase 2b remnant closed):**
 > The last deferred profile read (host social handles in
 > [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts),
@@ -557,6 +571,12 @@ pages and `*-actions.ts`.
 
 #### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
 
+> **Progress (2026-05-29, Phase 4 inc. 3 — push subscribe):** the subscribe
+> route's `push_subscriptions` upsert/delete moved to
+> `PushSubscriptionPort.upsert` / `removeForUser` (user-scoped client). With the
+> worker (inc. 2) and subscribe both on the port, `push_subscriptions` is fully
+> drained. Remaining P2-1: broadcasts + prefs page.
+>
 > **Progress (2026-05-29, host social-handles read):** the last deferred profile
 > read (`load-event-detail.ts` host socials) moved to
 > `ProfileQueries.findSocialLinksById` (+ fixed a latent `getServerSupabase()`-
