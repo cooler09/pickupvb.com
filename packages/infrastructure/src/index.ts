@@ -14,5 +14,7 @@ export * from './supabase-group-repository';
 export * from './supabase-group-query-repository';
 export * from './supabase-notification-outbox-repository';
 export * from './supabase-push-subscription-repository';
+export * from './supabase-broadcast-repository';
+export * from './supabase-notification-preferences-repository';
 export * from './noop-analytics';
 export * from './posthog-analytics';

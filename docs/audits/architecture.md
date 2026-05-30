@@ -1,5 +1,42 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 4 inc. 5 — notification prefs; all three P2-1 fixes complete):**
+> The settings page (`profile/notifications`) read + write moved behind a
+> user-scoped `NotificationPreferencesPort` (`find` / `upsertChannels`) +
+> [SupabaseNotificationPreferencesRepository](../../packages/infrastructure/src/supabase-notification-preferences-repository.ts)
+> — distinct from the fan-out's admin `loadPreferences` (ISP). **With this, the
+> notification subdomain's named tables (`notification_outbox` / `broadcasts` /
+> `push_subscriptions` / `notification_preferences`) are fully drained from the
+> web layer, and all three P2-1 fix items are complete:** #1 GroupRepository
+> (ADR 0021), #2 UserProfile/ProfileQueries (ADR 0020), #3 NotificationOutboxPort
+>
+> - siblings (ADR 0022). Verify quad green (domain 267, application 42, web 55,
+>   infra 7; lint 0 errors). No DB change. **Residue (explicitly out of the three
+>   prioritized fixes):** the in-app notification _bell_ reads
+>   (`notification-bell.tsx` client island, `site-header.tsx` unread count —
+>   viewer-scoped) and the event payment **sidecars** (`event_tips` /
+>   `event_sponsors` / `event_payment_audit` / `event_participant_payments`) the
+>   finding flagged as lower-priority "don't boil the ocean" reads. See the
+>   [Phase 4 inc. 5 journal](../journal/2026-05-29-bundle-phase-4-inc5-notification-prefs.md).
+>
+> **Status update (2026-05-29, Phase 4 inc. 4 — broadcasts):**
+> The `broadcasts` table moved behind a `BroadcastPort` (`create` / `markSent` /
+> `findSender` / `softDelete`) +
+> [SupabaseBroadcastRepository](../../packages/infrastructure/src/supabase-broadcast-repository.ts).
+> The event + team [broadcast-actions](../../apps/web/src/app/events/%5Bid%5D/broadcast-actions.ts)
+> (insert → fan-out → mark-sent) and [hide-broadcast](../../apps/web/src/app/_actions/hide-broadcast.ts)
+> (sender-authz read → admin soft-delete) migrated off raw
+> `supabase.from('broadcasts')`. Client-per-op (like the broadcast RLS shape):
+> `create`/`findSender` on the user client (RLS host/captain/sender),
+> `markSent`/`softDelete` on admin (fan-out done / RLS-quirk soft-delete,
+> sender-authorized first). Also drained the two broadcast sender-name `profiles`
+> reads onto `ProfileQueries.findCardById` (keeps the profiles surface fully
+> drained). The recipient reads (`event_participants` / `team_members` / `teams`)
+> stay raw — events/teams concerns, not broadcasts. Verify quad green (domain
+> 267, application 42, web 55, infra 7; lint 0 errors). No DB change. **Remaining
+> P2-1: just the prefs page** (`profile/notifications`). See the
+> [Phase 4 inc. 4 journal](../journal/2026-05-29-bundle-phase-4-inc4-broadcasts.md).
+>
 > **Status update (2026-05-29, Phase 4 inc. 3 — push subscribe):**
 > The push-subscription **write** side (`api/notifications/subscribe`) moved
 > behind the port. `PushSubscriptionPort` gained `upsert(userId, sub)` +
@@ -569,8 +606,26 @@ pages and `*-actions.ts`.
 
 ### P2 — six findings
 
-#### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟡 Started (2026-05-29)
+#### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟢 Three named fixes complete; sidecar residue remains (2026-05-29)
 
+> **Progress (2026-05-29, Phase 4 inc. 5 — notification prefs):** the settings
+> page moved to a user-scoped `NotificationPreferencesPort` (find/upsertChannels).
+> **All three named P2-1 fixes are now complete** — #1 `GroupRepository`/
+> `GroupQueries` (groups subdomain drained), #2 `UserProfile` +
+> `ProfileQueries`/`SocialGraphQueries` (profiles/friendships drained), #3 the
+> notification subdomain (`notify` fan-out, outbox drain/purge, push
+> subscribe/prune, broadcasts, prefs — all behind ports). **Residue** (the
+> finding's explicit lower-priority reads, not part of the three fixes): the
+> in-app notification bell reads (`notification-bell.tsx` client island +
+> `site-header.tsx` unread count) and the event payment sidecars (`event_tips` /
+> `event_sponsors` / `event_payment_audit` / `event_participant_payments`).
+>
+> **Progress (2026-05-29, Phase 4 inc. 4 — broadcasts):** the `broadcasts` table
+> (event/team send + hide) moved to a `BroadcastPort` (create/markSent/findSender/
+> softDelete, client-per-op); the sender-name `profiles` reads went to
+> `ProfileQueries.findCardById`. Remaining P2-1: **just the prefs page**
+> (`profile/notifications`).
+>
 > **Progress (2026-05-29, Phase 4 inc. 3 — push subscribe):** the subscribe
 > route's `push_subscriptions` upsert/delete moved to
 > `PushSubscriptionPort.upsert` / `removeForUser` (user-scoped client). With the
