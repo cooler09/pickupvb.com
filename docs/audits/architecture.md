@@ -1,5 +1,24 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-30, Phase 5 inc. 3 — new-event-form decomposition; P3-1 partial):**
+> Relocated the create-event form's already-parameterized branch/leaf
+> components out of the **1,402-LOC** [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx)
+> into four cohesive `_components/` files (`form-primitives` — style tokens +
+> `val`/`chk` + the small shared controls; `payment-fields` — onboarding banner /
+> refund window / pricing + payment-settings subsections; `open-play-body`;
+> `external-fields`), dropping the form file to **698 LOC**. Byte-for-byte JSX,
+> no behaviour change, no new field names — a pure relocation that also unblocks
+> the `edit-event-form.tsx` (592 LOC) DRY reuse the audit flagged. The original
+> "one-use helpers, keep them inline" note is overridden precisely because they
+> become shared. **Deferred (the riskier half):** the stateful `NewEventForm`
+> orchestrator (≈660 LOC, 23 hooks) still prop-drills all form state — lifting
+> its inline sections behind a form-state context to hit the ADR-0005 ~200-LOC
+> target is behaviour-sensitive and wants the create/edit flows exercised.
+> Verify quad green (domain 307, application 47, web 55, infra 23; lint 0
+> errors). No DB change. **Remaining Phase 5:** P3-2 (Stripe webhook), P3-3
+> (payment-handler decision). See the
+> [Phase 5 inc. 3 journal](../journal/2026-05-30-bundle-phase-5-inc3-new-event-form-decomposition.md).
+>
 > **Status update (2026-05-29, Phase 5 inc. 2 — domain test backfill; P3-4 priorities covered):**
 > Backfilled the two units the P3-4 finding named as priorities, plus two cheap
 > adjacent pure units — **+40 domain tests (267 → 307), zero production change.**
@@ -1010,7 +1029,7 @@ setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
 
 ### P3 — four findings
 
-- **P3-1. Oversized client form.** [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx) is **1,402 LOC** with 21 hook calls — the whole create-event wizard in one `'use client'` component, well past ADR 0005's ~200-LOC cap. **Fix:** decompose into step components under `events/new/_components/` sharing a form-state context, continuing the [divisions-repeater.tsx](../../apps/web/src/app/events/new/_components/divisions-repeater.tsx) extraction. [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx) (592 LOC) is the same shape and should share the extracted pieces (DRY).
+- **P3-1. Oversized client form.** 🟡 Partial (2026-05-30, Phase 5 inc. 3). [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx) was **1,402 LOC**; the already-parameterized branch/leaf components were relocated into four cohesive `_components/` files (`form-primitives.tsx` — tokens + `val`/`chk` + `SkillTierSelect`/`SubmitButton`/`TypeCard`/`SegmentedControl`; `payment-fields.tsx` — `StripeOnboardingBanner`/`RefundWindowField`/`PricingSubsection`/`PaymentSettingsSubsection`; `open-play-body.tsx`; `external-fields.tsx`), dropping the file to **698 LOC** (byte-for-byte JSX, no behaviour change). **Remaining:** the stateful `NewEventForm` orchestrator (≈660 LOC, 23 hooks) still holds all form state inline — lifting its section JSX behind a form-state context (to hit ADR 0005's ~200-LOC target) + having [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx) (592 LOC) consume the shared `_components/` pieces (DRY) is the deferred, behaviour-sensitive half. See the [Phase 5 inc. 3 journal](../journal/2026-05-30-bundle-phase-5-inc3-new-event-form-decomposition.md).
 - **P3-2. Stripe webhook is an 833-LOC god-handler.** [route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts) handles all 8 event types with inline business logic writing directly to many tables, **bypassing the payment repos that already exist** (`hostSubscriptionRepo`, `eventTeamPaymentRepo`). It's the most critical money path with the least structure. **Fix:** extract one handler per Stripe event into `lib/webhooks/`, route file becomes a dispatch switch, and route the DB writes through the existing payment repositories.
 - **P3-3. Payment aggregates bypass the application layer (CQRS bypass).** `HostStripeAccount` / `HostSubscription` aggregates + repos exist but are consumed via thin `lib/` facades ([pro.ts](../../apps/web/src/lib/pro.ts), [host-stripe-account.ts](../../apps/web/src/lib/host-stripe-account.ts)) that call the repos directly — no command/query handlers, so they sit outside the handler registry the rest of the app uses. **Fix:** decide intentionally — either add `application` handlers (consistency) or document the facades as a sanctioned read-projection shortcut in `AGENTS.md` so it's not mistaken for drift.
 - **P3-4. Thin domain test coverage for newer units.** 🟢 Both audit-named priorities covered (2026-05-29, Phase 5 inc. 2). Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port, `users/user-profile` (Phase 2b inc. 8), and **`brackets/standings` + `brackets/match` (determineWinner) + `community-listings/community-listing` + `community-listings/external-url`** (Phase 5 inc. 2, +40 tests → domain 307). **Still untested (deferred, lower priority):** `division`, `payments/host-stripe-account`, `payments/host-subscription`, `events/location`. **Fix:** backfill the rest as those units are touched (per AGENTS.md "add a test when adding a domain rule"). The two prioritized units (`standings` scoring math + `community-listing` claim/approve state machine) are done — see the [Phase 5 inc. 2 journal](../journal/2026-05-29-bundle-phase-5-inc2-domain-test-backfill.md).
