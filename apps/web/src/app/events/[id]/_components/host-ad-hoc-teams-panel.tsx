@@ -1,3 +1,5 @@
+'use client';
+
 import { CloseOnSettled, FormModal, ModalFooter } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import {

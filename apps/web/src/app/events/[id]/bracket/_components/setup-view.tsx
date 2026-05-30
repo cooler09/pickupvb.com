@@ -1,3 +1,5 @@
+'use client';
+
 import type { BracketFormat } from '@pickupvb/domain';
 import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';

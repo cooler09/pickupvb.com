@@ -1,3 +1,5 @@
+'use client';
+
 import { FormModal } from '@/components/form-modal';
 import { FormatPickerForm } from './format-picker-form';
 import { WalkInTeamForm } from './walk-in-team-form';
