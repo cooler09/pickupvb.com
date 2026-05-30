@@ -605,3 +605,26 @@ is_*_captain(...)` gate, then delegate to the shared save. Reference:
 - When chasing an RLS-bypass, **audit the repository adapters**, not just
   page/action code — an adapter that lazily builds its own admin client
   hides the same gap.
+
+### 9. A handler that saves a raising aggregate must dispatch the outbox
+
+Domain events accumulate on the aggregate (`this.raise(...)`) but are only
+delivered when a handler drains them — **`raise()` does not imply delivery**.
+Every command handler that persists an aggregate which can raise events
+(`VolleyballEvent`, `Bracket`) must call `dispatchAnalyticsOutbox(aggregate,
+this.analytics)` immediately after `repo.save(aggregate)` (architecture audit
+P2-4). The port is injected as an optional `analytics?: AnalyticsPort` and
+threaded from the composition root ([handlers.ts](apps/web/src/lib/handlers.ts)).
+The dispatcher + mapper are generic over `AggregateRoot`, and the mapper is
+fail-quiet — events outside the analytics taxonomy map to `null`, so wiring a
+handler that currently raises nothing the mapper captures is a safe no-op that
+future-proofs the next captured event (it becomes a one-line mapper addition,
+delivered everywhere). Reference: the post-`save()` dispatch in every handler
+in [bracket.handler.ts](packages/application/src/commands/bracket.handler.ts).
+
+Corollary — **when generalizing a typed helper to a supertype, re-narrow with
+`instanceof` at the point that reads subtype state.** `mapDomainEventToAnalytics`
+takes `AggregateRoot<unknown>` but reads `VolleyballEvent`-only props, so it
+guards `de instanceof SpotFilled && aggregate instanceof VolleyballEvent` — the
+narrow satisfies the compiler _and_ prevents a wrong-aggregate crash when a
+`Bracket` flows through the same outbox.

@@ -1,10 +1,12 @@
 import type {
+  AnalyticsPort,
   BracketConfig,
   BracketFormat,
   BracketRepository,
   EventWriteStore,
   MatchSet,
 } from '@pickupvb/domain';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   Bracket,
   DivisionId,
@@ -117,6 +119,7 @@ export class CreateBracketHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: CreateBracketCommand): Promise<{ bracketId: string }> {
@@ -141,6 +144,7 @@ export class CreateBracketHandler {
       cmd.config,
     );
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
     return { bracketId: bracket.id };
   }
 }
@@ -149,6 +153,7 @@ export class SeedBracketHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: SeedBracketCommand): Promise<void> {
@@ -160,6 +165,7 @@ export class SeedBracketHandler {
       cmd.pools,
     );
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
@@ -167,6 +173,7 @@ export class GenerateBracketHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: GenerateBracketCommand): Promise<void> {
@@ -175,6 +182,7 @@ export class GenerateBracketHandler {
     assertHost(evt.hostId, cmd.requesterId);
     bracket.generate(() => this.brackets.nextMatchId());
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
@@ -182,6 +190,7 @@ export class GeneratePlayoffHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: GeneratePlayoffCommand): Promise<void> {
@@ -190,6 +199,7 @@ export class GeneratePlayoffHandler {
     assertHost(evt.hostId, cmd.requesterId);
     bracket.generatePlayoff(() => this.brackets.nextMatchId());
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
@@ -197,6 +207,7 @@ export class ResetBracketHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: ResetBracketCommand): Promise<void> {
@@ -205,6 +216,7 @@ export class ResetBracketHandler {
     assertHost(evt.hostId, cmd.requesterId);
     bracket.reset();
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
@@ -212,6 +224,7 @@ export class ReorderPoolMatchesHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: ReorderPoolMatchesCommand): Promise<void> {
@@ -223,11 +236,15 @@ export class ReorderPoolMatchesHandler {
       cmd.matchIdsInOrder.map((id) => MatchId(id)),
     );
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 export class RecordMatchResultHandler {
-  constructor(private readonly brackets: BracketRepository) {}
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute(cmd: RecordMatchResultCommand): Promise<void> {
     // Permissions for "host or captain of either team" are enforced by
@@ -244,11 +261,15 @@ export class RecordMatchResultHandler {
       sets: cmd.sets,
     });
     await this.brackets.saveAsMatchActor(bracket, MatchId(cmd.matchId));
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 export class ResetMatchHandler {
-  constructor(private readonly brackets: BracketRepository) {}
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute(cmd: ResetMatchCommand): Promise<void> {
     // Same authorization model as RecordMatchResultHandler: clearing a
@@ -258,5 +279,6 @@ export class ResetMatchHandler {
     if (!bracket) throw new NotFoundError('bracket', cmd.matchId);
     bracket.resetMatch(MatchId(cmd.matchId));
     await this.brackets.saveAsMatchActor(bracket, MatchId(cmd.matchId));
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }

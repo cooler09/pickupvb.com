@@ -15,11 +15,13 @@ import {
   VolleyballEvent,
   isEventPosition,
   skillTierFromLegacy,
+  type AnalyticsPort,
   type EventPosition,
   type EventWriteStore,
   type EventExtensionsInput,
 } from '@pickupvb/domain';
 import type { DivisionInputDto, EventExtensionsDto } from '@pickupvb/types';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import { CreateEventCommand } from '../messages';
 
 function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventExtensionsInput> {
@@ -91,7 +93,10 @@ export function divisionFromDto(input: DivisionInputDto, sortOrder: number): Div
  * No DI framework, no decorators, no HTTP coupling.
  */
 export class CreateEventHandler {
-  constructor(private readonly repo: EventWriteStore) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ hostId, dto }: CreateEventCommand): Promise<{ id: string }> {
     const id = EventId(randomUUID());
@@ -174,6 +179,7 @@ export class CreateEventHandler {
     event.publish();
 
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
     return { id: String(event.id) };
   }
 }

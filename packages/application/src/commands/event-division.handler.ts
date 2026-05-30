@@ -6,9 +6,11 @@ import {
   NotFoundError,
   PriceUnit,
   TeamComposition,
+  type AnalyticsPort,
   type EventWriteStore,
 } from '@pickupvb/domain';
 import { divisionFromDto } from './create-event.handler';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   AddEventDivisionCommand,
   RemoveEventDivisionCommand,
@@ -25,7 +27,10 @@ import {
  * `requesterId` is reserved for future audit columns.
  */
 export class AddEventDivisionHandler {
-  constructor(private readonly repo: EventWriteStore) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, input }: AddEventDivisionCommand): Promise<{ id: string }> {
     const event = await this.repo.findById(eventId);
@@ -36,12 +41,16 @@ export class AddEventDivisionHandler {
     const division = divisionFromDto(input, sortOrder);
     event.addDivision(division);
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
     return { id: String(division.id) };
   }
 }
 
 export class UpdateEventDivisionHandler {
-  constructor(private readonly repo: EventWriteStore) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, divisionId, updates }: UpdateEventDivisionCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
@@ -89,16 +98,21 @@ export class UpdateEventDivisionHandler {
     });
     event.updateDivision(next);
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
 export class RemoveEventDivisionHandler {
-  constructor(private readonly repo: EventWriteStore) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, divisionId }: RemoveEventDivisionCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     event.removeDivision(DivisionId(divisionId));
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }

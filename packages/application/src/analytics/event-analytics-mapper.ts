@@ -22,13 +22,16 @@
  *     division's price, `hostId` is hashed downstream by the adapter.
  */
 import type {
+  AggregateRoot,
   AnalyticsActorId,
   AnalyticsEvent,
   DomainEvent,
   EventScopedProps,
-  VolleyballEvent,
 } from '@pickupvb/domain';
-import { SpotFilled, SpotReleased } from '@pickupvb/domain';
+// `VolleyballEvent` imported as a value: used both as the `eventScopedProps`
+// param type and for the `instanceof` narrow now that the mapper accepts any
+// aggregate (P2-4).
+import { SpotFilled, SpotReleased, VolleyballEvent } from '@pickupvb/domain';
 
 export interface MappedAnalyticsCapture {
   event: AnalyticsEvent;
@@ -60,9 +63,14 @@ function eventScopedProps(evt: VolleyballEvent): EventScopedProps {
  */
 export function mapDomainEventToAnalytics(
   de: DomainEvent,
-  aggregate: VolleyballEvent,
+  aggregate: AggregateRoot<unknown>,
 ): MappedAnalyticsCapture | null {
-  if (de instanceof SpotFilled) {
+  // The two captured events are both raised by `VolleyballEvent`, and the
+  // capture props are read off that aggregate — so narrow on the concrete
+  // type. The `instanceof` is also the type-safe bridge from the generic
+  // `AggregateRoot<unknown>` the dispatcher hands us (P2-4) to the rich
+  // aggregate `eventScopedProps` needs.
+  if (de instanceof SpotFilled && aggregate instanceof VolleyballEvent) {
     return {
       event: {
         name: 'event_joined',
@@ -75,7 +83,7 @@ export function mapDomainEventToAnalytics(
       actorId: de.userId,
     };
   }
-  if (de instanceof SpotReleased) {
+  if (de instanceof SpotReleased && aggregate instanceof VolleyballEvent) {
     return {
       event: {
         name: 'event_left',
@@ -84,10 +92,12 @@ export function mapDomainEventToAnalytics(
       actorId: de.userId,
     };
   }
-  // EventCreated / EventPublished / EventCancelled / TeamRegistered /
-  // TeamWithdrawn / FreeAgentJoined / FreeAgentLeft are not in the
-  // current analytics taxonomy. Returning null is the correct
-  // fail-quiet path — add a variant + analytics-port entry when we
-  // start capturing them.
+  // Everything else is raised-but-not-captured: EventCreated / EventPublished /
+  // EventCancelled / TeamRegistered / TeamWithdrawn / FreeAgentJoined /
+  // FreeAgentLeft (VolleyballEvent) and every `Bracket` event
+  // (BracketGenerated / BracketReset / BracketCompleted / MatchResultRecorded /
+  // MatchReset). They flow through the outbox now (uniform dispatch) but map to
+  // `null` — the documented fail-quiet path. Add a variant + analytics-port
+  // entry here when we start capturing one.
   return null;
 }

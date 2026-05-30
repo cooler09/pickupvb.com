@@ -64,7 +64,10 @@ export class LeaveEventHandler {
 }
 
 export class JoinEventAsFreeAgentHandler {
-  constructor(private readonly repo: EventWriteStore) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({
     eventId,
@@ -79,16 +82,21 @@ export class JoinEventAsFreeAgentHandler {
     // persists it in one write path — no separate attach step.
     event.joinAsFreeAgent(UserId(userId), DivisionId(divisionId), notes);
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
 export class LeaveEventAsFreeAgentHandler {
-  constructor(private readonly repo: EventWriteStore) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, userId }: LeaveEventAsFreeAgentCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     event.leaveAsFreeAgent(UserId(userId));
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }

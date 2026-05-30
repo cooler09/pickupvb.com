@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AggregateRoot,
   AgeGroup,
+  BracketCompleted,
   Capacity,
   Division,
   EventCancelled,
@@ -21,11 +23,28 @@ import {
   VolleyballEvent,
   SpotFilled,
   SpotReleased,
+  type DomainEvent,
   type DivisionId,
   type EventId,
   type UserId,
 } from '@pickupvb/domain';
 import { mapDomainEventToAnalytics } from './event-analytics-mapper.js';
+
+/**
+ * Minimal non-`VolleyballEvent` aggregate, to prove the mapper's
+ * `instanceof VolleyballEvent` narrow (P2-4 generalization): the dispatcher
+ * now hands any `AggregateRoot` to the mapper, so a `SpotFilled`-shaped event
+ * arriving with the wrong aggregate must map to `null` rather than try to read
+ * VolleyballEvent-only props off it.
+ */
+class StubAggregate extends AggregateRoot<string> {
+  constructor() {
+    super('stub-1');
+  }
+  emit(e: DomainEvent): void {
+    this.raise(e);
+  }
+}
 
 const LOCATION = Location.create({
   addressLine: '1 Main',
@@ -142,5 +161,22 @@ describe('mapDomainEventToAnalytics', () => {
     expect(mapDomainEventToAnalytics(new EventCancelled('event-1', 'weather'), evt)).toBeNull();
     expect(mapDomainEventToAnalytics(new TeamRegistered('event-1', 'team-1'), evt)).toBeNull();
     expect(mapDomainEventToAnalytics(new FreeAgentJoined('event-1', 'alice'), evt)).toBeNull();
+  });
+
+  // ---- P2-4 generalization: mapper accepts any aggregate, fail-quiet --------
+
+  it('returns null for Bracket events (no taxonomy entry), without reading event props', () => {
+    // A Bracket aggregate now flows through the same outbox; its events have no
+    // analytics counterpart and must map to null.
+    const bracket = new StubAggregate();
+    expect(mapDomainEventToAnalytics(new BracketCompleted('bracket-1'), bracket)).toBeNull();
+  });
+
+  it('returns null when a SpotFilled arrives with a non-VolleyballEvent aggregate (instanceof guard)', () => {
+    // Without the `aggregate instanceof VolleyballEvent` narrow this would
+    // crash calling `eventScopedProps` on the wrong aggregate type.
+    const stub = new StubAggregate();
+    expect(mapDomainEventToAnalytics(new SpotFilled('event-1', 'alice', 0), stub)).toBeNull();
+    expect(mapDomainEventToAnalytics(new SpotReleased('event-1', 'alice'), stub)).toBeNull();
   });
 });

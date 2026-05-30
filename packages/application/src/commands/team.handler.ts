@@ -6,11 +6,13 @@ import {
   TeamId,
   UnauthorizedError,
   ValidationError,
+  type AnalyticsPort,
   type EventWriteStore,
   type Format,
   type TeamRepository,
   type UserId,
 } from '@pickupvb/domain';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   AcceptTeamInviteCommand,
   AddTeamMemberCommand,
@@ -122,6 +124,7 @@ export class RegisterTeamHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly teams: TeamRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute({ eventId, teamId, requesterId, divisionId }: RegisterTeamCommand): Promise<void> {
@@ -143,6 +146,7 @@ export class RegisterTeamHandler {
     // run inside registerTeam; save() persists the team↔division join.
     event.registerTeam(team.id, DivisionId(divisionId));
     await this.events.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
@@ -150,6 +154,7 @@ export class WithdrawTeamHandler {
   constructor(
     private readonly events: EventWriteStore,
     private readonly teams: TeamRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute({ eventId, teamId, requesterId }: WithdrawTeamCommand): Promise<void> {
@@ -162,5 +167,6 @@ export class WithdrawTeamHandler {
     if (!event) throw new NotFoundError('event', eventId);
     event.withdrawTeam(team.id);
     await this.events.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }

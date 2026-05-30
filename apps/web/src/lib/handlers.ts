@@ -155,12 +155,12 @@ const loadEventClaimFacts = async (
 };
 
 export const handlers = {
-  createEvent: new CreateEventHandler(eventRepo),
+  createEvent: new CreateEventHandler(eventRepo, analytics),
   joinEvent: new JoinEventHandler(eventRepo, analytics),
   joinEventWithPosition: new JoinEventWithPositionHandler(eventRepo, analytics),
   leaveEvent: new LeaveEventHandler(eventRepo, analytics),
-  joinEventAsFreeAgent: new JoinEventAsFreeAgentHandler(eventRepo),
-  leaveEventAsFreeAgent: new LeaveEventAsFreeAgentHandler(eventRepo),
+  joinEventAsFreeAgent: new JoinEventAsFreeAgentHandler(eventRepo, analytics),
+  leaveEventAsFreeAgent: new LeaveEventAsFreeAgentHandler(eventRepo, analytics),
   searchEvents: new SearchEventsHandler(eventRepo),
   getEventById: new GetEventByIdHandler(eventRepo),
   getEventDetail: new GetEventDetailHandler(eventRepo),
@@ -168,16 +168,16 @@ export const handlers = {
   getViewerFriends: new GetViewerFriendsHandler(socialGraphRepo),
   addEventCoHost: new AddEventCoHostHandler(eventRepo),
   removeEventCoHost: new RemoveEventCoHostHandler(eventRepo),
-  addEventDivision: new AddEventDivisionHandler(eventRepo),
-  updateEventDivision: new UpdateEventDivisionHandler(eventRepo),
-  removeEventDivision: new RemoveEventDivisionHandler(eventRepo),
+  addEventDivision: new AddEventDivisionHandler(eventRepo, analytics),
+  updateEventDivision: new UpdateEventDivisionHandler(eventRepo, analytics),
+  removeEventDivision: new RemoveEventDivisionHandler(eventRepo, analytics),
   createTeam: new CreateTeamHandler(teamRepo),
   addTeamMember: new AddTeamMemberHandler(teamRepo),
   acceptTeamInvite: new AcceptTeamInviteHandler(teamRepo),
   removeTeamMember: new RemoveTeamMemberHandler(teamRepo),
   setTeamExtraMembers: new SetTeamExtraMembersHandler(teamRepo),
-  registerTeam: new RegisterTeamHandler(eventRepo, teamRepo),
-  withdrawTeam: new WithdrawTeamHandler(eventRepo, teamRepo),
+  registerTeam: new RegisterTeamHandler(eventRepo, teamRepo, analytics),
+  withdrawTeam: new WithdrawTeamHandler(eventRepo, teamRepo, analytics),
   // ADR 0007 ad-hoc team registrations
   registerAdHocTeam: new RegisterAdHocTeamHandler(eventRepo, eventTeamRegistrationRepo),
   renameAdHocTeamRegistration: new RenameAdHocTeamRegistrationHandler(eventTeamRegistrationRepo),
@@ -189,12 +189,12 @@ export const handlers = {
   // ADR 0017 walk-in team registrations
   registerWalkInTeam: new RegisterWalkInTeamHandler(eventRepo, eventTeamRegistrationRepo),
   markWalkInPaidCash: new MarkWalkInPaidCashHandler(eventRepo, eventTeamRegistrationRepo),
-  createBracket: new CreateBracketHandler(eventRepo, bracketRepo),
-  seedBracket: new SeedBracketHandler(eventRepo, bracketRepo),
-  generateBracket: new GenerateBracketHandler(eventRepo, bracketRepo),
-  generatePlayoff: new GeneratePlayoffHandler(eventRepo, bracketRepo),
-  resetBracket: new ResetBracketHandler(eventRepo, bracketRepo),
-  reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo),
+  createBracket: new CreateBracketHandler(eventRepo, bracketRepo, analytics),
+  seedBracket: new SeedBracketHandler(eventRepo, bracketRepo, analytics),
+  generateBracket: new GenerateBracketHandler(eventRepo, bracketRepo, analytics),
+  generatePlayoff: new GeneratePlayoffHandler(eventRepo, bracketRepo, analytics),
+  resetBracket: new ResetBracketHandler(eventRepo, bracketRepo, analytics),
+  reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo, analytics),
   // NOTE: the captain-reachable match-result writes (bracket record/reset,
   // league score entry) are intentionally NOT here. They must run through a
   // user-scoped client so RLS enforces "host or captain of this match" —
@@ -250,8 +250,8 @@ export async function getMatchResultHandlers(): Promise<{
   const userBracketRepo = new SupabaseBracketRepository(client);
   const userLeagueScheduleRepo = new SupabaseLeagueScheduleRepository(client);
   return {
-    recordMatchResult: new RecordMatchResultHandler(userBracketRepo),
-    resetMatch: new ResetMatchHandler(userBracketRepo),
+    recordMatchResult: new RecordMatchResultHandler(userBracketRepo, analytics),
+    resetMatch: new ResetMatchHandler(userBracketRepo, analytics),
     recordLeagueMatchResult: new RecordLeagueMatchResultHandler(userLeagueScheduleRepo),
   };
 }

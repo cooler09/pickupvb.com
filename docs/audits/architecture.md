@@ -1,5 +1,25 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-29, Phase 5 inc. 1 — uniform analytics-outbox dispatch; P2-4 resolved):**
+> **Phase 5 (opportunistic) has begun, closing P2-4** (half-wired domain-event
+> outbox). User chose option (a) — dispatch uniformly. `dispatchAnalyticsOutbox`
+>
+> - `mapDomainEventToAnalytics` are generalized from `VolleyballEvent` to
+>   `AggregateRoot<unknown>` (with an `instanceof VolleyballEvent` narrow before
+>   reading subtype props), and **every handler that saves a raising aggregate
+>   (`VolleyballEvent` + `Bracket`) now dispatches after `save()`** via an
+>   optional injected `analytics` port — create-event, free-agent join/leave, the
+>   3 event-division handlers, team register/withdraw, all 8 bracket handlers —
+>   wired through the composition root (incl. the captain-RLS
+>   `getMatchResultHandlers`). `raise()` now implies delivery; the mapper still
+>   returns `null` for un-taxonomied events, so **no new analytics are captured**
+>   (taxonomy unchanged) — adding a capture is now a one-line mapper change, live
+>   everywhere. +5 tests (mapper instanceof-guard ×2 + new `dispatch-outbox.test.ts`
+>   ×3). Verify quad green (domain 267, application 47, web 55, infra 23; lint 0
+>   errors). No DB change. **Remaining Phase 5:** P3-2 (Stripe webhook), P3-1
+>   (new-event-form), P3-3 (payment-handler decision), P3-4 (test backfill). See
+>   the [Phase 5 inc. 1 journal](../journal/2026-05-29-bundle-phase-5-inc1-outbox-uniform-dispatch.md).
+>
 > **Status update (2026-05-29, Phase 4 (EventRepository) inc. 3 — event-detail read-path consolidation; Phase 4 structurally complete):**
 > **P2-6 addressed — the roadmap's structural Phase 4 (`EventRepository`
 > teardown: P2-2 + P2-3 + P2-6) is now complete.** All `unstable_cache` usage
@@ -902,11 +922,30 @@ setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
 - **Issue (original):** A single method ran ~15 queries and assembled the ~80-field read model inline; it couldn't be unit-tested in pieces and any change risked the whole event-detail surface. `rowToCapacity` / `divisionRowToCapacity` / position-roster parsing were duplicated within the file.
 - **Fix:** ~~Extract per-concern, independently-testable mappers/loaders into a sibling `event-detail/` folder; `getDetail` becomes orchestration. Hoist the shared row→VO mappers.~~ **Done (inc. 2)** — pure mappers extracted to `event-detail/mappers.ts` + 16 tests; `capacityFromRow` dedup landed. Modulo the deliberate "keep the query waves in `getDetail`" deviation noted above. The shared row→VO mappers (`divisionRowToDomain`, `divisionToRow`, `rowToExtensions`) stay in the adapter for now — hoist to `event-row-mappers.ts` if `save`/`search` get the same treatment.
 
-#### P2-4. Domain-event / outbox infrastructure is half-wired
+#### P2-4. Domain-event / outbox infrastructure is half-wired ✅ Resolved 2026-05-29 (Phase 5 inc. 1 — uniform dispatch)
 
-- **Where:** [aggregate-root.ts](../../packages/domain/src/shared/aggregate-root.ts), [dispatch-outbox.ts](../../packages/application/src/analytics/dispatch-outbox.ts). Raisers: only `VolleyballEvent` and `Bracket` call `this.raise(...)`; `Team` and `CommunityListing` raise nothing. Dispatchers: only [join-event.handler.ts](../../packages/application/src/commands/join-event.handler.ts) calls `dispatchAnalyticsOutbox`.
-- **Issue:** `Bracket` raises domain events that **nobody dispatches**; [team.handler.ts#L146](../../packages/application/src/commands/team.handler.ts#L146) calls `event.pullEvents()` purely to _drain and discard_; `publish`/`cancel`/`registerTeam`/`addDivision` raise events no handler drains. The pattern looks complete but only join/leave/join-with-position actually emit analytics — a trap for the next agent who assumes `raise()` ⇒ delivered.
-- **Fix:** Pick one. Either (a) dispatch uniformly — wrap every command handler's post-`save()` step in a shared `withOutbox(aggregate)` helper (or a base-handler `dispatch()` call) so any raised event is delivered; or (b) delete the unused `raise()` calls and document the outbox as "join/leave analytics only" in [analytics-port.ts](../../packages/domain/src/shared/analytics-port.ts). The half-state is the bug.
+> **Resolved (2026-05-29, Phase 5 inc. 1):** chose **option (a) — dispatch
+> uniformly** (user decision; it was a "pick one" with product implications).
+> `dispatchAnalyticsOutbox` + `mapDomainEventToAnalytics` are generalized to
+> `AggregateRoot<unknown>` (with an `instanceof VolleyballEvent` narrow before
+> reading subtype props), and **every handler that saves a raising aggregate
+> (`VolleyballEvent` + `Bracket`) now dispatches after `save()`** via an
+> optional injected `analytics` port: create-event, free-agent join/leave, the
+> 3 event-division handlers, team register/withdraw, and all 8 bracket handlers
+> (incl. the captain-RLS `RecordMatchResult`/`ResetMatch`). `raise()` now
+> implies delivery through the outbox; the mapper still returns `null` for
+> un-taxonomied events (the documented fail-quiet path), so **no new analytics
+> are captured** — the taxonomy is unchanged and adding a capture is now a
+> one-line mapper change, live everywhere. +5 tests pin the generalization
+> (mapper instanceof-guard ×2, new `dispatch-outbox.test.ts` ×3). Verify quad
+> green (domain 267, application 47, web 55, infra 23; lint 0 errors). No DB
+> change. Stale-finding note: the `team.handler.ts#L146` "drain and discard"
+> `pullEvents()` call below no longer exists. See the
+> [Phase 5 inc. 1 journal](../journal/2026-05-29-bundle-phase-5-inc1-outbox-uniform-dispatch.md).
+
+- **Where:** [aggregate-root.ts](../../packages/domain/src/shared/aggregate-root.ts), [dispatch-outbox.ts](../../packages/application/src/analytics/dispatch-outbox.ts). Raisers: only `VolleyballEvent` and `Bracket` call `this.raise(...)`; `Team` and `CommunityListing` raise nothing.
+- **Issue (original):** `Bracket` raised domain events that **nobody dispatched**; `publish`/`cancel`/`registerTeam`/`addDivision`/free-agent raises drained nowhere. The pattern looked complete but only join/leave/join-with-position actually emitted analytics — a trap for the next agent who assumes `raise()` ⇒ delivered.
+- **Fix:** ~~Pick one. (a) dispatch uniformly via a shared helper, or (b) delete the unused `raise()` calls and document "join/leave analytics only".~~ **Done — option (a)** (Phase 5 inc. 1). `dispatchAnalyticsOutbox` is the uniform post-`save()` hook over any `AggregateRoot`; the convention ("a handler that saves a raising aggregate must dispatch") is documented in AGENTS.md.
 
 #### P2-5. Branded-type boundary leaks — `as never` casts 🟡 Partial (Phase 0, 2026-05-29)
 
