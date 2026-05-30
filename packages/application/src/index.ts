@@ -8,6 +8,8 @@ export * from './commands/event-team-registration.handler';
 export * from './commands/bracket.handler';
 export * from './commands/league-schedule.handler';
 export * from './commands/league-roster.handler';
+export * from './commands/live-match-score.handler';
+export * from './scoring/live-match-finalize';
 export * from './queries/event-queries.handler';
 export * from './queries/event-detail.handler';
 export * from './commands/community-listing.handler';

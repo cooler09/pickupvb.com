@@ -222,11 +222,12 @@ Phase 1 is independent and unblocks the rest.
 
 ## Open questions / follow-ups
 
-- **League single-number semantics.** `home_score` / `away_score` is one int per
-  side (test fixtures show `21`, reading like single-game points). The
-  `LiveMatchScore` → league mapping needs a decision: **sets-won** for multi-set
-  matches, **set points** for best-of-1. Confirm what the number represents in
-  practice before Phase 3.
+- **League single-number semantics — RESOLVED 2026-05-30: adaptive.** The
+  `LiveMatchScore` → league mapping is driven by `config.bestOf`: a **best-of-1**
+  match finalizes as the single set's **points** (e.g. 25–21); a **multi-set**
+  match finalizes as **sets won** (e.g. 2–1). `home` = scoreboard side A, `away` =
+  side B (the scorer surface seeds side A = home team). Implemented as
+  `liveMatchScoreToLeagueScore` in the application finalize mapping.
 - **Persist cadence.** Per-point upsert is cheap on a narrow row; revisit a ~1s
   client debounce only if a busy multi-court event shows write pressure.
 - **Concurrency.** Two captains scoring one match → last-write-wins by the
