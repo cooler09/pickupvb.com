@@ -66,16 +66,27 @@ export async function finalizeMatchFromScoreboard(
 ): Promise<FinalizeResult> {
   const { user } = await requireRealUser();
 
-  // Host-level Pro gate (ADR 0023 §5). The entry button only renders for
-  // Pro-host events; this re-check is defense-in-depth for a crafted call.
+  // Pro gate (ADR 0023 §5). The entry button only renders Pro-gated; this
+  // re-check is defense-in-depth for a crafted call. The Pro user is the
+  // standalone bracket's owner (ADR 0025) or, for an event match, the host.
   const supabase = await getServerSupabase();
-  const { data } = await supabase
-    .from('events')
-    .select('host_id')
-    .eq('id', binding.eventId)
-    .maybeSingle();
-  const hostId = (data as { host_id: string } | null)?.host_id ?? null;
-  if (!hostId || !(await isPro(hostId))) {
+  let proUserId: string | null = null;
+  if (binding.bracketId) {
+    const { data } = await supabase
+      .from('event_brackets')
+      .select('owner_user_id')
+      .eq('id', binding.bracketId)
+      .maybeSingle();
+    proUserId = (data as { owner_user_id: string | null } | null)?.owner_user_id ?? null;
+  } else if (binding.eventId) {
+    const { data } = await supabase
+      .from('events')
+      .select('host_id')
+      .eq('id', binding.eventId)
+      .maybeSingle();
+    proUserId = (data as { host_id: string } | null)?.host_id ?? null;
+  }
+  if (!proUserId || !(await isPro(proUserId))) {
     return { ok: false, reason: 'pro_required' };
   }
 
@@ -89,8 +100,17 @@ export async function finalizeMatchFromScoreboard(
       await matchHandlers.recordMatchResult.execute(
         new RecordMatchResultCommand(binding.matchId, user.id, sets),
       );
-      revalidatePath(`/events/${binding.eventId}/bracket`);
+      if (binding.bracketId) {
+        revalidatePath(`/brackets/${binding.bracketId}`);
+        revalidatePath(`/brackets/${binding.bracketId}/watch`);
+      } else if (binding.eventId) {
+        revalidatePath(`/events/${binding.eventId}/bracket`);
+      }
     } else {
+      // League matches are always event-scoped.
+      if (!binding.divisionId) {
+        return { ok: false, reason: 'invalid', message: 'Missing division for league match.' };
+      }
       const { home, away } = liveMatchScoreToLeagueScore(state);
       await matchHandlers.recordLeagueMatchResult.execute(
         new RecordLeagueMatchResultCommand(
@@ -102,7 +122,7 @@ export async function finalizeMatchFromScoreboard(
           LeagueMatchStatus.Completed,
         ),
       );
-      revalidatePath(`/events/${binding.eventId}/schedule`);
+      if (binding.eventId) revalidatePath(`/events/${binding.eventId}/schedule`);
     }
   } catch (err) {
     return classify(err);
@@ -119,7 +139,7 @@ export async function finalizeMatchFromScoreboard(
     // ignore
   }
 
-  revalidatePath(`/events/${binding.eventId}`);
+  if (binding.eventId) revalidatePath(`/events/${binding.eventId}`);
   if (binding.returnPath) revalidatePath(binding.returnPath);
   return { ok: true };
 }

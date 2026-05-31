@@ -13,8 +13,12 @@ import type { MatchKind } from '@pickupvb/domain';
 export type { MatchKind };
 
 export interface MatchBinding {
-  eventId: string;
-  divisionId: string;
+  /** Event-scoped binding (bracket/league under an event). Omitted for a
+   *  standalone bracket, which carries `bracketId` instead (ADR 0025). */
+  eventId?: string;
+  divisionId?: string;
+  /** Standalone bracket (ADR 0025) — present instead of eventId/divisionId. */
+  bracketId?: string;
   matchId: string;
   kind: MatchKind;
   /** Page to send the host back to (and revalidate) after saving. */

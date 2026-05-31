@@ -92,10 +92,10 @@ to events.
   as the event host's Pro gate (ADR 0023). `match_live_scores.event_id` /
   `division_id` are made nullable and a `bracket_id` column is added so a
   standalone match can carry a live score; `upsert_match_live_score`'s
-  `kind='bracket'` branch resolves owner-or-host. This is the heaviest sub-area
-  and is built last; if deferred, standalone brackets simply ship with live
-  scoring disabled (manual score entry only) and the rest of the feature is
-  unaffected.
+  `kind='bracket'` branch resolves owner-or-host. Because the live-score write
+  path is keyed on `(matchId, kind)` and the RPC resolves scope from the match,
+  this needed only SQL + the web launch/subscribe surface — no
+  domain/application/infrastructure change. Shipped.
 
 ## Consequences
 

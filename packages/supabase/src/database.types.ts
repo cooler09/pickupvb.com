@@ -2117,9 +2117,10 @@ export type Database = {
       };
       match_live_scores: {
         Row: {
+          bracket_id: string | null;
           created_at: string;
-          division_id: string;
-          event_id: string;
+          division_id: string | null;
+          event_id: string | null;
           kind: string;
           live_state: Json;
           match_id: string;
@@ -2127,9 +2128,10 @@ export type Database = {
           updated_by: string | null;
         };
         Insert: {
+          bracket_id?: string | null;
           created_at?: string;
-          division_id: string;
-          event_id: string;
+          division_id?: string | null;
+          event_id?: string | null;
           kind: string;
           live_state: Json;
           match_id: string;
@@ -2137,9 +2139,10 @@ export type Database = {
           updated_by?: string | null;
         };
         Update: {
+          bracket_id?: string | null;
           created_at?: string;
-          division_id?: string;
-          event_id?: string;
+          division_id?: string | null;
+          event_id?: string | null;
           kind?: string;
           live_state?: Json;
           match_id?: string;
@@ -2147,6 +2150,13 @@ export type Database = {
           updated_by?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: 'match_live_scores_bracket_id_fkey';
+            columns: ['bracket_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_brackets';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'match_live_scores_division_id_fkey';
             columns: ['division_id'];

@@ -34,26 +34,35 @@ type LiveRow = { match_id: string; live_state: unknown };
 export function LiveScoresProvider({
   enabled,
   divisionId,
+  bracketId,
   children,
 }: {
   enabled: boolean;
-  divisionId: string;
+  /** Event path: subscribe to all live scores under this division. */
+  divisionId?: string;
+  /** Standalone bracket (ADR 0025): subscribe by bracket_id instead. */
+  bracketId?: string;
   children: ReactNode;
 }) {
   const [scores, setScores] = useState<LiveScoreMap>(() => new Map());
 
   useEffect(() => {
     if (!enabled) return;
+    // Event subscribes by division_id; standalone by bracket_id. Both columns
+    // carry REPLICA IDENTITY FULL so DELETE/UPDATE match the non-PK filter.
+    const filterColumn = divisionId ? 'division_id' : 'bracket_id';
+    const filterValue = divisionId ?? bracketId;
+    if (!filterValue) return;
     const supabase = createSupabaseBrowserClient();
     let cancelled = false;
 
-    const channel = supabase.channel(`live-scores:${divisionId}`).on(
+    const channel = supabase.channel(`live-scores:${filterColumn}:${filterValue}`).on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'match_live_scores',
-        filter: `division_id=eq.${divisionId}`,
+        filter: `${filterColumn}=eq.${filterValue}`,
       },
       (payload) => {
         setScores((prev) => {
@@ -77,7 +86,7 @@ export function LiveScoresProvider({
       const { data } = await supabase
         .from('match_live_scores')
         .select('match_id, live_state')
-        .eq('division_id', divisionId);
+        .eq(filterColumn, filterValue);
       if (cancelled || !data) return;
       setScores((prev) => {
         const next = new Map(prev);
@@ -92,7 +101,7 @@ export function LiveScoresProvider({
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [enabled, divisionId]);
+  }, [enabled, divisionId, bracketId]);
 
   return <LiveScoresContext.Provider value={scores}>{children}</LiveScoresContext.Provider>;
 }

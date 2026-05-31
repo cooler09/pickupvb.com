@@ -19,8 +19,12 @@ import { generateRoomCode } from '@/app/tools/scoreboard/_lib/room-code';
  * (AGENTS.md pitfall #4), and so each launch is a fresh room.
  */
 export function ScoreLiveButton(props: {
-  eventId: string;
-  divisionId: string;
+  /** Event-scoped binding. Omit for a standalone bracket (ADR 0025), which
+   *  passes `bracketId` instead. */
+  eventId?: string;
+  divisionId?: string;
+  /** Standalone bracket (ADR 0025). */
+  bracketId?: string;
   matchId: string;
   kind: MatchKind;
   teamA: string;
@@ -43,12 +47,18 @@ export function ScoreLiveButton(props: {
       t: String(props.targetScore ?? 25),
       wb: String(props.winBy ?? 2),
       bo: String(Math.max(1, props.bestOf)),
-      event: props.eventId,
-      division: props.divisionId,
       match: props.matchId,
       kind: props.kind,
       ret: props.returnPath,
     });
+    // Standalone brackets carry `bracket`; event matches carry `event` +
+    // `division`. The scoreboard's parseBinding branches on which is present.
+    if (props.bracketId) {
+      params.set('bracket', props.bracketId);
+    } else if (props.eventId && props.divisionId) {
+      params.set('event', props.eventId);
+      params.set('division', props.divisionId);
+    }
     router.push(`/tools/scoreboard/${code}?${params.toString()}` as Route);
   }
 

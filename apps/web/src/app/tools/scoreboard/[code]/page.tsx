@@ -33,18 +33,27 @@ function parseConfig(params: SearchParams): ScoreboardConfig {
 
 /**
  * Optional match binding (ADR 0023 Phase 4). When the scoreboard was launched
- * from a scheduled match (`ScoreLiveButton`), `event` / `division` / `match` /
- * `kind` arrive as query params and `ScoreboardView` shows a "Save final to
- * match" affordance. Absent → the plain free tool.
+ * from a scheduled match (`ScoreLiveButton`), the match params arrive as query
+ * string and `ScoreboardView` shows a "Save final to match" affordance. Absent
+ * → the plain free tool. A standalone bracket (ADR 0025) sends `bracket` +
+ * `match` instead of `event` + `division`.
  */
 function parseBinding(params: SearchParams): MatchBinding | undefined {
-  const eventId = single(params['event']);
-  const divisionId = single(params['division']);
   const matchId = single(params['match']);
   const kindRaw = single(params['kind']);
-  if (!eventId || !divisionId || !matchId) return undefined;
+  if (!matchId) return undefined;
   if (kindRaw !== 'bracket' && kindRaw !== 'league') return undefined;
   const kind: MatchKind = kindRaw;
+
+  const bracketId = single(params['bracket']);
+  if (bracketId) {
+    const returnPath = single(params['ret']) || `/brackets/${bracketId}`;
+    return { bracketId, matchId, kind, returnPath };
+  }
+
+  const eventId = single(params['event']);
+  const divisionId = single(params['division']);
+  if (!eventId || !divisionId) return undefined;
   const returnPath = single(params['ret']) || `/events/${eventId}`;
   return { eventId, divisionId, matchId, kind, returnPath };
 }

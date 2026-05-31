@@ -75,26 +75,24 @@ export function MatchCard(props: {
         </p>
       )}
 
-      {props.liveScoringEnabled &&
-        props.eventId &&
-        props.divisionId &&
-        canEdit &&
-        m.status !== 'bye' &&
-        teamA &&
-        teamB && (
-          <div className="mt-2">
-            <ScoreLiveButton
-              kind="bracket"
-              eventId={props.eventId}
-              divisionId={props.divisionId}
-              matchId={String(m.id)}
-              teamA={teamA.name}
-              teamB={teamB.name}
-              bestOf={props.bestOf}
-              returnPath={`/events/${props.eventId}/bracket?division=${props.divisionId}`}
-            />
-          </div>
-        )}
+      {props.liveScoringEnabled && canEdit && m.status !== 'bye' && teamA && teamB && (
+        <div className="mt-2">
+          <ScoreLiveButton
+            kind="bracket"
+            matchId={String(m.id)}
+            teamA={teamA.name}
+            teamB={teamB.name}
+            bestOf={props.bestOf}
+            {...(scope.kind === 'standalone'
+              ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
+              : {
+                  eventId: scope.eventId,
+                  divisionId: scope.divisionId,
+                  returnPath: `/events/${scope.eventId}/bracket?division=${scope.divisionId}`,
+                })}
+          />
+        </div>
+      )}
 
       {canEdit && m.status !== 'bye' && teamA && teamB && (
         <details className="mt-2">

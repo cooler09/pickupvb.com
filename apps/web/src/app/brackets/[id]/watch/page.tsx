@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { repositories } from '@/lib/handlers';
+import { isPro } from '@/lib/pro';
+import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '@/app/events/[id]/bracket/_components/board-view';
 import { LatestMatchTracker } from '@/app/events/[id]/bracket/_components/latest-match-tracker';
 import { BracketRealtimeRefresher } from '@/app/events/[id]/bracket/_components/realtime-refresher';
@@ -61,6 +63,9 @@ export default async function StandaloneBracketWatchPage(props: {
   for (const t of registeredTeams) teamById.set(t.entryId, t);
 
   const scope: BracketScope = { kind: 'standalone', bracketId: id };
+  // Spectators see in-progress scoreboard scores live, but only when the
+  // bracket owner is Pro (mirrors the scorer's gate). ADR 0023/0025.
+  const liveScoringEnabled = await isPro(bracket.ownerUserId);
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
   return (
@@ -90,7 +95,7 @@ export default async function StandaloneBracketWatchPage(props: {
       )}
 
       {(bracket.status === 'active' || bracket.status === 'completed') && (
-        <>
+        <LiveScoresProvider enabled={liveScoringEnabled} bracketId={bracket.id}>
           <LatestMatchTracker
             matchId={pickLatestMatchId(bracket.matches)}
             autoScroll
@@ -106,9 +111,9 @@ export default async function StandaloneBracketWatchPage(props: {
             status={bracket.status}
             format={bracket.format}
             highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
-            liveScoringEnabled={false}
+            liveScoringEnabled={liveScoringEnabled}
           />
-        </>
+        </LiveScoresProvider>
       )}
     </article>
   );

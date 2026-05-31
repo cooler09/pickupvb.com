@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ShareLink } from '@/components/share-link';
 import { repositories } from '@/lib/handlers';
+import { isPro } from '@/lib/pro';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
+import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '@/app/events/[id]/bracket/_components/board-view';
 import { LatestMatchTracker } from '@/app/events/[id]/bracket/_components/latest-match-tracker';
 import { SetupView } from '@/app/events/[id]/bracket/_components/setup-view';
@@ -56,6 +58,9 @@ export default async function StandaloneBracketPage(props: {
   for (const t of registeredTeams) teamById.set(t.entryId, t);
 
   const scope: BracketScope = { kind: 'standalone', bracketId: id };
+  // ADR 0023/0025: live scoreboard scoring is enabled when the bracket's owner
+  // is Pro (mirrors the event host-Pro gate). The finalize action re-checks it.
+  const liveScoringEnabled = await isPro(bracket.ownerUserId);
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
   const noticeCode = pickQuery(searchParams, 'notice');
   const noticeMsg = pickQuery(searchParams, 'msg');
@@ -112,7 +117,7 @@ export default async function StandaloneBracketPage(props: {
       )}
 
       {(bracket.status === 'active' || bracket.status === 'completed') && (
-        <>
+        <LiveScoresProvider enabled={liveScoringEnabled} bracketId={bracket.id}>
           <LatestMatchTracker
             matchId={pickLatestMatchId(bracket.matches)}
             autoScroll={false}
@@ -128,9 +133,9 @@ export default async function StandaloneBracketPage(props: {
             status={bracket.status}
             format={bracket.format}
             highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
-            liveScoringEnabled={false}
+            liveScoringEnabled={liveScoringEnabled}
           />
-        </>
+        </LiveScoresProvider>
       )}
     </article>
   );

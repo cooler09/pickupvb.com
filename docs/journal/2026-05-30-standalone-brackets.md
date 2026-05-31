@@ -54,22 +54,33 @@ unchanged.
   both action sets and binding locally is certain and keeps the event runtime
   identical.
 
+## Live scoring (follow-up bundle, same day)
+
+Landed right after the core. Pro-gated on the **bracket owner**, mirroring the
+event host-Pro gate. The key realization: the live-score write path is keyed on
+`(matchId, kind)` and the RPC resolves all scope from the match, so **no
+domain/application/infrastructure change was needed** — only the SQL and the web
+launch/subscribe surface.
+
+- `20260821000200`: `match_live_scores.event_id`/`division_id` → nullable, new
+  `bracket_id` (populated for every bracket row); `upsert_match_live_score`'s
+  bracket branch LEFT-joins the division and admits host/captain (event) OR
+  owner (standalone), storing `bracket_id`; `clear_match_live_score` authorizes
+  the standalone owner via the stored `bracket_id`.
+- `MatchBinding` + the scoreboard `parseBinding` gained a `bracket` param
+  (standalone) alongside `event`+`division`; `ScoreLiveButton` emits it;
+  `LiveScoresProvider` subscribes by `bracket_id` when no `divisionId`; the
+  scoreboard `finalize-actions.ts` Pro-gates on `event_brackets.owner_user_id`
+  and revalidates `/brackets/[id]`. `MatchCard` drives the launcher off `scope`.
+
 ## Deferred / follow-ups
 
-- **Live scoreboard scoring for standalone brackets is NOT wired yet** —
-  `liveScoringEnabled` is hard-`false` on both standalone routes. It is the
-  heaviest sub-area (`match_live_scores.event_id`/`division_id` are NOT NULL and
-  the provider subscribes by `division_id`); it needs its own migration
-  (nullable + `bracket_id`), an `upsert_match_live_score` bracket-owner branch,
-  a `LiveScoresProvider` bracket-id mode, and a standalone branch in the
-  scoreboard `finalize-actions.ts` Pro-gated on `event_brackets.owner_user_id`.
-  Flip the two `liveScoringEnabled={false}` props to `isPro(bracket.ownerUserId)`
-  once that lands.
-- **Local migration not applied** (Docker was down this session):
-  `database.types.ts` was hand-patched to match the migrations so typecheck
-  passes; run `pnpm db:migrate && pnpm --filter @pickupvb/supabase gen:types`
-  once Docker is up to regenerate from the real schema. Production migrations
-  apply via CI/CD on deploy.
+- **Local migrations not applied** (Docker was down this session): all three
+  migrations (`20260821000000`, `..100`, `..200`) are unapplied locally;
+  `database.types.ts` was hand-patched (`event_brackets`, `bracket_teams`,
+  `match_live_scores`) so typecheck passes. Run `pnpm db:migrate && pnpm --filter
+@pickupvb/supabase gen:types` once Docker is up to regenerate from the real
+  schema. Production migrations apply via CI/CD on deploy.
 - **No e2e yet.** A Playwright spec (create → add teams → seed → generate →
   record → open watch link) should be added and run green against dev.
 - A `bracketCacheTag(id)` builder if a cached watch read is later introduced
