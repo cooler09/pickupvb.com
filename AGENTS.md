@@ -725,3 +725,38 @@ This is the same ratchet-behind-migration strategy as the M3 shape-scale lock
 collapses the drift, the lint rule keeps it from re-accumulating. Reference fix:
 [docs/audits/persona-ux.md](docs/audits/persona-ux.md) remediation log
 (2026-05-31 bundles).
+
+### 12. Paginate list views with the shared `Pagination` — slice the display, keep the full set for aggregates
+
+Any view that renders a list which can grow unbounded (per user, per event, or
+over time) must page it with
+[`Pagination`](apps/web/src/components/pagination.tsx). The convention, used in
+~9 places (the `/players` `/groups` `/teams` directories, the `/groups/[id]` +
+`/players/[id]` past-events sections, and the 2026-05-31 pagination-sweep
+fixes):
+
+1. Read a page param off `searchParams` (`Math.max(1, Number.parseInt(... ?? '1', 10) || 1)`).
+2. Slice the **already-loaded** array for display.
+3. Render `<Pagination basePath pageSize total searchParams [pageParam] [scrollToId]>`.
+4. **Compute totals / counts / exclude-sets over the full array, not the page
+   slice** — the `(N)` header count, `excludeIds` (add-friend / add-member
+   pickers), CSV-statement years, and money totals all need the whole set.
+
+`pageParam` lets one page host several independent paginators
+(`mpage`/`ppage`/`hpage`/`apage`); `scrollToId` anchors the jump to the section.
+`Pagination` returns `null` at ≤1 page — when it sits in a bordered/padded
+wrapper, guard the wrapper with `total > PER_PAGE` so an empty strip doesn't
+render.
+
+Prefer the in-memory slice over a SQL `.range()` when the list is **derived**
+(grouped/merged in memory — e.g. receipts grouped by `payment_intent_id`, hosted
+events merged from primary + co-host queries): a `.range()` over the raw rows
+would split a logical record across pages. Reach for SQL `limit`/`offset` +
+`count: 'exact'` only when the list maps 1:1 to rows and the fetch itself is the
+cost (the directory pages). Don't convert a server component to a client
+component just to add a "show all" toggle if it renders per-row bound server
+actions — that hits pitfall "Passing a function … from a Server Component to a
+Client Component" above (reference: the `/events/[id]` attendee roster kept
+`AttendeeList` server-side and paged via an `apage` param instead). Open backlog
+of remaining unpaginated lists:
+[performance.md § Pagination sweep](docs/audits/performance.md#2026-05-31--pagination-sweep-unbounded-ui-lists).

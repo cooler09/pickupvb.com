@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import { Pagination } from '@/components/pagination';
 import {
   SupabaseGroupQueryRepository,
   SupabaseSocialGraphRepository,
@@ -48,12 +49,22 @@ type ProfileRow = {
 
 const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
 
+const HOSTED_PER_PAGE = 8;
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
-export default async function ProfilePage() {
+export default async function ProfilePage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const rawSearchParams = await props.searchParams;
+  const searchParams: Record<string, string | undefined> = Object.fromEntries(
+    Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+  );
+  const hpage = Math.max(1, Number.parseInt(searchParams.hpage ?? '1', 10) || 1);
+
   const { supabase, user } = await getCurrentUser();
   if (!user) redirect('/login?next=/profile');
 
@@ -224,16 +235,16 @@ export default async function ProfilePage() {
       )}
 
       {/* Hosting */}
-      <section className={cardClass}>
+      <section id="hosting" className={cardClass}>
         <SectionHeader
           title="Hosting"
           count={upcomingHosted.length}
           countLabel="upcoming"
           action={{ href: '/events/new', label: '+ New event' }}
         />
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
           <HostedEventsList
-            events={upcomingHosted}
+            events={upcomingHosted.slice((hpage - 1) * HOSTED_PER_PAGE, hpage * HOSTED_PER_PAGE)}
             emptyState={
               <>
                 No upcoming events yet.{' '}
@@ -245,6 +256,15 @@ export default async function ProfilePage() {
                 </Link>
               </>
             }
+          />
+          <Pagination
+            basePath="/profile"
+            page={hpage}
+            pageSize={HOSTED_PER_PAGE}
+            total={upcomingHosted.length}
+            searchParams={searchParams}
+            pageParam="hpage"
+            scrollToId="hosting"
           />
         </div>
       </section>

@@ -328,6 +328,10 @@ export default async function EventDetailPage(props: {
         payments={payments}
         paid={paid}
         viewerIsPro={viewerIsPro}
+        page={Math.max(1, Number.parseInt(pickQuery(searchParams, 'apage') ?? '1', 10) || 1)}
+        searchParams={Object.fromEntries(
+          Object.entries(searchParams ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+        )}
       />
 
       {event.type === 'tournament' && !event.paymentsOffPlatform && (

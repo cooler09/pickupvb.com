@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
+import { Pagination } from '@/components/pagination';
 import { BusinessInfoForm } from './business-info-form';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +10,8 @@ export const metadata = {
   title: 'Receipts — PickupVB',
   robots: { index: false, follow: false },
 };
+
+const RECEIPTS_PER_PAGE = 20;
 
 type AuditRow = {
   id: string;
@@ -55,7 +58,9 @@ function formatDate(iso: string): string {
  * Rows are grouped by `payment_intent_id` so a paid+refunded pair shows as
  * one transaction with a net amount.
  */
-export default async function ReceiptsPage() {
+export default async function ReceiptsPage(props: { searchParams: Promise<{ page?: string }> }) {
+  const searchParams = await props.searchParams;
+  const page = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const supabase = await getServerSupabase();
   const {
     data: { user },
@@ -130,6 +135,13 @@ export default async function ReceiptsPage() {
     new Set(transactions.map((t) => new Date(t.paidAt).getFullYear())),
   ).sort((a, b) => b - a);
 
+  // Totals / years above span the full ledger; only the rendered table is
+  // paged so a long payment history doesn't blow up the DOM.
+  const pageTransactions = transactions.slice(
+    (page - 1) * RECEIPTS_PER_PAGE,
+    page * RECEIPTS_PER_PAGE,
+  );
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
       {/* ── Header ──────────────────────────────────────────────── */}
@@ -167,7 +179,10 @@ export default async function ReceiptsPage() {
           </div>
 
           {/* ── Transactions table ──────────────────────────── */}
-          <div className="border-border-base bg-surface rounded-shape-sm overflow-hidden border">
+          <div
+            id="receipts"
+            className="border-border-base bg-surface rounded-shape-sm overflow-hidden border"
+          >
             <table className="md-table md-density-compact md:md-density-comfortable w-full text-sm">
               <thead className="bg-fg/5 text-muted text-left text-xs font-semibold tracking-wide uppercase">
                 <tr>
@@ -186,7 +201,7 @@ export default async function ReceiptsPage() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((t) => (
+                {pageTransactions.map((t) => (
                   <tr key={t.paymentIntentId} className="border-border-base border-t">
                     <td className="text-muted whitespace-nowrap">{formatDate(t.paidAt)}</td>
                     <td>
@@ -217,6 +232,15 @@ export default async function ReceiptsPage() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            basePath="/profile/receipts"
+            page={page}
+            pageSize={RECEIPTS_PER_PAGE}
+            total={transactions.length}
+            searchParams={searchParams}
+            scrollToId="receipts"
+          />
 
           <p className="text-muted text-xs">
             Stripe also emails an itemized receipt for each payment at the time of purchase. Need an
