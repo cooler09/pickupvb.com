@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Alert } from '@/components/alert';
+import { SponsorLogoUpload } from './sponsor-logo-upload';
 import {
   removeSponsor,
   startSponsorSlotCheckoutFromForm,
@@ -20,6 +21,7 @@ const inputClass =
 
 export function SponsorPanel({
   eventId,
+  userId,
   returnPath,
   sponsor,
   canUseSponsors,
@@ -27,6 +29,7 @@ export function SponsorPanel({
   sponsorMsg,
 }: {
   eventId: string;
+  userId: string;
   returnPath: string;
   sponsor: Sponsor | null;
   canUseSponsors: boolean;
@@ -131,34 +134,25 @@ export function SponsorPanel({
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="sponsor-link" className={labelClass}>
-              Sponsor link (https://)
-            </label>
-            <input
-              id="sponsor-link"
-              name="link_url"
-              type="url"
-              maxLength={300}
-              defaultValue={sponsor?.linkUrl ?? ''}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="sponsor-logo" className={labelClass}>
-              Logo image URL (https://)
-            </label>
-            <input
-              id="sponsor-logo"
-              name="logo_url"
-              type="url"
-              maxLength={300}
-              defaultValue={sponsor?.logoUrl ?? ''}
-              className={inputClass}
-            />
-          </div>
+        <div>
+          <label htmlFor="sponsor-link" className={labelClass}>
+            Sponsor link (https://)
+          </label>
+          <input
+            id="sponsor-link"
+            name="link_url"
+            type="url"
+            maxLength={300}
+            defaultValue={sponsor?.linkUrl ?? ''}
+            className={inputClass}
+          />
         </div>
+
+        <SponsorLogoUpload
+          eventId={eventId}
+          userId={userId}
+          currentUrl={sponsor?.logoUrl ?? null}
+        />
 
         <div>
           <label htmlFor="sponsor-code" className={labelClass}>

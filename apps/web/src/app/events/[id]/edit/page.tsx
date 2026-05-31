@@ -172,6 +172,7 @@ export default async function EditEventPage(props: {
 
         <SponsorPanel
           eventId={id}
+          userId={user.id}
           returnPath={`/events/${id}/edit`}
           sponsor={sponsor}
           canUseSponsors={viewerHasProBenefits || sponsorEntitledByPayment}
