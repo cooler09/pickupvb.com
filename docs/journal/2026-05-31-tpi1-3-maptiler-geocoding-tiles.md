@@ -63,7 +63,6 @@ live keys + restrictions.)
 
 ## Status
 
-Every audit **P2 is now closed or code-complete-pending-verify** — TPI-1/2/3
-landed here; TPI-7 (bell → Broadcast) awaits its live dev round-trip. Remaining: 3
-P3 (TPI-6 webhook orphan sweep, TPI-11 lazy Sentry Replay, TPI-13 PostHog flush
-batching) + the TPI-7 visibility-gating follow-up.
+Every audit **P2 is now closed** — TPI-1/2/3 landed here; TPI-7 (bell → Broadcast)
+followed and was verified live on dev. _(At the time of writing, 3 P3s remained —
+TPI-6/11/13 — all resolved later the same day.)_

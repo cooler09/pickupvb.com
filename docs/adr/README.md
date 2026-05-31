@@ -31,7 +31,7 @@ status to `Superseded by NNNN`.
 | [0024](0024-event-and-profile-media.md)             | Event & profile media — external videos, livestreams, and clips                      | Accepted                                                             |
 | [0025](0025-standalone-brackets.md)                 | Standalone tournament brackets — owner-scoped, event-free                            | Accepted                                                             |
 | [0026](0026-event-driven-notification-delivery.md)  | Event-driven notification delivery — DB kick + low-frequency sweep                   | Proposed                                                             |
-| [0027](0027-realtime-broadcast-notifications.md)    | Realtime Broadcast for in-app notifications (the bell)                               | Proposed                                                             |
+| [0027](0027-realtime-broadcast-notifications.md)    | Realtime Broadcast for in-app notifications (the bell)                               | Accepted                                                             |
 
 ## Template
 

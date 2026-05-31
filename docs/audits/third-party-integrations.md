@@ -37,11 +37,11 @@ caps reminders per run + fans out with bounded concurrency, so a timeout can't
 strand a marked-but-undelivered tail; orchestration extracted to a testable
 `sweep.ts`. See the remediation log.
 
-**TPI-7 bell migrated** (2026-05-31, [ADR 0027](../adr/0027-realtime-broadcast-notifications.md))
+**TPI-7 resolved** (2026-05-31, [ADR 0027](../adr/0027-realtime-broadcast-notifications.md))
 — the notification bell moved off `postgres_changes` to a per-user **private
-Broadcast channel** fed by a DB trigger; **pending live dev verification** (the
-quad can't exercise realtime/RLS/trigger). Discovery: `notifications` was never in
-the `supabase_realtime` publication, so the old path was inert anyway.
+Broadcast channel** fed by a DB trigger; **verified live on dev** (the quad
+couldn't exercise the realtime/RLS/trigger path). Discovery: `notifications` was
+never in the `supabase_realtime` publication, so the old path was inert anyway.
 
 **TPI-1 + TPI-2 + TPI-3 resolved** (2026-05-31, **MapTiler**) — address
 autocomplete + server geocode now route through MapTiler when keyed (OSM only as
@@ -49,11 +49,16 @@ the no-key dev fallback), and the map serves MapTiler tiles. Shared client +
 unit-tested parser in `lib/maptiler.ts`; CSP + `.env.example` + integrations doc
 updated.
 
-Verify quad green (web 95 tests; lint 0 errors; build 8/8).
-**Remaining open: 0 P2 · 3 P3** (TPI-6 webhook orphan sweep, TPI-11 lazy Sentry
-Replay, TPI-13 PostHog flush batching) — plus **TPI-7's live dev verification**
-(its code landed) + the visibility-gating follow-up. Every P2 is now closed or
-code-complete-pending-verify.
+**TPI-6 + TPI-11 + TPI-13 resolved** (2026-05-31, P3 bundle) — webhook now
+dedupes on `processed_at` so a crashed claim is re-driven, not lost (+ test);
+Sentry on-error replay rate trimmed 1.0 → 0.3 to bound quota; PostHog `flushAt:1`
+closed as working-as-intended (the serverless safety default).
+
+Verify quad green (web 98 tests; lint 0 errors; build 8/8).
+**Audit fully remediated — every finding resolved or closed, including TPI-7
+(verified live on dev). 0 P1 · 0 P2 · 0 P3 outstanding.** Optional, non-finding
+follow-ups remain (TPI-7 tab-visibility gating; an edge `s-maxage` cache on the
+geocoding proxy; a realtime e2e).
 
 ---
 
@@ -194,7 +199,7 @@ unlikely — but duplicate sessions/subscriptions are reachable.
 **Fix:** pass a deterministic second arg `{ idempotencyKey }` derived from
 `(userId, eventId, kind, amountCents)`. Stripe dedupes server-side for 24 h.
 
-#### TPI-6 (P3) — Webhook event can be orphaned if the function dies between dedup-insert and processing
+#### TPI-6 (P3) — ✅ Resolved 2026-05-31 — Webhook event can be orphaned if the function dies between dedup-insert and processing
 
 [webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts#L72-L115)
 inserts the dedup row _before_ dispatching, then `delete`s it if the handler
@@ -205,10 +210,17 @@ retry is deduped at line 89 and the event is **silently dropped**. Low
 probability (handlers are fast, the code even comments the awkwardness) but it's
 a real data-loss seam on the payments path.
 
-**Fix:** dedupe on `processed_at IS NOT NULL` rather than mere row existence
-(insert with `processed_at NULL` as a _claim_, and only treat a row with
-`processed_at` set as a true duplicate), or add a sweep that re-drives
-`processed_at IS NULL` rows older than N minutes.
+**Fix (shipped 2026-05-31):** dedupe on `processed_at`, not row existence. The
+route now treats the claim row as a _claim_ — on a redelivery it reads
+`processed_at` and only returns `deduped` when it's set; a row stuck at
+`processed_at IS NULL` (a crashed claim) is **re-driven** on the next Stripe
+retry. Decision extracted to a pure
+[lib/webhooks/idempotency.ts](../../apps/web/src/lib/webhooks/idempotency.ts)
+(`decideWebhookProcessing`) + test
+[idempotency.test.ts](../../apps/web/src/lib/webhooks/idempotency.test.ts) (3
+cases incl. the orphan-re-drive regression guard). Handlers are idempotent, so
+re-driving an orphan — or the rare concurrent double-delivery this also lets
+through — is safe.
 
 ### Telemetry — Sentry
 
@@ -223,16 +235,19 @@ still `0.1`. Browser pageload/navigation transactions are typically the
 was meant to address. Align it (e.g. `0.02–0.05`), or use a `tracesSampler` to
 keep checkout/critical routes sampled higher and everything else low.
 
-#### TPI-11 (P3) — Sentry Replay integration is bundled for every visitor though session replay is off
+#### TPI-11 (P3) — ✅ Resolved 2026-05-31 — Sentry Replay integration is bundled for every visitor though session replay is off
 
-[instrumentation-client.ts](../../apps/web/instrumentation-client.ts#L16-L21)
-registers `replayIntegration` with `replaysSessionSampleRate: 0` /
+[instrumentation-client.ts](../../apps/web/instrumentation-client.ts) registers
+`replayIntegration` with `replaysSessionSampleRate: 0` /
 `replaysOnErrorSampleRate: 1.0`. Replay only _activates_ on errors, but the
-integration code (tens of KB gzipped) ships to **every** page load. Two levers:
-(a) lazy-load replay via `Sentry.lazyLoadIntegration` so the bytes only load when
-an error triggers capture; (b) consider `replaysOnErrorSampleRate < 1.0` so a
-prod error _spike_ can't burn the replay quota in one incident. (Perf cross-ref
-[performance.md](performance.md).)
+integration ships to every page load.
+
+**Resolution:** lowered `replaysOnErrorSampleRate` 1.0 → **0.3** to bound
+replay-quota cost during an error spike (the cost-at-scale lever). The bundle
+weight is **kept** — lazy-loading was investigated and rejected: on-error replay
+must buffer from page load to capture the pre-error session, so it can't be
+deferred without losing the feature. On-error session replays remain a deliberate
+debugging tool; 30% of error sessions are recorded.
 
 #### TPI-12 (P3) — ✅ Resolved 2026-05-31 — No `tracesSampler` to zero-out cron/health transactions
 
@@ -243,7 +258,7 @@ returning `0` for `transactionContext.name?.startsWith('/api/notifications/')`.
 
 ### Telemetry — PostHog
 
-#### TPI-13 (P3) — `flushAt: 1` issues one HTTP request per captured event
+#### TPI-13 (P3) — ✅ Closed 2026-05-31 (working as intended) — `flushAt: 1` issues one HTTP request per captured event
 
 [posthog-analytics.ts](../../packages/infrastructure/src/posthog-analytics.ts#L51-L61)
 sets `flushAt: 1, flushInterval: 0`. This is **correct and necessary** for
@@ -254,14 +269,17 @@ request captures several events it fires N separate flushes instead of one
 batch. PostHog bills per _event ingested_ (so no ingest-cost change), but each
 flush extends the invocation via `after()` and adds outbound requests.
 
-**Fix (low priority):** keep `flushAt: 1` as the safety default, or batch within
-a request — enqueue all captures and flush once in a single `after()` at request
-end. Current behavior is safe; it's just chatty. Don't change without keeping the
-`after()` lifetime guarantee.
+**Resolution — closed wontfix (working as intended):** keep `flushAt: 1`. It's
+the documented serverless safety default; request-level batching would risk
+re-introducing the silent event-drop bug (`analytics.test.ts` exists precisely to
+guard it) for a negligible gain — PostHog bills per event ingested, so the only
+"cost" is a few extra outbound HTTP requests on the rare multi-capture request.
+Not worth the regression risk. Re-open only if a profile shows the extra flushes
+materially extending invocation time.
 
 ### Supabase Realtime
 
-#### TPI-7 (P2) — 🔄 Bell migrated 2026-05-31 (pending live dev verification) — Per-user Realtime connection on every page, over the non-scaling `postgres_changes` path
+#### TPI-7 (P2) — ✅ Resolved 2026-05-31 (verified live on dev) — Per-user Realtime connection on every page, over the non-scaling `postgres_changes` path
 
 [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx#L53-L81)
 opens a Supabase Realtime channel subscribed to `postgres_changes` INSERTs on
@@ -291,7 +309,7 @@ evaluation. Tactical mitigations meanwhile: gate the bell subscription on
 connection, and consider polling (the bell is low-urgency) instead of a
 persistent socket.
 
-**Shipped (the bell) 2026-05-31 — pending live verification ([ADR 0027](../adr/0027-realtime-broadcast-notifications.md)):**
+**Shipped (the bell) 2026-05-31 — verified live on dev ([ADR 0027](../adr/0027-realtime-broadcast-notifications.md)):**
 the notification bell now subscribes to a **private Broadcast channel**
 `notifications:{userId}`, fed by an `AFTER INSERT` trigger
 ([20260823000000_notification_broadcast.sql](../../supabase/migrations/20260823000000_notification_broadcast.sql))
@@ -302,11 +320,10 @@ migration, so the prior `postgres_changes` path was inert in a
 migration-provisioned DB — Broadcast both fixes the live path _and_ removes the
 non-scaling subscription. **Scope = bell only:** `match_live_scores` stays on
 `postgres_changes` (deliberate per its own migration) and the bracket watchers are
-event-scoped. **Not yet verified live** — the verify quad can't exercise the
-realtime/RLS/trigger path; needs a dev round-trip (trigger a notification → bell
-badge increments live; a _different_ user must not receive it). Degrades
+event-scoped. **Verified live on dev** — a notification increments the bell badge
+live, and a _different_ user does not receive it (RLS topic isolation). Degrades
 gracefully if misconfigured (notifications still persist + render on next load).
-Visibility-gating + an e2e remain follow-ups.
+Tab-visibility gating + an e2e remain optional follow-ups.
 
 ### Notifications / Vercel Cron workers
 
@@ -456,7 +473,7 @@ Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
   from the stale generated types, so the event query casts through a null-union
   exactly like the existing `rsvp-actions.ts` pattern — preserved verbatim.
 
-**2026-05-31 — TPI-7 (notification bell) migrated to Broadcast — pending live verification.**
+**2026-05-31 — TPI-7 (notification bell) migrated to Broadcast — verified live on dev.**
 [ADR 0027](../adr/0027-realtime-broadcast-notifications.md).
 
 - New migration
@@ -475,9 +492,9 @@ Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 - **Scope = bell only.** `match_live_scores` stays on `postgres_changes`
   (deliberate per its migration); bracket watchers are event-scoped.
 - Verify quad green (typecheck/lint/build; tests unchanged — realtime isn't
-  unit-testable). **Not exercised live** (Docker/local Supabase was down). Needs a
-  dev round-trip before flipping to "resolved": notification → bell badge
-  increments live; a different user must not receive it (topic isolation).
+  unit-testable). **Verified live on dev** (2026-05-31): a notification increments
+  the bell badge live, and a different user does not receive it (RLS topic
+  isolation). Finding closed.
 
 **2026-05-31 — TPI-1 + TPI-2 + TPI-3 (geocoding + map tiles) → MapTiler.**
 
@@ -502,5 +519,26 @@ Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 - **Live check owed:** set both keys on dev, confirm typeahead returns MapTiler
   results and the event map renders MapTiler tiles.
 
-**Still open: 0 P2 · 3 P3** (TPI-6, TPI-11, TPI-13) — plus **TPI-7 live
-verification** (code landed) + the visibility-gating follow-up.
+**2026-05-31 — P3 bundle (TPI-6, TPI-11, TPI-13) — every finding now closed.**
+
+- **TPI-6** — Stripe webhook dedupes on `processed_at`, not row existence: a
+  claim row stuck at `processed_at IS NULL` (crashed mid-handler) is re-driven on
+  the next Stripe retry instead of silently dropped. Decision extracted to a pure
+  [lib/webhooks/idempotency.ts](../../apps/web/src/lib/webhooks/idempotency.ts) +
+  test (3 cases, incl. the orphan-re-drive regression guard). Idempotent handlers
+  make the re-drive (and the rare concurrent double-delivery it allows) safe.
+- **TPI-11** — `replaysOnErrorSampleRate` 1.0 → 0.3 in
+  [instrumentation-client.ts](../../apps/web/instrumentation-client.ts) to bound
+  replay-quota cost on an error spike. Bundle weight kept — lazy-loading would
+  lose on-error replay (it must buffer from page load). User chose keep+lower.
+- **TPI-13** — closed **working-as-intended**: `flushAt: 1` is the documented
+  serverless safety default; batching risks re-introducing the silent
+  event-drop bug for negligible gain (PostHog bills per event, not per request).
+  No code change.
+
+Verify quad green (web 98 tests, lint 0 errors, build 8/8).
+
+**Nothing open.** 0 P1 · 0 P2 · 0 P3 — every finding resolved or closed, TPI-7
+included (verified live on dev 2026-05-31). Optional, non-finding follow-ups
+remain: TPI-7 tab-visibility gating, an edge `s-maxage` cache on the geocoding
+proxy, and a realtime e2e.

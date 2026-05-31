@@ -58,16 +58,14 @@ INSERT` trigger on `public.notifications`; `realtime.messages` SELECT policy
 Verify quad green (web 90 tests; lint 0 errors; build 8/8) — covers the client
 typecheck/build only.
 
-## Verification owed (before flipping to "resolved")
+## Verification (done — verified live on dev 2026-05-31)
 
-1. `supabase start` + `pnpm db:migrate` (or deploy to dev) so the trigger + policy
-   exist.
-2. Logged in, trigger a notification to that user (a follow, or an event signup
-   that fans out in_app) → bell badge increments **live**, no refresh; WS frames
-   show a `broadcast` message on `notifications:{userId}`.
-3. A _different_ user does **not** receive it (topic isolation via the RLS policy).
+Verified on dev: a notification increments the bell badge **live** (no refresh),
+and a _different_ user does **not** receive it (RLS topic isolation). TPI-7 is
+**closed** — and with it the third-party-integrations audit is fully remediated
+(0 P1 · 0 P2 · 0 P3). ADR 0027 moved to **Accepted**.
 
-If the private-channel auth is misconfigured it degrades gracefully — the bell
+If the private-channel auth were misconfigured it degrades gracefully — the bell
 just stops live-updating; notifications still persist and render on next load.
 
 ## Follow-ups

@@ -1,6 +1,6 @@
 # 0027. Realtime Broadcast for in-app notifications (the bell)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-05-31
 - **Relates to:** [ADR 0022 — `NotificationOutboxPort`](0022-notification-outbox-port.md),
   [ADR 0026 — Event-driven notification delivery](0026-event-driven-notification-delivery.md)
@@ -82,10 +82,10 @@ The bell is the every-page driver, so it's migrated first and alone.
 - **Cost:** the client must set the realtime auth token
   (`supabase.realtime.setAuth(session.access_token)`) before subscribing to a
   private channel — one extra `getSession()` on mount.
-- **Cannot be verified by the build/typecheck/test quad** (realtime + RLS +
-  trigger). Requires live verification on dev: trigger a notification and confirm
-  the bell badge increments live + that a _different_ user does not receive it
-  (topic isolation). An e2e is a follow-up, not part of the landing PR.
+- **Not exercised by the build/typecheck/test quad** (realtime + RLS + trigger) —
+  **verified live on dev** instead (2026-05-31): a notification increments the
+  bell badge live, and a _different_ user does not receive it (topic isolation).
+  An e2e is a follow-up, not part of the landing PR.
 - **Reversible:** drop the trigger + policy in a follow-up migration and revert
   the client effect to `postgres_changes`.
 
