@@ -118,6 +118,7 @@ import {
   WithdrawAdHocTeamRegistrationHandler,
   WithdrawTeamHandler,
   OpenConversationHandler,
+  OpenDmHandler,
   SendMessageHandler,
   EditMessageHandler,
   DeleteMessageHandler,
@@ -375,6 +376,7 @@ export async function getMediaHandlers(): Promise<{
  */
 export async function getChatHandlers(): Promise<{
   openConversation: OpenConversationHandler;
+  openDm: OpenDmHandler;
   sendMessage: SendMessageHandler;
   editMessage: EditMessageHandler;
   deleteMessage: DeleteMessageHandler;
@@ -402,6 +404,7 @@ export async function getChatHandlers(): Promise<{
 
   return {
     openConversation: new OpenConversationHandler(conversationRepo),
+    openDm: new OpenDmHandler(conversationRepo),
     sendMessage: new SendMessageHandler(messageRepo),
     editMessage: new EditMessageHandler(messageRepo),
     deleteMessage: new DeleteMessageHandler(messageRepo, canModerate),

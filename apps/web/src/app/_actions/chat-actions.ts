@@ -1,24 +1,26 @@
 'use server';
 
-import { DomainError, type MessagePage } from '@pickupvb/domain';
+import { DomainError, UserId, type MessagePage } from '@pickupvb/domain';
 import {
   DeleteMessageCommand,
   EditMessageCommand,
   ListMessagesQuery,
   MarkConversationReadCommand,
   OpenConversationCommand,
+  OpenDmCommand,
   ReportMessageCommand,
   SendMessageCommand,
 } from '@pickupvb/application';
+import { SupabaseUserBlockRepository } from '@pickupvb/infrastructure';
 import { getChatHandlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 
 /**
- * Chat server actions for the team room (ADR 0028, Phase 1). All are invoked
- * from the `'use client'` {@link TeamChatPanel}, so each returns a typed
- * {@link ChatResult} (never throws across the React boundary) — the client
- * branches on `error` to render the right message. Authorization is RLS in the
- * adapters (a non-member surfaces as `UnauthorizedError` → `'forbidden'`).
+ * Chat server actions (ADR 0028). Shared across the team-room panel (Phase 1)
+ * and the DM thread (Phase 3) — all are invoked from `'use client'` and return
+ * a typed {@link ChatResult} (never throw across the React boundary). The client
+ * branches on `error`. Authorization is RLS in the adapters (a non-member /
+ * blocked pair surfaces as `UnauthorizedError` → `'forbidden'`).
  *
  * Deliberately no `revalidatePath`: chat reads are per-viewer and live (never
  * cached), and new rows reach every open client over the `chat:{id}` Realtime
@@ -58,9 +60,9 @@ async function viewer(): Promise<{ id: string; isAnon: boolean } | null> {
 }
 
 /**
- * Bootstrap the team room: get-or-create its conversation, load the most recent
- * page, and advance the caller's read cursor. One round-trip for the client to
- * mount against.
+ * Bootstrap a team room: get-or-create its conversation, load the most recent
+ * page, and advance the caller's read cursor. One round-trip for the
+ * `TeamChatPanel` island to mount against.
  */
 export async function openTeamChat(
   teamId: string,
@@ -75,6 +77,22 @@ export async function openTeamChat(
     const page = await h.listMessages.execute(new ListMessagesQuery(conversationId, PAGE_SIZE));
     await h.markConversationRead.execute(new MarkConversationReadCommand(conversationId, v.id));
     return { ok: true, value: { conversationId, viewerId: v.id, page } };
+  } catch (e) {
+    return { ok: false, error: toChatError(e) };
+  }
+}
+
+/** Get-or-create the 1:1 DM with another user (Phase 3). Returns the
+ * conversation id so the caller can navigate to `/messages/{id}`. */
+export async function startDmWithUser(
+  otherUserId: string,
+): Promise<ChatResult<{ conversationId: string }>> {
+  const v = await viewer();
+  if (!v || v.isAnon) return { ok: false, error: 'anon' };
+  try {
+    const h = await getChatHandlers();
+    const { id } = await h.openDm.execute(new OpenDmCommand(otherUserId));
+    return { ok: true, value: { conversationId: id } };
   } catch (e) {
     return { ok: false, error: toChatError(e) };
   }
@@ -163,5 +181,31 @@ export async function markChatRead(conversationId: string): Promise<void> {
     await h.markConversationRead.execute(new MarkConversationReadCommand(conversationId, v.id));
   } catch {
     // Non-critical — the unread cursor will catch up on the next open.
+  }
+}
+
+/** Block a user (Phase 3). No invariant beyond the DB not-self CHECK, so the
+ * action drives the edge port directly (AGENTS.md pattern #10). */
+export async function blockUser(otherUserId: string): Promise<ChatResult<null>> {
+  const v = await viewer();
+  if (!v || v.isAnon) return { ok: false, error: 'anon' };
+  try {
+    const supabase = await getServerSupabase();
+    await new SupabaseUserBlockRepository(supabase).block(UserId(v.id), UserId(otherUserId));
+    return { ok: true, value: null };
+  } catch (e) {
+    return { ok: false, error: toChatError(e) };
+  }
+}
+
+export async function unblockUser(otherUserId: string): Promise<ChatResult<null>> {
+  const v = await viewer();
+  if (!v || v.isAnon) return { ok: false, error: 'anon' };
+  try {
+    const supabase = await getServerSupabase();
+    await new SupabaseUserBlockRepository(supabase).unblock(UserId(v.id), UserId(otherUserId));
+    return { ok: true, value: null };
+  } catch (e) {
+    return { ok: false, error: toChatError(e) };
   }
 }

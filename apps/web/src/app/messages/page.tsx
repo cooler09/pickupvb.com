@@ -17,9 +17,10 @@ const KIND_LABEL: Record<InboxItem['kind'], string> = {
   dm: 'Direct message',
 };
 
-/** Where a conversation row links to — the context page that hosts its chat
- * (opening it advances the read cursor). `null` when not yet routable (DMs land
- * in Phase 3). Template literals keep `typedRoutes` happy. */
+/** Where a conversation row links to. Rooms open on the context page that hosts
+ * their chat (team / event / group); DMs open the dedicated thread at
+ * `/messages/{id}`. Opening either advances the read cursor. Template literals
+ * keep `typedRoutes` happy. */
 function inboxHref(item: InboxItem): Route | null {
   switch (item.kind) {
     case 'team':
@@ -29,7 +30,7 @@ function inboxHref(item: InboxItem): Route | null {
     case 'event':
       return item.contextId ? (`/events/${item.contextId}` as Route) : null;
     case 'dm':
-      return null;
+      return `/messages/${item.conversationId}` as Route;
   }
 }
 

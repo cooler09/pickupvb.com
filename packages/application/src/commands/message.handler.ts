@@ -13,6 +13,7 @@ import {
   EditMessageCommand,
   MarkConversationReadCommand,
   OpenConversationCommand,
+  OpenDmCommand,
   ReportMessageCommand,
   SendMessageCommand,
 } from '../messages';
@@ -27,6 +28,20 @@ export class OpenConversationHandler {
 
   async execute({ kind, contextId }: OpenConversationCommand): Promise<{ id: string }> {
     const id = await this.repo.getOrCreateRoom(kind, contextId);
+    return { id };
+  }
+}
+
+/**
+ * Open (get-or-create) the canonical 1:1 DM with another user. Membership of a
+ * DM is materialized (the two participant rows ARE the access grant); anonymous
+ * callers and blocked pairs are rejected server-side as `UnauthorizedError`.
+ */
+export class OpenDmHandler {
+  constructor(private readonly repo: ConversationRepository) {}
+
+  async execute({ otherUserId }: OpenDmCommand): Promise<{ id: string }> {
+    const id = await this.repo.getOrCreateDm(UserId(otherUserId));
     return { id };
   }
 }

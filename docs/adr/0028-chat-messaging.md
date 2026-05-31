@@ -89,9 +89,21 @@ link. "Unread by me" = a non-deleted message from someone else newer than my
 `last_read_at` (a thread I only posted in is not unread). The badge reflects the
 last page load; live updates are deferred (see follow-ups).
 
-**Phase 3** wires DMs (`getOrCreateDm` already exists). **Phase 4** is the image
-fast-follow: it drops the single `messages_text_only` CHECK to enable the
-reserved `attachments jsonb` column — no table migration needed.
+**Phase 3 (shipped): DMs + blocks.** No migration needed — `get_or_create_dm`,
+`user_blocks`, `is_blocked_pair`, and the DM RLS branches all landed in Phase 0.
+This bundle wires the UI: an `OpenDmHandler` (+ `getChatHandlers().openDm`), a
+`UserBlockRepository` port + `SupabaseUserBlockRepository` adapter, the shared
+`ConversationView` (extracted from `TeamChatPanel` so the team room and the DM
+thread render the identical live surface), a `/messages/[id]` thread page (DM
+header links to the counterpart's profile + a block/unblock toggle), a "Message"
+button on `/players/[id]`, and DM routing from the inbox. The generic chat
+server actions moved to `apps/web/src/app/_actions/chat-actions.ts` so both
+surfaces share them. Block/unblock is a no-invariant self-edge, so the action
+drives the port directly (no command handler — AGENTS.md pattern #10).
+
+**Phase 4** is the image fast-follow: it drops the single `messages_text_only`
+CHECK to enable the reserved `attachments jsonb` column — no table migration
+needed.
 
 ## Consequences
 
@@ -115,10 +127,12 @@ reserved `attachments jsonb` column — no table migration needed.
 
 ## Follow-ups
 
-- **Phase 3 — DMs:** wire `getOrCreateDm`, a DM list, and the block UI. The
-  inbox already routes `dm`/`event`/`group` kinds; DM rows currently have no
-  destination (`inboxHref` returns `null`) until the DM thread view lands.
 - **Phase 4 — attachments:** drop `messages_text_only`, add image upload.
+- **Start-a-DM from the inbox** (a recipient picker) — today a DM is only
+  startable from a player profile's "Message" button.
+- **Blocked-state banner on the DM thread** — blocking currently just makes the
+  next send fail with the generic "can no longer post" message; a dedicated
+  banner would read better.
 - **Live unread badge:** the header `count_unread_conversations` is read once per
   page load. Make it live by subscribing to the viewer's conversation topics (or
   a per-user `inbox:{uid}` topic), the same upgrade the bell took in ADR 0027.

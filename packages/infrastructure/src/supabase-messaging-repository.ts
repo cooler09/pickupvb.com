@@ -13,6 +13,7 @@ import {
   type MessageRepository,
   type MessageView,
   type RoomKind,
+  type UserBlockRepository,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 
@@ -277,5 +278,45 @@ export class SupabaseConversationQueries implements ConversationQueries {
     const { data, error } = await this.client.rpc('count_unread_conversations');
     if (error) throw new Error(`countUnread failed: ${error.message}`);
     return (data as number | null) ?? 0;
+  }
+}
+
+// ---- Write: user blocks ---------------------------------------------------
+
+export class SupabaseUserBlockRepository implements UserBlockRepository {
+  constructor(private readonly client: SupabaseClient) {}
+
+  async block(blockerId: UserId, blockedId: UserId): Promise<void> {
+    // Idempotent: PK is (blocker_id, blocked_id), ignore the duplicate edge.
+    const { error } = await this.client
+      .from('user_blocks')
+      .upsert({ blocker_id: String(blockerId), blocked_id: String(blockedId) } as never, {
+        onConflict: 'blocker_id,blocked_id',
+        ignoreDuplicates: true,
+      });
+    if (error) {
+      if (error.code === RLS_DENIED) throw new UnauthorizedError('You cannot block this user.');
+      throw new Error(`UserBlock.block failed: ${error.message}`);
+    }
+  }
+
+  async unblock(blockerId: UserId, blockedId: UserId): Promise<void> {
+    const { error } = await this.client
+      .from('user_blocks')
+      .delete()
+      .eq('blocker_id', String(blockerId))
+      .eq('blocked_id', String(blockedId));
+    if (error) throw new Error(`UserBlock.unblock failed: ${error.message}`);
+  }
+
+  async hasBlocked(blockerId: UserId, blockedId: UserId): Promise<boolean> {
+    const { data, error } = await this.client
+      .from('user_blocks')
+      .select('blocker_id')
+      .eq('blocker_id', String(blockerId))
+      .eq('blocked_id', String(blockedId))
+      .maybeSingle();
+    if (error) throw new Error(`UserBlock.hasBlocked failed: ${error.message}`);
+    return data !== null;
   }
 }

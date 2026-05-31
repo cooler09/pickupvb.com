@@ -633,6 +633,12 @@ export class OpenConversationCommand {
   ) {}
 }
 
+/** Open (get-or-create) the canonical 1:1 DM with another user (ADR 0028,
+ * Phase 3). Anonymous callers and blocked pairs surface as `UnauthorizedError`. */
+export class OpenDmCommand {
+  constructor(public readonly otherUserId: string) {}
+}
+
 export class SendMessageCommand {
   constructor(
     public readonly conversationId: string,
