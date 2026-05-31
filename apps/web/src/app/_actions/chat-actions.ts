@@ -1,6 +1,6 @@
 'use server';
 
-import { DomainError, UserId, type MessagePage } from '@pickupvb/domain';
+import { DomainError, UserId, type MessageAttachment, type MessagePage } from '@pickupvb/domain';
 import {
   DeleteMessageCommand,
   EditMessageCommand,
@@ -101,14 +101,15 @@ export async function startDmWithUser(
 export async function sendChatMessage(
   conversationId: string,
   body: string,
+  attachments: MessageAttachment[] = [],
 ): Promise<ChatResult<{ id: string }>> {
   const v = await viewer();
   if (!v || v.isAnon) return { ok: false, error: 'anon' };
-  if (!body.trim()) return { ok: false, error: 'invalid' };
+  if (!body.trim() && attachments.length === 0) return { ok: false, error: 'invalid' };
   try {
     const h = await getChatHandlers();
     const out = await h.sendMessage.execute(
-      new SendMessageCommand(conversationId, v.id, body, v.isAnon),
+      new SendMessageCommand(conversationId, v.id, body, v.isAnon, attachments),
     );
     return { ok: true, value: out };
   } catch (e) {

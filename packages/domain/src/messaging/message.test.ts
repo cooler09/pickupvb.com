@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Message, MessageId } from './message.js';
+import { Message, MessageId, MAX_ATTACHMENTS, type MessageAttachment } from './message.js';
 import { ConversationId } from './conversation.js';
 import { UserId } from '../events/volleyball-event.js';
 import { ConflictError, UnauthorizedError, ValidationError } from '../shared/result.js';
@@ -46,6 +46,72 @@ describe('Message.compose', () => {
 
   it('rejects an over-length body', () => {
     expect(() => composed('x'.repeat(4001))).toThrow(ValidationError);
+  });
+});
+
+function imageAttachment(overrides: Partial<MessageAttachment> = {}): MessageAttachment {
+  return {
+    bucket: 'chat-attachments',
+    path: `${cid}/${sender}/pic.png`,
+    width: 800,
+    height: 600,
+    mime: 'image/png',
+    size: 1024,
+    ...overrides,
+  };
+}
+
+describe('Message.compose with attachments', () => {
+  it('allows an empty body when an image attachment is present', () => {
+    const m = Message.compose({
+      id: mid,
+      conversationId: cid,
+      senderId: sender,
+      body: '   ',
+      isAnonymous: false,
+      attachments: [imageAttachment()],
+    });
+    expect(m.body).toBe('');
+    expect(m.attachments).toHaveLength(1);
+  });
+
+  it('rejects more than the attachment cap', () => {
+    expect(() =>
+      Message.compose({
+        id: mid,
+        conversationId: cid,
+        senderId: sender,
+        body: 'hi',
+        isAnonymous: false,
+        attachments: Array.from({ length: MAX_ATTACHMENTS + 1 }, () => imageAttachment()),
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects a non-image attachment', () => {
+    expect(() =>
+      Message.compose({
+        id: mid,
+        conversationId: cid,
+        senderId: sender,
+        body: 'hi',
+        isAnonymous: false,
+        attachments: [imageAttachment({ mime: 'application/pdf' })],
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects an oversize attachment', () => {
+    expect(() =>
+      Message.compose({
+        id: mid,
+        conversationId: cid,
+        senderId: sender,
+        body: 'hi',
+        isAnonymous: false,
+        attachments: [imageAttachment({ size: 11 * 1024 * 1024 })],
+      }),
+    ).toThrow(ValidationError);
   });
 });
 

@@ -101,9 +101,19 @@ server actions moved to `apps/web/src/app/_actions/chat-actions.ts` so both
 surfaces share them. Block/unblock is a no-invariant self-edge, so the action
 drives the port directly (no command handler — AGENTS.md pattern #10).
 
-**Phase 4** is the image fast-follow: it drops the single `messages_text_only`
-CHECK to enable the reserved `attachments jsonb` column — no table migration
-needed.
+**Phase 4 (shipped): image attachments.** Migration
+`20260826000000_chat_attachments.sql` drops the single `messages_text_only`
+CHECK (the reserved `attachments jsonb` column was already there) and adds a
+**private** `chat-attachments` storage bucket — unlike the public `hero-images`
+bucket, chat (especially DMs) must not be world-readable by URL. Storage RLS
+gates read/write by the same `can_access_conversation` helper, keyed off the
+object path `{conversation_id}/{user_id}/{uuid}.{ext}`; the app mints short-lived
+signed URLs (`ChatImage`) that only conversation members can create. The
+`Message` aggregate gained a `MessageAttachment[]` (image-MIME + size +
+count caps; the empty-body rule relaxes to "body OR ≥1 attachment", mirroring the
+DB `messages_nonempty` CHECK), threaded through `SendMessageCommand` → the
+repository's insert/read/broadcast. Upload is client-side in the shared
+`ConversationView` composer, so both team rooms and DMs got attachments at once.
 
 ## Consequences
 
@@ -127,7 +137,9 @@ needed.
 
 ## Follow-ups
 
-- **Phase 4 — attachments:** drop `messages_text_only`, add image upload.
+- **Attachment orphan cleanup:** a soft-deleted (or never-sent) message leaves
+  its storage object behind. Add a retention cron like
+  `hero_images_orphan_cleanup`.
 - **Start-a-DM from the inbox** (a recipient picker) — today a DM is only
   startable from a player profile's "Message" button.
 - **Blocked-state banner on the DM thread** — blocking currently just makes the

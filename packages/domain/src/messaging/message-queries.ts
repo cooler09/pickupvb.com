@@ -7,9 +7,20 @@
 
 import type { ConversationKind } from './conversation.js';
 
+/** An image attachment as rendered in a thread (Phase 4). The display layer
+ * mints a short-lived signed URL from `bucket`/`path` (the bucket is private);
+ * `width`/`height` let it reserve layout space before the image loads. */
+export interface MessageAttachmentView {
+  bucket: string;
+  path: string;
+  width: number | null;
+  height: number | null;
+  mime: string;
+}
+
 /** A message as rendered in a thread. Deleted messages still come back (as a
  * tombstone) for the sender/moderator; the view carries `isDeleted` so the UI
- * can render "message deleted" without exposing the body. */
+ * can render "message deleted" without exposing the body (or attachments). */
 export interface MessageView {
   id: string;
   conversationId: string;
@@ -17,6 +28,7 @@ export interface MessageView {
   senderName: string | null;
   senderAvatarUrl: string | null;
   body: string;
+  attachments: MessageAttachmentView[];
   isDeleted: boolean;
   isEdited: boolean;
   createdAt: string;

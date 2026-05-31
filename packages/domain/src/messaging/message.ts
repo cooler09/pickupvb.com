@@ -10,6 +10,25 @@ export const MessageId = idConstructor<'MessageId'>();
 /** Mirrors the `messages.body` length CHECK in the DB. */
 export const MAX_MESSAGE_LENGTH = 4000;
 
+/** Caps for image attachments (Phase 4). The byte cap mirrors the
+ * `chat-attachments` bucket `file_size_limit`; the count cap is app-only. */
+export const MAX_ATTACHMENTS = 10;
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * A single image attachment on a message — the value persisted to the
+ * `messages.attachments` jsonb array. `bucket`/`path` locate the (private)
+ * storage object; the app mints a short-lived signed URL to display it.
+ */
+export interface MessageAttachment {
+  bucket: string;
+  path: string;
+  width: number | null;
+  height: number | null;
+  mime: string;
+  size: number;
+}
+
 /**
  * A single chat message — the write aggregate of the `messaging` subdomain.
  *
@@ -37,6 +56,7 @@ export class Message extends AggregateRoot<MessageId> {
     private readonly _conversationId: ConversationId,
     private readonly _senderId: UserId,
     private _body: string,
+    private readonly _attachments: MessageAttachment[],
     private _deletedAt: Date | null,
     private _editedAt: Date | null,
   ) {
@@ -54,12 +74,23 @@ export class Message extends AggregateRoot<MessageId> {
     senderId: UserId;
     body: string;
     isAnonymous: boolean;
+    attachments?: MessageAttachment[];
   }): Message {
     if (props.isAnonymous) {
       throw new UnauthorizedError('Sign in to send messages.');
     }
-    const body = Message.assertBody(props.body);
-    return new Message(props.id, props.conversationId, props.senderId, body, null, null);
+    const attachments = props.attachments ?? [];
+    Message.assertAttachments(attachments);
+    const body = Message.assertContent(props.body, attachments);
+    return new Message(
+      props.id,
+      props.conversationId,
+      props.senderId,
+      body,
+      attachments,
+      null,
+      null,
+    );
   }
 
   /** Rehydrate a persisted `messages` row (no re-validation). */
@@ -68,6 +99,7 @@ export class Message extends AggregateRoot<MessageId> {
     conversationId: ConversationId;
     senderId: UserId;
     body: string;
+    attachments?: MessageAttachment[];
     deletedAt: Date | null;
     editedAt: Date | null;
   }): Message {
@@ -76,14 +108,21 @@ export class Message extends AggregateRoot<MessageId> {
       props.conversationId,
       props.senderId,
       props.body,
+      props.attachments ?? [],
       props.deletedAt,
       props.editedAt,
     );
   }
 
-  private static assertBody(raw: string): string {
+  /**
+   * Validate the body against the length cap and the content rule: a message
+   * must carry text or at least one attachment (mirrors the DB
+   * `messages_nonempty` CHECK). Returns the trimmed body (possibly empty when
+   * attachments stand in for it).
+   */
+  private static assertContent(raw: string, attachments: MessageAttachment[]): string {
     const body = raw.trim();
-    if (body.length === 0) {
+    if (body.length === 0 && attachments.length === 0) {
       throw new ValidationError('Message cannot be empty.', { field: 'body' });
     }
     if (body.length > MAX_MESSAGE_LENGTH) {
@@ -94,6 +133,24 @@ export class Message extends AggregateRoot<MessageId> {
     return body;
   }
 
+  private static assertAttachments(attachments: MessageAttachment[]): void {
+    if (attachments.length > MAX_ATTACHMENTS) {
+      throw new ValidationError(`Too many attachments (max ${MAX_ATTACHMENTS}).`, {
+        field: 'attachments',
+      });
+    }
+    for (const a of attachments) {
+      if (!a.mime.startsWith('image/')) {
+        throw new ValidationError('Only image attachments are supported.', {
+          field: 'attachments',
+        });
+      }
+      if (a.size <= 0 || a.size > MAX_ATTACHMENT_BYTES) {
+        throw new ValidationError('Attachment is too large.', { field: 'attachments' });
+      }
+    }
+  }
+
   get conversationId(): ConversationId {
     return this._conversationId;
   }
@@ -102,6 +159,9 @@ export class Message extends AggregateRoot<MessageId> {
   }
   get body(): string {
     return this._body;
+  }
+  get attachments(): readonly MessageAttachment[] {
+    return this._attachments;
   }
   get deletedAt(): Date | null {
     return this._deletedAt;
@@ -121,7 +181,7 @@ export class Message extends AggregateRoot<MessageId> {
     if (this._deletedAt !== null) {
       throw new ConflictError('Cannot edit a deleted message.');
     }
-    this._body = Message.assertBody(body);
+    this._body = Message.assertContent(body, this._attachments);
     this._editedAt = new Date();
   }
 

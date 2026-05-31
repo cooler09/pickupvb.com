@@ -3,9 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import type { MessageView } from '@pickupvb/domain';
+import {
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
+  type MessageAttachment,
+  type MessageAttachmentView,
+  type MessageView,
+} from '@pickupvb/domain';
 import { primaryButtonClass, textButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
+import { ChatImage } from '@/components/chat-image';
 import {
   deleteChatMessage,
   editChatMessage,
@@ -13,6 +20,8 @@ import {
   reportChatMessage,
   sendChatMessage,
 } from '@/app/_actions/chat-actions';
+
+const BUCKET = 'chat-attachments';
 
 type Props = {
   conversationId: string;
@@ -26,16 +35,35 @@ type Props = {
 
 type SenderCard = { name: string; avatar: string | null };
 
+/** A locally-uploaded image awaiting send: its persisted metadata + a local
+ * object-URL preview shown in the composer strip. */
+type Pending = { attachment: MessageAttachment; previewUrl: string };
+
 /** Raw `messages` row as delivered on the `chat:{id}` Broadcast topic. */
 type BroadcastRow = {
   id: string;
   conversation_id: string;
   sender_id: string;
   body: string;
+  attachments: unknown;
   deleted_at: string | null;
   edited_at: string | null;
   created_at: string;
 };
+
+function toAttachmentViews(raw: unknown): MessageAttachmentView[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((a) => {
+    const x = a as Partial<MessageAttachment>;
+    return {
+      bucket: x.bucket ?? BUCKET,
+      path: x.path ?? '',
+      width: x.width ?? null,
+      height: x.height ?? null,
+      mime: x.mime ?? 'image/*',
+    };
+  });
+}
 
 function mergeMessages(prev: MessageView[], incoming: MessageView[]): MessageView[] {
   const byId = new Map(prev.map((m) => [m.id, m]));
@@ -55,15 +83,29 @@ function initials(name: string): string {
   return (parts[0]![0]! + (parts.length > 1 ? parts[parts.length - 1]![0]! : '')).toUpperCase();
 }
 
+/** Read an image's natural dimensions from a local File (best-effort). */
+function imageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new globalThis.Image();
+    const src = URL.createObjectURL(file);
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      URL.revokeObjectURL(src);
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 /**
  * The reusable live chat surface (ADR 0028) — message list, "load earlier",
- * composer, and per-message edit / delete / report. Shared by the team-room
- * island ({@link TeamChatPanel}, which bootstraps client-side then mounts this)
- * and the DM thread page (which bootstraps server-side and mounts this with the
- * initial page already loaded). It owns no access logic — the caller decides
- * whether to render it; this just needs an opened `conversationId` + the initial
- * page, and subscribes to the private `chat:{conversationId}` Broadcast topic
- * for live INSERT / UPDATE (the same pattern as the notification bell, ADR 0027).
+ * composer (text + image attachments), and per-message edit / delete / report.
+ * Shared by the team-room island ({@link TeamChatPanel}, which bootstraps
+ * client-side then mounts this) and the DM thread page (which bootstraps
+ * server-side). It owns no access logic — the caller decides whether to render
+ * it; this just needs an opened `conversationId` + the initial page, and
+ * subscribes to the private `chat:{conversationId}` Broadcast topic for live
+ * INSERT / UPDATE (the same pattern as the notification bell, ADR 0027).
  */
 export function ConversationView({
   conversationId,
@@ -77,6 +119,8 @@ export function ConversationView({
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [nextBefore, setNextBefore] = useState<string | null>(initialNextBefore);
   const [draft, setDraft] = useState('');
+  const [pending, setPending] = useState<Pending[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState('');
@@ -85,6 +129,7 @@ export function ConversationView({
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Sender card lookup, seeded from the roster and enriched (avatars) as
   // messages with embedded sender cards load.
@@ -121,6 +166,7 @@ export function ConversationView({
         senderName: who.name,
         senderAvatarUrl: who.avatar,
         body: deleted ? '' : rec.body,
+        attachments: deleted ? [] : toAttachmentViews(rec.attachments),
         isDeleted: deleted,
         isEdited: rec.edited_at !== null,
         createdAt: rec.created_at,
@@ -176,9 +222,65 @@ export function ConversationView({
     atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }, []);
 
+  // ---- Attachments --------------------------------------------------------
+  const pickFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      setError(null);
+      setUploading(true);
+      const supabase = createSupabaseBrowserClient();
+      const room = MAX_ATTACHMENTS - pending.length;
+      const added: Pending[] = [];
+      for (const file of Array.from(files).slice(0, Math.max(room, 0))) {
+        if (!file.type.startsWith('image/')) {
+          setError('Only images can be attached.');
+          continue;
+        }
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          setError('Image is too large (max 10 MB).');
+          continue;
+        }
+        const ext = file.name.includes('.') ? file.name.split('.').pop() : 'png';
+        const path = `${conversationId}/${viewerId}/${crypto.randomUUID()}.${ext ?? 'png'}`;
+        const { error: upErr } = await supabase.storage
+          .from(BUCKET)
+          .upload(path, file, { contentType: file.type });
+        if (upErr) {
+          setError('Upload failed. Try again.');
+          continue;
+        }
+        const dims = await imageDimensions(file).catch(() => null);
+        added.push({
+          attachment: {
+            bucket: BUCKET,
+            path,
+            width: dims?.width ?? null,
+            height: dims?.height ?? null,
+            mime: file.type,
+            size: file.size,
+          },
+          previewUrl: URL.createObjectURL(file),
+        });
+      }
+      setPending((prev) => [...prev, ...added]);
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    },
+    [conversationId, viewerId, pending.length],
+  );
+
+  const removePending = useCallback((path: string) => {
+    setPending((prev) => {
+      const hit = prev.find((p) => p.attachment.path === path);
+      if (hit) URL.revokeObjectURL(hit.previewUrl);
+      return prev.filter((p) => p.attachment.path !== path);
+    });
+  }, []);
+
   const send = useCallback(async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    const attachments = pending.map((p) => p.attachment);
+    if ((!body && attachments.length === 0) || sending) return;
     setSending(true);
     setError(null);
     // Optimistic echo — the matching INSERT broadcast replaces this by id.
@@ -189,18 +291,28 @@ export function ConversationView({
       senderName: resolveSender(viewerId).name,
       senderAvatarUrl: resolveSender(viewerId).avatar,
       body,
+      attachments: attachments.map((a) => ({
+        bucket: a.bucket,
+        path: a.path,
+        width: a.width,
+        height: a.height,
+        mime: a.mime,
+      })),
       isDeleted: false,
       isEdited: false,
       createdAt: new Date().toISOString(),
     };
+    const sentPending = pending;
     atBottomRef.current = true;
     setMessages((prev) => mergeMessages(prev, [tempView]));
     setDraft('');
-    const res = await sendChatMessage(conversationId, body);
+    setPending([]);
+    const res = await sendChatMessage(conversationId, body, attachments);
     setSending(false);
     if (!res.ok) {
       setMessages((prev) => prev.filter((m) => m.id !== tempView.id));
       setDraft(body);
+      setPending(sentPending);
       setError(
         res.error === 'forbidden'
           ? 'You can no longer post in this conversation.'
@@ -210,13 +322,14 @@ export function ConversationView({
       );
       return;
     }
+    for (const p of sentPending) URL.revokeObjectURL(p.previewUrl);
     // Reconcile the temp id to the real id so a slow broadcast cannot duplicate.
     setMessages((prev) =>
       prev.some((m) => m.id === res.value.id)
         ? prev.filter((m) => m.id !== tempView.id)
         : prev.map((m) => (m.id === tempView.id ? { ...m, id: res.value.id } : m)),
     );
-  }, [conversationId, viewerId, draft, sending, resolveSender]);
+  }, [conversationId, viewerId, draft, pending, sending, resolveSender]);
 
   const loadOlder = useCallback(async () => {
     if (!nextBefore || loadingOlder) return;
@@ -252,7 +365,9 @@ export function ConversationView({
     const res = await deleteChatMessage(messageId);
     if (res.ok) {
       setMessages((prev) =>
-        prev.map((m) => (m.id === messageId ? { ...m, isDeleted: true, body: '' } : m)),
+        prev.map((m) =>
+          m.id === messageId ? { ...m, isDeleted: true, body: '', attachments: [] } : m,
+        ),
       );
     }
   }, []);
@@ -263,6 +378,7 @@ export function ConversationView({
   }, []);
 
   const empty = useMemo(() => messages.filter((m) => !m.isDeleted).length === 0, [messages]);
+  const canSend = (draft.trim().length > 0 || pending.length > 0) && !sending && !uploading;
 
   return (
     <div className="border-border-base bg-surface rounded-shape-sm flex flex-col overflow-hidden border">
@@ -337,22 +453,33 @@ export function ConversationView({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm break-words whitespace-pre-wrap">{m.body}</p>
+                  <>
+                    {m.body && <p className="text-sm break-words whitespace-pre-wrap">{m.body}</p>}
+                    {m.attachments.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {m.attachments.map((a) => (
+                          <ChatImage key={a.path} attachment={a} />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
                 {!m.isDeleted && editingId !== m.id && (
                   <div className="mt-0.5 flex gap-3">
                     {mine ? (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingId(m.id);
-                            setEditDraft(m.body);
-                          }}
-                          className="text-muted hover:text-fg text-xs"
-                        >
-                          Edit
-                        </button>
+                        {m.body && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingId(m.id);
+                              setEditDraft(m.body);
+                            }}
+                            className="text-muted hover:text-fg text-xs"
+                          >
+                            Edit
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => void remove(m.id)}
@@ -378,6 +505,29 @@ export function ConversationView({
         })}
       </div>
 
+      {pending.length > 0 && (
+        <div className="border-border-base flex flex-wrap gap-2 border-t p-2">
+          {pending.map((p) => (
+            <div key={p.attachment.path} className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element -- local object-URL preview before send */}
+              <img
+                src={p.previewUrl}
+                alt="Attachment preview"
+                className="h-16 w-16 rounded-md object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removePending(p.attachment.path)}
+                aria-label="Remove attachment"
+                className="bg-fg/70 absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form
         className="border-border-base flex items-end gap-2 border-t p-2"
         onSubmit={(e) => {
@@ -385,6 +535,35 @@ export function ConversationView({
           void send();
         }}
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => void pickFiles(e.target.files)}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || pending.length >= MAX_ATTACHMENTS}
+          aria-label="Attach image"
+          className="tap-target text-fg/70 hover:bg-fg/5 hover:text-primary rounded-md disabled:opacity-50"
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+        </button>
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -396,15 +575,11 @@ export function ConversationView({
           }}
           rows={1}
           maxLength={4000}
-          placeholder="Type a message…"
+          placeholder={uploading ? 'Uploading…' : 'Type a message…'}
           aria-label="Message"
           className={`${fieldInputClass} resize-none`}
         />
-        <button
-          type="submit"
-          disabled={sending || !draft.trim()}
-          className={primaryButtonClass('md')}
-        >
+        <button type="submit" disabled={!canSend} className={primaryButtonClass('md')}>
           Send
         </button>
       </form>

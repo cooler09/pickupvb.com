@@ -8,6 +8,8 @@ import {
   type ConversationQueries,
   type ConversationRepository,
   type InboxItem,
+  type MessageAttachment,
+  type MessageAttachmentView,
   type MessagePage,
   type MessageQueries,
   type MessageRepository,
@@ -91,9 +93,43 @@ type MessageRow = {
   conversation_id: string;
   sender_id: string;
   body: string;
+  attachments: unknown;
   deleted_at: string | null;
   edited_at: string | null;
 };
+
+/** The persisted `attachments` jsonb element. `size` is stored but unused on read. */
+type AttachmentJson = {
+  bucket: string;
+  path: string;
+  width: number | null;
+  height: number | null;
+  mime: string;
+  size: number;
+};
+
+function toAttachments(raw: unknown): MessageAttachment[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as AttachmentJson[]).map((a) => ({
+    bucket: a.bucket,
+    path: a.path,
+    width: a.width ?? null,
+    height: a.height ?? null,
+    mime: a.mime,
+    size: a.size,
+  }));
+}
+
+function toAttachmentViews(raw: unknown): MessageAttachmentView[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as AttachmentJson[]).map((a) => ({
+    bucket: a.bucket,
+    path: a.path,
+    width: a.width ?? null,
+    height: a.height ?? null,
+    mime: a.mime,
+  }));
+}
 
 function rowToAggregate(row: MessageRow): Message {
   return Message.fromPersistence({
@@ -101,6 +137,7 @@ function rowToAggregate(row: MessageRow): Message {
     conversationId: ConversationId(row.conversation_id),
     senderId: UserId(row.sender_id),
     body: row.body,
+    attachments: toAttachments(row.attachments),
     deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
     editedAt: row.edited_at ? new Date(row.edited_at) : null,
   });
@@ -115,6 +152,7 @@ export class SupabaseMessageRepository implements MessageRepository {
       conversation_id: String(message.conversationId),
       sender_id: String(message.senderId),
       body: message.body,
+      attachments: message.attachments,
     } as never);
     if (error) {
       if (error.code === RLS_DENIED) {
@@ -127,7 +165,7 @@ export class SupabaseMessageRepository implements MessageRepository {
   async findById(id: MessageId): Promise<Message | null> {
     const { data, error } = await this.client
       .from('messages')
-      .select('id, conversation_id, sender_id, body, deleted_at, edited_at')
+      .select('id, conversation_id, sender_id, body, attachments, deleted_at, edited_at')
       .eq('id', String(id))
       .maybeSingle();
     if (error) throw new Error(`Message.findById(${id}) failed: ${error.message}`);
@@ -188,8 +226,9 @@ function rowToView(row: MessageViewRow): MessageView {
     senderId: row.sender_id,
     senderName: row.sender?.display_name ?? null,
     senderAvatarUrl: row.sender?.avatar_url ?? null,
-    // Tombstone: never expose a deleted message's body, even to sender/moderator.
+    // Tombstone: never expose a deleted message's body or attachments.
     body: deleted ? '' : row.body,
+    attachments: deleted ? [] : toAttachmentViews(row.attachments),
     isDeleted: deleted,
     isEdited: row.edited_at !== null,
     createdAt: row.created_at,
@@ -210,7 +249,7 @@ export class SupabaseMessageQueries implements MessageQueries {
     let q = this.client
       .from('messages')
       .select(
-        'id, conversation_id, sender_id, body, deleted_at, edited_at, created_at, sender:profiles!messages_sender_id_fkey(display_name, avatar_url)',
+        'id, conversation_id, sender_id, body, attachments, deleted_at, edited_at, created_at, sender:profiles!messages_sender_id_fkey(display_name, avatar_url)',
       )
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })

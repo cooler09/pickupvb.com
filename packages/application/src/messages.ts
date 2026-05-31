@@ -14,6 +14,7 @@ import type {
   FollowingFeedFilters,
   GroupProfileEdit,
   GroupRole,
+  MessageAttachment,
   ProfileBusinessInfo,
   ProfileDetailsEdit,
   RoomKind,
@@ -646,6 +647,8 @@ export class SendMessageCommand {
     public readonly body: string,
     /** From the JWT `is_anonymous` claim — anonymous users cannot post. */
     public readonly isAnonymous: boolean,
+    /** Already-uploaded image attachments (Phase 4); empty for text-only. */
+    public readonly attachments: MessageAttachment[] = [],
   ) {}
 }
 

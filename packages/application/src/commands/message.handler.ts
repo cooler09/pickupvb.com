@@ -59,6 +59,7 @@ export class SendMessageHandler {
     senderId,
     body,
     isAnonymous,
+    attachments,
   }: SendMessageCommand): Promise<{ id: string }> {
     const message = Message.compose({
       id: MessageId(randomUUID()),
@@ -66,6 +67,7 @@ export class SendMessageHandler {
       senderId: UserId(senderId),
       body,
       isAnonymous,
+      attachments,
     });
     await this.repo.add(message);
     return { id: message.id };
