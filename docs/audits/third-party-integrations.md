@@ -17,9 +17,32 @@ where relevant, but kept here under the vendor-cost lens.
 
 ---
 
+## Status — 2026-05-31 (Tier 1 fixes landed)
+
+**Resolved (Tier 1 quick wins):** TPI-4 (Stripe `apiVersion` pinned to the
+SDK-bundled `2026-04-22.dahlia`, now a typecheck tripwire on bumps), TPI-5
+(checkout idempotency keys on all four destination-charge flows + the shared
+helper), TPI-8 (Resend `Idempotency-Key` = outbox row id, pinned by a new
+`email-resend.test.ts`), TPI-10 (client Sentry traces 10%→2%), TPI-12 (server
+`tracesSampler` drops the `/api/notifications/*` cron transactions).
+
+**TPI-9 resolved independently** by the ADR 0026 worker rewrite — the worker now
+drains the _whole_ backlog per wake (loop bounded by `DRAIN_BUDGET_MS`) with a
+debounced DB kick as the primary trigger, so `BATCH=50` is a per-claim size, not
+a per-invocation ceiling. The `*/5` cron is now a safety-net sweep. No change
+needed.
+
+Verify quad green (web 83 tests incl. the new one; lint 0 errors; build 8/8).
+**Remaining open: 4 P2** (TPI-1 + TPI-3 free-OSM services, TPI-7 Realtime →
+Broadcast, TPI-14 reminders cron) **+ 4 P3** (TPI-2, TPI-6, TPI-11, TPI-13).
+Maps/geocoding direction chosen: **MapTiler** (one vendor for tiles +
+geocoding/autocomplete) — see TPI-1/2/3.
+
+---
+
 ## Status — 2026-05-31 (initial audit)
 
-Opened **0 P1 · 5 P2 · 7 P3**. Headline: the integration plumbing is genuinely
+Opened **0 P1 · 5 P2 · 9 P3**. Headline: the integration plumbing is genuinely
 well-built (signature verification, idempotency logs, consent gating, salted
 actor hashing, endpoint pruning, retry/backoff) — there are **no ship-blocking
 bugs**. The risk is concentrated in **two scale cliffs that are invisible at
@@ -122,7 +145,7 @@ keeps that bundle off pages that don't render a map (cross-ref
 
 ### Stripe
 
-#### TPI-4 (P2) — Stripe client pins no `apiVersion`
+#### TPI-4 (P2) — ✅ Resolved 2026-05-31 — Stripe client pins no `apiVersion`
 
 [apps/web/src/lib/stripe.ts](../../apps/web/src/lib/stripe.ts#L27-L33) constructs
 `new Stripe(key, { typescript: true, maxNetworkRetries: 2 })` and deliberately
@@ -138,7 +161,7 @@ payment integration it's a latent break.
 tested changes (verify the [webhook handler](../../apps/web/src/lib/webhooks/)
 payload shapes against the new version). `maxNetworkRetries: 2` is good; keep it.
 
-#### TPI-5 (P3) — Checkout Session / subscription creates pass no `idempotencyKey`
+#### TPI-5 (P3) — ✅ Resolved 2026-05-31 — Checkout Session creates pass no `idempotencyKey`
 
 [lib/checkout-session.ts](../../apps/web/src/lib/checkout-session.ts#L42-L56),
 [profile/billing/pro/actions.ts](../../apps/web/src/app/profile/billing/pro/actions.ts),
@@ -170,7 +193,7 @@ a real data-loss seam on the payments path.
 
 ### Telemetry — Sentry
 
-#### TPI-10 (P3) — Client `tracesSampleRate` still 10% after server/edge were trimmed to 2%
+#### TPI-10 (P3) — ✅ Resolved 2026-05-31 — Client `tracesSampleRate` still 10% after server/edge were trimmed to 2%
 
 The working-tree change drops
 [sentry.server.config.ts](../../apps/web/sentry.server.config.ts#L11) and
@@ -192,7 +215,7 @@ an error triggers capture; (b) consider `replaysOnErrorSampleRate < 1.0` so a
 prod error _spike_ can't burn the replay quota in one incident. (Perf cross-ref
 [performance.md](performance.md).)
 
-#### TPI-12 (P3) — No `tracesSampler` to zero-out cron/health transactions
+#### TPI-12 (P3) — ✅ Resolved 2026-05-31 — No `tracesSampler` to zero-out cron/health transactions
 
 The three cron routes (worker/reminders/outbox-purge) each open a server
 transaction at the sampled rate every 5/15 min / daily — pure noise. Add a
@@ -251,7 +274,7 @@ persistent socket.
 
 ### Notifications / Vercel Cron workers
 
-#### TPI-8 (P3) — Outbox email send has no provider idempotency key → duplicate emails on retry
+#### TPI-8 (P3) — ✅ Resolved 2026-05-31 — Outbox email send has no provider idempotency key → duplicate emails on retry
 
 [worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts#L58-L67)
 calls `sendEmail` then `outbox.markSent`. If the email is sent but the worker
@@ -263,20 +286,19 @@ user-visible.)
 **Fix:** pass `Idempotency-Key: <outbox row id>` to the Resend API (it supports
 the header). The same row-id key documents at-least-once intent for push too.
 
-#### TPI-9 (P3) — Worker throughput ceiling after the `*/5` cron change
+#### TPI-9 (P3) — ✅ Resolved 2026-05-31 (ADR 0026) — Worker throughput ceiling
 
-The working-tree change moves the worker cron from `* * * * *` to `*/5 * * * *`
-([vercel.json](../../apps/web/vercel.json)) — a sound cost trade (12× fewer
-invocations). With `BATCH = 50`
-([worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts#L41)),
-steady-state throughput is now **≤ 600 notifications/hour**. A reminder blast to
-a large event will lag behind that ceiling.
+_Original concern:_ with a single `claimBatch(50)` per invocation and the cron
+moved to `*/5`, steady-state throughput would cap at ~600 notifications/hour and
+a large reminder blast would lag.
 
-**Fix:** keep `*/5` but raise `BATCH` to ~150–200 — push is fanned out in
-parallel (`Promise.allSettled`) and email is I/O-bound, so a single 60 s
-invocation can clear far more than 50 rows. Re-time against a realistic blast
-before locking the number. (Revert to `* * * * *` only if delivery latency
-matters more than invocation cost.)
+**Resolved by the ADR 0026 worker rewrite** — the `GET` handler now loops
+`drainOneBatch` until the queue is empty, bounded by `DRAIN_BUDGET_MS` (50 s)
+rather than a single batch, and a debounced DB kick is the primary trigger
+([worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts#L188-L220)).
+`BATCH = 50` is now the per-claim round-trip size, **not** a per-invocation
+ceiling, so there's no throughput cliff. The `*/5` cron is a safety-net sweep.
+No code change from this audit.
 
 #### TPI-14 (P2) — Reminders cron marks-sent-first then dispatches sequentially inside one 60 s function, with no row cap
 
@@ -328,4 +350,43 @@ worker so the reminder cron only enqueues a single "remind event X" job.
 
 ## Remediation log
 
-_(none yet — findings opened 2026-05-31)_
+**2026-05-31 — Tier 1 quick wins (5 findings) + TPI-9 confirmed resolved.**
+
+- **TPI-4** — pinned `apiVersion: '2026-04-22.dahlia'` (the stripe@22.1.1
+  bundled version) in [lib/stripe.ts](../../apps/web/src/lib/stripe.ts). The
+  literal is typed against the SDK's `LatestApiVersion`, so a future
+  `pnpm up stripe` fails typecheck here until the version is bumped
+  deliberately and webhook payload shapes re-verified.
+- **TPI-5** — added an optional `idempotencyKey` to
+  [checkout-session.ts](../../apps/web/src/lib/checkout-session.ts) (passed as
+  the `sessions.create` request-options arg) and wired all four destination
+  charge flows to key on their pending payment row:
+  `ticket:<participantId>` ([checkout-actions](../../apps/web/src/app/events/[id]/checkout-actions.ts)),
+  `tip:<tipId>` ([tip-actions](../../apps/web/src/app/events/[id]/tip-actions.ts)),
+  `team:<registrationId>` ([team-checkout-actions](../../apps/web/src/app/events/[id]/team-checkout-actions.ts)),
+  `roster:<paymentId>` ([roster-team-checkout-actions](../../apps/web/src/app/events/[id]/roster-team-checkout-actions.ts)).
+  Keyed on the row (not stable inputs) so legitimate repeat purchases still
+  create distinct sessions.
+- **TPI-8** — added `idempotencyKey` to
+  [email-resend.ts](../../apps/web/src/lib/email-resend.ts) (forwarded as the
+  Resend `Idempotency-Key` header) and pass the outbox row id from
+  [worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts).
+  Pinned by a new
+  [email-resend.test.ts](../../apps/web/src/lib/email-resend.test.ts) (2 tests:
+  header forwarded when keyed, omitted otherwise).
+- **TPI-10** — client `tracesSampleRate` 0.1 → 0.02 in
+  [instrumentation-client.ts](../../apps/web/instrumentation-client.ts) to match
+  the server/edge trim.
+- **TPI-12** — replaced the flat server `tracesSampleRate` with a
+  `tracesSampler` in
+  [sentry.server.config.ts](../../apps/web/sentry.server.config.ts) that returns
+  `0` for `/api/notifications/*` cron transactions, else the prod 2% / dev 100%
+  rate.
+- **TPI-9** — confirmed **already resolved** by the ADR 0026 worker rewrite
+  (whole-backlog drain loop + debounced DB kick); no change made.
+
+Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+(web 83 tests, lint 0 errors, build 8/8).
+
+**Still open: 4 P2** (TPI-1, TPI-3, TPI-7, TPI-14) **+ 4 P3** (TPI-2, TPI-6,
+TPI-11, TPI-13). Maps/geocoding vendor direction chosen: **MapTiler**.

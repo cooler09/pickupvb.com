@@ -202,6 +202,8 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
         payment_id: String(payment.id),
         captain_id: user.id,
       },
+      // One pending roster payment row → at most one Checkout Session (TPI-5).
+      idempotencyKey: `roster:${String(payment.id)}`,
     });
   } catch (err) {
     await log.error('[roster-team-checkout] session create failed', err, {

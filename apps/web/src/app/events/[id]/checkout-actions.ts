@@ -181,6 +181,8 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
         user_id: user.id,
         kind: 'attendee',
       },
+      // One pending participant row → at most one Checkout Session (TPI-5).
+      ...(participantId ? { idempotencyKey: `ticket:${participantId}` } : {}),
     });
   } catch (err) {
     // Roll back the pending row so we don't leak capacity. Cascade deletes

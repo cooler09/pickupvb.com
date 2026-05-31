@@ -11,19 +11,30 @@ import { getStripe } from './stripe';
 export const CHECKOUT_EXPIRES_SECS = 30 * 60;
 
 export type DestinationCheckoutSessionInput = {
-    /** Stripe Connect account that should receive the funds. */
-    destinationAccountId: string;
-    /** Pre-built line items — shape varies per kind (ticket vs tip). */
-    lineItems: NonNullable<Stripe.Checkout.SessionCreateParams['line_items']>;
-    /** Platform cut, in cents. May be 0 (e.g. tournament free pass). */
-    applicationFeeAmount: number;
-    /** Where Stripe sends the buyer on success / cancel. */
-    successUrl: string;
-    cancelUrl: string;
-    /** Searchable on the resulting `payment_intent` + `checkout.session`. */
-    metadata: Record<string, string>;
-    /** Optional pre-fill for the email field on the Checkout page. */
-    customerEmail?: string | null;
+  /** Stripe Connect account that should receive the funds. */
+  destinationAccountId: string;
+  /** Pre-built line items — shape varies per kind (ticket vs tip). */
+  lineItems: NonNullable<Stripe.Checkout.SessionCreateParams['line_items']>;
+  /** Platform cut, in cents. May be 0 (e.g. tournament free pass). */
+  applicationFeeAmount: number;
+  /** Where Stripe sends the buyer on success / cancel. */
+  successUrl: string;
+  cancelUrl: string;
+  /** Searchable on the resulting `payment_intent` + `checkout.session`. */
+  metadata: Record<string, string>;
+  /** Optional pre-fill for the email field on the Checkout page. */
+  customerEmail?: string | null;
+  /**
+   * Optional Stripe idempotency key. Pass a value derived from the pending
+   * payment row (e.g. `tip:<tipId>`) so a retried `sessions.create` — a
+   * network blip, the SDK's own `maxNetworkRetries`, or a re-run of the same
+   * server action — maps to at most ONE Checkout Session instead of creating
+   * a duplicate. Stripe dedupes on this key for 24h. Keep the key tied to the
+   * pending row, not to stable inputs, so legitimate repeat purchases (a new
+   * row each time) still create distinct sessions.
+   * See docs/audits/third-party-integrations.md TPI-5.
+   */
+  idempotencyKey?: string;
 };
 
 /**
@@ -36,21 +47,24 @@ export type DestinationCheckoutSessionInput = {
  * Connect destination, metadata propagated to the payment intent.
  */
 export async function createDestinationCheckoutSession(
-    input: DestinationCheckoutSessionInput,
+  input: DestinationCheckoutSessionInput,
 ): Promise<Stripe.Checkout.Session> {
-    const stripe = getStripe();
-    return stripe.checkout.sessions.create({
-        mode: 'payment',
-        payment_method_types: ['card'],
-        ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
-        line_items: input.lineItems,
-        payment_intent_data: {
-            application_fee_amount: input.applicationFeeAmount,
-            transfer_data: { destination: input.destinationAccountId },
-        },
-        success_url: input.successUrl,
-        cancel_url: input.cancelUrl,
-        expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES_SECS,
-        metadata: input.metadata,
-    });
+  const stripe = getStripe();
+  return stripe.checkout.sessions.create(
+    {
+      mode: 'payment',
+      payment_method_types: ['card'],
+      ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
+      line_items: input.lineItems,
+      payment_intent_data: {
+        application_fee_amount: input.applicationFeeAmount,
+        transfer_data: { destination: input.destinationAccountId },
+      },
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_EXPIRES_SECS,
+      metadata: input.metadata,
+    },
+    input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
+  );
 }

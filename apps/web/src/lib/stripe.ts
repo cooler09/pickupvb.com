@@ -25,8 +25,15 @@ export function getStripe(): Stripe {
     );
   }
   cached = new Stripe(key, {
-    // Let the SDK pick its bundled API version. We get type safety for
-    // that exact version by doing nothing here.
+    // Pin the wire API version to the one this SDK bundles. Omitting it lets
+    // each request fall back to the Stripe account's dashboard-default version,
+    // so a `pnpm up stripe` (or a dashboard change) can silently move the
+    // version our webhook payloads + API responses are parsed against. The
+    // literal is type-checked against the SDK's `LatestApiVersion`, so a future
+    // SDK bump fails typecheck here until it's updated deliberately and the
+    // webhook payload shapes are re-verified.
+    // See docs/audits/third-party-integrations.md TPI-4.
+    apiVersion: '2026-04-22.dahlia',
     typescript: true,
     // Vercel functions are short-lived; we don't need pooling.
     maxNetworkRetries: 2,

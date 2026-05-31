@@ -67,6 +67,9 @@ async function processRow(
       subject: p.subject,
       html: p.html,
       text: p.text,
+      // Idempotency key so a redelivery after a crash between send and
+      // markSent returns the original email, not a duplicate (TPI-8).
+      idempotencyKey: row.id,
     });
     await outbox.markSent(row.id, result.id);
     return;
