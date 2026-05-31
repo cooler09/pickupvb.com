@@ -63,6 +63,13 @@ are separate bills. The cron was the dominant source.
   empty**: `drainOneBatch()` helper looped until the queue clears, bounded by
   `DRAIN_BUDGET_MS` (50s, under `maxDuration`). Makes the debounced single kick
   safe — one wake delivers a whole burst, not just one `BATCH`.
+- `apps/web/tests/e2e/notification-broadcast-drain.public.spec.ts` — new e2e: a
+  burst of > `BATCH` separate `notification_outbox` inserts (mirrors the
+  per-recipient broadcast loop) must all drain to terminal, pinning the
+  safety property (debounce never strands a row; worker loops past one batch)
+  against the real dev worker + pg_net trigger. DB-only (cleanup admin client,
+  `channel='sms'` → worker skips without sending) so no fixture users / real
+  email. **Authored, not yet run** — see follow-ups.
 
 ## Patterns observed
 
@@ -86,10 +93,15 @@ are separate bills. The cron was the dominant source.
   Residual: the post-final-kick tail of a burst relies on the sweep cron — a
   more-correct level-triggered "kick-pending flag cleared by the worker" is a
   possible refinement if the tail latency ever bites (noted in ADR §3).
-- **Run the broadcast path e2e on dev:** the debounce + drain-to-empty is only
-  exercised end-to-end by a real >`BATCH`-recipient broadcast. Add/run a
-  Playwright case (host broadcast → all attendees delivered) against dev once
-  Vault is seeded — unit tests can't cover the DB trigger + pg_net round-trip.
+- **Run the new burst-drain e2e green on dev.** The spec is authored
+  (`notification-broadcast-drain.public.spec.ts`) and type-checks, but was
+  **not run** this session — this machine is Node 20 (the cleanup client throws
+  on Node 20, AGENTS.md) and the suite targets deployed dev with `TEST_*` /
+  `E2E_CLEANUP_SUPABASE_*` creds I don't have. Run it on Node 22 against dev
+  **after Vault is seeded** (it is the ADR 0026 step-3 verification): with the
+  kick live it drains in seconds; a timeout signals the kick isn't wired. Per
+  AGENTS.md ("authoring an e2e ≠ running it"), don't consider it done until it's
+  green on dev.
 - **Validate the migration applies** — `pnpm db:migrate` could not run this
   session (Docker daemon down). Apply locally before relying on it.
 - **Confirm in the Vercel dashboard** (Observability → segment by route) that
