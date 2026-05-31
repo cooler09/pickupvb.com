@@ -65,13 +65,12 @@ test.describe('league — host builds the schedule and records a result (C2)', (
       await page.getByRole('button', { name: /^add match$/i }).click();
       await page.waitForURL(/notice=added/, { timeout: 15_000 });
 
-      // The match row renders both teams and a "Scheduled" status. Scope to the
-      // row (the only element carrying "vs") so the team-name <option>s in the
-      // add form's selects don't collide with the assertion.
-      const matchRow = page
-        .locator('li')
-        .filter({ hasText: /\bvs\b/ })
-        .first();
+      // The match row renders both teams and a "Scheduled" status. Scope the
+      // `<li>` by the home-team name (the add-form's team `<option>`s aren't
+      // `<li>`s, so they can't collide). NB: the matchup spans render with no
+      // whitespace between them in `textContent` ("…AcesvsBlocks"), so a
+      // `/\bvs\b/` filter never matches — filter on a team name instead.
+      const matchRow = page.locator('li').filter({ hasText: teams[0]! }).first();
       await expect(matchRow).toContainText(teams[0]!);
       await expect(matchRow).toContainText(teams[1]!);
       await expect(matchRow).toContainText(/Scheduled/);
@@ -91,10 +90,7 @@ test.describe('league — host builds the schedule and records a result (C2)', (
       await page.waitForURL(/notice=recorded/, { timeout: 15_000 });
 
       // The recorded score + "Final" status now show on the row.
-      const recordedRow = page
-        .locator('li')
-        .filter({ hasText: /\bvs\b/ })
-        .first();
+      const recordedRow = page.locator('li').filter({ hasText: teams[0]! }).first();
       await expect(recordedRow).toContainText('25');
       await expect(recordedRow).toContainText('10');
       await expect(recordedRow).toContainText(/Final/);
@@ -145,12 +141,7 @@ test.describe('league — the schedule is host-only (C2)', () => {
       await withAuthContext(browser, STORAGE_PATHS.attendeeB, async (bPage) => {
         await bPage.goto(`/events/${fx!.eventId}/schedule`);
 
-        await expect(
-          bPage
-            .locator('li')
-            .filter({ hasText: /\bvs\b/ })
-            .first(),
-        ).toBeVisible({
+        await expect(bPage.locator('li').filter({ hasText: teams[0]! }).first()).toBeVisible({
           timeout: 15_000,
         });
         await expect(bPage.getByRole('heading', { name: /add a match/i })).toHaveCount(0);
@@ -182,11 +173,15 @@ test.describe('league — host forfeits and reinstates a team (C2)', () => {
     // The "League teams" panel lives inside the collapsed "Host tools"
     // disclosure on the event detail page, which re-renders closed after every
     // forfeit-action redirect — so reopen it before each assertion.
+    // Idempotent: the forfeit success path revalidates in place (no redirect,
+    // unlike the schedule actions), so the disclosure may already be open after
+    // an action. Only toggle it when it's currently closed.
     const openHostTools = async () => {
-      await page.locator('summary', { hasText: /^Host tools$/ }).click();
-      await expect(page.getByRole('heading', { name: /league teams/i })).toBeVisible({
-        timeout: 15_000,
-      });
+      const heading = page.getByRole('heading', { name: /league teams/i });
+      if (!(await heading.isVisible().catch(() => false))) {
+        await page.locator('summary', { hasText: /^Host tools$/ }).click();
+      }
+      await expect(heading).toBeVisible({ timeout: 15_000 });
     };
     const markForfeited = page.getByRole('button', { name: /mark forfeited/i });
     const reinstate = page.getByRole('button', { name: /^reinstate$/i });
@@ -201,21 +196,20 @@ test.describe('league — host forfeits and reinstates a team (C2)', () => {
       await expect(markForfeited).toHaveCount(2);
       await expect(reinstate).toHaveCount(0);
 
-      // Forfeit one team.
+      // Forfeit one team. The action revalidates in place (the `?forfeit=`
+      // flash only fires on error), so wait for the new button state, not a
+      // navigation. `openHostTools` is idempotent in case the re-render reset
+      // the disclosure.
       await markForfeited.first().click();
-      await page.waitForURL(/forfeit=/, { timeout: 15_000 });
       await openHostTools();
-
       // Exactly one team is now forfeited (one Reinstate, one Mark forfeited).
-      await expect(reinstate).toHaveCount(1);
+      await expect(reinstate).toHaveCount(1, { timeout: 15_000 });
       await expect(markForfeited).toHaveCount(1);
 
       // Reinstate it → back to two active teams.
       await reinstate.first().click();
-      await page.waitForURL(/forfeit=/, { timeout: 15_000 });
       await openHostTools();
-
-      await expect(markForfeited).toHaveCount(2);
+      await expect(markForfeited).toHaveCount(2, { timeout: 15_000 });
       await expect(reinstate).toHaveCount(0);
     } finally {
       await deleteLeagueFixture(fx);

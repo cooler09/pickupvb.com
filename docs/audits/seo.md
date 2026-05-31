@@ -1,5 +1,22 @@
 # SEO audit — 2026-05-17
 
+> **Status update (2026-05-30 — full re-audit vs ~6 months of growth):**
+> Re-ran the audit against the post-May surface (community listings,
+> bracket spectator + schedule sub-routes, `/tools/scoreboard`,
+> `/about/numbers`, legal pages). The 2026-05-17 → 05-24 backlog is
+> closed and the new routes are mostly well-instrumented. Opened
+> **2 P2 + 4 P3.** Headline: (P2 #5) `robots.txt` disallows the whole
+> `/events/*/bracket` subtree, which **shadows the public
+> `/events/[id]/bracket/watch` spectator page** — a route built with a
+> canonical, a dedicated OG image route, a Twitter card and per-division
+> previews, but crawlers and OG-unfurl bots are told not to fetch it.
+> (P2 #6) **Community listings are absent from `sitemap.ts`** despite
+> being public + indexable with good per-page metadata. Also notable:
+> the 2026-05-17 `force-dynamic` P2 is now **effectively resolved on
+> indexable surfaces** — `/events/[id]/schedule` is the only
+> public-reachable page still carrying it. See
+> [§ Reevaluation — 2026-05-30](#reevaluation--2026-05-30) below.
+
 > **Status (2026-05-17):** Quick-win bundle landed. P1 #1 (noindex on auth-walled pages), #2 (sitemap teams + players), #3 (groups listing metadata) all ✅. P2 #2 (root not-found) and #3 (listing openGraph), #4 (events/new metadata) ✅. P2 #1 (force-dynamic) cross-listed and 🟡 partially shipped in the performance audit. See **Remediation log** and **Still open** below.
 
 > **Status update (2026-05-23, Bundle 54):** Two SEO items closed.
@@ -188,3 +205,227 @@ Verification: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` — all g
 - **P3:** ~~`SportsTeam` / `SportsOrganization` JSON-LD on teams + groups pages.~~ ✅ Shipped 2026-05-24 (Bundle 20).
 - **P3:** ~~`og:type = 'website'` on event pages.~~ ✅ Closed 2026-05-23 (Bundle 54, Wontfix — JSON-LD `SportsEvent` is the authoritative rich-result signal).
 - **Open questions** above — ~~`www` → apex redirect status code~~ (✅ answered Bundle 54: was 307, fixed to 308), deindex for previously-indexed draft/cancelled events, multi-currency offer JSON-LD edge cases, optional `hreflang` tag.
+
+---
+
+## Reevaluation — 2026-05-30
+
+Full re-audit of `apps/web` against ~6 months of feature growth since the
+2026-05-17 pass. New public surface since the original audit: **community
+listings** (`/community`, `/community/[slug]`), the **bracket spectator**
+view (`/events/[id]/bracket/watch`) and **league schedule**
+(`/events/[id]/schedule`) sub-routes, the **scoreboard tool**
+(`/tools`, `/tools/scoreboard`), the **stats page** (`/about/numbers`),
+and the **legal** pages (`/legal/{privacy,terms,refunds}`). Method:
+route-by-route metadata/caching matrix across all 48 `page.tsx` files,
+plus `sitemap.ts`, `robots.ts`, the file-convention OG images, and the
+root layout.
+
+**Net:** the original backlog is closed and the canonical/metadataBase/
+JSON-LD foundation laid in May still holds. New routes are mostly
+well-instrumented (see "Improvements" below). Two real gaps and four
+nice-to-haves opened.
+
+### P2 findings
+
+#### #5 — `robots.txt` disallow shadows the public bracket-spectator page
+
+- **Where:** [apps/web/src/app/robots.ts#L42](../../apps/web/src/app/robots.ts#L42)
+  (`disallow: '/events/*/bracket'`) vs.
+  [apps/web/src/app/events/[id]/bracket/watch/page.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/watch/page.tsx).
+- **Issue:** `/events/[id]/bracket/watch` is a deliberately-built
+  **public, anonymous-viewable spectator page** — its source comment says
+  "Anyone with the link can watch," and it ships a `generateMetadata` with
+  a canonical, a dedicated OG image **route**
+  ([bracket/watch/og/route.ts](../../apps/web/src/app/events/%5Bid%5D/bracket/watch/og/route.ts)),
+  a file-convention
+  [opengraph-image.tsx](../../apps/web/src/app/events/%5Bid%5D/bracket/watch/opengraph-image.tsx),
+  a `summary_large_image` Twitter card, and **per-division** preview URLs.
+  But `robots.txt` disallows the entire `/events/*/bracket` subtree to
+  block the host/captain workspace at `/events/[id]/bracket`. A robots
+  `Disallow` is a **prefix** match, so `/events/<id>/bracket/watch` (and
+  its `/og` route) are blocked too. Crawlers can't index it **and**
+  OG-unfurl bots that honor `robots.txt` — `facebookexternalhit`,
+  `LinkedInBot`, `Slackbot`, `Twitterbot` — won't fetch it, so the
+  `ShareLink` button's whole point (a rich preview card when someone
+  shares the live bracket) silently renders nothing. All of the
+  spectator-page SEO/share work is currently dead.
+- **Fix:** Add a more-specific `allow` rule alongside the disallow so the
+  workspace stays blocked but the spectator subpath + its OG route stay
+  reachable (Google/Bing resolve conflicts by **longest match**, so the
+  `allow` wins for `/watch`):
+
+  ```ts
+  disallow: [ /* … */ '/events/*/bracket' ],
+  allow: ['/', '/events/*/bracket/watch'],
+  ```
+
+  If you want share-unfurls but **not** Google indexing of every transient
+  watch URL, keep the robots `allow` and add page-level
+  `robots: { index: false, follow: true }` in the watch `generateMetadata`
+  (the page must be crawlable for a `noindex` to be seen — so the robots
+  `allow` is required either way). The existing canonical/sitemap-grade
+  metadata suggests indexing **is** intended; default to plain `allow`.
+
+- **Verify:** after the change, `curl https://pickupvb.com/robots.txt`
+  shows the `Allow: /events/*/bracket/watch` line; Google Search Console's
+  robots tester reports `/events/<id>/bracket/watch` as **Allowed** and
+  `/events/<id>/bracket` as **Disallowed**.
+
+#### #6 — Community listings are absent from the sitemap
+
+- **Where:** [apps/web/src/app/sitemap.ts](../../apps/web/src/app/sitemap.ts)
+  (`staticRoutes` L22–37 and the dynamic block L39–93) — no `/community`
+  entry and no `community_listings` query. Detail pages live at
+  [community/[slug]/page.tsx](../../apps/web/src/app/community/%5Bslug%5D/page.tsx).
+- **Issue:** Community listings are a **public, indexable** content type
+  with correct per-page metadata — canonical, `openGraph` (`type:
+'article'`), and a conditional `noindex` that only fires for non-`active`
+  / non-`claim_pending` statuses
+  ([community/[slug]/page.tsx#L42-L65](../../apps/web/src/app/community/%5Bslug%5D/page.tsx#L42-L65)).
+  But the sitemap emits **zero** community URLs (listing **or** detail),
+  so discovery relies entirely on internal linking. This is the same gap
+  the original P1 (#2) fixed for teams + players — the sitemap simply
+  hasn't kept pace with the new aggregate.
+- **Fix:** In `sitemap.ts`, (1) add `{ url: \`${BASE}/community\`,
+  changeFrequency: 'daily', priority: 0.5 }` to `staticRoutes`; (2) add a
+  `community_listings` query inside the `try` block (status `active`,
+  mirroring the `teamEntries` shape) and append
+  `\`${BASE}/community/${slug}\``entries with`lastModified`from`updated_at`. Filter to the same statuses the page treats as indexable
+so the sitemap never advertises a `noindex` URL.
+
+### P3 findings
+
+#### #7 — `/events/[id]/schedule` is crawlable but un-optimized
+
+- **Where:** [apps/web/src/app/events/[id]/schedule/page.tsx](../../apps/web/src/app/events/%5Bid%5D/schedule/page.tsx)
+  — `export const dynamic = 'force-dynamic'` (L13), **no** metadata export,
+  and the route is **not** in `robots.ts` disallow nor in `sitemap.ts`.
+- **Issue:** The league-schedule sub-route renders schedule data to anon
+  viewers (host/captain affordances are gated on `isRealUser`) but is in a
+  half-state: it's crawlable, yet falls through to the root title template
+  (no per-page title/canonical/OG) and opts out of CDN caching. It's now
+  the **only public-reachable page still carrying `force-dynamic`** — a
+  small CWV/crawl-efficiency drag and a thin, un-shareable result if
+  indexed.
+- **Fix — pick one based on intent:**
+  - **Public spectator surface** (parallels `bracket/watch`): add a
+    `generateMetadata` (title, `alternates.canonical:
+\`/events/${id}/schedule\``, `openGraph`) and **drop `force-dynamic`**
+— it reads the same RLS-public data `bracket/watch` reads without
+    opting out of caching.
+  - **Host-facing surface:** add `'/events/*/schedule'` to the `robots.ts`
+    disallow list and a `robots: { index: false, follow: false }` metadata
+    export, matching `/events/*/bracket`.
+
+#### #8 — Public-but-cancelled/draft event pages stay indexable (re-surfaces the standing open question)
+
+- **Where:** [apps/web/src/app/events/[id]/page.tsx#L42-L54](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L42-L54)
+  — `const isPublic = event.visibility === 'public'` then
+  `...(isPublic ? {} : { robots: { index: false, follow: false } })`.
+- **Issue:** The `noindex` guard keys on **visibility only**. A
+  `visibility: 'public'` event whose `status` is `cancelled` or `draft` is
+  excluded from the sitemap (good) but still returns `index: true`. Sitemap
+  removal alone won't deindex a URL Google already has, so a previously-
+  indexed (or externally-linked) **cancelled** event lingers in SERPs — a
+  poor result: the searcher clicks through to an event that isn't
+  happening. This is the long-standing open question, now concrete enough
+  to action.
+- **Fix:** Broaden the guard to status:
+
+  ```ts
+  const indexable =
+    event.visibility === 'public' &&
+    event.status !== 'draft' &&
+    event.status !== 'cancelled';
+  // …
+  ...(indexable ? {} : { robots: { index: false, follow: true } }),
+  ```
+
+  Use `follow: true` so any links on the cancelled page still pass equity.
+
+#### #9 — Community detail pages lack a tailored OG image and Event JSON-LD
+
+- **Where:** [community/[slug]/page.tsx](../../apps/web/src/app/community/%5Bslug%5D/page.tsx)
+  — the `openGraph` block sets no `images`, there is **no**
+  `opengraph-image.tsx` under `community/`, and the page renders no
+  structured data (`grep` for `ld+json` in `community/` → none).
+- **Issue:** Every other entity type ships a custom OG card
+  ([events/[id]/opengraph-image.tsx](../../apps/web/src/app/events/%5Bid%5D/opengraph-image.tsx),
+  teams, groups, players) **and** JSON-LD (`SportsEvent` / `SportsTeam` /
+  `SportsOrganization` / `BreadcrumbList`). Community listings — which
+  represent real volleyball events — fall back to the generic root
+  [opengraph-image.tsx](../../apps/web/src/app/opengraph-image.tsx) card and
+  carry no rich-result signal. Functional, just below the bar the rest of
+  the catalog sets.
+- **Fix:** Add a `community/[slug]/opengraph-image.tsx` (pattern off the
+  events one) and a minimal `Event` JSON-LD block (`name`, `startDate`,
+  `location`, `url`) co-located in `_components/`, mirroring
+  [event-jsonld.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-jsonld.tsx).
+  A `BreadcrumbList` (Home → Community → listing) via the shared
+  [breadcrumb-jsonld.tsx](../../apps/web/src/app/_components/breadcrumb-jsonld.tsx)
+  is a one-liner while you're there.
+
+#### #10 — Legal pages omitted from the sitemap
+
+- **Where:** [sitemap.ts#L22-L37](../../apps/web/src/app/sitemap.ts#L22-L37)
+  `staticRoutes` — no entries for
+  [legal/privacy](../../apps/web/src/app/legal/privacy/page.tsx),
+  [legal/terms](../../apps/web/src/app/legal/terms/page.tsx),
+  [legal/refunds](../../apps/web/src/app/legal/refunds/page.tsx).
+- **Issue:** Public, stable, indexable pages with proper metadata, but not
+  advertised in the sitemap. Minor crawl-discovery gap (they're footer-
+  linked, so Google finds them anyway), but trivial to close.
+- **Fix:** Append the three `/legal/*` URLs to `staticRoutes` with
+  `changeFrequency: 'yearly', priority: 0.2`.
+
+### Improvements since 2026-05-17 (verified good)
+
+- **`force-dynamic` is gone from every primary indexable surface.** Home,
+  `/events`, `/players`, `/teams`, `/groups`, `/pricing`, and
+  `/events/[id]` no longer opt out of caching (the 2026-05-17 P2, now
+  effectively resolved — `/events/[id]/schedule` is the lone straggler,
+  see P3 #7). The remaining `force-dynamic` flags sit on `noindex`/private
+  routes (new/edit/profile/claim), where they carry no SEO cost.
+- **New routes ship correct metadata out of the box:** community listing +
+  detail (canonical + `openGraph` + conditional `noindex`), `bracket/watch`
+  (canonical + OG image route + Twitter + per-division), `/about/numbers`
+  (canonical + OG + `revalidate: 1800` ISR), legal + `/tools` +
+  `/tools/scoreboard` (titles + descriptions), `/s/[code]` and `/e/[code]`
+  (**308** permanent redirect to the canonical `/events/<id>`, so QR/share
+  link equity is preserved).
+- **`robots.ts` kept pace with most new private surfaces** — now disallows
+  `/login`, `/forgot-password`, `/reset-password`, `/claim`, `/sentry-test`,
+  the ephemeral `/tools/scoreboard/*` rooms, `/s/`, and the new/edit/bracket
+  per-entity subroutes. (Gaps: the `bracket/watch` over-block in P2 #5 and
+  the un-addressed `/events/*/schedule` in P3 #7.)
+- **Non-prod hosts are fully walled off** — `sitemap.ts` returns `[]` and
+  `robots.ts` returns `Disallow: /` for any non-prod host
+  ([sitemap.ts#L20](../../apps/web/src/app/sitemap.ts#L20),
+  [robots.ts#L12-L17](../../apps/web/src/app/robots.ts#L12-L17)), so
+  `dev.pickupvb.com` / Vercel previews can't leak duplicate content into
+  the index.
+- **Auth client pages** (`/login`, `/forgot-password`, `/reset-password`)
+  are client components that can't export `metadata`, but `robots.txt`
+  already disallows all three — the correct mechanism here (a `noindex`
+  would require the page to stay crawlable, which we don't want). No action.
+- The root layout's `Organization` + `WebSite` JSON-LD (with `SearchAction`),
+  `metadataBase`, title template, keywords, and self-referential canonical
+  `/` are all intact and apex-correct
+  ([layout.tsx](../../apps/web/src/app/layout.tsx)).
+
+### Re-audit backlog (carry-forward)
+
+| #   | Grade | Finding                                                          | Status |
+| --- | ----- | ---------------------------------------------------------------- | ------ |
+| 5   | P2    | `robots.txt` shadows public `bracket/watch` spectator page       | Open   |
+| 6   | P2    | Community listings absent from sitemap                           | Open   |
+| 7   | P3    | `/events/[id]/schedule` crawlable + `force-dynamic`, no metadata | Open   |
+| 8   | P3    | Public cancelled/draft event pages stay indexable                | Open   |
+| 9   | P3    | Community detail: no tailored OG image / Event JSON-LD           | Open   |
+| 10  | P3    | Legal pages omitted from sitemap                                 | Open   |
+
+> A focused quick-win bundle (P2 #5 + #6 are ~30 min combined: one
+> `robots.ts` line + one `sitemap.ts` query) would close the two
+> highest-leverage items. P3 #8 is a three-line guard change with real
+> SERP-quality upside.
