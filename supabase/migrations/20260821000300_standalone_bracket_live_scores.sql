@@ -27,9 +27,9 @@
 alter table public.match_live_scores
   alter column event_id drop not null,
   alter column division_id drop not null,
-  add column bracket_id uuid references public.event_brackets(id) on delete cascade;
+  add column if not exists bracket_id uuid references public.event_brackets(id) on delete cascade;
 
-create index match_live_scores_bracket_idx on public.match_live_scores (bracket_id);
+create index if not exists match_live_scores_bracket_idx on public.match_live_scores (bracket_id);
 
 -- ---- 2. upsert_match_live_score: admit the standalone owner ----------------
 create or replace function public.upsert_match_live_score(

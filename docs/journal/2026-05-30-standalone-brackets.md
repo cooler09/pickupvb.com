@@ -62,7 +62,7 @@ event host-Pro gate. The key realization: the live-score write path is keyed on
 domain/application/infrastructure change was needed** — only the SQL and the web
 launch/subscribe surface.
 
-- `20260821000200`: `match_live_scores.event_id`/`division_id` → nullable, new
+- `20260821000300`: `match_live_scores.event_id`/`division_id` → nullable, new
   `bracket_id` (populated for every bracket row); `upsert_match_live_score`'s
   bracket branch LEFT-joins the division and admits host/captain (event) OR
   owner (standalone), storing `bracket_id`; `clear_match_live_score` authorizes
@@ -76,7 +76,7 @@ launch/subscribe surface.
 ## Deferred / follow-ups
 
 - **Local migrations not applied** (Docker was down this session): all three
-  migrations (`20260821000000`, `..100`, `..200`) are unapplied locally;
+  migrations (`20260821000000`, `..100`, `..300`) are unapplied locally;
   `database.types.ts` was hand-patched (`event_brackets`, `bracket_teams`,
   `match_live_scores`) so typecheck passes. Run `pnpm db:migrate && pnpm --filter
 @pickupvb/supabase gen:types` once Docker is up to regenerate from the real
