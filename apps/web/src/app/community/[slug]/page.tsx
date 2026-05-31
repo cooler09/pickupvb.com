@@ -13,6 +13,8 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { externalLinkHref } from '@/lib/external-link';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { CommunityListingJsonLd } from './_components/community-listing-jsonld';
 import {
   approveListingClaimFromForm,
   claimListingFromForm,
@@ -149,6 +151,11 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   const detail = await loadDetail(slug, user?.id ?? null);
   if (!detail) notFound();
 
+  // Only emit structured data on the indexable statuses (matches the
+  // `generateMetadata` noindex guard) so hidden/removed/claimed listings don't
+  // advertise rich-result signals.
+  const isIndexable = detail.status === 'active' || detail.status === 'claim_pending';
+
   const notice = Array.isArray(searchParams['notice'])
     ? searchParams['notice'][0]
     : searchParams['notice'];
@@ -229,6 +236,24 @@ export default async function CommunityListingDetailPage(props: PageProps) {
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
+      {isIndexable && (
+        <>
+          <BreadcrumbJsonLd
+            items={[
+              { name: 'Home', url: 'https://pickupvb.com/' },
+              { name: 'Community', url: 'https://pickupvb.com/community' },
+              { name: detail.title, url: `https://pickupvb.com/community/${detail.slug}` },
+            ]}
+          />
+          <CommunityListingJsonLd
+            title={detail.title}
+            slug={detail.slug}
+            startsAt={detail.startsAt}
+            endsAt={detail.endsAt}
+            location={detail.location}
+          />
+        </>
+      )}
       <nav className="text-muted text-sm">
         <Link href="/community" className="hover:text-primary">
           ← All community listings

@@ -39,8 +39,13 @@ export async function generateMetadata(props: {
     if (err instanceof NotFoundError) return { title: 'Event — PickupVB' };
     return { title: 'Event — PickupVB' };
   }
-  // Don't expose non-public events to crawlers.
-  const isPublic = event.visibility === 'public';
+  // Don't expose non-public events to crawlers — and keep cancelled/draft
+  // events out of the index even when public. Sitemap removal alone won't
+  // deindex a URL Google already has, so a previously-indexed cancelled event
+  // would otherwise linger in SERPs as a dead result. `follow: true` so links
+  // on the page still pass equity.
+  const indexable =
+    event.visibility === 'public' && event.status !== 'draft' && event.status !== 'cancelled';
   const dateLabel = formatEventDateLong(event.startsAt, event.timeZone);
   const placeLabel = `${event.location.city}, ${event.location.region}`;
   const summary = event.description
@@ -52,7 +57,7 @@ export async function generateMetadata(props: {
     title,
     description: summary,
     alternates: { canonical },
-    ...(isPublic ? {} : { robots: { index: false, follow: false } }),
+    ...(indexable ? {} : { robots: { index: false, follow: true } }),
     openGraph: {
       title,
       description: summary,

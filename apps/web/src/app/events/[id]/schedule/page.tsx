@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { Route } from 'next';
+import type { Metadata, Route } from 'next';
 import { notFound } from 'next/navigation';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { NotFoundError, type DivisionId, type EventId } from '@pickupvb/domain';
@@ -13,6 +13,43 @@ import { NOTICE_LABEL } from './_components/labels';
 // (admin-client reads) keeps this page cacheable. The host-only add/edit/record
 // controls are resolved client-side inside `<ScheduleWorkspace />` (performance
 // audit P2 #14).
+
+/**
+ * Public spectator surface (parallels `bracket/watch`): a titled, canonical,
+ * shareable league schedule for anon viewers and crawlers (SEO audit P3 #7).
+ * Reuses the same viewer-independent bracket-meta read as the page body so it
+ * stays cacheable. `visibility` isn't on this read model; like `bracket/watch`,
+ * anon reachability is governed by RLS + sitemap omission, and the `status`
+ * guard keeps cancelled/draft schedules out of the index (mirrors the event
+ * detail page's guard).
+ */
+export async function generateMetadata(props: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await props.params;
+  try {
+    const event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(id));
+    const title = `Schedule — ${event.title} · PickupVB`;
+    const description = `Match schedule and live scores for ${event.title} on PickupVB.`;
+    const canonical = `/events/${id}/schedule`;
+    const indexable = event.status !== 'draft' && event.status !== 'cancelled';
+    return {
+      title,
+      description,
+      alternates: { canonical },
+      ...(indexable ? {} : { robots: { index: false, follow: true } }),
+      openGraph: {
+        title,
+        description,
+        url: canonical,
+        type: 'website',
+        siteName: 'PickupVB',
+      },
+    };
+  } catch {
+    return { title: 'Schedule — PickupVB' };
+  }
+}
 
 function pickQuery(
   sp: Record<string, string | string[] | undefined> | undefined,
