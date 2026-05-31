@@ -243,7 +243,7 @@ export const handlers = {
   removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   setLeagueTeamForfeited: new SetLeagueTeamForfeitedHandler(eventRepo),
   // Community listings
-  createCommunityListing: new CreateCommunityListingHandler(communityListingRepo),
+  createCommunityListing: new CreateCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   updateCommunityListing: new UpdateCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   deleteCommunityListing: new DeleteCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   reportCommunityListing: new ReportCommunityListingHandler(communityListingRepo),

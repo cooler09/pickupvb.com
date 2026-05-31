@@ -64,19 +64,27 @@ function assertCanManage(
 }
 
 export class CreateCommunityListingHandler {
-  constructor(private readonly repo: CommunityListingRepository) {}
+  constructor(
+    private readonly repo: CommunityListingRepository,
+    private readonly isPlatformAdmin: (userId: string) => Promise<boolean>,
+  ) {}
 
   async execute({
     submitterUserId,
     dto,
   }: CreateCommunityListingCommand): Promise<{ id: string; slug: string }> {
-    const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
-    const recent = await this.repo.countByUserSince(submitterUserId, since);
-    if (recent >= RATE_LIMIT_MAX) {
-      throw new RateLimitError('You can submit at most 5 listings per 24 hours.', {
-        limit: RATE_LIMIT_MAX,
-        windowMs: RATE_LIMIT_WINDOW_MS,
-      });
+    // The 5/24h cap is an anti-spam guard for regular submitters. Platform
+    // admins bulk-import known listings (e.g. the AI paste-to-listing tool),
+    // so the limit doesn't apply to them.
+    if (!(await this.isPlatformAdmin(submitterUserId))) {
+      const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS);
+      const recent = await this.repo.countByUserSince(submitterUserId, since);
+      if (recent >= RATE_LIMIT_MAX) {
+        throw new RateLimitError('You can submit at most 5 listings per 24 hours.', {
+          limit: RATE_LIMIT_MAX,
+          windowMs: RATE_LIMIT_WINDOW_MS,
+        });
+      }
     }
 
     const listing = CommunityListing.create({

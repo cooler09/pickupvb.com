@@ -1,0 +1,129 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { ZodError } from 'zod';
+import { CreateCommunityListingSchema, type CreateCommunityListingDto } from '@pickupvb/types';
+import { CreateCommunityListingCommand } from '@pickupvb/application';
+import { ValidationError } from '@pickupvb/domain';
+import { handlers } from '@/lib/handlers';
+import { requireRealUser } from '@/lib/server-auth';
+import { isPlatformAdmin } from '@/lib/admin';
+import { geocodeAddress } from '@/lib/geocode';
+import { timeZoneForCoords } from '@/lib/timezone';
+import { extractListingDrafts, type ListingDraft } from '@/lib/listing-extract';
+
+const RETURN_PATH = '/admin/community-import';
+
+export type ParseResult = { ok: true; drafts: ListingDraft[] } | { ok: false; error: string };
+
+export type ImportRowResult =
+  | { title: string; ok: true; slug: string }
+  | { title: string; ok: false; error: string };
+
+export type ImportResult = { ok: true; results: ImportRowResult[] } | { ok: false; error: string };
+
+/** Re-checks platform-admin on every action — the page guard is not the boundary. */
+async function requireAdmin(): Promise<{ userId: string } | null> {
+  const viewer = await requireRealUser(RETURN_PATH);
+  if (!(await isPlatformAdmin(viewer.user.id))) return null;
+  return { userId: viewer.user.id };
+}
+
+/** Step 1: turn pasted event text into reviewable drafts via the AI extractor. */
+export async function parseAction(rawText: string): Promise<ParseResult> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: 'Admin access required.' };
+
+  try {
+    const drafts = await extractListingDrafts(rawText);
+    if (drafts.length === 0) {
+      return { ok: false, error: 'No events could be parsed from that text.' };
+    }
+    return { ok: true, drafts };
+  } catch (err) {
+    return { ok: false, error: messageFor(err) };
+  }
+}
+
+/**
+ * Step 2: geocode + validate + create each reviewed draft. Per-row failures
+ * don't abort the batch — each row reports its own success/error so the admin
+ * can fix and retry just the ones that failed.
+ */
+export async function importAction(drafts: ListingDraft[]): Promise<ImportResult> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, error: 'Admin access required.' };
+
+  const results: ImportRowResult[] = [];
+  for (const draft of drafts) {
+    try {
+      const dto = await draftToDto(draft);
+      const { slug } = await handlers.createCommunityListing.execute(
+        new CreateCommunityListingCommand(admin.userId, dto),
+      );
+      results.push({ title: draft.title, ok: true, slug });
+    } catch (err) {
+      results.push({ title: draft.title, ok: false, error: messageFor(err) });
+    }
+  }
+
+  if (results.some((r) => r.ok)) revalidatePath('/community');
+  return { ok: true, results };
+}
+
+/**
+ * Map a reviewed draft to a `CreateCommunityListingDto`, reusing the exact
+ * geocode → timezone → schema pipeline the manual create form uses
+ * (`apps/web/src/app/community/new/actions.ts`). Throws `ValidationError` /
+ * `ZodError` / a geocode `Error` that `importAction` turns into a row error.
+ */
+async function draftToDto(d: ListingDraft): Promise<CreateCommunityListingDto> {
+  const hasAnyAddress = Boolean(d.addressLine || d.city || d.region || d.postalCode || d.country);
+
+  let location: CreateCommunityListingDto['location'] = null;
+  if (hasAnyAddress) {
+    if (!d.city || !d.country) {
+      throw new ValidationError('City and country are required when a location is provided.');
+    }
+    const coords = await geocodeAddress({
+      addressLine: d.addressLine ?? '',
+      city: d.city,
+      region: d.region ?? '',
+      postalCode: d.postalCode ?? '',
+      country: d.country,
+    });
+    location = {
+      addressLine: d.addressLine,
+      city: d.city,
+      region: d.region,
+      postalCode: d.postalCode,
+      country: d.country,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    };
+  }
+
+  const raw = {
+    title: d.title,
+    description: d.description,
+    externalUrl: d.externalUrl,
+    externalHostName: d.externalHostName,
+    startsAt: d.startsAtLocal,
+    endsAt: d.endsAtLocal || null,
+    location,
+    timeZone: location ? timeZoneForCoords(location.latitude, location.longitude) : null,
+    surface: d.surface,
+    format: d.format,
+    skillLevel: d.skillLevel,
+  };
+
+  return CreateCommunityListingSchema.parse(raw);
+}
+
+function messageFor(err: unknown): string {
+  if (err instanceof ZodError) {
+    return err.issues.map((i) => `${i.path.join('.') || 'field'}: ${i.message}`).join('; ');
+  }
+  if (err instanceof Error) return err.message;
+  return 'Something went wrong.';
+}
