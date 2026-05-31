@@ -3,8 +3,9 @@
 ## Context
 
 Triaging **dev** runtime logs (`develop` → `dev.pickupvb.com` preview) surfaced
-a single repeating error — 6 occurrences, one of them a hard **500** on
-`GET /events/[id]/bracket`:
+a single repeating error — 6 occurrences on `GET /events/[id]/bracket`,
+**intermittently fatal** (one true **500**, plus a `200`-with-error logged in
+the same second):
 
 > `Functions cannot be passed directly to Client Components unless you
 explicitly expose it by marking it with "use server".`
@@ -22,6 +23,15 @@ local regression.
 Critically, **`pnpm build` does not catch this** — it's a runtime RSC
 serialization failure, invisible to typecheck/lint/build. It only showed up in
 the deployed dev logs.
+
+**Severity, corrected:** a later e2e run (see Verify) drove the full host
+bracket flow — create tournament → walk-in modal → seed → generate → record —
+against dev and the pages rendered fine. So Next's render-error recovery keeps
+these views working in practice; the live failure mode is the error **logged on
+every host render** plus a **non-deterministic 500**, not a consistent outage.
+Still worth fixing (the error is real and the 500 is intermittent), but this is
+a P2-class hardening, not the hard outage an earlier draft of this entry called
+it.
 
 ## Decisions
 
@@ -66,13 +76,33 @@ client-safe.
 
 ## Follow-ups
 
-- **Run `bracket.authed.spec.ts` against dev** once this fix deploys — it both
-  confirms the fix and clears the deferred green-run from the Phase 1 bundle.
+- ✅ **Ran `bracket.authed.spec.ts` against dev** (Node 22) — green. This both
+  confirmed the FormModal pages render and surfaced two test-side issues from the
+  Phase 1 bundle, now fixed:
+  - The e2e suite must run under **Node 22** (WebSocket — see Verify).
+  - The **champion** test asserted a `/champion decided/i` banner that has never
+    existed in the board UI (`git log -S "Champion decided"` is empty; the
+    champion name is surfaced only on the spectator OG image,
+    `bracket/watch/_og.tsx#pickChampion`). Rewrote it to assert the real
+    resolved-state UI ("Final results", 0 pending / 3 completed, the Round-2
+    final column) — re-ran under Node 22, green.
 - **Promote the function-prop-across-RSC-boundary gotcha to AGENTS.md** if the
   maintainer agrees it's durable (it's a general RSC rule, not bracket-specific).
+- **Investigate `event-attendance › leave within refund window → removed from
+roster`** — the one Node-20 failure NOT caused by the WebSocket issue; not yet
+  examined.
 
 ## Verify
 
-Standard quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
-(test: 79 web + cached domain/application; lint warnings are all pre-existing
-and in unrelated files). E2e not run here (no dev creds / mutating suite).
+- **Standard quad green:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+  (test: 79 web + cached domain/application; lint warnings are all pre-existing
+  and in unrelated files).
+- **E2e against dev** (`PLAYWRIGHT_BASE_URL=https://dev.pickupvb.com`):
+  - First pass on **Node 20** (the shell default) — 9 of its 10 failures were
+    `Node.js 20 detected without native WebSocket support`: the Supabase
+    Realtime cleanup client (`tests/e2e/_helpers/cleanup.ts`) needs native
+    WebSocket. The repo pins **Node 22.11.0** (`.nvmrc` / `engines`); the e2e
+    suite must run under it. Re-running under Node 22 cleared every WebSocket
+    failure.
+  - `bracket.authed.spec.ts` under Node 22: **4/4 green** against dev — which is
+    what proved the FormModal pages actually render (see "Severity, corrected").

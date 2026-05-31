@@ -145,9 +145,7 @@ test.describe('bracket — result entry is host/captain only (C3)', () => {
 });
 
 test.describe('bracket — record all matches resolves a champion (C3)', () => {
-  test('recording every match completes the bracket and surfaces the champion banner', async ({
-    page,
-  }) => {
+  test('recording every match completes the bracket and crowns a champion', async ({ page }) => {
     test.setTimeout(180_000);
 
     const tag = Date.now().toString(36);
@@ -167,13 +165,18 @@ test.describe('bracket — record all matches resolves a champion (C3)', () => {
       // …then the now-playable final.
       await recordFirstPendingMatch(page);
 
-      // Bracket fully resolved: champion banner (🏆 "Champion decided …" from
-      // tree-bracket.tsx), the board header flips to "Final results", and there
-      // is nothing left to play (all three matches are completed / editable).
-      await expect(page.getByText(/champion decided/i)).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByText(/final results/i)).toBeVisible();
+      // Bracket fully resolved. The board surfaces a finished bracket through
+      // the "Final results" header and a fully-played match tree — there is NO
+      // separate champion banner in the board UI; the champion's name is
+      // rendered only on the public spectator OG image (bracket/watch/_og.tsx
+      // #pickChampion). "Champion crowned" therefore == the final round is
+      // decided: status completed, nothing left to enter, every match editable.
+      await expect(page.getByText(/final results/i)).toBeVisible({ timeout: 15_000 });
       await expect(page.locator('summary', { hasText: /^Enter result$/ })).toHaveCount(0);
       await expect(page.locator('summary', { hasText: /^Edit result$/ })).toHaveCount(3);
+      // Round 2 of a 4-team single-elim IS the final; its column renders once
+      // the semis feed into it, confirming the tree played all the way through.
+      await expect(page.getByRole('heading', { name: /^Round 2$/ })).toBeVisible();
     } finally {
       if (created) {
         await cancelEvent(page, created.url);
