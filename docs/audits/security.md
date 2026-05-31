@@ -31,6 +31,16 @@ payments). Opened **1 P1 + 1 P2** — full write-up + recommended fixes in
   misconfiguration leaves email/push fan-out and the destructive outbox purge
   publicly invokable.
 
+**Status update (2026-05-31):** CSP `frame-src` widened to permit the media
+post video embeds — YouTube (`www.youtube-nocookie.com` + `www.youtube.com`)
+and Twitch (`player.twitch.tv` VODs/channels + `clips.twitch.tv` clips). These
+are the only providers we iframe (Instagram / TikTok / Facebook / `other` are
+link cards). The embeds were silently blocked by the enforcing CSP since
+Bundle 27. `frame-src` only — the framed third-party document loads its own
+sub-resources under its origin, so no `img-src` / `connect-src` / `script-src`
+additions, and no CORS change (iframes, not cross-origin fetch). See the
+[remediation log](#2026-05-31--csp-frame-src-for-media-video-embeds) below.
+
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
 
@@ -532,6 +542,18 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-05-31 — CSP `frame-src` for media video embeds
+
+| Item                          | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Widen `frame-src`             | ✅ Done | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) — added `https://www.youtube-nocookie.com`, `https://www.youtube.com`, `https://player.twitch.tv`, `https://clips.twitch.tv`. These are the exact embed hosts built by [video-embed.tsx](../../apps/web/src/components/video-embed.tsx). The enforcing CSP (Bundle 27) had been blocking every YouTube/Twitch media post + profile video embed. |
+| Scope check (no other deltas) | ✅ Done | `frame-src` only. The framed third-party document loads its own scripts / images / XHR under its own origin, so no `img-src` / `connect-src` / `script-src` entries were needed. Not a CORS issue — embeds are iframes, not cross-origin fetch from our code. Instagram / TikTok / Facebook / `other` render as link cards (no iframe), so no entry for them.                                              |
+| Comment refresh               | ✅ Done | Extended the inline CSP-rationale inventory in `next.config.mjs` with a "Media embeds" bullet so the next reader sees why these hosts are allowlisted and why no other directive changed.                                                                                                                                                                                                                  |
+
+Verified after landing: `pnpm --filter @pickupvb/web build` ✅ (validates the
+header config + route type generation). Full narrative:
+[journal](../journal/2026-05-31-csp-media-embeds.md).
 
 ### 2026-12-04 — Captain-RLS on match-result writes (P2 #4 follow-on)
 
