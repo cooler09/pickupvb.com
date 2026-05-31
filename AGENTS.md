@@ -444,7 +444,23 @@ to assert UI plumbing in a domain unit test.
 Run order during verify: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
 E2E (`pnpm --filter @pickupvb/web e2e`) is not part of the default verify
 chain — run it manually against a deployed environment when the change
-touches a covered journey.
+touches a covered journey. Three non-obvious gotchas trip every first e2e run:
+
+- **Use Node 22** (`.nvmrc` = 22.11.0; `nvm use` first). On Node 20 the Supabase
+  Realtime cleanup client ([tests/e2e/\_helpers/cleanup.ts](apps/web/tests/e2e/_helpers/cleanup.ts))
+  throws `Node.js 20 detected without native WebSocket support`, failing every
+  fixture-provisioning / teardown test (brackets, leagues, team/group creation)
+  with an error unrelated to the app. A green-looking Node-20 run is mostly
+  environment noise, not a passing suite.
+- **`.env.local` is NOT auto-loaded** by Playwright, and the suite hits the
+  **deployed** target (`PLAYWRIGHT_BASE_URL`, default `https://dev.pickupvb.com`)
+  — local app-code changes don't show until deployed. Export `TEST_*` and
+  `E2E_CLEANUP_SUPABASE_*` inline; without the cleanup creds the mutating specs
+  sanctioned-skip and leak fixtures.
+- **Authoring an e2e ≠ running it.** Two Phase-1 bracket tests shipped red — a
+  500 the spec would have caught, and a champion assertion on a banner that
+  never existed — because the spec was written but never run green against dev.
+  Run a new mutating spec against dev before calling it done.
 
 ## Common pitfalls
 
@@ -471,6 +487,18 @@ tags: [...] })` must be invalidated by tag. In Next 16, **use
 - **Calling client-only Supabase APIs from a server component** (or vice
   versa). Stick to `getServerSupabase()` in `page.tsx` / actions and
   `createSupabaseBrowserClient()` inside `'use client'` files.
+- **Passing a function (callback / render-prop) from a Server Component to a
+  Client Component.** RSC can't serialize a function across the boundary, so it
+  throws `Functions cannot be passed directly to Client Components` at
+  **runtime** — invisible to `pnpm typecheck && lint && build`; it surfaces only
+  in dev logs or a real render / e2e. Any `'use client'` primitive that takes a
+  function prop forces **every caller to also be a client component.** Reference
+  fix: `FormModal`'s `trigger` / `children` render-props
+  ([form-modal.tsx](apps/web/src/components/form-modal.tsx)) — all three callers
+  carry `'use client'`
+  ([no-bracket-view.tsx](apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx),
+  [setup-view.tsx](apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx),
+  [host-ad-hoc-teams-panel.tsx](apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx)).
 - **Adding a string error code in the application layer.** Define a typed
   `DomainError` subclass instead.
 - **Shipping a "fix" without `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.**
