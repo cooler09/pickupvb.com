@@ -340,6 +340,24 @@ export default async function ProfilePage(props: {
         currentUrl={row?.hero_image_url ?? null}
         returnPath={`/players/${profile.handle}`}
       />
+
+      {/* Privacy & your data */}
+      <section className={cardClass}>
+        <SectionHeader title="Privacy & your data" />
+        <p className="text-muted mt-2 text-sm">
+          Download a copy of your PickupVB data — your profile, events, payments, messages, and more
+          — as a single JSON file.
+        </p>
+        {/* Plain anchor: the route streams a file download (content-disposition:
+            attachment), so a server-rendered link is all that's needed. */}
+        <a
+          href="/api/account/export"
+          download
+          className="border-border-base hover:bg-fg/5 mt-3 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium"
+        >
+          Download my data
+        </a>
+      </section>
     </div>
   );
 }

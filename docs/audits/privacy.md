@@ -68,11 +68,15 @@ this bundle as **#13** (P1, correctness regression — not a data-leak).
 - **Newly logged, still open:** **#14** (P2) chat `messages` + `chat-attachments`
   have no retention/purge; **#15** (P2) chat tables aren't in the account-deletion
   design sketch or the data-export inventory.
-- **Still open from 2026-05-24 (unchanged):** the account-deletion application
-  path (P1 #2 follow-up — `DeletionRequestAggregate`, cron, scrub UI: still
-  unbuilt), data-export endpoint (P3 #12: still absent), and `rate_limits.key`
-  plaintext (P3 #10). P3 #11 (deleted-profile indexing) is now **resolved by
-  side-effect** — see its updated entry.
+- **Data-export endpoint (P3 #12) — now shipped (2026-05-31):**
+  `GET /api/account/export` + a profile "Download my data" link, covering the
+  full table inventory incl. chat (resolves the export half of #15). See P3 #12
+  - remediation log.
+- **Still open from 2026-05-24:** the account-deletion application path (P1 #2
+  follow-up — `DeletionRequestAggregate`, cron, scrub UI: still unbuilt; #15's
+  deletion half rides on it), and `rate_limits.key` plaintext (P3 #10). P3 #11
+  (deleted-profile indexing) is now **resolved by side-effect** — see its
+  updated entry.
 
 ## P1 — fix before adding any "Delete account" feature
 
@@ -447,6 +451,7 @@ data-lifecycle retention tier.
 **Files:** [docs/audits/privacy.md account-deletion sketch](#account-deletion-design-sketch)
 (below) and P3 #12.
 **Category:** legal feature gap (forward-looking)
+**Status:** export half ✅ resolved (2026-05-31); deletion half open
 
 The account-deletion design sketch and the data-export inventory (P3 #12)
 predate chat. When those features are built they must cover the chat surface:
@@ -459,9 +464,9 @@ predate chat. When those features are built they must cover the chat surface:
   side-effect: in a DM, deleting one party removes the messages **the other
   party received** too. Flag this in the deletion ADR; it may warrant a tombstone
   ("Former member left the conversation") rather than silent message removal.
-- **Export (GDPR Art. 20):** a user's own DMs and sent room messages are their
-  personal data and must be in the `GET /api/account/export` payload — add
-  `messages` (as sender), `conversations` participated in, and `user_blocks`.
+- **Export (GDPR Art. 20):** ✅ done — `GET /api/account/export` (P3 #12) now
+  includes `chat_messages_sent` (`messages` as sender), `chat_conversations`
+  (participated in), and `user_blocks`.
 
 ## P3 — nice-to-have
 
@@ -508,23 +513,28 @@ profiles.
 
 ### 12. No data-export endpoint (GDPR Article 20 / CCPA portability)
 
-**Files:** none — the feature doesn't exist.
+**File:** [apps/web/src/app/api/account/export/route.ts](../../apps/web/src/app/api/account/export/route.ts)
 **Category:** legal feature gap
+**Status:** ✅ resolved (2026-05-31)
 
 GDPR Article 20 and CCPA § 1798.100 obligate us to provide a
-machine-readable export of a user's data on request. We have no
-endpoint and no UI. Even before adding "Delete my account" this is
-worth shipping because (a) it forces the data-inventory work, and
-(b) it gives us a safe answer when a user emails asking for their
-data.
+machine-readable export of a user's data on request. Shipped as
+`GET /api/account/export` + a "Download my data" link on
+[apps/web/src/app/profile/page.tsx](../../apps/web/src/app/profile/page.tsx).
 
-**Recommended fix:** ship `GET /api/account/export` returning a single
-JSON file with `profile`, `events_hosted`, `event_attendees`,
-`event_tips` (as tipper and as host), `event_payment_audit`,
-`friendships`, `team_members`, `teams` captained, `community_listings`
-submitted, `notifications`, `notification_preferences`,
-`push_subscriptions`. Pair with a UI button on
-`apps/web/src/app/profile/` that downloads it.
+**Fix applied:** the route streams one JSON file
+(`pickupvb-data-export-<date>.json`) covering `profile`, `events_hosted`,
+`event_participation`, `tips_sent` / `tips_received`, `payment_history`
+(`event_payment_audit`), `friendships`, `team_memberships`
+(`event_team_entry_members`), `community_listings_submitted`, `notifications`,
+`notification_preferences`, `push_subscriptions`, and the chat surface from
+#15 (`chat_conversations`, `chat_messages_sent`, `user_blocks`). It runs on the
+**user-scoped** client (no admin/RLS-bypass), filtering every category to the
+caller's id so the filter and the owner/self RLS policy agree, and **throws on
+any read error** rather than returning a partial file. Cross-user identifiers
+are omitted (e.g. `tipper_user_id`) and the push `auth` secret is excluded.
+This also does the data-inventory groundwork the account-deletion feature (P1
+#2 follow-up) needs.
 
 ## Account-deletion design sketch
 
@@ -602,6 +612,22 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-05-31 — P3 #12: data-export endpoint (GDPR Art. 20 / CCPA)
+
+Shipped [GET /api/account/export](../../apps/web/src/app/api/account/export/route.ts)
+returning one machine-readable JSON file of the caller's own data across 16
+categories (profile, hosted events, participation, tips sent/received, payment
+history, friendships, team memberships, community listings, notifications +
+prefs, push subscriptions, and the chat surface — conversations, sent messages,
+blocks). Runs on the user-scoped client (RLS safety net; every category filtered
+to the caller's id), throws on any read error so the file is never silently
+partial, omits cross-user identifiers + the push `auth` secret. UI: a "Download
+my data" link in a new "Privacy & your data" section on
+[profile/page.tsx](../../apps/web/src/app/profile/page.tsx) (plain `<a download>`
+— the route streams an attachment). Closes the export half of #15. Verify quad
+green (typecheck; lint 0 errors; test 45 infra + 104 web; build 8/8, route
+registered as `ƒ /api/account/export`).
 
 ### 2026-05-31 — #13: route chat + media display cards through `profiles_public`
 
