@@ -43,11 +43,17 @@ Broadcast channel** fed by a DB trigger; **pending live dev verification** (the
 quad can't exercise realtime/RLS/trigger). Discovery: `notifications` was never in
 the `supabase_realtime` publication, so the old path was inert anyway.
 
-Verify quad green (web 90 tests; lint 0 errors; build 8/8).
-**Remaining open: 2 P2** (TPI-1 + TPI-3 free-OSM services) **+ 4 P3** (TPI-2,
-TPI-6, TPI-11, TPI-13) — plus TPI-7's live verification + visibility-gating
-follow-up. Maps/geocoding direction chosen: **MapTiler** (one vendor for tiles +
-geocoding/autocomplete) — see TPI-1/2/3.
+**TPI-1 + TPI-2 + TPI-3 resolved** (2026-05-31, **MapTiler**) — address
+autocomplete + server geocode now route through MapTiler when keyed (OSM only as
+the no-key dev fallback), and the map serves MapTiler tiles. Shared client +
+unit-tested parser in `lib/maptiler.ts`; CSP + `.env.example` + integrations doc
+updated.
+
+Verify quad green (web 95 tests; lint 0 errors; build 8/8).
+**Remaining open: 0 P2 · 3 P3** (TPI-6 webhook orphan sweep, TPI-11 lazy Sentry
+Replay, TPI-13 PostHog flush batching) — plus **TPI-7's live dev verification**
+(its code landed) + the visibility-gating follow-up. Every P2 is now closed or
+code-complete-pending-verify.
 
 ---
 
@@ -98,7 +104,7 @@ server/edge; notification worker cron `* * * * *`→`*/5`) are **good cost moves
 
 ### Geocoding — OpenStreetMap Nominatim + Photon
 
-#### TPI-1 (P2) — Address typeahead runs against free OSM endpoints that forbid autocomplete
+#### TPI-1 (P2) — ✅ Resolved 2026-05-31 — Address typeahead runs against free OSM endpoints that forbid autocomplete
 
 [apps/web/src/app/api/geocode/autocomplete/route.ts](../../apps/web/src/app/api/geocode/autocomplete/route.ts#L17-L25)
 proxies every address keystroke (after a 400 ms / 3-char client debounce in
@@ -120,24 +126,26 @@ to **Photon** (komoot's public instance) with a **Nominatim** fallback.
 with autocomplete traffic will get `429`/`403`, and address entry silently
 degrades to the empty-suggestions path for _all_ users on that IP.
 
-**Fix:** move autocomplete to a provider with an autocomplete SLA + API key —
-Mapbox Search Box, Google Places Autocomplete, Radar, LocationIQ, or MapTiler
-Geocoding (most have generous free tiers) — or self-host Photon. The proxy shape
-already isolates the swap to this one file. Also add an edge
-`Cache-Control: s-maxage=3600, stale-while-revalidate` keyed on `q` so repeated
-prefixes are served from the CDN without a function invocation.
+**Fix (shipped 2026-05-31 — MapTiler):** autocomplete now routes through MapTiler
+geocoding when `MAPTILER_API_KEY` is set; the Photon→Nominatim chain stays only as
+the no-key dev fallback (never prod volume). On a MapTiler outage prod degrades to
+empty suggestions (manual entry), not back to OSM. Shared client +
+response-parser in [lib/maptiler.ts](../../apps/web/src/lib/maptiler.ts)
+(parser unit-tested in
+[maptiler.test.ts](../../apps/web/src/lib/maptiler.test.ts), 5 cases), consumed by
+[the route](../../apps/web/src/app/api/geocode/autocomplete/route.ts). Edge
+`s-maxage` caching on the proxy remains an optional follow-up.
 
-#### TPI-2 (P3) — Server-side event geocode also uses Nominatim
+#### TPI-2 (P3) — ✅ Resolved 2026-05-31 — Server-side event geocode also uses Nominatim
 
-[apps/web/src/lib/geocode.ts](../../apps/web/src/lib/geocode.ts#L22-L42) geocodes
-the address once on event create/edit (cached 24 h, polite `User-Agent`). Far
-lower volume than TPI-1 and the module header already flags the swap path. Roll
-it onto the same paid provider chosen for TPI-1 so there's one geocoding vendor,
-one key, one rate budget.
+[apps/web/src/lib/geocode.ts](../../apps/web/src/lib/geocode.ts) geocodes the
+address once on event create/edit. Now routes through MapTiler
+(`maptilerGeocodeOne`) when keyed, Nominatim only as the no-key dev fallback —
+same vendor, key, and rate budget as TPI-1 (resolved in the same bundle).
 
 ### Map tiles — OpenStreetMap tile server
 
-#### TPI-3 (P2) — Leaflet ships OSM's public tile server `{s}.tile.openstreetmap.org`
+#### TPI-3 (P2) — ✅ Resolved 2026-05-31 — Leaflet ships OSM's public tile server `{s}.tile.openstreetmap.org`
 
 [apps/web/src/components/event-map.tsx](../../apps/web/src/components/event-map.tsx#L36-L39)
 points `TileLayer` at `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`. The
@@ -147,12 +155,12 @@ subdomain-rotation scheme is also deprecated. Same failure mode as TPI-1 —
 tiles get throttled/blocked, not billed, and the map breaks for everyone on the
 egress IP.
 
-**Fix:** switch the `url` to a managed raster/vector tile provider with a key
-(MapTiler, Stadia Maps, Protomaps, Mapbox) and add `maxZoom`. Bonus perf: the
-component is a client component pulling in `leaflet` + `leaflet/dist/leaflet.css`
-on the event-detail route; `dynamic(() => import('./event-map'), { ssr: false })`
-keeps that bundle off pages that don't render a map (cross-ref
-[performance.md](performance.md)).
+**Fix (shipped 2026-05-31):** [event-map.tsx](../../apps/web/src/components/event-map.tsx)
+now serves **MapTiler** raster tiles (`streets-v2`) when `NEXT_PUBLIC_MAPTILER_KEY`
+is set, with `maxZoom` + MapTiler/OSM attribution; the OSM tile URL stays as the
+no-key dev fallback. CSP `img-src` gained `https://api.maptiler.com`. (The perf
+bonus was already in place — `EventMap` is dynamic-imported `ssr:false` via
+`event-map-lazy.tsx`.)
 
 ### Stripe
 
@@ -471,6 +479,28 @@ Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
   dev round-trip before flipping to "resolved": notification → bell badge
   increments live; a different user must not receive it (topic isolation).
 
-**Still open: 2 P2** (TPI-1, TPI-3) **+ 4 P3** (TPI-2, TPI-6, TPI-11, TPI-13),
-plus TPI-7 live verification + visibility-gating follow-up. Maps/geocoding vendor
-direction chosen: **MapTiler**.
+**2026-05-31 — TPI-1 + TPI-2 + TPI-3 (geocoding + map tiles) → MapTiler.**
+
+- New [lib/maptiler.ts](../../apps/web/src/lib/maptiler.ts) — shared server
+  geocoding client (`maptilerAutocomplete`, `maptilerGeocodeOne`) + a pure
+  `parseMapTilerFeatures` parser, unit-tested in
+  [maptiler.test.ts](../../apps/web/src/lib/maptiler.test.ts) (5 cases:
+  `[lon,lat]` flip, context-id city/region/postal/country mapping, municipality
+  fallback, city-level feature, dropped bad/empty rows).
+- [autocomplete route](../../apps/web/src/app/api/geocode/autocomplete/route.ts)
+  - [geocode.ts](../../apps/web/src/lib/geocode.ts) use MapTiler when
+    `MAPTILER_API_KEY` is set; the OSM endpoints (Photon/Nominatim) stay only as the
+    no-key dev fallback. Prod degrades to empty suggestions on a MapTiler outage,
+    never back to OSM.
+- [event-map.tsx](../../apps/web/src/components/event-map.tsx) serves MapTiler
+  `streets-v2` tiles (`NEXT_PUBLIC_MAPTILER_KEY`) with `maxZoom` + attribution,
+  OSM tiles as the dev fallback. CSP `img-src` += `https://api.maptiler.com`.
+- Two keys by design (server geocoding `MAPTILER_API_KEY` vs. browser-restricted
+  `NEXT_PUBLIC_MAPTILER_KEY`) — documented in `.env.example` + `docs/integrations.md`.
+- Vitest: aliased `server-only` to a stub so server modules (maptiler/stripe) are
+  unit-testable. Verify quad green (web 95 tests, lint 0 errors, build 8/8).
+- **Live check owed:** set both keys on dev, confirm typeahead returns MapTiler
+  results and the event map renders MapTiler tiles.
+
+**Still open: 0 P2 · 3 P3** (TPI-6, TPI-11, TPI-13) — plus **TPI-7 live
+verification** (code landed) + the visibility-gating follow-up.

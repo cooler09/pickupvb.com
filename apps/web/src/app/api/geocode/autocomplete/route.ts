@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isMapTilerConfigured, maptilerAutocomplete } from '@/lib/maptiler';
+import { log } from '@/lib/log';
 
 /**
  * Address autocomplete proxy.
  *
- * Primary: Photon (https://photon.komoot.io) — free, no API key, OSM-based,
- * designed for typeahead.
+ * Primary (prod): MapTiler geocoding — paid, SLA-backed, autocomplete-allowed
+ * (third-party-integrations audit TPI-1). Used whenever `MAPTILER_API_KEY` is
+ * set.
  *
- * Fallback: Nominatim (https://nominatim.openstreetmap.org) — same OSM data,
- * not typeahead-optimized but reliable. We fall back whenever Photon errors
- * (it has periodic 502s) or returns no usable suggestions.
+ * Fallback (local dev only, no key): Photon (https://photon.komoot.io) then
+ * Nominatim (https://nominatim.openstreetmap.org) — the free OSM endpoints. These
+ * forbid autocomplete + IP-ban at volume, so they must NOT carry production
+ * traffic; they exist only so address entry works in dev without a key.
  *
- * Both are proxied server-side to keep our User-Agent polite and to make it
- * easy to swap providers later.
+ * All providers are proxied server-side so the key never reaches the browser and
+ * provider swaps stay isolated here.
  */
 
 export const dynamic = 'force-dynamic';
@@ -171,6 +175,22 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q')?.trim() ?? '';
   if (q.length < 3) return NextResponse.json({ suggestions: [] });
 
+  // Prod path: MapTiler. On a MapTiler outage we degrade to empty suggestions
+  // (the address fields stay manually editable) rather than falling back to the
+  // OSM endpoints — they must never carry production typeahead volume.
+  if (isMapTilerConfigured()) {
+    try {
+      const suggestions = await maptilerAutocomplete(q);
+      return NextResponse.json({ suggestions });
+    } catch (err) {
+      log.warn('[geocode/autocomplete] maptiler failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return NextResponse.json({ suggestions: [] });
+    }
+  }
+
+  // Local dev only (no key): OSM Photon → Nominatim.
   const fromPhoton = await fetchPhoton(q);
   if (fromPhoton && fromPhoton.length > 0) {
     return NextResponse.json({ suggestions: fromPhoton });

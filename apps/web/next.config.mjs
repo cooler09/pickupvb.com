@@ -35,8 +35,10 @@ const nextConfig = {
   //   - Cloudflare Turnstile: script + iframe at challenges.cloudflare.com.
   //     Token verification (siteverify) is server-side, so no connect-src
   //     entry needed.
-  //   - OSM tiles: https://{s}.tile.openstreetmap.org for the leaflet map.
-  //   - Photon / Nominatim: server-side only (geocoding API routes).
+  //   - Map tiles: https://api.maptiler.com (MapTiler, keyed) in prod;
+  //     https://{s}.tile.openstreetmap.org as the local-dev fallback.
+  //   - Geocoding (MapTiler / Photon / Nominatim): server-side only (the
+  //     /api/geocode routes + lib/geocode.ts) — no browser connect-src entry.
   //   - Fonts: system stack only (no next/font, no Google Fonts).
   //   - Inline scripts: JSON-LD `<script type="application/ld+json">` in
   //     layout + event pages. CSP applies to all `<script>` elements
@@ -55,15 +57,27 @@ const nextConfig = {
   //     and opens a Pusher WebSocket (ws-*.pusher.com) for realtime
   //     comments. Not present on production builds; allowlisting is
   //     harmless either way and avoids noisy console errors on previews.
+  //   - Media embeds (event/profile video posts): YouTube and Twitch are the
+  //     only providers we iframe — see components/video-embed.tsx and the
+  //     `ExternalVideoUrl` domain value. YouTube uses the privacy-enhanced
+  //     youtube-nocookie.com/embed host (with www.youtube.com as the related
+  //     fallback the player can navigate to); Twitch uses player.twitch.tv
+  //     (VODs + channels) and clips.twitch.tv (clips). Instagram / TikTok /
+  //     Facebook / `other` render as link cards, not iframes, so they need no
+  //     frame-src entry. These touch frame-src ONLY: the framed third-party
+  //     document loads its own scripts / images / XHR under its own origin, so
+  //     our CSP doesn't need matching img-src / connect-src / script-src
+  //     entries, and embeds aren't a CORS concern (no cross-origin fetch from
+  //     our code — the browser just renders the iframe).
   async headers() {
     const csp = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://vercel.live https://*.i.posthog.com",
       "style-src 'self' 'unsafe-inline' https://vercel.live",
-      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://*.tile.openstreetmap.org https://vercel.live https://vercel.com",
+      "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://api.maptiler.com https://*.tile.openstreetmap.org https://vercel.live https://vercel.com",
       "font-src 'self' data: https://vercel.live https://assets.vercel.com",
       "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in https://challenges.cloudflare.com https://vercel.live wss://ws-us3.pusher.com https://*.i.posthog.com",
-      'frame-src https://challenges.cloudflare.com https://vercel.live',
+      'frame-src https://challenges.cloudflare.com https://vercel.live https://www.youtube-nocookie.com https://www.youtube.com https://player.twitch.tv https://clips.twitch.tv',
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",
