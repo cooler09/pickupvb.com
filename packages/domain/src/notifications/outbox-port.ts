@@ -53,8 +53,12 @@ export interface NotificationOutboxPort {
   getUserEmail(userId: string): Promise<string | null>;
   /** Insert an in-app notification. */
   insertInApp(notification: InAppNotification): Promise<void>;
-  /** Enqueue an email / sms / push message for the cron worker to deliver. */
-  enqueue(message: OutboxMessage): Promise<void>;
+  /**
+   * Enqueue email / sms / push messages for the cron worker to deliver, in a
+   * single insert. Batched so one `dispatch()` fan-out fires one DB "kick" of
+   * the worker (ADR 0026), not one per channel. A no-op for an empty array.
+   */
+  enqueue(messages: OutboxMessage[]): Promise<void>;
 }
 
 /** A claimed outbox row, handed to the worker for delivery. */

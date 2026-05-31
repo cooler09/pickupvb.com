@@ -28,6 +28,9 @@ status to `Superseded by NNNN`.
 | [0021](0021-group-aggregate-and-repository.md)      | `Group` aggregate + `GroupRepository` — draining the groups subdomain                | Accepted                                                             |
 | [0022](0022-notification-outbox-port.md)            | `NotificationOutboxPort` — draining the notification subdomain                       | Accepted                                                             |
 | [0023](0023-live-match-scoring.md)                  | Live match scoring — scoreboard ↔ scheduled match, Pro-gated                         | Proposed                                                             |
+| [0024](0024-event-and-profile-media.md)             | Event & profile media — external videos, livestreams, and clips                      | Accepted                                                             |
+| [0025](0025-standalone-brackets.md)                 | Standalone tournament brackets — owner-scoped, event-free                            | Accepted                                                             |
+| [0026](0026-event-driven-notification-delivery.md)  | Event-driven notification delivery — DB kick + low-frequency sweep                   | Proposed                                                             |
 
 ## Template
 

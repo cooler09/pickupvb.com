@@ -15,18 +15,20 @@ import { dispatch } from './notify';
  */
 function fakePort(prefs: NotificationPreferences | null, email: string | null) {
   const enqueued: OutboxMessage[] = [];
+  const enqueueCalls: OutboxMessage[][] = [];
   const inApp: InAppNotification[] = [];
   const port: NotificationOutboxPort = {
     loadPreferences: async () => prefs,
     getUserEmail: async () => email,
-    enqueue: async (m) => {
-      enqueued.push(m);
+    enqueue: async (messages) => {
+      enqueueCalls.push(messages);
+      enqueued.push(...messages);
     },
     insertInApp: async (n) => {
       inApp.push(n);
     },
   };
-  return { port, enqueued, inApp };
+  return { port, enqueued, enqueueCalls, inApp };
 }
 
 const allOff: NotificationPreferences = {
@@ -68,6 +70,21 @@ describe('dispatch — transactional kind (event.signup.confirmed)', () => {
       idempotencyKey: 'evt-42',
     });
     expect(enqueued[0]?.idempotencyKey).toBe('email:event.signup.confirmed:evt-42');
+  });
+
+  it('batches the fan-out into a single enqueue call (one DB kick)', async () => {
+    const { port, enqueueCalls } = fakePort(allOff, 'me@example.com');
+    await dispatch(port, 'event.signup.confirmed', 'u1', SIGNUP_PAYLOAD);
+    // Every outbox row for one dispatch goes in one insert → one worker kick (ADR 0026).
+    expect(enqueueCalls).toHaveLength(1);
+  });
+
+  it('makes no enqueue call when no channel resolves to an outbox row', async () => {
+    const { port, enqueueCalls, inApp } = fakePort(allOff, null);
+    await dispatch(port, 'event.signup.confirmed', 'u1', SIGNUP_PAYLOAD);
+    // In-app still fires (transactional bypass); no outbox row → no kick.
+    expect(inApp).toHaveLength(1);
+    expect(enqueueCalls).toHaveLength(0);
   });
 });
 

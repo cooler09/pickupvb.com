@@ -31,7 +31,11 @@ import {
   type NotificationKind,
   type NotificationPayload,
 } from '@pickupvb/notifications';
-import type { NotificationOutboxPort, NotificationPreferences } from '@pickupvb/domain';
+import type {
+  NotificationOutboxPort,
+  NotificationPreferences,
+  OutboxMessage,
+} from '@pickupvb/domain';
 import { SupabaseNotificationOutboxRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { log } from '@/lib/log';
@@ -83,6 +87,11 @@ export async function dispatch<K extends NotificationKind>(
   const desired = KIND_DEFAULT_CHANNELS[kind];
   const channels = desired.filter((c) => channelAllowedByPrefs(c, kind, prefs));
 
+  // Collect outbox (email/sms/push) messages and flush them in one insert below,
+  // so the whole fan-out triggers a single worker kick (ADR 0026). In-app rows
+  // go to a different table (Realtime-delivered), so they stay immediate.
+  const messages: OutboxMessage[] = [];
+
   for (const channel of channels) {
     switch (channel) {
       case 'in_app': {
@@ -100,7 +109,7 @@ export async function dispatch<K extends NotificationKind>(
       case 'email': {
         if (!email) break;
         const r = renderEmail(kind, payload);
-        await outbox.enqueue({
+        messages.push({
           userId,
           channel: 'email',
           kind,
@@ -116,7 +125,7 @@ export async function dispatch<K extends NotificationKind>(
         const phone = prefs?.smsPhone;
         if (!phone) break;
         const r = renderSms(kind, payload);
-        await outbox.enqueue({
+        messages.push({
           userId,
           channel: 'sms',
           kind,
@@ -128,7 +137,7 @@ export async function dispatch<K extends NotificationKind>(
       }
       case 'push': {
         const r = renderInApp(kind, payload);
-        await outbox.enqueue({
+        messages.push({
           userId,
           channel: 'push',
           kind,
@@ -140,6 +149,10 @@ export async function dispatch<K extends NotificationKind>(
       }
     }
   }
+
+  // One insert for the whole fan-out → one DB kick of the worker (ADR 0026),
+  // instead of one per channel. No-op when no channel resolved to an outbox row.
+  if (messages.length > 0) await outbox.enqueue(messages);
 }
 
 /**

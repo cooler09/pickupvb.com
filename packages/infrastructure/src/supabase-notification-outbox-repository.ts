@@ -85,15 +85,19 @@ export class SupabaseNotificationOutboxRepository
     if (error) throw new Error(`insertInApp failed: ${error.message}`);
   }
 
-  async enqueue(message: OutboxMessage): Promise<void> {
-    const { error } = await this.admin.from('notification_outbox').insert({
+  async enqueue(messages: OutboxMessage[]): Promise<void> {
+    if (messages.length === 0) return;
+    // One insert for the whole batch → the AFTER INSERT statement-level trigger
+    // (ADR 0026) fires a single worker kick, not one per row.
+    const rows = messages.map((message) => ({
       user_id: message.userId,
       channel: message.channel,
       kind: message.kind,
       to_address: message.toAddress,
       payload: message.payload,
       ...(message.idempotencyKey ? { idempotency_key: message.idempotencyKey } : {}),
-    } as never);
+    }));
+    const { error } = await this.admin.from('notification_outbox').insert(rows as never);
     if (error) throw new Error(`enqueue failed: ${error.message}`);
   }
 
