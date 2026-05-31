@@ -5,8 +5,10 @@ Sentry.init({
   environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
 
-  // Performance: 10% in prod, 100% in preview/dev. Adjust if quota gets tight.
-  tracesSampleRate: process.env.VERCEL_ENV === 'production' ? 0.1 : 1.0,
+  // Performance: 2% in prod, 100% in preview/dev. Prod was trimmed from 10%
+  // to curb span volume — server traces are the largest telemetry stream.
+  // Raise it temporarily when actively profiling a slow path.
+  tracesSampleRate: process.env.VERCEL_ENV === 'production' ? 0.02 : 1.0,
 
   // Drop noise from expected domain errors — they're already mapped to HTTP
   // status codes by api-helpers.ts and are not actionable bugs.
