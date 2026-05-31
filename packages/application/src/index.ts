@@ -17,6 +17,8 @@ export * from './commands/community-listing.handler';
 export * from './commands/media-post.handler';
 export * from './commands/user-profile.handler';
 export * from './commands/group.handler';
+export * from './commands/message.handler';
 export * from './queries/community-listing-queries.handler';
 export * from './queries/media-post-queries.handler';
+export * from './queries/message-queries.handler';
 export * from './analytics/index';

@@ -5,6 +5,7 @@ import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
 import { TeamViewerChrome } from './_components/team-viewer-chrome';
+import { TeamChatPanel } from './_components/team-chat-panel';
 import { TeamJsonLd } from './_components/team-jsonld';
 import { ShareLink } from '@/components/share-link';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
@@ -160,6 +161,14 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
         extraMembers={extraMembers}
         activeCount={activeCount}
         returnPath={returnPath}
+      />
+
+      <TeamChatPanel
+        teamId={team.id}
+        participants={members.map((m) => ({
+          id: m.userId,
+          name: m.profile?.displayName ?? 'Player',
+        }))}
       />
     </div>
   );

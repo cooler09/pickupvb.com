@@ -19,6 +19,9 @@ import {
   SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
   SupabaseUserRepository,
+  SupabaseConversationRepository,
+  SupabaseMessageRepository,
+  SupabaseMessageQueries,
 } from '@pickupvb/infrastructure';
 import {
   AcceptTeamInviteHandler,
@@ -113,6 +116,13 @@ import {
   UpsertLiveMatchScoreHandler,
   WithdrawAdHocTeamRegistrationHandler,
   WithdrawTeamHandler,
+  OpenConversationHandler,
+  SendMessageHandler,
+  EditMessageHandler,
+  DeleteMessageHandler,
+  ReportMessageHandler,
+  MarkConversationReadHandler,
+  ListMessagesHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
 import { getAdminSupabase } from './supabase-admin';
@@ -350,6 +360,48 @@ export async function getMediaHandlers(): Promise<{
     retractVote: new RetractVoteHandler(mediaRepo),
     listEventMedia: new ListEventMediaHandler(mediaRepo),
     listProfileMedia: new ListProfileMediaHandler(mediaRepo),
+  };
+}
+
+/**
+ * Per-request handlers for chat / messaging (ADR 0028). Built around a
+ * *user-scoped* client so every chat write is authorized by RLS — the
+ * `messages` INSERT/UPDATE policies and the `get_or_create_conversation`
+ * membership RPC read the real `auth.uid()` (AGENTS.md pitfall #8). The
+ * module-singleton admin-client `handlers` would bypass that gate.
+ */
+export async function getChatHandlers(): Promise<{
+  openConversation: OpenConversationHandler;
+  sendMessage: SendMessageHandler;
+  editMessage: EditMessageHandler;
+  deleteMessage: DeleteMessageHandler;
+  reportMessage: ReportMessageHandler;
+  markConversationRead: MarkConversationReadHandler;
+  listMessages: ListMessagesHandler;
+}> {
+  const client = await getServerSupabase();
+  const conversationRepo = new SupabaseConversationRepository(client);
+  const messageRepo = new SupabaseMessageRepository(client);
+  const messageQueries = new SupabaseMessageQueries(client);
+
+  // Pre-flight of `can_moderate_conversation` — consulted only on the rarer
+  // non-sender delete path (DeleteMessageHandler skips it for self-deletes).
+  const canModerate = async (conversationId: string): Promise<boolean> => {
+    const { data, error } = await client.rpc('can_moderate_conversation', {
+      p_conversation_id: conversationId,
+    });
+    if (error) return false;
+    return data === true;
+  };
+
+  return {
+    openConversation: new OpenConversationHandler(conversationRepo),
+    sendMessage: new SendMessageHandler(messageRepo),
+    editMessage: new EditMessageHandler(messageRepo),
+    deleteMessage: new DeleteMessageHandler(messageRepo, canModerate),
+    reportMessage: new ReportMessageHandler(messageRepo),
+    markConversationRead: new MarkConversationReadHandler(conversationRepo),
+    listMessages: new ListMessagesHandler(messageQueries),
   };
 }
 

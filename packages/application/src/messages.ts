@@ -16,6 +16,7 @@ import type {
   GroupRole,
   ProfileBusinessInfo,
   ProfileDetailsEdit,
+  RoomKind,
   StoredThemePreference,
 } from '@pickupvb/domain';
 
@@ -619,5 +620,63 @@ export class DeleteGroupCommand {
     public readonly groupId: string,
     /** The caller; must be the group owner. */
     public readonly actorId: string,
+  ) {}
+}
+
+// ---- Messaging (chat) -----------------------------------------------------
+
+/** Open (get-or-create) the single room conversation for a team/event/group. */
+export class OpenConversationCommand {
+  constructor(
+    public readonly kind: RoomKind,
+    public readonly contextId: string,
+  ) {}
+}
+
+export class SendMessageCommand {
+  constructor(
+    public readonly conversationId: string,
+    public readonly senderId: string,
+    public readonly body: string,
+    /** From the JWT `is_anonymous` claim — anonymous users cannot post. */
+    public readonly isAnonymous: boolean,
+  ) {}
+}
+
+export class EditMessageCommand {
+  constructor(
+    public readonly messageId: string,
+    public readonly actorId: string,
+    public readonly body: string,
+  ) {}
+}
+
+export class DeleteMessageCommand {
+  constructor(
+    public readonly messageId: string,
+    public readonly actorId: string,
+  ) {}
+}
+
+export class ReportMessageCommand {
+  constructor(
+    public readonly messageId: string,
+    public readonly reporterId: string,
+    public readonly reason: string | null,
+  ) {}
+}
+
+export class MarkConversationReadCommand {
+  constructor(
+    public readonly conversationId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+export class ListMessagesQuery {
+  constructor(
+    public readonly conversationId: string,
+    public readonly limit: number,
+    public readonly before?: string,
   ) {}
 }
