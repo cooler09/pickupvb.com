@@ -3,11 +3,12 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { Alert } from '@/components/alert';
 import { updateGroupAction, type GroupFormState } from '@/app/groups/group-form-actions';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 
 const initial: GroupFormState = {};
-const labelClass = 'block text-sm font-medium text-fg';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
 
 function SubmitBtn() {
   const { pending } = useFormStatus();

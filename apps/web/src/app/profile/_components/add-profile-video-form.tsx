@@ -2,9 +2,9 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { addProfileMediaAction, type AddProfileMediaState } from '../media-actions';
+import { fieldInputClass as inputClass } from '@/components/field-styles';
 
 const initialState: AddProfileMediaState = {};
-const inputClass = 'w-full rounded-md border border-border-base bg-bg px-3 py-2 text-sm';
 
 export function AddProfileVideoForm() {
   const [state, formAction] = useFormState(addProfileMediaAction, initialState);

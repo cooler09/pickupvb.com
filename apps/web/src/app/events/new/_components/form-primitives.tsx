@@ -13,12 +13,15 @@ import { useFormStatus } from 'react-dom';
 import { EventType } from '@pickupvb/domain';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { primaryButtonClass } from '@/components/primary-button';
+import { fieldInputClass, fieldLabelClass } from '@/components/field-styles';
 
 export type CapacityKind = 'unlimited' | 'fixed' | 'by_position';
 
-export const labelClass = 'block text-sm font-medium text-fg';
-export const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
+// Re-exported from the shared field recipe (persona-ux.md CC-2) so the
+// create/edit-event sections that import `inputClass`/`labelClass` from here
+// stay on the one canonical vocabulary.
+export const labelClass = fieldLabelClass;
+export const inputClass = fieldInputClass;
 export const cardClass =
   'border-border-base bg-surface space-y-5 rounded-shape-sm border p-5 sm:p-6';
 export const cardTitleClass = 'text-fg text-base font-semibold';

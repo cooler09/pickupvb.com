@@ -63,12 +63,12 @@ The repo has a **canonical CTA + field vocabulary** —
 same action reads differently depending on which screen a persona is on. Measured
 2026-05-31 (`apps/web/src`):
 
-| Drift                                                          | Count                         | Canonical                                           |
-| -------------------------------------------------------------- | ----------------------------- | --------------------------------------------------- |
-| Old primary-button recipe (`hover:bg-primary/90`)              | **68 occurrences / 51 files** | `primaryButtonClass` — **11 files**                 |
-| Local `inputClass =` field vocabularies                        | **17 definitions**            | `TextField` — **3 files**                           |
-| `text-white` hardcoded on buttons (vs `text-primary-fg` token) | **64**                        | token                                               |
-| Native `window.confirm` for destructive actions                | **1** real (host-divisions)   | in-app `ConfirmSubmitButton` dialog everywhere else |
+| Drift                                                          | Count                                                                    | Canonical                                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
+| Old primary-button recipe (`hover:bg-primary/90`)              | **68 occurrences / 51 files**                                            | `primaryButtonClass` — **11 files**            |
+| Local `inputClass =` field vocabularies                        | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions) | `field-styles.ts` + `TextField`                |
+| `text-white` hardcoded on buttons (vs `text-primary-fg` token) | **64**                                                                   | token                                          |
+| Native `window.confirm` for destructive actions                | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                      | in-app `ConfirmSubmitButton` dialog everywhere |
 
 That ratio (≈5:1 hand-rolled:canonical on buttons; 17 forked field styles) is the
 mechanical reason the UI "doesn't feel clean for action items and edit forms." It
@@ -105,7 +105,7 @@ neutral/outlined CTA through `secondaryButtonClass`. Start with
 log) since they cover the most surfaces; then ratchet so the old recipe can't
 re-enter (see m3-alignment.md's ratchet plan).
 
-#### CC-2 — 17 parallel field/label vocabularies · **P2**
+#### CC-2 — 17 parallel field/label vocabularies · **P2** · ✅ resolved 2026-05-31b
 
 Each form re-declares its own `inputClass` / `labelClass` instead of using
 `TextField` (3 adopters total). They diverge on padding (`px-3 py-2` vs
@@ -135,7 +135,7 @@ breaks if the primary color ever shifts to a light hue (the fg would need to go
 dark). **Fix:** fold into the CC-1 migration — `primaryButtonClass` already
 emits the token, so converting call sites removes these for free.
 
-#### CC-4 — Destructive-confirm UX is inconsistent · **P2**
+#### CC-4 — Destructive-confirm UX is inconsistent · **P2** · ✅ resolved 2026-05-31b
 
 Everywhere except one place, destructive actions use the in-app
 `ConfirmSubmitButton` modal (native `<dialog>`, `aria-modal`, focus trap).
@@ -315,13 +315,49 @@ Implemented this pass (verify chain green):
   `primaryButtonClass`/`secondaryButtonClass` (`app/page.tsx`,
   `app/events/page.tsx` header + `EmptyState`).
 
+### 2026-05-31b — CC-2 field-vocabulary convergence + CC-4 (second bundle)
+
+Implemented this pass (verify chain green: typecheck / lint / 621 tests / build):
+
+- **CC-2 — fixed (16 of 17 forms).** New shared
+  [field-styles.ts](../../apps/web/src/components/field-styles.ts) exports
+  `fieldLabelClass` / `fieldSubLabelClass` / `fieldInputClass` / `fieldHintClass`
+  / `fieldErrorClass`, matching the `TextField` chassis tokens so bare
+  `<input>`/`<textarea>`/`<select>` fields and `TextField` can coexist without a
+  seam. Migrated forms now import it (aliased to their existing local names so
+  call sites were untouched): `form-primitives.tsx` (re-exports it, so all
+  create/edit-event sections inherit), `divisions-repeater.tsx`,
+  `host-divisions-manager.tsx`, `event-advanced-details-panel.tsx`,
+  `sponsor-panel.tsx`, `guest-signup-form.tsx`, `claim-form.tsx`,
+  `profile-form.tsx`, `add-profile-video-form.tsx`, `add-media-form.tsx`,
+  `new-team-form.tsx`, `new-group-form.tsx`, `edit-group-form.tsx`,
+  `community-listing-form.tsx`, `community-listing-edit-form.tsx`,
+  `scoreboard/setup-form.tsx`. This collapsed the padding / label-size / focus-ring
+  / `bg-bg`-vs-`bg-surface` drift onto one recipe (note: the compact host grids in
+  divisions-repeater/host-divisions-manager move from `px-2 py-1.5` text-xs labels
+  to the standard `px-3 py-2` text-sm — intentionally, for cross-form consistency).
+  - **Intentional exceptions (NOT converged), documented so they're not "misses":**
+    [match-row.tsx#L37](../../apps/web/src/app/events/[id]/schedule/_components/match-row.tsx#L37)
+    (inline dense schedule-table cell — `rounded px-2 py-1`, no label/`mt-1`;
+    the block field recipe would break the row layout) and
+    [event-filter-form.tsx#L33](../../apps/web/src/app/events/_components/event-filter-form.tsx#L33)
+    `selectClass` (compact filter-bar select, not an edit-form field). These are a
+    different control class than labeled form fields.
+- **CC-4 — fixed.** [host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx)
+  "Remove division" no longer uses `window.confirm`; it's a
+  `<form action={removeDivision.bind(...)} className="contents">` wrapping a
+  `ConfirmSubmitButton` (`destructive`), matching every other delete in the app.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2:** CC-1 remainder (header sign-up/sign-in pills + the other ~45 hand-rolled
-  files), CC-2 (converge 17 field vocabularies / TextField migration), CC-4
-  (window.confirm → ConfirmSubmitButton in divisions manager), V-2/V-3 (login
-  page primitives), P-1 (shared GuestSignupFields), H-1/H-2 (host form + divisions
-  manager).
+  files), V-2/V-3 (login page primitives), P-1 (shared GuestSignupFields),
+  H-1/H-2 (host form depth + divisions-manager FormModal). _CC-2 + CC-4 resolved
+  2026-05-31b._
+  - **CC-2 ratchet (do next so the convergence holds):** add a lint rule (or
+    `grep` CI check) that flags a new local `const inputClass`/`labelClass`
+    string literal, steering authors to import from `field-styles.ts` /
+    `TextField`. Without it the 17→1 collapse will re-accumulate.
 - **P3:** CC-3 (text-white token sweep — folds into CC-1), CC-5/H-2 (FormModal
   conversion — also in events-page-ux.md), V-4 (anon→claim host gate), P-2
   (StatusPill primitive), H-3 (row-action tap targets).

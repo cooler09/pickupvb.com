@@ -14,6 +14,10 @@
 
 import { useState } from 'react';
 import { FieldError, fieldA11y } from '@/components/field-error';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 
 type TeamRegistrationMode = 'ad_hoc' | 'roster' | 'none';
 type Composition = 'solo' | 'team' | 'pair_draw' | 'partners';
@@ -89,10 +93,6 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
   teamRegistrationMode: 'ad_hoc',
   ...defaults,
 });
-
-const labelClass = 'block text-xs font-medium text-fg';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-2 py-1.5 text-sm shadow-sm focus:border-primary focus:outline-none';
 
 export default function DivisionsRepeater({
   defaultSurface,

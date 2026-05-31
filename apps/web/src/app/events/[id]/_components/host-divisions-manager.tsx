@@ -16,6 +16,11 @@
 import { useState } from 'react';
 import type { DivisionLite } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
+import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 import { addDivisionFromForm, updateDivisionFromForm, removeDivision } from '../division-actions';
 
 type Props = {
@@ -23,10 +28,6 @@ type Props = {
   returnPath: string;
   divisions: ReadonlyArray<DivisionLite>;
 };
-
-const labelClass = 'block text-xs font-medium text-fg';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-2 py-1.5 text-sm shadow-sm focus:border-primary focus:outline-none';
 
 function DivisionForm({
   initial,
@@ -239,12 +240,6 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
-  async function handleRemove(divisionId: string) {
-    if (!window.confirm('Remove this division? Sign-ups in this division will be unrouted.'))
-      return;
-    await removeDivision(eventId, divisionId, returnPath);
-  }
-
   return (
     <section className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
       <header className="flex items-center justify-between">
@@ -273,13 +268,20 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
                   >
                     Edit
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(d.id)}
-                    className="text-red-600 hover:underline"
+                  <form
+                    action={removeDivision.bind(null, eventId, d.id, returnPath)}
+                    className="contents"
                   >
-                    Remove
-                  </button>
+                    <ConfirmSubmitButton
+                      label="Remove"
+                      pendingLabel="Removing…"
+                      confirmTitle="Remove division"
+                      confirmMessage="Remove this division? Sign-ups in this division will be unrouted."
+                      confirmLabel="Remove division"
+                      destructive
+                      className="state-layer rounded-md px-1.5 py-1 text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                    />
+                  </form>
                 </div>
               </div>
             )}

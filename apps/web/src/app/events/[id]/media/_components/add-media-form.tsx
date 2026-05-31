@@ -3,10 +3,9 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import { addMediaAction, type AddMediaState } from '../actions';
+import { fieldInputClass as inputClass } from '@/components/field-styles';
 
 const initialState: AddMediaState = {};
-
-const inputClass = 'w-full rounded-md border border-border-base bg-bg px-3 py-2 text-sm';
 
 export function AddMediaForm({ eventId }: { eventId: string }) {
   const action = addMediaAction.bind(null, eventId);

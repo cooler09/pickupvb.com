@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import { DEFAULT_CONFIG } from '../_lib/types.js';
 import { generateRoomCode } from '../_lib/room-code.js';
-
-const labelClass = 'text-fg block text-sm font-medium';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-bg px-3 py-2 text-sm text-fg shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 
 export function ScoreboardSetupForm() {
   const router = useRouter();

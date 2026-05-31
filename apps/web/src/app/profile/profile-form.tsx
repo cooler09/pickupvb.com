@@ -4,6 +4,10 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { POSITIONS, POSITION_LABEL } from '@/lib/enum-labels';
 import { Alert } from '@/components/alert';
 import { updateProfile, type ProfileFormState } from './actions';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 
 type Profile = {
   first_name: string | null;
@@ -24,10 +28,6 @@ type Profile = {
 };
 
 const initialState: ProfileFormState = { error: null, success: false };
-
-const labelClass = 'block text-sm font-medium text-fg';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
