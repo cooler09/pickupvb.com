@@ -93,6 +93,21 @@ export async function deleteCommunityListingBySlug(slug: string): Promise<void> 
   await c.from('community_listings').delete().eq('slug', slug);
 }
 
+/**
+ * Hard-delete a standalone bracket (ADR 0025) by id. Unlike event brackets,
+ * standalone brackets have **no UI delete path** — the workspace only offers
+ * share / watch links — so spec cleanup must go through the admin client.
+ * CASCADE off `event_brackets` clears `bracket_teams`, `bracket_seeds`,
+ * `bracket_matches`, and their set rows (see migration
+ * 20260821000000_standalone_brackets.sql). Safe when cleanup is disabled
+ * (no-op) and when the row is already gone (silent).
+ */
+export async function deleteBracketById(id: string): Promise<void> {
+  const c = getCleanupClient();
+  if (!c) return;
+  await c.from('event_brackets').delete().eq('id', id);
+}
+
 // ---------------------------------------------------------------------------
 // Broad sweep — for a maintenance script or `globalTeardown`.
 // Matches the `E2E ` naming convention every leaky spec + fixture uses.

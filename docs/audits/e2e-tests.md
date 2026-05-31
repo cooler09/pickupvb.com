@@ -101,6 +101,7 @@ Depth legend — ✅ exercises a mutating flow · 🟡 read-only / page-load ·
 | **Brackets**                  | `tournament`                                                                    |  🟡   | Page-load only; **6 bracket mutations = fixme** (incl. advancement) |
 | **Divisions**                 | `tournament`                                                                    |  ⛔   | Create-only; registration/winner = fixme                            |
 | **Leagues**                   | _none_                                                                          |  ⛔   | Zero references anywhere — not even a fixme                         |
+| **Standalone brackets**       | `standalone-bracket`                                                            |  ✅   | ADR 0025: UI self-provision create→add→seed→generate→record→watch   |
 | **Payments / Stripe**         | `billing-stripe` · `event-attendance` · `refund-window-gating`                  |  ⛔   | `stripe.ts` helper exists; every paid flow is fixme                 |
 | Admin                         | `admin`                                                                         |  ⛔   | All fixme — needs multi-actor fixtures                              |
 | Schedule / scoreboard / tools | _none_ (`events/[id]/schedule`, `tools/scoreboard`)                             |  ⛔   | No spec                                                             |
@@ -643,6 +644,58 @@ it's instantly familiar.
    inline TODOs? Leaning drop.
 
 ## Remediation log
+
+### 2026-05-31 — Standalone brackets (ADR 0025): create → seed → generate → record → watch
+
+- **New coverage for the post-audit standalone-bracket feature.** ADR 0025
+  shipped event-free, owner-scoped brackets after this audit's snapshot was
+  taken, and the
+  [standalone-brackets journal](../journal/2026-05-30-standalone-brackets.md)
+  flagged the explicit gap: _"No e2e yet. A Playwright spec (create → add teams
+  → seed → generate → record → open watch link) should be added and run green
+  against dev."_ This bundle implements exactly that.
+- **New [standalone-bracket.authed.spec.ts](../../apps/web/tests/e2e/standalone-bracket.authed.spec.ts)
+  (2 tests) + [\_helpers/standalone-bracket.ts](../../apps/web/tests/e2e/_helpers/standalone-bracket.ts)**
+  (`createStandaloneBracket` / `addStandaloneTeams` /
+  `seedAndGenerateStandaloneBracket`). Unlike leagues (C2 — no UI provisioning
+  path, admin-client fixture), standalone brackets have a full UI create flow at
+  `/brackets/new`, so the spec **self-provisions entirely through the UI** as
+  the default per-worker attendee-a — one signed-in real user runs the whole
+  pipeline (no second actor, no Stripe, no admin client to stand it up).
+- **Reuses the scope-agnostic board ops.** `BoardView` / `MatchCard` are the
+  same components the event path renders (the standalone page passes
+  `scope={kind:'standalone'}`), so `recordFirstPendingMatch` from
+  [\_helpers/tournament.ts](../../apps/web/tests/e2e/_helpers/tournament.ts)
+  drives the board unchanged. The standalone-specific surface under test is the
+  create page, the typed-in-teams modal (`WalkInTeamForm` with
+  `showRoster={false}` — a controlled input with no `name` attr, kept open
+  across adds), the standalone seed/generate/record server actions (the record
+  routes through `record_bracket_match_result`'s **owner branch**), the
+  owner-only workspace, and the public watch view.
+- **The two tests:** (1) **full pipeline + spectator link** — create a
+  best-of-1 single-elim, add 4 teams, seed + generate, record one semifinal
+  (winner advances → one team in 2 cards), then **click the workspace's "Open
+  public spectator view →" link** and assert the `/brackets/[id]/watch` page
+  renders the same live board **read-only** (advanced team in 2 cards, no
+  Enter/Edit summary, no score inputs); (2) **owner-only workspace** — a
+  signed-in non-owner (attendee-b) visiting `/brackets/[id]` is **redirected to
+  `/brackets/[id]/watch`** and sees the board with no result-entry affordance.
+- **Cleanup is admin-only.** Standalone brackets expose no UI delete path (the
+  workspace only offers share / watch links), so teardown hard-deletes via the
+  new `deleteBracketById(id)` in
+  [\_helpers/cleanup.ts](../../apps/web/tests/e2e/_helpers/cleanup.ts) —
+  `event_brackets` CASCADEs to `bracket_teams` / seeds / matches (migration
+  `20260821000000`). Opt-in via `E2E_CLEANUP_SUPABASE_*`; the fixture leaks
+  otherwise, matching the event bracket spec. **The broad
+  `sweepLeakedE2EFixtures()` does NOT yet reclaim leaked standalone brackets**
+  (they have no `E2E `-prefixed name column to match on) — follow-up.
+- **Verified:** `playwright --list` = **195 tests / 33 files** (was 190/31; both
+  new tests collect); e2e tsc baseline unchanged at **20** (new files add 0 —
+  the throwaway `tests/**` tsconfig with `incremental: false` shows zero new
+  errors); prettier-clean. **Not verified:** a live run against
+  `dev.pickupvb.com` (no creds here; the tests mutate + the spec depends on the
+  three `20260821*` migrations being deployed to dev). Full rationale:
+  [journal 2026-05-31-bundle-e2e-standalone-brackets](../journal/2026-05-31-bundle-e2e-standalone-brackets.md).
 
 ### 2026-05-30 — Phase 2: league schedule + record + forfeit (closes C2)
 
