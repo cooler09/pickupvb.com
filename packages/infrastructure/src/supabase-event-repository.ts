@@ -23,6 +23,7 @@ import {
   skillTierBand,
   type CoHostParty,
   type DivisionLite,
+  type EventBracketMetaReadModel,
   type EventDetailReadModel,
   type EventPosition,
   type EventRepository,
@@ -786,6 +787,56 @@ export class SupabaseEventRepository implements EventRepository {
    * hostable groups). Internally still N SQL roundtrips but the page
    * doesn't have to know.
    */
+  /**
+   * Lightweight, viewer-independent metadata for the bracket / schedule / watch
+   * spectator pages (performance audit P3 #15). Two queries — the narrowed
+   * `events_view` row + `event_divisions` — versus the ~14-query `getDetail`
+   * read model. Runs on the admin client (no `cookies()`), so the result is
+   * shareable across viewers and the calling pages stay cacheable. `canManage`
+   * is intentionally omitted; those pages resolve manage rights client-side
+   * (performance audit P2 #14).
+   */
+  async getBracketMeta(id: string): Promise<EventBracketMetaReadModel | null> {
+    const [evRes, divisionRowsRes] = await Promise.all([
+      this.client
+        .from('events_view')
+        .select('id, title, type, status, time_zone, host_id, host_group_id')
+        .eq('id', id)
+        .maybeSingle(),
+      this.client
+        .from('event_divisions')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
+    ]);
+    if (evRes.error) throw new Error(`getBracketMeta(${id}) failed: ${evRes.error.message}`);
+    const row = evRes.data as {
+      id: string;
+      title: string;
+      type: EventType;
+      status: EventStatus;
+      time_zone: string | null;
+      host_id: string | null;
+      host_group_id: string | null;
+    } | null;
+    if (!row) return null;
+    if (divisionRowsRes.error)
+      throw new Error(`getBracketMeta(${id}) divisions failed: ${divisionRowsRes.error.message}`);
+    const divisionRows = (divisionRowsRes.data as DivisionRow[] | null) ?? [];
+    return {
+      id: row.id,
+      title: row.title,
+      type: row.type,
+      status: row.status,
+      timeZone: row.time_zone,
+      hostUserId: row.host_id ?? null,
+      hostGroupId: row.host_group_id ?? null,
+      // The bracket / schedule / watch pages never read division winners, so we
+      // skip the per-division winner-label lookups `getDetail` performs.
+      divisions: divisionRows.map((d) => divisionRowToLite(d, null)),
+    };
+  }
+
   async getDetail(id: string, viewerId: string | null): Promise<EventDetailReadModel | null> {
     const { data: ev, error } = await this.client
       .from('events_view')

@@ -52,6 +52,14 @@ export interface EventReadModels {
   getDetail(id: string, viewerId: string | null): Promise<EventDetailReadModel | null>;
 
   /**
+   * Lightweight, viewer-independent metadata projection for the bracket /
+   * schedule / watch spectator pages (performance audit P3 #15) — avoids the
+   * ~14-query `getDetail` read model when only event type, divisions, host,
+   * and title are needed. Returns null when no event matches.
+   */
+  getBracketMeta(id: string): Promise<EventBracketMetaReadModel | null>;
+
+  /**
    * Resolve a shareable short code (e.g. `ABC23XYZ`) to the underlying
    * event UUID. Returns null when no event matches.
    */
@@ -288,6 +296,29 @@ export interface EventDetailReadModel {
   paymentInstructions: string | null;
   paymentsOffPlatform: boolean;
 
+  /** Divisions on this event (ADR 0006). Empty array when not yet split. */
+  divisions: ReadonlyArray<DivisionLite>;
+}
+
+/**
+ * Lightweight, viewer-independent event projection for the bracket / schedule /
+ * watch spectator pages (performance audit P3 #15). These pages consume only a
+ * handful of metadata fields + divisions; the full {@link EventDetailReadModel}
+ * (~14 queries) is wasteful here. `canManage` is intentionally **absent** — the
+ * spectator pages resolve viewer capabilities client-side so the page itself
+ * stays viewer-independent and cacheable (performance audit P2 #14).
+ */
+export interface EventBracketMetaReadModel {
+  id: string;
+  title: string;
+  type: EventType;
+  status: EventStatus;
+  /** IANA timezone for the venue (e.g. `America/Los_Angeles`). Null for legacy rows. */
+  timeZone: string | null;
+  /** Primary host user id — the payout destination and the manage gate's anchor. */
+  hostUserId: string | null;
+  /** Hosting group, if any — used to resolve owner/admin manage rights client-side. */
+  hostGroupId: string | null;
   /** Divisions on this event (ADR 0006). Empty array when not yet split. */
   divisions: ReadonlyArray<DivisionLite>;
 }

@@ -1,16 +1,18 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
-import { GetEventDetailQuery } from '@pickupvb/application';
+import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { NotFoundError, type DivisionId, type EventId } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
-import { getViewer, isAnonymousUser } from '@/lib/server-auth';
-import { LiveScoresProvider } from '../_components/live-scores-provider';
-import { AddMatchForm, MatchRow, type ScheduleMatchVm } from './_components/match-row';
+import { ScheduleWorkspace } from './_components/schedule-workspace';
+import { type ScheduleMatchVm } from './_components/match-row';
 import { NOTICE_LABEL } from './_components/labels';
 
-export const dynamic = 'force-dynamic';
+// No `force-dynamic` and no `cookies()` read: viewer-independent metadata
+// (admin-client reads) keeps this page cacheable. The host-only add/edit/record
+// controls are resolved client-side inside `<ScheduleWorkspace />` (performance
+// audit P2 #14).
 
 function pickQuery(
   sp: Record<string, string | string[] | undefined> | undefined,
@@ -26,15 +28,10 @@ export default async function SchedulePage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const viewer = await getViewer();
-  const user = viewer?.user ?? null;
-  const isRealUser = !!user && !isAnonymousUser(user);
 
   let event;
   try {
-    event = await handlers.getEventDetail.execute(
-      new GetEventDetailQuery(params.id, user?.id ?? null),
-    );
+    event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(params.id));
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
@@ -80,11 +77,10 @@ export default async function SchedulePage(props: {
   // suspenders guard rather than a regular pruning step.
   const teams = allEntries.flatMap((t) => (t.teamId ? [{ teamId: t.teamId, name: t.name }] : []));
 
-  const isHost = !!event.canManage && isRealUser;
   const returnPath = `/events/${event.id}/schedule?division=${selectedDivision.id}`;
   // ADR 0023: live scoreboard scoring is a Pro-host perk (re-checked server-side
   // by the finalize action). Enabled for every match in the event when the host
-  // is Pro.
+  // is Pro. Viewer-independent — `isPro` is admin-client-backed.
   const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
 
   const matches: ScheduleMatchVm[] = (schedule?.matches ?? []).map((m) => ({
@@ -99,15 +95,6 @@ export default async function SchedulePage(props: {
     status: m.status,
     notes: m.notes,
   }));
-
-  const matchesByWeek = new Map<number, ScheduleMatchVm[]>();
-  for (const m of matches) {
-    const list = matchesByWeek.get(m.weekNumber);
-    if (list) list.push(m);
-    else matchesByWeek.set(m.weekNumber, [m]);
-  }
-  const weeks = [...matchesByWeek.keys()].sort((a, b) => a - b);
-  const defaultWeek = weeks.length > 0 ? weeks[weeks.length - 1]! : 1;
 
   const noticeCode = pickQuery(searchParams, 'notice');
   const noticeMsg = pickQuery(searchParams, 'msg');
@@ -163,48 +150,17 @@ export default async function SchedulePage(props: {
         </div>
       )}
 
-      {isHost && (
-        <section className="space-y-2">
-          <h2 className="text-fg text-base font-semibold">Add a match</h2>
-          <AddMatchForm
-            eventId={event.id}
-            divisionId={selectedDivision.id}
-            returnPath={returnPath}
-            teams={teams}
-            defaultWeek={defaultWeek}
-          />
-        </section>
-      )}
-
-      {weeks.length === 0 ? (
-        <p className="text-muted text-sm">No matches have been scheduled yet.</p>
-      ) : (
-        <LiveScoresProvider enabled={liveScoringEnabled} divisionId={selectedDivision.id}>
-          <div className="space-y-6">
-            {weeks.map((w) => (
-              <section key={w} className="space-y-2">
-                <h2 className="text-fg text-sm font-semibold">Week {w}</h2>
-                <ul className="space-y-2">
-                  {matchesByWeek.get(w)!.map((m) => (
-                    <MatchRow
-                      key={m.id}
-                      eventId={event.id}
-                      divisionId={selectedDivision.id}
-                      matchId={m.id}
-                      returnPath={returnPath}
-                      match={m}
-                      teams={teams}
-                      timeZone={event.timeZone}
-                      isHost={isHost}
-                      liveScoringEnabled={liveScoringEnabled}
-                    />
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        </LiveScoresProvider>
-      )}
+      <ScheduleWorkspace
+        eventId={event.id}
+        divisionId={selectedDivision.id}
+        hostUserId={event.hostUserId}
+        hostGroupId={event.hostGroupId}
+        returnPath={returnPath}
+        timeZone={event.timeZone}
+        teams={teams}
+        matches={matches}
+        liveScoringEnabled={liveScoringEnabled}
+      />
     </article>
   );
 }

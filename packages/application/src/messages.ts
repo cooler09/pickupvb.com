@@ -296,6 +296,15 @@ export class GetEventDetailQuery {
   ) {}
 }
 
+/**
+ * Viewer-independent metadata for the bracket / schedule / watch spectator
+ * pages (performance audit P3 #15). Carries no viewer id — those pages resolve
+ * manage rights client-side so the page stays cacheable (P2 #14).
+ */
+export class GetEventBracketMetaQuery {
+  constructor(public readonly id: string) {}
+}
+
 export class GetFollowingFeedQuery {
   constructor(
     public readonly viewerId: string,

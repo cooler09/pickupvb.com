@@ -1,4 +1,5 @@
 import type {
+  EventBracketMetaReadModel,
   EventDetailReadModel,
   EventReadModels,
   FollowingFeedItem,
@@ -6,7 +7,12 @@ import type {
   SocialGraphQueries,
 } from '@pickupvb/domain';
 import { NotFoundError } from '@pickupvb/domain';
-import { GetEventDetailQuery, GetFollowingFeedQuery, GetViewerFriendsQuery } from '../messages.js';
+import {
+  GetEventBracketMetaQuery,
+  GetEventDetailQuery,
+  GetFollowingFeedQuery,
+  GetViewerFriendsQuery,
+} from '../messages.js';
 
 export class GetEventDetailHandler {
   constructor(private readonly repo: EventReadModels) {}
@@ -15,6 +21,21 @@ export class GetEventDetailHandler {
     const detail = await this.repo.getDetail(id, viewerId);
     if (!detail) throw new NotFoundError('event', id);
     return detail;
+  }
+}
+
+/**
+ * Lightweight, viewer-independent event metadata for the bracket / schedule /
+ * watch spectator pages (performance audit P3 #15). Throws `NotFoundError` if
+ * the event doesn't exist, matching {@link GetEventDetailHandler}.
+ */
+export class GetEventBracketMetaHandler {
+  constructor(private readonly repo: EventReadModels) {}
+
+  async execute({ id }: GetEventBracketMetaQuery): Promise<EventBracketMetaReadModel> {
+    const meta = await this.repo.getBracketMeta(id);
+    if (!meta) throw new NotFoundError('event', id);
+    return meta;
   }
 }
 

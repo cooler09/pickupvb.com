@@ -7,6 +7,21 @@ traces. Latency estimates are educated guesses; treat them as relative,
 not absolute. Confirm with Vercel Analytics + Supabase slow-query log
 before/after each fix.
 
+**Status update (2026-05-31) — P2 #14 + P3 #15 resolved:** the two open
+spectator-page items from the 2026-05-30 re-audit are shipped.
+`/events/[id]/bracket` and `/events/[id]/schedule` dropped `force-dynamic` and
+the `getViewer()` cookie round-trip; both now load a new lightweight
+viewer-`null` `getEventBracketMeta` projection (2 queries vs the ~14-query
+`getEventDetail`) on the admin client and resolve host/captain controls
+client-side via a shared `useEventManageCaps` hook (the Bundle 25
+`TeamViewerChrome` pattern), reaching parity with the already-correct
+`/bracket/watch` posture. `/bracket/watch` also switched to the lightweight
+query. Full-route CDN caching stays bounded by the `division` searchParam (the
+same constraint `/watch` has) — left as a deferred follow-up. Full write-up:
+[Remediation log](#2026-05-31--bracket--schedule-cacheable-spectator-pages-p2-14--p3-15)
+
+- [journal](../journal/2026-05-31-bracket-schedule-cacheable.md).
+
 **Status update (2026-05-30) — fresh re-audit:** read-only pass over the
 feature surface added since the 2026-05-17 audit (brackets, leagues, event
 divisions, ad-hoc + walk-in registrations, community listings). Opened
@@ -525,9 +540,13 @@ The 2026-05-17 → 05-24 backlog is **closed** (ISR shells on the four listing
 
 ### P2 #14 — `/events/[id]/bracket` + `/events/[id]/schedule` re-open the `force-dynamic`-on-public-pages regression 🆕 2026-05-30
 
-**Status:** New instance of the P1 #1 class (force-dynamic disables CDN
-caching on public routes), on two pages added after that finding was
-remediated.
+**Status:** ✅ _Resolved 2026-05-31_ — both pages dropped `force-dynamic` and
+the `getViewer()` cookie read; they now load the lightweight viewer-`null`
+`getEventBracketMeta` (P3 #15) on the admin client and resolve host/captain
+controls client-side, reaching parity with the `/bracket/watch` posture
+(viewer-independent, no cookie round-trip). See the
+[2026-05-31 remediation log entry](#2026-05-31--bracket--schedule-cacheable-spectator-pages-p2-14--p3-15).
+Original finding (for the record):
 **Files:**
 
 - [apps/web/src/app/events/[id]/bracket/page.tsx#L16](../../apps/web/src/app/events/%5Bid%5D/bracket/page.tsx#L16) — `export const dynamic = 'force-dynamic'`; `getViewer()` at L32; `getEventDetail(id, user?.id)` (viewer-scoped, uncached) at L37-L40.
@@ -573,6 +592,14 @@ detail pages).
 ---
 
 ### P3 #15 — Bracket / schedule pages over-fetch via the full `getEventDetail` read model 🆕 2026-05-30
+
+**Status:** ✅ _Resolved 2026-05-31_ — added a lightweight
+`EventReadModels.getBracketMeta` projection (2 queries: narrowed `events_view`
+row + `event_divisions`) returning only `{ id, title, type, status, timeZone,
+hostUserId, hostGroupId, divisions }`. `/bracket`, `/schedule`, **and**
+`/bracket/watch` (incl. its `generateMetadata`) now use it instead of the
+~14-query `getEventDetail`. See the
+[2026-05-31 remediation log entry](#2026-05-31--bracket--schedule-cacheable-spectator-pages-p2-14--p3-15).
 
 **Category:** Over-fetch
 **Files:**
@@ -642,6 +669,24 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-05-31 — Bracket / schedule cacheable spectator pages (P2 #14 + P3 #15)
+
+| Item                                                   | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| P3 #15 lightweight `getEventBracketMeta`               | ✅ Done | New `EventReadModels.getBracketMeta(id)` port + `GetEventBracketMetaQuery` / `GetEventBracketMetaHandler`. Infra impl is 2 queries (narrowed `events_view` row + `event_divisions`, reusing `divisionRowToLite(row, null)`) on the admin client. `/bracket`, `/schedule`, `/bracket/watch` (+ its `generateMetadata`) swapped off the ~14-query `getEventDetail`. Handler unit test covers happy path + `NotFoundError`.                                                                                                 |
+| P2 #14 drop `force-dynamic` + `getViewer()`            | ✅ Done | Both pages are now thin server shells: static chrome (header / division nav / notice / share) + a client workspace. No `cookies()` read — the singleton repos + `isPro` already run on the service-role admin client, so the page is viewer-independent and matches the `/watch` posture.                                                                                                                                                                                                                                |
+| P2 #14 client-resolved host/captain controls           | ✅ Done | New `<BracketWorkspace />` / `<ScheduleWorkspace />` own the viewer-conditional render; shared [`useEventManageCaps`](../../apps/web/src/app/events/%5Bid%5D/_components/use-event-manage-caps.ts) hook resolves `{ viewerId, canManage }` client-side (Bundle 25 `TeamViewerChrome` pattern), replicating the read-model `canManage` (host **or** host-group owner/admin). `BoardView` / `MatchCard` / `MatchRow` unchanged — zero blast radius to standalone brackets. Server-side `assertHost` / RLS gates unchanged. |
+| Full-route CDN caching (drop `division` searchParam)   | 🔴 Open | The `division` query param keeps both pages dynamically rendered (`ƒ`), same as `/watch`. Moving division selection client-side to reach full static caching is deferred (would also touch `/watch`).                                                                                                                                                                                                                                                                                                                    |
+| `unstable_cache` data layer for bracket/schedule reads | 🔴 Open | The `Bracket` aggregate is a class; `unstable_cache` JSON-serializes its return value (Date/prototype footgun documented in `event-detail-cache.ts`). Deferred — P3 #15 already cuts the dominant query cost.                                                                                                                                                                                                                                                                                                            |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+E2E (bracket Playwright specs against dev) not yet re-run — flagged as the
+remaining manual check.
+
+See [Bundle journal](../journal/2026-05-31-bracket-schedule-cacheable.md) for
+the admin-client cacheability finding, the `canManage`-vs-`is_event_host`
+decision, and the searchParams caching constraint.
 
 ### 2026-05-22 — Bundle 26: `/events/[id]` viewer-independent cache layer
 

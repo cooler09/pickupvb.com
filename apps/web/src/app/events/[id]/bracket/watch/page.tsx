@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { GetEventDetailQuery } from '@pickupvb/application';
+import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
@@ -31,7 +31,7 @@ export async function generateMetadata(props: {
   const sp = await props.searchParams;
   const divisionParam = pickQuery(sp, 'division') ?? null;
   try {
-    const event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, null));
+    const event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(id));
     const division =
       (divisionParam && event.divisions.find((d) => d.id === divisionParam)) ||
       event.divisions[0] ||
@@ -89,7 +89,7 @@ export default async function BracketWatchPage(props: {
 
   let event;
   try {
-    event = await handlers.getEventDetail.execute(new GetEventDetailQuery(params.id, null));
+    event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(params.id));
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
