@@ -89,7 +89,36 @@ Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
   `postgres_changes` to Realtime **Broadcast** (its own ADR). The committed
   "notification broadcast spec" looks like the start of this; the bell still
   subscribes via `postgres_changes` as of this entry.
-- **TPI-14 (P2)** — reminders cron: batch-insert outbox rows + cap rows per run
-  so a 60s timeout can't silently drop the marked-sent tail.
 - **TPI-6 / TPI-11 / TPI-13 (P3)** — webhook orphan sweep; lazy-load Sentry
   Replay; PostHog per-request flush batching.
+
+## Update — TPI-14 (reminders cron) shipped, same day
+
+Fixed the marked-then-dropped tail. Key calls:
+
+- **Kept mark-first / at-most-once, did _not_ flip to enqueue-then-mark.** Both
+  reminder kinds (`event.reminder.24h`, `event.reminder.2h`) include the
+  `in_app` channel, and `insertInApp` has no idempotency key — so a re-fire
+  after a crash would duplicate the bell entry. The bug was never the ordering;
+  it was that an _unbounded_ run could time out mid-loop. So the fix is a hard
+  **per-run cap** (`MAX_REMINDERS_PER_RUN = 250`) shared across both windows +
+  `.limit(remainingBudget)` on the attendee pull, so the overflow stays unmarked
+  for the next 15-min run. A run now finishes in seconds; the strand window
+  closes.
+- **The "batch-insert outbox rows" idea from the audit was wrong on inspection.**
+  `notify()` isn't just a DB insert — it does a per-user prefs read + an auth
+  email lookup + the in_app insert, none of which batch cleanly through the
+  outbox port. The right lever is **bounded concurrency** (`mapWithConcurrency`,
+  8 lanes), which clears the cap fast without a cross-user batch.
+- **Extracted the core to `sweep.ts`** because Next won't let a `route.ts`
+  export anything but route handlers + config (the generated route-type check
+  fails). `runReminderSweep` + `mapWithConcurrency` live behind an injected
+  `ReminderPort`, tested in `sweep.test.ts` (+7), incl. the load-bearing
+  invariant: **every marked attendee was dispatched** (no silent drop).
+- **Behavior-preserved the phantom `events.location_city` cast.** Those columns
+  exist at runtime but are missing from the stale generated types;
+  `rsvp-actions.ts` casts through a null-union for the same reason, so the port
+  matches that pattern verbatim (the error-throwing version I first wrote
+  narrowed away the `| null` and broke the cast).
+
+Verify quad green (web 90 tests).

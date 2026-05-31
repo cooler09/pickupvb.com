@@ -32,9 +32,14 @@ debounced DB kick as the primary trigger, so `BATCH=50` is a per-claim size, not
 a per-invocation ceiling. The `*/5` cron is now a safety-net sweep. No change
 needed.
 
-Verify quad green (web 83 tests incl. the new one; lint 0 errors; build 8/8).
-**Remaining open: 4 P2** (TPI-1 + TPI-3 free-OSM services, TPI-7 Realtime →
-Broadcast, TPI-14 reminders cron) **+ 4 P3** (TPI-2, TPI-6, TPI-11, TPI-13).
+**TPI-14 also resolved** (2026-05-31, separate bundle) — the reminders cron now
+caps reminders per run + fans out with bounded concurrency, so a timeout can't
+strand a marked-but-undelivered tail; orchestration extracted to a testable
+`sweep.ts`. See the remediation log.
+
+Verify quad green (web 90 tests; lint 0 errors; build 8/8).
+**Remaining open: 3 P2** (TPI-1 + TPI-3 free-OSM services, TPI-7 Realtime →
+Broadcast) **+ 4 P3** (TPI-2, TPI-6, TPI-11, TPI-13).
 Maps/geocoding direction chosen: **MapTiler** (one vendor for tiles +
 geocoding/autocomplete) — see TPI-1/2/3.
 
@@ -300,7 +305,7 @@ rather than a single batch, and a debounced DB kick is the primary trigger
 ceiling, so there's no throughput cliff. The `*/5` cron is a safety-net sweep.
 No code change from this audit.
 
-#### TPI-14 (P2) — Reminders cron marks-sent-first then dispatches sequentially inside one 60 s function, with no row cap
+#### TPI-14 (P2) — ✅ Resolved 2026-05-31 — Reminders cron marks-sent-first then dispatches sequentially inside one 60 s function, with no row cap
 
 [reminders/route.ts](../../apps/web/src/app/api/notifications/reminders/route.ts#L65-L99)
 loops events (N+1: one `event_participants` query per event), stamps
@@ -317,10 +322,21 @@ then calls `notify(...)` **sequentially** per attendee. Two issues at scale:
   so the "dispatch sequentially to avoid hammering rate limits" comment doesn't
   apply here.
 
-**Fix:** batch-insert the outbox rows (one insert per event instead of one
-`notify` per attendee), and cap events/attendees processed per run with the
-15-min cadence draining the remainder; or move the per-attendee fan-out into the
-worker so the reminder cron only enqueues a single "remind event X" job.
+**Fix (shipped 2026-05-31):** added a hard per-run cap (`MAX_REMINDERS_PER_RUN`)
+shared across both windows + bounded-concurrency fan-out, so a run always
+finishes well inside `maxDuration` and a capped run defers the remainder to the
+next 15-min cron instead of stranding a marked-but-undelivered tail. Mark-first
+(at-most-once) is kept deliberately — both reminder kinds include the
+**non-idempotent `in_app` channel** (`insertInApp` has no idempotency key), so an
+enqueue-then-mark flip would duplicate bell entries on a re-fire. The
+sequential-`notify` framing in the original finding was half-right: `notify` is
+not just a DB insert — it does a per-user prefs read + an auth email lookup — so
+the lever is bounded concurrency, not a cross-user batch insert (the per-user
+email/in_app resolution isn't batchable through the outbox port). Orchestration
+extracted into [sweep.ts](../../apps/web/src/app/api/notifications/reminders/sweep.ts)
+behind an injected `ReminderPort` + dispatch fn (Next forbids non-handler exports
+from `route.ts`), tested in
+[sweep.test.ts](../../apps/web/src/app/api/notifications/reminders/sweep.test.ts).
 
 ---
 
@@ -388,5 +404,26 @@ worker so the reminder cron only enqueues a single "remind event X" job.
 Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 (web 83 tests, lint 0 errors, build 8/8).
 
-**Still open: 4 P2** (TPI-1, TPI-3, TPI-7, TPI-14) **+ 4 P3** (TPI-2, TPI-6,
-TPI-11, TPI-13). Maps/geocoding vendor direction chosen: **MapTiler**.
+**2026-05-31 — TPI-14 (reminders cron) resolved.**
+
+- Added `MAX_REMINDERS_PER_RUN` (250) + `DISPATCH_CONCURRENCY` (8) and a shared
+  per-run budget across both reminder windows; each event's attendees are pulled
+  with `.limit(remainingBudget)` so the overflow stays unmarked for the next run.
+  Mark-first / at-most-once preserved (the `in_app` channel isn't idempotent).
+- Extracted the orchestration into
+  [sweep.ts](../../apps/web/src/app/api/notifications/reminders/sweep.ts)
+  (`runReminderSweep` + `mapWithConcurrency` behind a `ReminderPort`);
+  [route.ts](../../apps/web/src/app/api/notifications/reminders/route.ts) now only
+  wires the Supabase-backed port + `notify` + auth.
+- +7 tests in
+  [sweep.test.ts](../../apps/web/src/app/api/notifications/reminders/sweep.test.ts)
+  pinning: cap respected, **no attendee marked without being dispatched**
+  (no-silent-drop invariant), mark-before-dispatch ordering, idempotency-key
+  shape, cross-window budget sharing, and the concurrency bound. Verify quad
+  green (web 90 tests).
+- Side-note (not a bug): `events.location_city` / `location_region` are absent
+  from the stale generated types, so the event query casts through a null-union
+  exactly like the existing `rsvp-actions.ts` pattern — preserved verbatim.
+
+**Still open: 3 P2** (TPI-1, TPI-3, TPI-7) **+ 4 P3** (TPI-2, TPI-6, TPI-11,
+TPI-13). Maps/geocoding vendor direction chosen: **MapTiler**.
