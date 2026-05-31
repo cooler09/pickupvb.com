@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
 import { claimAccount, type ClaimState } from './actions';
 import {
@@ -19,11 +20,7 @@ function Err({ name, errors }: { name: string; errors: Record<string, string> | 
 function SubmitBtn() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Sending…' : 'Send confirmation email'}
     </button>
   );

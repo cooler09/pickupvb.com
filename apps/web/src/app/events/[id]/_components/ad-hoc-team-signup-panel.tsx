@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
 import { rsvpBannerFor, RSVP_BANNER_CLASS } from '@/lib/event-rsvp-flash';
 import { startTeamRegistrationCheckout } from '../team-checkout-actions';
@@ -400,9 +401,7 @@ function NewTeamForm({
         ))}
       </fieldset>
 
-      <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-        Register team
-      </SubmitButton>
+      <SubmitButton className={primaryButtonClass('md')}>Register team</SubmitButton>
     </form>
   );
 }
@@ -525,7 +524,7 @@ function CaptainRegistrationCard({
       <div className="flex flex-wrap items-center gap-2">
         {!isPaid && !paymentsOffPlatform && priceCents !== null && priceCents > 0 && (
           <form action={startTeamRegistrationCheckout.bind(null, registration.id)}>
-            <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            <SubmitButton className={primaryButtonClass('md')}>
               {isPending ? 'Resume checkout' : `Pay — ${formatUsd(priceCents)}${unitSuffix}`}
             </SubmitButton>
           </form>

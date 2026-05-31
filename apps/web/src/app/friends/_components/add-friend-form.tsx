@@ -1,4 +1,5 @@
 import { UserPicker } from '@/components/user-picker';
+import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
 import { addFriendFromForm } from '../actions';
 
@@ -24,9 +25,7 @@ export function AddFriendForm({ returnPath, excludeIds }: Props) {
           excludeIds={excludeIds}
         />
         <div className="flex justify-end">
-          <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            Follow
-          </SubmitButton>
+          <SubmitButton className={primaryButtonClass('sm')}>Follow</SubmitButton>
         </div>
       </form>
     </section>

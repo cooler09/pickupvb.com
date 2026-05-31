@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/stripe';
@@ -140,7 +141,7 @@ export default async function PricingPage() {
               <>
                 <Link
                   href={'/login?next=/pricing' as Route}
-                  className="bg-primary hover:bg-primary/90 inline-block w-full rounded-md px-4 py-2 text-center text-sm font-semibold text-white"
+                  className={`${primaryButtonClass('md')} w-full text-center`}
                 >
                   Sign in to start free trial
                 </Link>
@@ -149,7 +150,7 @@ export default async function PricingPage() {
             ) : isAnon ? (
               <Link
                 href={'/claim' as Route}
-                className="bg-primary hover:bg-primary/90 inline-block w-full rounded-md px-4 py-2 text-center text-sm font-semibold text-white"
+                className={`${primaryButtonClass('md')} w-full text-center`}
               >
                 Finish creating your account
               </Link>
@@ -180,7 +181,7 @@ export default async function PricingPage() {
                 </form>
                 <form action={startProCheckout.bind(null, 'yearly')}>
                   <SubmitButton
-                    className="bg-primary hover:bg-primary/90 w-full rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                    className={`${primaryButtonClass('md')} w-full`}
                     pendingChildren="Starting…"
                   >
                     Start trial — ${PRO_YEARLY_PRICE_USD}/yr (save ${yearlySavings})

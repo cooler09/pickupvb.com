@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { LocalDateTime } from '@/components/local-datetime';
 import { formatEventDateLong } from '@/lib/date-formats';
@@ -170,18 +171,12 @@ export function EventHero({
       {(cta || priceLabel) && (
         <div className="flex flex-wrap items-center gap-3 pt-1">
           {cta?.kind === 'internal' && (
-            <Link
-              href={cta.href}
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold"
-            >
+            <Link href={cta.href} className={primaryButtonClass('md')}>
               {cta.label}
             </Link>
           )}
           {cta?.kind === 'anchor' && (
-            <a
-              href={cta.hash}
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold"
-            >
+            <a href={cta.hash} className={primaryButtonClass('md')}>
               {cta.label}
             </a>
           )}
@@ -189,7 +184,7 @@ export function EventHero({
             <a
               href={externalLinkHref(cta.href)}
               rel="noopener noreferrer"
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold"
+              className={primaryButtonClass('md')}
             >
               {cta.label} <span aria-hidden="true">↗</span>
             </a>

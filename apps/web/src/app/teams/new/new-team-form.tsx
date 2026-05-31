@@ -1,6 +1,7 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { TextField } from '@/components/text-field';
@@ -16,11 +17,7 @@ const initial: TeamFormState = {};
 function SubmitBtn() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Creating…' : 'Create team'}
     </button>
   );

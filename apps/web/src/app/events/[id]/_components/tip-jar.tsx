@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import { TurnstileWidget } from '@/components/turnstile-widget';
 import { SubmitButton } from '@/components/submit-button';
 import { startTipCheckout, startGuestTipCheckout } from '../tip-actions';
@@ -126,10 +127,7 @@ export function TipJar({
                 className="border-border-base bg-surface w-full rounded-md border p-2 text-sm"
               />
               <div className="flex items-center gap-2">
-                <SubmitButton
-                  disabled={!validAmount}
-                  className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
+                <SubmitButton disabled={!validAmount} className={primaryButtonClass('md')}>
                   Tip {validAmount ? formatUsd(cents) : ''}
                 </SubmitButton>
                 <button
@@ -163,10 +161,7 @@ export function TipJar({
               />
               <TurnstileWidget />
               <div className="flex items-center gap-2">
-                <SubmitButton
-                  disabled={!validAmount}
-                  className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
+                <SubmitButton disabled={!validAmount} className={primaryButtonClass('md')}>
                   Tip {validAmount ? formatUsd(cents) : ''}
                 </SubmitButton>
                 <button

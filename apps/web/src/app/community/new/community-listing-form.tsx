@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
@@ -17,11 +18,7 @@ const initialState: CreateCommunityListingState = {};
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Submitting…' : 'Submit listing'}
     </button>
   );

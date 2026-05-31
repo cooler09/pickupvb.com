@@ -65,7 +65,7 @@ same action reads differently depending on which screen a persona is on. Measure
 
 | Drift                                                          | Count                                                                    | Canonical                                      |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
-| Old primary-button recipe (`hover:bg-primary/90`)              | **68 occurrences / 51 files**                                            | `primaryButtonClass` — **11 files**            |
+| Old primary-button recipe (`hover:bg-primary/90`)              | ~~68 / 51 files~~ → **0** (CC-1 ✅ 2026-05-31d; ratchet-locked)          | `primaryButtonClass` — **61 files**            |
 | Local `inputClass =` field vocabularies                        | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions) | `field-styles.ts` + `TextField`                |
 | `text-white` hardcoded on buttons (vs `text-primary-fg` token) | **64**                                                                   | token                                          |
 | Native `window.confirm` for destructive actions                | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                      | in-app `ConfirmSubmitButton` dialog everywhere |
@@ -80,7 +80,7 @@ also corroborates m3-alignment.md's ~5% adoption figure from the user-flow side.
 
 ### Cross-cutting (the consistency layer every persona touches)
 
-#### CC-1 — Button vocabulary has forked five ways · **P2**
+#### CC-1 — Button vocabulary has forked five ways · **P2** · ✅ resolved 2026-05-31d
 
 The Bundle 127 sweep extracted `primaryButtonClass` but the highest-traffic
 action buttons never migrated, including the two most-reused leaf components:
@@ -364,16 +364,40 @@ Implemented this pass (verify chain green: typecheck / lint / 621 tests / build)
     probe. This closes the "without a ratchet the 17→1 collapse re-accumulates" risk
     — same strategy as m3-alignment.md's shape-scale lock.
 
+### 2026-05-31d — CC-1 sweep + button ratchet (close the button drift)
+
+- **CC-1 — fixed (all 47 remaining files).** An exact-string codemod
+  (`/tmp/cc1-codemod.mjs`, mapping each hand-rolled class string → `primaryButtonClass('sm'|'md')`
+  - preserved layout extras like `w-full` / `shrink-0` / `text-center`) migrated
+    the 59 remaining `bg-primary hover:bg-primary/90 … text-white` buttons across 47
+    files to the canonical filled button: every form submit (`SubmitBtn`/`SubmitButton`
+    in the converged forms), error pages, marketing/nav (`site-header` sign-up pill,
+    `mobile-menu`, `pricing`, `community`, `profile/billing/pro`), and event panels
+    (`event-hero`, `tip-jar`, `event-sticky-cta`, RSVP/team panels, broadcast panels).
+    Manual fixes after the codemod: `event-filter-form.tsx` (codemod inserted the
+    import inside a multi-line first import — moved it out) and `community/page.tsx`
+    (height-matched "Apply" filter button → `` `${primaryButtonClass('sm')} h-[34px]` ``).
+    `primaryButtonClass` adoption: 11 → **61 files**; `hover:bg-primary/90`
+    occurrences: 68 → **0**.
+- **CC-1 ratchet — shipped.** Two more `no-restricted-syntax` selectors in
+  [apps/web/eslint.config.mjs](../../apps/web/eslint.config.mjs)
+  (`Literal` / `TemplateElement` matching `hover:bg-primary/90`) make the old
+  recipe a lint error — no exceptions, since the sweep hit zero. Verified clean
+  tree passes + probe fires. AGENTS.md pattern 11 already covers the convention.
+
 ### Standing backlog (graded above, not yet done)
 
-- **P2:** CC-1 remainder (header sign-up/sign-in pills + the other ~45 hand-rolled
-  files), V-2/V-3 (login page primitives), P-1 (shared GuestSignupFields),
-  H-1/H-2 (host form depth + divisions-manager FormModal). _CC-2 + CC-4 resolved
-  2026-05-31b; CC-2 ratchet locked 2026-05-31c. A parallel `primaryButtonClass`
-  ratchet should land with the CC-1 remainder._
-- **P3:** CC-3 (text-white token sweep — folds into CC-1), CC-5/H-2 (FormModal
+- **P2:** V-2/V-3 (login page field primitives — its inputs still bypass
+  `TextField`; the submit is now canonical), P-1 (shared `GuestSignupFields`),
+  H-1/H-2 (host form depth + divisions-manager FormModal). _CC-1 + CC-2 + CC-4
+  resolved 2026-05-31b–d; both the field and primary-button vocabularies are now
+  ratchet-locked._
+- **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
+  `primaryButtonClass` emits `text-primary-fg`; re-measure), CC-5/H-2 (FormModal
   conversion — also in events-page-ux.md), V-4 (anon→claim host gate), P-2
-  (StatusPill primitive), H-3 (row-action tap targets).
+  (StatusPill primitive), H-3 (row-action tap targets), secondary/outlined-button
+  convergence (the `border-border-base hover:bg-fg/5` pattern → `secondaryButtonClass`,
+  a separate fuzzier set not covered by the CC-1 ratchet).
 - **New primitive worth adding:** an `errorButtonClass`/`destructiveButtonClass`
   in `primary-button.tsx` so destructive confirms stop hand-rolling `bg-red-600`.
 

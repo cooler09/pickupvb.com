@@ -16,148 +16,148 @@
  * subscription on mount, so it can show the right CTA without flashing.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 
 type State = 'unknown' | 'unsupported' | 'denied' | 'off' | 'on' | 'working';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const raw = atob(base64);
-    const out = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
-    return out;
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
+  return out;
 }
 
 export function PushSubscribeButton({ vapidPublicKey }: { vapidPublicKey: string | null }) {
-    const [state, setState] = useState<State>('unknown');
-    const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<State>('unknown');
+  const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            if (!vapidPublicKey) {
-                if (!cancelled) setState('unsupported');
-                return;
-            }
-            if (
-                typeof window === 'undefined' ||
-                !('serviceWorker' in navigator) ||
-                !('PushManager' in window)
-            ) {
-                if (!cancelled) setState('unsupported');
-                return;
-            }
-            try {
-                const reg = await navigator.serviceWorker.register('/sw.js');
-                await navigator.serviceWorker.ready;
-                const existing = await reg.pushManager.getSubscription();
-                if (cancelled) return;
-                if (Notification.permission === 'denied') {
-                    setState('denied');
-                    return;
-                }
-                setState(existing ? 'on' : 'off');
-            } catch (err) {
-                if (!cancelled) {
-                    setError(err instanceof Error ? err.message : 'sw-register-failed');
-                    setState('unsupported');
-                }
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [vapidPublicKey]);
-
-    const subscribe = useCallback(async () => {
-        if (!vapidPublicKey) return;
-        setState('working');
-        setError(null);
-        try {
-            const reg = await navigator.serviceWorker.ready;
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted') {
-                setState(permission === 'denied' ? 'denied' : 'off');
-                return;
-            }
-            const sub = await reg.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
-            });
-            const body = sub.toJSON();
-            const res = await fetch('/api/notifications/subscribe', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-            if (!res.ok) throw new Error(`save-failed-${res.status}`);
-            setState('on');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'subscribe-failed');
-            setState('off');
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!vapidPublicKey) {
+        if (!cancelled) setState('unsupported');
+        return;
+      }
+      if (
+        typeof window === 'undefined' ||
+        !('serviceWorker' in navigator) ||
+        !('PushManager' in window)
+      ) {
+        if (!cancelled) setState('unsupported');
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
+        if (cancelled) return;
+        if (Notification.permission === 'denied') {
+          setState('denied');
+          return;
         }
-    }, [vapidPublicKey]);
-
-    const unsubscribe = useCallback(async () => {
-        setState('working');
-        setError(null);
-        try {
-            const reg = await navigator.serviceWorker.ready;
-            const sub = await reg.pushManager.getSubscription();
-            if (sub) {
-                await fetch(
-                    `/api/notifications/subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`,
-                    { method: 'DELETE' },
-                );
-                await sub.unsubscribe();
-            }
-            setState('off');
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'unsubscribe-failed');
-            setState('on');
+        setState(existing ? 'on' : 'off');
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'sw-register-failed');
+          setState('unsupported');
         }
-    }, []);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vapidPublicKey]);
 
-    if (state === 'unknown') {
-        return <p className="text-xs text-muted">Checking browser support…</p>;
+  const subscribe = useCallback(async () => {
+    if (!vapidPublicKey) return;
+    setState('working');
+    setError(null);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setState(permission === 'denied' ? 'denied' : 'off');
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
+      });
+      const body = sub.toJSON();
+      const res = await fetch('/api/notifications/subscribe', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`save-failed-${res.status}`);
+      setState('on');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'subscribe-failed');
+      setState('off');
     }
-    if (state === 'unsupported') {
-        return (
-            <p className="text-xs text-muted">
-                Push notifications aren&apos;t supported in this browser
-                {!vapidPublicKey ? ' (server VAPID key not configured)' : ''}.
-            </p>
-        );
+  }, [vapidPublicKey]);
+
+  const unsubscribe = useCallback(async () => {
+    setState('working');
+    setError(null);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch(`/api/notifications/subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`, {
+          method: 'DELETE',
+        });
+        await sub.unsubscribe();
+      }
+      setState('off');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'unsubscribe-failed');
+      setState('on');
     }
-    if (state === 'denied') {
-        return (
-            <p className="text-xs text-muted">
-                You&apos;ve blocked notifications for this site. Re-enable them in your browser
-                settings, then reload this page.
-            </p>
-        );
-    }
+  }, []);
+
+  if (state === 'unknown') {
+    return <p className="text-muted text-xs">Checking browser support…</p>;
+  }
+  if (state === 'unsupported') {
     return (
-        <div className="space-y-2">
-            {state === 'on' ? (
-                <button
-                    type="button"
-                    onClick={unsubscribe}
-                    className="rounded-md border border-border-base px-3 py-1.5 text-sm font-medium hover:bg-fg/5"
-                >
-                    Disable push on this device
-                </button>
-            ) : (
-                <button
-                    type="button"
-                    onClick={subscribe}
-                    disabled={state === 'working'}
-                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60"
-                >
-                    {state === 'working' ? 'Working…' : 'Enable push on this device'}
-                </button>
-            )}
-            {error ? <p className="text-xs text-red-600">{error}</p> : null}
-        </div>
+      <p className="text-muted text-xs">
+        Push notifications aren&apos;t supported in this browser
+        {!vapidPublicKey ? ' (server VAPID key not configured)' : ''}.
+      </p>
     );
+  }
+  if (state === 'denied') {
+    return (
+      <p className="text-muted text-xs">
+        You&apos;ve blocked notifications for this site. Re-enable them in your browser settings,
+        then reload this page.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {state === 'on' ? (
+        <button
+          type="button"
+          onClick={unsubscribe}
+          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm font-medium"
+        >
+          Disable push on this device
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={subscribe}
+          disabled={state === 'working'}
+          className={primaryButtonClass('sm')}
+        >
+          {state === 'working' ? 'Working…' : 'Enable push on this device'}
+        </button>
+      )}
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+    </div>
+  );
 }

@@ -1,4 +1,5 @@
 import { UserPicker } from '@/components/user-picker';
+import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
 import { addMemberFromForm } from '../../actions';
 
@@ -30,9 +31,7 @@ export function AddTeamMemberForm({ teamId, returnPath, existingMemberIds }: Pro
           excludeIds={existingMemberIds}
         />
         <div className="flex justify-end">
-          <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            Add teammate
-          </SubmitButton>
+          <SubmitButton className={primaryButtonClass('sm')}>Add teammate</SubmitButton>
         </div>
       </form>
     </section>

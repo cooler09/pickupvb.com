@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
 import { SponsorLogoUpload } from './sponsor-logo-upload';
 import {
@@ -168,11 +169,7 @@ export function SponsorPanel({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button
-            type="submit"
-            disabled={false}
-            className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
-          >
+          <button type="submit" disabled={false} className={primaryButtonClass('md')}>
             {canUseSponsors ? 'Save sponsor' : 'Unlock sponsor slot ($3)'}
           </button>
 

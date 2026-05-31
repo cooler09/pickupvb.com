@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import { getCurrentUser } from '@/lib/server-auth';
 import type { ThemePreference } from '@/lib/theme';
 import { SubmitButton } from '@/components/submit-button';
@@ -176,10 +177,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
               <Link href="/login" className="hover:text-primary text-sm">
                 Sign in
               </Link>
-              <Link
-                href="/login?mode=sign-up"
-                className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm text-white"
-              >
+              <Link href="/login?mode=sign-up" className={primaryButtonClass('sm')}>
                 Sign up
               </Link>
             </>

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/stripe';
@@ -157,7 +158,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
             <p className="text-muted text-xs">14-day free trial.</p>
             <form action={startProCheckout.bind(null, 'monthly')}>
               <SubmitButton
-                className="bg-primary hover:bg-primary/90 w-full rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className={`${primaryButtonClass('md')} w-full`}
                 pendingChildren="Starting…"
               >
                 Start trial — monthly
@@ -178,7 +179,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
             <p className="text-muted text-xs">14-day free trial.</p>
             <form action={startProCheckout.bind(null, 'yearly')}>
               <SubmitButton
-                className="bg-primary hover:bg-primary/90 w-full rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                className={`${primaryButtonClass('md')} w-full`}
                 pendingChildren="Starting…"
               >
                 Start trial — yearly

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { externalLinkHref } from '@/lib/external-link';
@@ -39,8 +40,7 @@ export function EventStickyCta({ cta, observeSelector }: Props) {
 
   if (!cta) return null;
 
-  const baseClass =
-    'bg-primary text-primary-fg hover:bg-primary/90 block w-full rounded-md px-4 py-3 text-center text-sm font-semibold shadow-lg';
+  const baseClass = `${primaryButtonClass('md')} w-full text-center shadow-lg`;
 
   return (
     <div

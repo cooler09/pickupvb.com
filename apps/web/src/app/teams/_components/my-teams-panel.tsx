@@ -100,10 +100,7 @@ export function MyTeamsPanel() {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <Link
-          href="/teams/new"
-          className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white"
-        >
+        <Link href="/teams/new" className={primaryButtonClass('sm')}>
           + New team
         </Link>
       </div>

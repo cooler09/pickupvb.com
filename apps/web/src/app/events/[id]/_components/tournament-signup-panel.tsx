@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { SubmitButton } from '@/components/submit-button';
 import { registerTeamFromForm, withdrawTeamFromForm } from '../team-signup-actions';
@@ -170,7 +171,7 @@ export function TournamentSignupPanel({
                   <div className="flex items-center gap-3">
                     {owesPayment && !isPaid && !isRefunded && (
                       <form action={startRosterTeamCheckout.bind(null, eventId, t.teamId)}>
-                        <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+                        <SubmitButton className={primaryButtonClass('sm')}>
                           {isPending ? 'Resume checkout' : `Pay — ${formatUsd(priceCents)}`}
                         </SubmitButton>
                       </form>
@@ -273,9 +274,7 @@ export function TournamentSignupPanel({
                   ))}
                 </select>
               )}
-              <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                Register team
-              </SubmitButton>
+              <SubmitButton className={primaryButtonClass('md')}>Register team</SubmitButton>
             </form>
           )}
         </div>

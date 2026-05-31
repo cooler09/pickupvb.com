@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 
 type Props = {
@@ -56,18 +57,12 @@ export function EventClosedState({
         </p>
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {isTournament && (
-            <Link
-              href={`/events/${eventId}/bracket` as Route}
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold"
-            >
+            <Link href={`/events/${eventId}/bracket` as Route} className={primaryButtonClass('sm')}>
               View bracket
             </Link>
           )}
           {!isTournament && (
-            <a
-              href="#attendees"
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold"
-            >
+            <a href="#attendees" className={primaryButtonClass('sm')}>
               View attendees
             </a>
           )}

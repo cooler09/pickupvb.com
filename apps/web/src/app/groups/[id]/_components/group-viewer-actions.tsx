@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
@@ -105,9 +106,7 @@ export function GroupViewerActions({
         </form>
       ) : (
         <form action={followGroup.bind(null, groupId, returnPath)}>
-          <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            + Follow
-          </SubmitButton>
+          <SubmitButton className={primaryButtonClass('sm')}>+ Follow</SubmitButton>
         </form>
       )}
       <ShareLink path={`/groups/${groupSlug}`} title={groupName} />

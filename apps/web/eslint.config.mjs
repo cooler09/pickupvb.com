@@ -83,6 +83,25 @@ const config = [
           message:
             "Don't hand-roll a field class string. Import the field classes from '@/components/field-styles' (or use <TextField>). See docs/audits/persona-ux.md CC-2.",
         },
+        // Primary-button ratchet (docs/audits/persona-ux.md CC-1, Bundle
+        // 2026-05-31d). The CC-1 sweep migrated every hand-rolled
+        // `bg-primary hover:bg-primary/90 … text-white` button to
+        // `primaryButtonClass(size)` (the canonical M3 filled button uses the
+        // `state-layer` overlay, never `hover:bg-primary/90`). `hover:bg-primary/90`
+        // is therefore a reliable fingerprint of the old recipe — forbid it so it
+        // can't re-enter. There are intentionally **no exceptions** (the sweep hit
+        // zero remaining occurrences); a genuinely new filled-button surface should
+        // import `primaryButtonClass` / `secondaryButtonClass` instead.
+        {
+          selector: 'Literal[value=/hover:bg-primary\\/90/]',
+          message:
+            "Don't hand-roll the primary-button recipe (`bg-primary hover:bg-primary/90 text-white …`). Use primaryButtonClass(size) / secondaryButtonClass(size) from '@/components/primary-button'. See docs/audits/persona-ux.md CC-1.",
+        },
+        {
+          selector: 'TemplateElement[value.cooked=/hover:bg-primary\\/90/]',
+          message:
+            "Don't hand-roll the primary-button recipe in a template literal. Use primaryButtonClass / secondaryButtonClass from '@/components/primary-button'. See docs/audits/persona-ux.md CC-1.",
+        },
       ],
     },
   },

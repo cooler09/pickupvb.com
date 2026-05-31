@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 
@@ -34,10 +35,7 @@ export function NewGroupButton() {
 
   if (!signedIn) return null;
   return (
-    <Link
-      href="/groups/new"
-      className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white"
-    >
+    <Link href="/groups/new" className={primaryButtonClass('sm')}>
       + New group
     </Link>
   );

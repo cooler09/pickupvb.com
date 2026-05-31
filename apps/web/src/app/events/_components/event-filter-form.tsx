@@ -5,6 +5,7 @@ import {
   AGE_GROUP_LABEL,
   TEAM_COMPOSITION_LABEL,
 } from '@/lib/enum-labels';
+import { primaryButtonClass } from '@/components/primary-button';
 
 export const SURFACES = ['indoor', 'grass', 'sand'] as const;
 export const TYPES = ['open_play', 'tournament'] as const;
@@ -179,10 +180,7 @@ export function EventFilterForm({
       </details>
 
       <div className="flex justify-end">
-        <button
-          type="submit"
-          className="bg-primary hover:bg-primary/90 rounded-md px-4 py-1.5 text-sm font-semibold text-white"
-        >
+        <button type="submit" className={primaryButtonClass('md')}>
           Apply filters
         </button>
       </div>

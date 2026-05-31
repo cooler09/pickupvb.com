@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Metadata } from 'next/types';
 import { SearchCommunityListingsQuery } from '@pickupvb/application';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
@@ -70,16 +71,13 @@ export default async function CommunityListingsPage(props: {
           </p>
         </div>
         {user ? (
-          <Link
-            href="/community/new"
-            className="bg-primary hover:bg-primary/90 shrink-0 rounded-md px-4 py-2 font-medium text-white"
-          >
+          <Link href="/community/new" className={`${primaryButtonClass('md')} shrink-0`}>
             Submit a listing
           </Link>
         ) : (
           <Link
             href={{ pathname: '/login', query: { next: '/community/new' } }}
-            className="bg-primary hover:bg-primary/90 shrink-0 rounded-md px-4 py-2 font-medium text-white"
+            className={`${primaryButtonClass('md')} shrink-0`}
           >
             Sign in to submit
           </Link>
@@ -142,10 +140,7 @@ export default async function CommunityListingsPage(props: {
           </select>
         </label>
         <div className="flex items-end">
-          <button
-            type="submit"
-            className="bg-primary hover:bg-primary/90 h-[34px] rounded-md px-4 text-sm font-semibold text-white"
-          >
+          <button type="submit" className={`${primaryButtonClass('sm')} h-[34px]`}>
             Apply
           </button>
         </div>

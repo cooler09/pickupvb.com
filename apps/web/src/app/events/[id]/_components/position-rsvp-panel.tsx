@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import { EVENT_POSITIONS, type EventPosition } from '@pickupvb/domain';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { POSITION_LABEL } from '@/lib/enum-labels';
@@ -107,7 +108,7 @@ export function PositionRsvpPanel({
                           ? `"${POSITION_LABEL[pos] ?? pos}" is full. Join the waitlist for "${eventTitle}"?`
                           : `Join "${eventTitle}" as ${POSITION_LABEL[pos] ?? pos}?`
                       }
-                      className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:opacity-50"
+                      className={primaryButtonClass('sm')}
                     />
                   </form>
                 </li>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next/types';
@@ -383,7 +384,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         <a
           href={externalLinkHref(detail.externalUrl)}
           rel="noopener noreferrer nofollow"
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold text-white"
+          className={`${primaryButtonClass('md')} gap-2`}
         >
           Open on {hostLabel} →
         </a>
