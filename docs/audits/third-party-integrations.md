@@ -37,10 +37,16 @@ caps reminders per run + fans out with bounded concurrency, so a timeout can't
 strand a marked-but-undelivered tail; orchestration extracted to a testable
 `sweep.ts`. See the remediation log.
 
+**TPI-7 bell migrated** (2026-05-31, [ADR 0027](../adr/0027-realtime-broadcast-notifications.md))
+— the notification bell moved off `postgres_changes` to a per-user **private
+Broadcast channel** fed by a DB trigger; **pending live dev verification** (the
+quad can't exercise realtime/RLS/trigger). Discovery: `notifications` was never in
+the `supabase_realtime` publication, so the old path was inert anyway.
+
 Verify quad green (web 90 tests; lint 0 errors; build 8/8).
-**Remaining open: 3 P2** (TPI-1 + TPI-3 free-OSM services, TPI-7 Realtime →
-Broadcast) **+ 4 P3** (TPI-2, TPI-6, TPI-11, TPI-13).
-Maps/geocoding direction chosen: **MapTiler** (one vendor for tiles +
+**Remaining open: 2 P2** (TPI-1 + TPI-3 free-OSM services) **+ 4 P3** (TPI-2,
+TPI-6, TPI-11, TPI-13) — plus TPI-7's live verification + visibility-gating
+follow-up. Maps/geocoding direction chosen: **MapTiler** (one vendor for tiles +
 geocoding/autocomplete) — see TPI-1/2/3.
 
 ---
@@ -247,7 +253,7 @@ end. Current behavior is safe; it's just chatty. Don't change without keeping th
 
 ### Supabase Realtime
 
-#### TPI-7 (P2) — Per-user Realtime connection on every page, over the non-scaling `postgres_changes` path
+#### TPI-7 (P2) — 🔄 Bell migrated 2026-05-31 (pending live dev verification) — Per-user Realtime connection on every page, over the non-scaling `postgres_changes` path
 
 [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx#L53-L81)
 opens a Supabase Realtime channel subscribed to `postgres_changes` INSERTs on
@@ -276,6 +282,23 @@ evaluation. Tactical mitigations meanwhile: gate the bell subscription on
 `document.visibilityState === 'visible'` so backgrounded tabs drop their
 connection, and consider polling (the bell is low-urgency) instead of a
 persistent socket.
+
+**Shipped (the bell) 2026-05-31 — pending live verification ([ADR 0027](../adr/0027-realtime-broadcast-notifications.md)):**
+the notification bell now subscribes to a **private Broadcast channel**
+`notifications:{userId}`, fed by an `AFTER INSERT` trigger
+([20260823000000_notification_broadcast.sql](../../supabase/migrations/20260823000000_notification_broadcast.sql))
+that calls `realtime.broadcast_changes(...)`; a `realtime.messages` SELECT policy
+authorizes each user to their own topic. **Discovery during the work:**
+`public.notifications` is **not in the `supabase_realtime` publication** in any
+migration, so the prior `postgres_changes` path was inert in a
+migration-provisioned DB — Broadcast both fixes the live path _and_ removes the
+non-scaling subscription. **Scope = bell only:** `match_live_scores` stays on
+`postgres_changes` (deliberate per its own migration) and the bracket watchers are
+event-scoped. **Not yet verified live** — the verify quad can't exercise the
+realtime/RLS/trigger path; needs a dev round-trip (trigger a notification → bell
+badge increments live; a _different_ user must not receive it). Degrades
+gracefully if misconfigured (notifications still persist + render on next load).
+Visibility-gating + an e2e remain follow-ups.
 
 ### Notifications / Vercel Cron workers
 
@@ -425,5 +448,29 @@ Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
   from the stale generated types, so the event query casts through a null-union
   exactly like the existing `rsvp-actions.ts` pattern — preserved verbatim.
 
-**Still open: 3 P2** (TPI-1, TPI-3, TPI-7) **+ 4 P3** (TPI-2, TPI-6, TPI-11,
-TPI-13). Maps/geocoding vendor direction chosen: **MapTiler**.
+**2026-05-31 — TPI-7 (notification bell) migrated to Broadcast — pending live verification.**
+[ADR 0027](../adr/0027-realtime-broadcast-notifications.md).
+
+- New migration
+  [20260823000000_notification_broadcast.sql](../../supabase/migrations/20260823000000_notification_broadcast.sql):
+  `public.broadcast_notification()` SECURITY DEFINER trigger fn + `AFTER INSERT`
+  trigger on `public.notifications` calling `realtime.broadcast_changes(...)` to
+  the per-user topic `notifications:{user_id}`, and a `realtime.messages` SELECT
+  policy authorizing each authenticated user to their own topic.
+- [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx)
+  rewired from `postgres_changes` to a `{ private: true }` Broadcast channel +
+  `realtime.setAuth(session.access_token)`; stable topic (RLS match) with a
+  `cancelled` guard for the strict-mode double-mount.
+- **Discovery:** `public.notifications` is in no `supabase_realtime` publication,
+  so the prior `postgres_changes` path was inert in a migration-provisioned DB —
+  Broadcast fixes the live path _and_ removes the non-scaling subscription.
+- **Scope = bell only.** `match_live_scores` stays on `postgres_changes`
+  (deliberate per its migration); bracket watchers are event-scoped.
+- Verify quad green (typecheck/lint/build; tests unchanged — realtime isn't
+  unit-testable). **Not exercised live** (Docker/local Supabase was down). Needs a
+  dev round-trip before flipping to "resolved": notification → bell badge
+  increments live; a different user must not receive it (topic isolation).
+
+**Still open: 2 P2** (TPI-1, TPI-3) **+ 4 P3** (TPI-2, TPI-6, TPI-11, TPI-13),
+plus TPI-7 live verification + visibility-gating follow-up. Maps/geocoding vendor
+direction chosen: **MapTiler**.

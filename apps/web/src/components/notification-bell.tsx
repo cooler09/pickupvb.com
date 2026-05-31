@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type NotificationRow = {
   id: string;
@@ -49,34 +50,45 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
   const [unread, setUnread] = useState(initialUnreadCount);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Realtime subscription — new notifications stream in.
+  // Realtime subscription — new notifications stream in over a private
+  // Broadcast channel (ADR 0027). A DB `AFTER INSERT` trigger on `notifications`
+  // emits each new row to the per-user topic `notifications:<userId>`; an RLS
+  // policy on `realtime.messages` authorizes a subscriber to its own topic only.
+  // This replaces `postgres_changes` — the non-scaling path that also required
+  // the table in the `supabase_realtime` publication (it isn't).
+  //
+  // The topic must be exactly `notifications:<userId>` for the RLS match (no
+  // random suffix), so the strict-mode double-mount is handled by the `cancelled`
+  // guard + deferred channel creation rather than a per-mount unique topic.
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
-    // Unique topic per mount: under React strict mode the effect runs
-    // twice and `removeChannel` is async, so reusing a fixed topic
-    // (`notifications:<userId>`) returns the already-subscribed instance
-    // on the second mount and `.on(...)` throws
-    // "cannot add `postgres_changes` callbacks ... after `subscribe()`".
-    const topic = `notifications:${userId}:${Math.random().toString(36).slice(2, 10)}`;
-    const channel = supabase
-      .channel(topic)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${userId}`,
-        },
-        (payload) => {
-          const row = payload.new as NotificationRow;
+    let channel: RealtimeChannel | null = null;
+    let cancelled = false;
+
+    void (async () => {
+      // Private channels carry the user's JWT on the realtime socket so the
+      // `realtime.messages` SELECT policy can authorize the topic.
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (session) await supabase.realtime.setAuth(session.access_token);
+      if (cancelled) return;
+
+      channel = supabase
+        .channel(`notifications:${userId}`, { config: { private: true } })
+        .on('broadcast', { event: 'INSERT' }, (msg) => {
+          const row = (msg.payload as { record?: NotificationRow }).record;
+          if (!row) return;
           setItems((prev) => [row, ...prev].slice(0, 20));
           setUnread((u) => u + 1);
-        },
-      )
-      .subscribe();
+        })
+        .subscribe();
+    })();
+
     return () => {
-      void supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [userId]);
 
