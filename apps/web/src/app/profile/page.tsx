@@ -12,7 +12,10 @@ import {
 import { FriendsList } from '@/components/friends-list';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
+import { MyVideosSection } from './_components/my-videos-section';
 import { HandleEditor } from './_components/handle-editor';
+import { ListProfileMediaQuery } from '@pickupvb/application';
+import { getMediaHandlers } from '@/lib/handlers';
 import { ProBadge } from '@/components/pro-badge';
 import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
@@ -102,6 +105,10 @@ export default async function ProfilePage() {
   const memberships = await new SupabaseGroupQueryRepository(supabase).listMembershipsForUser(
     user.id,
   );
+
+  // The user's own videos (active + auto-hidden) for the manage section.
+  const { listProfileMedia } = await getMediaHandlers();
+  const myVideos = await listProfileMedia.execute(new ListProfileMediaQuery(user.id, user.id));
   const groupsForSection: MyGroup[] = memberships.map((m) => ({
     id: m.group.id,
     slug: m.group.slug,
@@ -245,6 +252,14 @@ export default async function ProfilePage() {
       {/* Groups */}
       <section className={cardClass}>
         <MyGroupsSection groups={groupsForSection} />
+      </section>
+
+      {/* Videos */}
+      <section className={cardClass}>
+        <SectionHeader title="Videos" count={myVideos.length} />
+        <div className="mt-4">
+          <MyVideosSection items={myVideos} />
+        </div>
       </section>
 
       {/* Following */}

@@ -11,7 +11,12 @@
 import { notFound } from 'next/navigation';
 import type { Route } from 'next';
 import { GetEventDetailQuery } from '@pickupvb/application';
-import { NotFoundError, type EventDetailReadModel, type EventPosition } from '@pickupvb/domain';
+import {
+  NotFoundError,
+  type EventDetailReadModel,
+  type EventMediaSummary,
+  type EventPosition,
+} from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import type { ViewerSession } from '@/lib/server-auth';
 import { isAnonymousUser } from '@/lib/server-auth';
@@ -23,6 +28,7 @@ import type { SocialHandles } from '@/lib/social-handles';
 import {
   loadAdHocPublicRowsCached,
   loadAdHocRowsCached,
+  loadEventMediaSummaryCached,
   loadEventPricingCached,
   loadEventReadModelPublic,
   loadEventSponsorCached,
@@ -179,6 +185,9 @@ export type EventDetailViewModel = {
   // Wide banner image uploaded by the host (nullable — fallback gradient shown).
   heroImageUrl: string | null;
 
+  // Media (videos / livestreams / clips) summary for the page footprint.
+  mediaSummary: EventMediaSummary;
+
   // Hero / sticky call-to-action.
   cta: EventHeroCta;
 };
@@ -242,6 +251,7 @@ export async function loadEventDetail(
     sponsor,
     heroImageUrl,
     leagueTeamsByDivision,
+    mediaSummary,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -262,6 +272,7 @@ export async function loadEventDetail(
     loadEventSponsorCached(event.id),
     loadHeroImageCached(event.id),
     loadLeagueTeamsByDivision(event),
+    loadEventMediaSummaryCached(event.id),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -345,6 +356,7 @@ export async function loadEventDetail(
     viewerPosition,
     sponsor,
     heroImageUrl,
+    mediaSummary,
     cta,
   };
 }

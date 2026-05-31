@@ -1,0 +1,111 @@
+import type { MediaPostItem } from '@pickupvb/domain';
+import { VideoEmbed } from '@/components/video-embed';
+import {
+  endLiveStreamFromForm,
+  featureStreamFromForm,
+  removeMediaFromForm,
+  reportMediaFromForm,
+  unfeatureMediaFromForm,
+} from '../actions';
+
+const actionButtonClass =
+  'rounded-md border border-border-base px-2.5 py-1 text-xs font-medium text-fg hover:bg-fg/5';
+
+/**
+ * One media post: the embed (or link card), a title/submitter line, and the
+ * viewer-appropriate controls. `canManageEvent` (host/admin) unlocks
+ * feature/unfeature on live streams; `item.canManage` (owner/host/admin)
+ * unlocks remove + end-stream; any other real user can report once.
+ */
+export function MediaCard({
+  item,
+  eventId,
+  canManageEvent,
+  viewerIsRealUser,
+}: {
+  item: MediaPostItem;
+  eventId: string;
+  canManageEvent: boolean;
+  viewerIsRealUser: boolean;
+}) {
+  const showFeatureToggle = canManageEvent && item.kind === 'live_stream' && item.isLive;
+  const canReport = viewerIsRealUser && !item.canManage && !item.hasReported;
+
+  return (
+    <div className="border-border-base rounded-shape-sm space-y-2 border p-3">
+      <VideoEmbed
+        provider={item.provider}
+        externalId={item.externalId}
+        subtype={item.subtype}
+        videoUrl={item.videoUrl}
+        title={item.title}
+      />
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {item.isLive && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+            <span aria-hidden="true">🔴</span> Live
+          </span>
+        )}
+        {item.featured && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+            <span aria-hidden="true">★</span> Featured
+          </span>
+        )}
+        {item.status === 'hidden' && (
+          <span className="bg-fg/10 text-muted rounded-full px-2 py-0.5 text-xs font-medium">
+            Hidden
+          </span>
+        )}
+      </div>
+
+      <h3 className="text-fg font-medium">{item.title}</h3>
+      {item.description && (
+        <p className="text-muted text-sm whitespace-pre-wrap">{item.description}</p>
+      )}
+      <p className="text-muted text-xs">Posted by {item.submitter.displayName}</p>
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {showFeatureToggle &&
+          (item.featured ? (
+            <form action={unfeatureMediaFromForm.bind(null, eventId, item.id)}>
+              <button type="submit" className={actionButtonClass}>
+                Unfeature
+              </button>
+            </form>
+          ) : (
+            <form action={featureStreamFromForm.bind(null, eventId, item.id)}>
+              <button type="submit" className={actionButtonClass}>
+                ★ Feature
+              </button>
+            </form>
+          ))}
+
+        {item.canManage && item.kind === 'live_stream' && item.isLive && (
+          <form action={endLiveStreamFromForm.bind(null, eventId, item.id)}>
+            <button type="submit" className={actionButtonClass}>
+              End stream
+            </button>
+          </form>
+        )}
+
+        {item.canManage && (
+          <form action={removeMediaFromForm.bind(null, eventId, item.id)}>
+            <button type="submit" className={`${actionButtonClass} text-red-600`}>
+              Remove
+            </button>
+          </form>
+        )}
+
+        {canReport && (
+          <form action={reportMediaFromForm.bind(null, eventId, item.id)}>
+            <button type="submit" className={`${actionButtonClass} text-muted`}>
+              Report
+            </button>
+          </form>
+        )}
+        {item.hasReported && <span className="text-muted text-xs">Reported</span>}
+      </div>
+    </div>
+  );
+}

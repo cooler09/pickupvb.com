@@ -23,6 +23,7 @@ import { EventSignupArea } from './_components/event-signup-area';
 import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
+import { EventMediaLink } from './_components/event-media-link';
 import { OffPlatformUpsell } from './_components/off-platform-upsell';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 import { HeroImage } from '@/components/hero-image';
@@ -125,6 +126,7 @@ export default async function EventDetailPage(props: {
     viewerPosition,
     sponsor,
     heroImageUrl,
+    mediaSummary,
     cta,
   } = vm;
 
@@ -175,6 +177,7 @@ export default async function EventDetailPage(props: {
           cta={cta}
           divisionCount={event.divisions.length}
           closingSoon={closingSoon}
+          liveNow={mediaSummary.liveCount > 0}
         />
       </header>
 
@@ -339,6 +342,12 @@ export default async function EventDetailPage(props: {
           hostCanCollectTips={hostStripeReady}
         />
       )}
+
+      <EventMediaLink
+        eventId={event.id}
+        totalCount={mediaSummary.totalCount}
+        liveCount={mediaSummary.liveCount}
+      />
 
       <EventSponsorSection sponsor={sponsor} />
 

@@ -25,8 +25,8 @@
  */
 import { unstable_cache } from 'next/cache';
 import { GetEventDetailQuery } from '@pickupvb/application';
-import type { EventDetailReadModel } from '@pickupvb/domain';
-import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
+import type { EventDetailReadModel, EventMediaSummary } from '@pickupvb/domain';
+import { SupabaseProfileRepository, SupabaseMediaPostRepository } from '@pickupvb/infrastructure';
 import { handlers } from '@/lib/handlers';
 import { getEventPricing, type EventPricing } from '@/lib/event-pricing';
 import type { SocialHandles } from '@/lib/social-handles';
@@ -346,6 +346,27 @@ export function loadHeroImageCached(eventId: string): Promise<string | null> {
       return (data as { hero_image_url: string | null } | null)?.hero_image_url ?? null;
     },
     ['event-hero-image', eventId],
+    { revalidate: 60, tags: [eventCacheTag(eventId)] },
+  )();
+}
+
+/**
+ * Cheap, viewer-independent media summary for the event detail page footprint:
+ * the active video/clip count, the live-stream count, and the host-featured
+ * live stream (if any). Drives the hero "Live now" pill + the bottom "Videos &
+ * clips (N)" link. All browsing happens on `/events/[id]/media`; this keeps the
+ * detail page itself to one conditional pill + one link for details-only
+ * viewers. No `Date` fields, so no revival needed.
+ */
+export function loadEventMediaSummaryCached(eventId: string): Promise<EventMediaSummary> {
+  return unstable_cache(
+    async () => {
+      // Admin client via dynamic import — never call cookies() inside
+      // unstable_cache. The counts are active-only and viewer-independent.
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      return new SupabaseMediaPostRepository(getAdminSupabase()).getEventMediaSummary(eventId);
+    },
+    ['event-media-summary', eventId],
     { revalidate: 60, tags: [eventCacheTag(eventId)] },
   )();
 }

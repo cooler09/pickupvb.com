@@ -14,6 +14,7 @@ import {
   SupabaseHostSubscriptionRepository,
   SupabaseLeagueScheduleRepository,
   SupabaseLiveMatchScoreRepository,
+  SupabaseMediaPostRepository,
   SupabaseGroupRepository,
   SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
@@ -33,8 +34,19 @@ import {
   CreateBracketHandler,
   CreateCommunityListingHandler,
   CreateEventHandler,
+  CreateMediaPostHandler,
   CreateTeamHandler,
   DeleteCommunityListingHandler,
+  EndLiveStreamHandler,
+  FeatureEventStreamHandler,
+  HideMediaPostHandler,
+  ListEventMediaHandler,
+  ListProfileMediaHandler,
+  RemoveMediaPostHandler,
+  ReportMediaPostHandler,
+  UnfeatureMediaPostHandler,
+  UnhideMediaPostHandler,
+  UpdateMediaPostHandler,
   GenerateBracketHandler,
   GeneratePlayoffHandler,
   GetCommunityListingDetailHandler,
@@ -266,6 +278,54 @@ export async function getMatchResultHandlers(): Promise<{
     recordLeagueMatchResult: new RecordLeagueMatchResultHandler(userLeagueScheduleRepo),
     upsertLiveMatchScore: new UpsertLiveMatchScoreHandler(userLiveScoreRepo),
     clearLiveMatchScore: new ClearLiveMatchScoreHandler(userLiveScoreRepo),
+  };
+}
+
+/**
+ * Per-request handlers for media posts (videos / livestreams / clips).
+ *
+ * Built around a *user-scoped* client so the `media_posts` RLS policies
+ * (submitter / `is_event_host` / admin) and the host-gated
+ * `feature_event_stream` RPC are the real authorization gate — never the
+ * module-singleton admin-client path. `isEventHost` defers to the SQL
+ * `is_event_host` RPC (auth.uid()-based) so group co-hosts are covered, not
+ * just the primary host; the application-layer check is a typed-error
+ * pre-flight before the RLS/RPC enforces server-side (AGENTS.md gotcha #8).
+ */
+export async function getMediaHandlers(): Promise<{
+  createMediaPost: CreateMediaPostHandler;
+  updateMediaPost: UpdateMediaPostHandler;
+  removeMediaPost: RemoveMediaPostHandler;
+  reportMediaPost: ReportMediaPostHandler;
+  hideMediaPost: HideMediaPostHandler;
+  unhideMediaPost: UnhideMediaPostHandler;
+  featureEventStream: FeatureEventStreamHandler;
+  unfeatureMediaPost: UnfeatureMediaPostHandler;
+  endLiveStream: EndLiveStreamHandler;
+  listEventMedia: ListEventMediaHandler;
+  listProfileMedia: ListProfileMediaHandler;
+}> {
+  const client = await getServerSupabase();
+  const mediaRepo = new SupabaseMediaPostRepository(client);
+
+  const isEventHost = async (eventId: string): Promise<boolean> => {
+    const { data, error } = await client.rpc('is_event_host', { p_event_id: eventId });
+    if (error) return false;
+    return data === true;
+  };
+
+  return {
+    createMediaPost: new CreateMediaPostHandler(mediaRepo),
+    updateMediaPost: new UpdateMediaPostHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    removeMediaPost: new RemoveMediaPostHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    reportMediaPost: new ReportMediaPostHandler(mediaRepo),
+    hideMediaPost: new HideMediaPostHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    unhideMediaPost: new UnhideMediaPostHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    featureEventStream: new FeatureEventStreamHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    unfeatureMediaPost: new UnfeatureMediaPostHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    endLiveStream: new EndLiveStreamHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    listEventMedia: new ListEventMediaHandler(mediaRepo),
+    listProfileMedia: new ListProfileMediaHandler(mediaRepo),
   };
 }
 

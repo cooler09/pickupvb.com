@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import type { PlayerProfile } from '@pickupvb/domain';
-import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
+import { SupabaseProfileRepository, SupabaseMediaPostRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
@@ -14,6 +14,7 @@ import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
 import { HeroImage } from '@/components/hero-image';
+import { ProfileVideoGrid } from '@/components/profile-video-grid';
 
 /**
  * ISR cache for anonymous traffic. The public player profile (identity
@@ -73,12 +74,15 @@ export default async function PlayerProfilePage(props: {
 
   // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.
   const now = new Date();
-  const [upcoming, past, isProHost, isAdmin] = await Promise.all([
+  const [upcoming, past, isProHost, isAdmin, videos] = await Promise.all([
     // RLS handles visibility — anon viewers only see public events.
     loadVisibleHostedEvents(supabase, profile.id, { startsAfter: now }),
     loadVisibleHostedEvents(supabase, profile.id, { startsBefore: now }),
     profile.showProBadge !== false ? isPro(profile.id) : Promise.resolve(false),
     isPlatformAdmin(profile.id),
+    // Viewer-independent (anon client, active-only via RLS) so the page stays
+    // ISR-cacheable.
+    new SupabaseMediaPostRepository(supabase).listForProfile(profile.id, null),
   ]);
 
   const returnPath = `/players/${profile.handle}`;
@@ -163,6 +167,14 @@ export default async function PlayerProfilePage(props: {
           emptyState={`${name} isn't hosting any upcoming events you can see.`}
         />
       </section>
+      {videos.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-fg text-lg font-semibold">
+            Videos <span className="text-muted text-sm font-normal">({videos.length})</span>
+          </h2>
+          <ProfileVideoGrid items={videos} />
+        </section>
+      )}
       {past.length > 0 && (
         <section id="past-events" className="space-y-3">
           <h2 className="text-fg text-lg font-semibold">
