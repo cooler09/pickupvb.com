@@ -54,6 +54,15 @@ are separate bills. The cron was the dominant source.
   flushes once → one kick per `notify()` instead of one per channel.
 - `apps/web/src/lib/notify.test.ts` — +2 tests pinning the batching contract
   (single enqueue call per fan-out; zero when no outbox channel resolves).
+- `supabase/migrations/20260822000100_debounce_notification_worker_kick.sql` —
+  new: `notification_worker_kick` single-row debounce table + `create or replace`
+  of the trigger fn to gate the kick on `last_kicked_at < now() - 10s` (row-locked
+  conditional UPDATE). Collapses a cross-user broadcast (N inserts → N statements)
+  to ~one kick per window.
+- `apps/web/src/app/api/notifications/worker/route.ts` — worker now **drains to
+  empty**: `drainOneBatch()` helper looped until the queue clears, bounded by
+  `DRAIN_BUDGET_MS` (50s, under `maxDuration`). Makes the debounced single kick
+  safe — one wake delivers a whole burst, not just one `BATCH`.
 
 ## Patterns observed
 
@@ -71,11 +80,16 @@ are separate bills. The cron was the dominant source.
 
 - **Seed Vault per environment + verify the kick on dev**, then flip ADR 0026 to
   Accepted and drop the sweep cron `*/5` → `*/15`. (Sequence in the ADR.)
-- **Per-dispatch batching: done** (one `enqueue([...])` per `notify()` → one
-  kick). Remaining: **cross-user broadcast** fan-out still fires ~N kicks (one
-  `notify()` per recipient). A short coalescing throttle (advisory lock +
-  `last_kicked_at`) is deferred until it measurably matters — empty-queue kicks
-  are cheap.
+- **Coalescing: done.** Per-dispatch batching (one `enqueue([...])` per
+  `notify()`) + the `last_kicked_at` debounce + worker drain-to-empty collapse
+  both same-user and cross-user (broadcast) bursts to ~one kick per window.
+  Residual: the post-final-kick tail of a burst relies on the sweep cron — a
+  more-correct level-triggered "kick-pending flag cleared by the worker" is a
+  possible refinement if the tail latency ever bites (noted in ADR §3).
+- **Run the broadcast path e2e on dev:** the debounce + drain-to-empty is only
+  exercised end-to-end by a real >`BATCH`-recipient broadcast. Add/run a
+  Playwright case (host broadcast → all attendees delivered) against dev once
+  Vault is seeded — unit tests can't cover the DB trigger + pg_net round-trip.
 - **Validate the migration applies** — `pnpm db:migrate` could not run this
   session (Docker daemon down). Apply locally before relying on it.
 - **Confirm in the Vercel dashboard** (Observability → segment by route) that

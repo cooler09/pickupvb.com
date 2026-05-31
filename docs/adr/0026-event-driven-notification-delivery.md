@@ -73,7 +73,33 @@ sweep into Supabase `pg_cron` (calling the same endpoint via `net.http_get`) to
 remove it from Vercel entirely is a possible later step; it trades Vercel's cron
 visibility for a lower invocation count and is not part of this decision.
 
-### 3. Rollout sequence (why this ADR is Proposed, not Accepted)
+The sweep also backstops (c) the tail of a broadcast burst (§3) — rows enqueued
+after the debounce's final kick. So the `*/15` choice trades up to ~15 min
+worst-case latency on that tail; keep it at `*/5` (or shrink the debounce
+window) if broadcasts become latency-sensitive.
+
+### 3. Coalescing cross-user bursts — debounce + drain-to-empty
+
+The kick is statement-level, so a single multi-row insert is one kick — but a
+broadcast loops `notify()` once per recipient (N inserts → N statements → N
+kicks). Two coupled changes collapse that:
+
+- **Debounce (`notification_worker_kick`).** A single-row table holds
+  `last_kicked_at`; the trigger fires the HTTP call only via a row-locked
+  conditional UPDATE (`last_kicked_at < now() - 10s`). Exactly one insert in the
+  window wins and kicks; the rest skip. An N-recipient broadcast fires ~one kick
+  per 10s instead of N.
+- **Worker drains-to-empty.** Dropping the extra kicks is only safe if the one
+  surviving kick delivers the _whole_ burst, not a single `BATCH`. The worker
+  now loops `claimBatch` until the queue is empty, bounded by `DRAIN_BUDGET_MS`
+  (50s, under the 60s `maxDuration`) so a very large backlog defers its
+  remainder to the next wake rather than being killed mid-row.
+
+The tail enqueued after a burst's final kick (within the debounce window, with
+no further insert to re-kick) is delivered by the sweep — so the sweep frequency
+is the worst-case bound on broadcast-tail latency (§2).
+
+### 4. Rollout sequence (why this ADR is Proposed, not Accepted)
 
 The migration in this bundle ships the **inert** trigger only. Activation is a
 deliberate, reversible sequence:
@@ -96,8 +122,9 @@ The ADR flips to **Accepted** after step 3 verifies on dev.
 
 - **Easier / better:** fresh notifications deliver in ~seconds instead of up to
   5 minutes, _and_ idle invocations fall ~93% below the original every-minute
-  baseline once the cron drops. The worker, route auth, and `claimBatch` are
-  untouched — the change is purely "what wakes the worker."
+  baseline once the cron drops. Route auth and `claimBatch` are untouched; the
+  worker gained only a drain-to-empty loop (§3) so one wake clears the whole
+  backlog.
 - **New infrastructure:** `pg_net` (first HTTP-from-Postgres use in the repo;
   prior `pg_cron` jobs are pure SQL) and Vault-seeded per-environment secrets.
   The Vault seeding is a manual, documented, per-project step — the one
@@ -110,12 +137,10 @@ The ADR flips to **Accepted** after step 3 verifies on dev.
   namespaced (`email:`/`sms:`/`push:`) against a `unique` `idempotency_key`, so a
   batch only ever collides all-or-nothing on a retry, and the old loop already
   aborted remaining channels on any insert error.
-- **Watch out — cross-user broadcast fan-out still multi-kicks:** a broadcast
-  loops `notify()` once per recipient, so an N-recipient broadcast fires ~N kicks
-  (per-dispatch batching only collapses one user's channels). Empty-queue kicks
-  are cheap (fast 200s), so this is bounded, not broken; a short coalescing
-  throttle (advisory lock + `last_kicked_at`) is the deferred follow-up if it
-  ever matters.
+- **Cross-user broadcast bursts are coalesced (§3):** the `last_kicked_at`
+  debounce collapses an N-recipient broadcast to ~one kick per 10s, and the
+  worker drains-to-empty so that one kick still delivers the whole burst. The
+  only residual is the post-final-kick tail, bounded by the sweep frequency.
 - **Committed to:** the worker may be woken by either path; new outbox-adjacent
   changes must keep `claimBatch`'s "drain all due rows" semantics so a single
   wake delivers everything pending.
