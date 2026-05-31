@@ -73,8 +73,18 @@ same shape, so we mirror it rather than invent a new pattern.
   independent `getEventMediaSummary` side-load. This honors the "respect the
   event page" constraint — a details-only viewer sees at most one line.
 
-- **Voting awards (best clip / biggest fail) are deferred.** They need real-
-  account-gated, anti-ballot-stuffing design and are isolated to a later bundle.
+- **Voting awards (best clip / biggest fail) — shipped as a follow-up bundle
+  (2026-05-30).** Fixed two categories; **clips only** are votable; **live
+  running tally** (no reveal window); **real accounts only**, one vote per
+  category per event (the `(event_id, category, voter_user_id)` unique key moves
+  the vote, a retract removes it). Votes live in `media_post_votes`; the public
+  leaderboard reads an aggregate `media_post_vote_counts` view (counts only, no
+  voter ids — `security_invoker = false` so it tallies all ballots while
+  individual ballots stay private under RLS). The "only active clips are votable"
+  rule is `MediaPost.assertVotable()`. All of it lives on `/events/[id]/media`,
+  so it adds **zero** new event-detail footprint. Vote actions revalidate only
+  the (dynamic) media page — votes don't touch the cached event summary, so no
+  `updateTag`.
 
 ## Consequences
 

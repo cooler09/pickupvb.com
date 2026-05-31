@@ -1,5 +1,5 @@
 import type { DivisionId } from '../events/division.js';
-import type { EventId } from '../events/volleyball-event.js';
+import type { EventId, UserId } from '../events/volleyball-event.js';
 import type { EntryId } from './match.js';
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import {
@@ -102,8 +102,16 @@ export interface RecordResultInput {
 export class Bracket extends AggregateRoot<BracketId> {
   private constructor(
     id: BracketId,
-    public readonly eventId: EventId,
-    public readonly divisionId: DivisionId,
+    /**
+     * Scope identity. An event bracket carries `eventId` + `divisionId` (and
+     * a null `ownerUserId`); a standalone bracket (ADR 0025) carries
+     * `ownerUserId` (and null `eventId`/`divisionId`). Exactly one scope is
+     * set — enforced by the `event_brackets_scope_xor` DB check. The aggregate
+     * logic never reads these; they are echoed for the repo/handlers.
+     */
+    public readonly eventId: EventId | null,
+    public readonly divisionId: DivisionId | null,
+    public readonly ownerUserId: UserId | null,
     private _format: BracketFormat,
     private _config: BracketConfig,
     private _status: BracketStatus,
@@ -126,6 +134,31 @@ export class Bracket extends AggregateRoot<BracketId> {
     format: BracketFormat,
     config: Partial<BracketConfig> = {},
   ): Bracket {
+    const merged = Bracket.mergeAndValidateConfig(config);
+    const b = new Bracket(id, eventId, divisionId, null, format, merged, 'setup', [], []);
+    b.raise(new BracketCreated(b.id));
+    return b;
+  }
+
+  /**
+   * Standalone (event-free) bracket owned by a user. See ADR 0025. Same
+   * create-time validation as {@link create}; scope is `ownerUserId` with
+   * null `eventId`/`divisionId`. Raises a `BracketCreated` domain event.
+   */
+  static createStandalone(
+    id: BracketId,
+    ownerUserId: UserId,
+    format: BracketFormat,
+    config: Partial<BracketConfig> = {},
+  ): Bracket {
+    const merged = Bracket.mergeAndValidateConfig(config);
+    const b = new Bracket(id, null, null, ownerUserId, format, merged, 'setup', [], []);
+    b.raise(new BracketCreated(b.id));
+    return b;
+  }
+
+  /** Merge over defaults and validate the create-time config invariants. */
+  private static mergeAndValidateConfig(config: Partial<BracketConfig>): BracketConfig {
     const merged: BracketConfig = { ...DEFAULT_BRACKET_CONFIG, ...config };
     if (!ALLOWED_BEST_OF.includes(merged.bestOf)) {
       throw new ValidationError(
@@ -141,9 +174,7 @@ export class Bracket extends AggregateRoot<BracketId> {
         );
       }
     }
-    const b = new Bracket(id, eventId, divisionId, format, merged, 'setup', [], []);
-    b.raise(new BracketCreated(b.id));
-    return b;
+    return merged;
   }
 
   /**
@@ -153,8 +184,9 @@ export class Bracket extends AggregateRoot<BracketId> {
    */
   static fromPersistence(props: {
     id: BracketId;
-    eventId: EventId;
-    divisionId: DivisionId;
+    eventId: EventId | null;
+    divisionId: DivisionId | null;
+    ownerUserId: UserId | null;
     format: BracketFormat;
     config: BracketConfig;
     status: BracketStatus;
@@ -165,6 +197,7 @@ export class Bracket extends AggregateRoot<BracketId> {
       props.id,
       props.eventId,
       props.divisionId,
+      props.ownerUserId,
       props.format,
       props.config,
       props.status,

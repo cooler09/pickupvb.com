@@ -31,6 +31,7 @@ import {
   ApproveCommunityListingClaimHandler,
   RejectCommunityListingClaimHandler,
   ClearLiveMatchScoreHandler,
+  CastVoteHandler,
   CreateBracketHandler,
   CreateCommunityListingHandler,
   CreateEventHandler,
@@ -44,6 +45,7 @@ import {
   ListProfileMediaHandler,
   RemoveMediaPostHandler,
   ReportMediaPostHandler,
+  RetractVoteHandler,
   UnfeatureMediaPostHandler,
   UnhideMediaPostHandler,
   UpdateMediaPostHandler,
@@ -80,6 +82,13 @@ import {
   SearchCommunityListingsHandler,
   SearchEventsHandler,
   SeedBracketHandler,
+  CreateStandaloneBracketHandler,
+  SeedStandaloneBracketHandler,
+  GenerateStandaloneBracketHandler,
+  GenerateStandalonePlayoffHandler,
+  ResetStandaloneBracketHandler,
+  ReorderStandalonePoolMatchesHandler,
+  AddBracketTeamHandler,
   SetTeamExtraMembersHandler,
   AddFriendHandler,
   AddGroupMemberHandler,
@@ -212,6 +221,15 @@ export const handlers = {
   generatePlayoff: new GeneratePlayoffHandler(eventRepo, bracketRepo, analytics),
   resetBracket: new ResetBracketHandler(eventRepo, bracketRepo, analytics),
   reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo, analytics),
+  // ADR 0025 standalone (event-free) brackets — owner-gated full-replace runs
+  // on the admin-client bracketRepo (the app authorizes via `bracket.ownerUserId`).
+  createStandaloneBracket: new CreateStandaloneBracketHandler(bracketRepo, analytics),
+  seedStandaloneBracket: new SeedStandaloneBracketHandler(bracketRepo, analytics),
+  generateStandaloneBracket: new GenerateStandaloneBracketHandler(bracketRepo, analytics),
+  generateStandalonePlayoff: new GenerateStandalonePlayoffHandler(bracketRepo, analytics),
+  resetStandaloneBracket: new ResetStandaloneBracketHandler(bracketRepo, analytics),
+  reorderStandalonePoolMatches: new ReorderStandalonePoolMatchesHandler(bracketRepo, analytics),
+  addBracketTeam: new AddBracketTeamHandler(bracketRepo),
   // NOTE: the captain-reachable match-result writes (bracket record/reset,
   // league score entry) are intentionally NOT here. They must run through a
   // user-scoped client so RLS enforces "host or captain of this match" —
@@ -302,6 +320,8 @@ export async function getMediaHandlers(): Promise<{
   featureEventStream: FeatureEventStreamHandler;
   unfeatureMediaPost: UnfeatureMediaPostHandler;
   endLiveStream: EndLiveStreamHandler;
+  castVote: CastVoteHandler;
+  retractVote: RetractVoteHandler;
   listEventMedia: ListEventMediaHandler;
   listProfileMedia: ListProfileMediaHandler;
 }> {
@@ -324,6 +344,8 @@ export async function getMediaHandlers(): Promise<{
     featureEventStream: new FeatureEventStreamHandler(mediaRepo, isPlatformAdmin, isEventHost),
     unfeatureMediaPost: new UnfeatureMediaPostHandler(mediaRepo, isPlatformAdmin, isEventHost),
     endLiveStream: new EndLiveStreamHandler(mediaRepo, isPlatformAdmin, isEventHost),
+    castVote: new CastVoteHandler(mediaRepo),
+    retractVote: new RetractVoteHandler(mediaRepo),
     listEventMedia: new ListEventMediaHandler(mediaRepo),
     listProfileMedia: new ListProfileMediaHandler(mediaRepo),
   };

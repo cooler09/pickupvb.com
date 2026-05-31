@@ -1,6 +1,7 @@
 'use client';
 
 import { FormModal } from '@/components/form-modal';
+import { eventScope } from './bracket-action-binding';
 import { FormatPickerForm } from './format-picker-form';
 import { WalkInTeamForm } from './walk-in-team-form';
 
@@ -70,7 +71,7 @@ export function NoBracketView(props: {
           description="For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
         >
           {(close) => (
-            <WalkInTeamForm eventId={props.eventId} divisionId={props.divisionId} onClose={close} />
+            <WalkInTeamForm scope={eventScope(props.eventId, props.divisionId)} onClose={close} />
           )}
         </FormModal>
       </div>

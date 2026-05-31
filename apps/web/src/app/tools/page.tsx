@@ -35,8 +35,9 @@ export default function ToolsPage() {
     {
       slug: 'bracket',
       title: 'Tournament bracket creator',
-      desc: 'Single & double elimination.',
-      status: 'soon',
+      desc: 'Single & double elimination, round robin, pool play. Track results live and share a spectator link. (Sign-in required.)',
+      href: '/brackets' as Route,
+      status: 'live',
     },
     {
       slug: 'seeding',

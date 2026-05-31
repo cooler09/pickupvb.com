@@ -5,9 +5,9 @@ import {
   type Match,
   type PoolStanding,
 } from '@pickupvb/domain';
-import { generatePlayoff, movePoolMatchFromForm, resetBracket } from '../actions';
 import { MatchCard } from './match-card';
-import type { TeamLite } from './labels';
+import { bindBracketActions, eventScope } from './bracket-action-binding';
+import type { BracketScope, TeamLite } from './labels';
 import { SubmitButton } from '@/components/submit-button';
 import { primaryButtonClass } from '@/components/primary-button';
 import { TreeBracket } from './tree-bracket';
@@ -47,8 +47,12 @@ export function pickLatestMatchId(matches: ReadonlyArray<Match>): string | null 
 }
 
 export function BoardView(props: {
-  eventId: string;
-  divisionId: string;
+  /** Event path only — present for the live-scoring launcher. Standalone
+   *  brackets (ADR 0025) omit these and pass `scope` instead. */
+  eventId?: string;
+  divisionId?: string;
+  /** Standalone scope; defaults to the event scope from eventId/divisionId. */
+  scope?: BracketScope;
   matches: ReadonlyArray<Match>;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
@@ -61,6 +65,8 @@ export function BoardView(props: {
   /** Host is Pro → MatchCards offer the "Score live" launcher (ADR 0023). */
   liveScoringEnabled?: boolean;
 }) {
+  const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
+  const a = bindBracketActions(scope);
   const isPoolPlay = props.format === 'pool_play_playoff';
   const isDoubleElim = props.format === 'double_elimination';
   const poolMatches = props.matches.filter((m) => m.pool !== null);
@@ -90,8 +96,9 @@ export function BoardView(props: {
         className={`rounded-shape-sm scroll-mt-24 ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
       >
         <MatchCard
-          eventId={props.eventId}
-          divisionId={props.divisionId}
+          scope={scope}
+          {...(props.eventId ? { eventId: props.eventId } : {})}
+          {...(props.divisionId ? { divisionId: props.divisionId } : {})}
           match={m}
           teamById={props.teamById}
           bestOf={props.bestOf}
@@ -133,7 +140,7 @@ export function BoardView(props: {
                   Returns the bracket to seeding so you can swap teams in or out, then re-generate.
                   Any entered match results will be discarded.
                 </p>
-                <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
+                <form action={a.reset}>
                   <SubmitButton className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50">
                     Reset and re-seed
                   </SubmitButton>
@@ -146,8 +153,9 @@ export function BoardView(props: {
 
       {isPoolPlay && poolMatches.length > 0 && (
         <PoolsView
-          eventId={props.eventId}
-          divisionId={props.divisionId}
+          scope={scope}
+          {...(props.eventId ? { eventId: props.eventId } : {})}
+          {...(props.divisionId ? { divisionId: props.divisionId } : {})}
           matches={poolMatches}
           teamById={props.teamById}
           bestOf={props.bestOf}
@@ -161,10 +169,7 @@ export function BoardView(props: {
       {isPoolPlay && poolPlayComplete && !playoffExists && (
         <div className="border-primary/40 bg-primary/5 rounded-shape-sm border p-3 text-sm">
           {props.isHost ? (
-            <form
-              action={generatePlayoff.bind(null, props.eventId, props.divisionId)}
-              className="flex items-center justify-between gap-2"
-            >
+            <form action={a.generatePlayoff} className="flex items-center justify-between gap-2">
               <span>Pool play is complete. Generate the playoff bracket?</span>
               <SubmitButton className={primaryButtonClass()}>Generate playoff</SubmitButton>
             </form>
@@ -210,8 +215,9 @@ export function BoardView(props: {
 }
 
 function PoolsView(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
+  eventId?: string;
+  divisionId?: string;
   matches: ReadonlyArray<Match>;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
@@ -248,8 +254,7 @@ function PoolsView(props: {
                   >
                     {canReorder && (
                       <ReorderControls
-                        eventId={props.eventId}
-                        divisionId={props.divisionId}
+                        scope={props.scope}
                         pool={pool}
                         matchId={String(m.id)}
                         orderedIds={orderedIds}
@@ -258,8 +263,9 @@ function PoolsView(props: {
                       />
                     )}
                     <MatchCard
-                      eventId={props.eventId}
-                      divisionId={props.divisionId}
+                      scope={props.scope}
+                      {...(props.eventId ? { eventId: props.eventId } : {})}
+                      {...(props.divisionId ? { divisionId: props.divisionId } : {})}
                       match={m}
                       teamById={props.teamById}
                       bestOf={props.bestOf}
@@ -279,15 +285,14 @@ function PoolsView(props: {
 }
 
 function ReorderControls(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   pool: string;
   matchId: string;
   orderedIds: ReadonlyArray<string>;
   canMoveUp: boolean;
   canMoveDown: boolean;
 }) {
-  const action = movePoolMatchFromForm.bind(null, props.eventId, props.divisionId, props.pool);
+  const action = bindBracketActions(props.scope).movePoolMatch(props.pool);
   return (
     <div className="text-muted mb-1 flex items-center gap-1 text-xs">
       <span className="mr-1">Order:</span>

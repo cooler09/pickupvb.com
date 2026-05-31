@@ -100,6 +100,11 @@ async function loadBracketOrThrow(
 }
 
 async function loadEventForBracket(events: EventWriteStore, bracket: Bracket) {
+  // These handlers only run for event-scoped brackets; a null eventId means a
+  // standalone bracket reached an event handler (which the route never wires).
+  if (!bracket.eventId) {
+    throw new NotFoundError('event', String(bracket.id));
+  }
   const evt = await events.findById(bracket.eventId);
   if (!evt) throw new NotFoundError('event', String(bracket.eventId));
   return evt;

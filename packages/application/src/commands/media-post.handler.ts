@@ -9,15 +9,19 @@ import {
   RateLimitError,
   UnauthorizedError,
   UserId,
+  ValidationError,
+  isAwardCategory,
   type MediaPostRepository,
 } from '@pickupvb/domain';
 import {
+  CastVoteCommand,
   CreateMediaPostCommand,
   EndLiveStreamCommand,
   FeatureEventStreamCommand,
   HideMediaPostCommand,
   RemoveMediaPostCommand,
   ReportMediaPostCommand,
+  RetractVoteCommand,
   UnfeatureMediaPostCommand,
   UnhideMediaPostCommand,
   UpdateMediaPostCommand,
@@ -217,5 +221,34 @@ export class EndLiveStreamHandler {
     await assertCanManage(post, requesterId, this.isPlatformAdmin, this.isEventHost);
     post.endLiveStream(new Date());
     await this.repo.save(post);
+  }
+}
+
+export class CastVoteHandler {
+  constructor(private readonly repo: MediaPostRepository) {}
+
+  async execute({ eventId, postId, category, voterUserId }: CastVoteCommand): Promise<void> {
+    if (!isAwardCategory(category)) {
+      throw new ValidationError(`Unknown award category: ${category}`);
+    }
+    const post = await this.repo.findById(postId);
+    if (!post) throw new NotFoundError('MediaPost', postId);
+    if (!post.eventId || String(post.eventId) !== eventId) {
+      throw new ValidationError('That clip is not part of this event.');
+    }
+    // Only active clips are votable (live streams / match videos are out).
+    post.assertVotable();
+    await this.repo.castVote(eventId, postId, category, voterUserId);
+  }
+}
+
+export class RetractVoteHandler {
+  constructor(private readonly repo: MediaPostRepository) {}
+
+  async execute({ eventId, category, voterUserId }: RetractVoteCommand): Promise<void> {
+    if (!isAwardCategory(category)) {
+      throw new ValidationError(`Unknown award category: ${category}`);
+    }
+    await this.repo.retractVote(eventId, category, voterUserId);
   }
 }

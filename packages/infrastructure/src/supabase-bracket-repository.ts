@@ -7,12 +7,14 @@ import {
   type BracketRepository,
   type BracketSide,
   type BracketStatus,
+  type BracketSummary,
   type BracketTeamLite,
   type DivisionId,
   type EntryId,
   type EventId,
   NotFoundError,
   UnauthorizedError,
+  UserId,
   type Match,
   type MatchId,
   type MatchSet,
@@ -25,27 +27,34 @@ type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type BracketRow = {
   id: string;
-  /** Derived via nested `event_divisions!inner(event_id)` join in the
-   *  loaders below. The column was dropped from `event_brackets` in
-   *  migration `20260729000000_drop_event_id_from_event_brackets_and_registrations.sql`. */
-  event_id: string;
-  division_id: string;
+  /** Derived via the nested `event_divisions(event_id)` join in the loaders
+   *  below (the column was dropped from `event_brackets` in migration
+   *  `20260729000000`). Null for standalone brackets (ADR 0025), which have no
+   *  division — hence a LEFT join, not `!inner`. */
+  event_id: string | null;
+  division_id: string | null;
+  owner_user_id: string | null;
   format: BracketFormat;
   config: Partial<BracketConfig> | null;
   status: BracketStatus;
 };
 
 type BracketSelectRow = Omit<BracketRow, 'event_id'> & {
-  event_divisions: { event_id: string };
+  event_divisions: { event_id: string } | null;
 };
 
-const BRACKET_SELECT = 'id, division_id, format, config, status, event_divisions!inner(event_id)';
+// LEFT join on event_divisions (no `!inner`) so a standalone bracket
+// (division_id NULL) survives the select; `event_divisions` is then null and
+// the bracket carries `owner_user_id` instead. See ADR 0025.
+const BRACKET_SELECT =
+  'id, division_id, owner_user_id, format, config, status, event_divisions(event_id)';
 
 function flattenBracket(row: BracketSelectRow): BracketRow {
   return {
     id: row.id,
-    event_id: row.event_divisions.event_id,
+    event_id: row.event_divisions?.event_id ?? null,
     division_id: row.division_id,
+    owner_user_id: row.owner_user_id,
     format: row.format,
     config: row.config,
     status: row.status,
@@ -214,8 +223,9 @@ export class SupabaseBracketRepository implements BracketRepository {
 
     return Bracket.fromPersistence({
       id: row.id as BracketId,
-      eventId: row.event_id as EventId,
-      divisionId: row.division_id as DivisionId,
+      eventId: row.event_id ? (row.event_id as EventId) : null,
+      divisionId: row.division_id ? (row.division_id as DivisionId) : null,
+      ownerUserId: row.owner_user_id ? UserId(row.owner_user_id) : null,
       format: row.format,
       config: { ...DEFAULT_BRACKET_CONFIG, ...(row.config ?? {}) },
       status: row.status,
@@ -237,6 +247,28 @@ export class SupabaseBracketRepository implements BracketRepository {
     // Postgres checks the self-FK at statement boundary; the RPC
     // inserts every match in a single `INSERT … SELECT` so the prior
     // two-pass wiring update is gone.
+    if (bracket.ownerUserId) {
+      // Standalone bracket (ADR 0025): `save_bracket`'s INSERT path can't
+      // create the header — it doesn't write `owner_user_id`, so a
+      // null-division / null-owner row would fail the scope XOR check. Upsert
+      // the owner-scoped header first; `save_bracket` then finds the existing
+      // row (its conflict-update leaves scope untouched) and only reconciles
+      // seeds / matches / sets.
+      const { error: headerErr } = await this.client.from('event_brackets').upsert(
+        {
+          id: bracket.id,
+          owner_user_id: bracket.ownerUserId,
+          format: bracket.format,
+          config: bracket.config as never,
+          status: bracket.status,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' },
+      );
+      if (headerErr) {
+        throw new Error(`standalone bracket header save failed: ${headerErr.message}`);
+      }
+    }
     const { error } = await this.client.rpc('save_bracket', this.buildSaveArgs(bracket) as never);
     if (error) throw new Error(`bracket save failed: ${error.message}`);
   }
@@ -272,7 +304,7 @@ export class SupabaseBracketRepository implements BracketRepository {
    *  {@link saveAsMatchActor}. */
   private buildSaveArgs(bracket: Bracket): {
     p_bracket_id: string;
-    p_division_id: string;
+    p_division_id: string | null;
     p_format: BracketFormat;
     p_config: BracketConfig;
     p_status: BracketStatus;
@@ -363,6 +395,62 @@ export class SupabaseBracketRepository implements BracketRepository {
       captainId: r.captain_id,
       forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
     }));
+  }
+
+  // ---- Standalone brackets (ADR 0025) -------------------------------------
+
+  async listByOwner(ownerUserId: UserId): Promise<ReadonlyArray<BracketSummary>> {
+    const { data, error } = await this.client
+      .from('event_brackets')
+      .select('id, format, status, created_at, bracket_teams(count)')
+      .eq('owner_user_id', ownerUserId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(`listByOwner failed: ${error.message}`);
+    type Row = {
+      id: string;
+      format: BracketFormat;
+      status: BracketStatus;
+      created_at: string;
+      bracket_teams: { count: number }[] | null;
+    };
+    const rows = (data as unknown as Row[] | null) ?? [];
+    return rows.map((r) => ({
+      id: r.id,
+      format: r.format,
+      status: r.status,
+      teamCount: r.bracket_teams?.[0]?.count ?? 0,
+      createdAt: new Date(r.created_at),
+    }));
+  }
+
+  async listStandaloneTeams(bracketId: BracketId): Promise<BracketTeamLite[]> {
+    // Typed-in competitors live in `bracket_teams` (no roster / captain
+    // account), shaped like BracketTeamLite so the seeding + board UI reuse
+    // is unchanged. teamId / captainId / forfeitedAt are always null.
+    const { data, error } = await this.client
+      .from('bracket_teams')
+      .select('id, name, created_at')
+      .eq('bracket_id', bracketId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(`listStandaloneTeams failed: ${error.message}`);
+    const rows = (data as Array<{ id: string; name: string }> | null) ?? [];
+    return rows.map((r) => ({
+      teamId: null,
+      entryId: r.id,
+      name: r.name,
+      captainId: null,
+      forfeitedAt: null,
+    }));
+  }
+
+  async addBracketTeam(bracketId: BracketId, name: string): Promise<{ entryId: string }> {
+    const { data, error } = await this.client
+      .from('bracket_teams')
+      .insert({ bracket_id: bracketId, name })
+      .select('id')
+      .single();
+    if (error) throw new Error(`addBracketTeam failed: ${error.message}`);
+    return { entryId: (data as { id: string }).id };
   }
 }
 

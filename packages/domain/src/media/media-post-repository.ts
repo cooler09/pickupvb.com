@@ -1,5 +1,6 @@
 import type { MediaPost, MediaKind, MediaPostStatus } from './media-post.js';
 import type { VideoProvider, VideoSubtype } from './external-video-url.js';
+import type { AwardCategory } from './award.js';
 
 /**
  * Repository contract (DDD port).
@@ -26,6 +27,21 @@ export interface MediaPostRepository {
    * `SECURITY DEFINER` RPC so the cross-row update is authorized server-side.
    */
   featureEventStream(eventId: string, postId: string): Promise<void>;
+
+  /**
+   * Cast (or move) the voter's vote for `category` to `postId`. Upserts on the
+   * `(event_id, category, voter_user_id)` unique key — one vote per category
+   * per voter per event; voting a different clip moves the vote.
+   */
+  castVote(
+    eventId: string,
+    postId: string,
+    category: AwardCategory,
+    voterUserId: string,
+  ): Promise<void>;
+
+  /** Retract the voter's vote in `category` for this event (idempotent). */
+  retractVote(eventId: string, category: AwardCategory, voterUserId: string): Promise<void>;
 
   // ---- Read side -------------------------------------------------------
   listForEvent(eventId: string, viewerId: string | null): Promise<EventMediaReadModel>;
@@ -62,6 +78,16 @@ export interface MediaPostItem {
   hasReported: boolean;
 }
 
+/**
+ * Per-clip vote tallies + the viewer's current picks, for the live community
+ * awards (ADR 0024). `counts` is keyed by post id; `viewerVotes` records which
+ * clip the viewer has voted for in each category (or null).
+ */
+export interface EventAwards {
+  counts: Record<string, { best_clip: number; biggest_fail: number }>;
+  viewerVotes: { best_clip: string | null; biggest_fail: string | null };
+}
+
 /** Event media grouped by kind, streams featured-first. */
 export interface EventMediaReadModel {
   liveStreams: MediaPostItem[];
@@ -69,6 +95,8 @@ export interface EventMediaReadModel {
   clips: MediaPostItem[];
   /** True when the viewer may post (signed-in real user) — set at the boundary. */
   canManageEvent: boolean;
+  /** Live community-award tallies for the event's clips. */
+  awards: EventAwards;
 }
 
 export interface EventMediaSummary {

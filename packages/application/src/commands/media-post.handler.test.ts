@@ -7,13 +7,16 @@ import {
   NotFoundError,
   RateLimitError,
   UnauthorizedError,
+  ValidationError,
   EventId,
   UserId,
+  type AwardCategory,
   type EventMediaReadModel,
   type MediaPostItem,
   type MediaPostRepository,
 } from '@pickupvb/domain';
 import {
+  CastVoteHandler,
   CreateMediaPostHandler,
   FeatureEventStreamHandler,
   RemoveMediaPostHandler,
@@ -21,6 +24,7 @@ import {
   UpdateMediaPostHandler,
 } from './media-post.handler.js';
 import {
+  CastVoteCommand,
   CreateMediaPostCommand,
   FeatureEventStreamCommand,
   RemoveMediaPostCommand,
@@ -41,6 +45,9 @@ const isHost = (eventId: string, id: string): Promise<boolean> =>
 class FakeMediaRepo implements MediaPostRepository {
   posts = new Map<string, MediaPost>();
   reports: Array<{ postId: string; reporterUserId: string }> = [];
+  votes: Array<{ eventId: string; postId: string; category: AwardCategory; voterUserId: string }> =
+    [];
+  retracted: Array<{ eventId: string; category: AwardCategory; voterUserId: string }> = [];
   featured: { eventId: string; postId: string } | null = null;
   countResult = 0;
   saved = 0;
@@ -67,8 +74,27 @@ class FakeMediaRepo implements MediaPostRepository {
     this.featured = { eventId, postId };
     return Promise.resolve();
   }
+  castVote(
+    eventId: string,
+    postId: string,
+    category: AwardCategory,
+    voterUserId: string,
+  ): Promise<void> {
+    this.votes.push({ eventId, postId, category, voterUserId });
+    return Promise.resolve();
+  }
+  retractVote(eventId: string, category: AwardCategory, voterUserId: string): Promise<void> {
+    this.retracted.push({ eventId, category, voterUserId });
+    return Promise.resolve();
+  }
   listForEvent(): Promise<EventMediaReadModel> {
-    return Promise.resolve({ liveStreams: [], matchVideos: [], clips: [], canManageEvent: false });
+    return Promise.resolve({
+      liveStreams: [],
+      matchVideos: [],
+      clips: [],
+      canManageEvent: false,
+      awards: { counts: {}, viewerVotes: { best_clip: null, biggest_fail: null } },
+    });
   }
   listForProfile(): Promise<MediaPostItem[]> {
     return Promise.resolve([]);
@@ -242,3 +268,66 @@ describe('FeatureEventStreamHandler', () => {
     ).rejects.toThrow(UnauthorizedError);
   });
 });
+
+describe('CastVoteHandler', () => {
+  it('casts a vote for an active clip', async () => {
+    const repo = new FakeMediaRepo();
+    seedClip(repo);
+    await new CastVoteHandler(repo).execute(
+      new CastVoteCommand(EVENT, 'aaaa', 'best_clip', STRANGER),
+    );
+    expect(repo.votes).toEqual([
+      { eventId: EVENT, postId: 'aaaa', category: 'best_clip', voterUserId: STRANGER },
+    ]);
+  });
+
+  it('rejects an unknown category', async () => {
+    const repo = new FakeMediaRepo();
+    seedClip(repo);
+    await expect(
+      new CastVoteHandler(repo).execute(new CastVoteCommand(EVENT, 'aaaa', 'mvp', STRANGER)),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('rejects voting a non-clip (live stream)', async () => {
+    const repo = new FakeMediaRepo();
+    seedStreamClip(repo);
+    await expect(
+      new CastVoteHandler(repo).execute(new CastVoteCommand(EVENT, 'bbbb', 'best_clip', STRANGER)),
+    ).rejects.toThrow(ConflictError);
+  });
+
+  it('rejects voting a clip from a different event', async () => {
+    const repo = new FakeMediaRepo();
+    seedClip(repo);
+    await expect(
+      new CastVoteHandler(repo).execute(
+        new CastVoteCommand('99999999-9999-9999-9999-999999999999', 'aaaa', 'best_clip', STRANGER),
+      ),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('throws NotFound for a missing clip', async () => {
+    const repo = new FakeMediaRepo();
+    await expect(
+      new CastVoteHandler(repo).execute(
+        new CastVoteCommand(EVENT, 'missing', 'best_clip', STRANGER),
+      ),
+    ).rejects.toThrow(NotFoundError);
+  });
+});
+
+function seedStreamClip(repo: FakeMediaRepo): MediaPost {
+  const post = MediaPost.create({
+    id: MediaPostId('bbbb'),
+    submitterUserId: UserId(SUBMITTER),
+    eventId: EventId(EVENT),
+    matchId: null,
+    kind: 'live_stream',
+    videoUrl: ExternalVideoUrl.create('https://twitch.tv/somechannel'),
+    title: 'Court 1 live',
+    description: '',
+  });
+  repo.posts.set('bbbb', post);
+  return post;
+}

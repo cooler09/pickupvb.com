@@ -6,6 +6,7 @@ export * from './commands/event-division.handler';
 export * from './commands/team.handler';
 export * from './commands/event-team-registration.handler';
 export * from './commands/bracket.handler';
+export * from './commands/standalone-bracket.handler';
 export * from './commands/league-schedule.handler';
 export * from './commands/league-roster.handler';
 export * from './commands/live-match-score.handler';

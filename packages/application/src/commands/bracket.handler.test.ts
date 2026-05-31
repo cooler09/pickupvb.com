@@ -44,6 +44,7 @@ function activeBracketWithOneMatch(): Bracket {
     id: BRACKET_ID,
     eventId: EVENT_ID,
     divisionId: DIVISION_ID,
+    ownerUserId: null,
     format: 'single_elimination',
     config: { ...DEFAULT_BRACKET_CONFIG, bestOf: 1 },
     status: 'active',
@@ -91,6 +92,15 @@ class FakeBracketRepo implements BracketRepository {
   }
   async listRegisteredTeams(): Promise<BracketTeamLite[]> {
     return [];
+  }
+  async listByOwner(): Promise<ReadonlyArray<never>> {
+    return [];
+  }
+  async listStandaloneTeams(): Promise<BracketTeamLite[]> {
+    return [];
+  }
+  async addBracketTeam(): Promise<{ entryId: string }> {
+    return { entryId: 'entry-new' };
   }
 }
 

@@ -2,6 +2,8 @@ import {
   ConflictError,
   ExternalVideoUrl,
   MediaPost,
+  type AwardCategory,
+  type EventAwards,
   type EventMediaReadModel,
   type EventMediaSummary,
   type MediaKind,
@@ -207,6 +209,35 @@ export class SupabaseMediaPostRepository implements MediaPostRepository {
     if (error) throw new Error(`MediaPost.featureEventStream failed: ${error.message}`);
   }
 
+  async castVote(
+    eventId: string,
+    postId: string,
+    category: AwardCategory,
+    voterUserId: string,
+  ): Promise<void> {
+    // Upsert on the (event_id, category, voter_user_id) unique key — voting a
+    // different clip moves the vote. RLS enforces voter_user_id = auth.uid().
+    const { error } = await this.table('media_post_votes').upsert(
+      {
+        event_id: eventId,
+        post_id: postId,
+        category,
+        voter_user_id: voterUserId,
+      } as never,
+      { onConflict: 'event_id,category,voter_user_id' },
+    );
+    if (error) throw new Error(`MediaPost.castVote failed: ${error.message}`);
+  }
+
+  async retractVote(eventId: string, category: AwardCategory, voterUserId: string): Promise<void> {
+    const { error } = await this.table('media_post_votes')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('category', category)
+      .eq('voter_user_id', voterUserId);
+    if (error) throw new Error(`MediaPost.retractVote failed: ${error.message}`);
+  }
+
   // ---- Read side ---------------------------------------------------------
   async listForEvent(eventId: string, viewerId: string | null): Promise<EventMediaReadModel> {
     // RLS on the user-scoped client already restricts visibility (active OR
@@ -226,14 +257,49 @@ export class SupabaseMediaPostRepository implements MediaPostRepository {
     ]);
     const canManageEvent = viewerIsHost || viewerIsAdmin;
 
-    const items = await this.decorate(rows, viewerId, canManageEvent);
+    const [items, awards] = await Promise.all([
+      this.decorate(rows, viewerId, canManageEvent),
+      this.loadEventAwards(eventId, viewerId),
+    ]);
 
     return {
       liveStreams: items.filter((i) => i.kind === 'live_stream'),
       matchVideos: items.filter((i) => i.kind === 'match_video'),
       clips: items.filter((i) => i.kind === 'clip'),
       canManageEvent,
+      awards,
     };
+  }
+
+  /** Per-clip vote tallies (public counts view) + the viewer's current picks. */
+  private async loadEventAwards(eventId: string, viewerId: string | null): Promise<EventAwards> {
+    const [countsRes, viewerRes] = await Promise.all([
+      this.table('media_post_vote_counts')
+        .select('post_id, category, votes')
+        .eq('event_id', eventId),
+      viewerId
+        ? this.table('media_post_votes')
+            .select('post_id, category')
+            .eq('event_id', eventId)
+            .eq('voter_user_id', viewerId)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const counts: EventAwards['counts'] = {};
+    for (const r of (countsRes.data as
+      | { post_id: string; category: AwardCategory; votes: number }[]
+      | null) ?? []) {
+      const entry = (counts[r.post_id] ??= { best_clip: 0, biggest_fail: 0 });
+      entry[r.category] = r.votes;
+    }
+
+    const viewerVotes: EventAwards['viewerVotes'] = { best_clip: null, biggest_fail: null };
+    for (const r of (viewerRes.data as { post_id: string; category: AwardCategory }[] | null) ??
+      []) {
+      viewerVotes[r.category] = r.post_id;
+    }
+
+    return { counts, viewerVotes };
   }
 
   async listForProfile(userId: string, viewerId: string | null): Promise<MediaPostItem[]> {

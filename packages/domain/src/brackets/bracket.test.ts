@@ -13,7 +13,7 @@ import {
   type Seed,
 } from './index.js';
 import type { DivisionId } from '../events/division.js';
-import type { EventId } from '../events/volleyball-event.js';
+import type { EventId, UserId } from '../events/volleyball-event.js';
 import { ValidationError } from '../shared/result.js';
 
 // ---- Helpers ----------------------------------------------------------
@@ -85,6 +85,69 @@ describe('Bracket.create', () => {
     });
     expect(b.config.poolSchedule).toBe('fixed_games');
     expect(b.config.poolGamesPerTeam).toBe(3);
+  });
+});
+
+// ---- Bracket.createStandalone (ADR 0025) -----------------------------
+
+describe('Bracket.createStandalone', () => {
+  const ownerUserId = 'owner-1' as UserId;
+  const bracketId = 'bracket-std-1' as BracketId;
+
+  it('owns the bracket with null event/division scope', () => {
+    const b = Bracket.createStandalone(bracketId, ownerUserId, 'single_elimination');
+    expect(b.ownerUserId).toBe(ownerUserId);
+    expect(b.eventId).toBeNull();
+    expect(b.divisionId).toBeNull();
+    expect(b.status).toBe('setup');
+  });
+
+  it('applies the same create-time validation as create()', () => {
+    expect(() =>
+      Bracket.createStandalone(bracketId, ownerUserId, 'single_elimination', { bestOf: 2 }),
+    ).toThrow(ValidationError);
+    expect(() =>
+      Bracket.createStandalone(bracketId, ownerUserId, 'pool_play_playoff', {
+        poolSchedule: 'fixed_games',
+        poolGamesPerTeam: null,
+      }),
+    ).toThrow(ValidationError);
+  });
+
+  it('runs the full lifecycle identically to an event bracket (scope is inert)', () => {
+    // Same format/seeds/idFactory through both scopes must produce the same
+    // generated match graph — proving the aggregate logic never reads scope.
+    const seeds = seedTeams(4).map((s) => s.entryId);
+
+    const std = Bracket.createStandalone(bracketId, ownerUserId, 'single_elimination');
+    std.seedTeams(seeds);
+    std.generate(mkIdFactory());
+
+    const evt = Bracket.create(
+      'bracket-evt-1' as BracketId,
+      'event-1' as EventId,
+      'division-1' as DivisionId,
+      'single_elimination',
+    );
+    evt.seedTeams(seeds);
+    evt.generate(mkIdFactory());
+
+    expect(std.matches.length).toBe(evt.matches.length);
+    expect(std.status).toBe('active');
+
+    // And a result records + advances on the standalone bracket (best-of-3
+    // default → two sets to take the match).
+    const first = std.matches.find((m) => m.entryAId && m.entryBId)!;
+    std.recordResult({
+      matchId: first.id,
+      sets: [
+        { setNumber: 1, teamAScore: 25, teamBScore: 10 },
+        { setNumber: 2, teamAScore: 25, teamBScore: 12 },
+      ],
+    });
+    const recorded = std.matches.find((m) => m.id === first.id)!;
+    expect(recorded.status).toBe('completed');
+    expect(recorded.winnerEntryId).toBe(first.entryAId);
   });
 });
 

@@ -1,6 +1,7 @@
 import type { DivisionId } from '../events/division.js';
-import type { EventId } from '../events/volleyball-event.js';
+import type { EventId, UserId } from '../events/volleyball-event.js';
 import type { Bracket } from './bracket.js';
+import type { BracketFormat, BracketStatus } from './enums.js';
 import type { BracketId, MatchId } from './match.js';
 
 /**
@@ -45,6 +46,18 @@ export interface BracketReadModel {
   readonly teams: ReadonlyArray<BracketTeamLite>;
 }
 
+/**
+ * Lightweight projection for the standalone "My brackets" list (ADR 0025).
+ * Avoids hydrating the full aggregate (seeds + matches + sets) per row.
+ */
+export interface BracketSummary {
+  readonly id: string;
+  readonly format: BracketFormat;
+  readonly status: BracketStatus;
+  readonly teamCount: number;
+  readonly createdAt: Date;
+}
+
 export interface BracketRepository {
   /** Generate a new domain MatchId. Used by the aggregate's `generate()`. */
   nextMatchId(): MatchId;
@@ -85,4 +98,21 @@ export interface BracketRepository {
    * the event scope only when no division-scoped rows exist.
    */
   listRegisteredTeams(eventId: EventId, divisionId: DivisionId): Promise<BracketTeamLite[]>;
+  /**
+   * Standalone (ADR 0025) brackets owned by a user, newest first — for the
+   * "My brackets" list. Summary projection, not full aggregates.
+   */
+  listByOwner(ownerUserId: UserId): Promise<ReadonlyArray<BracketSummary>>;
+  /**
+   * Typed-in competitor teams for a standalone bracket (from `bracket_teams`),
+   * shaped like {@link BracketTeamLite} (teamId/captainId null) so the seeding
+   * and board UI is reused unchanged.
+   */
+  listStandaloneTeams(bracketId: BracketId): Promise<BracketTeamLite[]>;
+  /**
+   * Insert a typed-in team into a standalone bracket; returns the new entry id
+   * (`bracket_teams.id`, used as the opaque `EntryId` in seeds and match
+   * wiring — see ADR 0025 on polymorphic entry ids).
+   */
+  addBracketTeam(bracketId: BracketId, name: string): Promise<{ entryId: string }>;
 }

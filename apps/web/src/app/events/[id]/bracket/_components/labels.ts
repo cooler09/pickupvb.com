@@ -14,6 +14,18 @@ export type TeamLite = {
   captainId: string | null;
 };
 
+/**
+ * Identifies which bracket a reused `_components` view is acting on. An event
+ * bracket carries `eventId` + `divisionId`; a standalone bracket (ADR 0025)
+ * carries `bracketId`. The view components default to the event scope from
+ * their existing `eventId`/`divisionId` props, so event call sites are
+ * unchanged; standalone routes pass `scope` explicitly. See
+ * `bracket-action-binding.ts` for how this resolves to bound server actions.
+ */
+export type BracketScope =
+  | { kind: 'event'; eventId: string; divisionId: string }
+  | { kind: 'standalone'; bracketId: string };
+
 export const FORMAT_LABEL: Record<BracketFormat, string> = {
   single_elimination: 'Single elimination',
   double_elimination: 'Double elimination',

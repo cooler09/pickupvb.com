@@ -197,6 +197,21 @@ export class MediaPost extends AggregateRoot<MediaPostId> {
     this._featured = false;
   }
 
+  /**
+   * Guard for community award voting: only an **active clip** can receive a
+   * vote. Live streams and match videos are out (you can't award an in-progress
+   * broadcast, and the awards are "best clip of the tournament"). Hidden /
+   * removed posts can't be voted on.
+   */
+  assertVotable(): void {
+    if (this.kind !== 'clip') {
+      throw new ConflictError('Only clips can be voted for an award.');
+    }
+    if (this._status !== 'active') {
+      throw new ConflictError('Only active clips can be voted on.');
+    }
+  }
+
   /** Mark a live stream as ended. No longer "live", so it stops being featured. */
   endLiveStream(at: Date): void {
     if (this.kind !== 'live_stream') {

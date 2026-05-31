@@ -8,6 +8,7 @@ import { getViewer } from '@/lib/server-auth';
 import { getMediaHandlers } from '@/lib/handlers';
 import { loadEventReadModelPublic } from '../_loaders/load-event-detail';
 import { AddMediaForm } from './_components/add-media-form';
+import { AwardsLeaderboard } from './_components/awards-leaderboard';
 import { MediaSections } from './_components/media-sections';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -107,6 +108,8 @@ export default async function EventMediaPage(props: {
           to post a stream, video, or clip.
         </p>
       )}
+
+      <AwardsLeaderboard clips={media.clips} awards={media.awards} />
 
       <MediaSections media={media} eventId={id} viewerIsRealUser={viewerIsRealUser} />
     </article>

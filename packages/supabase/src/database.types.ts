@@ -206,6 +206,35 @@ export type Database = {
           },
         ];
       };
+      bracket_teams: {
+        Row: {
+          bracket_id: string;
+          created_at: string;
+          id: string;
+          name: string;
+        };
+        Insert: {
+          bracket_id: string;
+          created_at?: string;
+          id?: string;
+          name: string;
+        };
+        Update: {
+          bracket_id?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'bracket_teams_bracket_id_fkey';
+            columns: ['bracket_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_brackets';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       broadcasts: {
         Row: {
           audience_id: string;
@@ -2042,27 +2071,30 @@ export type Database = {
         Row: {
           config: Json;
           created_at: string;
-          division_id: string;
+          division_id: string | null;
           format: string;
           id: string;
+          owner_user_id: string | null;
           status: string;
           updated_at: string;
         };
         Insert: {
           config?: Json;
           created_at?: string;
-          division_id: string;
+          division_id?: string | null;
           format: string;
           id?: string;
+          owner_user_id?: string | null;
           status?: string;
           updated_at?: string;
         };
         Update: {
           config?: Json;
           created_at?: string;
-          division_id?: string;
+          division_id?: string | null;
           format?: string;
           id?: string;
+          owner_user_id?: string | null;
           status?: string;
           updated_at?: string;
         };
@@ -2072,6 +2104,13 @@ export type Database = {
             columns: ['division_id'];
             isOneToOne: false;
             referencedRelation: 'event_divisions';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_brackets_owner_user_id_fkey';
+            columns: ['owner_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
         ];

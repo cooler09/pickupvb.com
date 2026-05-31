@@ -1,7 +1,8 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import { addWalkInTeam } from '../actions';
+import { bindBracketActions } from './bracket-action-binding';
+import type { BracketScope } from './labels';
 
 /**
  * Host escape hatch for adding walk-in / unregistered teams to a
@@ -27,15 +28,19 @@ const INPUT_CLASS =
   'border-border-base bg-bg text-fg focus:border-primary focus:ring-primary block min-w-0 flex-1 rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none';
 
 export function WalkInTeamForm(props: {
-  eventId: string;
-  divisionId: string;
+  /** Event or standalone (ADR 0025) bracket scope. */
+  scope: BracketScope;
   /**
    * Optional dismiss callback wired to the Done/Cancel button. Set by
    * `FormModal` consumers so the host can close once they've finished
    * adding teams.
    */
   onClose?: () => void;
+  /** Standalone brackets are typed-in names only — hide the roster fields. */
+  showRoster?: boolean;
 }) {
+  const a = bindBracketActions(props.scope);
+  const showRoster = props.showRoster ?? true;
   const [teamName, setTeamName] = useState('');
   const nextRowId = useRef(2);
   const [players, setPlayers] = useState<PlayerRow[]>([
@@ -69,7 +74,7 @@ export function WalkInTeamForm(props: {
       );
     setError(null);
     startTransition(async () => {
-      const res = await addWalkInTeam(props.eventId, props.divisionId, { name, members });
+      const res = await a.addTeam({ name, members });
       if (res.ok) {
         setAdded((a) => [...a, { id: res.id, name: res.name }]);
         setTeamName('');
@@ -129,48 +134,50 @@ export function WalkInTeamForm(props: {
         />
       </label>
 
-      <fieldset className="space-y-2">
-        <legend className="text-fg/80 text-xs font-medium">
-          Players <span className="text-muted font-normal">(optional)</span>
-        </legend>
-        {players.map((row, idx) => (
-          <div key={row.id} className="flex flex-wrap items-center gap-2">
-            <input
-              type="text"
-              value={row.name}
-              onChange={(e) => updatePlayer(row.id, 'name', e.target.value)}
-              maxLength={80}
-              placeholder={`Player ${idx + 1} name`}
-              className={INPUT_CLASS}
-            />
-            <input
-              type="email"
-              value={row.email}
-              onChange={(e) => updatePlayer(row.id, 'email', e.target.value)}
-              maxLength={120}
-              placeholder="email (optional)"
-              className={INPUT_CLASS}
-            />
-            {players.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeRow(row.id)}
-                aria-label={`Remove player ${idx + 1}`}
-                className="border-border-base text-fg/60 hover:bg-fg/5 hover:text-fg tap-target rounded border text-xs"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={addRow}
-          className="border-border-base text-fg/80 hover:bg-fg/5 rounded border border-dashed px-2 py-1 text-xs"
-        >
-          + Add player
-        </button>
-      </fieldset>
+      {showRoster && (
+        <fieldset className="space-y-2">
+          <legend className="text-fg/80 text-xs font-medium">
+            Players <span className="text-muted font-normal">(optional)</span>
+          </legend>
+          {players.map((row, idx) => (
+            <div key={row.id} className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                value={row.name}
+                onChange={(e) => updatePlayer(row.id, 'name', e.target.value)}
+                maxLength={80}
+                placeholder={`Player ${idx + 1} name`}
+                className={INPUT_CLASS}
+              />
+              <input
+                type="email"
+                value={row.email}
+                onChange={(e) => updatePlayer(row.id, 'email', e.target.value)}
+                maxLength={120}
+                placeholder="email (optional)"
+                className={INPUT_CLASS}
+              />
+              {players.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeRow(row.id)}
+                  aria-label={`Remove player ${idx + 1}`}
+                  className="border-border-base text-fg/60 hover:bg-fg/5 hover:text-fg tap-target rounded border text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addRow}
+            className="border-border-base text-fg/80 hover:bg-fg/5 rounded border border-dashed px-2 py-1 text-xs"
+          >
+            + Add player
+          </button>
+        </fieldset>
+      )}
 
       <div className="flex flex-wrap justify-end gap-2 pt-2">
         {props.onClose && (

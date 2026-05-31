@@ -1,4 +1,4 @@
-import type { EventMediaReadModel, MediaPostItem } from '@pickupvb/domain';
+import type { EventAwards, EventMediaReadModel, MediaPostItem } from '@pickupvb/domain';
 import { MediaCard } from './media-card';
 
 function Section({
@@ -8,6 +8,7 @@ function Section({
   eventId,
   canManageEvent,
   viewerIsRealUser,
+  awards,
 }: {
   title: string;
   hint?: string;
@@ -15,6 +16,7 @@ function Section({
   eventId: string;
   canManageEvent: boolean;
   viewerIsRealUser: boolean;
+  awards: EventAwards;
 }) {
   if (items.length === 0) return null;
   return (
@@ -33,6 +35,7 @@ function Section({
             eventId={eventId}
             canManageEvent={canManageEvent}
             viewerIsRealUser={viewerIsRealUser}
+            awards={awards}
           />
         ))}
       </div>
@@ -49,7 +52,7 @@ export function MediaSections({
   eventId: string;
   viewerIsRealUser: boolean;
 }) {
-  const { liveStreams, matchVideos, clips, canManageEvent } = media;
+  const { liveStreams, matchVideos, clips, canManageEvent, awards } = media;
   const total = liveStreams.length + matchVideos.length + clips.length;
 
   if (total === 0) {
@@ -71,6 +74,7 @@ export function MediaSections({
         eventId={eventId}
         canManageEvent={canManageEvent}
         viewerIsRealUser={viewerIsRealUser}
+        awards={awards}
       />
       <Section
         title="Match videos"
@@ -78,13 +82,16 @@ export function MediaSections({
         eventId={eventId}
         canManageEvent={canManageEvent}
         viewerIsRealUser={viewerIsRealUser}
+        awards={awards}
       />
       <Section
         title="Clips & highlights"
+        hint="Vote 🏆 Best clip / 💀 Biggest fail on any clip."
         items={clips}
         eventId={eventId}
         canManageEvent={canManageEvent}
         viewerIsRealUser={viewerIsRealUser}
+        awards={awards}
       />
     </div>
   );

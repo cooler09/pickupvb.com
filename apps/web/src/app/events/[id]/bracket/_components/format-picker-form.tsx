@@ -226,10 +226,19 @@ function estimateMatches(
 }
 
 export function FormatPickerForm(props: {
-  eventId: string;
-  divisionId: string;
+  eventId?: string;
+  divisionId?: string;
   teamCount: number;
+  /**
+   * Override the create action. Standalone create (ADR 0025) posts to
+   * `createStandaloneBracketFromForm` (no scope yet); the event path defaults
+   * to `createBracketFromForm` bound to eventId/divisionId.
+   */
+  action?: (formData: FormData) => void | Promise<void>;
+  /** Standalone create has no teams yet — relax the min-team gating. */
+  enforceMinTeams?: boolean;
 }) {
+  const enforceMin = props.enforceMinTeams ?? true;
   const [format, setFormat] = useState<BracketFormat>('single_elimination');
   const [bestOf, setBestOf] = useState<1 | 3 | 5>(3);
   const [poolCount, setPoolCount] = useState(2);
@@ -265,7 +274,7 @@ export function FormatPickerForm(props: {
 
   return (
     <form
-      action={createBracketFromForm.bind(null, props.eventId, props.divisionId)}
+      action={props.action ?? createBracketFromForm.bind(null, props.eventId!, props.divisionId!)}
       className="space-y-4"
     >
       <fieldset className="space-y-2">
@@ -536,7 +545,10 @@ export function FormatPickerForm(props: {
 
       <div className="border-border-base bg-bg rounded-shape-sm sticky bottom-2 z-10 flex flex-wrap items-center gap-3 border p-3 shadow-sm">
         <SubmitButton
-          disabled={props.teamCount < 2 || belowMin || poolPlayUnderfilled || fixedGamesInvalid}
+          disabled={
+            enforceMin &&
+            (props.teamCount < 2 || belowMin || poolPlayUnderfilled || fixedGamesInvalid)
+          }
           className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
         >
           Create bracket
@@ -548,12 +560,12 @@ export function FormatPickerForm(props: {
             {props.teamCount === 1 ? '' : 's'}.
           </span>
         )}
-        {props.teamCount < 2 && (
+        {enforceMin && props.teamCount < 2 && (
           <span className="text-muted text-xs">
             Need at least 2 registered teams to create a bracket.
           </span>
         )}
-        {props.teamCount >= 2 && belowMin && (
+        {enforceMin && props.teamCount >= 2 && belowMin && (
           <span className="text-xs text-red-600 dark:text-red-400">
             {selectedMeta.title} needs at least {selectedMeta.minTeams} teams.
           </span>

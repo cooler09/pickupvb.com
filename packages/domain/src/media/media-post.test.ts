@@ -105,3 +105,23 @@ describe('MediaPost moderation + lifecycle', () => {
     expect(() => make('clip').endLiveStream(new Date())).toThrow(ConflictError);
   });
 });
+
+describe('MediaPost.assertVotable', () => {
+  it('allows an active clip', () => {
+    expect(() => make('clip').assertVotable()).not.toThrow();
+  });
+
+  it('rejects non-clip kinds', () => {
+    expect(() => make('live_stream').assertVotable()).toThrow(ConflictError);
+    expect(() => make('match_video').assertVotable()).toThrow(ConflictError);
+  });
+
+  it('rejects a hidden or removed clip', () => {
+    const hidden = make('clip');
+    hidden.hide();
+    expect(() => hidden.assertVotable()).toThrow(ConflictError);
+    const removed = make('clip');
+    removed.remove();
+    expect(() => removed.assertVotable()).toThrow(ConflictError);
+  });
+});

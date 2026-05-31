@@ -2,12 +2,16 @@ import type { Match } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { LiveScore } from '../../_components/live-score';
 import { ScoreLiveButton } from '../../_components/score-live-button';
-import { recordMatchResultFromForm, resetMatch } from '../actions';
-import type { TeamLite } from './labels';
+import { bindBracketActions, eventScope } from './bracket-action-binding';
+import type { BracketScope, TeamLite } from './labels';
 
 export function MatchCard(props: {
-  eventId: string;
-  divisionId: string;
+  /** Event path only — present for the live-scoring launcher. Standalone
+   *  brackets (ADR 0025) omit these and pass `scope`. */
+  eventId?: string;
+  divisionId?: string;
+  /** Standalone scope; defaults to the event scope from eventId/divisionId. */
+  scope?: BracketScope;
   match: Match;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
@@ -16,6 +20,8 @@ export function MatchCard(props: {
   /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
   liveScoringEnabled?: boolean;
 }) {
+  const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
+  const a = bindBracketActions(scope);
   const m = props.match;
   const teamA = m.entryAId ? props.teamById.get(m.entryAId) : null;
   const teamB = m.entryBId ? props.teamById.get(m.entryBId) : null;
@@ -69,35 +75,33 @@ export function MatchCard(props: {
         </p>
       )}
 
-      {props.liveScoringEnabled && canEdit && m.status !== 'bye' && teamA && teamB && (
-        <div className="mt-2">
-          <ScoreLiveButton
-            kind="bracket"
-            eventId={props.eventId}
-            divisionId={props.divisionId}
-            matchId={String(m.id)}
-            teamA={teamA.name}
-            teamB={teamB.name}
-            bestOf={props.bestOf}
-            returnPath={`/events/${props.eventId}/bracket?division=${props.divisionId}`}
-          />
-        </div>
-      )}
+      {props.liveScoringEnabled &&
+        props.eventId &&
+        props.divisionId &&
+        canEdit &&
+        m.status !== 'bye' &&
+        teamA &&
+        teamB && (
+          <div className="mt-2">
+            <ScoreLiveButton
+              kind="bracket"
+              eventId={props.eventId}
+              divisionId={props.divisionId}
+              matchId={String(m.id)}
+              teamA={teamA.name}
+              teamB={teamB.name}
+              bestOf={props.bestOf}
+              returnPath={`/events/${props.eventId}/bracket?division=${props.divisionId}`}
+            />
+          </div>
+        )}
 
       {canEdit && m.status !== 'bye' && teamA && teamB && (
         <details className="mt-2">
           <summary className="text-primary cursor-pointer text-xs hover:underline">
             {m.status === 'completed' ? 'Edit result' : 'Enter result'}
           </summary>
-          <form
-            action={recordMatchResultFromForm.bind(
-              null,
-              props.eventId,
-              props.divisionId,
-              String(m.id),
-            )}
-            className="mt-2 space-y-1"
-          >
+          <form action={a.recordResult(String(m.id))} className="mt-2 space-y-1">
             {Array.from({ length: setsToShow }, (_, i) => {
               const existing = m.sets[i];
               return (
@@ -127,7 +131,7 @@ export function MatchCard(props: {
               </SubmitButton>
               {m.status === 'completed' && (
                 <SubmitButton
-                  formAction={resetMatch.bind(null, props.eventId, props.divisionId, String(m.id))}
+                  formAction={a.resetMatch(String(m.id))}
                   className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-2 py-0.5 text-xs disabled:opacity-50"
                 >
                   Clear

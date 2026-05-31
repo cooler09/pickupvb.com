@@ -456,6 +456,24 @@ export class EndLiveStreamCommand {
   ) {}
 }
 
+/** Cast/move the voter's award vote for a clip (one per category per event). */
+export class CastVoteCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly postId: string,
+    public readonly category: string,
+    public readonly voterUserId: string,
+  ) {}
+}
+
+export class RetractVoteCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly category: string,
+    public readonly voterUserId: string,
+  ) {}
+}
+
 // ---- Media posts queries ------------------------------------------------
 export class ListEventMediaQuery {
   constructor(

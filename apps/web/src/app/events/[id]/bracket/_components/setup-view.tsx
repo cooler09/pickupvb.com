@@ -3,24 +3,24 @@
 import type { BracketFormat } from '@pickupvb/domain';
 import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
-import {
-  generateBracket,
-  randomizeSeedFromForm,
-  resetBracket,
-  seedBracketFromForm,
-} from '../actions';
-import { FORMAT_LABEL, type TeamLite } from './labels';
+import { bindBracketActions, eventScope } from './bracket-action-binding';
+import { FORMAT_LABEL, type BracketScope, type TeamLite } from './labels';
 import { SeedingList } from './seeding-list';
 import { WalkInTeamForm } from './walk-in-team-form';
 
 export function SetupView(props: {
-  eventId: string;
-  divisionId: string;
+  eventId?: string;
+  divisionId?: string;
+  /** Standalone scope; defaults to the event scope from eventId/divisionId. */
+  scope?: BracketScope;
   bracketFormat: BracketFormat;
   seeds: ReadonlyArray<{ entryId: string; seed: number }>;
   registeredTeams: ReadonlyArray<TeamLite>;
   isHost: boolean;
 }) {
+  const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
+  const a = bindBracketActions(scope);
+  const standalone = scope.kind === 'standalone';
   if (!props.isHost) {
     return (
       <p className="text-muted text-sm">
@@ -72,7 +72,7 @@ export function SetupView(props: {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <form action={generateBracket.bind(null, props.eventId, props.divisionId)}>
+          <form action={a.generate}>
             <SubmitButton
               disabled={!canGenerate}
               className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
@@ -80,7 +80,7 @@ export function SetupView(props: {
               Generate bracket
             </SubmitButton>
           </form>
-          <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
+          <form action={a.reset}>
             <SubmitButton className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-2 text-sm disabled:opacity-50">
               Discard
             </SubmitButton>
@@ -108,11 +108,7 @@ export function SetupView(props: {
         </div>
       )}
 
-      <SeedingForm
-        eventId={props.eventId}
-        divisionId={props.divisionId}
-        orderedTeams={orderedTeams}
-      />
+      <SeedingForm scope={scope} orderedTeams={orderedTeams} />
 
       {/* Walk-in form is secondary at this stage — the host already has a
           bracket in setup. Lives behind a modal so registering teams
@@ -131,14 +127,22 @@ export function SetupView(props: {
                   : 'bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90'
               }
             >
-              + Add walk-in teams
+              {standalone ? '+ Add teams' : '+ Add walk-in teams'}
             </button>
           )}
-          title="Add walk-in teams"
-          description="For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
+          title={standalone ? 'Add teams' : 'Add walk-in teams'}
+          description={
+            standalone
+              ? 'Type in the team names competing in this bracket. Add as many as you need — the modal stays open after each.'
+              : "For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
+          }
         >
           {(close) => (
-            <WalkInTeamForm eventId={props.eventId} divisionId={props.divisionId} onClose={close} />
+            <WalkInTeamForm
+              scope={scope}
+              onClose={close}
+              {...(standalone ? { showRoster: false } : {})}
+            />
           )}
         </FormModal>
       </div>
@@ -154,13 +158,13 @@ export function SetupView(props: {
  * that re-seeds and revalidates.
  */
 function SeedingForm(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   orderedTeams: ReadonlyArray<{ entryId: string; name: string }>;
 }) {
+  const a = bindBracketActions(props.scope);
   return (
     <form
-      action={seedBracketFromForm.bind(null, props.eventId, props.divisionId)}
+      action={a.seedFromForm}
       className="border-border-base rounded-shape-sm space-y-2 border p-4"
     >
       <h3 className="text-fg text-sm font-semibold">Seeding order</h3>
@@ -180,7 +184,7 @@ function SeedingForm(props: {
           name="randomize"
           value="1"
           className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
-          formAction={randomizeSeedFromForm.bind(null, props.eventId, props.divisionId)}
+          formAction={a.randomizeSeedFromForm}
         >
           Randomize
         </SubmitButton>

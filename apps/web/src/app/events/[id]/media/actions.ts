@@ -19,11 +19,13 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { ZodError } from 'zod';
 import { CreateMediaPostSchema } from '@pickupvb/types';
 import {
+  CastVoteCommand,
   CreateMediaPostCommand,
   EndLiveStreamCommand,
   FeatureEventStreamCommand,
   RemoveMediaPostCommand,
   ReportMediaPostCommand,
+  RetractVoteCommand,
   UnfeatureMediaPostCommand,
 } from '@pickupvb/application';
 import {
@@ -187,4 +189,43 @@ export async function endLiveStreamFromForm(
   }
   revalidateMedia(eventId);
   back(eventId, 'streamended');
+}
+
+/**
+ * Cast/move a community-award vote for a clip. `category` + `postId` are bound
+ * at the call site. Votes don't touch the cached event summary, so we only
+ * revalidate the (dynamic) media page — no `updateTag` needed.
+ */
+export async function voteFromForm(
+  eventId: string,
+  category: string,
+  postId: string,
+  _formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser(`/events/${eventId}/media`);
+  const { castVote } = await getMediaHandlers();
+  try {
+    await castVote.execute(new CastVoteCommand(eventId, postId, category, user.id));
+  } catch (err) {
+    if (err instanceof ConflictError) back(eventId, 'error');
+    if (err instanceof NotFoundError) back(eventId, 'notfound');
+    throw err;
+  }
+  revalidatePath(`/events/${eventId}/media`);
+}
+
+export async function retractVoteFromForm(
+  eventId: string,
+  category: string,
+  _formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser(`/events/${eventId}/media`);
+  const { retractVote } = await getMediaHandlers();
+  try {
+    await retractVote.execute(new RetractVoteCommand(eventId, category, user.id));
+  } catch (err) {
+    if (err instanceof NotFoundError) back(eventId, 'notfound');
+    throw err;
+  }
+  revalidatePath(`/events/${eventId}/media`);
 }
