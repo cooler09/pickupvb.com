@@ -338,60 +338,50 @@ export async function resetMatch(
 }
 
 /**
- * Host-only escape hatch for adding a walk-in / unregistered team
- * directly to a division's bracket. Reuses the ad-hoc registration
- * pipeline (ADR 0007) so the new row participates in seeding, capacity
- * accounting, and audit history the same as any other team. The acting
- * host becomes the nominal captain — they can rename or reassign the
- * roster later from the event's team management UI.
+ * Host-only escape hatch for adding walk-in / unregistered teams directly
+ * to a division's bracket. Reuses the ad-hoc registration pipeline
+ * (ADR 0007) so each new row participates in seeding, capacity accounting,
+ * and audit history the same as any other team. The acting host becomes the
+ * nominal captain — they can rename or reassign the roster later from the
+ * event's team management UI.
  *
- * Why no member roster here: phase-1 surface is intentionally
- * just-a-name. The seeding list only needs a team identity; roster can
- * be filled in afterwards (or never — a placeholder team is a valid
- * outcome at a walk-up event).
- */
-/**
- * Host-only escape hatch for adding a walk-in / unregistered team
- * directly to a division's bracket. Reuses the ad-hoc registration
- * pipeline (ADR 0007) so the new row participates in seeding, capacity
- * accounting, and audit history the same as any other team. The acting
- * host becomes the nominal captain — they can rename or reassign the
- * roster later from the event's team management UI.
+ * Unlike the other actions in this file this one is invoked **from the
+ * client**: the walk-in modal calls it inside `useTransition` so the host
+ * can add several teams without the modal closing between each. Per the
+ * AGENTS.md server-action convention for client-invoked actions it therefore
+ * returns a typed result instead of `redirect()`-ing — the modal branches on
+ * `ok`, appends the team to its running list, clears the fields, and stays
+ * open. `revalidatePath` still runs on success so the bracket page (team
+ * count, seeding list) refreshes underneath the open modal.
  *
- * Optional `player_name_<i>` / `player_email_<i>` rows let the host
- * capture a starting roster inline. Empty name rows are skipped so the
- * host can leave extra rows blank without effect.
+ * `members` carries the optional starting roster; rows with a blank name are
+ * dropped so the host can leave extras empty without effect.
  */
-export async function addAdHocTeamFromForm(
+export async function addWalkInTeam(
   eventId: string,
   divisionId: string,
-  formData: FormData,
-): Promise<void> {
+  input: { name: string; members: ReadonlyArray<{ displayName: string; email?: string }> },
+): Promise<{ ok: true; id: string; name: string } | { ok: false; code: string; message: string }> {
   const { user } = await requireRealUser();
-  const name = String(formData.get('team_name') ?? '').trim();
+  const name = input.name.trim();
   if (!name) {
-    back(eventId, divisionId, 'team_name_required');
+    return { ok: false, code: 'team_name_required', message: 'Team name is required.' };
   }
-  const members: { displayName: string; email?: string }[] = [];
-  for (const [k, v] of formData.entries()) {
-    if (typeof v !== 'string') continue;
-    const m = /^player_name_(\d+)$/.exec(k);
-    if (!m) continue;
-    const displayName = v.trim();
-    if (!displayName) continue;
-    const emailRaw = formData.get(`player_email_${m[1]}`);
-    const email = typeof emailRaw === 'string' ? emailRaw.trim() : '';
-    members.push(email ? { displayName, email } : { displayName });
-  }
+  const members = input.members
+    .map((m) => ({ displayName: m.displayName.trim(), email: (m.email ?? '').trim() }))
+    .filter((m) => m.displayName.length > 0)
+    .map((m) =>
+      m.email ? { displayName: m.displayName, email: m.email } : { displayName: m.displayName },
+    );
+
   try {
-    await handlers.registerAdHocTeam.execute(
+    const { id } = await handlers.registerAdHocTeam.execute(
       new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, members, true),
     );
+    revalidate(eventId);
+    return { ok: true, id, name };
   } catch (err) {
     const { code, msg } = classify(err);
-    revalidate(eventId);
-    back(eventId, divisionId, code, msg);
+    return { ok: false, code, message: msg };
   }
-  revalidate(eventId);
-  back(eventId, divisionId, 'team_added');
 }

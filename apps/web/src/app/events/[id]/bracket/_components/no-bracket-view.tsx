@@ -46,10 +46,11 @@ export function NoBracketView(props: {
         divisionId={props.divisionId}
         teamCount={props.teamCount}
       />
-      {/* Walk-in escape hatch lives in a modal so the host can focus on
-          registering one team without the format picker scrolling behind
-          them. When `!ready` the trigger is promoted to a primary CTA
-          since it's the unblocking action. */}
+      {/* Walk-in escape hatch lives in a modal so the host can register
+          walk-in teams without the format picker scrolling behind them.
+          The modal stays open across adds (see WalkInTeamForm) so a host
+          can enter a handful at check-in. When `!ready` the trigger is
+          promoted to a primary CTA since it's the unblocking action. */}
       <div className="flex justify-start">
         <FormModal
           trigger={(open) => (
@@ -62,18 +63,14 @@ export function NoBracketView(props: {
                   : 'bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90'
               }
             >
-              + Add a walk-in team
+              + Add walk-in teams
             </button>
           )}
-          title="Add a walk-in team"
-          description="For teams not registered to this division. Created as an ad-hoc registration — you can edit the roster later from the event's team management page."
+          title="Add walk-in teams"
+          description="For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
         >
           {(close) => (
-            <WalkInTeamForm
-              eventId={props.eventId}
-              divisionId={props.divisionId}
-              onSettled={close}
-            />
+            <WalkInTeamForm eventId={props.eventId} divisionId={props.divisionId} onClose={close} />
           )}
         </FormModal>
       </div>
