@@ -50,6 +50,9 @@ type ProfileRow = {
 const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
 
 const HOSTED_PER_PAGE = 8;
+const FOLLOWING_PER_PAGE = 24;
+// Videos are embedded players (iframes) — keep the per-page count low.
+const VIDEOS_PER_PAGE = 6;
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -64,6 +67,8 @@ export default async function ProfilePage(props: {
     Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
   );
   const hpage = Math.max(1, Number.parseInt(searchParams.hpage ?? '1', 10) || 1);
+  const fpage = Math.max(1, Number.parseInt(searchParams.fpage ?? '1', 10) || 1);
+  const vpage = Math.max(1, Number.parseInt(searchParams.vpage ?? '1', 10) || 1);
 
   const { supabase, user } = await getCurrentUser();
   if (!user) redirect('/login?next=/profile');
@@ -275,18 +280,42 @@ export default async function ProfilePage(props: {
       </section>
 
       {/* Videos */}
-      <section className={cardClass}>
+      <section id="videos" className={cardClass}>
         <SectionHeader title="Videos" count={myVideos.length} />
-        <div className="mt-4">
-          <MyVideosSection items={myVideos} />
+        <div className="mt-4 space-y-4">
+          <MyVideosSection
+            items={myVideos.slice((vpage - 1) * VIDEOS_PER_PAGE, vpage * VIDEOS_PER_PAGE)}
+          />
+          <Pagination
+            basePath="/profile"
+            page={vpage}
+            pageSize={VIDEOS_PER_PAGE}
+            total={myVideos.length}
+            searchParams={searchParams}
+            pageParam="vpage"
+            scrollToId="videos"
+          />
         </div>
       </section>
 
       {/* Following */}
-      <section className={cardClass}>
+      <section id="following" className={cardClass}>
         <SectionHeader title="Following" count={friends.length} />
-        <div className="mt-4">
-          <FriendsList friends={friends} mutualIds={mutualIds} returnPath="/profile" />
+        <div className="mt-4 space-y-4">
+          <FriendsList
+            friends={friends.slice((fpage - 1) * FOLLOWING_PER_PAGE, fpage * FOLLOWING_PER_PAGE)}
+            mutualIds={mutualIds}
+            returnPath="/profile"
+          />
+          <Pagination
+            basePath="/profile"
+            page={fpage}
+            pageSize={FOLLOWING_PER_PAGE}
+            total={friends.length}
+            searchParams={searchParams}
+            pageParam="fpage"
+            scrollToId="following"
+          />
         </div>
       </section>
 

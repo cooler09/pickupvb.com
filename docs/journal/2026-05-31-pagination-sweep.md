@@ -66,6 +66,15 @@ were the reference pattern for everything here.
   `page` param + `MEMBERS_PER_PAGE = 24`; sliced display, full set kept for
   `existingMemberIds`.
 
+P3 follow-up (same day):
+
+- [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) — also paged the
+  **Following** (`fpage` / 24) and **Videos** (`vpage` / 6 — iframe embeds, so a
+  small page) sub-lists. **Groups** left unpaged on purpose: bounded
+  (self-managed memberships, <10 typical) and `MyGroupsSection` owns its own
+  `(N)` count, so paging it would mean changing the component contract for no
+  real gain.
+
 ## Patterns observed
 
 - **The "paginated section" recipe is now used in ~9 places** and is stable
@@ -82,14 +91,20 @@ searchParams [pageParam] [scrollToId]>`, and keep the full array for
 
 ## Follow-ups
 
-- **P3 — profile Following / Groups / Videos.** Same file as the Hosting fix;
-  small per user. Bundle with the profile-page P3 cleanup.
-- **P3 — `/messages` inbox `p_limit: 50` cap.** No "load older"; needs cursor
-  paging in `get_inbox` + the inbox query.
-- **P3 — `/events` + `/community` discovery feeds** capped at `limit` 30/60 with
-  no page nav. Decide feed-vs-directory before adding paging.
-- **P3 — `/profile/billing/analytics`** loads all host events to aggregate then
-  `slice(0, 10)`. A query-cost concern, not a UI-pagination one — separate fix.
+- **Deferred (needs a production RPC migration) — `/messages` inbox `p_limit:
+50` cap.** No "load older"; real paging needs offset/cursor + a count fn in
+  `get_inbox`, a `ConversationQueries` port change, and `/messages` paging.
+  Deferred 2026-05-31 — not worth a prod schema migration for a P3 at current
+  scale.
+- **Deferred (migration + product call) — `/events` + `/community` discovery
+  feeds** capped at `limit` 30/60. Real paging needs offset + total on the
+  search RPCs **and** a feed-vs-directory decision (the `/events` page has tabs +
+  filters, so paging is per-tab). Deferred 2026-05-31 pending that call.
+- **Not a pagination item — `/profile/billing/analytics`** loads all host events
+  to aggregate then `slice(0, 10)`. A query-cost concern; fix is SQL-side
+  aggregation, tracked separately.
+- **Done — profile Following + Videos** (see Changes). Groups deliberately left
+  unpaged (bounded; owns its own count).
 
 All four verify steps pass (`pnpm typecheck && pnpm lint && pnpm test && pnpm
 build`). No e2e impact (no covered journey asserts full-list rendering).
