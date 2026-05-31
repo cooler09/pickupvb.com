@@ -211,21 +211,19 @@ export class SupabaseMessageRepository implements MessageRepository {
 
 // ---- Read: message queries ------------------------------------------------
 
-type MessageViewRow = MessageRow & {
-  created_at: string;
-  // Embedded sender card — disambiguated by the sender_id FK because `messages`
-  // also FKs `profiles` via `deleted_by`.
-  sender: { display_name: string | null; avatar_url: string | null } | null;
-};
+type MessageViewRow = MessageRow & { created_at: string };
 
-function rowToView(row: MessageViewRow): MessageView {
+/** A sender's public display card, fetched separately from `profiles_public`. */
+type SenderCard = { display_name: string | null; avatar_url: string | null };
+
+export function rowToView(row: MessageViewRow, sender: SenderCard | null): MessageView {
   const deleted = row.deleted_at !== null;
   return {
     id: row.id,
     conversationId: row.conversation_id,
     senderId: row.sender_id,
-    senderName: row.sender?.display_name ?? null,
-    senderAvatarUrl: row.sender?.avatar_url ?? null,
+    senderName: sender?.display_name ?? null,
+    senderAvatarUrl: sender?.avatar_url ?? null,
     // Tombstone: never expose a deleted message's body or attachments.
     body: deleted ? '' : row.body,
     attachments: deleted ? [] : toAttachmentViews(row.attachments),
@@ -249,7 +247,7 @@ export class SupabaseMessageQueries implements MessageQueries {
     let q = this.client
       .from('messages')
       .select(
-        'id, conversation_id, sender_id, body, attachments, deleted_at, edited_at, created_at, sender:profiles!messages_sender_id_fkey(display_name, avatar_url)',
+        'id, conversation_id, sender_id, body, attachments, deleted_at, edited_at, created_at',
       )
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: false })
@@ -264,11 +262,35 @@ export class SupabaseMessageQueries implements MessageQueries {
     const hasMore = rows.length > opts.limit;
     const page = hasMore ? rows.slice(0, opts.limit) : rows;
     const ascending = [...page].reverse();
-    const messages = ascending.map(rowToView);
+
+    // Resolve sender cards from `profiles_public`, NOT an embedded
+    // `sender:profiles!...` join. These adapters run on a user-scoped client and
+    // the base `profiles` SELECT policy is owner-only (PII audit P1 #4), so an
+    // embed resolves to null for every message sent by someone other than the
+    // viewer — every other person's name/avatar would vanish from the thread.
+    // The view is the sanctioned public projection, readable by all
+    // authenticated callers. A deleted sender falls out of the view → name
+    // renders as the UI 'Member' fallback.
+    const senders = await this.loadSenderCards([...new Set(ascending.map((r) => r.sender_id))]);
+    const messages = ascending.map((r) => rowToView(r, senders.get(r.sender_id) ?? null));
     // Cursor to fetch the next-older page = the oldest message currently loaded.
     const nextBefore = hasMore && ascending.length > 0 ? (ascending[0]?.created_at ?? null) : null;
 
     return { messages, hasMore, nextBefore };
+  }
+
+  private async loadSenderCards(ids: string[]): Promise<Map<string, SenderCard>> {
+    if (ids.length === 0) return new Map();
+    const { data, error } = await this.client
+      .from('profiles_public')
+      .select('id, display_name, avatar_url')
+      .in('id', ids);
+    if (error) throw new Error(`listMessages sender lookup failed: ${error.message}`);
+    const out = new Map<string, SenderCard>();
+    for (const row of (data as ({ id: string } & SenderCard)[] | null) ?? []) {
+      out.set(row.id, { display_name: row.display_name, avatar_url: row.avatar_url });
+    }
+    return out;
   }
 }
 

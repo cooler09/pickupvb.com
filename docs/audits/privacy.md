@@ -39,6 +39,41 @@ DB inspection.
   underlying member table, which exposes `email` and `user_id` to any
   authenticated client regardless of what the React layer renders.
 
+## 2026-05-31 re-audit — status update
+
+Re-ran the privacy review against the current tree. **Compliance posture from
+the 2026-05-24 bundle is intact** — owner-only `profiles` RLS + `profiles_public`
+projection, FK `SET NULL` flips, `profiles.deleted_at` soft-delete column, masked
+Sentry replay (`maskAllText: true`, `blockAllMedia: true`,
+`replaysOnErrorSampleRate` lowered to 0.3), and the outbox / listing-report purge
+crons all verified still present and unchanged.
+
+The headline of this re-audit is a **regression caused by that hardening**: the
+owner-only base-`profiles` SELECT policy (P1 #4 step 3) silently broke three
+features shipped _afterward_ (chat/messaging, media posts) that read author /
+sender display cards from the base `profiles` table over a user-scoped client
+instead of from `profiles_public`. RLS was doing its job (failing safe — no
+leak), but every _other_ user's name/avatar resolved to null. Filed and fixed
+this bundle as **#13** (P1, correctness regression — not a data-leak).
+
+- **Verified still compliant (no change):** P1 #1 (FK SET NULL), P1 #3 (regulatory
+  CASCADE flips), P1 #4 (`profiles_public` + owner-only RLS), P1 #5 (ad-hoc roster
+  email leak), P2 #5 (outbox purge), P2 #6 (Sentry mask), P2 #8 (listing-report
+  dropdown + purge). New chat tables (`conversations` / `messages` /
+  `user_blocks` / …) and `media_posts` have sound RLS + FK posture (private
+  `chat-attachments` bucket gated by `can_access_conversation`; signed URLs only).
+- **Found + fixed this bundle:** **#13** — profiles-RLS regression in chat
+  `listMessages`, chat `get_inbox` DM titles, and media-post `decorate` author
+  cards. All three now read `profiles_public`. See remediation log.
+- **Newly logged, still open:** **#14** (P2) chat `messages` + `chat-attachments`
+  have no retention/purge; **#15** (P2) chat tables aren't in the account-deletion
+  design sketch or the data-export inventory.
+- **Still open from 2026-05-24 (unchanged):** the account-deletion application
+  path (P1 #2 follow-up — `DeletionRequestAggregate`, cron, scrub UI: still
+  unbuilt), data-export endpoint (P3 #12: still absent), and `rate_limits.key`
+  plaintext (P3 #10). P3 #11 (deleted-profile indexing) is now **resolved by
+  side-effect** — see its updated entry.
+
 ## P1 — fix before adding any "Delete account" feature
 
 ### 1. `events.host_id` and `groups.created_by` are `ON DELETE RESTRICT`
@@ -230,6 +265,50 @@ Until step 2 ships, the leak surface is narrower (anyone calling the
 Supabase REST API directly with an anon key, not anyone loading the
 event page) but it's still a real exposure.
 
+### 13. Owner-only `profiles` RLS broke display cards in chat + media (regression)
+
+**Files (all fixed 2026-05-31 — see remediation log):**
+
+- [packages/infrastructure/src/supabase-messaging-repository.ts#L249-L252](../../packages/infrastructure/src/supabase-messaging-repository.ts#L249-L252)
+  — `listMessages` embedded `sender:profiles!messages_sender_id_fkey(...)`.
+- [supabase/migrations/20260825000000_chat_inbox_rpcs.sql#L62-L68](../../supabase/migrations/20260825000000_chat_inbox_rpcs.sql#L62-L68)
+  — `get_inbox` DM-title subquery `join public.profiles pr` (SECURITY INVOKER).
+- [packages/infrastructure/src/supabase-media-post-repository.ts#L369-L370](../../packages/infrastructure/src/supabase-media-post-repository.ts#L369-L370)
+  — `decorate` read `from('profiles')` for submitter cards.
+
+**Category:** correctness regression caused by privacy hardening (no data leak)
+
+P1 #4 step 3 tightened the base `profiles` SELECT policy to
+`auth.uid() = id OR is_platform_admin()`. Three features shipped _after_ that
+migration read other users' display cards (`display_name` / `avatar_url`)
+straight from the base table over a **user-scoped** client (chat) or a
+**SECURITY INVOKER** function (the inbox RPC). Under owner-only RLS each of
+those reads resolves to the caller's own row only, so:
+
+- **Chat thread (DM + team/event/group rooms):** every historical message from
+  anyone other than the viewer rendered as "Member" with no avatar. (Live
+  Realtime rows escaped it — `ConversationView` resolves those from the
+  `participants` roster — which is exactly why single-user local testing missed
+  it; it only shows with 2+ real users, matching the "live RLS path needs dev
+  verification" note in the chat initiative.)
+- **Inbox:** every DM row showed the literal "Direct message" instead of the
+  counterpart's name (`get_inbox` title fell through to the kind label).
+- **Media posts:** every clip authored by someone other than the viewer — and
+  _all_ clips for anonymous/logged-out viewers — showed a null author name.
+
+This is the same class as the bundle-89 migration of public reads to
+`profiles_public` (and the AGENTS.md "PostgREST FK-join on a view" gotcha): the
+fix is to route display-card reads through the `profiles_public` view, which is
+definer-equivalent and readable by `anon` + `authenticated`. **Fixed this
+bundle** — see the remediation log. Graded P1 because the features were live and
+visibly broken in prod for the multi-user path; the privacy posture itself was
+never at risk (RLS failed safe).
+
+**Guardrail for the next reader:** any new feature that needs another user's
+`display_name` / `avatar_url` must read `profiles_public`, never the base
+`profiles` table, on any session-scoped or `SECURITY INVOKER` path. The base
+table is owner-only by design.
+
 ## P2 — schedule into the next sprint
 
 ### 5. `notification_outbox` retains rendered message bodies forever
@@ -328,6 +407,62 @@ SSN/EIN for US accounts, and the bank account last4 for payouts.
 object is no longer passed or persisted. Only `charges_enabled`,
 `payouts_enabled`, and `details_submitted` are written.
 
+### 14. Chat `messages` + `chat-attachments` have no retention policy
+
+**Files:**
+
+- [supabase/migrations/20260824000000_chat_messaging.sql#L74-L93](../../supabase/migrations/20260824000000_chat_messaging.sql#L74-L93)
+  — `messages` (body up to 4000 chars + `attachments` jsonb), no TTL.
+- [supabase/migrations/20260826000000_chat_attachments.sql](../../supabase/migrations/20260826000000_chat_attachments.sql)
+  — private `chat-attachments` bucket, no orphan sweep.
+
+**Category:** data retention
+
+Direct messages and room messages are user-to-user free text — exactly where
+people paste phone numbers, addresses, and payment details. They accumulate
+forever with no purge, the same unbounded-PII-pool problem
+[data-lifecycle.md](data-lifecycle.md) elevated `notification_outbox` to P1 over
+(messages are higher-sensitivity but lower-volume). Two sub-gaps:
+
+1. **No message/attachment retention cron.** Unlike `notification_outbox`
+   (purged) there is no TTL on `messages` or a `chat-attachments` orphan sweep
+   (the migration comment defers the sweep as "a follow-up cron, mirroring
+   hero-images" — it hasn't landed).
+2. **Soft-deleted message bodies are retained in place.** `messages_update`
+   soft-deletes (sets `deleted_at`); the UI tombstones the row, but `body` and
+   `attachments` stay in the table — a "deleted" message's content is still on
+   disk and readable by the platform admin / via a future export.
+
+**Recommended fix:** add the `chat-attachments` orphan sweep (clone
+`purge_hero_image_orphans` — parse `{conversation_id}/{user_id}/{uuid}.{ext}`,
+retain objects still referenced by a live `messages.attachments` element,
+cache-buster-tolerant per the 20260819 hero fix). For message bodies, decide a
+retention window with product (DMs especially) and either (a) a pg_cron that
+nulls `body`/`attachments` on rows `deleted_at < now() - interval '30 days'`, or
+(b) hard-delete soft-deleted rows past the window. Track alongside the
+data-lifecycle retention tier.
+
+### 15. Chat tables are absent from the account-deletion + data-export plans
+
+**Files:** [docs/audits/privacy.md account-deletion sketch](#account-deletion-design-sketch)
+(below) and P3 #12.
+**Category:** legal feature gap (forward-looking)
+
+The account-deletion design sketch and the data-export inventory (P3 #12)
+predate chat. When those features are built they must cover the chat surface:
+
+- **Deletion:** `conversation_participants` / `messages` / `message_reports` /
+  `user_blocks` all FK `profiles(id) ON DELETE CASCADE`, and
+  `conversations.created_by` / `messages.deleted_by` are `SET NULL` — so an
+  `auth.users` delete already cascades cleanly (a user's messages vanish; rooms
+  survive with a null author). That's the right posture, but note the
+  side-effect: in a DM, deleting one party removes the messages **the other
+  party received** too. Flag this in the deletion ADR; it may warrant a tombstone
+  ("Former member left the conversation") rather than silent message removal.
+- **Export (GDPR Art. 20):** a user's own DMs and sent room messages are their
+  personal data and must be in the `GET /api/account/export` payload — add
+  `messages` (as sender), `conversations` participated in, and `user_blocks`.
+
 ## P3 — nice-to-have
 
 ### 10. `rate_limits.key` may store raw emails / IPs
@@ -346,10 +481,18 @@ before writing. Lookups still work because the hash is deterministic.
 
 ### 11. Public profile pages are fully indexable
 
-**File:** [apps/web/src/app/players/[handle]/page.tsx](../../apps/web/src/app/players/[handle]/page.tsx)
+**File:** [apps/web/src/app/players/[id]/page.tsx](../../apps/web/src/app/players/[id]/page.tsx)
 
 - [apps/web/src/app/sitemap.ts](../../apps/web/src/app/sitemap.ts)
   **Category:** SEO + privacy intersection
+  **Status:** ✅ resolved by side-effect (verified 2026-05-31)
+
+Both the player page and the sitemap now read `profiles_public`, which filters
+`deleted_at IS NULL`. A soft-deleted profile therefore returns no row → the page
+`notFound()`s (404, not a stale PII render) and the handle is automatically
+excluded from the sitemap. The explicit `robots: noindex` recommended below is
+no longer needed; the 404 + sitemap exclusion is the stronger outcome. (Note:
+the page route is `players/[id]`, not `[handle]` as originally filed.)
 
 Player profile pages are listed in the production sitemap with no
 opt-out flag. After a user is soft-deleted (P1 #2), their handle URL
@@ -459,6 +602,35 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-05-31 — #13: route chat + media display cards through `profiles_public`
+
+Fixed the owner-only-`profiles`-RLS regression in all three sites:
+
+- **Chat `listMessages`**
+  ([supabase-messaging-repository.ts](../../packages/infrastructure/src/supabase-messaging-repository.ts)) —
+  dropped the embedded `sender:profiles!messages_sender_id_fkey(...)` join.
+  `listMessages` now fetches the message rows, collects the distinct sender ids,
+  and resolves cards from `profiles_public` via a new private `loadSenderCards`
+  helper, merging in JS. `rowToView` was refactored to take the resolved card as
+  a second argument and is now exported + unit-tested
+  ([supabase-messaging-repository.test.ts](../../packages/infrastructure/src/supabase-messaging-repository.test.ts) —
+  4 cases: card resolution, null-card fallback, tombstone, edited flag).
+- **Chat `get_inbox` DM title**
+  ([20260827000000_fix_get_inbox_dm_title_profiles_public.sql](../../supabase/migrations/20260827000000_fix_get_inbox_dm_title_profiles_public.sql)) —
+  `create or replace` of the SECURITY INVOKER function changing the DM-title
+  subquery's `join public.profiles` to `join public.profiles_public` (the view
+  bypasses base-table RLS regardless of the function's security mode). Signature
+  unchanged → no `gen:types`. **Pending local `pnpm db:migrate`** (function-body
+  change only; CI/CD auto-applies on deploy).
+- **Media-post `decorate`**
+  ([supabase-media-post-repository.ts](../../packages/infrastructure/src/supabase-media-post-repository.ts)) —
+  submitter-card read switched from `from('profiles')` to
+  `from('profiles_public')`.
+
+Each site carries a comment explaining why `profiles_public` is mandatory so the
+next reader doesn't "optimize" it back to a base-table embed. Verify quad green
+(typecheck; lint 0 errors; test — 45 infra incl. the new 4 + 104 web; build 8/8).
 
 ### 2026-05-24 — P1 #5 step 1: drop email-as-displayName fallback in public roster
 

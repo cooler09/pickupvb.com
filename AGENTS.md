@@ -760,3 +760,33 @@ Client Component" above (reference: the `/events/[id]` attendee roster kept
 `AttendeeList` server-side and paged via an `apage` param instead). Open backlog
 of remaining unpaginated lists:
 [performance.md § Pagination sweep](docs/audits/performance.md#2026-05-31--pagination-sweep-unbounded-ui-lists).
+
+### 13. Read another user's display card from `profiles_public`, never base `profiles`
+
+The base `public.profiles` SELECT policy is **owner-only**
+(`auth.uid() = id OR is_platform_admin()`, PII audit P1 #4). So on any
+**session-scoped client** (`getServerSupabase()`) or **`SECURITY INVOKER`**
+SQL function, a read of another user's `display_name` / `avatar_url` — whether a
+PostgREST embed (`sender:profiles!fk(...)`), a `.from('profiles').in('id', …)`,
+or a `join public.profiles` — resolves to **null / no-row for everyone except the
+caller** (and to nothing at all for anon viewers). RLS fails safe, so there's no
+leak — but the feature silently shows "Member" / blank names. This has now bitten
+three times after the bundle-89 sweep (chat `listMessages`, chat `get_inbox` DM
+titles, media-post author cards — all fixed 2026-05-31).
+
+The fix is always the same: read the **`profiles_public`** view
+(`packages/supabase` generated types include it; granted to `anon` +
+`authenticated`; definer-equivalent so it bypasses base-table RLS regardless of
+the caller's security mode; already filters `deleted_at IS NULL`). For a
+display-card join in app code, fetch the rows then `profiles_public` by collected
+ids and merge in JS — PostgREST can't embed a view (no FK metadata). Reference
+fixes: `loadSenderCards` in
+[supabase-messaging-repository.ts](packages/infrastructure/src/supabase-messaging-repository.ts),
+`decorate` in
+[supabase-media-post-repository.ts](packages/infrastructure/src/supabase-media-post-repository.ts),
+and the `join public.profiles_public` in
+[20260827000000_fix_get_inbox_dm_title_profiles_public.sql](supabase/migrations/20260827000000_fix_get_inbox_dm_title_profiles_public.sql).
+The **admin client** is the only path that may read base `profiles` directly, and
+only for fields not in the view (`first_name` / `last_name` / `business_*`) on
+already-authorized host/system reads — e.g. `SupabaseEventRepository`. Full
+write-up: [privacy.md #13](docs/audits/privacy.md).
