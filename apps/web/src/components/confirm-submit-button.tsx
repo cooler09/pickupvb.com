@@ -2,6 +2,7 @@
 
 import { useFormStatus } from 'react-dom';
 import { useId, useRef, useState } from 'react';
+import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 
 /**
  * Submit button that asks for confirmation before posting its parent form.
@@ -59,9 +60,12 @@ export function ConfirmSubmitButton({
     });
   }
 
+  // Non-destructive confirm uses the canonical filled CTA. Destructive keeps a
+  // red treatment (no canonical error-button class yet — tracked in
+  // docs/audits/persona-ux.md backlog), aligned to the same md shape.
   const confirmBtnClass = destructive
-    ? 'rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700'
-    : 'rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90';
+    ? 'state-layer inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm'
+    : primaryButtonClass('md');
 
   return (
     <>
@@ -69,10 +73,7 @@ export function ConfirmSubmitButton({
         type="submit"
         disabled={pending}
         onClick={handleClick}
-        className={
-          className ??
-          'bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50'
-        }
+        className={className ?? primaryButtonClass('md')}
       >
         {pending ? pendingLabel : label}
       </button>
@@ -95,7 +96,7 @@ export function ConfirmSubmitButton({
             <button
               type="button"
               onClick={handleCancel}
-              className="border-border-base bg-surface hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
+              className={secondaryButtonClass('md')}
               {...(destructive ? { autoFocus: true } : {})}
             >
               {cancelLabel ?? 'Cancel'}

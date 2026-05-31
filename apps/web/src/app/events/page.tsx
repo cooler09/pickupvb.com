@@ -28,6 +28,7 @@ import {
 } from './_components/event-filter-form';
 import { EventTimeframeTabs, type Timeframe } from './_components/event-timeframe-tabs';
 import { ActiveFilterChips, type FilterKey } from './_components/active-filter-chips';
+import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 
 export const metadata: Metadata = {
   title: 'Volleyball events',
@@ -249,10 +250,7 @@ export default async function EventsPage(props: {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-bold">Find events</h1>
           {user && (
-            <Link
-              href="/events/new"
-              className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white"
-            >
+            <Link href="/events/new" className={primaryButtonClass('sm')}>
               Host an event
             </Link>
           )}
@@ -425,26 +423,17 @@ function EmptyState({
       {body && <p className="text-muted mt-1 text-sm">{body}</p>}
       <div className="mt-4 flex flex-wrap justify-center gap-3">
         {hasAnyFilter && (
-          <Link
-            href={clearAllHref}
-            className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm font-medium"
-          >
+          <Link href={clearAllHref} className={secondaryButtonClass('sm')}>
             Clear filters
           </Link>
         )}
         {when === 'following' && reason === 'not_signed_in' && (
-          <Link
-            href="/login"
-            className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-semibold text-white"
-          >
+          <Link href="/login" className={primaryButtonClass('sm')}>
             Sign in
           </Link>
         )}
         {canHost && (
-          <Link
-            href="/events/new"
-            className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-semibold text-white"
-          >
+          <Link href="/events/new" className={primaryButtonClass('sm')}>
             Host an event
           </Link>
         )}

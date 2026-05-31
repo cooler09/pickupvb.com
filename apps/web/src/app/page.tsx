@@ -9,6 +9,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { EventCard } from './events/_components/event-card';
 import { Icon } from '@/components/icon';
+import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 
 export default async function HomePage(props: {
   searchParams?: Promise<{ code?: string; type?: string }>;
@@ -53,15 +54,12 @@ export default async function HomePage(props: {
             and let players sign up automatically.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link
-              href="/events"
-              className="bg-primary hover:bg-primary/90 rounded-md px-5 py-2.5 font-medium text-white"
-            >
+            <Link href="/events" className={primaryButtonClass('md')}>
               Find events near me
             </Link>
             <Link
               href={user ? '/events/new' : '/login?next=/events/new'}
-              className="border-border-base hover:bg-fg/5 rounded-md border px-5 py-2.5 font-medium"
+              className={secondaryButtonClass('md')}
             >
               Host an event
             </Link>
@@ -253,14 +251,11 @@ export default async function HomePage(props: {
           <div className="flex flex-col gap-2">
             <Link
               href={(user ? '/events/new' : '/login?next=/events/new') as Route}
-              className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2.5 text-center font-medium text-white"
+              className={primaryButtonClass('md')}
             >
               Host your first event
             </Link>
-            <Link
-              href={'/profile/billing/pro' as Route}
-              className="border-border-base hover:bg-fg/5 rounded-md border px-4 py-2.5 text-center text-sm font-medium"
-            >
+            <Link href={'/profile/billing/pro' as Route} className={secondaryButtonClass('md')}>
               See Pro pricing
             </Link>
           </div>
@@ -275,16 +270,10 @@ export default async function HomePage(props: {
             Create a free account to RSVP, follow players, save events, and host your own.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-3">
-            <Link
-              href={'/signup' as Route}
-              className="bg-primary hover:bg-primary/90 rounded-md px-5 py-2.5 font-medium text-white"
-            >
+            <Link href={'/login?mode=sign-up' as Route} className={primaryButtonClass('md')}>
               Create account
             </Link>
-            <Link
-              href={'/login' as Route}
-              className="border-border-base hover:bg-fg/5 rounded-md border px-5 py-2.5 font-medium"
-            >
+            <Link href={'/login' as Route} className={secondaryButtonClass('md')}>
               Sign in
             </Link>
           </div>
