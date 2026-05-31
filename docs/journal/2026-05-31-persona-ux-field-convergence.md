@@ -77,10 +77,15 @@ tests, build.
 
 ## Follow-ups
 
-- **CC-2 ratchet (do next).** Add an ESLint rule / CI `grep` that flags a new
-  local `const inputClass`/`labelClass = '…'` literal and points at
-  `field-styles.ts` / `TextField`. Without it the 17→1 collapse re-accumulates —
-  same lesson as m3-alignment.md's ratchet-behind-migration strategy.
+- **CC-2 ratchet (✅ shipped 2026-05-31c, same day).** Added two
+  `no-restricted-syntax` selectors to `apps/web/eslint.config.mjs` (next to the
+  M3 shape-scale ratchet): a `const inputClass`/`labelClass`/`selectClass` with a
+  string- or template-literal RHS is now a lint error pointing at
+  `field-styles.ts` / `TextField`. The literal-RHS check keeps the
+  `form-primitives.tsx` re-exports (Identifier RHS) clean; the two compact-inline
+  exceptions opt out with a reasoned `eslint-disable`. Verified it fires on a
+  probe. Recorded as AGENTS.md pattern 11 so it's discoverable without reading
+  the journal. Same ratchet-behind-migration lesson as m3-alignment.md.
 - Remaining P2 in [persona-ux.md](../audits/persona-ux.md): CC-1 remainder (~45
   files + header sign-up/sign-in pills), login-page primitives, shared
   `GuestSignupFields`, host form depth + divisions-manager FormModal (CC-5/H-2).

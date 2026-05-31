@@ -696,3 +696,32 @@ proration rule, a cross-aggregate guard), promote that rule into the domain and
 add a command handler for the mutation — at that point the facade stops being a
 read shortcut and the handler earns its place. Until then, the facade-over-port
 shape is the sanctioned convention.
+
+### 11. Use the shared CTA + field vocabularies — don't hand-roll class strings
+
+There is one canonical home for button and form-field class strings; a
+`no-restricted-syntax` ratchet in
+[apps/web/eslint.config.mjs](apps/web/eslint.config.mjs) enforces it (persona-ux
+audit CC-1/CC-2):
+
+- **Buttons:** import from
+  [primary-button.tsx](apps/web/src/components/primary-button.tsx)
+  (`primaryButtonClass` / `secondaryButtonClass` / `tonalButtonClass` /
+  `textButtonClass`) instead of writing `bg-primary hover:bg-primary/90
+text-white …`. The four M3 variants take a `'sm' | 'md'` size.
+- **Fields:** import from
+  [field-styles.ts](apps/web/src/components/field-styles.ts) (`fieldInputClass`
+  / `fieldLabelClass` / `fieldSubLabelClass` / `fieldHintClass` /
+  `fieldErrorClass`) for bare `<input>` / `<textarea>` / `<select>`, or use the
+  richer [TextField](apps/web/src/components/text-field.tsx) primitive when a
+  field wants adornments / auto-wired `aria`. The recipes share the same chassis
+  tokens so they mix without a seam. **Declaring a new local `const
+inputClass`/`labelClass`/`selectClass = '…'` is a lint error.** A genuinely
+  different control class (e.g. a compact inline table cell, a filter-bar select)
+  opts out with `// eslint-disable-next-line no-restricted-syntax -- <reason>`.
+
+This is the same ratchet-behind-migration strategy as the M3 shape-scale lock
+(see [docs/audits/m3-alignment.md](docs/audits/m3-alignment.md)): the migration
+collapses the drift, the lint rule keeps it from re-accumulating. Reference fix:
+[docs/audits/persona-ux.md](docs/audits/persona-ux.md) remediation log
+(2026-05-31 bundles).

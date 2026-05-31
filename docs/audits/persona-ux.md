@@ -348,16 +348,29 @@ Implemented this pass (verify chain green: typecheck / lint / 621 tests / build)
   `<form action={removeDivision.bind(...)} className="contents">` wrapping a
   `ConfirmSubmitButton` (`destructive`), matching every other delete in the app.
 
+### 2026-05-31c — CC-2 ratchet (lock the convergence)
+
+- **CC-2 ratchet — shipped.** Added two `no-restricted-syntax` selectors to the
+  existing block in [apps/web/eslint.config.mjs](../../apps/web/eslint.config.mjs)
+  (alongside the M3 shape-scale ratchet): a `VariableDeclarator` named
+  `^(input|label|select)Class$` with a string- **or** template-**literal** RHS is
+  now an error, pointing authors at `@/components/field-styles` / `TextField`. The
+  literal-RHS check means the `form-primitives.tsx` re-exports (Identifier RHS) and
+  `field-styles.ts` itself (different names) are not flagged. The two documented
+  exceptions opt out with `// eslint-disable-next-line no-restricted-syntax -- …`
+  - a reason ([event-filter-form](../../apps/web/src/app/events/_components/event-filter-form.tsx),
+    [match-row](../../apps/web/src/app/events/[id]/schedule/_components/match-row.tsx)).
+    Verified the rule both passes the converged tree and fires on a hand-rolled
+    probe. This closes the "without a ratchet the 17→1 collapse re-accumulates" risk
+    — same strategy as m3-alignment.md's shape-scale lock.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2:** CC-1 remainder (header sign-up/sign-in pills + the other ~45 hand-rolled
   files), V-2/V-3 (login page primitives), P-1 (shared GuestSignupFields),
   H-1/H-2 (host form depth + divisions-manager FormModal). _CC-2 + CC-4 resolved
-  2026-05-31b._
-  - **CC-2 ratchet (do next so the convergence holds):** add a lint rule (or
-    `grep` CI check) that flags a new local `const inputClass`/`labelClass`
-    string literal, steering authors to import from `field-styles.ts` /
-    `TextField`. Without it the 17→1 collapse will re-accumulate.
+  2026-05-31b; CC-2 ratchet locked 2026-05-31c. A parallel `primaryButtonClass`
+  ratchet should land with the CC-1 remainder._
 - **P3:** CC-3 (text-white token sweep — folds into CC-1), CC-5/H-2 (FormModal
   conversion — also in events-page-ux.md), V-4 (anon→claim host gate), P-2
   (StatusPill primitive), H-3 (row-action tap targets).

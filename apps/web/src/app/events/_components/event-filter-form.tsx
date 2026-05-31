@@ -30,8 +30,10 @@ type Props = {
   location: { lat: number; lng: number; radiusKm: number } | null;
 };
 
+// eslint-disable-next-line no-restricted-syntax -- compact filter-bar select, not a labeled form field (persona-ux.md CC-2 exception)
 const selectClass =
   'mt-1 w-full rounded-md border border-border-base bg-surface px-2 py-1.5 text-sm';
+// eslint-disable-next-line no-restricted-syntax -- uppercase filter-bar label, distinct from form field labels (persona-ux.md CC-2 exception)
 const labelClass = 'text-muted block text-xs font-semibold tracking-wide uppercase';
 
 /**
