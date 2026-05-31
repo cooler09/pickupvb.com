@@ -4,7 +4,10 @@ import {
   MessageId,
   UnauthorizedError,
   UserId,
+  type ConversationKind,
+  type ConversationQueries,
   type ConversationRepository,
+  type InboxItem,
   type MessagePage,
   type MessageQueries,
   type MessageRepository,
@@ -226,5 +229,53 @@ export class SupabaseMessageQueries implements MessageQueries {
     const nextBefore = hasMore && ascending.length > 0 ? (ascending[0]?.created_at ?? null) : null;
 
     return { messages, hasMore, nextBefore };
+  }
+}
+
+// ---- Read: conversation queries (inbox + badge) ---------------------------
+
+type InboxRpcRow = {
+  conversation_id: string;
+  kind: ConversationKind;
+  context_id: string | null;
+  context_slug: string | null;
+  title: string | null;
+  last_message_at: string | null;
+  last_read_at: string | null;
+  is_unread: boolean;
+  preview: string | null;
+  preview_sender_id: string | null;
+};
+
+function rowToInbox(row: InboxRpcRow): InboxItem {
+  return {
+    conversationId: row.conversation_id,
+    kind: row.kind,
+    contextId: row.context_id,
+    contextSlug: row.context_slug,
+    title: row.title,
+    lastMessageAt: row.last_message_at,
+    lastReadAt: row.last_read_at,
+    isUnread: row.is_unread,
+    preview: row.preview,
+    previewSenderId: row.preview_sender_id,
+  };
+}
+
+export class SupabaseConversationQueries implements ConversationQueries {
+  constructor(private readonly client: SupabaseClient) {}
+
+  async listInbox(): Promise<InboxItem[]> {
+    // SECURITY INVOKER RPC — RLS on `conversations` scopes the result to the
+    // caller's accessible rooms; the RPC resolves titles/previews/slugs in SQL.
+    const { data, error } = await this.client.rpc('get_inbox', { p_limit: 50 });
+    if (error) throw new Error(`listInbox failed: ${error.message}`);
+    return ((data as unknown as InboxRpcRow[] | null) ?? []).map(rowToInbox);
+  }
+
+  async countUnread(): Promise<number> {
+    const { data, error } = await this.client.rpc('count_unread_conversations');
+    if (error) throw new Error(`countUnread failed: ${error.message}`);
+    return (data as number | null) ?? 0;
   }
 }

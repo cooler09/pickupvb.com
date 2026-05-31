@@ -5,6 +5,8 @@
  * live — these reads are never cached (caching would fight Realtime delivery).
  */
 
+import type { ConversationKind } from './conversation.js';
+
 /** A message as rendered in a thread. Deleted messages still come back (as a
  * tombstone) for the sender/moderator; the view carries `isDeleted` so the UI
  * can render "message deleted" without exposing the body. */
@@ -39,4 +41,39 @@ export interface MessageQueries {
     conversationId: string,
     opts: { limit: number; before?: string },
   ): Promise<MessagePage>;
+}
+
+/**
+ * A conversation as rendered in the inbox (ADR 0028, Phase 2). `title` /
+ * `contextSlug` are resolved from the source entity (team / event / group) at
+ * read time; `preview` is the latest non-deleted message body (truncated).
+ * `isUnread` is "unread by me" — a newer non-deleted message from someone else
+ * than the viewer's `last_read_at` cursor (a thread you only posted in yourself
+ * is not unread).
+ */
+export interface InboxItem {
+  conversationId: string;
+  kind: ConversationKind;
+  contextId: string | null;
+  /** Slug for routing — team / group rooms only; `null` otherwise. */
+  contextSlug: string | null;
+  title: string | null;
+  lastMessageAt: string | null;
+  lastReadAt: string | null;
+  isUnread: boolean;
+  preview: string | null;
+  previewSenderId: string | null;
+}
+
+/**
+ * Conversation-level read port (the inbox + header badge). Separate from
+ * {@link MessageQueries} (which is thread-scoped). Both are per-viewer; the
+ * viewer is implicit in the user-scoped client — RLS scopes the reads, so no
+ * `viewerId` argument is passed (the same posture as `listMessages`).
+ */
+export interface ConversationQueries {
+  /** The viewer's conversations with activity, most-recent first. */
+  listInbox(): Promise<InboxItem[]>;
+  /** Count of conversations with messages unread by the viewer (header badge). */
+  countUnread(): Promise<number>;
 }

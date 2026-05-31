@@ -72,12 +72,26 @@ Broadcast.
 ### Phased rollout
 
 The migration `20260824000000_chat_messaging.sql` is **Phase 0** (schema, RLS,
-helpers, broadcast trigger, RPCs — no app code consuming it). This bundle is
-**Phase 1: the team-room MVP** — infrastructure adapters, the composition-root
-`getChatHandlers()`, server actions, and the `TeamChatPanel` client island on
-`/teams/[id]`. **Phase 3** wires DMs (`getOrCreateDm` already exists). **Phase 4**
-is the image fast-follow: it drops the single `messages_text_only` CHECK to
-enable the reserved `attachments jsonb` column — no table migration needed.
+helpers, broadcast trigger, RPCs — no app code consuming it).
+
+**Phase 1 (shipped): the team-room MVP** — infrastructure adapters, the
+composition-root `getChatHandlers()`, server actions, and the `TeamChatPanel`
+client island on `/teams/[id]`.
+
+**Phase 2 (shipped): unread + inbox.** A second migration
+(`20260825000000_chat_inbox_rpcs.sql`) adds two `SECURITY INVOKER` read RPCs —
+`get_inbox(int)` and `count_unread_conversations()` — that ride RLS as the
+caller (no privilege escalation; a non-member just gets fewer rows) and resolve
+titles / previews / slugs per `kind` in SQL. They back a `ConversationQueries`
+read port → `SupabaseConversationQueries` adapter, surfaced as a `/messages`
+inbox page and a server-rendered unread badge on the site-header "Messages"
+link. "Unread by me" = a non-deleted message from someone else newer than my
+`last_read_at` (a thread I only posted in is not unread). The badge reflects the
+last page load; live updates are deferred (see follow-ups).
+
+**Phase 3** wires DMs (`getOrCreateDm` already exists). **Phase 4** is the image
+fast-follow: it drops the single `messages_text_only` CHECK to enable the
+reserved `attachments jsonb` column — no table migration needed.
 
 ## Consequences
 
@@ -101,13 +115,18 @@ enable the reserved `attachments jsonb` column — no table migration needed.
 
 ## Follow-ups
 
-- **Phase 2 — unread state:** an inbox / unread badge driven by
-  `conversation_participants.last_read_at` vs. `conversations.last_message_at`.
-- **Phase 3 — DMs:** wire `getOrCreateDm`, a DM list, and the block UI.
+- **Phase 3 — DMs:** wire `getOrCreateDm`, a DM list, and the block UI. The
+  inbox already routes `dm`/`event`/`group` kinds; DM rows currently have no
+  destination (`inboxHref` returns `null`) until the DM thread view lands.
 - **Phase 4 — attachments:** drop `messages_text_only`, add image upload.
+- **Live unread badge:** the header `count_unread_conversations` is read once per
+  page load. Make it live by subscribing to the viewer's conversation topics (or
+  a per-user `inbox:{uid}` topic), the same upgrade the bell took in ADR 0027.
 - **Sender card in the broadcast payload** so live rows don't depend on a
   client-side roster lookup.
+- **Mark-read after send** in `TeamChatPanel` so a thread you just posted in
+  doesn't briefly count as unread in the inbox on the next visit.
 - **e2e:** member sends → second member receives live; non-member is denied;
-  report auto-hides at threshold.
+  report auto-hides at threshold; inbox shows unread → clears after open.
 - **Tab-visibility gating** for the subscription (shed idle connections), same
   follow-up noted in ADR 0027.

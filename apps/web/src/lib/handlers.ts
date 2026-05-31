@@ -22,6 +22,7 @@ import {
   SupabaseConversationRepository,
   SupabaseMessageRepository,
   SupabaseMessageQueries,
+  SupabaseConversationQueries,
 } from '@pickupvb/infrastructure';
 import {
   AcceptTeamInviteHandler,
@@ -123,6 +124,8 @@ import {
   ReportMessageHandler,
   MarkConversationReadHandler,
   ListMessagesHandler,
+  ListInboxHandler,
+  CountUnreadConversationsHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
 import { getAdminSupabase } from './supabase-admin';
@@ -378,11 +381,14 @@ export async function getChatHandlers(): Promise<{
   reportMessage: ReportMessageHandler;
   markConversationRead: MarkConversationReadHandler;
   listMessages: ListMessagesHandler;
+  listInbox: ListInboxHandler;
+  countUnreadConversations: CountUnreadConversationsHandler;
 }> {
   const client = await getServerSupabase();
   const conversationRepo = new SupabaseConversationRepository(client);
   const messageRepo = new SupabaseMessageRepository(client);
   const messageQueries = new SupabaseMessageQueries(client);
+  const conversationQueries = new SupabaseConversationQueries(client);
 
   // Pre-flight of `can_moderate_conversation` — consulted only on the rarer
   // non-sender delete path (DeleteMessageHandler skips it for self-deletes).
@@ -402,6 +408,8 @@ export async function getChatHandlers(): Promise<{
     reportMessage: new ReportMessageHandler(messageRepo),
     markConversationRead: new MarkConversationReadHandler(conversationRepo),
     listMessages: new ListMessagesHandler(messageQueries),
+    listInbox: new ListInboxHandler(conversationQueries),
+    countUnreadConversations: new CountUnreadConversationsHandler(conversationQueries),
   };
 }
 

@@ -3239,6 +3239,7 @@ export type Database = {
           retry_after_seconds: number;
         }[];
       };
+      count_unread_conversations: { Args: never; Returns: number };
       disablelongtransactions: { Args: never; Returns: string };
       dropgeometrycolumn:
         | {
@@ -3385,6 +3386,21 @@ export type Database = {
         Returns: boolean;
       };
       geomfromewkt: { Args: { '': string }; Returns: unknown };
+      get_inbox: {
+        Args: { p_limit?: number };
+        Returns: {
+          context_id: string;
+          context_slug: string;
+          conversation_id: string;
+          is_unread: boolean;
+          kind: string;
+          last_message_at: string;
+          last_read_at: string;
+          preview: string;
+          preview_sender_id: string;
+          title: string;
+        }[];
+      };
       get_or_create_conversation: {
         Args: { p_context_id: string; p_kind: string };
         Returns: string;

@@ -7,6 +7,7 @@ import { ThemeToggle } from './theme-toggle';
 import { MobileMenu } from './mobile-menu';
 import { NavDropdown, type NavDropdownItem } from './nav-dropdown';
 import { NotificationBell } from './notification-bell';
+import { MessagesNavLink } from './messages-nav-link';
 import { signOut } from './actions';
 
 function initialsOf(name: string): string {
@@ -43,6 +44,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
   // Anonymous users can't be invited, so skip the query for them.
   let pendingTeamInvites = 0;
   let notifUnread = 0;
+  let messagesUnread = 0;
   let notifItems: Array<{
     id: string;
     kind: string;
@@ -53,7 +55,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
     created_at: string;
   }> = [];
   if (isRealUser && user) {
-    const [{ count }, unreadCount, recent] = await Promise.all([
+    const [{ count }, unreadCount, recent, msgUnread] = await Promise.all([
       supabase
         .from('team_members')
         .select('team_id', { head: true, count: 'exact' })
@@ -70,10 +72,14 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10),
+      // Unread conversation count for the Messages badge (ADR 0028, Phase 2) —
+      // RLS-scoped SECURITY INVOKER RPC on the user-scoped client.
+      supabase.rpc('count_unread_conversations'),
     ]);
     pendingTeamInvites = count ?? 0;
     notifUnread = unreadCount.count ?? 0;
     notifItems = (recent.data as typeof notifItems | null) ?? [];
+    messagesUnread = (msgUnread.data as number | null) ?? 0;
   }
 
   return (
@@ -143,6 +149,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
           <ThemeToggle current={theme} />
           {userInfo ? (
             <>
+              <MessagesNavLink unread={messagesUnread} />
               {user && (
                 <NotificationBell
                   userId={user.id}
@@ -186,6 +193,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
 
         {/* Mobile nav */}
         <div className="flex items-center gap-2 md:hidden">
+          {userInfo && <MessagesNavLink unread={messagesUnread} />}
           {user && (
             <NotificationBell
               userId={user.id}
