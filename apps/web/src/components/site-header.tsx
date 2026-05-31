@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getCurrentUser } from '@/lib/server-auth';
-import type { Theme } from '@/lib/theme';
+import type { ThemePreference } from '@/lib/theme';
 import { SubmitButton } from '@/components/submit-button';
 import { ThemeToggle } from './theme-toggle';
 import { MobileMenu } from './mobile-menu';
@@ -16,7 +16,7 @@ function initialsOf(name: string): string {
   return (parts[0]?.slice(0, 2) ?? '?').toUpperCase();
 }
 
-export default async function SiteHeader({ theme }: { theme: Theme }) {
+export default async function SiteHeader({ theme }: { theme: ThemePreference }) {
   const { supabase, user } = await getCurrentUser();
 
   const isAnon = Boolean(user && (user as { is_anonymous?: boolean }).is_anonymous);

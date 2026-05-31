@@ -8,85 +8,82 @@ type State = { error?: string; ok?: boolean };
 const initialState: State = {};
 
 export function CancelEventPanel({
-    eventId,
-    attendeeCount,
-    paidAttendeeCount,
+  eventId,
+  attendeeCount,
+  paidAttendeeCount,
 }: {
-    eventId: string;
-    attendeeCount: number;
-    paidAttendeeCount: number;
+  eventId: string;
+  attendeeCount: number;
+  paidAttendeeCount: number;
 }) {
-    const action = cancelEventAction.bind(null, eventId);
-    const [state, formAction] = useFormState(action, initialState);
-    const [confirming, setConfirming] = useState(false);
+  const action = cancelEventAction.bind(null, eventId);
+  const [state, formAction] = useFormState(action, initialState);
+  const [confirming, setConfirming] = useState(false);
 
-    return (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
-            <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">
-                Cancel event
-            </h2>
-            <p className="mt-1 text-xs text-red-900/80 dark:text-red-200/80">
-                Marks the event cancelled, refunds all paid attendees
-                ({paidAttendeeCount} of {attendeeCount}), and emails everyone
-                who signed up.
+  return (
+    <div className="rounded-shape-sm border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
+      <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">Cancel event</h2>
+      <p className="mt-1 text-xs text-red-900/80 dark:text-red-200/80">
+        Marks the event cancelled, refunds all paid attendees ({paidAttendeeCount} of{' '}
+        {attendeeCount}), and emails everyone who signed up.
+      </p>
+
+      {!confirming ? (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-900/40"
+        >
+          Cancel event…
+        </button>
+      ) : (
+        <form action={formAction} className="mt-3 space-y-3">
+          <div>
+            <label
+              htmlFor="cancel-reason"
+              className="mb-1 block text-xs font-medium text-red-900 dark:text-red-200"
+            >
+              Reason (shown to attendees, optional)
+            </label>
+            <textarea
+              id="cancel-reason"
+              name="reason"
+              rows={3}
+              maxLength={500}
+              placeholder="Weather, low signups, venue conflict…"
+              className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm dark:border-red-800 dark:bg-red-950/40"
+            />
+          </div>
+          {state.error && (
+            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+              {state.error}
             </p>
-
-            {!confirming ? (
-                <button
-                    type="button"
-                    onClick={() => setConfirming(true)}
-                    className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-900/40"
-                >
-                    Cancel event…
-                </button>
-            ) : (
-                <form action={formAction} className="mt-3 space-y-3">
-                    <div>
-                        <label
-                            htmlFor="cancel-reason"
-                            className="mb-1 block text-xs font-medium text-red-900 dark:text-red-200"
-                        >
-                            Reason (shown to attendees, optional)
-                        </label>
-                        <textarea
-                            id="cancel-reason"
-                            name="reason"
-                            rows={3}
-                            maxLength={500}
-                            placeholder="Weather, low signups, venue conflict…"
-                            className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm dark:border-red-800 dark:bg-red-950/40"
-                        />
-                    </div>
-                    {state.error && (
-                        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
-                            {state.error}
-                        </p>
-                    )}
-                    <div className="flex items-center gap-2">
-                        <SubmitButton />
-                        <button
-                            type="button"
-                            onClick={() => setConfirming(false)}
-                            className="rounded-md px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/40"
-                        >
-                            Keep event
-                        </button>
-                    </div>
-                </form>
-            )}
-        </div>
-    );
+          )}
+          <div className="flex items-center gap-2">
+            <SubmitButton />
+            <button
+              type="button"
+              onClick={() => setConfirming(false)}
+              className="rounded-md px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/40"
+            >
+              Keep event
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
 }
 
 function SubmitButton() {
-    const { pending } = useFormStatus();
-    return (
-        <button
-            type="submit"
-            disabled={pending}
-            className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-        >
-            {pending ? 'Cancelling…' : 'Yes, cancel event'}
-        </button>
-    );
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+    >
+      {pending ? 'Cancelling…' : 'Yes, cancel event'}
+    </button>
+  );
 }

@@ -8,6 +8,7 @@ import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { OFF_PLATFORM_UPSELL_COOKIE } from '@/lib/off-platform-upsell';
 import { LocalDateTime } from '@/components/local-datetime';
+import { primaryButtonClass } from '@/components/primary-button';
 import { EventHero } from './_components/event-hero';
 import { EventStickyCta } from './_components/event-sticky-cta';
 import { HostsSection } from './_components/hosts-section';
@@ -22,6 +23,7 @@ import { EventSignupArea } from './_components/event-signup-area';
 import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
+import { EventMediaLink } from './_components/event-media-link';
 import { OffPlatformUpsell } from './_components/off-platform-upsell';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 import { HeroImage } from '@/components/hero-image';
@@ -37,8 +39,13 @@ export async function generateMetadata(props: {
     if (err instanceof NotFoundError) return { title: 'Event — PickupVB' };
     return { title: 'Event — PickupVB' };
   }
-  // Don't expose non-public events to crawlers.
-  const isPublic = event.visibility === 'public';
+  // Don't expose non-public events to crawlers — and keep cancelled/draft
+  // events out of the index even when public. Sitemap removal alone won't
+  // deindex a URL Google already has, so a previously-indexed cancelled event
+  // would otherwise linger in SERPs as a dead result. `follow: true` so links
+  // on the page still pass equity.
+  const indexable =
+    event.visibility === 'public' && event.status !== 'draft' && event.status !== 'cancelled';
   const dateLabel = formatEventDateLong(event.startsAt, event.timeZone);
   const placeLabel = `${event.location.city}, ${event.location.region}`;
   const summary = event.description
@@ -50,7 +57,7 @@ export async function generateMetadata(props: {
     title,
     description: summary,
     alternates: { canonical },
-    ...(isPublic ? {} : { robots: { index: false, follow: false } }),
+    ...(indexable ? {} : { robots: { index: false, follow: true } }),
     openGraph: {
       title,
       description: summary,
@@ -113,6 +120,7 @@ export default async function EventDetailPage(props: {
     hostStripeReady,
     primaryHostUserSocial,
     eligibleTeamsByDivision,
+    leagueTeamsByDivision,
     payments,
     viewerPaymentStatus,
     adHocViewerRegistrations,
@@ -123,6 +131,7 @@ export default async function EventDetailPage(props: {
     viewerPosition,
     sponsor,
     heroImageUrl,
+    mediaSummary,
     cta,
   } = vm;
 
@@ -173,10 +182,11 @@ export default async function EventDetailPage(props: {
           cta={cta}
           divisionCount={event.divisions.length}
           closingSoon={closingSoon}
+          liveNow={mediaSummary.liveCount > 0}
         />
       </header>
 
-      <section className="border-border-base overflow-hidden rounded-lg border sm:grid sm:grid-cols-2">
+      <section className="border-border-base rounded-shape-sm overflow-hidden border sm:grid sm:grid-cols-2">
         <div className="sm:border-border-base p-4 sm:border-r">
           <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">When</h2>
           <p className="text-fg mt-1 font-medium">
@@ -256,7 +266,7 @@ export default async function EventDetailPage(props: {
       )}
 
       {event.type === 'tournament' && (
-        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
+        <section className="border-border-base bg-fg/5 rounded-shape-sm border p-4">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="text-fg text-base font-semibold">Bracket</h2>
@@ -264,11 +274,24 @@ export default async function EventDetailPage(props: {
                 Set up the tournament bracket and report match results.
               </p>
             </div>
-            <Link
-              href={`/events/${event.id}/bracket` as Route}
-              className="bg-primary text-primary-fg rounded px-3 py-1 text-sm"
-            >
+            <Link href={`/events/${event.id}/bracket` as Route} className={primaryButtonClass()}>
               Open bracket
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {event.type === 'league' && (
+        <section className="border-border-base bg-fg/5 rounded-shape-sm border p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-fg text-base font-semibold">Schedule</h2>
+              <p className="text-muted text-xs">
+                Manage the weekly slate and record match results.
+              </p>
+            </div>
+            <Link href={`/events/${event.id}/schedule` as Route} className={primaryButtonClass()}>
+              Open schedule
             </Link>
           </div>
         </section>
@@ -293,6 +316,7 @@ export default async function EventDetailPage(props: {
         returnPath={returnPath}
         adHocHostRows={adHocHostRows}
         eligibleTeamsByDivision={eligibleTeamsByDivision}
+        leagueTeamsByDivision={leagueTeamsByDivision}
       />
 
       <AttendeesPanel
@@ -323,6 +347,12 @@ export default async function EventDetailPage(props: {
           hostCanCollectTips={hostStripeReady}
         />
       )}
+
+      <EventMediaLink
+        eventId={event.id}
+        totalCount={mediaSummary.totalCount}
+        liveCount={mediaSummary.liveCount}
+      />
 
       <EventSponsorSection sponsor={sponsor} />
 

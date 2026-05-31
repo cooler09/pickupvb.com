@@ -6,8 +6,18 @@ import type {
   CreateCommunityListingDto,
   UpdateCommunityListingDto,
   SearchCommunityListingsDto,
+  CreateMediaPostDto,
+  UpdateMediaPostDto,
 } from '@pickupvb/types';
-import type { CoHostParty, FollowingFeedFilters } from '@pickupvb/domain';
+import type {
+  CoHostParty,
+  FollowingFeedFilters,
+  GroupProfileEdit,
+  GroupRole,
+  ProfileBusinessInfo,
+  ProfileDetailsEdit,
+  StoredThemePreference,
+} from '@pickupvb/domain';
 
 // ---- Commands -------------------------------------------------------------
 export class CreateEventCommand {
@@ -286,6 +296,15 @@ export class GetEventDetailQuery {
   ) {}
 }
 
+/**
+ * Viewer-independent metadata for the bracket / schedule / watch spectator
+ * pages (performance audit P3 #15). Carries no viewer id — those pages resolve
+ * manage rights client-side so the page stays cacheable (P2 #14).
+ */
+export class GetEventBracketMetaQuery {
+  constructor(public readonly id: string) {}
+}
+
 export class GetFollowingFeedQuery {
   constructor(
     public readonly viewerId: string,
@@ -376,5 +395,229 @@ export class GetCommunityListingDetailQuery {
   constructor(
     public readonly idOrSlug: string,
     public readonly viewerId: string | null,
+  ) {}
+}
+
+// ---- Media posts commands -----------------------------------------------
+export class CreateMediaPostCommand {
+  constructor(
+    public readonly submitterUserId: string,
+    public readonly dto: CreateMediaPostDto,
+  ) {}
+}
+
+export class UpdateMediaPostCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly requesterId: string,
+    public readonly dto: UpdateMediaPostDto,
+  ) {}
+}
+
+export class RemoveMediaPostCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class ReportMediaPostCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly reporterUserId: string,
+    public readonly reason: string | null,
+  ) {}
+}
+
+export class HideMediaPostCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class UnhideMediaPostCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+/** Host promotes one live stream as the event's featured stream (RPC clears others). */
+export class FeatureEventStreamCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class UnfeatureMediaPostCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class EndLiveStreamCommand {
+  constructor(
+    public readonly postId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+/** Cast/move the voter's award vote for a clip (one per category per event). */
+export class CastVoteCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly postId: string,
+    public readonly category: string,
+    public readonly voterUserId: string,
+  ) {}
+}
+
+export class RetractVoteCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly category: string,
+    public readonly voterUserId: string,
+  ) {}
+}
+
+// ---- Media posts queries ------------------------------------------------
+export class ListEventMediaQuery {
+  constructor(
+    public readonly eventId: string,
+    public readonly viewerId: string | null,
+  ) {}
+}
+
+export class ListProfileMediaQuery {
+  constructor(
+    public readonly userId: string,
+    public readonly viewerId: string | null,
+  ) {}
+}
+
+// ---- User profile commands (ADR 0020) -----------------------------------
+export class UpdateProfileCommand {
+  constructor(
+    public readonly userId: string,
+    /** Already-normalized editable fields (trimming / handle normalization
+     * happen at the web boundary). The handler defends invariants. */
+    public readonly details: ProfileDetailsEdit,
+  ) {}
+}
+
+export class ChangeHandleCommand {
+  constructor(
+    public readonly userId: string,
+    /** Already lower-cased / trimmed; the aggregate validates the shape and
+     * the DB unique constraint surfaces as `ConflictError` on save. */
+    public readonly handle: string,
+  ) {}
+}
+
+export class SetProfileThemeCommand {
+  constructor(
+    public readonly userId: string,
+    /** `'system'` is a device-only cookie choice and never reaches here. */
+    public readonly theme: StoredThemePreference,
+  ) {}
+}
+
+export class SetProfileHeroImageCommand {
+  constructor(
+    public readonly userId: string,
+    /** Storage URL, or `null` to clear the hero image. */
+    public readonly url: string | null,
+  ) {}
+}
+
+export class UpdateBusinessInfoCommand {
+  constructor(
+    public readonly userId: string,
+    public readonly info: ProfileBusinessInfo,
+  ) {}
+}
+
+export class AddFriendCommand {
+  constructor(
+    public readonly viewerId: string,
+    public readonly friendId: string,
+  ) {}
+}
+
+export class RemoveFriendCommand {
+  constructor(
+    public readonly viewerId: string,
+    public readonly friendId: string,
+  ) {}
+}
+
+// ---- Group commands (ADR 0021) ------------------------------------------
+export interface CreateGroupInput extends GroupProfileEdit {
+  slug: string;
+}
+
+export class CreateGroupCommand {
+  constructor(
+    public readonly createdBy: string,
+    public readonly input: CreateGroupInput,
+  ) {}
+}
+
+export class UpdateGroupProfileCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly edit: GroupProfileEdit,
+  ) {}
+}
+
+export class AddGroupMemberCommand {
+  constructor(
+    public readonly groupId: string,
+    /** The caller; must be an owner/admin of the group. */
+    public readonly actorId: string,
+    public readonly userId: string,
+    public readonly role: GroupRole,
+  ) {}
+}
+
+export class RemoveGroupMemberCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly actorId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+export class ChangeGroupMemberRoleCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly actorId: string,
+    public readonly userId: string,
+    public readonly role: GroupRole,
+  ) {}
+}
+
+export class FollowGroupCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+export class UnfollowGroupCommand {
+  constructor(
+    public readonly groupId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+export class DeleteGroupCommand {
+  constructor(
+    public readonly groupId: string,
+    /** The caller; must be the group owner. */
+    public readonly actorId: string,
   ) {}
 }

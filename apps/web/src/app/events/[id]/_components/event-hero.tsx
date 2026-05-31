@@ -44,6 +44,13 @@ type Props = {
    * rule rejects `Date.now()` inside render.
    */
   closingSoon?: boolean;
+  /**
+   * Whether a live stream is currently broadcasting for this event. Computed
+   * at the page boundary from the cached media summary; renders a "Live now"
+   * pill linking to the media sub-page. Kept conditional so details-only
+   * viewers see nothing when nobody is streaming.
+   */
+  liveNow?: boolean;
 };
 
 /**
@@ -74,6 +81,7 @@ export function EventHero({
   cta,
   divisionCount,
   closingSoon = false,
+  liveNow = false,
 }: Props) {
   return (
     <header className="space-y-2">
@@ -130,6 +138,15 @@ export function EventHero({
                 : `${spotsRemaining} ${spotsRemaining === 1 ? 'spot' : 'spots'} left`}
             </span>
           </>
+        )}
+        {liveNow && (
+          <Link
+            href={`/events/${eventId}/media` as Route}
+            className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+            aria-label="A live stream is broadcasting now — watch"
+          >
+            <span aria-hidden="true">🔴</span> Live now
+          </Link>
         )}
         {closingSoon && registrationClosesAt !== null && (
           <span

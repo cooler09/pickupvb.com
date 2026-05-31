@@ -1,7 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
+import { isVisibleOrTimeout } from './_helpers/predicates';
+import { withAuthContext } from './_helpers/browser';
+import { findOwnedGroupUrl } from './_helpers/navigation';
 
 /**
  * Group management flows (Sections 7.2–7.6 of the test plan).
@@ -13,27 +16,6 @@ import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
  * This file covers: 7.2 (group edit), 7.3 (hero image on group), 7.4 (members — fixme),
  * 7.6 (host event as group — fixme).
  */
-
-/**
- * Finds an owned group by navigating to /profile and following any group admin link.
- * Returns the group URL or null.
- */
-async function findOwnedGroupUrl(page: import('@playwright/test').Page): Promise<string | null> {
-  await page.goto('/profile');
-  await page.waitForLoadState('domcontentloaded');
-
-  // Look for links in the groups section — owned groups often have edit/admin links.
-  const groupLinks = page.locator('a[href*="/groups/"]');
-  const count = await groupLinks.count();
-  for (let i = 0; i < count; i++) {
-    const href = await groupLinks.nth(i).getAttribute('href');
-    if (!href || href.includes('/edit') || href.includes('/members') || href.includes('/new'))
-      continue;
-    return href;
-  }
-
-  return null;
-}
 
 test.describe('group edit', () => {
   test('group edit page loads if user owns a group', async ({ page }) => {
@@ -55,11 +37,10 @@ test.describe('group edit', () => {
 
     await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
     // Edit form should have a description or name field.
-    const hasForm = await page
-      .locator('textarea, input[name="description"], input[name="name"]')
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const hasForm = await isVisibleOrTimeout(
+      page.locator('textarea, input[name="description"], input[name="name"]').first(),
+      5_000,
+    );
     expect(hasForm).toBe(true);
   });
 
@@ -208,20 +189,16 @@ test.describe('group members', () => {
     }
 
     // Get attendee-b's display name for the UserPicker search.
-    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
-    const bPage = await bContext.newPage();
     let bDisplayName: string | null = null;
     let bHandle: string | null = null;
-    try {
+    await withAuthContext(browser, STORAGE_PATHS.attendeeB, async (bPage) => {
       await bPage.goto('/profile');
       await bPage.waitForLoadState('domcontentloaded');
       const dnInput = bPage.locator('input[name="display_name"]').first();
       bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
       const hInput = bPage.locator('input[name="handle"]').first();
       bHandle = (await hInput.count()) > 0 ? await hInput.inputValue() : null;
-    } finally {
-      await bContext.close();
-    }
+    });
 
     const searchTerm = bDisplayName || bHandle;
     if (!searchTerm) {

@@ -11,6 +11,41 @@ broader entity-by-entity strategy.
 > Status: initial audit, no remediation landed. Findings are graded P1/P2/P3
 > per [docs/audits/README.md](README.md).
 >
+> **2026-05-30 update — sponsor-logo Storage migration + hero-walker data-loss fix (P1):**
+>
+> - **`event_sponsors.logo_url` now sourced from Storage, not a pasted CDN URL.**
+>   Arbitrary third-party logo URLs failed two independent browser walls — the
+>   CSP `img-src` allowlist (apps/web/next.config.mjs) and cross-origin
+>   embedding protections (CORP / hotlink / signed-URL expiry) — so logos often
+>   didn't render. Logos now upload to a new public `sponsor-logos` bucket
+>   ([20260817000000_sponsor_logos_bucket.sql](../../supabase/migrations/20260817000000_sponsor_logos_bucket.sql)),
+>   served from `*.supabase.co` which is already on the allowlist. Same posture
+>   as `hero-images`: public read, owner-prefix write. Lifecycle = HARD orphan
+>   sweep (below).
+> - **P3 #7 (new) — `sponsor-logos` orphan sweep** mirrors the hero P3 #2 walker:
+>   [20260818000000_sponsor_logos_orphan_cleanup.sql](../../supabase/migrations/20260818000000_sponsor_logos_orphan_cleanup.sql)
+>   adds `public.purge_sponsor_logo_orphans(grace_hours)` + a daily 06:15 UTC
+>   pg_cron job over `{user_id}/{event_id}/logo.{ext}` paths, retaining objects
+>   still referenced by a live `event_sponsors.logo_url`. Cache-buster-tolerant
+>   from the start (see the P1 below).
+> - **P1 #2 (new — regression in P3 #2) — the hero orphan walker silently deletes
+>   _live_ images.** `HeroImageUpload`
+>   ([hero-image-upload.tsx](../../apps/web/src/components/hero-image-upload.tsx#L55-L58))
+>   persists every URL with a `?t=<ms>` cache-buster, but
+>   `purge_hero_image_orphans` matched `hero_image_url like '%/' || name` with no
+>   trailing wildcard — the `?t=…` suffix sits past `name`, so **no live row ever
+>   matches**. After the 24h grace window the daily 06:00 UTC cron classifies
+>   every live hero as an orphan and deletes it, so hero images would vanish
+>   ~a day after upload. Graded **P1** (silent data-loss of user-uploaded
+>   content). Fixed in
+>   [20260819000000_fix_hero_image_orphan_cache_buster.sql](../../supabase/migrations/20260819000000_fix_hero_image_orphan_cache_buster.sql)
+>   (`create or replace`; liveness now matches the bare path OR `… || '?%'` on
+>   all three events/groups/profiles branches; the named cron picks up the new
+>   body, no re-schedule). **Caveats:** not reproduced against a live DB (Docker
+>   down at fix time), and the cron's prod-active status wasn't independently
+>   confirmed — but it's scheduled in an auto-applied migration, so it is almost
+>   certainly live. All three migrations are pending `pnpm db:migrate` (Docker).
+>
 > **2026-05-26 update — partial remediation shipped:**
 >
 > - **P1 #1, P2 #3, P3 #3** — retention cron jobs landed in
@@ -258,9 +293,16 @@ the host broadcast history list.
 
 - `event_tips` — refund-only, no user-facing delete (correct by design).
 - `event_sponsors` — `removeSponsor` exists at [sponsor-actions.ts](../../apps/web/src/app/events/[id]/edit/sponsor-actions.ts).
+  Logo objects now live in the `sponsor-logos` Storage bucket (2026-05-30); orphan
+  sweep shipped in [20260818000000_sponsor_logos_orphan_cleanup.sql](../../supabase/migrations/20260818000000_sponsor_logos_orphan_cleanup.sql)
+  via `public.purge_sponsor_logo_orphans(...)` + daily pg_cron (P3 #7).
 - `hero-images` Storage objects — ✅ shipped 2026-05-26 in
   [20260630000000_hero_images_orphan_cleanup.sql](../../supabase/migrations/20260630000000_hero_images_orphan_cleanup.sql)
   via `public.purge_hero_image_orphans(...)` + daily pg_cron schedule.
+  **⚠️ P1 #2 cache-buster data-loss fix (2026-05-30):** the walker's liveness
+  LIKE missed `?t=…`-suffixed URLs and would have purged live images; corrected
+  in [20260819000000_fix_hero_image_orphan_cache_buster.sql](../../supabase/migrations/20260819000000_fix_hero_image_orphan_cache_buster.sql).
+  See the top-of-file status block.
 
 ---
 
@@ -458,20 +500,22 @@ retention without paying for Postgres pages:
 
 ## Open backlog
 
-| Severity  | Item                                                                                           | Estimated effort | Status                                                                                                                                                                                                                                                                                                                                    |
-| --------- | ---------------------------------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                    | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| ~~P2 #1~~ | Group delete (`deleted_at` column, server action, RLS filter, partial index)                   | M                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| ~~P2 #2~~ | Team delete (same shape as group)                                                              | M                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                      | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                          | S                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| **P2 #5** | ~~`event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout)~~ | S                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                     | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up                                                                                                                                                                                                                                                                   |
-| ~~P3 #2~~ | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)      | S–M              | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                           | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
-| ~~P3 #4~~ | Pending team-invite TTL (30-day cap on `team_members.status='pending'`)                        | XS               | ✅ Shipped 2026-05-26 — [20260701000000_retention_team_invites_push_subs.sql](../../supabase/migrations/20260701000000_retention_team_invites_push_subs.sql). Doc-correction: there is no separate `team_member_invites` table; invites are `team_members` rows with `status='pending'` + `invited_at`.                                   |
-| ~~P3 #5~~ | `push_subscriptions` 90-day inactive purge (`coalesce(last_used_at, created_at)`)              | XS               | ✅ Shipped 2026-05-26 — same migration as P3 #4. Belt-and-suspenders with the delivery worker's 410/404 HARD-delete.                                                                                                                                                                                                                      |
-| **P3 #6** | `events.deleted_at` for host-initiated true delete (vs `status='cancelled'`)                   | M                | **Not pursued.** `status='cancelled'` is the canonical host-delete posture: cancelled events are invisible to attendees and `event_payment_audit` / `event_tips` need the row for referential integrity (RESTRICT FKs). Account-deletion path is `host_id` SET NULL (privacy.md P1 #1). Revisit only if a concrete product need surfaces. |
+| Severity  | Item                                                                                                                   | Estimated effort | Status                                                                                                                                                                                                                                                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~P1 #1~~ | `notification_outbox` 90-day purge (one migration, ~30 LOC)                                                            | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| **P1 #2** | Hero-image orphan walker deletes **live** images — `?t=…` cache-buster defeats the liveness LIKE (regression in P3 #2) | XS               | ✅ Fixed 2026-05-30 — [20260819000000_fix_hero_image_orphan_cache_buster.sql](../../supabase/migrations/20260819000000_fix_hero_image_orphan_cache_buster.sql). Not yet applied locally (Docker down).                                                                                                                                    |
+| ~~P2 #1~~ | Group delete (`deleted_at` column, server action, RLS filter, partial index)                                           | M                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P2 #2~~ | Team delete (same shape as group)                                                                                      | M                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P2 #3~~ | `notifications` TTL purge (one migration)                                                                              | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P2 #4~~ | E2E test cleanup helper + per-spec `afterAll` deletes                                                                  | S                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| **P2 #5** | ~~`event_team_registrations` soft-delete after Stripe checkout (vs hard-delete pre-checkout)~~                         | S                | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P3 #1~~ | `broadcasts.deleted_at` so hosts can hide broadcasts from their audit list                                             | S                | ✅ Schema + action shipped 2026-05-26; host history UI is the follow-up                                                                                                                                                                                                                                                                   |
+| ~~P3 #2~~ | `hero-images` Storage orphan-sweep (see correction above; needs `storage.objects` walker)                              | S–M              | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| **P3 #7** | `sponsor-logos` Storage orphan-sweep (mirrors P3 #2; cache-buster-tolerant from the start)                             | S                | ✅ Shipped 2026-05-30 — [20260818000000_sponsor_logos_orphan_cleanup.sql](../../supabase/migrations/20260818000000_sponsor_logos_orphan_cleanup.sql)                                                                                                                                                                                      |
+| ~~P3 #3~~ | `marketing_attribution` 24-month cap                                                                                   | XS               | ✅ Shipped 2026-05-26                                                                                                                                                                                                                                                                                                                     |
+| ~~P3 #4~~ | Pending team-invite TTL (30-day cap on `team_members.status='pending'`)                                                | XS               | ✅ Shipped 2026-05-26 — [20260701000000_retention_team_invites_push_subs.sql](../../supabase/migrations/20260701000000_retention_team_invites_push_subs.sql). Doc-correction: there is no separate `team_member_invites` table; invites are `team_members` rows with `status='pending'` + `invited_at`.                                   |
+| ~~P3 #5~~ | `push_subscriptions` 90-day inactive purge (`coalesce(last_used_at, created_at)`)                                      | XS               | ✅ Shipped 2026-05-26 — same migration as P3 #4. Belt-and-suspenders with the delivery worker's 410/404 HARD-delete.                                                                                                                                                                                                                      |
+| **P3 #6** | `events.deleted_at` for host-initiated true delete (vs `status='cancelled'`)                                           | M                | **Not pursued.** `status='cancelled'` is the canonical host-delete posture: cancelled events are invisible to attendees and `event_payment_audit` / `event_tips` need the row for referential integrity (RESTRICT FKs). Account-deletion path is `host_id` SET NULL (privacy.md P1 #1). Revisit only if a concrete product need surfaces. |
 
 Cross-references:
 

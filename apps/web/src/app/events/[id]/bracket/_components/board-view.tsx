@@ -5,10 +5,11 @@ import {
   type Match,
   type PoolStanding,
 } from '@pickupvb/domain';
-import { generatePlayoff, resetBracket } from '../actions';
 import { MatchCard } from './match-card';
-import type { TeamLite } from './labels';
+import { bindBracketActions, eventScope } from './bracket-action-binding';
+import type { BracketScope, TeamLite } from './labels';
 import { SubmitButton } from '@/components/submit-button';
+import { primaryButtonClass } from '@/components/primary-button';
 import { TreeBracket } from './tree-bracket';
 
 /**
@@ -37,7 +38,7 @@ export function pickLatestMatchId(matches: ReadonlyArray<Match>): string | null 
     const m = [...done].sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0]!;
     return String(m.id);
   }
-  const next = matches.filter((m) => m.status === 'pending' && m.teamAId && m.teamBId);
+  const next = matches.filter((m) => m.status === 'pending' && m.entryAId && m.entryBId);
   if (next.length > 0) {
     const m = [...next].sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber)[0]!;
     return String(m.id);
@@ -46,8 +47,12 @@ export function pickLatestMatchId(matches: ReadonlyArray<Match>): string | null 
 }
 
 export function BoardView(props: {
-  eventId: string;
-  divisionId: string;
+  /** Event path only — present for the live-scoring launcher. Standalone
+   *  brackets (ADR 0025) omit these and pass `scope` instead. */
+  eventId?: string;
+  divisionId?: string;
+  /** Standalone scope; defaults to the event scope from eventId/divisionId. */
+  scope?: BracketScope;
   matches: ReadonlyArray<Match>;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
@@ -57,7 +62,11 @@ export function BoardView(props: {
   format: BracketFormat;
   /** When set, the matching card is rendered with a ring and a "Jump to latest" link appears at the top. */
   highlightMatchId?: string | null;
+  /** Host is Pro → MatchCards offer the "Score live" launcher (ADR 0023). */
+  liveScoringEnabled?: boolean;
 }) {
+  const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
+  const a = bindBracketActions(scope);
   const isPoolPlay = props.format === 'pool_play_playoff';
   const isDoubleElim = props.format === 'double_elimination';
   const poolMatches = props.matches.filter((m) => m.pool !== null);
@@ -84,16 +93,18 @@ export function BoardView(props: {
     return (
       <div
         id={`match-${String(m.id)}`}
-        className={`scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
+        className={`rounded-shape-sm scroll-mt-24 ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
       >
         <MatchCard
-          eventId={props.eventId}
-          divisionId={props.divisionId}
+          scope={scope}
+          {...(props.eventId ? { eventId: props.eventId } : {})}
+          {...(props.divisionId ? { divisionId: props.divisionId } : {})}
           match={m}
           teamById={props.teamById}
           bestOf={props.bestOf}
           isHost={props.isHost}
           viewerId={props.viewerId}
+          liveScoringEnabled={props.liveScoringEnabled ?? false}
         />
       </div>
     );
@@ -129,7 +140,7 @@ export function BoardView(props: {
                   Returns the bracket to seeding so you can swap teams in or out, then re-generate.
                   Any entered match results will be discarded.
                 </p>
-                <form action={resetBracket.bind(null, props.eventId, props.divisionId)}>
+                <form action={a.reset}>
                   <SubmitButton className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50">
                     Reset and re-seed
                   </SubmitButton>
@@ -142,28 +153,25 @@ export function BoardView(props: {
 
       {isPoolPlay && poolMatches.length > 0 && (
         <PoolsView
-          eventId={props.eventId}
-          divisionId={props.divisionId}
+          scope={scope}
+          {...(props.eventId ? { eventId: props.eventId } : {})}
+          {...(props.divisionId ? { divisionId: props.divisionId } : {})}
           matches={poolMatches}
           teamById={props.teamById}
           bestOf={props.bestOf}
           isHost={props.isHost}
           viewerId={props.viewerId}
           highlightMatchId={props.highlightMatchId ?? null}
+          liveScoringEnabled={props.liveScoringEnabled ?? false}
         />
       )}
 
       {isPoolPlay && poolPlayComplete && !playoffExists && (
-        <div className="border-primary/40 bg-primary/5 rounded-lg border p-3 text-sm">
+        <div className="border-primary/40 bg-primary/5 rounded-shape-sm border p-3 text-sm">
           {props.isHost ? (
-            <form
-              action={generatePlayoff.bind(null, props.eventId, props.divisionId)}
-              className="flex items-center justify-between gap-2"
-            >
+            <form action={a.generatePlayoff} className="flex items-center justify-between gap-2">
               <span>Pool play is complete. Generate the playoff bracket?</span>
-              <SubmitButton className="bg-primary text-primary-fg rounded px-3 py-1 text-xs disabled:opacity-50">
-                Generate playoff
-              </SubmitButton>
+              <SubmitButton className={primaryButtonClass()}>Generate playoff</SubmitButton>
             </form>
           ) : (
             <span className="text-muted">
@@ -207,14 +215,16 @@ export function BoardView(props: {
 }
 
 function PoolsView(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
+  eventId?: string;
+  divisionId?: string;
   matches: ReadonlyArray<Match>;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
   isHost: boolean;
   viewerId: string | null;
   highlightMatchId: string | null;
+  liveScoringEnabled?: boolean;
 }) {
   const pools = distinctPools(props.matches);
   return (
@@ -222,38 +232,100 @@ function PoolsView(props: {
       {pools.map((pool) => {
         const poolMatches = props.matches.filter((m) => m.pool === pool);
         const standings = computePoolStandings(props.matches, pool);
+        const sortedPoolMatches = poolMatches
+          .slice()
+          .sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber);
+        const orderedIds = sortedPoolMatches.map((m) => String(m.id));
+        // Reorder is allowed when the host hasn't started any pool match.
+        const canReorder =
+          props.isHost && poolMatches.every((m) => m.status === 'pending' || m.status === 'bye');
         return (
           <div key={pool} className="space-y-2">
             <h2 className="text-fg text-base font-semibold">Pool {pool}</h2>
             <PoolStandingsTable standings={standings} teamById={props.teamById} />
             <div className="flex flex-wrap gap-2">
-              {poolMatches
-                .slice()
-                .sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber)
-                .map((m) => {
-                  const isHighlighted = props.highlightMatchId === String(m.id);
-                  return (
-                    <div
-                      key={m.id}
-                      id={`match-${String(m.id)}`}
-                      className={`min-w-55 scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
-                    >
-                      <MatchCard
-                        eventId={props.eventId}
-                        divisionId={props.divisionId}
-                        match={m}
-                        teamById={props.teamById}
-                        bestOf={props.bestOf}
-                        isHost={props.isHost}
-                        viewerId={props.viewerId}
+              {sortedPoolMatches.map((m, i) => {
+                const isHighlighted = props.highlightMatchId === String(m.id);
+                return (
+                  <div
+                    key={m.id}
+                    id={`match-${String(m.id)}`}
+                    className={`rounded-shape-sm min-w-55 scroll-mt-24 ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
+                  >
+                    {canReorder && (
+                      <ReorderControls
+                        scope={props.scope}
+                        pool={pool}
+                        matchId={String(m.id)}
+                        orderedIds={orderedIds}
+                        canMoveUp={i > 0}
+                        canMoveDown={i < sortedPoolMatches.length - 1}
                       />
-                    </div>
-                  );
-                })}
+                    )}
+                    <MatchCard
+                      scope={props.scope}
+                      {...(props.eventId ? { eventId: props.eventId } : {})}
+                      {...(props.divisionId ? { divisionId: props.divisionId } : {})}
+                      match={m}
+                      teamById={props.teamById}
+                      bestOf={props.bestOf}
+                      isHost={props.isHost}
+                      viewerId={props.viewerId}
+                      liveScoringEnabled={props.liveScoringEnabled ?? false}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ReorderControls(props: {
+  scope: BracketScope;
+  pool: string;
+  matchId: string;
+  orderedIds: ReadonlyArray<string>;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+}) {
+  const action = bindBracketActions(props.scope).movePoolMatch(props.pool);
+  return (
+    <div className="text-muted mb-1 flex items-center gap-1 text-xs">
+      <span className="mr-1">Order:</span>
+      <form action={action}>
+        {props.orderedIds.map((id) => (
+          <input key={id} type="hidden" name="match_id" value={id} />
+        ))}
+        <input type="hidden" name="move_id" value={props.matchId} />
+        <input type="hidden" name="direction" value="up" />
+        <button
+          type="submit"
+          disabled={!props.canMoveUp}
+          aria-label="Move match earlier"
+          className="border-border-base tap-target rounded border disabled:opacity-30"
+        >
+          ↑
+        </button>
+      </form>
+      <form action={action}>
+        {props.orderedIds.map((id) => (
+          <input key={id} type="hidden" name="match_id" value={id} />
+        ))}
+        <input type="hidden" name="move_id" value={props.matchId} />
+        <input type="hidden" name="direction" value="down" />
+        <button
+          type="submit"
+          disabled={!props.canMoveDown}
+          aria-label="Move match later"
+          className="border-border-base tap-target rounded border disabled:opacity-30"
+        >
+          ↓
+        </button>
+      </form>
     </div>
   );
 }
@@ -291,9 +363,9 @@ function PoolStandingsTable(props: {
       </thead>
       <tbody>
         {props.standings.map((s, i) => {
-          const team = props.teamById.get(String(s.teamId));
+          const team = props.teamById.get(String(s.entryId));
           return (
-            <tr key={String(s.teamId)} className="border-border-base/40 border-b">
+            <tr key={String(s.entryId)} className="border-border-base/40 border-b">
               <td className="text-muted px-2 py-1 tabular-nums">{i + 1}</td>
               <td className="text-fg px-2 py-1">{team?.name ?? '—'}</td>
               <td className="px-2 py-1 text-right tabular-nums">{s.wins}</td>

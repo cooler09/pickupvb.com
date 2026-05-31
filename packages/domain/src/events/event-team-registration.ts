@@ -1,11 +1,13 @@
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { InvariantViolation } from '../shared/result.js';
 import type { DivisionId } from './division.js';
 import type { UserId } from './volleyball-event.js';
 
 export type EventTeamRegistrationId = Brand<string, 'EventTeamRegistrationId'>;
+export const EventTeamRegistrationId = idConstructor<'EventTeamRegistrationId'>();
 export type EventTeamRegistrationMemberId = Brand<string, 'EventTeamRegistrationMemberId'>;
+export const EventTeamRegistrationMemberId = idConstructor<'EventTeamRegistrationMemberId'>();
 
 /** Captain-checkout state for a per-team-priced division (ADR 0007). */
 export const RegistrationPaymentStatus = {
@@ -20,11 +22,12 @@ export type RegistrationPaymentStatus =
 /**
  * Who created this registration (ADR 0017).
  *
- * - `'captain'` — captain self-signup via `AdHocTeamSignupPanel`. Requires
- *   a real account so `captainId` references `profiles(id)`.
- * - `'host'` — host registered an ad-hoc team on behalf of a real
- *   captain account (the captain delegated the form, or signed up at
- *   the table but is on-platform).
+ * - `'captain'` — has a real account, so `captainId` references
+ *   `profiles(id)`. Covers both captain self-signup via
+ *   `AdHocTeamSignupPanel` and host-proxy registration (the host
+ *   creating an ad-hoc team on behalf of an on-platform captain) —
+ *   the two are behaviorally identical at the aggregate level and
+ *   stored as DB `source='ad_hoc'`.
  * - `'walk_in'` — host registered a same-day team at the table for
  *   someone with no account. `captainId` is `null`; `captainDisplayName`
  *   carries the freeform identity. Walk-ins are only legal in `ad_hoc`
@@ -32,7 +35,6 @@ export type RegistrationPaymentStatus =
  */
 export const RegistrationSource = {
   Captain: 'captain',
-  Host: 'host',
   WalkIn: 'walk_in',
 } as const;
 export type RegistrationSource = (typeof RegistrationSource)[keyof typeof RegistrationSource];
@@ -94,8 +96,8 @@ export interface CreateEventTeamRegistrationProps {
   eventId: string;
   divisionId: DivisionId;
   /**
-   * Required for `'captain'` and `'host'` sources; must be `null` for
-   * `'walk_in'`. The factory validates the discriminant.
+   * Required when `source = 'captain'`; must be `null` when
+   * `source = 'walk_in'`. The factory validates the discriminant.
    */
   captainId: UserId | null;
   name: string;
@@ -109,7 +111,7 @@ export interface CreateEventTeamRegistrationProps {
   source?: RegistrationSource;
   /**
    * Required when `source = 'walk_in'`. Optional otherwise (the captain's
-   * profile display name is used for rendering on captain/host rows; this
+   * profile display name is used for rendering on captain rows; this
    * freeform field is for walk-ins who don't have a profile).
    */
   captainDisplayName?: string | null;
@@ -125,6 +127,13 @@ export interface RehydrateEventTeamRegistrationProps extends CreateEventTeamRegi
   amountPaidCents: number | null;
   paidAt: Date | null;
   paymentNote: string | null;
+  /**
+   * Mid-season forfeit timestamp (league rostered teams; ad-hoc /
+   * walk-in registrations may also carry it once the bracket reader
+   * loosens its `source='roster'` filter — see audit follow-up). Null
+   * for active registrations.
+   */
+  forfeitedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,6 +170,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     private _amountPaidCents: number | null,
     private _paidAt: Date | null,
     private _paymentNote: string | null,
+    private _forfeitedAt: Date | null,
     public readonly createdAt: Date,
     private _updatedAt: Date,
   ) {
@@ -214,6 +224,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       null,
       null,
       null,
+      null,
       now,
       now,
     );
@@ -241,6 +252,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       props.amountPaidCents,
       props.paidAt,
       props.paymentNote,
+      props.forfeitedAt,
       props.createdAt,
       props.updatedAt,
     );
@@ -280,6 +292,19 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
 
   get paymentNote(): string | null {
     return this._paymentNote;
+  }
+
+  /**
+   * Timestamp at which a host marked this team as withdrawn mid-season
+   * (league context) or null while the registration is active. Mirrors
+   * `event_team_entries.forfeited_at` written by
+   * {@link EventRepository.setRosterTeamForfeited} on the host-tools
+   * panel. Forfeit is orthogonal to payment status — a paid team can
+   * forfeit, and a forfeited team retains its payment row for
+   * accounting.
+   */
+  get forfeitedAt(): Date | null {
+    return this._forfeitedAt;
   }
 
   get updatedAt(): Date {
@@ -413,6 +438,31 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       throw new InvariantViolation(`Cannot refund from payment status "${this._paymentStatus}".`);
     }
     this._paymentStatus = RegistrationPaymentStatus.Refunded;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Mark this registration as withdrawn mid-season. Idempotent on the
+   * already-forfeited state (no-op) so a double-submit doesn't churn
+   * the timestamp. Throws if `at` is not a valid Date.
+   */
+  markForfeited(at: Date): void {
+    if (!(at instanceof Date) || Number.isNaN(at.getTime())) {
+      throw new InvariantViolation('Forfeit timestamp must be a valid Date.');
+    }
+    if (this._forfeitedAt) return;
+    this._forfeitedAt = at;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Clear a previously-recorded forfeit (the host marked the wrong
+   * team or the team changed their mind before the next match).
+   * Idempotent on the not-forfeited state.
+   */
+  reinstate(): void {
+    if (!this._forfeitedAt) return;
+    this._forfeitedAt = null;
     this._updatedAt = new Date();
   }
 }

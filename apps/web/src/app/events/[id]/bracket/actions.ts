@@ -9,6 +9,7 @@ import {
   GeneratePlayoffCommand,
   RecordMatchResultCommand,
   RegisterAdHocTeamCommand,
+  ReorderPoolMatchesCommand,
   ResetBracketCommand,
   ResetMatchCommand,
   SeedBracketCommand,
@@ -23,7 +24,7 @@ import {
   type BracketFormat,
   type MatchSet,
 } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { getMatchResultHandlers, handlers } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 
 /**
@@ -91,11 +92,43 @@ export async function createBracketFromForm(
 ): Promise<void> {
   const format = String(formData.get('format') ?? 'single_elimination') as BracketFormat;
   const config: Partial<BracketConfig> = {};
+  const bestOf = Number(formData.get('best_of') ?? '');
+  if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
   if (format === 'pool_play_playoff') {
     const poolCount = Number(formData.get('pool_count') ?? '');
     const advance = Number(formData.get('advance_per_pool') ?? '');
     if (Number.isFinite(poolCount) && poolCount >= 2) config.poolCount = poolCount;
     if (Number.isFinite(advance) && advance >= 1) config.advancePerPool = advance;
+    const schedule = String(formData.get('pool_schedule') ?? '');
+    if (schedule === 'round_robin' || schedule === 'fixed_games') {
+      config.poolSchedule = schedule;
+      if (schedule === 'fixed_games') {
+        const games = Number(formData.get('pool_games_per_team') ?? '');
+        if (Number.isFinite(games) && games >= 1) config.poolGamesPerTeam = games;
+      }
+    }
+    if (formData.get('require_work_team') != null) config.requireWorkTeam = true;
+    const rawCourts = String(formData.get('court_labels') ?? '');
+    const courts = rawCourts
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (courts.length > 0) config.courtLabels = courts;
+    // Per-pool overrides: any field named `pool_courts_<LABEL>` becomes
+    // an entry in courtsByPool. Empty string is treated as "no entry"
+    // (fall back to bracket-wide list) — to explicitly opt a pool out,
+    // the host would need future UI; we keep the form simple for now.
+    const courtsByPool: Record<string, string[]> = {};
+    for (const [key, val] of formData.entries()) {
+      if (!key.startsWith('pool_courts_')) continue;
+      const label = key.slice('pool_courts_'.length);
+      const list = String(val)
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (list.length > 0) courtsByPool[label] = list;
+    }
+    if (Object.keys(courtsByPool).length > 0) config.courtsByPool = courtsByPool;
   }
   await createBracket(
     eventId,
@@ -106,7 +139,7 @@ export async function createBracketFromForm(
 }
 
 /**
- * Reseed: the form posts hidden `team_id` inputs in the desired order.
+ * Reseed: the form posts hidden `entry_id` inputs in the desired order.
  */
 export async function seedBracketFromForm(
   eventId: string,
@@ -114,12 +147,12 @@ export async function seedBracketFromForm(
   formData: FormData,
 ): Promise<void> {
   const { user } = await requireRealUser();
-  const teamIds = formData
-    .getAll('team_id')
+  const entryIds = formData
+    .getAll('entry_id')
     .map((v) => String(v))
     .filter((v) => v.length > 0);
   try {
-    await handlers.seedBracket.execute(new SeedBracketCommand(divisionId, user.id, teamIds));
+    await handlers.seedBracket.execute(new SeedBracketCommand(divisionId, user.id, entryIds));
   } catch (err) {
     const { code, msg } = classify(err);
     revalidate(eventId);
@@ -138,7 +171,7 @@ export async function randomizeSeedFromForm(
   divisionId: string,
   formData: FormData,
 ): Promise<void> {
-  const ids = formData.getAll('team_id').map((v) => String(v));
+  const ids = formData.getAll('entry_id').map((v) => String(v));
   for (let i = ids.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const a = ids[i] as string;
@@ -147,7 +180,7 @@ export async function randomizeSeedFromForm(
     ids[j] = a;
   }
   const out = new FormData();
-  for (const id of ids) out.append('team_id', id);
+  for (const id of ids) out.append('entry_id', id);
   await seedBracketFromForm(eventId, divisionId, out);
 }
 
@@ -191,6 +224,52 @@ export async function resetBracket(eventId: string, divisionId: string): Promise
 }
 
 /**
+ * Bump a pool-play match up or down by one position. The form posts the
+ * pool's current match order via repeated hidden `match_id` inputs plus
+ * the `move_id` and `direction` of the button clicked. The server
+ * computes the new order and hands it to the aggregate. See ADR 0018
+ * Phase 1b.
+ */
+export async function movePoolMatchFromForm(
+  eventId: string,
+  divisionId: string,
+  pool: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const moveId = String(formData.get('move_id') ?? '');
+  const direction = String(formData.get('direction') ?? '');
+  const order = formData.getAll('match_id').map((v) => String(v));
+  if (!moveId || (direction !== 'up' && direction !== 'down') || order.length < 2) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'Bad reorder request.');
+  }
+  const idx = order.indexOf(moveId);
+  if (idx === -1) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'Match not in pool order.');
+  }
+  const swapWith = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapWith < 0 || swapWith >= order.length) {
+    // Already at the edge — no-op.
+    revalidate(eventId);
+    return;
+  }
+  const next = order.slice();
+  [next[idx], next[swapWith]] = [next[swapWith]!, next[idx]!];
+  try {
+    await handlers.reorderPoolMatches.execute(
+      new ReorderPoolMatchesCommand(divisionId, user.id, pool, next),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+}
+
+/**
  * Result entry. The form encodes set scores as paired `set_a_<n>` /
  * `set_b_<n>` fields starting at 1; empty pairs are dropped. Any pair
  * with one side filled but not the other is rejected as invalid.
@@ -201,7 +280,7 @@ export async function recordMatchResultFromForm(
   matchId: string,
   formData: FormData,
 ): Promise<void> {
-  await requireRealUser();
+  const { user } = await requireRealUser();
   const sets: MatchSet[] = [];
   let n = 1;
   while (true) {
@@ -223,7 +302,13 @@ export async function recordMatchResultFromForm(
     n += 1;
   }
   try {
-    await handlers.recordMatchResult.execute(new RecordMatchResultCommand(matchId, '', sets));
+    // User-scoped handler: the `record_bracket_match_result` RPC behind it
+    // authorizes the write against `auth.uid()` (host or captain of this
+    // match). See getMatchResultHandlers / docs/audits/event-data-model.md.
+    const matchHandlers = await getMatchResultHandlers();
+    await matchHandlers.recordMatchResult.execute(
+      new RecordMatchResultCommand(matchId, user.id, sets),
+    );
   } catch (err) {
     const { code, msg } = classify(err);
     revalidate(eventId);
@@ -239,9 +324,10 @@ export async function resetMatch(
   divisionId: string,
   matchId: string,
 ): Promise<void> {
-  await requireRealUser();
+  const { user } = await requireRealUser();
   try {
-    await handlers.resetMatch.execute(new ResetMatchCommand(matchId, ''));
+    const matchHandlers = await getMatchResultHandlers();
+    await matchHandlers.resetMatch.execute(new ResetMatchCommand(matchId, user.id));
   } catch (err) {
     const { code, msg } = classify(err);
     revalidate(eventId);
@@ -252,60 +338,50 @@ export async function resetMatch(
 }
 
 /**
- * Host-only escape hatch for adding a walk-in / unregistered team
- * directly to a division's bracket. Reuses the ad-hoc registration
- * pipeline (ADR 0007) so the new row participates in seeding, capacity
- * accounting, and audit history the same as any other team. The acting
- * host becomes the nominal captain — they can rename or reassign the
- * roster later from the event's team management UI.
+ * Host-only escape hatch for adding walk-in / unregistered teams directly
+ * to a division's bracket. Reuses the ad-hoc registration pipeline
+ * (ADR 0007) so each new row participates in seeding, capacity accounting,
+ * and audit history the same as any other team. The acting host becomes the
+ * nominal captain — they can rename or reassign the roster later from the
+ * event's team management UI.
  *
- * Why no member roster here: phase-1 surface is intentionally
- * just-a-name. The seeding list only needs a team identity; roster can
- * be filled in afterwards (or never — a placeholder team is a valid
- * outcome at a walk-up event).
- */
-/**
- * Host-only escape hatch for adding a walk-in / unregistered team
- * directly to a division's bracket. Reuses the ad-hoc registration
- * pipeline (ADR 0007) so the new row participates in seeding, capacity
- * accounting, and audit history the same as any other team. The acting
- * host becomes the nominal captain — they can rename or reassign the
- * roster later from the event's team management UI.
+ * Unlike the other actions in this file this one is invoked **from the
+ * client**: the walk-in modal calls it inside `useTransition` so the host
+ * can add several teams without the modal closing between each. Per the
+ * AGENTS.md server-action convention for client-invoked actions it therefore
+ * returns a typed result instead of `redirect()`-ing — the modal branches on
+ * `ok`, appends the team to its running list, clears the fields, and stays
+ * open. `revalidatePath` still runs on success so the bracket page (team
+ * count, seeding list) refreshes underneath the open modal.
  *
- * Optional `player_name_<i>` / `player_email_<i>` rows let the host
- * capture a starting roster inline. Empty name rows are skipped so the
- * host can leave extra rows blank without effect.
+ * `members` carries the optional starting roster; rows with a blank name are
+ * dropped so the host can leave extras empty without effect.
  */
-export async function addAdHocTeamFromForm(
+export async function addWalkInTeam(
   eventId: string,
   divisionId: string,
-  formData: FormData,
-): Promise<void> {
+  input: { name: string; members: ReadonlyArray<{ displayName: string; email?: string }> },
+): Promise<{ ok: true; id: string; name: string } | { ok: false; code: string; message: string }> {
   const { user } = await requireRealUser();
-  const name = String(formData.get('team_name') ?? '').trim();
+  const name = input.name.trim();
   if (!name) {
-    back(eventId, divisionId, 'team_name_required');
+    return { ok: false, code: 'team_name_required', message: 'Team name is required.' };
   }
-  const members: { displayName: string; email?: string }[] = [];
-  for (const [k, v] of formData.entries()) {
-    if (typeof v !== 'string') continue;
-    const m = /^player_name_(\d+)$/.exec(k);
-    if (!m) continue;
-    const displayName = v.trim();
-    if (!displayName) continue;
-    const emailRaw = formData.get(`player_email_${m[1]}`);
-    const email = typeof emailRaw === 'string' ? emailRaw.trim() : '';
-    members.push(email ? { displayName, email } : { displayName });
-  }
+  const members = input.members
+    .map((m) => ({ displayName: m.displayName.trim(), email: (m.email ?? '').trim() }))
+    .filter((m) => m.displayName.length > 0)
+    .map((m) =>
+      m.email ? { displayName: m.displayName, email: m.email } : { displayName: m.displayName },
+    );
+
   try {
-    await handlers.registerAdHocTeam.execute(
+    const { id } = await handlers.registerAdHocTeam.execute(
       new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, members, true),
     );
+    revalidate(eventId);
+    return { ok: true, id, name };
   } catch (err) {
     const { code, msg } = classify(err);
-    revalidate(eventId);
-    back(eventId, divisionId, code, msg);
+    return { ok: false, code, message: msg };
   }
-  revalidate(eventId);
-  back(eventId, divisionId, 'team_added');
 }

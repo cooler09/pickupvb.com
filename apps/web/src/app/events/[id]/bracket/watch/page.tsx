@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import { GetEventDetailQuery } from '@pickupvb/application';
+import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
+import { isPro } from '@/lib/pro';
+import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
 import { LatestMatchTracker } from '../_components/latest-match-tracker';
 import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
@@ -16,7 +18,7 @@ import { BracketRealtimeRefresher } from '../_components/realtime-refresher';
  *
  * Distinct from `/events/[id]/bracket` (the host/captain workspace) so the
  * spectator UI stays uncluttered and the page doesn't need to opt out of
- * caching for auth-dependent reasons. RLS on `tournament_brackets`,
+ * caching for auth-dependent reasons. RLS on `event_brackets`,
  * `bracket_matches`, and `bracket_match_sets` is already `for select using
  * (true)`, so anon viewers see the same data.
  */
@@ -29,7 +31,7 @@ export async function generateMetadata(props: {
   const sp = await props.searchParams;
   const divisionParam = pickQuery(sp, 'division') ?? null;
   try {
-    const event = await handlers.getEventDetail.execute(new GetEventDetailQuery(id, null));
+    const event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(id));
     const division =
       (divisionParam && event.divisions.find((d) => d.id === divisionParam)) ||
       event.divisions[0] ||
@@ -87,7 +89,7 @@ export default async function BracketWatchPage(props: {
 
   let event;
   try {
-    event = await handlers.getEventDetail.execute(new GetEventDetailQuery(params.id, null));
+    event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(params.id));
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
@@ -123,7 +125,13 @@ export default async function BracketWatchPage(props: {
     repositories.bracketRepo.listRegisteredTeams(event.id as never, selectedDivision.id as never),
   ]);
 
-  const teamById = new Map(registeredTeams.map((t) => [t.teamId, t]));
+  // Dual-keyed by both `entryId` and (when set) `teamId` — see page.tsx
+  // for rationale. Ad-hoc / walk-in entries have no `teams.id`.
+  const teamById = new Map<string, (typeof registeredTeams)[number]>();
+  for (const t of registeredTeams) {
+    teamById.set(t.entryId, t);
+    if (t.teamId) teamById.set(t.teamId, t);
+  }
 
   const divisionSummary = [
     selectedDivision.label,
@@ -132,6 +140,10 @@ export default async function BracketWatchPage(props: {
   ]
     .filter((s) => !!s && s !== 'open')
     .join(' · ');
+
+  // ADR 0023: spectators see in-progress scoreboard scores live, but only for
+  // Pro-host events (matches the gate on the scorer's entry button).
+  const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
 
   return (
     <article className="mx-auto max-w-5xl space-y-6 p-4">
@@ -189,7 +201,7 @@ export default async function BracketWatchPage(props: {
       <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
 
       {(!bracket || bracket.status === 'setup') && (
-        <div className="border-border-base bg-bg rounded-lg border p-6 text-center">
+        <div className="border-border-base bg-bg rounded-shape-sm border p-6 text-center">
           <p className="text-fg/80 text-sm">
             {bracket
               ? 'Seeding is in progress. The bracket will appear here once the host generates it.'
@@ -199,7 +211,7 @@ export default async function BracketWatchPage(props: {
       )}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <>
+        <LiveScoresProvider enabled={liveScoringEnabled} divisionId={selectedDivision.id}>
           <LatestMatchTracker
             matchId={pickLatestMatchId(bracket.matches)}
             autoScroll
@@ -217,7 +229,7 @@ export default async function BracketWatchPage(props: {
             format={bracket.format}
             highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
           />
-        </>
+        </LiveScoresProvider>
       )}
     </article>
   );

@@ -1,5 +1,663 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-05-30, Phase 5 inc. 8 — event-form decomposition; P3-1 resolved → entire 2026-05-29 backlog closed):**
+> **Closed P3-1, the last open finding from the 2026-05-29 re-audit.** Extracted
+> the remaining inline section JSX from the create-event form into six
+> co-located `_components/` section files (`templates-section`,
+> `event-type-section`, `basics-section`, `when-where-section`, `format-section`,
+> `visibility-section`), so [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx)
+> is now a **209-LOC orchestrator** — down from 698 (inc. 3) and **1,402
+> originally (−85%)** — holding only `useFormState` + the controlled
+> address/datetime/type/capacity/payments state + section composition. The
+> duplicated address block became a shared **`LocationFields`** component used by
+> **both** the create and edit forms;
+> [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx)
+> (592 → 526) now consumes `LocationFields` + the `form-primitives` style tokens
+> rather than re-declaring them (the DRY half the audit named). **Deliberately
+> chose explicit section props over the audit's suggested form-state context** —
+> for consistency with the inc.-3 section components (which already take
+> `fieldErrors`/`values`/`submitted` as props) and because the two forms don't
+> share a state shape, so a context wouldn't enable the cross-form DRY. Byte-for-
+> byte JSX, no field-name/behaviour change (one benign delta: edit's
+> city/region/postal/country gain inert `FieldError`/`aria-invalid` slots that
+> only render on a real validation error). Verify quad green (domain 350,
+> application 47, web 79, infra 41; lint 0 errors; build 8/8 — both `/events/new`
+> and `/events/[id]/edit` compile). No DB change. **With this, every P1 / P2 / P3
+> finding from the 2026-05-29 re-audit is resolved** — the remaining lower-
+> priority deferrals are the per-surface `EventDetailReadModel` split (a noted
+> design call) and true multi-statement `save()` atomicity (a separate RPC
+> effort). See the [Phase 5 inc. 8 journal](../journal/2026-05-30-bundle-phase-5-inc8-event-form-decomposition.md).
+>
+> **Status update (2026-05-30, Phase 5 inc. 7 — webhook payment writes behind a port; P3-2 resolved):**
+> **Closed the behavioural half of P3-2** (the half inc. 4 deferred). The inline
+> `admin.from(...)` writes in the Stripe webhook's `checkout.ts` + `charge.ts`
+> (attendee-payment mark-paid, tip mark-paid/delete/fail/refund, sponsor-slot
+> upsert, payment-audit insert, refundable-attendee lookup + delete, event
+> host/title lookups) now route through a new **`EventPaymentRepository`** port
+> ([domain](../../packages/domain/src/events/event-payment-repository.ts)) +
+> [SupabaseEventPaymentRepository](../../packages/infrastructure/src/supabase-event-payment-repository.ts),
+> wired into the `repositories` registry. The adapter runs on the service-role
+> client (session-less webhook context — pitfall #8); the port is a flat CRUD
+> contract because these sidecar rows carry **no domain invariants** (same
+> reasoning as the P3-3 payment facades — a reconciliation of Stripe state, not
+> an aggregate). **Honoured the finding's "characterization tests first"
+> precondition on this live charge-write path:** an 18-case adapter test pins
+> every table/op/filter/payload — written from the _original_ handler queries so
+> the **verbatim relocation can't silently drift** — and 24 handler orchestration
+> tests (fake repo) pin branch selection, arg mapping, `analytics`/`notify`
+> dispatch, and the metadata guards (user_id-mismatch throw, missing-PI skips,
+> blank-sponsor no-op). `checkout.ts`/`charge.ts` now hold **zero raw
+> `supabase`/`admin` queries** (297→268 / 120→81 LOC) and are pure orchestration;
+> the team-payment branches were already aggregate-mediated. **+42 tests** (infra
+> 23→41, web 55→79). Verify quad green (domain 350, application 47, web 79, infra
+> 41; lint 0 errors). No DB change. **With this, P3-2 is fully resolved — the
+> only open Phase 5 / architecture item left is P3-1 remainder** (the
+> `NewEventForm` form-state context + `edit-event-form` DRY). See the
+> [Phase 5 inc. 7 journal](../journal/2026-05-30-bundle-phase-5-inc7-webhook-payment-repo.md).
+>
+> **Status update (2026-05-30, Phase 5 inc. 6 — payment-facade decision; P3-3 resolved):**
+> **Resolved P3-3 — chose option (b): the host-payment `lib/` facades over the
+> repository ports are a _sanctioned_ shortcut, not a CQRS gap.** Investigation
+> (callsite survey + reading both facades + the two "aggregates"): `pro.ts`
+> (10 importers) and `host-stripe-account.ts` (11 importers) are thin
+> pass-throughs to `repositories.hostSubscriptionRepo` /
+> `hostStripeAccountRepo`. Adding `application` handlers would buy **nothing**,
+> for four concrete reasons — (1) `HostStripeAccount`/`HostSubscription` are
+> **pure type aliases + a port `interface` with zero invariants** (the same
+> finding that closed their P3-4 slice — no state machine for a handler to
+> protect); (2) the reads are CQRS read projections (often a Postgres function
+> like `is_pro_host`); (3) **`isPro` literally can't move inward** — it's
+> `React.cache`-memoized for per-request dedup (perf audit P3 #12) and `react`
+> is purity-banned from `@pickupvb/application`; (4) the writes are
+> **session-less Stripe mirrors** run from `lib/webhooks/*` on the admin client
+> (no user / no RLS → a handler adds no authz). So wrapping them in handlers
+> would add a zero-behaviour layer that misleads (playbook item 4). Documented
+> as **AGENTS.md "Patterns surfaced by audits" item #10** with an explicit
+> re-open trigger (promote to a handler the moment either type grows a real
+> invariant / multi-step transition). **Doc-only — no code or DB change**;
+> verify quad still green (domain 350, application 47, web 55, infra 23; lint 0
+> errors). **Remaining Phase 5 (both the explicitly-deferred behaviour-sensitive
+> halves):** P3-1 remainder (form-state context + edit-form DRY) and P3-2
+> remainder (route the webhook attendee/tip/sponsor writes through payment repos
+> — needs characterization tests first). See the
+> [Phase 5 inc. 6 journal](../journal/2026-05-30-bundle-phase-5-inc6-payment-facade-decision.md).
+>
+> **Status update (2026-05-30, Phase 5 inc. 5 — domain test backfill; P3-4 resolved):**
+> Backfilled the **last two domain units with real invariant logic** that the
+> P3-4 finding named as still-untested: `events/division` (**+33** — every
+> `create()` guard: label required/≤60 + trim, sortOrder non-negative integer,
+> surface×format compatibility, tierLabel ≤40/null-coerce, teamSize range +
+> required-for-Partners/PairDraw, priceCents range incl. free, prize text/purse,
+> the `endsAt > startsAt` schedule window, all documented defaults, and the
+> `fromPersistence` no-validation rehydration path) + `events/location` (**+10**
+> — lat/long range incl. the ±90 / ±180 boundaries, required city/country, field
+> trimming, blank-address/region/postal allowed). **+43 tests, domain 307 → 350,
+> zero production change.** The two _other_ units the finding listed —
+> `payments/host-stripe-account` and `payments/host-subscription` — turned out to
+> be **pure type aliases + a repository `interface` with no logic** (Stripe-shaped
+> read models; all behaviour is in the infra adapters, which are integration
+> seams not pure units), so per AGENTS.md "skip the test for a pure type tweak"
+> there is nothing to unit-test there. **With this, every domain unit carrying
+> invariant logic is covered and P3-4 is closed.** Same safe-half-first shape as
+> Phase 5 inc. 2 — locks in behaviour, needs no product decision. Verify quad
+> green (domain 350, application 47, web 55, infra 23; lint 0 errors). No DB
+> change. **Remaining Phase 5:** P3-1 remainder (form-state context + edit-form
+> DRY), P3-2 remainder (route DB writes through payment repos, needs
+> characterization tests first), P3-3 (payment-handler decision — needs a product
+> call). See the
+> [Phase 5 inc. 5 journal](../journal/2026-05-30-bundle-phase-5-inc5-domain-test-backfill.md).
+>
+> **Status update (2026-05-30, Phase 5 inc. 4 — Stripe webhook decomposition; P3-2 partial):**
+> Extracted the 7 event handlers + the team-payment mediators out of the
+> **833-LOC** [stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts)
+> into five cohesive `lib/webhooks/` modules (`connect`, `checkout`, `charge`,
+> `subscription`, `team-payment-mediators`); **route.ts is now 156 LOC** — the
+> signature/idempotency boundary + the dispatch switch. **Verbatim relocation,
+> zero behaviour change**, and parity-audited on the money path (all 8
+> `analytics.capture`, both `notify`, every captured event name + checkout
+> `kind`, and the full `admin.from(...)` table-op distribution match the
+> original). **Deliberately deferred the behavioural half** of the Fix
+> ("route DB writes through the payment repos") — that changes the live charge
+> write path (the inline attendee/tip/sponsor `admin.from` updates) and wants
+> **characterization tests first** (the code has none; Stripe + admin client are
+> heavy to mock). Same safe-half-first shape as P3-1 / P2-3. Verify quad green
+> (domain 307, application 47, web 55, infra 23; lint 0 errors). No DB change.
+> **Remaining Phase 5:** P3-1 remainder (form-state context), P3-3
+> (payment-handler decision). See the
+> [Phase 5 inc. 4 journal](../journal/2026-05-30-bundle-phase-5-inc4-stripe-webhook-decomposition.md).
+>
+> **Status update (2026-05-30, Phase 5 inc. 3 — new-event-form decomposition; P3-1 partial):**
+> Relocated the create-event form's already-parameterized branch/leaf
+> components out of the **1,402-LOC** [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx)
+> into four cohesive `_components/` files (`form-primitives` — style tokens +
+> `val`/`chk` + the small shared controls; `payment-fields` — onboarding banner /
+> refund window / pricing + payment-settings subsections; `open-play-body`;
+> `external-fields`), dropping the form file to **698 LOC**. Byte-for-byte JSX,
+> no behaviour change, no new field names — a pure relocation that also unblocks
+> the `edit-event-form.tsx` (592 LOC) DRY reuse the audit flagged. The original
+> "one-use helpers, keep them inline" note is overridden precisely because they
+> become shared. **Deferred (the riskier half):** the stateful `NewEventForm`
+> orchestrator (≈660 LOC, 23 hooks) still prop-drills all form state — lifting
+> its inline sections behind a form-state context to hit the ADR-0005 ~200-LOC
+> target is behaviour-sensitive and wants the create/edit flows exercised.
+> Verify quad green (domain 307, application 47, web 55, infra 23; lint 0
+> errors). No DB change. **Remaining Phase 5:** P3-2 (Stripe webhook), P3-3
+> (payment-handler decision). See the
+> [Phase 5 inc. 3 journal](../journal/2026-05-30-bundle-phase-5-inc3-new-event-form-decomposition.md).
+>
+> **Status update (2026-05-29, Phase 5 inc. 2 — domain test backfill; P3-4 priorities covered):**
+> Backfilled the two units the P3-4 finding named as priorities, plus two cheap
+> adjacent pure units — **+40 domain tests (267 → 307), zero production change.**
+> New: `brackets/standings.test.ts` (8 — tally + 3-key tiebreak sort + pool
+> filter + incomplete/missing-participant handling; `distinctPools`),
+> `brackets/match.test.ts` (7 — `determineWinner` best-of-N majority / null-until-
+> clinched / tied-set-invalid / null-ids), `community-listings/community-listing.test.ts`
+> (18 — create invariants + the full claim/approve/reject + hide/unhide/remove/
+> update state machine incl. every `ConflictError` guard), and
+> `community-listings/external-url.test.ts` (7 — https-only / absolute /
+> blocked-host). Picked as the safe, high-compounding step (locks in behaviour
+> so the riskier Phase-5 items — esp. the P3-2 webhook teardown — run against a
+> green suite; no product decision needed). Still-deferred P3-4 units:
+> `division`, the two payments aggregates, `events/location`. Verify quad green
+> (domain 307, application 47, web 55, infra 23; lint 0 errors). No DB change.
+> **Remaining Phase 5:** P3-2 (Stripe webhook), P3-1 (new-event-form), P3-3
+> (payment-handler decision). See the
+> [Phase 5 inc. 2 journal](../journal/2026-05-29-bundle-phase-5-inc2-domain-test-backfill.md).
+>
+> **Status update (2026-05-29, Phase 5 inc. 1 — uniform analytics-outbox dispatch; P2-4 resolved):**
+> **Phase 5 (opportunistic) has begun, closing P2-4** (half-wired domain-event
+> outbox). User chose option (a) — dispatch uniformly. `dispatchAnalyticsOutbox`
+>
+> - `mapDomainEventToAnalytics` are generalized from `VolleyballEvent` to
+>   `AggregateRoot<unknown>` (with an `instanceof VolleyballEvent` narrow before
+>   reading subtype props), and **every handler that saves a raising aggregate
+>   (`VolleyballEvent` + `Bracket`) now dispatches after `save()`** via an
+>   optional injected `analytics` port — create-event, free-agent join/leave, the
+>   3 event-division handlers, team register/withdraw, all 8 bracket handlers —
+>   wired through the composition root (incl. the captain-RLS
+>   `getMatchResultHandlers`). `raise()` now implies delivery; the mapper still
+>   returns `null` for un-taxonomied events, so **no new analytics are captured**
+>   (taxonomy unchanged) — adding a capture is now a one-line mapper change, live
+>   everywhere. +5 tests (mapper instanceof-guard ×2 + new `dispatch-outbox.test.ts`
+>   ×3). Verify quad green (domain 267, application 47, web 55, infra 23; lint 0
+>   errors). No DB change. **Remaining Phase 5:** P3-2 (Stripe webhook), P3-1
+>   (new-event-form), P3-3 (payment-handler decision), P3-4 (test backfill). See
+>   the [Phase 5 inc. 1 journal](../journal/2026-05-29-bundle-phase-5-inc1-outbox-uniform-dispatch.md).
+>
+> **Status update (2026-05-29, Phase 4 (EventRepository) inc. 3 — event-detail read-path consolidation; Phase 4 structurally complete):**
+> **P2-6 addressed — the roadmap's structural Phase 4 (`EventRepository`
+> teardown: P2-2 + P2-3 + P2-6) is now complete.** All `unstable_cache` usage
+> for `/events/[id]` moved into one module
+> [event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts);
+> [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+> shrank **999 → 625 LOC** (now purely the orchestrator). The scattered
+> `event:{id}` tag — a magic string in ~25 places — is centralized in
+> [lib/cache-tags.ts](../../apps/web/src/lib/cache-tags.ts) (`eventCacheTag` /
+> `profileCacheTag` / `hostStripeCacheTag`) and adopted at the cache sites + all
+> 16 `updateTag` eviction sites across 9 action files. **Deliberate deviation:**
+> caching is **not** pushed into `@pickupvb/application` (the audit's Fix text) —
+> `unstable_cache` is a `next/*` primitive the purity ratchet bans from the
+> application layer, so it stays in the web layer, consolidated. No runtime
+> behaviour change (same keys / windows / tags), no DB change. Verify quad green
+> (domain 267, application 42, web 55, infra 23; lint 0 errors). The
+> `EventDetailReadModel` per-surface split stays deferred (the audit's own
+> lower-priority design call). See the
+> [Phase 4 (EventRepository) inc. 3 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc3-event-detail-cache.md).
+>
+> **Status update (2026-05-29, Phase 4 (EventRepository) inc. 2 — getDetail → testable mappers):**
+> **P2-3 advanced.** `SupabaseEventRepository.getDetail` (the ~480-LOC method
+> the audit flagged as un-unit-testable) now delegates all parsing to a new pure
+> module [event-detail/mappers.ts](../../packages/infrastructure/src/event-detail/mappers.ts)
+> (`mapAttendees` with the waitlist + `filledByPosition` pass, `mapRegisteredTeams`,
+> `mapWinnerLabels`, `computeSpotsRemaining`, `mapCoHosts`,
+> `mapViewerHostableGroups`, `mapViewerCaptainedTeams`, `mapFreeAgents`, +
+> `toProfileLite`/`toGroupLite`). `getDetail` shrank **~480 → ~291 LOC** (just
+> the two `Promise.all` query waves + assembly now) and the adapter file **1,310
+> → 1,141 LOC**; the duplicated `rowToCapacity`/`divisionRowToCapacity` collapse
+> into one `capacityFromRow`. **+16 mapper unit tests** (infra suite 7 → 23) pin
+> the logic that had no seam before (also chips at P3-4). I **kept the queries in
+> `getDetail`** rather than splitting into query-owning `loadX` loaders as the
+> Fix text suggested — the deliberate two-wave batching is a perf characteristic,
+> and the testability the finding wants lives in the _parsing_, not the I/O.
+> `getDetail`'s public contract + query behaviour are byte-for-byte preserved.
+> Verify quad green (domain 267, application 42, web 55, infra 23; lint 0
+> errors). No DB change. **Remaining on this track:** P2-6 (consolidate the
+> 999-LOC web-layer `load-event-detail.ts` read path behind one handler). See the
+> [Phase 4 (EventRepository) inc. 2 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc2-getdetail-mappers.md).
+>
+> **Status update (2026-05-29, Phase 4 (EventRepository) inc. 1 — ISP split of the god-port):**
+> **The roadmap's structural "Phase 4" (split `EventRepository` + decompose the
+> adapter — P2-2 / P2-3 / P2-6) has begun.** Note the label collision: the
+> execution log's earlier "Phase 4 inc. 1–5" was the **notification subdomain**
+> (P2-1 fix #3, now complete); this is a _different_ track — the
+> `EventRepository` teardown — so its increments are labeled **"Phase 4
+> (EventRepository) inc. N"**. This first increment closes the **P2-2 ISP
+> violation**: the four-responsibility god-port is split into
+> `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail;
+findIdByShortCode }`, and `EventMembershipStore { addCoHost; removeCoHost;
+setRosterTeamForfeited }`, with `EventRepository` surviving only as the
+> composed union the Supabase adapter `implements`. Every application handler
+> now depends on the **narrow slice it uses** (writers → `EventWriteStore`,
+> `Search`/`GetEventDetail` → `EventReadModels`, co-host → `EventMembershipStore`,
+> `league-roster` → `EventWriteStore & EventMembershipStore`). Pure type-level
+> refactor — zero churn in the composition root or the four test files (the
+> single concrete adapter satisfies all slices), no new tests. Verify quad green
+> (domain 267, application 42, web 55, infra 7; lint 0 errors). No DB change.
+> **Remaining on this track:** P2-3 (decompose the 1,482-LOC adapter / ~480-LOC
+> `getDetail` into testable loaders) and P2-6 (consolidate the event-detail read
+> path behind one handler). See the
+> [Phase 4 (EventRepository) inc. 1 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc1-isp-split.md).
+>
+> **Status update (2026-05-29, Phase 4 inc. 5 — notification prefs; all three P2-1 fixes complete):**
+> The settings page (`profile/notifications`) read + write moved behind a
+> user-scoped `NotificationPreferencesPort` (`find` / `upsertChannels`) +
+> [SupabaseNotificationPreferencesRepository](../../packages/infrastructure/src/supabase-notification-preferences-repository.ts)
+> — distinct from the fan-out's admin `loadPreferences` (ISP). **With this, the
+> notification subdomain's named tables (`notification_outbox` / `broadcasts` /
+> `push_subscriptions` / `notification_preferences`) are fully drained from the
+> web layer, and all three P2-1 fix items are complete:** #1 GroupRepository
+> (ADR 0021), #2 UserProfile/ProfileQueries (ADR 0020), #3 NotificationOutboxPort
+>
+> - siblings (ADR 0022). Verify quad green (domain 267, application 42, web 55,
+>   infra 7; lint 0 errors). No DB change. **Residue (explicitly out of the three
+>   prioritized fixes):** the in-app notification _bell_ reads
+>   (`notification-bell.tsx` client island, `site-header.tsx` unread count —
+>   viewer-scoped) and the event payment **sidecars** (`event_tips` /
+>   `event_sponsors` / `event_payment_audit` / `event_participant_payments`) the
+>   finding flagged as lower-priority "don't boil the ocean" reads. See the
+>   [Phase 4 inc. 5 journal](../journal/2026-05-29-bundle-phase-4-inc5-notification-prefs.md).
+>
+> **Status update (2026-05-29, Phase 4 inc. 4 — broadcasts):**
+> The `broadcasts` table moved behind a `BroadcastPort` (`create` / `markSent` /
+> `findSender` / `softDelete`) +
+> [SupabaseBroadcastRepository](../../packages/infrastructure/src/supabase-broadcast-repository.ts).
+> The event + team [broadcast-actions](../../apps/web/src/app/events/%5Bid%5D/broadcast-actions.ts)
+> (insert → fan-out → mark-sent) and [hide-broadcast](../../apps/web/src/app/_actions/hide-broadcast.ts)
+> (sender-authz read → admin soft-delete) migrated off raw
+> `supabase.from('broadcasts')`. Client-per-op (like the broadcast RLS shape):
+> `create`/`findSender` on the user client (RLS host/captain/sender),
+> `markSent`/`softDelete` on admin (fan-out done / RLS-quirk soft-delete,
+> sender-authorized first). Also drained the two broadcast sender-name `profiles`
+> reads onto `ProfileQueries.findCardById` (keeps the profiles surface fully
+> drained). The recipient reads (`event_participants` / `team_members` / `teams`)
+> stay raw — events/teams concerns, not broadcasts. Verify quad green (domain
+> 267, application 42, web 55, infra 7; lint 0 errors). No DB change. **Remaining
+> P2-1: just the prefs page** (`profile/notifications`). See the
+> [Phase 4 inc. 4 journal](../journal/2026-05-29-bundle-phase-4-inc4-broadcasts.md).
+>
+> **Status update (2026-05-29, Phase 4 inc. 3 — push subscribe):**
+> The push-subscription **write** side (`api/notifications/subscribe`) moved
+> behind the port. `PushSubscriptionPort` gained `upsert(userId, sub)` +
+> `removeForUser(userId, endpoint)` (with a `PushSubscriptionUpsert` DTO); the
+> [subscribe route](../../apps/web/src/app/api/notifications/subscribe/route.ts)
+> POST/DELETE migrated off raw `supabase.from('push_subscriptions')`. The
+> adapter is **client-injected** — the subscribe route passes the viewer's
+> session client (RLS-scoped self upsert/delete), the worker passes the admin
+> client (session-less read/prune) — so the same `SupabasePushSubscriptionRepository`
+> serves both. `push_subscriptions` is now fully behind the port. Verify quad
+> green (domain 267, application 42, web 55, infra 7; lint 0 errors). No DB
+> change. **Remaining P2-1:** broadcasts + the prefs page. See the
+> [Phase 4 inc. 3 journal](../journal/2026-05-29-bundle-phase-4-inc3-push-subscribe.md).
+>
+> **Status update (2026-05-29, host social-handles read — Phase 2b remnant closed):**
+> The last deferred profile read (host social handles in
+> [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts),
+> deferred at Phase 2b inc. 7) moved onto `ProfileQueries.findSocialLinksById`
+> (new `ProfileSocialLinks` read model) + `SupabaseProfileRepository`. **Drive-by
+> fix:** the old `loadPrimaryHostSocialFresh` called `getServerSupabase()`
+> (cookies) **inside `unstable_cache`** — the AGENTS.md pitfall (would throw /
+> return empty). The cached loader now resolves the admin client via dynamic
+> `import()` inside the cache callback (the documented pattern; the host's public
+> socials are viewer-independent), and the raw fresh loader is deleted. **With
+> this, the entire profiles/friendships read+write surface is drained.** Verify
+> quad green (domain 267, application 42, web 55, infra 7; lint 0 errors). No DB
+> change. **Remaining P2-1:** the notification subdomain's push-subscribe,
+> broadcasts, and prefs surfaces. See the
+> [host-social journal](../journal/2026-05-29-bundle-host-social-handles-read.md).
+>
+> **Status update (2026-05-29, Phase 4 inc. 2 — outbox drain: cron worker + purge):**
+> The outbox **drain side** moved behind two ISP-segregated ports. A
+> `NotificationOutboxDrainPort` (`claimBatch` / `markSent` / `markSkipped` /
+> `markFailed` / `purgeTerminal` / `purgeFailed`) — implemented by the existing
+> `SupabaseNotificationOutboxRepository` (now also a drain adapter) — and a new
+> `PushSubscriptionPort` (`listByUsers` / `deleteByEndpoints`) +
+> [SupabasePushSubscriptionRepository](../../packages/infrastructure/src/supabase-push-subscription-repository.ts).
+> The [worker route](../../apps/web/src/app/api/notifications/worker/route.ts)
+> and the [purge route](../../apps/web/src/app/api/notifications/outbox-purge/route.ts)
+> migrated off raw `supabase.from('notification_outbox'/'push_subscriptions')` —
+> the email/web-push **delivery providers and the retry/backoff policy stay in
+> the route** (orchestration), only the DB ops moved. The purge's
+> `community_listing_reports` delete (a different subdomain) stays a direct
+> admin delete, noted. Verify quad green (domain 267, application 42, web 55,
+> infra 7; lint 0 errors). No DB change. **Remaining notification surfaces:**
+> push subscribe (adds `upsert` to `PushSubscriptionPort`), broadcasts, and the
+> prefs page. See the
+> [Phase 4 inc. 2 journal](../journal/2026-05-29-bundle-phase-4-inc2-outbox-drain-worker-purge.md).
+>
+> **Status update (2026-05-29, Phase 4 inc. 1 — NotificationOutboxPort (notify fan-out)):**
+> **P2-1 Fix #3 (the notification outbox) has begun.** The core fan-out in
+> [lib/notify.ts](../../apps/web/src/lib/notify.ts) — the single entry point every
+> trigger calls — now writes through a `NotificationOutboxPort`
+> ([domain](../../packages/domain/src/notifications/outbox-port.ts)) implemented by
+> [SupabaseNotificationOutboxRepository](../../packages/infrastructure/src/supabase-notification-outbox-repository.ts)
+> (service-role client — session-less fan-out, pitfall #8). `notify()` keeps its
+> signature + best-effort `try/catch`; the fan-out moved into an exported
+> `dispatch(port, …)` so it finally has a **test seam** — 5 Vitest cases pin the
+> channel selection (transactional bypass, prefs gating, email-absent skip,
+> idempotency-key namespacing) on this previously-untested silent-in-prod path.
+> Raw admin `supabase.from('notification_preferences'/'notifications'/'notification_outbox')`
+> gone from `notify.ts`; row-insert failures are now **logged** (the old code
+> dropped the `{ error }` silently). Port placement: `@pickupvb/domain` with
+> plain-string kind/channel to keep `domain` dependency-free (see
+> [ADR 0022](../adr/0022-notification-outbox-port.md)). Verify quad green (domain
+> 267, application 42, web 55, infra 7; lint 0 errors). No DB change. **Remaining
+> notification surfaces:** the cron worker/purge, push subscribe, broadcasts, and
+> the prefs page (ADR 0022 table). See the
+> [Phase 4 inc. 1 journal](../journal/2026-05-29-bundle-phase-4-inc1-notification-outbox-port.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 8 — group membership joins + sitemap; groups subdomain drained):**
+> The last group reads — `listMembershipsForUser` (profile "my groups", `GroupMembership[]`),
+> `listManageableGroups` (owner/admin groups for `events/new`), and `listSlugs`
+> (sitemap) — moved onto `GroupQueries`. [profile/page.tsx](../../apps/web/src/app/profile/page.tsx),
+> [events/new/page.tsx](../../apps/web/src/app/events/new/page.tsx), and
+> [sitemap.ts](../../apps/web/src/app/sitemap.ts) migrated off their raw
+> `group_members` / `groups` reads (the nested `groups!inner` join now lives in
+> the adapter). **With this, the groups subdomain (Phase 3) is effectively
+> drained** — every group page/action read+write is behind `GroupRepository` /
+> `GroupQueries`, save three documented exceptions: the cross-aggregate
+> `hero-image-actions.ts` groups branch, the `group-viewer-actions.tsx`
+> browser-island follow-state read, and the sanctioned admin soft-delete closure
+> in `handlers.ts`. Verify quad green (domain 267, application 42, web 50,
+> infra 7; lint 0 errors). No DB change. **Remaining P2-1:** the notification
+> outbox (`notification_outbox` / `broadcasts` / `push_subscriptions`, a separate
+> subdomain) and the deferred `load-event-detail.ts` host-social read. See the
+> [Phase 3 inc. 8 journal](../journal/2026-05-29-bundle-phase-3-inc8-group-membership-joins.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 7 — group roster + viewer-role reads):**
+> The members roster + the owner/admin gates moved behind the read port:
+> `GroupQueries.listMembers(groupId)` (a `GroupMemberCard[]` joining the roster to
+> each member's `ProfileCard` — composing `ProfileQueries.findCardsByIds` on the
+> same client, the adapter-composes-adapter seam from Phase 2b inc. 6) and
+> `findViewerRole(groupId, userId)`. Migrated the
+> [detail page](../../apps/web/src/app/groups/%5Bid%5D/page.tsx) roster, the
+> [members page](../../apps/web/src/app/groups/%5Bid%5D/members/page.tsx) (group
+> load + role gate + roster), and the
+> [edit page](../../apps/web/src/app/groups/%5Bid%5D/edit/page.tsx) role gate
+> (the leftover raw read from inc. 6) — all off raw `supabase.from('group_members')`.
+> Verify quad green (domain 267, application 42, web 50, infra 7; lint 0 errors).
+> No DB change. **Remaining group reads:** the my-groups / hostable-groups
+> membership joins (`profile/page.tsx`, `events/new/page.tsx`) and the sitemap
+> `slug` list. See the
+> [Phase 3 inc. 7 journal](../journal/2026-05-29-bundle-phase-3-inc7-group-roster-reads.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 6 — GroupQueries find-one reads):**
+> The four "fetch one group by slug" reads moved behind a new
+> `GroupQueries.findDetailBySlug` + `GroupDetail` read model (`GroupCard` +
+> `heroImageUrl` + `createdBy`): the [detail page](../../apps/web/src/app/groups/%5Bid%5D/page.tsx)
+> group load + `generateMetadata`, the
+> [edit page](../../apps/web/src/app/groups/%5Bid%5D/edit/page.tsx) load (+ its
+> `EditGroupForm` prop now camelCase), and the
+> [OG image](../../apps/web/src/app/groups/%5Bid%5D/opengraph-image.tsx). **Drive-by
+> fix:** the OG image was querying the `id` column with the route's _slug_ value
+> (so it never resolved and always showed the generic title); routed through
+> `findDetailBySlug` like the detail page, it now resolves. Verify quad green
+> (domain 267, application 42, web 50, infra 7; lint 0 errors). No DB change.
+> **Remaining group reads:** the members roster (detail + members pages) +
+> viewer-role gates → `listMembers` composing `ProfileQueries.findCardsByIds`
+> (inc. 7), then the my-groups / hostable-groups joins (`profile`, `events/new`)
+> and the sitemap. See the
+> [Phase 3 inc. 6 journal](../journal/2026-05-29-bundle-phase-3-inc6-group-detail-reads.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 5 — GroupQueries read port (cards)):**
+> The groups **read** side opens with a CQRS read port (mirroring `ProfileQueries`).
+> New `GroupQueries` domain port + `GroupCard` read model
+> ([group-queries.ts](../../packages/domain/src/groups/group-queries.ts)) +
+> client-injected [SupabaseGroupQueryRepository](../../packages/infrastructure/src/supabase-group-query-repository.ts)
+> (`searchDirectory` + `listCards`; filters `deleted_at is null`, reuses the
+> shared `escapeLike` guard). Migrated the two card-shaped sites — the
+> [groups directory](../../apps/web/src/app/groups/page.tsx) (paginated + search)
+> and the [home-page rail](../../apps/web/src/app/page.tsx) — off raw
+> `supabase.from('groups')`, render now on camelCase `GroupCard`. Like
+> `ProfileQueries`, the group reads are heterogeneous (directory cards, detail +
+> members, my-groups/hostable joins, sitemap, OG) so they drain across
+> increments; this is the foundational card slice. No new tests (read
+> projections; `escapeLike` already pinned). Verify quad green (domain 267,
+> application 42, web 50, infra 7; lint 0 errors). No DB change. **Next reads:**
+> group detail + metadata/OG by slug/id (inc. 6), then members roster +
+> my-groups/hostable joins + sitemap. See the
+> [Phase 3 inc. 5 journal](../journal/2026-05-29-bundle-phase-3-inc5-group-queries-cards.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 4 — group delete; group _writes_ complete):**
+> `deleteGroupAction` folded onto the aggregate — **with this, every group
+> _write_ (create/update, membership, follow, delete) is behind `GroupRepository`.**
+> The owner-only delete rule is now `Group.assertCanDelete` (the domain rule,
+> using the roster); a new `DeleteGroupHandler` does owner-authz then runs two
+> injected closures (the `loadEventClaimFacts` precedent): a `hostsUpcomingEvents`
+> cross-aggregate guard (user-client `events` count) and a `softDelete`
+> admin-client `deleted_at` flip (the documented RLS-quirk write — sanctioned
+> because the owner check runs first, AGENTS.md pitfall #8).
+> [delete-actions.ts](../../apps/web/src/app/groups/%5Bid%5D/edit/delete-actions.ts)
+> is now a thin orchestrator with **zero raw `supabase` queries**. +2
+> `assertCanDelete` domain tests. Verify quad green (domain 267, application 42,
+> web 50, infra 7; lint 0 errors). No DB change. **Remaining P2-1:** the group
+> _read_ sites (`groups/**` pages, sitemap, profile, events/new) → a
+> `GroupQueries` read port (opportunistic), the deferred host-social-handles
+> read, and the notification outbox. See the
+> [Phase 3 inc. 4 journal](../journal/2026-05-29-bundle-phase-3-inc4-group-delete.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 3 — group follow edges):**
+> The `group_followers` follow/unfollow writes moved to focused
+> `GroupRepository.addFollowEdge` / `removeFollowEdge` ops (idempotent upsert /
+> delete on the self-scoped edge table) — the same shape as the friend edges
+> (ADR 0020 §5). A follow is a viewer's own edge with no group-side invariant, so
+> these **don't** go through the aggregate; `FollowGroupHandler` /
+> `UnfollowGroupHandler` join `getGroupHandlers()` and
+> [follow-actions.ts](../../apps/web/src/app/groups/follow-actions.ts) migrated off
+> raw `supabase.from('group_followers')`. They stay best-effort (swallow on
+> failure) since they're plain-form submissions in a client island with no
+> error handling — matching the prior raw insert/delete that ignored its error.
+> No new tests (pure edge plumbing, no domain rule). Verify quad green (domain
+> 265, application 42, web 50, infra 7; lint 0 errors). No DB change. **Remaining
+> group writes:** soft-delete (inc. 4); then the read sites → a `GroupQueries`
+> port. See the
+> [Phase 3 inc. 3 journal](../journal/2026-05-29-bundle-phase-3-inc3-group-follow-edges.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 2 — group membership + last-owner invariant):**
+> The `Group` aggregate gained its **membership roster** (`Map<UserId,
+GroupRole>`, loaded by `findById`) with `addMember` / `removeMember` /
+> `changeMemberRole` enforcing owner/admin authorization **and a new invariant
+> nothing enforced before — a group can't lose its last owner** (RLS never
+> guarded this, so a group could be orphaned). Roster changes persist via a
+> focused `GroupRepository.saveMembers` that applies only the `memberDiff`
+> (single-row INSERT/DELETE/UPDATE) — deliberately **not** clear-and-insert (a
+> member's self-leave can't satisfy the `group_members`/`groups` RLS as a
+> clear-all, and it'd drop `joined_at`) and **not** the profile `save()` (a
+> self-leave can't UPDATE the `groups` row). `AddGroupMemberHandler` /
+> `RemoveGroupMemberHandler` / `ChangeGroupMemberRoleHandler` join
+> `getGroupHandlers()`; [member-actions.ts](../../apps/web/src/app/groups/member-actions.ts)
+> migrated off raw `supabase.from('group_members')` — expected `DomainError`s are
+> swallowed to preserve the prior silent-block UX, unexpected failures bubble.
+> +15 `Group` membership domain tests. Verify quad green (domain 265, application
+> 42, web 50, infra 7; lint 0 errors). No DB change. **Next:** follow edges
+> (inc. 3), then delete (inc. 4). See the
+> [Phase 3 inc. 2 journal](../journal/2026-05-29-bundle-phase-3-inc2-group-membership.md).
+>
+> **Status update (2026-05-29, Phase 3 inc. 1 — Group aggregate + create/update):**
+> **Phase 3 (the groups subdomain) has begun.** Stood up a `Group` aggregate
+> ([group.ts](../../packages/domain/src/groups/group.ts), new `GroupId` brand +
+> `GroupRole`) + a `GroupRepository` port, per
+> [ADR 0021](../adr/0021-group-aggregate-and-repository.md). This first slice
+> models the group **profile** (slug, name, description, home city, region,
+> avatar, createdBy) with `create` / `editProfile`; the name (1–80) + slug-format
+> rules move into the domain (field-tagged `ValidationError`). A client-injected
+> `SupabaseGroupRepository` (`findById` / `add` / `save`; slug `23505` →
+> `ConflictError`) is wired per request behind a new `getGroupHandlers()`
+> (user-scoped, so the `created_by = auth.uid()` + owner/admin RLS stays the
+> gate). [group-form-actions.ts](../../apps/web/src/app/groups/group-form-actions.ts)
+> `createGroupAction` + `updateGroupAction` migrated off raw
+> `supabase.from('groups')` to `CreateGroupCommand` / `UpdateGroupProfileCommand`.
+> The founding-owner `group_members` row is still inserted by the DB trigger —
+> the aggregate doesn't model the roster yet. New `Group` domain tests
+> (10 cases). Verify quad green (domain 250, application 42, web 50, infra 7;
+> lint 0 errors). No DB change. **Next:** membership roster + role rules + the
+> last-owner invariant (inc. 2), then follow edges (inc. 3), then delete. See the
+> [Phase 3 inc. 1 journal](../journal/2026-05-29-bundle-phase-3-inc1-group-aggregate.md).
+>
+> **Status update (2026-05-29, Phase 2b inc. 10 — friend writes; profile drain complete):**
+> **The `friendships` add/remove writes are migrated — the profile read+write
+> drain (P2-1, the profiles/friendships slice) is now effectively done.**
+> `UserRepository` gained focused edge ops `addFriendEdge` / `removeFriendEdge`
+> ([user-profile.ts](../../packages/domain/src/users/user-profile.ts)) — a
+> surgical INSERT (idempotent upsert, `ignoreDuplicates`) / DELETE on the
+> `friendships` table, **not** a whole-set reconcile through `save` (ADR 0020 §5).
+> The self-friend invariant moved to a static `UserProfile.assertCanFriend`
+> guard so the edge path enforces it **without** loading + discarding the
+> aggregate (the anti-pattern ADR 0019 removed). `AddFriendHandler` /
+> `RemoveFriendHandler` join `getUserProfileHandlers()`;
+> [friends/actions.ts](../../apps/web/src/app/friends/actions.ts) `addFriend` /
+> `removeFriend` migrated off raw `supabase.from('friendships')`. (The
+> `player-viewer-actions.tsx` follow-state **read** stays — it's a browser-client
+> hydration read in a client island, not a server-layer port concern.) Verify
+> quad green (domain 240, application 42, web 50, infra 7; lint 0 errors). No DB
+> change. **Remaining on P2-1:** the deferred `load-event-detail.ts` host
+> social-handles read; then `GroupRepository` (Phase 3, ~28 raw hits) + the
+> notification outbox — the next big subdomains. See the
+> [inc. 10 journal](../journal/2026-05-29-bundle-phase-2b-inc10-friend-writes.md).
+>
+> **Status update (2026-05-29, Phase 2b inc. 9 — theme / hero / business writes):**
+> **Three more profile writes drained behind the `UserProfile` aggregate**,
+> following the inc. 8 seam + the [ADR 0020](../adr/0020-user-profile-write-aggregate.md)
+> migration table. The aggregate gained `themePreference` / `heroImageUrl` /
+> `businessInfo` with `setTheme` / `setHeroImage` / `setBusinessInfo` mutators
+> (and `findById`/`save` now round-trip those columns); three thin command
+> handlers (`SetProfileThemeHandler`, `SetProfileHeroImageHandler`,
+> `UpdateBusinessInfoHandler`) join `getUserProfileHandlers()`. Migrated:
+> [theme-actions.ts](../../apps/web/src/app/theme-actions.ts) `setTheme` (cookie
+> write stays at the boundary; profile mirror now best-effort through the handler,
+> which also fixes the latent "anon visitor with no profile row" edge), the
+> **profile branch** of [hero-image-actions.ts](../../apps/web/src/app/hero-image-actions.ts)
+> (events/groups branches stay raw — different aggregates), and
+> [business-info-actions.ts](../../apps/web/src/app/profile/receipts/business-info-actions.ts).
+> All three lose their raw `supabase.from('profiles').update(... as never)`.
+> New domain tests for the mutators. Verify quad green (domain 239, application
+> 42, web 50, infra 7; lint 0 errors). No DB change. Remaining P2-1 profile
+> work: the `friendships` add/remove **writes** (inc. 10 — focused
+> `addFriendEdge`/`removeFriendEdge` repo ops) + the deferred host-social-handles
+> read. See the
+> [inc. 9 journal](../journal/2026-05-29-bundle-phase-2b-inc9-theme-hero-business-writes.md).
+>
+> **Status update (2026-05-29, Phase 2b inc. 8 — UserProfile write aggregate):**
+> **The P2-1 profile _writes_ have started** — the substantive piece the read
+> drain (inc. 1–7) was building toward. The orphan, anemic `UserProfile`
+> aggregate ([user-profile.ts](../../packages/domain/src/users/user-profile.ts))
+> is promoted to a real **write aggregate** ([ADR 0020](../adr/0020-user-profile-write-aggregate.md)):
+> it now owns the user-editable profile fields (names, home city, handle, three
+> positions, six social handles, the two preference flags) with `fromPersistence`
+>
+> - `editDetails` / `changeHandle` mutators, and the handle-format +
+>   display-name-required rules move **into the domain** (previously inline regex
+>   in the action). A client-injected `SupabaseUserRepository`
+>   ([supabase-user-repository.ts](../../packages/infrastructure/src/supabase-user-repository.ts))
+>   implements `UserRepository.findById/save` (full UPDATE of the modeled columns;
+>   `23505` → `ConflictError`), wired per-request behind `getUserProfileHandlers()`
+>   ([handlers.ts](../../apps/web/src/lib/handlers.ts)) — a user-scoped factory
+>   mirroring `getMatchResultHandlers()` so the `id = auth.uid()` RLS policy stays
+>   the real gate. [profile/actions.ts](../../apps/web/src/app/profile/actions.ts)
+>   `updateProfile` + `updateHandle` now go through `UpdateProfileCommand` /
+>   `ChangeHandleCommand` (the `as never` write casts gone). New `UserProfile`
+>   domain tests + an `isUniqueViolation` infra test land (also chips at **P3-4** —
+>   `users/user-profile` was on the untested list). Verify quad green (domain 234,
+>   application 42, web 50, infra 7; lint 0 errors). No DB change. **Sliced
+>   deliberately:** theme / hero / business-info writes + friend-edge writes
+>   (focused repo ops) are sequenced as follow-ups reusing this seam — see the
+>   ADR 0020 migration table and the
+>   [inc. 8 journal](../journal/2026-05-29-bundle-phase-2b-inc8-user-profile-write-aggregate.md).
+>
+> **Status update (2026-05-29, Phase 2b inc. 1 — ProfileQueries foundation):**
+> **P2-1 web-layer DB leakage — started.** A survey found 42 raw profile/friend
+> query occurrences (`profiles` ×21, `profiles_public` ×16, `friendships` ×5)
+> across ~32 files, and they're heterogeneous (3 clients, `id`-vs-`handle`
+> keys, card-vs-full shapes, PII `profiles` vs safe `profiles_public`) — so the
+> drain is multi-increment. This increment lays the foundation: a
+> `ProfileQueries` read port
+> ([domain](../../packages/domain/src/users/profile-queries.ts)) +
+> client-injected
+> [SupabaseProfileRepository](../../packages/infrastructure/src/supabase-profile-repository.ts)
+> (reads `profiles_public`, owns the LIKE-escaping), and migrates the
+> audit-named `searchPeople` site (public return type unchanged, behaviour
+> preserved). Verify quad green, no DB change. Remaining ~40 sites tracked in
+> the [Phase 2b journal](../journal/2026-05-29-bundle-phase-2b-profile-queries-foundation.md).
+>
+> **Status update (2026-05-29, Phase 2a — social-graph port):** **First Phase 2
+> increment landed**, attacking the **P2-2 god-port**. The friend-graph reads
+> (`getViewerFriends`, `searchFollowingFeed`) + their read-model types
+> (`FriendProfile`, `FollowingFeedItem`, `FollowingFeedFilters`) moved off
+> `EventRepository` onto a dedicated `SocialGraphQueries` port
+> ([packages/domain/src/users/social-graph-queries.ts](../../packages/domain/src/users/social-graph-queries.ts)),
+> implemented by the new
+> [SupabaseSocialGraphRepository](../../packages/infrastructure/src/supabase-social-graph-repository.ts);
+> `GetViewerFriendsHandler` / `GetFollowingFeedHandler` now depend on the focused
+> port. Pure structural move (verify quad green, 309 tests, no DB change). **P2-2
+> partially closed** — the rest of the `EventRepository` ISP split (read-vs-write,
+> co-host, `setRosterTeamForfeited`) and **P2-1** (ProfileRepository + the ~38
+> raw web-layer `profiles`/`friendships` queries) remain as Phase 2b. See the
+> [Phase 2a journal](../journal/2026-05-29-bundle-phase-2a-social-graph-port.md).
+>
+> **Status update (2026-05-29, Phase 1 — P1 resolved):** **Division-scoped
+> aggregate entries landed** ([ADR 0019](../adr/0019-division-scoped-aggregate-entries.md),
+> [journal](../journal/2026-05-29-bundle-phase-1-division-scoped-entries.md)).
+> The `VolleyballEvent` aggregate now carries the division on each team
+> (`_teams: Map<TeamId, DivisionId | null>`) and free-agent
+> (`_freeAgents: Map<UserId, FreeAgentEntry>`) entry; `registerTeam(teamId,
+divisionId)` validates the division and `joinAsFreeAgent` stores it, so
+> `save(event)` persists registrations in one write path. The two
+> aggregate-sidestepping ports (`attachTeamToDivision` /
+> `attachFreeAgentToDivision`) are **deleted** from the port + adapter + both
+> handlers; `save()`'s `soleDivisionId` skip-branches for teams/free agents are
+> gone (team inserts reuse the existing `attach_team_to_division` RPC for its
+> partial-unique `ON CONFLICT`; FA inserts upsert idempotently). New domain
+> tests assert the division is carried; verify quad green (309 tests), no
+> migration. **Honest re-grade:** on close reading this was a
+> consistency-boundary / structural defect, not the active data-loss the P1 first
+> implied (the single-division FA double-write was redundant-but-harmless; team
+> register was already a single write). Deferred: true multi-statement `save()`
+> atomicity (a separate, broader RPC effort — also affects attendees/divisions).
+>
+> **Status update (2026-05-29, Phase 0 — guardrails):** **First refactor phase
+> landed.** Added string-constrained smart constructors (`idConstructor<B>()`
+> in [shared/brand.ts](../../packages/domain/src/shared/brand.ts)) for all 12
+> branded id types and migrated the **37 application-layer `as never` brand
+> casts** (+ 1 domain test) to them. Stood up the Onion-layer **lint ratchets**
+> via a shared `purityRatchet()` in
+> [packages/config/eslint.base.mjs](../../packages/config/eslint.base.mjs),
+> wired into the domain + application configs: `as never` is now an **error**
+> in both layers, and outward/framework imports (`@supabase/*`, `next`,
+> `react`, `@pickupvb/infrastructure`, and for domain also `@pickupvb/application`)
+> are banned — turning the verified-good layer purity into an enforced ratchet.
+> Both probes confirmed firing; full verify quad green. **P2-5 partially
+> closed** (application done; web + infra deferred — see the finding). The
+> sweep surfaced a nuance: infra's `as never` is ~half Supabase write-payload
+> casts, not brand casts, so the ban is intentionally domain+application only.
+> See the [Phase 0 journal](../journal/2026-05-29-bundle-phase-0-architecture-guardrails.md).
+>
+> **Reevaluation (2026-05-29):** **Fresh full re-audit against current HEAD
+> (`8668288`).** The 2026-05-17 backlog is effectively closed; this pass
+> re-grades the architecture as it stands after ~6 months of growth
+> (brackets + generators/standings, leagues + schedule/forfeit, event
+> divisions, ad-hoc + walk-in team registrations, per-division registration
+> modes, community listings, host Stripe accounts/subscriptions, captain-RLS
+> match results). Domain is now ~50 files / 8.3k LOC; the web app is ~45k LOC.
+> The new findings, roadmap, and throughput playbook live in
+> [**§ Reevaluation — 2026-05-29**](#reevaluation--2026-05-29) below. Headline:
+> the hexagonal boundary the repo claims (ADR 0001) is **strong for the core
+> aggregates but porous at the web layer** — 76 route/action files issue raw
+> `supabase.from(...)` queries (vs. 49 going through `lib/handlers`), and whole
+> entity families (groups, profiles, notifications, friendships, tips,
+> sponsors) have no domain model or port at all. One **P1** (split non-atomic
+> registration write path), six **P2** (web-layer DB leakage, `EventRepository`
+> god-port, 1.5k-LOC adapter, half-wired domain-event outbox, branded-type
+> `as never` leak, fragmented event-detail read path), and four **P3**.
+>
 > **Status update (2026-05-23, Bundle 64):** **P2 "mapper extraction" —
 > first row shape extracted (friend edges).** Two callsites —
 > [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) and
@@ -136,6 +794,450 @@
 > five importers updated. Now matches the events/[id] convention of one
 > action file per concern. Remaining P2: mapper extraction (still needs
 > a design call).
+
+## Reevaluation — 2026-05-29
+
+Read-only re-audit against HEAD (`8668288`), graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = bug /
+data-loss / broken behavior; P2 = important hardening/quality; P3 =
+nice-to-have). Lens: DRY, SOLID, Onion/hexagonal, DDD aggregates, CQRS.
+
+### What changed since the last audit
+
+The 2026-05-17 → 2026-05-23 backlog (page diet, test bootstrap, `groups/actions`
+split, mapper seed, JSDoc, typed errors) is **closed**. Since then the domain
+roughly doubled: `packages/domain` is now 50 files / **8,351 LOC**,
+`packages/application` 3,900, `packages/infrastructure` 3,474, `apps/web`
+**44,725**. New aggregates/flows: brackets (generators, matches, standings,
+seeding), leagues (schedule, roster, forfeit), event divisions, ad-hoc +
+walk-in team registrations, per-division registration modes, community
+listings, host Stripe accounts/subscriptions, captain-RLS match results.
+
+The growth exposed structural pressure the smaller codebase hid. The single
+biggest signal:
+
+```
+apps/web/src/app files calling lib/handlers (application layer):  49
+apps/web/src/app files issuing raw supabase.from(...) queries:    76
+```
+
+Raw table hits in the web layer, by table (top): `events` 24, `profiles` 20,
+`event_participants` 20, `profiles_public` 15, `groups` 14, `teams` 12,
+`group_members` 11, `notification_outbox` 9, `event_team_entries` 9,
+`event_payment_audit` 9, `event_participant_payments` 8, `event_tips` 7,
+`event_divisions` 7, `event_sponsors` 6, `broadcasts` 6 … The repository/port
+pattern is real and clean **for the aggregates that have one** — but groups,
+profiles, notifications/broadcasts, friendships, tips, and sponsors have **no
+domain model and no port**, so all their read/write logic lives inline in
+pages and `*-actions.ts`.
+
+---
+
+### P1 — Split, non-atomic registration write path ✅ Resolved 2026-05-29 (ADR 0019)
+
+> **Resolved (Phase 1, 2026-05-29):** the aggregate now owns the division on
+> each team / free-agent entry; `registerTeam(teamId, divisionId)` +
+> `joinAsFreeAgent` persist via `save(event)` in one write path, and both
+> `attach…` ports are deleted. See
+> [ADR 0019](../adr/0019-division-scoped-aggregate-entries.md) and the
+> [Phase 1 journal](../journal/2026-05-29-bundle-phase-1-division-scoped-entries.md).
+> Re-graded on implementation: structural consistency-boundary defect, not
+> active data loss. Remaining: true multi-statement `save()` atomicity
+> (deferred — separate RPC effort, also affects attendees/divisions).
+
+- **Where:** [join-event.handler.ts](../../packages/application/src/commands/join-event.handler.ts#L60-L78) (`JoinEventAsFreeAgentHandler`), [team.handler.ts](../../packages/application/src/commands/team.handler.ts) (`RegisterTeamHandler`), and the ports they lean on: [event-repository.ts](../../packages/domain/src/events/event-repository.ts#L54-L70) (`attachTeamToDivision`, `attachFreeAgentToDivision`), implemented in [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts#L499-L621).
+- **Issue:** The aggregate cannot hold a `divisionId` on its free-agent / team entries (its `_freeAgents` map is `userId → notes`; `_teams` is a `Set<teamId>`), but `event_teams` / `event_team_entries` require `division_id` **NOT NULL**. So a registration is **two sequential writes through two code paths**: `event.joinAsFreeAgent(...)` + `repo.save(event)` (which, for multi-division events, _skips_ inserting the row — see `if (!soleDivisionId) continue` at [L590-L600](../../packages/infrastructure/src/supabase-event-repository.ts#L585-L612)), then `repo.attachFreeAgentToDivision(eventId, userId, divisionId)` to do the real attach. There is no transaction spanning the two. A failure (or RLS denial) between `save()` and `attach…()` leaves the event aggregate's persisted state and the division-attachment table inconsistent — and for single-division events the `save()` path _also_ inserts with `soleDivisionId`, so the two paths can both touch the same row with divergent logic. The aggregate is no longer the consistency boundary it claims to be.
+- **Why P1:** This is a durability/correctness hazard on the money-path (paid divisions), not a style issue — a partial write can register a player/team to the event but not to any division, or vice-versa.
+- **Fix:** Model the entry properly inside the aggregate. Give `VolleyballEvent` first-class free-agent and team-entry value objects that carry `divisionId` (`{ userId, divisionId, notes }`, `{ teamId, divisionId }`), so `repo.save(event)` persists them atomically in one write path and the `attachTeamToDivision` / `attachFreeAgentToDivision` ports + their dual-logic in `save()` are deleted. This is ADR-worthy (touches the aggregate shape) — write `docs/adr/0019-division-scoped-entries.md`. If a same-PR DB transaction is infeasible, at minimum collapse to a single `SECURITY DEFINER` RPC that does both inserts atomically (mirrors the `record_bracket_match_result` pattern).
+
+---
+
+### P2 — six findings
+
+#### P2-1. Web layer bypasses the hexagonal boundary (76 files of raw `supabase.from`) — **highest-ROI finding** 🟢 Three named fixes complete; sidecar residue remains (2026-05-29)
+
+> **Progress (2026-05-29, Phase 4 inc. 5 — notification prefs):** the settings
+> page moved to a user-scoped `NotificationPreferencesPort` (find/upsertChannels).
+> **All three named P2-1 fixes are now complete** — #1 `GroupRepository`/
+> `GroupQueries` (groups subdomain drained), #2 `UserProfile` +
+> `ProfileQueries`/`SocialGraphQueries` (profiles/friendships drained), #3 the
+> notification subdomain (`notify` fan-out, outbox drain/purge, push
+> subscribe/prune, broadcasts, prefs — all behind ports). **Residue** (the
+> finding's explicit lower-priority reads, not part of the three fixes): the
+> in-app notification bell reads (`notification-bell.tsx` client island +
+> `site-header.tsx` unread count) and the event payment sidecars (`event_tips` /
+> `event_sponsors` / `event_payment_audit` / `event_participant_payments`).
+>
+> **Progress (2026-05-29, Phase 4 inc. 4 — broadcasts):** the `broadcasts` table
+> (event/team send + hide) moved to a `BroadcastPort` (create/markSent/findSender/
+> softDelete, client-per-op); the sender-name `profiles` reads went to
+> `ProfileQueries.findCardById`. Remaining P2-1: **just the prefs page**
+> (`profile/notifications`).
+>
+> **Progress (2026-05-29, Phase 4 inc. 3 — push subscribe):** the subscribe
+> route's `push_subscriptions` upsert/delete moved to
+> `PushSubscriptionPort.upsert` / `removeForUser` (user-scoped client). With the
+> worker (inc. 2) and subscribe both on the port, `push_subscriptions` is fully
+> drained. Remaining P2-1: broadcasts + prefs page.
+>
+> **Progress (2026-05-29, host social-handles read):** the last deferred profile
+> read (`load-event-detail.ts` host socials) moved to
+> `ProfileQueries.findSocialLinksById` (+ fixed a latent `getServerSupabase()`-
+> inside-`unstable_cache` bug). **The profiles/friendships surface is now fully
+> drained** (reads + writes). Remaining P2-1: the notification subdomain's
+> push-subscribe / broadcasts / prefs.
+>
+> **Progress (2026-05-29, Phase 4 inc. 2 — outbox drain):** the cron worker +
+> purge moved behind a `NotificationOutboxDrainPort` (claim/markSent/markSkipped/
+> markFailed/purge\*) + a `PushSubscriptionPort` (listByUsers/deleteByEndpoints);
+> delivery providers + retry policy stay in the worker route. Remaining
+> notification surfaces: push subscribe, broadcasts, prefs page.
+>
+> **Progress (2026-05-29, Phase 4 inc. 1 — NotificationOutboxPort):** Fix item #3
+> (notification outbox) started. The `lib/notify.ts` fan-out now writes through a
+> `NotificationOutboxPort` + `SupabaseNotificationOutboxRepository` (service-role
+> client); the fan-out moved to a testable `dispatch(port, …)` (+5 tests).
+> [ADR 0022](../adr/0022-notification-outbox-port.md). Remaining notification
+> surfaces: cron worker/purge, push subscribe, broadcasts, prefs page.
+>
+> **Progress (2026-05-29, Phase 3 inc. 8 — membership joins + sitemap; subdomain
+> drained):** `listMembershipsForUser` / `listManageableGroups` / `listSlugs`
+> landed; `profile`, `events/new`, and `sitemap` migrated off their raw
+> `group_members` / `groups` reads. **The groups subdomain is now drained** —
+> all page/action reads+writes go through `GroupRepository` / `GroupQueries`
+> except three documented exceptions (cross-aggregate `hero-image-actions.ts`
+> branch, the `group-viewer-actions.tsx` browser-island follow read, the
+> sanctioned admin soft-delete closure). Fix item #1 (GroupRepository + Group
+> aggregate) is **done**.
+>
+> **Progress (2026-05-29, Phase 3 inc. 7 — roster + viewer-role reads):** the
+> members roster + owner/admin gates moved to `GroupQueries.listMembers`
+> (`GroupMemberCard`, composing `ProfileQueries.findCardsByIds`) +
+> `findViewerRole`; the detail / members / edit pages migrated off raw
+> `supabase.from('group_members')`. Remaining reads: my-groups /
+> hostable-groups joins (`profile`, `events/new`), sitemap.
+>
+> **Progress (2026-05-29, Phase 3 inc. 6 — find-one reads):** the group detail /
+> metadata / OG / edit-page reads moved to `GroupQueries.findDetailBySlug`
+> (`GroupDetail` read model); the OG-image slug-vs-id lookup bug was fixed in
+> passing. Remaining reads: members roster + viewer-role gates (inc. 7), my-groups
+> / hostable-groups joins (`profile`, `events/new`), sitemap.
+>
+> **Progress (2026-05-29, Phase 3 inc. 5 — GroupQueries read port):** the group
+> read side opened with a `GroupQueries` port + `GroupCard` read model +
+> client-injected `SupabaseGroupQueryRepository` (`searchDirectory` / `listCards`).
+> The directory + home-page card reads migrated off raw `supabase.from('groups')`.
+> Remaining reads (drain across increments, `ProfileQueries`-style): group detail
+>
+> - metadata/OG (by slug/id), members roster, my-groups / hostable-groups joins
+>   (`profile`, `events/new`), sitemap.
+>
+> **Progress (2026-05-29, Phase 3 inc. 4 — group delete; group writes done):**
+> `deleteGroupAction` folded onto the aggregate (`Group.assertCanDelete` owner
+> rule) + a `DeleteGroupHandler` with injected events-guard + admin soft-delete
+> closures; the action is now query-free. **All group _writes_ are behind
+> `GroupRepository`.** Remaining: the group _read_ sites → a `GroupQueries`
+> read port (opportunistic).
+>
+> **Progress (2026-05-29, Phase 3 inc. 3 — follow edges):** `group_followers`
+> follow/unfollow moved to focused `GroupRepository.addFollowEdge` /
+> `removeFollowEdge` (idempotent upsert / delete; no aggregate, no group-side
+> invariant). `follow-actions.ts` migrated off raw `supabase.from('group_followers')`.
+> **Remaining group writes:** soft-delete (inc. 4); reads → `GroupQueries`.
+>
+> **Progress (2026-05-29, Phase 3 inc. 2 — group membership):** the `Group`
+> aggregate gained its membership roster + `addMember`/`removeMember`/
+> `changeMemberRole` (owner/admin authz + the **last-owner invariant**, which
+> nothing enforced before); `GroupRepository.saveMembers` persists the
+> `memberDiff` via focused per-row writes (RLS-safe self-leave, `joined_at`
+> preserved). `member-actions.ts` migrated off raw `supabase.from('group_members')`.
+> Remaining group writes: follow edges (inc. 3), soft-delete (inc. 4); reads →
+> `GroupQueries`.
+>
+> **Progress (2026-05-29, Phase 3 inc. 1 — Group aggregate; groups subdomain
+> started):** Fix item #1 below (stand up `GroupRepository` + `Group` aggregate)
+> is underway. [ADR 0021](../adr/0021-group-aggregate-and-repository.md) + a
+> `Group` aggregate (profile fields, `GroupId`/`GroupRole`) + `GroupRepository`
+> (`findById`/`add`/`save`, slug → `ConflictError`) landed, wired per-request via
+> `getGroupHandlers()` (user-scoped/RLS). `group-form-actions.ts` create/update
+> migrated off raw `supabase.from('groups')`. Remaining group writes sliced into
+> follow-ups (ADR 0021 table): membership roster + role rules + **last-owner
+> invariant** (inc. 2), follow edges (inc. 3), soft-delete (inc. 4); the group
+> read sites → a `GroupQueries` port, opportunistic.
+>
+> **Progress (2026-05-29, Phase 2b inc. 10 — friend writes; profiles/friendships
+> slice complete):** the `friendships` add/remove writes moved to focused
+> `UserRepository.addFriendEdge` / `removeFriendEdge` ops (surgical idempotent
+> INSERT / DELETE, not a whole-set reconcile), with the self-friend invariant as
+> a static `UserProfile.assertCanFriend` guard so the edge path enforces it
+> without load-and-discard. `AddFriendHandler` / `RemoveFriendHandler` join
+> `getUserProfileHandlers()`; `friends/actions.ts` migrated. **With this, the
+> `profiles` + `friendships` read+write drain is effectively done** —
+> `player-viewer-actions.tsx`'s follow-state read stays (browser-client island
+> hydration). Remaining P2-1: the deferred `load-event-detail.ts` host
+> social-handles read, then `GroupRepository` (#1) + the notification outbox (#3).
+>
+> **Progress (2026-05-29, Phase 2b inc. 9 — theme / hero / business writes):**
+> three more profile-column writes drained behind the aggregate (ADR 0020
+> migration table). `UserProfile` gained `themePreference` / `heroImageUrl` /
+> `businessInfo` (+ `setTheme` / `setHeroImage` / `setBusinessInfo`); thin
+> handlers join `getUserProfileHandlers()`. Migrated `theme-actions.ts`,
+> `hero-image-actions.ts` (profile branch only — events/groups stay raw), and
+> `business-info-actions.ts` off raw `profiles` updates.
+>
+> **Progress (2026-05-29, Phase 2b inc. 8 — writes started):** the profile
+> **write** drain began. `UserProfile` is promoted to a real write aggregate
+> ([ADR 0020](../adr/0020-user-profile-write-aggregate.md)) owning the editable
+> profile fields + the handle/display-name invariants; a client-injected
+> `SupabaseUserRepository` (`findById`/`save`, `23505` → `ConflictError`) is wired
+> per-request behind `getUserProfileHandlers()` (user-scoped, RLS-enforced).
+> `profile/actions.ts` `updateProfile` + `updateHandle` migrated off raw
+> `supabase.from('profiles').update(... as never)` to `UpdateProfileCommand` /
+> `ChangeHandleCommand`.
+>
+> **Progress (2026-05-29, Phase 2b inc. 1–6):** the social-graph reads moved to
+> `SocialGraphQueries` (Phase 2a), and the profile-read drain is underway via a
+> `ProfileQueries` read port + client-injected `SupabaseProfileRepository`
+> (reads `profiles_public`, owns LIKE-escaping). The port now offers
+> `searchCards` / `searchDirectory` / `findCardById` / `findCardByHandle` /
+> `findCardsByIds` / `findPlayerByHandle`. Drained so far: people search
+> (inc. 1), players directory (inc. 2), player profile page (inc. 3, rich
+> `PlayerProfile`), member/roster batch reads (inc. 4) + OG-image id/handle fix
+> (inc. 4), community pending-claim read + first `packages/infrastructure` test
+> pinning `escapeLike` (inc. 5), and the **friend-edges read** — `loadFriendEdges`
+> moved onto `SocialGraphQueries.getFriendEdges` (composing
+> `ProfileQueries.findCardsByIds`), the `lib/mappers/friend.ts` web mapper
+> deleted, `FriendsList` on camelCase `ProfileCard` (inc. 6); and the
+> `load-event-detail.ts` cached captain-names read (inc. 7, `findCardsByIds`
+> with the admin client — confirms the port works inside `unstable_cache`). The
+> survey refined the count to **42 profile/friend query occurrences**
+> (`profiles` ×21, `profiles_public` ×16, `friendships` ×5) across ~32 files;
+> heterogeneity (3 clients, id-vs-handle, card-vs-full, PII split) makes this
+> multi-increment. **Reads are now nearly fully drained.** Remaining: the
+> `load-event-detail.ts` L705 host-social-handles read (distinct shape), then
+> the `friendships`/`profiles` **writes** (→ `UserProfile` aggregate — the read
+> seam now sits in front of it; the next substantive piece, ADR-worthy).
+> `GroupRepository` (#1 below) and the notification outbox (#3) are untouched.
+
+- **Where:** 76 files under [apps/web/src/app](../../apps/web/src/app). Worst offenders are the loaders/actions for entity families with no port: `groups/**` (`groups`, `group_members`, `group_followers`), `profile/**` + `players/**` + `friends/**` (`profiles`, `profiles_public`, `friendships`), notifications (`notification_outbox`, `broadcasts`, `push_subscriptions`), and event sidecars (`event_tips`, `event_sponsors`, `event_payment_audit`).
+- **Issue:** ADR 0001 mandates `apps/web → @pickupvb/application → @pickupvb/domain` with infrastructure behind ports. That holds for events/teams/brackets/etc., but **whole subdomains never got a domain model**: group membership roles, friend mutuality, notification fan-out, and tip/sponsor rules are all enforced (or not) inline in JSX/actions, with the DB row shape (`snake_case`) leaking into components and **no unit-test seam**. Every new feature touching these re-pays the cost, and bugs fixed in one query string aren't fixed in the 19 others hitting the same table.
+- **Fix (incremental, by churn):**
+  1. Stand up `GroupRepository` + a `Group` aggregate (roles, follow graph) → fold `groups/*-actions.ts` raw writes behind it. (14 + 11 + 3 = 28 raw hits collapse.)
+  2. Give the **orphan** `UserProfile` aggregate ([user-profile.ts](../../packages/domain/src/users/user-profile.ts)) a `ProfileRepository` port and a `SocialGraphQueries` read service; route `profiles` / `profiles_public` / `friendships` reads through it. (≈38 raw hits.)
+  3. Add a `NotificationOutboxPort` for `notification_outbox` / `broadcasts` / `push_subscriptions` fan-out.
+  - Don't boil the ocean: genuinely trivial viewer-scoped reads (e.g. "is this row mine") can stay inline; the target is _entity reads/writes with rules or >2 call sites_. Track progress with the same `49 vs 76` ratio.
+
+#### P2-2. `EventRepository` is a god-port (ISP + SRP + CQRS-mixing) ✅ ISP split done (2026-05-29); adapter SRP (P2-3) remains
+
+> **Progress (2026-05-29, Phase 4 (EventRepository) inc. 1 — ISP split):** the
+> **interface segregation is done.** `EventRepository` is split into
+> `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail;
+findIdByShortCode }`, and `EventMembershipStore { addCoHost; removeCoHost;
+setRosterTeamForfeited }` (the audit's recommended shape); `EventRepository`
+> survives only as the composed union the Supabase adapter `implements` (and the
+> test fakes `Pick<>`). **Every handler now depends on the narrow slice it
+> uses** — writers on `EventWriteStore`, `Search`/`GetEventDetail` on
+> `EventReadModels`, co-host on `EventMembershipStore`, `league-roster` on the
+> explicit `EventWriteStore & EventMembershipStore` intersection. Zero churn in
+> the composition root or tests (the single concrete adapter satisfies all
+> slices). Verify quad green (domain 267, application 42, web 55, infra 7; lint
+> 0 errors). No DB change. See the
+> [Phase 4 (EventRepository) inc. 1 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc1-isp-split.md).
+> **Remaining:** the adapter-side SRP teardown (P2-3) + read-path consolidation
+> (P2-6) — the next increments.
+>
+> **Progress (2026-05-29, Phases 1 + 2a):** two of the conflated responsibilities
+> were removed earlier. Phase 1 (ADR 0019) deleted the **aggregate-sidestepping**
+> `attachTeamToDivision` / `attachFreeAgentToDivision`. Phase 2a moved the
+> **social-graph reads** (`getViewerFriends`, `searchFollowingFeed`) onto a
+> dedicated `SocialGraphQueries` port.
+
+- **Where:** [event-repository.ts](../../packages/domain/src/events/event-repository.ts) — now `EventWriteStore` / `EventReadModels` / `EventMembershipStore` + the composed `EventRepository` union.
+- **Issue (original):** One interface conflated **four** responsibilities: write-side aggregate persistence (`findById`/`save`), denormalized **read models** (`search`/`getDetail`/`findIdByShortCode`), ~~**social-graph reads that are not event concerns** (`getViewerFriends`, `searchFollowingFeed`)~~ (moved to `SocialGraphQueries`, Phase 2a), co-host sub-resource mutation (`addCoHost`/`removeCoHost`), and ~~**aggregate-sidestepping** division mutations (`attachTeamToDivision`/`attachFreeAgentToDivision`~~ deleted in Phase 1)`/setRosterTeamForfeited`). The header comment openly admitted the read/write CQRS mixing.
+- **Fix:** ~~Segregate the interface (ISP): `EventWriteStore { findById; save }`, `EventReadModels { search; getDetail; findIdByShortCode }`, and put co-host + `setRosterTeamForfeited` behind a focused `EventMembershipStore`. The Supabase class can still implement all of them, but handlers depend only on the slice they use.~~ **Done (Phase 4 (EventRepository) inc. 1)** exactly as prescribed.
+
+#### P2-3. `SupabaseEventRepository` is a 1,482-LOC adapter; `getDetail` alone is ~480 LOC (SRP) ✅ getDetail parsing extracted + tested (2026-05-29)
+
+> **Progress (2026-05-29, Phase 4 (EventRepository) inc. 2 — getDetail mappers):**
+> `getDetail`'s parsing is now **pure + unit-tested**. A new sibling module
+> [event-detail/mappers.ts](../../packages/infrastructure/src/event-detail/mappers.ts)
+> holds the getDetail-local row types + pure mappers (`mapAttendees` —
+> waitlist + `filledByPosition`; `mapFreeAgents`; `mapCoHosts`;
+> `mapRegisteredTeams` + `tallyTeamMembers` + `indexPaymentsByTeam`;
+> `mapViewerCaptainedTeams`; `mapViewerHostableGroups`; `mapWinnerLabels`;
+> `computeSpotsRemaining`; `toProfileLite`/`toGroupLite`), and `getDetail`
+> delegates all parsing to them — shrinking **~480 → ~291 LOC** (the remainder
+> is the two `Promise.all` query waves + assembly) and the file **1,310 → 1,141
+> LOC**. The duplicated `rowToCapacity`/`divisionRowToCapacity` collapse into one
+> `capacityFromRow({ capacity_kind, max_spots })`. **+16 mapper tests** (infra
+> suite 7 → 23) pin the waitlist/spots/payment-merge/winner-label logic that
+> previously had no seam (also chips at P3-4). **Deliberate deviation from the
+> Fix text:** kept the queries in `getDetail` rather than splitting into
+> query-owning `loadX` loaders — the two-wave batching (Wave 2 depends on Wave
+> 1's `registeredTeamIds`/`format`) is a perf characteristic, and the
+> testability the finding wants is in the _parsing_, not the I/O. Verify quad
+> green (domain 267, application 42, web 55, infra 23; lint 0 errors). No DB
+> change. See the
+> [Phase 4 (EventRepository) inc. 2 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc2-getdetail-mappers.md).
+> **Remaining:** P2-6 (consolidate the web-layer event-detail read path); and
+> optionally the same treatment for the still-large `save`/`search` paths.
+
+- **Where:** [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts) + [event-detail/mappers.ts](../../packages/infrastructure/src/event-detail/mappers.ts).
+- **Issue (original):** A single method ran ~15 queries and assembled the ~80-field read model inline; it couldn't be unit-tested in pieces and any change risked the whole event-detail surface. `rowToCapacity` / `divisionRowToCapacity` / position-roster parsing were duplicated within the file.
+- **Fix:** ~~Extract per-concern, independently-testable mappers/loaders into a sibling `event-detail/` folder; `getDetail` becomes orchestration. Hoist the shared row→VO mappers.~~ **Done (inc. 2)** — pure mappers extracted to `event-detail/mappers.ts` + 16 tests; `capacityFromRow` dedup landed. Modulo the deliberate "keep the query waves in `getDetail`" deviation noted above. The shared row→VO mappers (`divisionRowToDomain`, `divisionToRow`, `rowToExtensions`) stay in the adapter for now — hoist to `event-row-mappers.ts` if `save`/`search` get the same treatment.
+
+#### P2-4. Domain-event / outbox infrastructure is half-wired ✅ Resolved 2026-05-29 (Phase 5 inc. 1 — uniform dispatch)
+
+> **Resolved (2026-05-29, Phase 5 inc. 1):** chose **option (a) — dispatch
+> uniformly** (user decision; it was a "pick one" with product implications).
+> `dispatchAnalyticsOutbox` + `mapDomainEventToAnalytics` are generalized to
+> `AggregateRoot<unknown>` (with an `instanceof VolleyballEvent` narrow before
+> reading subtype props), and **every handler that saves a raising aggregate
+> (`VolleyballEvent` + `Bracket`) now dispatches after `save()`** via an
+> optional injected `analytics` port: create-event, free-agent join/leave, the
+> 3 event-division handlers, team register/withdraw, and all 8 bracket handlers
+> (incl. the captain-RLS `RecordMatchResult`/`ResetMatch`). `raise()` now
+> implies delivery through the outbox; the mapper still returns `null` for
+> un-taxonomied events (the documented fail-quiet path), so **no new analytics
+> are captured** — the taxonomy is unchanged and adding a capture is now a
+> one-line mapper change, live everywhere. +5 tests pin the generalization
+> (mapper instanceof-guard ×2, new `dispatch-outbox.test.ts` ×3). Verify quad
+> green (domain 267, application 47, web 55, infra 23; lint 0 errors). No DB
+> change. Stale-finding note: the `team.handler.ts#L146` "drain and discard"
+> `pullEvents()` call below no longer exists. See the
+> [Phase 5 inc. 1 journal](../journal/2026-05-29-bundle-phase-5-inc1-outbox-uniform-dispatch.md).
+
+- **Where:** [aggregate-root.ts](../../packages/domain/src/shared/aggregate-root.ts), [dispatch-outbox.ts](../../packages/application/src/analytics/dispatch-outbox.ts). Raisers: only `VolleyballEvent` and `Bracket` call `this.raise(...)`; `Team` and `CommunityListing` raise nothing.
+- **Issue (original):** `Bracket` raised domain events that **nobody dispatched**; `publish`/`cancel`/`registerTeam`/`addDivision`/free-agent raises drained nowhere. The pattern looked complete but only join/leave/join-with-position actually emitted analytics — a trap for the next agent who assumes `raise()` ⇒ delivered.
+- **Fix:** ~~Pick one. (a) dispatch uniformly via a shared helper, or (b) delete the unused `raise()` calls and document "join/leave analytics only".~~ **Done — option (a)** (Phase 5 inc. 1). `dispatchAnalyticsOutbox` is the uniform post-`save()` hook over any `AggregateRoot`; the convention ("a handler that saves a raising aggregate must dispatch") is documented in AGENTS.md.
+
+#### P2-5. Branded-type boundary leaks — `as never` casts 🟡 Partial (Phase 0, 2026-05-29)
+
+- **Where:** Originally ~171 `as never` across `packages/application` (37), `apps/web` (84), `packages/infrastructure` (50), e.g. [join-event.handler.ts#L21](../../packages/application/src/commands/join-event.handler.ts#L21).
+- **Issue:** `UserId`/`TeamId`/`DivisionId` etc. are branded types, but there was no smart constructor, so call sites laundered a plain `string` through `as never`. This **defeats the brand** (a `teamId` passed where `userId` is expected casts through silently) and is a constant DX tax that discourages using the typed handlers at all (a contributor to P2-1).
+- **Phase 0 (2026-05-29) — done for the pure layers:** Added `idConstructor<B>()` in [shared/brand.ts](../../packages/domain/src/shared/brand.ts) + a value-level constructor next to each of the 12 branded id types. Migrated all **37 application casts** (+ 1 domain test) to `UserId(x)` / `DivisionId(x)` / `MatchId(x)` / … (and dropped spurious `findById(x as never)` casts where the port already takes `string`). Banned `as never` as an ESLint **error** in domain + application via `purityRatchet()`.
+- **Still open (web + infra):** `apps/web` (84) and `packages/infrastructure` (50) are **not** migrated. Key nuance discovered: infra's `as never` is overloaded — roughly half are brand casts, the rest are **Supabase write-payload casts** (`row as never` on `.insert/.upsert/.rpc`, documented as temporary until `gen:types`). So the ban is scoped to the pure layers only. **Fix:** migrate web brand casts opportunistically as their files move behind ports (Phases 2–4); treat the infra Supabase casts as a separate `gen:types` task. Cross-refs ADR 0009.
+
+#### P2-6. Event-detail read path is fragmented across three layers + a caching hack 🟢 Caching consolidated + tags centralized (2026-05-29); per-surface read models deferred
+
+> **Progress (2026-05-29, Phase 4 (EventRepository) inc. 3 — read-path consolidation):**
+> All `unstable_cache` usage now lives in **one module**,
+> [event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts)
+> (the read-model-public loader + revive hack + the 8 cached side-loads + ad-hoc
+> row types). [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+> shrank **999 → 625 LOC** and is now purely the orchestrator (read-model load,
+> two side-load waves, view-model assembly, non-cached per-request helpers). The
+> **scattered tag bookkeeping** is closed: a new
+> [lib/cache-tags.ts](../../apps/web/src/lib/cache-tags.ts) owns
+> `eventCacheTag`/`profileCacheTag`/`hostStripeCacheTag`, adopted at the cache
+> sites **and all 16 `updateTag` eviction sites across 9 action files** — the
+> tag string is no longer a magic literal copy-pasted in ~25 places.
+> **Deliberate deviation from the Fix text:** the caching is **not** moved into
+> `@pickupvb/application` — `unstable_cache` is a `next/*` primitive and the
+> purity ratchet bans `next` from the application layer, so Next caching stays
+> in the web layer (consolidated into one file); `GetEventDetailHandler` already
+> owns the read-model _composition_. The `reviveEventDetailDates` hack is kept
+> (inherent to caching a `Date`-bearing model through `unstable_cache`) but
+> co-located with its sole cache. Verify quad green (domain 267, application 42,
+> web 55, infra 23; lint 0 errors). No DB change, no runtime behaviour change
+> (same keys / windows / tag strings). See the
+> [Phase 4 (EventRepository) inc. 3 journal](../journal/2026-05-29-bundle-phase-4-eventrepo-inc3-event-detail-cache.md).
+> **Deferred (the audit's own "design call, lower priority"):** the god
+> `EventDetailReadModel` still serves every surface — per-surface read models /
+> a discriminated union is a larger redesign, not worth it until a surface's
+> field set diverges enough to hurt.
+
+- **Where:** [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts) (orchestrator) + [event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts) (all caching) + [lib/cache-tags.ts](../../apps/web/src/lib/cache-tags.ts) (tag contract).
+- **Issue (original):** "The data for one page" was spread across the infra read model, ten web-layer cached queries, and ad-hoc admin reads — three caching strategies, scattered tag bookkeeping, and a serialization workaround. The god `EventDetailReadModel` (~80 fields) serves every branch (open-play / tournament / league / external / closed).
+- **Fix:** ~~Consolidate behind a single application-layer `GetEventDetailHandler` that owns the full composition + caching policy (the cached helpers move into infra read services).~~ **Caching consolidated within the web layer (inc. 3)** — the application layer can't own `unstable_cache` (framework-free ratchet), so the achievable consolidation gathers all caching into one web module + centralizes the tag contract. Per-surface read models / discriminated union remain the deferred design call.
+
+---
+
+### P3 — four findings
+
+- **P3-1. Oversized client form.** ✅ Resolved 2026-05-30 (Phase 5 inc. 3 + inc. 8). **inc. 3** relocated the already-parameterized branch/leaf components out of the 1,402-LOC `new-event-form.tsx` into four `_components/` files (`form-primitives`, `payment-fields`, `open-play-body`, `external-fields`), dropping it to 698 LOC. **inc. 8 (the deferred half)** extracted the remaining inline section JSX into six co-located section components (`templates-section`, `event-type-section`, `basics-section`, `when-where-section`, `format-section`, `visibility-section`) — so [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx) is now a **209-LOC orchestrator** (was 698; **1,402 → 209 overall, −85%**) holding only `useFormState` + the controlled address/datetime/type/capacity/payments state + section composition. The shared address block became a **`LocationFields`** component consumed by **both** forms, and [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx) (592 → 526) now imports `LocationFields` + the `form-primitives` style tokens instead of re-declaring them (the DRY half). **Chose explicit section props over a form-state context** — deliberately, for consistency with the inc.-3 components (`PricingSubsection` etc. already take `fieldErrors`/`values`/`submitted` as props) and because the two forms don't share a state shape, so a context wouldn't have enabled the cross-form DRY anyway. Byte-for-byte JSX; no field-name or behaviour change (the one benign delta: edit's city/region/postal/country gain inert `FieldError`/`aria-invalid` slots, which only ever render on a real validation error — `editEventAction` doesn't emit those keys). Verify quad green (web 79; lint 0 errors). See the [Phase 5 inc. 8 journal](../journal/2026-05-30-bundle-phase-5-inc8-event-form-decomposition.md).
+- **P3-2. Stripe webhook is an 833-LOC god-handler.** ✅ Resolved 2026-05-30 (Phase 5 inc. 4 + inc. 7). **inc. 4 (structural):** the handlers were extracted out of [route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts) into five cohesive `lib/webhooks/` modules (`connect` — account/payout; `checkout` — completed/expired + `CheckoutMetadata` + `lookupHostId`; `charge` — refunded/payment-failed; `subscription`; `team-payment-mediators` — the 6 aggregate helpers), and **route.ts is now a 156-LOC signature/idempotency boundary + dispatch switch** (was 833) — verbatim, parity-audited. **inc. 7 (behavioural — the deferred half):** the inline `admin.from(...)` attendee/tip/sponsor/audit/refund writes in `checkout.ts` + `charge.ts` now route through a new `EventPaymentRepository` port ([domain](../../packages/domain/src/events/event-payment-repository.ts)) + [SupabaseEventPaymentRepository](../../packages/infrastructure/src/supabase-event-payment-repository.ts) (service-role; session-less webhook context, pitfall #8), wired into the `repositories` registry. **Characterization-tests-first** (the finding's explicit precondition): a 18-case adapter test pins every table/op/filter/payload — its assertions written from the _original_ handler queries so the verbatim relocation can't silently drift — and 24 handler orchestration tests (fake repo) pin branch selection, arg mapping, the `analytics.capture`/`notify` dispatch, and the metadata guards (user_id-mismatch throw, missing-PI skips, blank-sponsor no-op). `checkout.ts`/`charge.ts` now hold **zero raw `supabase`/`admin` queries** (297→268 / 120→81 LOC); the team-payment branches were already aggregate-mediated. +42 tests (infra 23→41, web 55→79). See the [Phase 5 inc. 7 journal](../journal/2026-05-30-bundle-phase-5-inc7-webhook-payment-repo.md).
+- **P3-3. Payment aggregates bypass the application layer (CQRS bypass).** ✅ Resolved 2026-05-30 (Phase 5 inc. 6 — decided: option (b), sanctioned facade). `HostStripeAccount` / `HostSubscription` are consumed via the thin `lib/` facades ([pro.ts](../../apps/web/src/lib/pro.ts), [host-stripe-account.ts](../../apps/web/src/lib/host-stripe-account.ts)) over the repository ports — and that is **intentionally kept, not drift.** The investigation: (1) both "aggregates" are **pure type aliases + a repository `interface` with no invariants** (the same P3-4 finding — nothing for a command handler to enforce); (2) the reads (`isPro`, `getHostStripeAccount`, `getHostSubscription`) are CQRS read projections, often backed by a Postgres function (`is_pro_host`); (3) **`isPro` can't move inward** — it's `React.cache`-memoized for per-request dedup (perf audit P3 #12) and `react` is purity-banned from `@pickupvb/application`; (4) the writes (`seedCustomer`/`upsertFromStripe`/`create`/`updateStatusBy*`) are **session-less Stripe mirrors** run from `lib/webhooks/*` on the admin client — no user, no RLS, so a handler adds no authz. Wrapping these in handlers would add a zero-behaviour layer (playbook item 4 — partial patterns mislead). **Documented as AGENTS.md "Patterns surfaced by audits" item #10**, with the explicit re-open trigger: if either type grows a real invariant / multi-step state transition, promote the rule into the domain and add a command handler then. See the [Phase 5 inc. 6 journal](../journal/2026-05-30-bundle-phase-5-inc6-payment-facade-decision.md).
+- **P3-4. Thin domain test coverage for newer units.** ✅ Resolved 2026-05-30 (Phase 5 inc. 5 — last testable units backfilled). Covered: events/capacity/rules, team, bracket, event-team-payment/registration, league-schedule, analytics-port, `users/user-profile` (Phase 2b inc. 8), `brackets/standings` + `brackets/match` (determineWinner) + `community-listings/community-listing` + `community-listings/external-url` (Phase 5 inc. 2), and **`events/division` (33 — every `create()` invariant: label / sortOrder / surface×format / tierLabel / teamSize-required-for-pairs / priceCents / prize / schedule-window + defaults + `fromPersistence` no-validation round-trip) + `events/location` (10 — lat/long bounds incl. boundaries, required city/country, trim, blank-address allowed)** (Phase 5 inc. 5, +43 tests → domain 350). **The two remaining "untested" units the finding named — `payments/host-stripe-account` and `payments/host-subscription` — are pure type aliases + a repository `interface` with zero logic** (Stripe-shaped read models + their ports; all behaviour lives in the infra adapters, which are integration seams, not pure units). Per AGENTS.md "skip the test when the change is a pure type tweak," there is nothing to unit-test there — so **every domain unit with actual invariant logic is now covered** and P3-4 is closed. See the [Phase 5 inc. 5 journal](../journal/2026-05-30-bundle-phase-5-inc5-domain-test-backfill.md).
+
+---
+
+### Verified good (still holding, and worth protecting)
+
+- **Captain-RLS per-request handler split** — [handlers.ts#L211-L237](../../apps/web/src/lib/handlers.ts#L211-L237) `getMatchResultHandlers()` builds match-result handlers around a _user-scoped_ client so RLS enforces "host or captain," while the module-singleton `handlers` use the admin client. This is exactly right and directly addresses security-audit P2 #4 — **do not collapse these back into the singleton registry.**
+- **Centralized composition root** — every handler wired once in [handlers.ts](../../apps/web/src/lib/handlers.ts); no ad-hoc construction in pages.
+- **Layer purity (inward)** — `packages/domain` and `packages/application` stay free of `next/*`, `@supabase/*`, `react`, `fs`, `process.env` (only `node:crypto` + intra-monorepo imports).
+- **Port/adapter discipline for the aggregates that have a port** — interfaces in `packages/domain/src/*/repository.ts`, Supabase impls in `packages/infrastructure`; handlers depend on ports.
+- **Aggregate richness** — `VolleyballEvent` (52 methods), `Team`, `Bracket` enforce invariants internally; no anemic data bags.
+- **Typed-error hygiene at the boundary** — `instanceof DomainError` in actions/route handlers; [api-helpers.ts](../../apps/web/src/lib/api-helpers.ts) is the single HTTP mapping point.
+- **CQRS read/write separation in `packages/application`** — command handlers mutate via aggregates, query handlers return read models; no mixing observed (the mixing is in the _port_, P2-2, not the handlers).
+
+---
+
+### Refactoring roadmap (sequenced for compounding throughput)
+
+Ordered so each phase makes the next cheaper. Each is independently shippable
+and verify-clean (`pnpm typecheck && pnpm lint && pnpm test && pnpm build`).
+
+**Phase 0 — guardrails first. ✅ Landed 2026-05-29 (mostly).**
+Brand smart constructors + `as never` lint ban (P2-5) **done for domain +
+application**; layer-purity import ban (`@supabase/*`, `next`, `react`, outer
+layers) wired as an enforced ratchet via `purityRatchet()` in
+[packages/config/eslint.base.mjs](../../packages/config/eslint.base.mjs). The
+`apps/web` `supabase.from(` boundary ratchet is **deferred** — enforcing it now
+needs a 76-file grandfather baseline, so it lands per-directory as each
+subdomain migrates behind a port (Phases 2–4). See the
+[Phase 0 journal](../journal/2026-05-29-bundle-phase-0-architecture-guardrails.md).
+
+**Phase 1 — close the P1 (1–2 days).** Division-scoped aggregate entries + ADR
+0019; delete the attach-port double-write. Ship with a domain test that fails
+on the partial-write path. Highest correctness value.
+
+**Phase 2 — `ProfileRepository` + `SocialGraphQueries` (2–3 days).** Wire the
+orphan `UserProfile` aggregate; migrate the ≈38 `profiles`/`friendships` raw
+hits and pull `getViewerFriends`/`searchFollowingFeed` off `EventRepository`
+(starts P2-1 + P2-2 together — they share this seam).
+
+**Phase 3 — `GroupRepository` + `Group` aggregate (2–3 days).** Collapse the 28
+`groups`/`group_members`/`group_followers` raw hits; encode role rules once.
+
+**Phase 4 — split `EventRepository` + decompose the adapter (3–4 days).** ISP
+segregation (P2-2) + `getDetail` extraction into testable loaders (P2-3) +
+consolidate the event-detail read path behind one handler (P2-6). Do these
+together — they touch the same files.
+
+**Phase 5 — opportunistic (ongoing).** Outbox decision (P2-4), webhook
+decomposition (P3-2), form decomposition (P3-1), test backfill (P3-4), payment
+handler decision (P3-3).
+
+### Throughput best-practices playbook (codify the wins)
+
+The high-value, repo-wide habits that turn the above into durable velocity —
+candidates to promote into AGENTS.md once proven:
+
+1. **One port per aggregate, segregated by read/write (ISP).** When a feature
+   needs DB access, the default is "add/extend a repository," not
+   "`supabase.from` in the action." Reserve raw queries for trivial
+   viewer-scoped reads, and keep read models off the write-side port.
+2. **The aggregate owns every column it's responsible for.** If a NOT NULL
+   column (like `division_id`) can't live on the aggregate, that's a modeling
+   gap, not a reason for a second write — fix the aggregate (P1).
+3. **Smart constructors at the boundary, never `as never`.** Brands only pay
+   off if they're constructed, not cast.
+4. **Pick one cross-cutting mechanism and wire it everywhere or nowhere.**
+   The half-wired outbox (P2-4) is the cautionary tale — partial patterns cost
+   more than no pattern because they mislead.
+5. **Page loaders compose handlers; they don't query.** A `_loaders/*.ts`
+   file should call application handlers + map to a view-model, not assemble
+   data from ten cache helpers (P2-6).
+6. **A test is the decision record.** Every domain rule and bug fix ships with
+   a Vitest case that fails without it (already an AGENTS.md rule — the
+   untested newer units in P3-4 are the gap).
+7. **Lint rules ratchet architecture.** Boundary violations that a rule can
+   catch (raw `supabase.from`, `as never`, bare `throw new Error`) should be
+   lint errors, not review comments — they don't regress while you sleep.
+
+---
 
 ## Scope
 

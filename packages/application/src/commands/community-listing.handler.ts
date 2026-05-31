@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import {
   CommunityListing,
+  CommunityListingId,
   ConflictError,
+  EventId,
   ExternalUrl,
   NotFoundError,
   RateLimitError,
   UnauthorizedError,
+  UserId,
   type CommunityListingRepository,
   type ListingLocation,
 } from '@pickupvb/domain';
@@ -77,8 +80,8 @@ export class CreateCommunityListingHandler {
     }
 
     const listing = CommunityListing.create({
-      id: randomUUID() as never,
-      submitterUserId: submitterUserId as never,
+      id: CommunityListingId(randomUUID()),
+      submitterUserId: UserId(submitterUserId),
       title: dto.title,
       description: dto.description ?? '',
       externalUrl: ExternalUrl.create(dto.externalUrl),
@@ -239,7 +242,7 @@ export class ClaimCommunityListingHandler {
       );
     }
 
-    listing.proposeClaim(eventId as never, requesterId as never, new Date());
+    listing.proposeClaim(EventId(eventId), UserId(requesterId), new Date());
     await this.repo.save(listing);
   }
 }

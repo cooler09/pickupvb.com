@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { getViewer } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
@@ -361,7 +362,7 @@ export async function editEventAction(
   // detail page reads through helpers tagged `event:<id>` (see
   // _loaders/load-event-detail.ts), so we must also bust the tag or the
   // detail page will keep rendering the stale title/time/etc.
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
 
   // Notify attendees if user-visible fields changed. Best-effort.
   if (c) {
@@ -373,9 +374,10 @@ export async function editEventAction(
     if (changes.length > 0) {
       try {
         const { data: attRows } = await admin
-          .from('event_attendees')
-          .select('user_id')
-          .eq('event_id', eventId);
+          .from('event_participants')
+          .select('user_id, division:event_divisions!inner(event_id)')
+          .eq('role', 'attendee')
+          .eq('division.event_id', eventId);
         const attendees = (attRows as { user_id: string }[] | null) ?? [];
         const summary = `Updated: ${changes.join(', ')}`;
         const stamp = Date.now(); // distinct idem per edit

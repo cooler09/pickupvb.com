@@ -88,10 +88,14 @@ export default async function EditEventPage(props: {
   let paidAttendeeCount = 0;
   if (event.status !== 'cancelled') {
     const { count } = await admin
-      .from('event_attendees')
-      .select('user_id', { head: true, count: 'exact' })
-      .eq('event_id', id)
-      .eq('payment_status', 'paid');
+      .from('event_participants')
+      .select(
+        'user_id, payment:event_participant_payments!inner(payment_status), division:event_divisions!inner(event_id)',
+        { head: true, count: 'exact' },
+      )
+      .eq('role', 'attendee')
+      .eq('division.event_id', id)
+      .eq('payment.payment_status', 'paid');
     paidAttendeeCount = count ?? 0;
   }
 
@@ -146,22 +150,36 @@ export default async function EditEventPage(props: {
         }}
       />
 
-      <HeroImagePanel
-        entityType="events"
-        entityId={id}
-        userId={user.id}
-        currentUrl={(heroRow as { hero_image_url: string | null } | null)?.hero_image_url ?? null}
-        returnPath={`/events/${id}`}
-      />
+      {/*
+        Supplementary panels below have their own independent save flows
+        (hero image uploads on file pick; sponsor has its own Save button).
+        Group them under a divider + "saves independently" caption so the
+        "Save changes" button above doesn't read as the page-terminal CTA.
+      */}
+      <div className="space-y-4 pt-4">
+        <div className="border-border-base border-t pt-4">
+          <h2 className="text-fg text-lg font-semibold">Additional settings</h2>
+          <p className="text-muted text-sm">Each section below saves on its own.</p>
+        </div>
 
-      <SponsorPanel
-        eventId={id}
-        returnPath={`/events/${id}/edit`}
-        sponsor={sponsor}
-        canUseSponsors={viewerHasProBenefits || sponsorEntitledByPayment}
-        {...(sponsorFlash ? { sponsorFlash } : {})}
-        {...(sponsorMsg ? { sponsorMsg } : {})}
-      />
+        <HeroImagePanel
+          entityType="events"
+          entityId={id}
+          userId={user.id}
+          currentUrl={(heroRow as { hero_image_url: string | null } | null)?.hero_image_url ?? null}
+          returnPath={`/events/${id}`}
+        />
+
+        <SponsorPanel
+          eventId={id}
+          userId={user.id}
+          returnPath={`/events/${id}/edit`}
+          sponsor={sponsor}
+          canUseSponsors={viewerHasProBenefits || sponsorEntitledByPayment}
+          {...(sponsorFlash ? { sponsorFlash } : {})}
+          {...(sponsorMsg ? { sponsorMsg } : {})}
+        />
+      </div>
 
       {event.status !== 'cancelled' && (
         <CancelEventPanel

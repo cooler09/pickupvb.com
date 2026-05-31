@@ -1,6 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Authenticated player social flows: own public profile, player directory,
@@ -49,27 +50,25 @@ test.describe('own public profile', () => {
     // The edit form lives inside a collapsed <details> whose <summary> reads
     // "Edit profile". Accept any of: expanded form input, a link/button CTA,
     // or the collapsed summary toggle.
-    const hasForm = await page
-      .locator('input[name="display_name"]')
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
-    const hasEditLink = await page
-      .getByRole('link', { name: /edit profile/i })
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
-    const hasEditButton = await page
-      .getByRole('button', { name: /edit profile/i })
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
-    const hasSummary = await page
-      .locator('details summary')
-      .filter({ hasText: /edit profile/i })
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const hasForm = await isVisibleOrTimeout(
+      page.locator('input[name="display_name"]').first(),
+      5_000,
+    );
+    const hasEditLink = await isVisibleOrTimeout(
+      page.getByRole('link', { name: /edit profile/i }).first(),
+      5_000,
+    );
+    const hasEditButton = await isVisibleOrTimeout(
+      page.getByRole('button', { name: /edit profile/i }).first(),
+      5_000,
+    );
+    const hasSummary = await isVisibleOrTimeout(
+      page
+        .locator('details summary')
+        .filter({ hasText: /edit profile/i })
+        .first(),
+      5_000,
+    );
     expect(hasForm || hasEditLink || hasEditButton || hasSummary).toBe(true);
   });
 });
@@ -261,12 +260,13 @@ test.describe('friends and following', () => {
       await page.waitForLoadState('domcontentloaded');
       await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
       // Accept any mutual-follow indicator: "Friends", "Mutual", or bHandle appearing in the list.
-      const hasMutual = await page
-        .locator('main')
-        .getByText(new RegExp(`${bHandle}|friends|mutual`, 'i'))
-        .first()
-        .isVisible({ timeout: 10_000 })
-        .catch(() => false);
+      const hasMutual = await isVisibleOrTimeout(
+        page
+          .locator('main')
+          .getByText(new RegExp(`${bHandle}|friends|mutual`, 'i'))
+          .first(),
+        10_000,
+      );
       expect(hasMutual, '/friends should show attendee-b as a mutual connection').toBe(true);
     } finally {
       // Cleanup: attendee-b unfollows attendee-a.

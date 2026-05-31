@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { DEFAULT_CONFIG, type ScoreboardConfig } from '../_lib/types.js';
 import { isValidRoomCode, normalizeRoomCode } from '../_lib/room-code.js';
+import type { MatchBinding, MatchKind } from '../_lib/binding.js';
 import { ScoreboardView } from './_components/scoreboard-view.js';
 
 export const metadata = {
@@ -30,6 +31,33 @@ function parseConfig(params: SearchParams): ScoreboardConfig {
   };
 }
 
+/**
+ * Optional match binding (ADR 0023 Phase 4). When the scoreboard was launched
+ * from a scheduled match (`ScoreLiveButton`), the match params arrive as query
+ * string and `ScoreboardView` shows a "Save final to match" affordance. Absent
+ * → the plain free tool. A standalone bracket (ADR 0025) sends `bracket` +
+ * `match` instead of `event` + `division`.
+ */
+function parseBinding(params: SearchParams): MatchBinding | undefined {
+  const matchId = single(params['match']);
+  const kindRaw = single(params['kind']);
+  if (!matchId) return undefined;
+  if (kindRaw !== 'bracket' && kindRaw !== 'league') return undefined;
+  const kind: MatchKind = kindRaw;
+
+  const bracketId = single(params['bracket']);
+  if (bracketId) {
+    const returnPath = single(params['ret']) || `/brackets/${bracketId}`;
+    return { bracketId, matchId, kind, returnPath };
+  }
+
+  const eventId = single(params['event']);
+  const divisionId = single(params['division']);
+  if (!eventId || !divisionId) return undefined;
+  const returnPath = single(params['ret']) || `/events/${eventId}`;
+  return { eventId, divisionId, matchId, kind, returnPath };
+}
+
 export default async function ScoreboardRoomPage({
   params,
   searchParams,
@@ -41,5 +69,6 @@ export default async function ScoreboardRoomPage({
   const code = normalizeRoomCode(rawCode);
   if (!isValidRoomCode(code)) notFound();
   const config = parseConfig(sp);
-  return <ScoreboardView code={code} initialConfig={config} />;
+  const binding = parseBinding(sp);
+  return <ScoreboardView code={code} initialConfig={config} {...(binding ? { binding } : {})} />;
 }

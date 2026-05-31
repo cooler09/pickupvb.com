@@ -1,61 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { deleteGroupBySlug } from './_helpers/cleanup';
-
-/**
- * Find a group the signed-in user is listed under on /profile. Mirrors
- * findOwnedGroupUrl in groups-manage.authed.spec.ts. Returns the group URL
- * (path) or null. The caller probes `/<url>/members` to confirm management
- * rights.
- */
-async function findOwnedGroupUrl(page: import('@playwright/test').Page): Promise<string | null> {
-  await page.goto('/profile');
-  await page.waitForLoadState('domcontentloaded');
-  const groupLinks = page.locator('a[href*="/groups/"]');
-  const count = await groupLinks.count();
-  for (let i = 0; i < count; i++) {
-    const href = await groupLinks.nth(i).getAttribute('href');
-    if (!href || href.includes('/edit') || href.includes('/members') || href.includes('/new'))
-      continue;
-    return href.replace(/\/$/, '');
-  }
-  return null;
-}
-
-/**
- * Make sure the signed-in profile has a unique, searchable display_name that
- * the UserPicker's ilike search can hit. Idempotent. Mirrors the helper in
- * teams.authed.spec.ts.
- */
-async function ensureSearchableDisplayName(
-  page: import('@playwright/test').Page,
-  prefix: string,
-): Promise<string> {
-  await page.goto('/profile');
-  await page.waitForLoadState('domcontentloaded');
-  const dnInput = page.locator('input[name="display_name"]').first();
-  await expect(dnInput).toBeVisible({ timeout: 10_000 });
-  const current = await dnInput.inputValue();
-  if (current && current.startsWith(prefix)) return current;
-
-  const next = `${prefix} ${Math.random().toString(36).slice(2, 7)}`;
-  await dnInput.fill(next);
-  await page
-    .getByRole('button', { name: /save changes|save profile|update profile/i })
-    .first()
-    .click();
-  await page
-    .getByText(/profile updated/i)
-    .first()
-    .waitFor({ timeout: 10_000 })
-    .catch(() => {
-      /* tolerate no alert */
-    });
-  await page.waitForLoadState('domcontentloaded');
-  return next;
-}
+import { withAuthContext } from './_helpers/browser';
+import { ensureSearchableDisplayName, findOwnedGroupUrl } from './_helpers/navigation';
 
 /**
  * Authenticated group flows.
@@ -101,7 +50,7 @@ test.describe('create group', () => {
       await page.goto(`${groupUrl}/edit`);
       await page.waitForLoadState('domcontentloaded');
       const openDeleteBtn = page.getByRole('button', { name: /^delete group…?$/i });
-      if (await openDeleteBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      if (await isVisibleOrTimeout(openDeleteBtn, 5_000)) {
         await openDeleteBtn.click();
         await page.getByRole('button', { name: /yes, delete group/i }).click();
         await page.waitForURL(/\/groups(\?.*)?$/, { timeout: 15_000 });
@@ -148,20 +97,18 @@ test.describe('create group', () => {
     const finalUrl = page.url();
 
     // If a new group was mistakenly created, the page would show our test name.
-    const erroneouslyCreated = await page
-      .locator('main')
-      .getByText(/E2E Duplicate Slug Test/i)
-      .isVisible({ timeout: 3_000 })
-      .catch(() => false);
+    const erroneouslyCreated = await isVisibleOrTimeout(
+      page.locator('main').getByText(/E2E Duplicate Slug Test/i),
+      3_000,
+    );
     expect(erroneouslyCreated, 'Duplicate slug must not create a new group').toBe(false);
 
     // Expect either to remain on the form page or to see a conflict error.
     const stayedOnForm = finalUrl.includes('/groups/new');
-    const hasConflictError = await page
-      .getByText(/taken|conflict|already exists|in use|unavailable|duplicate/i)
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const hasConflictError = await isVisibleOrTimeout(
+      page.getByText(/taken|conflict|already exists|in use|unavailable|duplicate/i).first(),
+      5_000,
+    );
     expect(stayedOnForm || hasConflictError).toBe(true);
   });
 });
@@ -272,27 +219,22 @@ test.describe('group members', () => {
     const membersUrl = `${groupUrl}/members`;
     await page.goto(membersUrl);
     await page.waitForLoadState('domcontentloaded');
-    const canManage = await page
-      .getByRole('combobox', { name: /find a player/i })
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const canManage = await isVisibleOrTimeout(
+      page.getByRole('combobox', { name: /find a player/i }).first(),
+      5_000,
+    );
     if (!canManage) {
       test.skip(true, 'Test user is not owner/admin of the discovered group; skipping');
     }
 
     // Resolve a searchable display_name for attendee-b.
-    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
-    const bPage = await bContext.newPage();
     let searchTerm: string | null = null;
     try {
-      searchTerm = await ensureSearchableDisplayName(bPage, 'E2E Attendee B');
+      searchTerm = await withAuthContext(browser, STORAGE_PATHS.attendeeB, (bPage) =>
+        ensureSearchableDisplayName(bPage, 'E2E Attendee B'),
+      );
     } catch {
       /* fall through; searchTerm stays null */
-    } finally {
-      await bContext.close().catch(() => {
-        /* tolerate teardown errors */
-      });
     }
     if (!searchTerm) {
       test.skip(true, 'Could not determine attendee-b display_name; skipping');

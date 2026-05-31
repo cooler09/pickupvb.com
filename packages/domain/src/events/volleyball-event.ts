@@ -1,5 +1,5 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import {
   CapacityExceededError,
   ConflictError,
@@ -12,11 +12,8 @@ import {
   EventPosition,
   EventStatus,
   EventType,
-  Format,
-  Gender,
   PriceUnit,
   RegistrationMode,
-  SkillLevel,
   Surface,
   TeamComposition,
   TeamRegistrationMode,
@@ -35,11 +32,24 @@ import {
   TeamWithdrawn,
 } from './events.js';
 import { Location } from './location.js';
-import { assertFormatAllowedForSurface } from './rules.js';
 
 export type EventId = Brand<string, 'EventId'>;
+export const EventId = idConstructor<'EventId'>();
 export type UserId = Brand<string, 'UserId'>;
+export const UserId = idConstructor<'UserId'>();
 export type TeamId = Brand<string, 'TeamId'>;
+export const TeamId = idConstructor<'TeamId'>();
+
+/**
+ * A tournament free-agent signup as the aggregate owns it (ADR 0019): the
+ * division the player signed up for plus their optional captain-facing notes.
+ * `divisionId` is `null` only for legacy rows read from persistence that
+ * predate a clean division assignment — new signups always carry one.
+ */
+export interface FreeAgentEntry {
+  divisionId: DivisionId | null;
+  notes: string | null;
+}
 
 /**
  * Validate and copy a position roster: integers ≥ 0, at least one position
@@ -75,9 +85,6 @@ export interface CreateEventProps {
   description: string;
   rules: string;
   surface: Surface;
-  format: Format | null;
-  gender: Gender | null;
-  skillLevel: SkillLevel;
   type: EventType;
   visibility: Visibility;
   location: Location;
@@ -263,10 +270,12 @@ function resolveExtensions(
  * Aggregate root for a volleyball event.
  *
  * Owns all consistency rules:
- *   - Surface × format compatibility
  *   - Open-play vs tournament signup mode
  *   - Capacity enforcement
  *   - Status transitions (draft → published → cancelled/completed)
+ *
+ * Per-division attributes (`format`, `gender`, `skillTier`, `capacity`,
+ * …) live on {@link Division}, not on the aggregate root.
  *
  * Mutations only happen through methods. State is read-only externally.
  */
@@ -278,9 +287,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _description: string,
     private _rules: string,
     public readonly surface: Surface,
-    public readonly format: Format | null,
-    public readonly gender: Gender | null,
-    private _skillLevel: SkillLevel,
     public readonly type: EventType,
     private _visibility: Visibility,
     private _location: Location,
@@ -290,8 +296,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _capacity: Capacity | null,
     private _status: EventStatus,
     private _attendees: Map<UserId, EventPosition | null>,
-    private _teams: Set<TeamId>,
-    private _freeAgents: Map<UserId, string | null>,
+    private _teams: Map<TeamId, DivisionId | null>,
+    private _freeAgents: Map<UserId, FreeAgentEntry>,
     private _positionRoster: Map<EventPosition, number> | null,
     private _extensions: EventExtensions,
     private _divisions: Division[],
@@ -307,14 +313,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    * @throws {InvariantViolation} for invalid time range, missing title,
    *   missing open-play capacity, invalid payment config, or any other
    *   broken aggregate invariant.
-   * @throws {ValidationError} from `assertFormatAllowedForSurface` when
-   *   `surface` and `format` are incompatible.
    */
   static create(props: CreateEventProps): VolleyballEvent {
-    if (props.format !== null) {
-      assertFormatAllowedForSurface(props.surface, props.format);
-    }
-
     if (props.endsAt <= props.startsAt) {
       throw new InvariantViolation('Event end time must be after start time.');
     }
@@ -348,9 +348,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       props.description.trim(),
       props.rules.trim(),
       props.surface,
-      props.format,
-      props.gender,
-      props.skillLevel,
       props.type,
       props.visibility,
       props.location,
@@ -360,7 +357,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       capacity,
       EventStatus.Draft,
       new Map(),
-      new Set(),
+      new Map(),
       new Map(),
       positionRoster,
       extensions,
@@ -382,9 +379,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     description: string;
     rules: string;
     surface: Surface;
-    format: Format | null;
-    gender: Gender | null;
-    skillLevel: SkillLevel;
     type: EventType;
     visibility: Visibility;
     location: Location;
@@ -394,9 +388,19 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     capacity: Capacity | null;
     status: EventStatus;
     attendees: ReadonlyArray<UserId> | ReadonlyArray<readonly [UserId, EventPosition | null]>;
-    teams: ReadonlyArray<TeamId>;
-    /** Tuples of `[userId, notes]`. Notes default to `null` when absent. */
-    freeAgents?: ReadonlyArray<readonly [UserId, string | null]>;
+    /**
+     * Either bare team ids (legacy / division-less) or `[teamId, divisionId]`
+     * tuples (ADR 0019). Bare ids hydrate with a `null` division.
+     */
+    teams: ReadonlyArray<TeamId> | ReadonlyArray<readonly [TeamId, DivisionId | null]>;
+    /**
+     * Either `[userId, notes]` tuples (legacy) or `[userId, FreeAgentEntry]`
+     * tuples carrying the division (ADR 0019). Legacy tuples hydrate with a
+     * `null` division.
+     */
+    freeAgents?:
+      | ReadonlyArray<readonly [UserId, string | null]>
+      | ReadonlyArray<readonly [UserId, FreeAgentEntry]>;
     positionRoster?: ReadonlyMap<EventPosition, number> | null;
     extensions?: Partial<EventExtensionsInput>;
     divisions?: ReadonlyArray<Division>;
@@ -407,6 +411,18 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
           ? (a as readonly [UserId, EventPosition | null])
           : ([a as UserId, null] as const),
     );
+    const teamEntries: Array<readonly [TeamId, DivisionId | null]> = props.teams.map(
+      (t): readonly [TeamId, DivisionId | null] =>
+        Array.isArray(t)
+          ? (t as readonly [TeamId, DivisionId | null])
+          : ([t as TeamId, null] as const),
+    );
+    const freeAgentEntries: Array<readonly [UserId, FreeAgentEntry]> = (props.freeAgents ?? []).map(
+      ([userId, value]): readonly [UserId, FreeAgentEntry] =>
+        typeof value === 'object' && value !== null
+          ? [userId, value]
+          : [userId, { divisionId: null, notes: value }],
+    );
     const roster =
       props.positionRoster && props.positionRoster.size > 0 ? new Map(props.positionRoster) : null;
     return new VolleyballEvent(
@@ -416,9 +432,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       props.description,
       props.rules,
       props.surface,
-      props.format,
-      props.gender,
-      props.skillLevel,
       props.type,
       props.visibility,
       props.location,
@@ -428,8 +441,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       props.capacity,
       props.status,
       new Map(attendeeEntries),
-      new Set(props.teams),
-      new Map(props.freeAgents ?? []),
+      new Map(teamEntries),
+      new Map(freeAgentEntries),
       roster,
       resolveExtensions(props.extensions, props.endsAt),
       (props.divisions ?? []).slice(),
@@ -445,9 +458,6 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
   get rules(): string {
     return this._rules;
-  }
-  get skillLevel(): SkillLevel {
-    return this._skillLevel;
   }
   get visibility(): Visibility {
     return this._visibility;
@@ -479,12 +489,21 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   get positionRoster(): ReadonlyMap<EventPosition, number> | null {
     return this._positionRoster;
   }
+  /** Registered tournament teams (ids only). See {@link teamEntries} for divisions. */
   get teams(): ReadonlySet<TeamId> {
-    return this._teams;
+    return new Set(this._teams.keys());
+  }
+  /** Registered teams with the division each is registered for (ADR 0019). */
+  get teamEntries(): ReadonlyArray<readonly [TeamId, DivisionId | null]> {
+    return Array.from(this._teams.entries());
   }
   /** Free-agent signups, mapped to their optional notes blurb. */
   get freeAgents(): ReadonlyMap<UserId, string | null> {
-    return this._freeAgents;
+    return new Map(Array.from(this._freeAgents, ([userId, entry]) => [userId, entry.notes]));
+  }
+  /** Free-agent signups with the division each chose (ADR 0019). */
+  get freeAgentEntries(): ReadonlyArray<readonly [UserId, FreeAgentEntry]> {
+    return Array.from(this._freeAgents.entries());
   }
   /** Divisions on this event. Empty when the event has not been split yet. */
   get divisions(): ReadonlyArray<Division> {
@@ -670,13 +689,17 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * Tournament signup.
+   * Tournament signup. The team is registered into a specific division
+   * (ADR 0019) — the aggregate is the authority for "which team, which
+   * division," so `save()` can persist the join atomically without a
+   * side-channel.
    *
    * @throws {InvariantViolation} if the event is not a Tournament, is not
    *   Published, or has already started.
+   * @throws {NotFoundError} if `divisionId` does not belong to this event.
    * @throws {ConflictError} if the team is already registered.
    */
-  registerTeam(teamId: TeamId): void {
+  registerTeam(teamId: TeamId, divisionId: DivisionId): void {
     if (this.type !== EventType.Tournament) {
       throw new InvariantViolation('Open-play events require player signup.');
     }
@@ -686,13 +709,16 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     if (this.hasStarted()) {
       throw new InvariantViolation('Event has already started; team registration is closed.');
     }
+    if (!this._divisions.some((d) => d.id === divisionId)) {
+      throw new NotFoundError('division', String(divisionId), 'Division not found on this event.');
+    }
     if (this._teams.has(teamId)) {
       throw new ConflictError('Team is already registered.', {
         eventId: this.id,
         teamId,
       });
     }
-    this._teams.add(teamId);
+    this._teams.set(teamId, divisionId);
     this.raise(new TeamRegistered(this.id, teamId));
   }
 
@@ -746,7 +772,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     if (trimmed && trimmed.length > 280) {
       throw new InvariantViolation('Free-agent notes are limited to 280 characters.');
     }
-    this._freeAgents.set(userId, trimmed && trimmed.length > 0 ? trimmed : null);
+    this._freeAgents.set(userId, {
+      divisionId,
+      notes: trimmed && trimmed.length > 0 ? trimmed : null,
+    });
     this.raise(new FreeAgentJoined(this.id, userId));
   }
 
@@ -811,25 +840,47 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
    *   1. Open-play events must have every division at `mode = null`
    *      (individual signup only). No team-led divisions allowed at all.
    *   2. A division with `mode ∈ {ad_hoc, roster}` requires a non-solo
-   *      `team_composition` and `priceUnit === per_team`. The captain pays
-   *      for the team; per-player pricing is rejected because the platform
-   *      does not split a captain's payment across teammates.
-   *   3. A division with `mode === null` requires `TeamComposition.Solo`
-   *      and `priceUnit === per_player`.
+   *      `team_composition`. When the division charges money
+   *      (`priceCents > 0`) it must also be `priceUnit === per_team`:
+   *      the captain pays for the team and the platform does not split a
+   *      captain's payment across teammates. **Free divisions
+   *      (`priceCents === 0` or `null`) skip the price-unit check** —
+   *      with no money to route, per-player vs. per-team is a meaningless
+   *      distinction. The write boundary normalizes the unit to
+   *      `per_team` in that case so persisted rows stay coherent.
+   *   3. A division with `mode === null` requires `TeamComposition.Solo`.
+   *      When charging money it must be `priceUnit === per_player`; free
+   *      divisions skip the check (mirrored to Rule 2). The write
+   *      boundary normalizes the unit to `per_player`.
    *   4. `payments_off_platform` does not relax any of the above —
    *      off-platform changes who handles the money, not what shape
-   *      of registration the platform accepts.
+   *      of registration the platform accepts. (The price-unit relaxation
+   *      in Rules 2 & 3 is keyed on `priceCents`, not on whether payments
+   *      are off-platform, so a paid off-platform division still must
+   *      pick the unit that matches its mode.)
    *
    * Invoked from {@link create} and from division mutations so a bad
    * combination can't sneak in by adding a division later.
    */
   private assertRegistrationConfigValid(): void {
+    // P1 #3 — Open-play events are per-product-brief single-division
+    // and individual-only. The per-division loop below already catches
+    // a non-solo composition or non-null `teamRegistrationMode`
+    // (Rules 1 + 3); this top-level guard adds the count check the
+    // per-division loop can't express.
+    if (this.type === EventType.OpenPlay && this._divisions.length > 1) {
+      throw new InvariantViolation(
+        `Open-play events must have at most one division (got ${this._divisions.length}). Change the event type to tournament or remove the extra divisions.`,
+      );
+    }
+
     for (const d of this._divisions) {
       const mode = d.teamRegistrationMode;
       const isTeamLed = mode === TeamRegistrationMode.AdHoc || mode === TeamRegistrationMode.Roster;
       const isIndividual = mode === null;
       const composition = d.teamComposition;
       const priceUnit = d.priceUnit;
+      const isFree = (d.priceCents ?? 0) <= 0;
 
       // Rule 1: open-play forbids any team-led division.
       if (this.type === EventType.OpenPlay && !isIndividual) {
@@ -838,28 +889,57 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
         );
       }
 
-      // Rule 2: team-led division requires team composition + per-team price.
+      // Rule 1c (P2 #5): open-play has no free-agent pool by product
+      // design — RSVP is individual; everyone is effectively their own
+      // free agent. Force `allow_free_agents = false` so the dead code
+      // path can't accidentally light up if the column gets toggled by
+      // a future host-tools panel or an importer.
+      if (this.type === EventType.OpenPlay && d.allowFreeAgents) {
+        throw new InvariantViolation(
+          `Open-play events do not have a free-agent pool. Division "${d.label}" has allow_free_agents = true — set it to false (the field is only meaningful on tournament and league divisions).`,
+        );
+      }
+
+      // Rule 1b (P1 #1 scaffolding): leagues are pre-defined rostered
+      // squads. Every league division must use `roster` mode (no ad-hoc
+      // pickup teams, no individual signup) and a non-solo composition.
+      if (this.type === EventType.League) {
+        if (mode !== TeamRegistrationMode.Roster) {
+          throw new InvariantViolation(
+            `League events require roster-based team registration on every division. Division "${d.label}" has team registration mode "${mode ?? 'none'}" — set it to "roster".`,
+          );
+        }
+        if (composition === TeamComposition.Solo) {
+          throw new InvariantViolation(
+            `League events cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partners.`,
+          );
+        }
+      }
+
+      // Rule 2: team-led division requires team composition.
+      // The per-team price-unit constraint only kicks in for paid divisions.
       if (isTeamLed) {
         if (composition === TeamComposition.Solo) {
           throw new InvariantViolation(
-            `Team-registered divisions cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partner_required.`,
+            `Team-registered divisions cannot use solo composition. Division "${d.label}" must use team, pair_draw, or partners.`,
           );
         }
-        if (priceUnit === PriceUnit.PerPlayer) {
+        if (!isFree && priceUnit === PriceUnit.PerPlayer) {
           throw new InvariantViolation(
             `Team-registered divisions require per-team pricing. Division "${d.label}" is priced per-player — the captain pays for the team. Switch the division to per-team pricing or set the division's team registration mode to "none".`,
           );
         }
       }
 
-      // Rule 3: individual-signup division requires solo composition + per-player price.
+      // Rule 3: individual-signup division requires solo composition.
+      // The per-player price-unit constraint only kicks in for paid divisions.
       if (isIndividual) {
         if (composition !== TeamComposition.Solo) {
           throw new InvariantViolation(
             `Individual-signup divisions must use solo composition. Division "${d.label}" has team composition "${composition}" — set the division's team registration mode to ad_hoc/roster or switch the composition to solo.`,
           );
         }
-        if (priceUnit === PriceUnit.PerTeam) {
+        if (!isFree && priceUnit === PriceUnit.PerTeam) {
           throw new InvariantViolation(
             `Individual-signup divisions cannot use per-team pricing. Division "${d.label}" must be priced per-player, or set the division's team registration mode to ad_hoc/roster.`,
           );

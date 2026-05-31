@@ -229,6 +229,49 @@ Either way, **don't add ad-hoc status mapping in route handlers** — throw
 the typed `DomainError` and let
 [apps/web/src/lib/api-helpers.ts](apps/web/src/lib/api-helpers.ts) map it.
 
+## UI primitives — Radix UI
+
+For client-side widgets where accessibility + behavior are the hard
+part (focus management, `aria-live`, swipe / hotkey dismissal, focus
+trap, controlled-vs-uncontrolled state), reach for
+`@radix-ui/react-*` headless primitives instead of hand-rolling.
+Style them with our existing Tailwind v4 tokens + M3 utilities.
+
+In the tree today:
+
+- [apps/web/src/components/toast.tsx](apps/web/src/components/toast.tsx)
+  on `@radix-ui/react-toast` (Bundle 132). M3 Snackbar conformance —
+  single-visible queueing, action slot, M3 duration policy,
+  foreground/background `aria-live` mapping.
+
+Conventions:
+
+- **Preserve our public API at the call-site layer.** When migrating
+  an existing component, keep the existing hook / component / props
+  shape exactly so call sites need zero edits. Add new fields as
+  optional. Bundle 132's `useToast()` rewrite touched zero call
+  sites for this reason.
+- **Bridge Radix `data-state` / `data-swipe` attributes to M3 motion
+  tokens via plain CSS keyframes** in
+  [apps/web/src/app/globals.css](apps/web/src/app/globals.css). See
+  the `.md-toast-motion` block for the pattern (one shared class,
+  three `@keyframes`, durations / easings sourced from
+  `--md-sys-motion-duration-*` and `--md-sys-motion-easing-*`). We
+  intentionally do **not** depend on `tailwindcss-animate`.
+- **Compose `tap-target` (Bundle 130) onto Radix `*.Close` /
+  `*.Trigger` primitives** for icon-only affordances. Radix forwards
+  `className` to the underlying `<button>`.
+- **Add the runtime dep with `pnpm --filter @pickupvb/web add
+@radix-ui/react-…`, then run `pnpm install`** to reconcile
+  peer-dep lockfile entries (documented repo pattern — skipping the
+  second install has tripped earlier bundles).
+
+When Bundle 6 (Dialog) and Bundle 8 (DropdownMenu) land, follow the
+same shape: pick the Radix primitive, preserve the existing public
+API, bridge motion via CSS keyframes consuming M3 tokens. Do not
+swap in `@mui/material` (rejected in
+[m3-alignment.md § "Why not MUI"](docs/audits/m3-alignment.md#why-not-mui)).
+
 ## Supabase
 
 - **Server reads/writes:** `getServerSupabase()` from [apps/web/src/lib/supabase.ts](apps/web/src/lib/supabase.ts).
@@ -401,7 +444,23 @@ to assert UI plumbing in a domain unit test.
 Run order during verify: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.
 E2E (`pnpm --filter @pickupvb/web e2e`) is not part of the default verify
 chain — run it manually against a deployed environment when the change
-touches a covered journey.
+touches a covered journey. Three non-obvious gotchas trip every first e2e run:
+
+- **Use Node 22** (`.nvmrc` = 22.11.0; `nvm use` first). On Node 20 the Supabase
+  Realtime cleanup client ([tests/e2e/\_helpers/cleanup.ts](apps/web/tests/e2e/_helpers/cleanup.ts))
+  throws `Node.js 20 detected without native WebSocket support`, failing every
+  fixture-provisioning / teardown test (brackets, leagues, team/group creation)
+  with an error unrelated to the app. A green-looking Node-20 run is mostly
+  environment noise, not a passing suite.
+- **`.env.local` is NOT auto-loaded** by Playwright, and the suite hits the
+  **deployed** target (`PLAYWRIGHT_BASE_URL`, default `https://dev.pickupvb.com`)
+  — local app-code changes don't show until deployed. Export `TEST_*` and
+  `E2E_CLEANUP_SUPABASE_*` inline; without the cleanup creds the mutating specs
+  sanctioned-skip and leak fixtures.
+- **Authoring an e2e ≠ running it.** Two Phase-1 bracket tests shipped red — a
+  500 the spec would have caught, and a champion assertion on a banner that
+  never existed — because the spec was written but never run green against dev.
+  Run a new mutating spec against dev before calling it done.
 
 ## Common pitfalls
 
@@ -428,6 +487,18 @@ tags: [...] })` must be invalidated by tag. In Next 16, **use
 - **Calling client-only Supabase APIs from a server component** (or vice
   versa). Stick to `getServerSupabase()` in `page.tsx` / actions and
   `createSupabaseBrowserClient()` inside `'use client'` files.
+- **Passing a function (callback / render-prop) from a Server Component to a
+  Client Component.** RSC can't serialize a function across the boundary, so it
+  throws `Functions cannot be passed directly to Client Components` at
+  **runtime** — invisible to `pnpm typecheck && lint && build`; it surfaces only
+  in dev logs or a real render / e2e. Any `'use client'` primitive that takes a
+  function prop forces **every caller to also be a client component.** Reference
+  fix: `FormModal`'s `trigger` / `children` render-props
+  ([form-modal.tsx](apps/web/src/components/form-modal.tsx)) — all three callers
+  carry `'use client'`
+  ([no-bracket-view.tsx](apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx),
+  [setup-view.tsx](apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx),
+  [host-ad-hoc-teams-panel.tsx](apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx)).
 - **Adding a string error code in the application layer.** Define a typed
   `DomainError` subclass instead.
 - **Shipping a "fix" without `pnpm typecheck && pnpm lint && pnpm test && pnpm build`.**
@@ -451,13 +522,18 @@ evict.
 
 **If the page reads from `unstable_cache` with tags, also call
 `updateTag(tag)`.** `revalidatePath` only busts the page render cache,
-not tagged `unstable_cache` entries. Match the tag string used at the
-cache site (we use `` `event:${id}` `` for event-scoped helpers). In
+not tagged `unstable_cache` entries. **Don't hand-write the tag string —
+import the builder from [apps/web/src/lib/cache-tags.ts](apps/web/src/lib/cache-tags.ts)**
+(`eventCacheTag(id)` / `profileCacheTag(id)` / `hostStripeCacheTag(id)`).
+The tag is the contract between the cache site (the event-detail
+side-loads) and every eviction site; a literal copy-pasted in ~25 places
+silently breaks read-your-own-writes on a typo. Add a new builder there
+rather than introducing a new magic string (architecture audit P2-6). In
 Next 16 use `updateTag(tag)` from `next/cache` — the new `revalidateTag`
 requires a profile arg and targets the `'use cache'` model. Reference
 fix: every mutator in
 [apps/web/src/app/events/[id]/ad-hoc-team-actions.ts](apps/web/src/app/events/[id]/ad-hoc-team-actions.ts)
-calls both `revalidatePath(returnPath)` and ``updateTag(`event:${eventId}`)``.
+calls both `revalidatePath(returnPath)` and `updateTag(eventCacheTag(eventId))`.
 
 **Exception — Stripe-redirecting actions:** when the action redirects to a
 Stripe Checkout session and the eventual revalidation is driven by a
@@ -528,3 +604,95 @@ Stripe-readiness checks in
 and [edit/actions.ts](apps/web/src/app/events/[id]/edit/actions.ts)
 gate on the host **user**, not the group. Full write-up:
 [docs/payments.md](docs/payments.md).
+
+### 8. Don't enforce authorization on the admin (service-role) client
+
+`createSupabaseAdminClient()` bypasses RLS. A write that delegates its
+"may this user do this?" check to a Postgres RLS policy is **unprotected**
+if it runs on the admin client — the policy never fires. This bit us
+twice (security audit P2 #4): once in the checkout/tip/manage-payments
+actions (Bundle 14), and again in the bracket/league **match-result**
+writes, where the repos self-construct the admin client so the gap hid
+behind the port. Rules:
+
+- **Caller-is-the-resource-owner / captain writes** must run on a
+  user-scoped client (`getServerSupabase()`), so RLS enforces. Build the
+  handler per request — see `getMatchResultHandlers()` in
+  [apps/web/src/lib/handlers.ts](apps/web/src/lib/handlers.ts).
+- **When a single-row UPDATE under RLS isn't enough** (the action's
+  legitimate side-effects touch rows the caller has no grant on — e.g.
+  bracket winner advancement into a downstream match), use a
+  `SECURITY DEFINER` RPC with an **explicit** `is_event_host(...) OR
+is_*_captain(...)` gate, then delegate to the shared save. Reference:
+  [`record_bracket_match_result`](supabase/migrations/20260814000100_record_bracket_match_result_rpc.sql)
+  vs. the pure-INVOKER
+  [`record_league_match_result`](supabase/migrations/20260814000000_record_league_match_result_rpc.sql).
+- **Admin client is correct only** for session-less contexts (Stripe
+  webhooks, crons) and host-gated operations already authorized in the
+  application layer.
+- When chasing an RLS-bypass, **audit the repository adapters**, not just
+  page/action code — an adapter that lazily builds its own admin client
+  hides the same gap.
+
+### 9. A handler that saves a raising aggregate must dispatch the outbox
+
+Domain events accumulate on the aggregate (`this.raise(...)`) but are only
+delivered when a handler drains them — **`raise()` does not imply delivery**.
+Every command handler that persists an aggregate which can raise events
+(`VolleyballEvent`, `Bracket`) must call `dispatchAnalyticsOutbox(aggregate,
+this.analytics)` immediately after `repo.save(aggregate)` (architecture audit
+P2-4). The port is injected as an optional `analytics?: AnalyticsPort` and
+threaded from the composition root ([handlers.ts](apps/web/src/lib/handlers.ts)).
+The dispatcher + mapper are generic over `AggregateRoot`, and the mapper is
+fail-quiet — events outside the analytics taxonomy map to `null`, so wiring a
+handler that currently raises nothing the mapper captures is a safe no-op that
+future-proofs the next captured event (it becomes a one-line mapper addition,
+delivered everywhere). Reference: the post-`save()` dispatch in every handler
+in [bracket.handler.ts](packages/application/src/commands/bracket.handler.ts).
+
+Corollary — **when generalizing a typed helper to a supertype, re-narrow with
+`instanceof` at the point that reads subtype state.** `mapDomainEventToAnalytics`
+takes `AggregateRoot<unknown>` but reads `VolleyballEvent`-only props, so it
+guards `de instanceof SpotFilled && aggregate instanceof VolleyballEvent` — the
+narrow satisfies the compiler _and_ prevents a wrong-aggregate crash when a
+`Bracket` flows through the same outbox.
+
+### 10. Payment state is a sanctioned facade-over-port shortcut — not a CQRS gap
+
+The host-payment "aggregates" — `HostStripeAccount` and `HostSubscription`
+([packages/domain/src/payments/](packages/domain/src/payments/)) — are
+**deliberately not consumed through `application` command/query handlers.**
+The thin `lib/` facades [pro.ts](apps/web/src/lib/pro.ts) and
+[host-stripe-account.ts](apps/web/src/lib/host-stripe-account.ts) call the
+repository ports (`repositories.hostSubscriptionRepo` /
+`repositories.hostStripeAccountRepo`) directly. This is **intentional and
+correct** (architecture audit P3-3, resolved 2026-05-30 — option (b)). Do not
+"fix" it by wrapping each call in a handler; that adds a layer with zero
+behaviour and would mislead the next reader (playbook item 4 — partial patterns
+cost more than no pattern).
+
+Why a handler earns nothing here:
+
+- **The aggregates carry no invariants.** Both are pure type aliases over a
+  Stripe-shaped row + a repository `interface` (verified in P3-4 — nothing to
+  unit-test). There is no state machine to protect, so a command handler would
+  be a pure pass-through.
+- **The reads are CQRS read projections.** `isPro` / `getHostStripeAccount` /
+  `getHostSubscription` are viewer-or-host-scoped lookups (often backed by a
+  Postgres function like `is_pro_host`), exactly the "trivial read" the playbook
+  reserves for direct port access.
+- **`isPro` must stay in the web layer regardless.** It's wrapped in
+  `React.cache` for per-request dedup across event-detail side-loads
+  (performance audit P3 #12); `react` is banned from `@pickupvb/application` by
+  the purity ratchet, so the memoized read cannot move inward.
+- **The writes are session-less Stripe mirrors.** `seedCustomer` /
+  `upsertFromStripe` / `create` / `updateStatusBy*` run from the
+  `lib/webhooks/*` handlers on the admin client (no user, no RLS to enforce), so
+  a command handler adds no authorization value.
+
+**The trigger to revisit:** if either type ever grows a real invariant or a
+multi-step state transition (e.g. an enforced subscription lifecycle, a
+proration rule, a cross-aggregate guard), promote that rule into the domain and
+add a command handler for the mutation — at that point the facade stops being a
+read shortcut and the handler earns its place. Until then, the facade-over-port
+shape is the sanctioned convention.

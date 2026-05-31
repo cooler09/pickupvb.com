@@ -1,3 +1,5 @@
+import { primaryButtonClass } from '@/components/primary-button';
+
 type Props = {
   externalRegistrationUrl: string | null;
   externalRegistrationInstructions: string | null;
@@ -16,7 +18,7 @@ export function ExternalRegistrationCard({
   paymentInstructions,
 }: Props) {
   return (
-    <section className="border-primary/40 bg-primary/5 space-y-3 rounded-lg border p-4">
+    <section className="border-primary/40 bg-primary/5 rounded-shape-sm space-y-3 border p-4">
       <h2 className="text-fg text-lg font-semibold">How to register</h2>
       <p className="text-muted text-sm">Signup for this event is handled off PickupVB.</p>
       {externalRegistrationUrl && (
@@ -24,9 +26,12 @@ export function ExternalRegistrationCard({
           href={externalRegistrationUrl}
           target="_blank"
           rel="noreferrer"
-          className="bg-primary text-primary-fg inline-block rounded px-3 py-1.5 text-sm font-medium"
+          className={primaryButtonClass('md')}
         >
-          Register on the host&apos;s site <span aria-hidden="true">↗</span>
+          Register on the host&apos;s site{' '}
+          <span aria-hidden="true" className="ml-1">
+            ↗
+          </span>
           <span className="sr-only"> (opens in new tab)</span>
         </a>
       )}

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { AddEventCoHostCommand, RemoveEventCoHostCommand } from '@pickupvb/application';
 import {
   ConflictError,
@@ -53,7 +54,7 @@ export async function addEventCoHost(
   // Pair revalidatePath with updateTag so the cached public read-model
   // (loadEventReadModelPublic, tagged `event:${id}`) is also evicted.
   // revalidatePath alone only busts the page render cache.
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   if (returnPath) revalidatePath(returnPath);
 }
 
@@ -69,7 +70,7 @@ export async function removeEventCoHost(
   } catch (err) {
     mapErrorAndFlash(eventId, err);
   }
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   if (returnPath) revalidatePath(returnPath);
 }
 

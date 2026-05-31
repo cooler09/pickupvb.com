@@ -13,6 +13,7 @@
  */
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import {
   AddAdHocTeamMemberCommand,
   RegisterAdHocTeamCommand,
@@ -94,7 +95,7 @@ export async function registerAdHocTeamFromForm(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_registered');
 }
 
@@ -119,7 +120,7 @@ export async function renameAdHocTeamFromForm(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_updated');
 }
 
@@ -152,7 +153,7 @@ export async function addAdHocTeamMemberFromForm(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_updated');
 }
 
@@ -175,7 +176,7 @@ export async function removeAdHocTeamMemberFromForm(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_updated');
 }
 
@@ -200,6 +201,6 @@ export async function withdrawAdHocTeamFromForm(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_withdrawn');
 }

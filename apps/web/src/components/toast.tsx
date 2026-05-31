@@ -1,5 +1,6 @@
 'use client';
 
+import * as RadixToast from '@radix-ui/react-toast';
 import {
   createContext,
   Suspense,
@@ -17,16 +18,42 @@ import type { AlertVariant } from './alert';
 
 export type ToastVariant = AlertVariant;
 
+/**
+ * Optional action button (M3 Snackbar action slot). The `altText` is what
+ * assistive tech announces when the action becomes available — Radix
+ * requires it.
+ */
+export interface ToastAction {
+  /** Visible button label (e.g. "Retry", "Undo"). */
+  label: string;
+  /** Alt text announced by screen readers. Default = `label`. */
+  altText?: string;
+  /** Click handler. The toast auto-dismisses after the handler runs. */
+  onClick: () => void;
+}
+
 export interface Toast {
   id: string;
   variant: ToastVariant;
   title?: string;
   message: string;
-  /** Auto-dismiss after this many ms. Set 0 to disable. Defaults to 5000. */
+  /**
+   * Override auto-dismiss in ms. Set 0 to disable (persistent — the user
+   * must dismiss). When unset, the duration follows M3 Snackbar rules:
+   * 10 000 ms for errors, 6 000 ms when an action is present, otherwise
+   * 5 000 ms.
+   */
   durationMs?: number;
+  /** Optional M3 action affordance — adds a labeled button (e.g. "Retry"). */
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
+  /**
+   * Snapshot of pending toasts. Index 0 (if present) is the currently
+   * visible toast; the rest are queued. Kept on the context so test
+   * harnesses can assert queue depth without touching the DOM.
+   */
   toasts: Toast[];
   show: (toast: Omit<Toast, 'id'> & { id?: string }) => string;
   dismiss: (id: string) => void;
@@ -40,6 +67,11 @@ const ToastContext = createContext<ToastContextValue | null>(null);
  * ```tsx
  * const { show } = useToast();
  * show({ variant: 'success', message: 'Saved!' });
+ * show({
+ *   variant: 'error',
+ *   message: "Couldn't save",
+ *   action: { label: 'Retry', onClick: save },
+ * });
  * ```
  */
 export function useToast(): ToastContextValue {
@@ -50,46 +82,37 @@ export function useToast(): ToastContextValue {
   return ctx;
 }
 
-const DEFAULT_DURATION_MS = 5000;
+/**
+ * M3-aligned default duration: errors stay longer because they often
+ * carry recovery actions or critical context; toasts with an action
+ * stay longer than informational ones so the user has time to react.
+ */
+function defaultDurationMs(t: Pick<Toast, 'variant' | 'action'>): number {
+  if (t.variant === 'error') return 10_000;
+  if (t.action) return 6_000;
+  return 5_000;
+}
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+  // Queue of pending toasts. Index 0 is the visible toast — M3 Snackbar
+  // shows one at a time and queues the rest. Errors and warnings still
+  // wait in line; their urgency comes from the `foreground` Radix type
+  // (assertive aria-live), not from stacking.
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const timers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-    const timer = timers.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      timers.current.delete(id);
-    }
   }, []);
 
-  const show = useCallback<ToastContextValue['show']>(
-    (toast) => {
-      const id =
-        toast.id ??
-        (typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
-      const next: Toast = { ...toast, id };
-      setToasts((prev) => [...prev, next]);
-      const duration = toast.durationMs ?? DEFAULT_DURATION_MS;
-      if (duration > 0) {
-        const timer = setTimeout(() => dismiss(id), duration);
-        timers.current.set(id, timer);
-      }
-      return id;
-    },
-    [dismiss],
-  );
-
-  useEffect(() => {
-    const map = timers.current;
-    return () => {
-      map.forEach((t) => clearTimeout(t));
-      map.clear();
-    };
+  const show = useCallback<ToastContextValue['show']>((toast) => {
+    const id =
+      toast.id ??
+      (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `t-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    const next: Toast = { ...toast, id };
+    setToasts((prev) => [...prev, next]);
+    return id;
   }, []);
 
   const value = useMemo<ToastContextValue>(
@@ -97,13 +120,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [toasts, show, dismiss],
   );
 
+  const head = toasts[0];
+
   return (
     <ToastContext.Provider value={value}>
-      {children}
-      <ToastViewport toasts={toasts} dismiss={dismiss} />
-      <Suspense fallback={null}>
-        <FlashReader />
-      </Suspense>
+      {/*
+       * Radix sets a default duration on every Toast via the Provider; we
+       * override per-toast with `duration` on the Root below, which makes
+       * the Provider default unused in practice. We still set a sane
+       * baseline so any Radix-managed dismiss path lines up with the M3
+       * standard.
+       */}
+      <RadixToast.Provider swipeDirection="right" duration={5000}>
+        {children}
+        {head ? <ToastItem key={head.id} toast={head} dismiss={dismiss} /> : null}
+        <RadixToast.Viewport className="pb-safe pointer-events-none fixed inset-x-0 bottom-4 z-50 mx-auto flex w-full max-w-sm flex-col items-center gap-2 px-4 outline-none sm:right-6 sm:bottom-6 sm:left-auto sm:mx-0 sm:items-end" />
+        <Suspense fallback={null}>
+          <FlashReader />
+        </Suspense>
+      </RadixToast.Provider>
     </ToastContext.Provider>
   );
 }
@@ -118,13 +153,13 @@ const VARIANT_CLASSES: Record<ToastVariant, string> = {
     'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/80 dark:text-amber-100',
 };
 
-// Per-variant focus-visible ring for the close button. The previous
-// `focus:ring-current` inherited the toast's foreground color, which on
-// info/warning surfaces did not reliably hit 3:1 against the toast
-// background (WCAG 2.4.11 Focus Appearance). Each ring below is verified
-// against both the light and dark variant backgrounds; the offset color
-// matches the toast background so the ring reads as a solid outline
-// rather than a halo bleeding into the page behind it.
+// Per-variant focus-visible ring for the close + action buttons. The
+// previous `focus:ring-current` inherited the toast's foreground color,
+// which on info/warning surfaces did not reliably hit 3:1 against the
+// toast background (WCAG 2.4.11 Focus Appearance). Each ring below is
+// verified against both the light and dark variant backgrounds; the
+// offset color matches the toast background so the ring reads as a
+// solid outline rather than a halo bleeding into the page behind it.
 const VARIANT_RING_CLASSES: Record<ToastVariant, string> = {
   error:
     'focus-visible:ring-red-700 focus-visible:ring-offset-red-50 dark:focus-visible:ring-red-200 dark:focus-visible:ring-offset-red-950',
@@ -135,53 +170,61 @@ const VARIANT_RING_CLASSES: Record<ToastVariant, string> = {
     'focus-visible:ring-amber-800 focus-visible:ring-offset-amber-50 dark:focus-visible:ring-amber-200 dark:focus-visible:ring-offset-amber-950',
 };
 
-function ToastViewport({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: string) => void }) {
-  const assertive = toasts.filter((t) => t.variant === 'error' || t.variant === 'warning');
-  const polite = toasts.filter((t) => t.variant !== 'error' && t.variant !== 'warning');
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4 sm:right-6 sm:bottom-6 sm:left-auto sm:items-end">
-      {/* Errors and warnings are assertive so screen readers interrupt
-                whatever they're reading. Successes / info stay polite. */}
-      <ol aria-live="assertive" aria-atomic="false" className="contents">
-        {assertive.map((t) => (
-          <ToastItem key={t.id} toast={t} dismiss={dismiss} />
-        ))}
-      </ol>
-      <ol aria-live="polite" aria-atomic="false" className="contents">
-        {polite.map((t) => (
-          <ToastItem key={t.id} toast={t} dismiss={dismiss} />
-        ))}
-      </ol>
-    </div>
-  );
-}
-
 function ToastItem({ toast: t, dismiss }: { toast: Toast; dismiss: (id: string) => void }) {
+  // Errors / warnings render as Radix `foreground` toasts → role="alert"
+  // + aria-live="assertive". Info / success render as `background` →
+  // role="status" + aria-live="polite". Matches the previous behavior of
+  // the hand-rolled <ol aria-live> split.
+  const radixType: RadixToast.ToastProps['type'] =
+    t.variant === 'error' || t.variant === 'warning' ? 'foreground' : 'background';
+  const duration = t.durationMs ?? defaultDurationMs(t);
+
   return (
-    <li
-      role={t.variant === 'error' || t.variant === 'warning' ? 'alert' : 'status'}
+    <RadixToast.Root
+      type={radixType}
+      duration={duration === 0 ? Number.POSITIVE_INFINITY : duration}
+      onOpenChange={(open) => {
+        if (!open) dismiss(t.id);
+      }}
       className={[
         'pointer-events-auto w-full max-w-sm rounded-md border p-3 text-sm shadow-lg',
+        'md-toast-motion',
         VARIANT_CLASSES[t.variant],
       ].join(' ')}
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          {t.title && <p className="leading-tight font-semibold">{t.title}</p>}
-          <p className={t.title ? 'mt-0.5' : undefined}>{t.message}</p>
+          {t.title && (
+            <RadixToast.Title className="leading-tight font-semibold">{t.title}</RadixToast.Title>
+          )}
+          <RadixToast.Description className={t.title ? 'mt-0.5' : undefined}>
+            {t.message}
+          </RadixToast.Description>
         </div>
-        <button
-          type="button"
+        {t.action && (
+          <RadixToast.Action asChild altText={t.action.altText ?? t.action.label}>
+            <button
+              type="button"
+              onClick={() => {
+                t.action?.onClick();
+                dismiss(t.id);
+              }}
+              className={`shrink-0 rounded-md border border-current/30 px-2 py-1 text-xs font-semibold tracking-wide uppercase hover:bg-current/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${VARIANT_RING_CLASSES[t.variant]}`}
+            >
+              {t.action.label}
+            </button>
+          </RadixToast.Action>
+        )}
+        <RadixToast.Close
           aria-label={
             t.title ? `Dismiss notification: ${t.title}` : `Dismiss notification: ${t.message}`
           }
-          onClick={() => dismiss(t.id)}
-          className={`-mt-1 -mr-1 rounded-md px-1.5 text-lg leading-none opacity-70 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${VARIANT_RING_CLASSES[t.variant]}`}
+          className={`tap-target -mt-1 -mr-1 rounded-md text-lg leading-none opacity-70 hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${VARIANT_RING_CLASSES[t.variant]}`}
         >
           <span aria-hidden>×</span>
-        </button>
+        </RadixToast.Close>
       </div>
-    </li>
+    </RadixToast.Root>
   );
 }
 

@@ -6,8 +6,42 @@
 **Method:** read-only static review. Server actions, API routes, auth flows,
 RLS policies, third-party integrations, secrets handling, logging.
 
+**Status update (2026-05-30) — fresh re-audit:** read-only pass over the
+feature surface added since the 2026-05-17 audit (brackets, leagues, event
+divisions, ad-hoc + walk-in registrations, community listings, host
+payments). Opened **1 P1 + 1 P2** — full write-up + recommended fixes in
+[§ Reevaluation — 2026-05-30](#reevaluation--2026-05-30).
+
+- **P1 #12 — division CRUD + co-host add/remove bypass authorization (new
+  instance of the [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes)
+  admin-client → RLS-bypass class).** The `AddEventDivision` / `UpdateEventDivision`
+  / `RemoveEventDivision` and `AddEventCoHost` / `RemoveEventCoHost` handlers
+  explicitly delegate authorization to RLS ("the repo will throw a Postgres
+  permission error"), but the shared `SupabaseEventRepository` lazily
+  constructs a **service-role** client, so RLS never fires and there is **no
+  app-layer host check** anywhere on these paths. Any signed-in (incl.
+  anonymous) user can **add themselves as a co-host of any event** →
+  `canManage` flips true → full host management surface (privilege
+  escalation), or **add / edit / delete divisions on any event** (integrity
+  damage; remove can cascade registration data → data loss). This is exactly
+  the adapter-hides-the-gap warning in AGENTS.md pitfall #8.
+- **P2 #13 — cron routes fail _open_ when `CRON_SECRET` is unset.** All three
+  admin-client cron endpoints (`worker`, `reminders`, `outbox-purge`) return
+  `true` from their auth guard when the secret is missing. A prod
+  misconfiguration leaves email/push fan-out and the destructive outbox purge
+  publicly invokable.
+
 **Status update (2026-05-17):** Quick-win bundle shipped — see
 [Remediation log](#remediation-log) at the bottom.
+
+**Status update (2026-12-04):** New instance of P2 #4 (admin client →
+RLS bypass) found and closed — the match-result writes (bracket
+record/reset, league score entry) persisted through the service-role
+admin client, so the "host or either captain" RLS policies never
+enforced and any signed-in user could overwrite any match's score.
+Now routed through a user-scoped client + authorization-gated RPCs.
+See [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes) and
+the [remediation log](#2026-12-04--captain-rls-on-match-result-writes-p2-4-follow-on).
 
 **Status update (2026-05-23, Bundle 53):** All three remaining P3
 findings closed in audit text. #9 (FormData hard cap) and #10
@@ -155,6 +189,20 @@ adds self-service policies for `event_attendees` /
 host-insert policy for `event_payment_audit`. Stripe webhook handlers
 continue to use the admin client (correct — they run with no user
 session). See the [Bundle 14 journal](../journal/2026-05-24-bundle-14.md).
+
+**Follow-on (2026-12-04):** a second instance of this same pattern
+surfaced in the bracket / league **match-result** writes — the repos
+(`SupabaseBracketRepository`, `SupabaseLeagueScheduleRepository`) build
+their own admin client, and the record/reset handlers delegated authz
+entirely to RLS policies that the admin client bypassed. Closed via
+user-scoped clients + authorization-gated RPCs; see the
+[2026-12-04 remediation entry](#2026-12-04--captain-rls-on-match-result-writes-p2-4-follow-on)
+and the
+[journal entry](../journal/2026-12-04-bundle-captain-rls-match-result.md).
+**Durable lesson:** "swap admin → server client" only fixes the call
+sites you can see — an adapter that self-constructs the admin client
+internally hides the same gap behind the port. Audit repository
+adapters, not just page/action code, when chasing RLS-bypass.
 
 **Files:**
 
@@ -306,6 +354,139 @@ not just trust the client.
 
 ---
 
+## Reevaluation — 2026-05-30
+
+Read-only re-audit against HEAD, graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = bug /
+data-loss / broken behavior; P2 = important hardening/quality; P3 =
+nice-to-have). Scope: the feature surface added since the 2026-05-17 audit
+— brackets, leagues, event divisions, ad-hoc + walk-in registrations,
+community listings, host payments — plus the cron / data-export routes that
+grew alongside them. Lens: authorization on write paths, admin-client (RLS
+bypass) usage, route auth.
+
+### What changed since the last audit
+
+The 2026-05-17 → 05-24 backlog (open-redirect, CSP, admin-client refactor of
+the checkout/tip/manage-payments actions, rate limiting, FormData cap,
+Turnstile freshness) is **closed**. The codebase roughly doubled since: the
+new aggregates each added their own server actions and command handlers.
+Most follow the sanctioned patterns — community-listing actions delegate to
+host-authorized handlers; walk-in / mark-paid-cash handlers carry explicit
+`event.hostId === requesterId` guards; `recordDivisionWinner` checks
+`canManage` on a **user-scoped** client; team delete/broadcast enforce the
+captain check in the app layer before any admin write. Two paths did not.
+
+---
+
+### P1 #12 — Division CRUD + co-host add/remove bypass authorization (admin-client → RLS-bypass; privilege escalation + data loss) 🆕 2026-05-30
+
+**Category:** Broken authorization / privilege escalation
+**Files:**
+
+- [packages/infrastructure/src/supabase-event-repository.ts#L289-L295](../../packages/infrastructure/src/supabase-event-repository.ts#L289-L295) — `SupabaseEventRepository` lazily builds a **service-role** client (`createSupabaseAdminClient()`) when none is injected.
+- [apps/web/src/lib/handlers.ts#L171-L175](../../apps/web/src/lib/handlers.ts#L171-L175) — `eventRepo` is constructed with **no client**, then handed to all five handlers.
+- [packages/application/src/commands/event-division.handler.ts#L20-L47](../../packages/application/src/commands/event-division.handler.ts#L20-L47) — `Add/Update/RemoveEventDivisionHandler`: comment says auth "lives at the DB layer (RLS) … we intentionally don't duplicate that check here."
+- [packages/application/src/commands/co-host.handler.ts#L6-L12](../../packages/application/src/commands/co-host.handler.ts#L6-L12) — `Add/RemoveEventCoHostHandler`: same RLS-reliance comment.
+- [apps/web/src/app/events/[id]/division-actions.ts#L91](../../apps/web/src/app/events/%5Bid%5D/division-actions.ts#L91) and [co-host-actions.ts#L48](../../apps/web/src/app/events/%5Bid%5D/co-host-actions.ts#L48) — both server actions only `requireSession()` (anonymous-allowed); no host check.
+
+**Issue:** The five handlers do **no** application-layer authorization. They
+load the event, mutate it (`event.addDivision(division)`,
+`repo.addCoHost(eventId, party, requesterId)`, …) and `save()` — and the
+aggregate mutators take **no actor**, so they cannot enforce host identity
+either. The handler comments document the intent: authorization is delegated
+to the RLS policies on `event_divisions` / `event_co_hosts`. But those
+mutations run through `eventRepo`, which — constructed with no client —
+lazily self-builds a **service-role** client that **bypasses RLS entirely**.
+The policy never executes; nothing throws. The bound server actions only
+`requireSession()`, which is satisfied by any logged-in user, including
+Supabase **anonymous** users. Both `eventId` and the co-host `party` are
+attacker-supplied server-action arguments.
+
+This is the precise scenario AGENTS.md pitfall #8 warns about — _"an adapter
+that lazily builds its own admin client hides the same gap"_ — and a third
+instance of the [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes)
+class (after the checkout/tip/manage-payments actions and the bracket/league
+match-result writes), this time with **zero** app-layer guard. The
+neighbouring `recordDivisionWinner`/`league-roster`/`league-schedule`
+handlers already do the right thing (explicit `canManage` / `hostId` check),
+which makes these two paths a clear oversight rather than a design choice.
+
+**Why P1:** Production-exploitable broken authorization on write paths.
+
+- **Co-host:** an attacker calls `addEventCoHost(eventId, { userId: <self> })`
+  for any event → becomes a co-host → `GetEventDetailQuery.canManage` returns
+  true → the entire host surface opens up (edit event, cancel, manage
+  payments, **Pro attendee CSV export of PII**, record winners, broadcasts).
+  Privilege escalation.
+- **Division:** `removeEventDivision(eventId, divisionId)` on someone else's
+  event deletes a division; depending on FK cascade this can take registered
+  teams / free-agents / attendees / bracket rows with it → **data loss** on a
+  live event. `add`/`update` let an attacker corrupt another host's
+  tournament configuration (pricing, capacity, format).
+
+**Fix:** Mirror the resolved match-result fix (security P2 #4 follow-on) and
+the correct `recordDivisionWinner` pattern — two equivalent options:
+
+1. **(preferred, consistent with `league-schedule`/`league-roster`)** Add an
+   explicit host/co-host/group-admin authorization check at the top of each
+   of the five handlers using the `requesterId` / `userId` they already
+   receive (it's currently "reserved for future audit columns"). Load the
+   event, and throw `UnauthorizedError` unless the requester is the host, an
+   existing co-host, or an owner/admin of the primary host group. Then update
+   the now-false RLS-reliance comments.
+2. Route these mutations through a **per-request user-scoped** repository
+   (like `getMatchResultHandlers()` in
+   [handlers.ts](../../apps/web/src/lib/handlers.ts)) so the RLS policies the
+   comments rely on actually fire.
+
+Either way, add handler tests asserting **non-host → `UnauthorizedError`**
+(the test name encodes the why, per AGENTS.md testing guidance). While here,
+audit the other handlers wired to the singleton admin-backed `eventRepo`
+([handlers.ts](../../apps/web/src/lib/handlers.ts)) for the same gap; the
+walk-in, free-agent, and create-event paths were verified to self-authorize,
+but the pattern is easy to re-introduce.
+
+---
+
+### P2 #13 — Cron routes fail _open_ when `CRON_SECRET` is unset 🆕 2026-05-30
+
+**Category:** Authentication / fail-safe defaults
+**Files:**
+
+- [apps/web/src/app/api/notifications/worker/route.ts#L45-L50](../../apps/web/src/app/api/notifications/worker/route.ts#L45-L50)
+- [apps/web/src/app/api/notifications/reminders/route.ts#L36-L41](../../apps/web/src/app/api/notifications/reminders/route.ts#L36-L41)
+- [apps/web/src/app/api/notifications/outbox-purge/route.ts#L23-L28](../../apps/web/src/app/api/notifications/outbox-purge/route.ts#L23-L28)
+
+**Issue:** Each route's auth guard is `const secret = process.env['CRON_SECRET']; if (!secret) return true; …` — i.e. **no secret configured ⇒ request authorized**. All three run on the **service-role** admin client. The "dev fallback" is convenient locally, but it is a fail-**open** posture: if `CRON_SECRET` is ever absent in the production env (rotation slip, new-environment bootstrap, typo'd key name), these endpoints become world-invokable:
+
+- `worker` drains the notification outbox → fires real email (Resend) + web-push. Repeated anonymous hits → cost + sender-reputation damage.
+- `reminders` triggers reminder fan-out to attendees → spam vector.
+- `outbox-purge` **deletes** outbox rows older than the cutoff → destructive history loss.
+
+Minor sub-point: the comparison `header === \`Bearer ${secret}\``is not constant-time. Over network jitter this is not practically exploitable, but a`crypto.timingSafeEqual` on the decoded token is the standard hardening.
+
+**Why P2:** Conditional on a prod misconfiguration rather than exploitable as-shipped, but the failure mode is severe (destructive + cost-bearing on the admin client) and the fix is a one-liner per route — a fail-safe-defaults issue worth closing now.
+
+**Fix:** Fail **closed** in production. Replace the dev fallback with:
+
+```ts
+function isAuthorized(req: Request): boolean {
+  const secret = process.env['CRON_SECRET'];
+  if (!secret) {
+    // Fail closed in prod; only the local dev fallback may run unauthenticated.
+    return process.env.NODE_ENV !== 'production';
+  }
+  const header = req.headers.get('authorization') ?? '';
+  const expected = `Bearer ${secret}`;
+  return header.length === expected.length && timingSafeEqual(header, expected);
+}
+```
+
+Better still, validate `CRON_SECRET` presence at module load in production and throw `InvariantViolation` so a misconfigured deploy fails fast rather than silently opening the routes. Factor the guard into one shared helper (`lib/cron-auth.ts`) so all three routes — and any future cron endpoint — inherit the fix.
+
+---
+
 ## ✅ Verified safe
 
 - **RLS coverage** — every public table has RLS enabled with policies;
@@ -351,6 +532,43 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-12-04 — Captain-RLS on match-result writes (P2 #4 follow-on)
+
+**Problem.** The captain-reachable match-result writes persisted through
+the service-role admin client, bypassing the RLS policies meant to gate
+them, so any signed-in real user could record/overwrite any match:
+
+- **Bracket** — `RecordMatchResultHandler` / `ResetMatchHandler` →
+  `SupabaseBracketRepository.save` (full-replace `save_bracket` RPC) on the
+  admin client. The bracket server actions even passed `requesterId = ''`,
+  delegating authz wholly to the `bracket_matches_update` /
+  `bracket_match_sets_write` policies — which never fired.
+- **League** — `RecordLeagueMatchResultHandler` →
+  `SupabaseLeagueScheduleRepository.save` (`save_league_schedule`) on the
+  admin client; `league_schedule_matches_update` (host or captain) never
+  fired.
+
+The repos self-construct the admin client internally, so Bundle 14's
+"swap admin → server client" sweep across pages/actions didn't reach them.
+
+**Fix.**
+
+| Piece                                   | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Migration `record_league_match_result`  | [20260814000000](../../supabase/migrations/20260814000000_record_league_match_result_rpc.sql) — `SECURITY INVOKER` single-row UPDATE; `league_schedule_matches_update` (host or either captain) is the gate. Raises `42501` (not authorized) / `P0002` (not found); 0-rows-after-update is treated as not-authorized since the public SELECT policy makes the row otherwise visible.                                                                                                                                                                                                                                                                                                                 |
+| Migration `record_bracket_match_result` | [20260814000100](../../supabase/migrations/20260814000100_record_bracket_match_result_rpc.sql) — `SECURITY DEFINER`. Recording a result mutates rows a captain has no grant on (the downstream match the winner advances into; the bracket header on completion), so pure INVOKER can't work. Resolves the event behind the actor match, requires `is_event_host(event) OR is_bracket_match_captain(actor_match)`, then delegates to `save_bracket` (advancement/completion logic stays in the tested TS aggregate). `auth.uid()` is the end user inside the DEFINER body; the nested INVOKER `save_bracket` runs as the BYPASSRLS owner, so the downstream writes land _after_ the per-match authz. |
+| Domain ports                            | `LeagueScheduleRepository.recordMatchResult`; `BracketRepository.saveAsMatchActor(bracket, actorMatchId)`. The host-only full-replace `save` stays for create/seed/generate/reset/reorder (authorized in the app layer, admin client).                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Adapters                                | Both repos gained an optional user-scoped-client constructor arg and map `42501` → `UnauthorizedError`, `P0002` → `NotFoundError`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Composition root                        | `getMatchResultHandlers()` builds the three handlers per request around `getServerSupabase()` (user-scoped). The three were removed from the module-singleton `handlers` so the admin-bypass path can't be reused.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Server actions                          | `bracket/actions.ts` + `schedule/actions.ts` call `getMatchResultHandlers()` and pass the real `user.id`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Tests                                   | New `bracket.handler.test.ts` + extended `league-schedule.handler.test.ts` pin that record/reset use the narrow RLS-enforced methods, never the host-only `save` (the regression that re-opens the gap).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+Stripe webhook handlers and the host-gated bracket/league operations keep
+the admin client (correct — webhooks run session-less; host ops are
+app-layer-authorized). `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+green. Full narrative:
+[journal](../journal/2026-12-04-bundle-captain-rls-match-result.md).
 
 ### 2026-05-23 — Bundle 53: Security P3 audit-text closure (#9, #10, #11)
 

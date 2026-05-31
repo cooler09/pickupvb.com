@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import path from 'node:path';
 
@@ -34,17 +34,15 @@ test.describe('hero image — profile', () => {
 
     // The widget renders either the add button or the existing image — one must be visible.
     const hasAdd = await isVisibleOrTimeout(addBannerBtn, 10_000);
-    const hasExisting = await page
-      .locator('[data-testid*="banner"], [data-testid*="hero"], .hero-image, .banner-image')
-      .first()
-      .isVisible()
-      .catch(() => false);
+    const hasExisting = await isVisibleOrTimeout(
+      page
+        .locator('[data-testid*="banner"], [data-testid*="hero"], .hero-image, .banner-image')
+        .first(),
+    );
     // Broader fallback: any "Change image" or "Remove" button implies an existing banner.
-    const hasChangeBtn = await page
-      .getByRole('button', { name: /change image/i })
-      .first()
-      .isVisible()
-      .catch(() => false);
+    const hasChangeBtn = await isVisibleOrTimeout(
+      page.getByRole('button', { name: /change image/i }).first(),
+    );
 
     expect(hasAdd || hasExisting || hasChangeBtn).toBe(true);
   });
@@ -54,9 +52,7 @@ test.describe('hero image — profile', () => {
 
     // If there is already a banner, remove it first so the test starts clean.
     const existingRemoveBtn = page.getByRole('button', { name: /remove/i }).first();
-    const hasExistingRemove = await existingRemoveBtn
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const hasExistingRemove = await isVisibleOrTimeout(existingRemoveBtn, 5_000);
     if (hasExistingRemove) {
       await existingRemoveBtn.click();
       await page.waitForLoadState('domcontentloaded');

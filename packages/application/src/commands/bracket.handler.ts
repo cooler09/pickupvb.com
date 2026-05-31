@@ -1,12 +1,17 @@
 import type {
+  AnalyticsPort,
   BracketConfig,
   BracketFormat,
   BracketRepository,
-  EventRepository,
+  EventWriteStore,
   MatchSet,
 } from '@pickupvb/domain';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   Bracket,
+  DivisionId,
+  EntryId,
+  MatchId,
   NotFoundError,
   UnauthorizedError,
   ValidationError,
@@ -33,7 +38,7 @@ export class SeedBracketCommand {
   constructor(
     public readonly divisionId: string,
     public readonly requesterId: string,
-    public readonly teamIdsInOrder: ReadonlyArray<string>,
+    public readonly entryIdsInOrder: ReadonlyArray<string>,
     public readonly pools?: ReadonlyArray<string | null>,
   ) {}
 }
@@ -59,6 +64,15 @@ export class ResetBracketCommand {
   ) {}
 }
 
+export class ReorderPoolMatchesCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly pool: string,
+    public readonly matchIdsInOrder: ReadonlyArray<string>,
+  ) {}
+}
+
 export class RecordMatchResultCommand {
   constructor(
     public readonly matchId: string,
@@ -80,13 +94,18 @@ async function loadBracketOrThrow(
   brackets: BracketRepository,
   divisionId: string,
 ): Promise<Bracket> {
-  const b = await brackets.findByDivisionId(divisionId as never);
+  const b = await brackets.findByDivisionId(DivisionId(divisionId));
   if (!b) throw new NotFoundError('bracket', divisionId);
   return b;
 }
 
-async function loadEventForBracket(events: EventRepository, bracket: Bracket) {
-  const evt = await events.findById(bracket.eventId as never);
+async function loadEventForBracket(events: EventWriteStore, bracket: Bracket) {
+  // These handlers only run for event-scoped brackets; a null eventId means a
+  // standalone bracket reached an event handler (which the route never wires).
+  if (!bracket.eventId) {
+    throw new NotFoundError('event', String(bracket.id));
+  }
+  const evt = await events.findById(bracket.eventId);
   if (!evt) throw new NotFoundError('event', String(bracket.eventId));
   return evt;
 }
@@ -103,18 +122,19 @@ function assertHost(eventHostId: string, requesterId: string): void {
 
 export class CreateBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: CreateBracketCommand): Promise<{ bracketId: string }> {
-    const evt = await this.events.findById(cmd.eventId as never);
+    const evt = await this.events.findById(cmd.eventId);
     if (!evt) throw new NotFoundError('event', cmd.eventId);
     assertHost(evt.hostId, cmd.requesterId);
-    const existing = await this.brackets.findByDivisionId(cmd.divisionId as never);
+    const existing = await this.brackets.findByDivisionId(DivisionId(cmd.divisionId));
     if (existing) return { bracketId: existing.id };
     const min = minTeamsForFormat(cmd.format);
-    const teams = await this.brackets.listRegisteredTeams(evt.id, cmd.divisionId as never);
+    const teams = await this.brackets.listRegisteredTeams(evt.id, DivisionId(cmd.divisionId));
     if (teams.length < min) {
       throw new ValidationError(
         `This format needs at least ${min} registered teams (only ${teams.length} so far).`,
@@ -124,19 +144,21 @@ export class CreateBracketHandler {
     const bracket = Bracket.create(
       this.brackets.nextBracketId(),
       evt.id,
-      cmd.divisionId as never,
+      DivisionId(cmd.divisionId),
       cmd.format,
       cmd.config,
     );
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
     return { bracketId: bracket.id };
   }
 }
 
 export class SeedBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: SeedBracketCommand): Promise<void> {
@@ -144,17 +166,19 @@ export class SeedBracketHandler {
     const evt = await loadEventForBracket(this.events, bracket);
     assertHost(evt.hostId, cmd.requesterId);
     bracket.seedTeams(
-      cmd.teamIdsInOrder.map((t) => t as never),
+      cmd.entryIdsInOrder.map((t) => EntryId(t)),
       cmd.pools,
     );
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 export class GenerateBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: GenerateBracketCommand): Promise<void> {
@@ -163,13 +187,15 @@ export class GenerateBracketHandler {
     assertHost(evt.hostId, cmd.requesterId);
     bracket.generate(() => this.brackets.nextMatchId());
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 export class GeneratePlayoffHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: GeneratePlayoffCommand): Promise<void> {
@@ -178,13 +204,15 @@ export class GeneratePlayoffHandler {
     assertHost(evt.hostId, cmd.requesterId);
     bracket.generatePlayoff(() => this.brackets.nextMatchId());
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 export class ResetBracketHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute(cmd: ResetBracketCommand): Promise<void> {
@@ -193,33 +221,69 @@ export class ResetBracketHandler {
     assertHost(evt.hostId, cmd.requesterId);
     bracket.reset();
     await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class ReorderPoolMatchesHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: ReorderPoolMatchesCommand): Promise<void> {
+    const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
+    const evt = await loadEventForBracket(this.events, bracket);
+    assertHost(evt.hostId, cmd.requesterId);
+    bracket.reorderPoolMatches(
+      cmd.pool,
+      cmd.matchIdsInOrder.map((id) => MatchId(id)),
+    );
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 export class RecordMatchResultHandler {
-  constructor(private readonly brackets: BracketRepository) {}
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute(cmd: RecordMatchResultCommand): Promise<void> {
-    // Permissions for "captain of either team" are enforced by Postgres
-    // RLS at the persistence boundary; the domain only enforces match
-    // state-machine guards.
-    const bracket = await this.brackets.findByMatchId(cmd.matchId as never);
+    // Permissions for "host or captain of either team" are enforced by
+    // Postgres RLS at the persistence boundary — but only because the write
+    // goes through `saveAsMatchActor`, which routes the domain-computed
+    // bracket through the authorization-gated `record_bracket_match_result`
+    // RPC (keyed on `cmd.matchId`) via a user-scoped client. The plain
+    // host-only `save` would bypass that gate. The domain enforces the
+    // match state-machine guards; the DB has the final say on who may write.
+    const bracket = await this.brackets.findByMatchId(MatchId(cmd.matchId));
     if (!bracket) throw new NotFoundError('bracket', cmd.matchId);
     bracket.recordResult({
-      matchId: cmd.matchId as never,
+      matchId: MatchId(cmd.matchId),
       sets: cmd.sets,
     });
-    await this.brackets.save(bracket);
+    await this.brackets.saveAsMatchActor(bracket, MatchId(cmd.matchId));
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 export class ResetMatchHandler {
-  constructor(private readonly brackets: BracketRepository) {}
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute(cmd: ResetMatchCommand): Promise<void> {
-    const bracket = await this.brackets.findByMatchId(cmd.matchId as never);
+    // Same authorization model as RecordMatchResultHandler: clearing a
+    // match's result is gated on host-or-captain-of-`cmd.matchId` by the
+    // `record_bracket_match_result` RPC behind `saveAsMatchActor`.
+    const bracket = await this.brackets.findByMatchId(MatchId(cmd.matchId));
     if (!bracket) throw new NotFoundError('bracket', cmd.matchId);
-    bracket.resetMatch(cmd.matchId as never);
-    await this.brackets.save(bracket);
+    bracket.resetMatch(MatchId(cmd.matchId));
+    await this.brackets.saveAsMatchActor(bracket, MatchId(cmd.matchId));
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }

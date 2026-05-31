@@ -4,68 +4,155 @@
  *   await notify('event.signup.confirmed', userId, { eventId, ... });
  *
  * What it does:
- *   1. Loads the recipient's notification_preferences (default-on for email
- *      and in_app, default-off for sms/push).
+ *   1. Loads the recipient's notification preferences (default-on for email
+ *      and in_app, default-off for sms/push) + their email.
  *   2. Computes the channels to deliver on, intersecting the kind's
  *      defaults with the user's prefs. Transactional kinds bypass prefs.
- *   3. For `in_app`, inserts directly into `notifications` — Realtime
- *      pushes to subscribers.
- *   4. For `email`/`sms`/`push`, inserts a row into `notification_outbox`.
+ *   3. For `in_app`, inserts an in-app notification — Realtime pushes it.
+ *   4. For `email`/`sms`/`push`, enqueues a `notification_outbox` row.
  *      The cron worker (`/api/notifications/worker`) drains it.
  *
- * Errors never throw — dispatch is best-effort. We log + swallow so a
+ * The DB writes/reads go through a `NotificationOutboxPort` (ADR 0022) — the
+ * `SupabaseNotificationOutboxRepository` runs on the service-role client because
+ * dispatch is a session-less fan-out. `dispatch` is exported (and takes the
+ * port) so the fan-out behavior is unit-testable.
+ *
+ * Errors never throw — dispatch is best-effort. `notify` logs + swallows so a
  * notification failure can't break the user's signup flow.
  */
 import {
-    KIND_CATEGORY,
-    KIND_DEFAULT_CHANNELS,
-    TRANSACTIONAL_CATEGORIES,
-    renderEmail,
-    renderInApp,
-    renderSms,
-    type NotificationChannel,
-    type NotificationKind,
-    type NotificationPayload,
+  KIND_CATEGORY,
+  KIND_DEFAULT_CHANNELS,
+  TRANSACTIONAL_CATEGORIES,
+  renderEmail,
+  renderInApp,
+  renderSms,
+  type NotificationChannel,
+  type NotificationKind,
+  type NotificationPayload,
 } from '@pickupvb/notifications';
+import type {
+  NotificationOutboxPort,
+  NotificationPreferences,
+  OutboxMessage,
+} from '@pickupvb/domain';
+import { SupabaseNotificationOutboxRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { log } from '@/lib/log';
 
-type Prefs = {
-    email_enabled: boolean;
-    sms_enabled: boolean;
-    push_enabled: boolean;
-    in_app_enabled: boolean;
-    sms_phone: string | null;
-    sms_opted_out_at: string | null;
-    channel_overrides: Record<string, Partial<Record<NotificationChannel, boolean>>>;
-};
-
-type UserRow = { email: string | null };
-
 function channelAllowedByPrefs(
-    channel: NotificationChannel,
-    kind: NotificationKind,
-    prefs: Prefs | null,
+  channel: NotificationChannel,
+  kind: NotificationKind,
+  prefs: NotificationPreferences | null,
 ): boolean {
-    // Transactional kinds always go out (CAN-SPAM allows this).
-    if (TRANSACTIONAL_CATEGORIES.has(KIND_CATEGORY[kind])) return true;
-    if (!prefs) {
-        // No prefs row yet → email + in_app default on, sms/push off.
-        return channel === 'email' || channel === 'in_app';
-    }
-    const masterEnabled =
-        channel === 'email'
-            ? prefs.email_enabled
-            : channel === 'sms'
-                ? prefs.sms_enabled && !prefs.sms_opted_out_at && Boolean(prefs.sms_phone)
-                : channel === 'push'
-                    ? prefs.push_enabled
-                    : prefs.in_app_enabled;
-    if (!masterEnabled) return false;
+  // Transactional kinds always go out (CAN-SPAM allows this).
+  if (TRANSACTIONAL_CATEGORIES.has(KIND_CATEGORY[kind])) return true;
+  if (!prefs) {
+    // No prefs row yet → email + in_app default on, sms/push off.
+    return channel === 'email' || channel === 'in_app';
+  }
+  const masterEnabled =
+    channel === 'email'
+      ? prefs.emailEnabled
+      : channel === 'sms'
+        ? prefs.smsEnabled && !prefs.smsOptedOutAt && Boolean(prefs.smsPhone)
+        : channel === 'push'
+          ? prefs.pushEnabled
+          : prefs.inAppEnabled;
+  if (!masterEnabled) return false;
 
-    const category = KIND_CATEGORY[kind];
-    const override = prefs.channel_overrides?.[category]?.[channel];
-    return override !== false;
+  const category = KIND_CATEGORY[kind];
+  const override = prefs.channelOverrides?.[category]?.[channel];
+  return override !== false;
+}
+
+/**
+ * Fan a notification out to the recipient's enabled channels via the outbox
+ * port. Exported (and port-injected) so the channel-selection + fan-out
+ * behavior can be tested with a fake port. Throws on a port failure — `notify`
+ * wraps it best-effort.
+ */
+export async function dispatch<K extends NotificationKind>(
+  outbox: NotificationOutboxPort,
+  kind: K,
+  userId: string,
+  payload: NotificationPayload<K>,
+  opts: { idempotencyKey?: string } = {},
+): Promise<void> {
+  const [prefs, email] = await Promise.all([
+    outbox.loadPreferences(userId),
+    outbox.getUserEmail(userId),
+  ]);
+
+  const desired = KIND_DEFAULT_CHANNELS[kind];
+  const channels = desired.filter((c) => channelAllowedByPrefs(c, kind, prefs));
+
+  // Collect outbox (email/sms/push) messages and flush them in one insert below,
+  // so the whole fan-out triggers a single worker kick (ADR 0026). In-app rows
+  // go to a different table (Realtime-delivered), so they stay immediate.
+  const messages: OutboxMessage[] = [];
+
+  for (const channel of channels) {
+    switch (channel) {
+      case 'in_app': {
+        const r = renderInApp(kind, payload);
+        await outbox.insertInApp({
+          userId,
+          kind,
+          title: r.title,
+          body: r.body,
+          href: r.href,
+          data: payload as unknown as Record<string, unknown>,
+        });
+        break;
+      }
+      case 'email': {
+        if (!email) break;
+        const r = renderEmail(kind, payload);
+        messages.push({
+          userId,
+          channel: 'email',
+          kind,
+          toAddress: email,
+          payload: { subject: r.subject, html: r.html, text: r.text },
+          ...(opts.idempotencyKey
+            ? { idempotencyKey: `email:${kind}:${opts.idempotencyKey}` }
+            : {}),
+        });
+        break;
+      }
+      case 'sms': {
+        const phone = prefs?.smsPhone;
+        if (!phone) break;
+        const r = renderSms(kind, payload);
+        messages.push({
+          userId,
+          channel: 'sms',
+          kind,
+          toAddress: phone,
+          payload: { body: r.body },
+          ...(opts.idempotencyKey ? { idempotencyKey: `sms:${kind}:${opts.idempotencyKey}` } : {}),
+        });
+        break;
+      }
+      case 'push': {
+        const r = renderInApp(kind, payload);
+        messages.push({
+          userId,
+          channel: 'push',
+          kind,
+          toAddress: userId,
+          payload: { title: r.title, body: r.body, href: r.href, tag: kind },
+          ...(opts.idempotencyKey ? { idempotencyKey: `push:${kind}:${opts.idempotencyKey}` } : {}),
+        });
+        break;
+      }
+    }
+  }
+
+  // One insert for the whole fan-out → one DB kick of the worker (ADR 0026),
+  // instead of one per channel. No-op when no channel resolved to an outbox row.
+  if (messages.length > 0) await outbox.enqueue(messages);
 }
 
 /**
@@ -76,103 +163,21 @@ function channelAllowedByPrefs(
  * namespaced internally so the same key works across kinds.
  */
 export async function notify<K extends NotificationKind>(
-    kind: K,
-    userId: string,
-    payload: NotificationPayload<K>,
-    opts: { idempotencyKey?: string } = {},
+  kind: K,
+  userId: string,
+  payload: NotificationPayload<K>,
+  opts: { idempotencyKey?: string } = {},
 ): Promise<void> {
-    try {
-        const admin = createSupabaseAdminClient();
-
-        // Load prefs + user email in parallel.
-        const [{ data: prefsRow }, { data: userData, error: userErr }] = await Promise.all([
-            admin
-                .from('notification_preferences')
-                .select(
-                    'email_enabled, sms_enabled, push_enabled, in_app_enabled, sms_phone, sms_opted_out_at, channel_overrides',
-                )
-                .eq('user_id', userId)
-                .maybeSingle(),
-            admin.auth.admin.getUserById(userId),
-        ]);
-        const prefs = (prefsRow as unknown as Prefs | null) ?? null;
-        const email = userErr ? null : ((userData?.user as UserRow | null)?.email ?? null);
-
-        const desired = KIND_DEFAULT_CHANNELS[kind];
-        const channels = desired.filter((c) => channelAllowedByPrefs(c, kind, prefs));
-
-        for (const channel of channels) {
-            switch (channel) {
-                case 'in_app': {
-                    const r = renderInApp(kind, payload);
-                    await admin.from('notifications').insert({
-                        user_id: userId,
-                        kind,
-                        title: r.title,
-                        body: r.body,
-                        href: r.href,
-                        data: payload as unknown as Record<string, unknown>,
-                    } as never);
-                    break;
-                }
-                case 'email': {
-                    if (!email) break;
-                    const r = renderEmail(kind, payload);
-                    await admin.from('notification_outbox').insert({
-                        user_id: userId,
-                        channel: 'email',
-                        kind,
-                        to_address: email,
-                        payload: { subject: r.subject, html: r.html, text: r.text },
-                        ...(opts.idempotencyKey
-                            ? { idempotency_key: `email:${kind}:${opts.idempotencyKey}` }
-                            : {}),
-                    } as never);
-                    break;
-                }
-                case 'sms': {
-                    const phone = prefs?.sms_phone;
-                    if (!phone) break;
-                    const r = renderSms(kind, payload);
-                    await admin.from('notification_outbox').insert({
-                        user_id: userId,
-                        channel: 'sms',
-                        kind,
-                        to_address: phone,
-                        payload: { body: r.body },
-                        ...(opts.idempotencyKey
-                            ? { idempotency_key: `sms:${kind}:${opts.idempotencyKey}` }
-                            : {}),
-                    } as never);
-                    break;
-                }
-                case 'push': {
-                    const r = renderInApp(kind, payload);
-                    await admin.from('notification_outbox').insert({
-                        user_id: userId,
-                        channel: 'push',
-                        kind,
-                        to_address: userId,
-                        payload: {
-                            title: r.title,
-                            body: r.body,
-                            href: r.href,
-                            tag: kind,
-                        },
-                        ...(opts.idempotencyKey
-                            ? { idempotency_key: `push:${kind}:${opts.idempotencyKey}` }
-                            : {}),
-                    } as never);
-                    break;
-                }
-            }
-        }
-    } catch (err) {
-        // Best-effort: log and swallow so the caller's mutation succeeds.
-        await log.warn('[notify] dispatch failed', {
-            kind,
-            userId,
-            error: err instanceof Error ? err.message : String(err),
-        });
-    }
+  try {
+    // Session-less fan-out → service-role client (ADR 0022 / pitfall #8).
+    const outbox = new SupabaseNotificationOutboxRepository(createSupabaseAdminClient());
+    await dispatch(outbox, kind, userId, payload, opts);
+  } catch (err) {
+    // Best-effort: log and swallow so the caller's mutation succeeds.
+    await log.warn('[notify] dispatch failed', {
+      kind,
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

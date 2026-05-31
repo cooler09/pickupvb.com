@@ -31,7 +31,7 @@ type Props = {
 export function GroupHeader({ group, stats, actions }: Props) {
   const place = [group.homeCity, group.region].filter(Boolean).join(', ');
   return (
-    <header className="border-border-base bg-surface space-y-5 rounded-lg border p-5 sm:p-6">
+    <header className="border-border-base bg-surface rounded-shape-sm space-y-5 border p-5 sm:p-6">
       <div className="flex items-start gap-4">
         {group.avatarUrl ? (
           <Image
@@ -39,12 +39,12 @@ export function GroupHeader({ group, stats, actions }: Props) {
             alt=""
             width={88}
             height={88}
-            className="h-20 w-20 shrink-0 rounded-lg object-cover sm:h-22 sm:w-22"
+            className="rounded-shape-sm h-20 w-20 shrink-0 object-cover sm:h-22 sm:w-22"
           />
         ) : (
           <span
             aria-hidden="true"
-            className="bg-primary/15 text-primary flex h-20 w-20 shrink-0 items-center justify-center rounded-lg text-xl font-semibold"
+            className="bg-primary/15 text-primary rounded-shape-sm flex h-20 w-20 shrink-0 items-center justify-center text-xl font-semibold"
           >
             {group.name.slice(0, 2).toUpperCase()}
           </span>

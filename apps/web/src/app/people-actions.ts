@@ -1,5 +1,6 @@
 'use server';
 
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 
 export type PeopleSearchResult = {
@@ -10,17 +11,10 @@ export type PeopleSearchResult = {
   avatarUrl: string | null;
 };
 
-type Row = {
-  id: string;
-  display_name: string;
-  home_city: string | null;
-  avatar_url: string | null;
-};
-
 /**
  * Free-text search over public profiles. Matches against display_name
- * (case-insensitive substring) via `profiles_public`, which excludes
- * deleted accounts and PII-sensitive columns.
+ * (case-insensitive substring) via the `ProfileQueries` port, which reads the
+ * PII-safe `profiles_public` view.
  *
  * @param query  free-text search; empty / <2 chars returns []
  * @param excludeIds  ids that must not appear in results (already-rostered
@@ -32,28 +26,26 @@ export async function searchPeople(
 ): Promise<PeopleSearchResult[]> {
   const q = query.trim();
   if (q.length < 2) return [];
-  const supabase = await getServerSupabase();
 
-  const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
-  // PostgREST has no native NOT IN over arrays in the JS client; fall back
-  // to post-filtering when the exclude list is non-empty. Exclude lists are
-  // expected to be small (a roster, follow list, etc.) so this is fine.
-  const { data, error } = await supabase
-    .from('profiles_public')
-    .select('id, display_name, home_city, avatar_url')
-    .ilike('display_name', like)
-    .limit(10 + excludeIds.length);
-  if (error) return [];
+  const profiles = new SupabaseProfileRepository(await getServerSupabase());
+  // Over-fetch by the exclude count, then post-filter (the JS client has no
+  // NOT IN over arrays). Exclude lists are small (a roster, follow list, …).
+  let cards;
+  try {
+    cards = await profiles.searchCards({ nameLike: q, limit: 10 + excludeIds.length });
+  } catch {
+    return [];
+  }
 
   const skip = new Set(excludeIds);
-  return ((data as Row[] | null) ?? [])
-    .filter((p) => !skip.has(p.id))
+  return cards
+    .filter((c) => !skip.has(c.id))
     .slice(0, 10)
-    .map((p) => ({
-      id: p.id,
-      displayName: p.display_name,
-      fullName: p.display_name || 'Player',
-      homeCity: p.home_city,
-      avatarUrl: p.avatar_url,
+    .map((c) => ({
+      id: c.id,
+      displayName: c.displayName,
+      fullName: c.displayName || 'Player',
+      homeCity: c.homeCity,
+      avatarUrl: c.avatarUrl,
     }));
 }

@@ -37,7 +37,10 @@ export async function renderBracketWatchOg(
       repositories.bracketRepo.listRegisteredTeams(event.id as never, division.id as never),
     ]);
 
-    const teamNameById = new Map(teams.map((t) => [t.teamId, t.name]));
+    // Key on `entryId` — `pickChampion` returns a `winnerEntryId` (FK →
+    // event_team_entries.id), and ad-hoc / walk-in entries have no
+    // `teams.id` to fall back on.
+    const teamNameById = new Map(teams.map((t) => [t.entryId, t.name]));
     const formatLabel = bracket ? FORMAT_LABEL[bracket.format] : null;
     const isMulti = event.divisions.length > 1;
 
@@ -101,12 +104,12 @@ function pickChampion(matches: ReadonlyArray<Match>): string | null {
   const finals = matches.filter((m) => m.bracketSide === 'final' && m.status === 'completed');
   if (finals.length > 0) {
     const grand = finals.sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0]!;
-    return grand.winnerTeamId ?? null;
+    return grand.winnerEntryId ?? null;
   }
   const terminals = matches.filter(
-    (m) => m.status === 'completed' && !m.advancesToMatchId && m.winnerTeamId,
+    (m) => m.status === 'completed' && !m.advancesToMatchId && m.winnerEntryId,
   );
   if (terminals.length === 0) return null;
   const last = terminals.sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0]!;
-  return last.winnerTeamId ?? null;
+  return last.winnerEntryId ?? null;
 }

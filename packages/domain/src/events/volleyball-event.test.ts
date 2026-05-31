@@ -59,9 +59,6 @@ function makeOpenPlay(
     description: '',
     rules: '',
     surface: Surface.Indoor,
-    format: Format.Sixes,
-    gender: Gender.Coed,
-    skillLevel: SkillLevel.Intermediate,
     type: EventType.OpenPlay,
     visibility: Visibility.Public,
     location: LOCATION,
@@ -82,9 +79,6 @@ function makeTournament(): VolleyballEvent {
     description: '',
     rules: '',
     surface: Surface.Sand,
-    format: Format.Quads,
-    gender: Gender.Coed,
-    skillLevel: SkillLevel.Advanced,
     type: EventType.Tournament,
     visibility: Visibility.Public,
     location: LOCATION,
@@ -108,9 +102,6 @@ describe('VolleyballEvent.create', () => {
         description: '',
         rules: '',
         surface: Surface.Indoor,
-        format: Format.Sixes,
-        gender: Gender.Coed,
-        skillLevel: SkillLevel.Intermediate,
         type: EventType.OpenPlay,
         visibility: Visibility.Public,
         location: LOCATION,
@@ -130,9 +121,6 @@ describe('VolleyballEvent.create', () => {
         description: '',
         rules: '',
         surface: Surface.Indoor,
-        format: Format.Sixes,
-        gender: Gender.Coed,
-        skillLevel: SkillLevel.Intermediate,
         type: EventType.OpenPlay,
         visibility: Visibility.Public,
         location: LOCATION,
@@ -152,36 +140,11 @@ describe('VolleyballEvent.create', () => {
         description: '',
         rules: '',
         surface: Surface.Indoor,
-        format: Format.Sixes,
-        gender: Gender.Coed,
-        skillLevel: SkillLevel.Intermediate,
         type: EventType.OpenPlay,
         visibility: Visibility.Public,
         location: LOCATION,
         startsAt: tomorrow(),
         endsAt: tomorrow(2),
-      }),
-    ).toThrow(InvariantViolation);
-  });
-
-  it('rejects invalid surface ↔ format combo (indoor doubles)', () => {
-    expect(() =>
-      VolleyballEvent.create({
-        id: 'bad' as EventId,
-        hostId: HOST,
-        title: 'No',
-        description: '',
-        rules: '',
-        surface: Surface.Indoor,
-        format: Format.Doubles,
-        gender: Gender.Coed,
-        skillLevel: SkillLevel.Intermediate,
-        type: EventType.OpenPlay,
-        visibility: Visibility.Public,
-        location: LOCATION,
-        startsAt: tomorrow(),
-        endsAt: tomorrow(2),
-        capacity: Capacity.fixed(8),
       }),
     ).toThrow(InvariantViolation);
   });
@@ -311,22 +274,52 @@ describe('leave', () => {
 });
 
 describe('tournament signup', () => {
-  it('registerTeam adds the team', () => {
+  const TEAM_DIV = 'div-team' as DivisionId;
+  function tournamentWithTeamDivision(): VolleyballEvent {
     const t = makeTournament();
+    t.addDivision(
+      Division.create({
+        id: TEAM_DIV,
+        sortOrder: 0,
+        label: 'Open',
+        surface: Surface.Sand,
+        format: Format.Quads,
+        gender: Gender.Coed,
+        skillTier: SkillTier.BB,
+        teamComposition: TeamComposition.Team,
+        priceCents: null,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.Roster,
+      }),
+    );
+    return t;
+  }
+
+  it('registerTeam adds the team and records its division (ADR 0019)', () => {
+    const t = tournamentWithTeamDivision();
     t.publish();
-    t.registerTeam(TEAM_A);
+    t.registerTeam(TEAM_A, TEAM_DIV);
     expect(t.teams.has(TEAM_A)).toBe(true);
+    // The division is carried on the aggregate entry — this is what lets
+    // save() persist the join in one write path instead of a side-channel.
+    expect(t.teamEntries).toContainEqual([TEAM_A, TEAM_DIV]);
   });
 
   it('registerTeam rejects duplicates with ConflictError', () => {
-    const t = makeTournament();
+    const t = tournamentWithTeamDivision();
     t.publish();
-    t.registerTeam(TEAM_A);
-    expect(() => t.registerTeam(TEAM_A)).toThrow(ConflictError);
+    t.registerTeam(TEAM_A, TEAM_DIV);
+    expect(() => t.registerTeam(TEAM_A, TEAM_DIV)).toThrow(ConflictError);
+  });
+
+  it('registerTeam rejects an unknown division with NotFoundError (ADR 0019)', () => {
+    const t = tournamentWithTeamDivision();
+    t.publish();
+    expect(() => t.registerTeam(TEAM_A, 'nope' as DivisionId)).toThrow(NotFoundError);
   });
 
   it('withdrawTeam throws NotFoundError when team not registered', () => {
-    const t = makeTournament();
+    const t = tournamentWithTeamDivision();
     t.publish();
     expect(() => t.withdrawTeam(TEAM_A)).toThrow(NotFoundError);
   });
@@ -334,7 +327,7 @@ describe('tournament signup', () => {
   it('rejects registerTeam on an open-play event', () => {
     const open = makeOpenPlay();
     open.publish();
-    expect(() => open.registerTeam(TEAM_A)).toThrow(InvariantViolation);
+    expect(() => open.registerTeam(TEAM_A, TEAM_DIV)).toThrow(InvariantViolation);
   });
 
   it('rejects joinAsPlayer on a tournament', () => {
@@ -367,11 +360,16 @@ describe('free agent (tournament only)', () => {
     return t;
   }
 
-  it('joinAsFreeAgent records the user', () => {
+  it('joinAsFreeAgent records the user and the chosen division (ADR 0019)', () => {
     const t = tournamentWithFADivision();
     t.publish();
     t.joinAsFreeAgent(ALICE, FA_DIV, 'OH/RS, can bring own ball');
     expect(t.freeAgents.has(ALICE)).toBe(true);
+    // The division rides on the entry so save() persists it directly.
+    expect(t.freeAgentEntries).toContainEqual([
+      ALICE,
+      { divisionId: FA_DIV, notes: 'OH/RS, can bring own ball' },
+    ]);
   });
 
   it('rejects duplicate free-agent signup', () => {
@@ -442,9 +440,6 @@ function makeTournamentWith(opts: {
     description: '',
     rules: '',
     surface: Surface.Sand,
-    format: Format.Quads,
-    gender: Gender.Coed,
-    skillLevel: SkillLevel.Advanced,
     type: EventType.Tournament,
     visibility: Visibility.Public,
     location: LOCATION,
@@ -489,12 +484,30 @@ describe('VolleyballEvent registration-config invariant (ADR 0012 + 0016)', () =
     ).toThrow(InvariantViolation);
   });
 
-  it('rejects ad-hoc team event with a free (price 0) per-player division', () => {
+  // ADR 0012 — free divisions skip the price-unit check entirely (no money
+  // to route means per-player vs. per-team is a meaningless distinction).
+  // The write boundary normalizes the persisted unit; the aggregate accepts
+  // either when the price is zero.
+  it('accepts ad-hoc team event with a free (price 0) division regardless of priceUnit', () => {
     expect(() =>
       makeTournamentWith({
         divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerPlayer })],
       }),
-    ).toThrow(InvariantViolation);
+    ).not.toThrow();
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerTeam })],
+      }),
+    ).not.toThrow();
+  });
+
+  it('accepts ad-hoc team event with a free per-player division even when paymentsOffPlatform', () => {
+    expect(() =>
+      makeTournamentWith({
+        divisions: [pricedDivision({ priceCents: 0, priceUnit: PriceUnit.PerPlayer })],
+        paymentsOffPlatform: true,
+      }),
+    ).not.toThrow();
   });
 
   it('rejects ad-hoc team event with a solo-composition division', () => {
@@ -580,5 +593,187 @@ describe('VolleyballEvent registration-config invariant (ADR 0012 + 0016)', () =
       priceUnit: PriceUnit.PerPlayer,
     });
     expect(() => evt.addDivision(bad)).toThrow(InvariantViolation);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P1 #1 scaffolding — league branch in assertRegistrationConfigValid.
+// See docs/audits/event-data-model.md § P1 #1.
+// ---------------------------------------------------------------------------
+
+function makeLeagueWith(divisions: ReadonlyArray<Division>): VolleyballEvent {
+  return VolleyballEvent.create({
+    id: 'league-1' as EventId,
+    hostId: HOST,
+    title: 'Tuesday Coed B League',
+    description: '',
+    rules: '',
+    surface: Surface.Indoor,
+    type: EventType.League,
+    visibility: Visibility.Public,
+    location: LOCATION,
+    startsAt: tomorrow(),
+    endsAt: tomorrow(24 * 8),
+    divisions,
+  });
+}
+
+describe('VolleyballEvent league scaffolding (P1 #1)', () => {
+  it('accepts a league with roster + non-solo divisions', () => {
+    const evt = makeLeagueWith([
+      pricedDivision({
+        priceCents: 0,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.Roster,
+        teamComposition: TeamComposition.Team,
+      }),
+    ]);
+    expect(evt.type).toBe(EventType.League);
+    expect(evt.divisions[0]?.teamRegistrationMode).toBe(TeamRegistrationMode.Roster);
+  });
+
+  it('rejects a league division using ad-hoc team registration', () => {
+    expect(() =>
+      makeLeagueWith([
+        pricedDivision({
+          priceCents: 0,
+          priceUnit: PriceUnit.PerTeam,
+          teamRegistrationMode: TeamRegistrationMode.AdHoc,
+          teamComposition: TeamComposition.Team,
+        }),
+      ]),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects a league division with individual signup (mode = null)', () => {
+    expect(() =>
+      makeLeagueWith([
+        pricedDivision({
+          priceCents: 0,
+          priceUnit: PriceUnit.PerPlayer,
+          teamRegistrationMode: null,
+          teamComposition: TeamComposition.Solo,
+        }),
+      ]),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects a league division with solo composition', () => {
+    expect(() =>
+      makeLeagueWith([
+        pricedDivision({
+          priceCents: 0,
+          priceUnit: PriceUnit.PerTeam,
+          teamRegistrationMode: TeamRegistrationMode.Roster,
+          teamComposition: TeamComposition.Solo,
+        }),
+      ]),
+    ).toThrow(InvariantViolation);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Step 4 — open-play invariant tightening (P1 #3 + P2 #5 + P2 #8).
+// See docs/audits/event-data-model.md.
+// ---------------------------------------------------------------------------
+
+function openPlayDivision(
+  overrides: Partial<{
+    id: string;
+    sortOrder: number;
+    teamComposition: TeamComposition;
+    teamRegistrationMode: TeamRegistrationMode | null;
+    allowFreeAgents: boolean;
+  }> = {},
+): Division {
+  return Division.create({
+    id: (overrides.id ?? 'div-op-1') as DivisionId,
+    sortOrder: overrides.sortOrder ?? 0,
+    label: 'Open',
+    surface: Surface.Indoor,
+    format: Format.Sixes,
+    gender: Gender.Coed,
+    skillTier: SkillTier.B,
+    teamComposition: overrides.teamComposition ?? TeamComposition.Solo,
+    priceCents: 0,
+    priceUnit: PriceUnit.PerPlayer,
+    teamRegistrationMode:
+      overrides.teamRegistrationMode === undefined ? null : overrides.teamRegistrationMode,
+    allowFreeAgents: overrides.allowFreeAgents ?? false,
+  });
+}
+
+function makeOpenPlayWith(divisions: ReadonlyArray<Division>): VolleyballEvent {
+  return VolleyballEvent.create({
+    id: 'event-op-1' as EventId,
+    hostId: HOST,
+    title: 'Tuesday Night Open Play',
+    description: '',
+    rules: '',
+    surface: Surface.Indoor,
+    type: EventType.OpenPlay,
+    visibility: Visibility.Public,
+    location: LOCATION,
+    startsAt: tomorrow(),
+    endsAt: tomorrow(2),
+    capacity: Capacity.fixed(12),
+    divisions,
+  });
+}
+
+describe('VolleyballEvent open-play invariants (P1 #3 + P2 #5)', () => {
+  it('rejects an open-play event with more than one division', () => {
+    expect(() =>
+      makeOpenPlayWith([
+        openPlayDivision({ id: 'div-op-1', sortOrder: 0 }),
+        openPlayDivision({ id: 'div-op-2', sortOrder: 1 }),
+      ]),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects an open-play division with non-solo composition', () => {
+    expect(() =>
+      makeOpenPlayWith([openPlayDivision({ teamComposition: TeamComposition.Team })]),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects an open-play division with a non-null team_registration_mode', () => {
+    expect(() =>
+      makeOpenPlayWith([
+        openPlayDivision({
+          teamComposition: TeamComposition.Team,
+          teamRegistrationMode: TeamRegistrationMode.AdHoc,
+        }),
+      ]),
+    ).toThrow(InvariantViolation);
+  });
+
+  it('rejects an open-play division with allow_free_agents = true (P2 #5)', () => {
+    expect(() => makeOpenPlayWith([openPlayDivision({ allowFreeAgents: true })])).toThrow(
+      InvariantViolation,
+    );
+  });
+
+  it('accepts a single solo open-play division with allow_free_agents = false', () => {
+    const evt = makeOpenPlayWith([openPlayDivision({ allowFreeAgents: false })]);
+    expect(evt.divisions).toHaveLength(1);
+    expect(evt.divisions[0]?.allowFreeAgents).toBe(false);
+  });
+
+  // P2 #8 regression — walk-ins are only valid on ad-hoc divisions, and
+  // leagues require roster mode (P1 #1 above). The transitive guarantee
+  // is what blocks walk-ins on leagues; this test pins the league side
+  // so the chain can't be quietly broken later.
+  it('keeps leagues incompatible with walk-in capable divisions (transitive via P1 #1)', () => {
+    expect(() =>
+      makeLeagueWith([
+        pricedDivision({
+          priceCents: 0,
+          priceUnit: PriceUnit.PerTeam,
+          teamRegistrationMode: TeamRegistrationMode.AdHoc,
+          teamComposition: TeamComposition.Team,
+        }),
+      ]),
+    ).toThrow(InvariantViolation);
   });
 });

@@ -10,7 +10,7 @@ export const SURFACES = ['indoor', 'grass', 'sand'] as const;
 export const TYPES = ['open_play', 'tournament'] as const;
 export const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
 export const AGE_GROUPS = ['adult', 'hs', '18u', '16u', '14u', 'jr_high'] as const;
-export const TEAM_COMPOSITIONS = ['solo', 'team', 'pair_draw', 'partner_required'] as const;
+export const TEAM_COMPOSITIONS = ['solo', 'team', 'pair_draw', 'partners'] as const;
 
 export type Surface = (typeof SURFACES)[number];
 export type Type = (typeof TYPES)[number];
@@ -57,7 +57,10 @@ export function EventFilterForm({
   const advancedActive = Boolean(ageGroup || teamComposition || seriesName || location);
 
   return (
-    <form method="get" className="border-border-base bg-surface space-y-3 rounded-lg border p-4">
+    <form
+      method="get"
+      className="border-border-base bg-surface rounded-shape-sm space-y-3 border p-4"
+    >
       {when !== 'upcoming' && <input type="hidden" name="when" value={when} />}
       {location && (
         <>

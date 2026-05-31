@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { redirect } from 'next/navigation';
 import type { Route } from 'next';
 import type Stripe from 'stripe';
@@ -133,7 +134,7 @@ export async function upsertSponsorFromForm(
   if (error) flashTo(eventId, 'error', error.message);
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   flashTo(eventId, 'saved');
 }
 
@@ -254,6 +255,6 @@ export async function removeSponsor(eventId: string, returnPath: string): Promis
   if (error) flashTo(eventId, 'error', error.message);
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   flashTo(eventId, 'removed');
 }

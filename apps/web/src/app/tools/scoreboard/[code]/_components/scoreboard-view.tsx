@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useScoreboardSync } from '../../_lib/use-scoreboard-sync.js';
@@ -17,17 +17,25 @@ import {
   type ScoreboardState,
   type TeamId,
 } from '../../_lib/types.js';
+import type { MatchBinding } from '../../_lib/binding.js';
+import {
+  finalizeMatchFromScoreboard,
+  pushLiveScore,
+  type FinalizeReason,
+} from '../finalize-actions.js';
 
 type Props = {
   code: string;
   initialConfig: ScoreboardConfig;
+  /** Present when launched from a scheduled match — enables "Save final to match". */
+  binding?: MatchBinding;
 };
 
 type LocalTheme = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'pickupvb:scoreboard:theme';
 
-export function ScoreboardView({ code, initialConfig }: Props) {
+export function ScoreboardView({ code, initialConfig, binding }: Props) {
   const { state, setState, status, peerCount } = useScoreboardSync(code, initialConfig);
   const [theme, setTheme] = useState<LocalTheme>('dark');
   const [shareOpen, setShareOpen] = useState(false);
@@ -87,6 +95,17 @@ export function ScoreboardView({ code, initialConfig }: Props) {
       if (sentinel) void sentinel.release();
     };
   }, []);
+
+  // When bound to a scheduled match, mirror the live score to the public
+  // bracket/standings (ADR 0023). Debounced: each change resets the timer, so
+  // we persist ~0.8s after the last tap rather than on every point.
+  useEffect(() => {
+    if (!binding) return;
+    const timer = setTimeout(() => {
+      void pushLiveScore(binding, state);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [binding, state]);
 
   const winner = matchWinner(state);
   const setPointA = isSetWon(state, 'A');
@@ -186,6 +205,10 @@ export function ScoreboardView({ code, initialConfig }: Props) {
           {...(setPointB && !winner ? { onWinSet: () => onCommitSet('B') } : {})}
         />
       </div>
+
+      {binding && (
+        <SaveToMatchBar binding={binding} state={state} border={border} subtle={subtle} />
+      )}
 
       <BottomBar
         state={state}
@@ -367,6 +390,87 @@ function TeamPanel({
   );
 }
 
+const REASON_TEXT: Record<FinalizeReason, string> = {
+  pro_required: "Live scoring is a Pro feature for this event's host.",
+  forbidden: "You're not allowed to record this match.",
+  conflict: 'This match was already updated elsewhere.',
+  notfound: 'This match could not be found.',
+  invalid: "The score isn't ready to save yet.",
+  error: 'Something went wrong saving the result.',
+};
+
+function SaveToMatchBar({
+  binding,
+  state,
+  border,
+  subtle,
+}: {
+  binding: MatchBinding;
+  state: ScoreboardState;
+  border: string;
+  subtle: string;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const winner = matchWinner(state);
+
+  const onSave = useCallback(() => {
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      const result = await finalizeMatchFromScoreboard(binding, state);
+      if (result.ok) {
+        setSaved(true);
+      } else {
+        const base = REASON_TEXT[result.reason];
+        setError(result.message ? `${base} (${result.message})` : base);
+      }
+    });
+  }, [binding, state]);
+
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-3 border-t ${border} px-4 py-2 text-sm`}
+    >
+      <div className={`flex items-center gap-2 ${subtle}`}>
+        <span
+          className={`rounded border ${border} px-2 py-0.5 text-xs font-semibold tracking-wide uppercase`}
+        >
+          Match
+        </span>
+        <span>
+          {winner
+            ? 'Match complete — save the result to the schedule.'
+            : 'Scoring a scheduled match. Save when the match is final.'}
+        </span>
+      </div>
+      <div className="flex items-center gap-3">
+        {saved ? (
+          <>
+            <span className="text-sm font-medium text-emerald-500">Saved ✓</span>
+            <Link href={binding.returnPath as Route} className={`text-sm underline ${subtle}`}>
+              Back to event
+            </Link>
+          </>
+        ) : (
+          <>
+            {error && <span className="max-w-xs text-xs text-red-400">{error}</span>}
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={pending}
+              className="rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+            >
+              {pending ? 'Saving…' : 'Save final to match'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BottomBar({
   state,
   subtle,
@@ -426,7 +530,7 @@ function WinnerOverlay({
 }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="rounded-xl bg-white p-8 text-center text-black shadow-xl">
+      <div className="rounded-shape-md bg-white p-8 text-center text-black shadow-xl">
         <p className="text-xs font-semibold tracking-widest text-emerald-600 uppercase">
           Match won
         </p>
@@ -474,7 +578,7 @@ function ShareModal({
       onClick={onClose}
     >
       <div
-        className={`w-full max-w-lg rounded-xl ${surface} p-6 shadow-2xl`}
+        className={`rounded-shape-md w-full max-w-lg ${surface} p-6 shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold">Remote control link</h2>

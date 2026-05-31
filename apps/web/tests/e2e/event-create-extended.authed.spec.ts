@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
@@ -352,6 +352,5 @@ test.describe('create event end-to-end', () => {
     }
   });
 
-  test.fixme('create a tournament event with two divisions — needs divisions repeater helper', // Wait for the tournament harness bundle (item #3 in the e2e backlog). // capacity/priceUsd for each, (c) the per-division team_registration_mode select (ADR 0016). // repeater helper that adds two `div_N_*` rows and fills name/skill/ // Compound: needs (a) the existing paid-event helper, (b) a divisions
-  async () => {});
+  test.fixme('create a tournament event with two divisions — needs divisions repeater helper', async () => {}); // Wait for the tournament harness bundle (item #3 in the e2e backlog). // capacity/priceUsd for each, (c) the per-division team_registration_mode select (ADR 0016). // repeater helper that adds two `div_N_*` rows and fills name/skill/ // Compound: needs (a) the existing paid-event helper, (b) a divisions
 });

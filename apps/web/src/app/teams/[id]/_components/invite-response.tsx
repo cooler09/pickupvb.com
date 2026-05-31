@@ -13,7 +13,7 @@ type Props = {
  */
 export function InviteResponse({ teamId, teamName, returnPath }: Props) {
   return (
-    <section className="border-primary/40 bg-primary/5 rounded-lg border p-4">
+    <section className="border-primary/40 bg-primary/5 rounded-shape-sm border p-4">
       <h2 className="text-primary mb-1 text-sm font-semibold tracking-wide uppercase">
         You&apos;ve been invited
       </h2>

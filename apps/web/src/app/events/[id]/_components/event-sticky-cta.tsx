@@ -50,7 +50,7 @@ export function EventStickyCta({ cta, observeSelector }: Props) {
         hidden ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <div className="border-border-base bg-bg/95 pointer-events-auto mx-auto max-w-3xl rounded-lg border p-2 shadow-xl backdrop-blur">
+      <div className="border-border-base bg-bg/95 rounded-shape-sm pointer-events-auto mx-auto max-w-3xl border p-2 shadow-xl backdrop-blur">
         {cta.kind === 'internal' && (
           <Link href={cta.href as Route} className={baseClass}>
             {cta.label}

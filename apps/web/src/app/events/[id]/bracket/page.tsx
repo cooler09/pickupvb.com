@@ -1,19 +1,19 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
-import { GetEventDetailQuery } from '@pickupvb/application';
+import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
-import { getViewer, isAnonymousUser } from '@/lib/server-auth';
-import { BoardView, pickLatestMatchId } from './_components/board-view';
-import { LatestMatchTracker } from './_components/latest-match-tracker';
-import { NoBracketView } from './_components/no-bracket-view';
-import { SetupView } from './_components/setup-view';
-import { BracketRealtimeRefresher } from './_components/realtime-refresher';
+import { isPro } from '@/lib/pro';
+import { BracketWorkspace } from './_components/bracket-workspace';
 import { NOTICE_LABEL } from './_components/labels';
 
-export const dynamic = 'force-dynamic';
+// No `force-dynamic` and no `cookies()` read: every load resolves the same
+// viewer-independent metadata (admin-client reads), so this page matches the
+// `/bracket/watch` cacheable posture. The viewer-conditional host/captain
+// controls are resolved client-side inside `<BracketWorkspace />` (performance
+// audit P2 #14).
 
 function pickQuery(
   sp: Record<string, string | string[] | undefined> | undefined,
@@ -29,15 +29,10 @@ export default async function BracketPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
-  const viewer = await getViewer();
-  const user = viewer?.user ?? null;
-  const isRealUser = !!user && !isAnonymousUser(user);
 
   let event;
   try {
-    event = await handlers.getEventDetail.execute(
-      new GetEventDetailQuery(params.id, user?.id ?? null),
-    );
+    event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(params.id));
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
@@ -73,9 +68,26 @@ export default async function BracketPage(props: {
     repositories.bracketRepo.listRegisteredTeams(event.id as never, selectedDivision.id as never),
   ]);
 
-  const teamById = new Map(registeredTeams.map((t) => [t.teamId, t]));
-  const isHost = !!event.canManage && isRealUser;
-  const viewerId = user?.id ?? null;
+  // ADR 0023: live scoreboard scoring is a Pro-host perk, enabled for every
+  // match in the event when the event's host is Pro. Viewer-independent —
+  // `isPro` is admin-client-backed, so this stays off the cookie path. The
+  // button still only renders for the host/captains (MatchCard's `canEdit`); the
+  // finalize action re-checks this gate server-side.
+  const liveScoringEnabled = !!event.hostUserId && (await isPro(event.hostUserId));
+
+  // Hand the workspace fully serializable bracket state — it owns the
+  // viewer-conditional render so this page stays viewer-independent.
+  const bracketVm = bracket
+    ? {
+        id: bracket.id,
+        status: bracket.status,
+        format: bracket.format,
+        bestOf: bracket.config.bestOf,
+        seeds: bracket.seeds.map((s) => ({ entryId: s.entryId, seed: s.seed })),
+        matches: [...bracket.matches],
+      }
+    : null;
+
   const noticeCode = pickQuery(searchParams, 'notice');
   const noticeMsg = pickQuery(searchParams, 'msg');
   const notice = noticeCode ? (NOTICE_LABEL[noticeCode] ?? null) : null;
@@ -160,52 +172,16 @@ export default async function BracketPage(props: {
         </div>
       )}
 
-      {!bracket && (
-        <NoBracketView
-          eventId={event.id}
-          divisionId={selectedDivision.id}
-          teamCount={registeredTeams.length}
-          isHost={isHost}
-        />
-      )}
-
-      <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
-
-      {bracket && bracket.status === 'setup' && (
-        <SetupView
-          eventId={event.id}
-          divisionId={selectedDivision.id}
-          bracketFormat={bracket.format}
-          seeds={bracket.seeds.map((s) => ({
-            teamId: s.teamId,
-            seed: s.seed,
-          }))}
-          registeredTeams={registeredTeams}
-          isHost={isHost}
-        />
-      )}
-
-      {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
-        <>
-          <LatestMatchTracker
-            matchId={pickLatestMatchId(bracket.matches)}
-            autoScroll={false}
-            initialFocusId={focusParam}
-          />
-          <BoardView
-            eventId={event.id}
-            divisionId={selectedDivision.id}
-            matches={[...bracket.matches]}
-            teamById={teamById}
-            bestOf={bracket.config.bestOf}
-            isHost={isHost}
-            viewerId={viewerId}
-            status={bracket.status}
-            format={bracket.format}
-            highlightMatchId={focusParam ?? pickLatestMatchId(bracket.matches)}
-          />
-        </>
-      )}
+      <BracketWorkspace
+        eventId={event.id}
+        divisionId={selectedDivision.id}
+        hostUserId={event.hostUserId}
+        hostGroupId={event.hostGroupId}
+        registeredTeams={registeredTeams}
+        bracket={bracketVm}
+        liveScoringEnabled={liveScoringEnabled}
+        focusId={focusParam}
+      />
     </article>
   );
 }

@@ -1,6 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Admin / platform moderation flows (Section 17 of the test plan).
@@ -102,11 +103,10 @@ test.describe('community listing moderation', () => {
           await publicPage.goto('/community');
           await publicPage.waitForLoadState('domcontentloaded');
           // The listing title should no longer appear in the directory.
-          const titleVisible = await publicPage
-            .getByText(new RegExp(listingTitle, 'i'))
-            .first()
-            .isVisible({ timeout: 5_000 })
-            .catch(() => false);
+          const titleVisible = await isVisibleOrTimeout(
+            publicPage.getByText(new RegExp(listingTitle, 'i')).first(),
+            5_000,
+          );
           expect(titleVisible, 'Hidden listing must not appear in public /community').toBe(false);
         } finally {
           await publicCtx.close();

@@ -74,7 +74,7 @@ export function PaidTicketPanel({
       };
   return (
     <div className="space-y-4">
-      <div className="border-border-base bg-fg/5 overflow-hidden rounded-lg border p-4">
+      <div className="border-border-base bg-fg/5 rounded-shape-sm overflow-hidden border p-4">
         {paymentsOffPlatform ? (
           <>
             <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">
@@ -159,7 +159,7 @@ export function PaidTicketPanel({
       ) : (
         <div className="space-y-4">
           {paymentsOffPlatform ? (
-            <section className="border-border-base rounded-lg border p-4">
+            <section className="border-border-base rounded-shape-sm border p-4">
               <h2 className="text-fg text-sm font-semibold">
                 Sign up & pay the host {formatUsd(ticketCents)} in person
               </h2>
@@ -170,7 +170,7 @@ export function PaidTicketPanel({
               <GuestSignupForm eventId={eventId} />
             </section>
           ) : (
-            <section className="border-border-base rounded-lg border p-4">
+            <section className="border-border-base rounded-shape-sm border p-4">
               <h2 className="text-fg text-sm font-semibold">Pay online — {formatUsd(total)}</h2>
               <p className="text-muted mb-3 text-xs">
                 {platformFeeCents > 0

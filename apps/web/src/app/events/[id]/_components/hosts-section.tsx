@@ -51,7 +51,7 @@ export function HostsSection({
   primaryHostUserSocial,
 }: Props) {
   return (
-    <section className="border-border-base space-y-2 rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm space-y-2 border p-4">
       <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Hosted by</h2>
       <ul className="flex flex-wrap gap-2">
         {primaryHostGroup && (
@@ -115,7 +115,7 @@ export function HostsSection({
                 <SubmitButton
                   title="Remove co-host"
                   aria-label={`Remove co-host ${g.name}`}
-                  className="text-muted text-xs hover:text-red-600 disabled:opacity-50"
+                  className="tap-target text-muted text-xs hover:text-red-600 disabled:opacity-50"
                 >
                   <span aria-hidden>✕</span>
                 </SubmitButton>
@@ -140,7 +140,7 @@ export function HostsSection({
                 <SubmitButton
                   title="Remove co-host"
                   aria-label={`Remove co-host ${profileName(p)}`}
-                  className="text-muted text-xs hover:text-red-600 disabled:opacity-50"
+                  className="tap-target text-muted text-xs hover:text-red-600 disabled:opacity-50"
                 >
                   <span aria-hidden>✕</span>
                 </SubmitButton>

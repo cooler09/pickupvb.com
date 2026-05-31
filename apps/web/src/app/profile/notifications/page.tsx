@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
+import { SupabaseNotificationPreferencesRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { updateNotificationPreferences } from './actions';
 import { PushSubscribeButton } from '@/components/push-subscribe-button';
@@ -11,15 +12,6 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-type Prefs = {
-  email_enabled: boolean;
-  sms_enabled: boolean;
-  push_enabled: boolean;
-  in_app_enabled: boolean;
-  sms_phone: string | null;
-  sms_opted_in_at: string | null;
-};
-
 export default async function NotificationsPrefsPage() {
   const supabase = await getServerSupabase();
   const {
@@ -27,20 +19,11 @@ export default async function NotificationsPrefsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login?next=/profile/notifications');
 
-  const { data: row } = await supabase
-    .from('notification_preferences')
-    .select('email_enabled, sms_enabled, push_enabled, in_app_enabled, sms_phone, sms_opted_in_at')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  const prefs: Prefs = (row as Prefs | null) ?? {
-    email_enabled: true,
-    sms_enabled: false,
-    push_enabled: false,
-    in_app_enabled: true,
-    sms_phone: null,
-    sms_opted_in_at: null,
-  };
+  const settings = await new SupabaseNotificationPreferencesRepository(supabase).find(user.id);
+  // Defaults when no row exists yet: email + in-app on, push off.
+  const inAppEnabled = settings?.inAppEnabled ?? true;
+  const emailEnabled = settings?.emailEnabled ?? true;
+  const pushEnabled = settings?.pushEnabled ?? false;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
@@ -56,26 +39,26 @@ export default async function NotificationsPrefsPage() {
       </div>
 
       <form action={updateNotificationPreferences} className="space-y-4">
-        <section className="border-border-base bg-surface space-y-3 rounded-lg border p-5">
+        <section className="border-border-base bg-surface rounded-shape-sm space-y-3 border p-5">
           <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">Channels</h2>
 
           <Toggle
             name="in_app_enabled"
             label="In-app"
             description="Bell icon in the header — real-time, free."
-            defaultChecked={prefs.in_app_enabled}
+            defaultChecked={inAppEnabled}
           />
           <Toggle
             name="email_enabled"
             label="Email"
             description="Event reminders, invites, and updates."
-            defaultChecked={prefs.email_enabled}
+            defaultChecked={emailEnabled}
           />
           <Toggle
             name="push_enabled"
             label="Browser push"
             description="Instant alerts on this device. Enable on each device you want notifications on."
-            defaultChecked={prefs.push_enabled}
+            defaultChecked={pushEnabled}
           />
           <div className="pl-3">
             <PushSubscribeButton

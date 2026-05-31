@@ -17,7 +17,7 @@ export function DeleteTeamPanel({ teamId, teamName }: { teamId: string; teamName
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
+    <div className="rounded-shape-sm border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
       <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">Delete team</h2>
       <p className="mt-1 text-xs text-red-900/80 dark:text-red-200/80">
         Hides <strong>{teamName}</strong> from every public surface. Historical tournament

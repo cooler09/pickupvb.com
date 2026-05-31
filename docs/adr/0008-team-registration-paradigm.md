@@ -165,6 +165,50 @@ scheduled.
   symmetric with ad-hoc (both carry `payment_status` on the
   event-scoped record).
 
+## Addendum: 2026-05-30 — League rostered teams
+
+`EventType.League` (added 2026-05-29 per
+[event-data-model.md § P1 #1](../audits/event-data-model.md#p1-1--league-is-not-a-first-class-eventtype))
+reuses the rostered-team paradigm above — **no new aggregate, no new
+join table.** League teams are persistent `teams.id` rows, registered
+once for the season via the existing `event_team_entries`
+(`source = 'roster'`) row + the `event_team_payments` sidecar.
+Closes [event-data-model.md § P2 #7](../audits/event-data-model.md#p2-7--league-rostered-team-invariant-overlaps-but-doesnt-equal-tournament-rostered-team).
+
+The `source` discriminator on `event_team_entries` maps to event
+type as follows. The aggregate enforces the league row via
+`assertRegistrationConfigValid`'s league branch
+([packages/domain/src/events/volleyball-event.ts](../../packages/domain/src/events/volleyball-event.ts)):
+
+| `event_team_entries.source` | Open Play         | Tournament                                | League                             |
+| --------------------------- | ----------------- | ----------------------------------------- | ---------------------------------- |
+| `roster`                    | n/a (individuals) | allowed (`team_registration_mode=roster`) | **required** (only allowed source) |
+| `ad_hoc`                    | n/a               | allowed (`team_registration_mode=ad_hoc`) | rejected (transitively via P1 #1)  |
+| `walk_in`                   | n/a               | allowed (host adds same-day team)         | rejected (transitively via P1 #1)  |
+
+**Payments.** Leagues are season-fee upfront only — one-shot
+Checkout via `team-checkout-actions.ts`, same wiring as tournament
+roster-mode registration. **No recurring billing** for leagues;
+that question is closed in
+[event-data-model.md § Product answers](../audits/event-data-model.md#product-answers-2026-05-28).
+Payee routing through `events.host_id` is unchanged — see
+[docs/payments.md § Payment routing](../payments.md#payment-routing--every-entry-point-goes-through-host_id).
+
+**Mid-season forfeit.** Tournament teams that drop out the morning
+of an event are soft-deleted (`event_team_entries.deleted_at`).
+League teams that quit mid-season need a distinct lifecycle event:
+the row must stay visible so the schedule generator can skip
+remaining matches and the standings page can render "Forfeited week
+5". Added in
+[20260805000000_event_team_entries_forfeited_at.sql](../../supabase/migrations/20260805000000_event_team_entries_forfeited_at.sql):
+a nullable `forfeited_at timestamptz` column on
+`event_team_entries`. Same column works for tournament-side
+forfeits if a host asks for it later. Domain wiring
+(`EventTeamRegistration.forfeitedAt`, host action, schedule-render
+filter) is **deferred** until a league host actually needs it —
+this addendum captures the schema decision without committing to
+unbuilt UI.
+
 ## Related
 
 - [ADR 0007 — Team registration model](0007-team-registration-model.md)

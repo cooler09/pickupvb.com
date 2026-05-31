@@ -1,24 +1,17 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { ProfileCard } from '@pickupvb/domain';
 import { removeFriend } from '@/app/friends/actions';
 import { SubmitButton } from '@/components/submit-button';
 
-type FriendProfile = {
-  id: string;
-  handle: string;
-  display_name: string;
-  avatar_url: string | null;
-  home_city: string | null;
-};
-
-function initialsOf(p: FriendProfile): string {
-  const parts = (p.display_name ?? '').trim().split(/\s+/).filter(Boolean);
+function initialsOf(p: ProfileCard): string {
+  const parts = (p.displayName ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  return (p.display_name ?? '?').slice(0, 2).toUpperCase();
+  return (p.displayName ?? '?').slice(0, 2).toUpperCase();
 }
 
-function nameOf(p: FriendProfile): string {
-  return p.display_name || 'Player';
+function nameOf(p: ProfileCard): string {
+  return p.displayName || 'Player';
 }
 
 export function FriendsList({
@@ -26,13 +19,13 @@ export function FriendsList({
   mutualIds,
   returnPath,
 }: {
-  friends: FriendProfile[];
+  friends: ProfileCard[];
   mutualIds: Set<string>;
   returnPath: string;
 }) {
   if (friends.length === 0) {
     return (
-      <p className="border-border-base text-muted rounded-lg border border-dashed p-4 text-sm">
+      <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-4 text-sm">
         You aren&apos;t following any players yet. Open any{' '}
         <Link href="/events" className="text-primary font-medium hover:underline">
           event
@@ -50,15 +43,15 @@ export function FriendsList({
         return (
           <li
             key={p.id}
-            className="border-border-base flex items-center gap-3 rounded-lg border px-3 py-2"
+            className="border-border-base rounded-shape-sm flex items-center gap-3 border px-3 py-2"
           >
             <Link
               href={`/players/${p.handle}`}
               className="flex min-w-0 flex-1 items-center gap-3 hover:opacity-90"
             >
-              {p.avatar_url ? (
+              {p.avatarUrl ? (
                 <Image
-                  src={p.avatar_url}
+                  src={p.avatarUrl}
                   alt=""
                   width={36}
                   height={36}
@@ -93,8 +86,8 @@ export function FriendsList({
                     </span>
                   )}
                 </div>
-                {p.home_city && (
-                  <span className="text-muted block truncate text-xs">{p.home_city}</span>
+                {p.homeCity && (
+                  <span className="text-muted block truncate text-xs">{p.homeCity}</span>
                 )}
               </div>
             </Link>

@@ -3,29 +3,24 @@
 import Link from 'next/link';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
-import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
+import { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
 import AdvancedDetailsPanel, {
   type AdvancedDetailsInitial,
 } from '@/components/event-advanced-details-panel';
 import { Alert } from '@/components/alert';
 import { FieldError, fieldA11y } from '@/components/field-error';
+import { primaryButtonClass } from '@/components/primary-button';
+import { inputClass, labelClass } from '../../new/_components/form-primitives';
+import LocationFields from '../../new/_components/location-fields';
 import { editEventAction, type EditEventState } from './actions';
 
 const initialState: EditEventState = {};
 
-const labelClass = 'block text-sm font-medium text-fg';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Saving…' : 'Save changes'}
     </button>
   );
@@ -502,89 +497,25 @@ export default function EditEventForm({
 
       <fieldset className="space-y-4">
         <legend className="text-fg text-lg font-semibold">Location</legend>
-        <div>
-          <label htmlFor="addressSearch" className={labelClass}>
-            Search address or venue
-          </label>
-          <AddressAutocomplete onPick={applySuggestion} inputClass={inputClass} />
-        </div>
-        <div>
-          <label htmlFor="addressLine" className={labelClass}>
-            Address
-          </label>
-          <input
-            id="addressLine"
-            name="addressLine"
-            required
-            maxLength={200}
-            value={addressLine}
-            onChange={(e) => setAddressLine(e.target.value)}
-            className={inputClass}
-            {...fieldA11y('addressLine', state.fieldErrors)}
-          />
-          <FieldError name="addressLine" errors={state.fieldErrors} />
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label htmlFor="city" className={labelClass}>
-              City
-            </label>
-            <input
-              id="city"
-              name="city"
-              required
-              maxLength={100}
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="region" className={labelClass}>
-              State / region
-            </label>
-            <input
-              id="region"
-              name="region"
-              maxLength={100}
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="postalCode" className={labelClass}>
-              Postal code
-            </label>
-            <input
-              id="postalCode"
-              name="postalCode"
-              maxLength={20}
-              value={postalCode}
-              onChange={(e) => setPostalCode(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label htmlFor="country" className={labelClass}>
-              Country
-            </label>
-            <input
-              id="country"
-              name="country"
-              required
-              maxLength={100}
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-        </div>
+        <LocationFields
+          addressLine={addressLine}
+          setAddressLine={setAddressLine}
+          city={city}
+          setCity={setCity}
+          region={region}
+          setRegion={setRegion}
+          postalCode={postalCode}
+          setPostalCode={setPostalCode}
+          country={country}
+          setCountry={setCountry}
+          onPick={applySuggestion}
+          fieldErrors={state.fieldErrors}
+        />
       </fieldset>
 
       <AdvancedDetailsPanel initial={initial.extensions} />
 
-      <div className="flex items-center justify-between">
+      <div className="border-border-base bg-surface/95 sticky bottom-2 z-10 -mx-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2 shadow-sm backdrop-blur">
         <Link href={`/events/${eventId}`} className="text-primary text-sm hover:underline">
           ← Cancel
         </Link>

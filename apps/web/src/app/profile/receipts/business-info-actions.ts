@@ -1,12 +1,15 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { UpdateBusinessInfoCommand } from '@pickupvb/application';
+import { NotFoundError } from '@pickupvb/domain';
 import { requireSession } from '@/lib/server-auth';
 import { fieldOrNull } from '@/lib/form-data';
+import { getUserProfileHandlers } from '@/lib/handlers';
 
 export type BusinessInfoState = {
-    error: string | null;
-    success: boolean;
+  error: string | null;
+  success: boolean;
 };
 
 /**
@@ -16,28 +19,27 @@ export type BusinessInfoState = {
  * is not encrypted at rest beyond the database default.
  */
 export async function updateBusinessInfo(
-    _prev: BusinessInfoState,
-    formData: FormData,
+  _prev: BusinessInfoState,
+  formData: FormData,
 ): Promise<BusinessInfoState> {
-    const { supabase, user } = await requireSession();
+  const { user } = await requireSession();
 
-    const businessName = fieldOrNull(formData, 'business_name', 120);
-    const businessAddress = fieldOrNull(formData, 'business_address', 400);
-    const taxId = fieldOrNull(formData, 'tax_id', 40);
+  const businessName = fieldOrNull(formData, 'business_name', 120);
+  const businessAddress = fieldOrNull(formData, 'business_address', 400);
+  const taxId = fieldOrNull(formData, 'tax_id', 40);
 
-    const { error } = await supabase
-        .from('profiles')
-        .update({
-            business_name: businessName,
-            business_address: businessAddress,
-            tax_id: taxId,
-        } as never)
-        .eq('id', user.id);
-
-    if (error) {
-        return { error: error.message, success: false };
+  try {
+    const { updateBusinessInfo: handler } = await getUserProfileHandlers();
+    await handler.execute(
+      new UpdateBusinessInfoCommand(user.id, { businessName, businessAddress, taxId }),
+    );
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      return { error: 'Profile not found.', success: false };
     }
+    return { error: 'Could not save your business info. Please try again.', success: false };
+  }
 
-    revalidatePath('/profile/receipts');
-    return { error: null, success: true };
+  revalidatePath('/profile/receipts');
+  return { error: null, success: true };
 }

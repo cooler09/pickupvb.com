@@ -60,7 +60,7 @@ export function MembersSection({ groupSlug, members, manageSlot, page, searchPar
   return (
     <section
       id="members"
-      className="border-border-base bg-surface space-y-4 rounded-lg border p-5 sm:p-6"
+      className="border-border-base bg-surface rounded-shape-sm space-y-4 border p-5 sm:p-6"
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-fg text-lg font-semibold">
@@ -79,7 +79,7 @@ export function MembersSection({ groupSlug, members, manageSlot, page, searchPar
                 <li key={m.userId}>
                   <Link
                     href={`/players/${m.profile?.handle ?? m.userId}` as Route}
-                    className="hover:bg-fg/5 hover:border-border-base flex items-center gap-3 rounded-lg border border-transparent p-2"
+                    className="hover:bg-fg/5 hover:border-border-base rounded-shape-sm flex items-center gap-3 border border-transparent p-2"
                   >
                     {m.profile?.avatarUrl ? (
                       <Image

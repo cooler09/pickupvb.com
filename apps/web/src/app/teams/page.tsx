@@ -1,6 +1,9 @@
+import Link from 'next/link';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { Pagination } from '@/components/pagination';
+import { primaryButtonClass } from '@/components/primary-button';
 import { MyTeamsPanel } from './_components/my-teams-panel';
 import { TeamCard, type TeamCardData } from './_components/team-card';
 
@@ -62,18 +65,10 @@ export default async function TeamsIndexPage(props: {
   const discoverTotal = discoverCount ?? discoverTeams.length;
   const hasFilter = q.length > 0 || !!format;
 
-  // Fetch captain display names from profiles_public (no FK join on views).
+  // Resolve captain display names via the ProfileQueries port (no FK join on
+  // the public view).
   const captainIds = [...new Set(discoverTeams.map((t) => t.captain_id).filter(Boolean))];
-  const captainNameMap = new Map<string, string>();
-  if (captainIds.length > 0) {
-    const { data: captainRows } = await supabase
-      .from('profiles_public')
-      .select('id, display_name')
-      .in('id', captainIds);
-    for (const c of (captainRows as { id: string; display_name: string }[] | null) ?? []) {
-      captainNameMap.set(c.id, c.display_name);
-    }
-  }
+  const captainCards = await new SupabaseProfileRepository(supabase).findCardsByIds(captainIds);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-4">
@@ -116,17 +111,26 @@ export default async function TeamsIndexPage(props: {
               </option>
             ))}
           </select>
-          <button
-            type="submit"
-            className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-sm"
-          >
+          <button type="submit" className={primaryButtonClass()}>
             Search
           </button>
         </form>
         {discoverTeams.length === 0 ? (
-          <p className="border-border-base text-muted rounded-lg border border-dashed p-6 text-center text-sm">
-            {hasFilter ? 'No teams match those filters.' : 'No teams yet.'}
-          </p>
+          <div className="border-border-base rounded-shape-sm flex flex-col items-center gap-3 border border-dashed p-8 text-center">
+            <p className="text-fg text-sm font-medium">
+              {hasFilter ? 'No teams match those filters.' : 'No teams yet.'}
+            </p>
+            <p className="text-muted text-xs">
+              {hasFilter
+                ? 'Try a different name or format, or clear the filters.'
+                : 'Be the first — teams sign up for tournaments together with a saved roster.'}
+            </p>
+            {!hasFilter && (
+              <Link href="/teams/new" className={primaryButtonClass()}>
+                + New team
+              </Link>
+            )}
+          </div>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {discoverTeams.map((t) => (
@@ -134,7 +138,7 @@ export default async function TeamsIndexPage(props: {
                 key={t.id}
                 team={t}
                 role="public"
-                captainName={captainNameMap.get(t.captain_id) ?? null}
+                captainName={captainCards.get(t.captain_id)?.displayName ?? null}
               />
             ))}
           </ul>

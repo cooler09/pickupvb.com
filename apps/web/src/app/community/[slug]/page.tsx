@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next/types';
 import { GetCommunityListingDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
+import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
 import { SubmitButton } from '@/components/submit-button';
@@ -12,6 +13,8 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { externalLinkHref } from '@/lib/external-link';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { CommunityListingJsonLd } from './_components/community-listing-jsonld';
 import {
   approveListingClaimFromForm,
   claimListingFromForm,
@@ -148,6 +151,11 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   const detail = await loadDetail(slug, user?.id ?? null);
   if (!detail) notFound();
 
+  // Only emit structured data on the indexable statuses (matches the
+  // `generateMetadata` noindex guard) so hidden/removed/claimed listings don't
+  // advertise rich-result signals.
+  const isIndexable = detail.status === 'active' || detail.status === 'claim_pending';
+
   const notice = Array.isArray(searchParams['notice'])
     ? searchParams['notice'][0]
     : searchParams['notice'];
@@ -186,20 +194,16 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   } | null = null;
   if (detail.status === 'claim_pending' && detail.claimedEventId && detail.claimedByUserId) {
     const sb = await getServerSupabase();
-    const [evRes, profileRes] = await Promise.all([
+    const [evRes, claimantCard] = await Promise.all([
       sb.from('events').select('id, title, slug').eq('id', detail.claimedEventId).maybeSingle(),
-      sb
-        .from('profiles_public')
-        .select('display_name')
-        .eq('id', detail.claimedByUserId)
-        .maybeSingle(),
+      new SupabaseProfileRepository(sb).findCardById(detail.claimedByUserId),
     ]);
     pendingClaim = {
       eventId: detail.claimedEventId,
       eventTitle: (evRes.data as { title?: string } | null)?.title ?? null,
       eventSlug: (evRes.data as { slug?: string | null } | null)?.slug ?? null,
       claimantId: detail.claimedByUserId,
-      claimantName: (profileRes.data as { display_name?: string } | null)?.display_name ?? 'A host',
+      claimantName: claimantCard?.displayName ?? 'A host',
     };
   }
 
@@ -232,6 +236,24 @@ export default async function CommunityListingDetailPage(props: PageProps) {
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
+      {isIndexable && (
+        <>
+          <BreadcrumbJsonLd
+            items={[
+              { name: 'Home', url: 'https://pickupvb.com/' },
+              { name: 'Community', url: 'https://pickupvb.com/community' },
+              { name: detail.title, url: `https://pickupvb.com/community/${detail.slug}` },
+            ]}
+          />
+          <CommunityListingJsonLd
+            title={detail.title}
+            slug={detail.slug}
+            startsAt={detail.startsAt}
+            endsAt={detail.endsAt}
+            location={detail.location}
+          />
+        </>
+      )}
       <nav className="text-muted text-sm">
         <Link href="/community" className="hover:text-primary">
           ← All community listings
@@ -307,7 +329,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         <p className="text-muted text-sm">Submitted by {detail.submitter.displayName}</p>
       </header>
 
-      <div className="border-border-base bg-surface space-y-1 rounded-lg border p-4">
+      <div className="border-border-base bg-surface rounded-shape-sm space-y-1 border p-4">
         <p className="text-fg text-sm font-semibold">When</p>
         <p className="text-sm">
           <LocalDateTime iso={startsAt} variant="eventDateLong" timeZone={detail.timeZone} /> at{' '}
@@ -353,7 +375,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         </section>
       )}
 
-      <section className="border-primary/40 bg-primary/5 space-y-3 rounded-lg border-2 p-4">
+      <section className="border-primary/40 bg-primary/5 rounded-shape-sm space-y-3 border-2 p-4">
         <p className="text-sm">
           RSVP and full details are on the external site ({hostLabel}). PickupVB doesn&rsquo;t
           handle signups for community listings.

@@ -154,7 +154,7 @@ export default async function ReceiptDetailPage({
         <PrintButton />
       </div>
 
-      <article className="border-border-base bg-surface space-y-6 rounded-lg border p-6 print:border-0 print:p-0">
+      <article className="border-border-base bg-surface rounded-shape-sm space-y-6 border p-6 print:border-0 print:p-0">
         <header className="border-border-base flex flex-wrap items-start justify-between gap-4 border-b pb-4">
           <div>
             <h1 className="text-2xl font-bold">Receipt</h1>

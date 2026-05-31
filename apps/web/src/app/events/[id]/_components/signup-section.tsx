@@ -29,7 +29,7 @@ export function SignupSection({ title, badge, subline, children }: Props) {
   return (
     <section
       id="signup"
-      className="border-border-base bg-surface scroll-mt-20 space-y-4 rounded-lg border p-5 sm:p-6"
+      className="border-border-base bg-surface rounded-shape-sm scroll-mt-20 space-y-4 border p-5 sm:p-6"
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">

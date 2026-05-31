@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { IS_PROD_HOST, PROD_APP_URL } from '@/lib/app-url';
 
@@ -24,6 +25,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/players`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
     { url: `${BASE}/teams`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
     { url: `${BASE}/groups`, lastModified: now, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${BASE}/community`, lastModified: now, changeFrequency: 'daily', priority: 0.5 },
     { url: `${BASE}/pricing`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${BASE}/about/numbers`, lastModified: now, changeFrequency: 'daily', priority: 0.4 },
     { url: `${BASE}/tools`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
@@ -33,6 +35,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'monthly',
       priority: 0.6,
     },
+    // Stable legal pages — footer-linked, so Google finds them anyway, but
+    // advertising them in the sitemap closes the discovery gap.
+    { url: `${BASE}/legal/privacy`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${BASE}/legal/terms`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
+    { url: `${BASE}/legal/refunds`, lastModified: now, changeFrequency: 'yearly', priority: 0.2 },
   ];
 
   let dynamicRoutes: MetadataRoute.Sitemap = [];
@@ -59,12 +66,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }));
 
-    const { data: groupRows } = await supabase.from('groups').select('slug, updated_at');
-    type GroupRow = { slug: string; updated_at: string | null };
-    const groups = (groupRows as GroupRow[] | null) ?? [];
+    const groups = await new SupabaseGroupQueryRepository(supabase).listSlugs();
     const groupEntries: MetadataRoute.Sitemap = groups.map((g) => ({
       url: `${BASE}/groups/${g.slug}`,
-      lastModified: g.updated_at ? new Date(g.updated_at) : now,
+      lastModified: g.updatedAt ? new Date(g.updatedAt) : now,
       changeFrequency: 'weekly',
       priority: 0.5,
     }));
@@ -91,7 +96,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.4,
     }));
 
-    dynamicRoutes = [...eventEntries, ...groupEntries, ...teamEntries, ...playerEntries];
+    // Community listings: only the statuses the detail page treats as
+    // indexable (`active` / `claim_pending` — see community/[slug]/page.tsx),
+    // so the sitemap never advertises a URL that renders `noindex`.
+    const { data: listingRows } = await supabase
+      .from('community_listings')
+      .select('slug, updated_at')
+      .in('status', ['active', 'claim_pending'])
+      .not('slug', 'is', null);
+    type ListingRow = { slug: string | null; updated_at: string | null };
+    const listings = (listingRows as ListingRow[] | null) ?? [];
+    const communityEntries: MetadataRoute.Sitemap = listings.flatMap((l) =>
+      l.slug
+        ? [
+            {
+              url: `${BASE}/community/${l.slug}`,
+              lastModified: l.updated_at ? new Date(l.updated_at) : now,
+              changeFrequency: 'daily' as const,
+              priority: 0.5,
+            },
+          ]
+        : [],
+    );
+
+    dynamicRoutes = [
+      ...eventEntries,
+      ...groupEntries,
+      ...teamEntries,
+      ...playerEntries,
+      ...communityEntries,
+    ];
   } catch {
     // If Supabase is unreachable at build/crawl time, still serve the
     // static portion of the sitemap.

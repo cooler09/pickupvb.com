@@ -35,38 +35,48 @@ export async function setAttendeePaymentStatus(
   const pricing = await getEventPricing(eventId);
   if (!pricing || pricing.priceCents === 0) return;
 
-  // RLS: the UPDATE below is authorized by event_attendees_update_host
-  // (caller is host / co-host of the event), the INSERT into
-  // event_payment_audit by event_payment_audit_insert_host. The
-  // canManage check above is belt-and-suspenders; if it ever regresses,
-  // RLS still blocks cross-event writes.
+  // RLS: writes are authorized by host policies on event_participants /
+  // event_participant_payments. The canManage check above is
+  // belt-and-suspenders; if it ever regresses, RLS still blocks
+  // cross-event writes.
   const supabase = await getServerSupabase();
   const { data: row } = await supabase
-    .from('event_attendees')
-    .select('payment_status, payment_intent_id, amount_paid_cents')
-    .eq('event_id', eventId)
+    .from('event_participants')
+    .select(
+      'id, payment:event_participant_payments(payment_status, payment_intent_id, amount_paid_cents)',
+    )
+    .eq('role', 'attendee')
+    .eq('division_id', pricing.divisionId)
     .eq('user_id', userId)
     .maybeSingle();
-  type Row = {
-    payment_status: string;
-    payment_intent_id: string | null;
-    amount_paid_cents: number;
+  type EmbedRow = {
+    id: string;
+    payment: {
+      payment_status: string;
+      payment_intent_id: string | null;
+      amount_paid_cents: number;
+    } | null;
   };
-  const r = row as unknown as Row | null;
-  if (!r) return;
+  const embed = row as unknown as EmbedRow | null;
+  if (!embed) return;
+  const r = {
+    payment_status: embed.payment?.payment_status ?? 'pending',
+    payment_intent_id: embed.payment?.payment_intent_id ?? null,
+    amount_paid_cents: embed.payment?.amount_paid_cents ?? 0,
+  };
   // Don't mess with Stripe-paid rows — those need the refund flow.
   if (r.payment_intent_id) return;
 
   const amountCents = status === 'paid' ? pricing.priceCents : 0;
-  const { error: updErr } = await supabase
-    .from('event_attendees')
-    .update({
+  const { error: updErr } = await supabase.from('event_participant_payments').upsert(
+    {
+      participant_id: embed.id,
       payment_status: status,
       amount_paid_cents: amountCents,
       paid_at: status === 'paid' ? new Date().toISOString() : null,
-    } as never)
-    .eq('event_id', eventId)
-    .eq('user_id', userId);
+    } as never,
+    { onConflict: 'participant_id' },
+  );
   if (updErr) return;
 
   await supabase.from('event_payment_audit').insert({

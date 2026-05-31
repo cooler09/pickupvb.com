@@ -3,20 +3,25 @@ import {
   AgeGroup,
   Capacity,
   Division,
+  DivisionId,
+  EventId,
   EventType,
   Format,
   Gender,
   Location,
   PriceUnit,
   TeamComposition,
+  UserId,
   VolleyballEvent,
   isEventPosition,
   skillTierFromLegacy,
+  type AnalyticsPort,
   type EventPosition,
-  type EventRepository,
+  type EventWriteStore,
   type EventExtensionsInput,
 } from '@pickupvb/domain';
 import type { DivisionInputDto, EventExtensionsDto } from '@pickupvb/types';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import { CreateEventCommand } from '../messages';
 
 function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventExtensionsInput> {
@@ -56,7 +61,7 @@ function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventEx
 export function divisionFromDto(input: DivisionInputDto, sortOrder: number): Division {
   const cap = input.capacity ?? null;
   return Division.create({
-    id: randomUUID() as never,
+    id: DivisionId(randomUUID()),
     sortOrder: input.sortOrder ?? sortOrder,
     label: input.label,
     surface: input.surface,
@@ -84,14 +89,17 @@ export function divisionFromDto(input: DivisionInputDto, sortOrder: number): Div
 }
 
 /**
- * Pure handler — takes a port (EventRepository), returns a result.
+ * Pure handler — takes a port (EventWriteStore), returns a result.
  * No DI framework, no decorators, no HTTP coupling.
  */
 export class CreateEventHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ hostId, dto }: CreateEventCommand): Promise<{ id: string }> {
-    const id = randomUUID() as never;
+    const id = EventId(randomUUID());
 
     let positionRoster: Map<EventPosition, number> | null = null;
     if (
@@ -123,7 +131,7 @@ export class CreateEventHandler {
     if (divisions.length === 0) {
       divisions.push(
         Division.create({
-          id: randomUUID() as never,
+          id: DivisionId(randomUUID()),
           sortOrder: 0,
           label: 'All',
           surface: dto.surface,
@@ -142,20 +150,21 @@ export class CreateEventHandler {
           prizePurseCents: null,
           startsAt: null,
           endsAt: null,
+          // P2 #5 — open-play events have no free-agent pool by design
+          // (every RSVP is individual). Force it off here so the
+          // aggregate invariant doesn't reject the default division.
+          ...(dto.type === EventType.OpenPlay ? { allowFreeAgents: false } : {}),
         }),
       );
     }
 
     const event = VolleyballEvent.create({
       id,
-      hostId: hostId as never,
+      hostId: UserId(hostId),
       title: dto.title,
       description: dto.description,
       rules: dto.rules,
       surface: dto.surface,
-      format: dto.format ?? null,
-      gender: dto.gender ?? null,
-      skillLevel: dto.skillLevel,
       type: dto.type,
       visibility: dto.visibility,
       location: Location.create(dto.location),
@@ -170,6 +179,7 @@ export class CreateEventHandler {
     event.publish();
 
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
     return { id: String(event.id) };
   }
 }

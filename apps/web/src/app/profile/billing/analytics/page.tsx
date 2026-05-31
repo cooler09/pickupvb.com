@@ -71,7 +71,7 @@ export default async function HostAnalyticsPage() {
     return (
       <div className="mx-auto max-w-3xl space-y-6 py-4">
         <PageHeader />
-        <section className="border-border-base bg-surface space-y-4 rounded-lg border p-5 sm:p-6">
+        <section className="border-border-base bg-surface rounded-shape-sm space-y-4 border p-5 sm:p-6">
           <h2 className="text-fg text-lg font-semibold">Pro feature</h2>
           <p className="text-muted text-sm">
             Host analytics is included with Pro. Upgrade to unlock fill-rate and repeat-attendee
@@ -106,7 +106,11 @@ export default async function HostAnalyticsPage() {
   if (eventIds.length > 0) {
     const [{ data: rawAttendees }, { data: rawDivisions }, { data: rawAudits }] = await Promise.all(
       [
-        supabase.from('event_attendees').select('event_id, user_id').in('event_id', eventIds),
+        supabase
+          .from('event_participants')
+          .select('user_id, division:event_divisions!inner(event_id)')
+          .eq('role', 'attendee')
+          .in('division.event_id', eventIds),
         supabase.from('event_divisions').select('event_id, max_spots').in('event_id', eventIds),
         supabase
           .from('event_payment_audit')
@@ -116,7 +120,11 @@ export default async function HostAnalyticsPage() {
       ],
     );
 
-    attendees = (rawAttendees as AttendeeRow[] | null) ?? [];
+    attendees = (
+      (rawAttendees as { user_id: string; division: { event_id: string } | null }[] | null) ?? []
+    )
+      .filter((a) => a.division != null)
+      .map((a) => ({ event_id: a.division!.event_id, user_id: a.user_id })) as AttendeeRow[];
     divisions = (rawDivisions as DivisionRow[] | null) ?? [];
     audits = (rawAudits as PaymentAuditRow[] | null) ?? [];
   }
@@ -185,7 +193,7 @@ export default async function HostAnalyticsPage() {
       <PageHeader />
 
       {events.length === 0 && (
-        <section className="border-border-base bg-surface rounded-lg border p-5 sm:p-6">
+        <section className="border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6">
           <p className="text-muted text-sm">
             No hosted events yet. Publish your first event to start building analytics history.
           </p>
@@ -217,7 +225,7 @@ export default async function HostAnalyticsPage() {
             />
           </section>
 
-          <section className="border-border-base bg-surface rounded-lg border p-5 sm:p-6">
+          <section className="border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6">
             <h2 className="text-fg text-lg font-semibold">Revenue trend</h2>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <MoneyStat label="Gross" value={usd(grossCents)} />
@@ -256,7 +264,7 @@ export default async function HostAnalyticsPage() {
             </div>
           </section>
 
-          <section className="border-border-base bg-surface rounded-lg border p-5 sm:p-6">
+          <section className="border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6">
             <h2 className="text-fg text-lg font-semibold">Recent events</h2>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -309,7 +317,7 @@ function PageHeader() {
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="border-border-base bg-surface rounded-lg border p-4">
+    <div className="border-border-base bg-surface rounded-shape-sm border p-4">
       <p className="text-muted text-xs font-semibold tracking-wide uppercase">{label}</p>
       <p className="text-fg mt-1 text-2xl font-bold">{value}</p>
       <p className="text-muted mt-1 text-xs">{hint}</p>

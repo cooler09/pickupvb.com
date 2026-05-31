@@ -1,4 +1,5 @@
 import type { DivisionLite } from '@pickupvb/domain';
+import { primaryButtonClass } from '@/components/primary-button';
 import { recordDivisionWinner, clearDivisionWinner } from '../record-division-winner-actions';
 
 type EligibleTeamOption = {
@@ -86,10 +87,7 @@ export function HostDivisionWinnersPanel({
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="submit"
-                    className="bg-primary text-on-primary hover:bg-primary/90 rounded px-3 py-1 text-xs font-medium"
-                  >
+                  <button type="submit" className={primaryButtonClass()}>
                     Record winner
                   </button>
                 </form>

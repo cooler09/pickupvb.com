@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Extended authentication — public-facing form behavior covering sign-up mode
@@ -67,12 +68,12 @@ test.describe('sign-up form', () => {
     const isInvalid = await emailInput.evaluate((el) =>
       (el as HTMLInputElement).validity ? !(el as HTMLInputElement).validity.valid : false,
     );
-    const bodyHasError = await page
-      .locator('body')
-      .getByText(/invalid email|email.*invalid|enter.*valid email|check.*email|error/i)
-      .first()
-      .isVisible()
-      .catch(() => false);
+    const bodyHasError = await isVisibleOrTimeout(
+      page
+        .locator('body')
+        .getByText(/invalid email|email.*invalid|enter.*valid email|check.*email|error/i)
+        .first(),
+    );
     expect(isInvalid || bodyHasError).toBe(true);
   });
 
@@ -112,14 +113,14 @@ test.describe('sign-up form', () => {
     const isInvalid = await passwordInput.evaluate((el) =>
       (el as HTMLInputElement).validity ? !(el as HTMLInputElement).validity.valid : false,
     );
-    const bodyHasError = await page
-      .locator('body')
-      .getByText(
-        /password.*short|short.*password|at least.*character|minimum.*character|password.*length|error/i,
-      )
-      .first()
-      .isVisible()
-      .catch(() => false);
+    const bodyHasError = await isVisibleOrTimeout(
+      page
+        .locator('body')
+        .getByText(
+          /password.*short|short.*password|at least.*character|minimum.*character|password.*length|error/i,
+        )
+        .first(),
+    );
     expect(isInvalid || bodyHasError).toBe(true);
   });
 
@@ -160,16 +161,14 @@ test.describe('anonymous / guest session', () => {
 
     // Accept: redirect to /login, OR a sign-in modal, OR a guest start flow.
     const urlHasLogin = page.url().includes('/login');
-    const hasAuthModal = await page
-      .getByText(/sign in|log in|create account|continue with/i)
-      .first()
-      .isVisible({ timeout: 10_000 })
-      .catch(() => false);
-    const hasGuestFlow = await page
-      .getByText(/guest|continue as|without account/i)
-      .first()
-      .isVisible({ timeout: 10_000 })
-      .catch(() => false);
+    const hasAuthModal = await isVisibleOrTimeout(
+      page.getByText(/sign in|log in|create account|continue with/i).first(),
+      10_000,
+    );
+    const hasGuestFlow = await isVisibleOrTimeout(
+      page.getByText(/guest|continue as|without account/i).first(),
+      10_000,
+    );
 
     expect(urlHasLogin || hasAuthModal || hasGuestFlow).toBe(true);
   });

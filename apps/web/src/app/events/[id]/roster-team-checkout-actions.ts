@@ -70,15 +70,20 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
   if (team.captain_id !== user.id) backWithError(eventId, 'forbidden');
 
   const { data: regRow } = await supabase
-    .from('event_teams')
-    .select('event_id, team_id, division_id')
-    .eq('event_id', eventId)
+    .from('event_team_entries')
+    .select(
+      'id, team_id, division_id, division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+    )
+    .eq('division.event_id', eventId)
     .eq('team_id', teamId)
+    .eq('source', 'roster')
+    .is('deleted_at', null)
     .maybeSingle();
   const registration = regRow as {
-    event_id: string;
+    id: string;
     team_id: string;
     division_id: string | null;
+    division: { event_id: string } | null;
   } | null;
   if (!registration) backWithError(eventId, 'team_not_registered');
   if (!registration.division_id) backWithError(eventId, 'division_not_found');
@@ -197,6 +202,8 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
         payment_id: String(payment.id),
         captain_id: user.id,
       },
+      // One pending roster payment row → at most one Checkout Session (TPI-5).
+      idempotencyKey: `roster:${String(payment.id)}`,
     });
   } catch (err) {
     await log.error('[roster-team-checkout] session create failed', err, {

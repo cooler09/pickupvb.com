@@ -5,8 +5,16 @@ Sentry.init({
   environment: process.env.VERCEL_ENV ?? process.env.NODE_ENV,
   enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN),
 
-  // Performance: 10% in prod, 100% in preview/dev. Adjust if quota gets tight.
-  tracesSampleRate: process.env.VERCEL_ENV === 'production' ? 0.1 : 1.0,
+  // Performance sampling. Server traces are the largest telemetry stream, so
+  // prod is trimmed hard (2%) and the cron routes — `/api/notifications/*`,
+  // which fire every 5/15 min and daily — are dropped entirely as pure noise.
+  // Preview/dev capture everything. Raise the prod floor temporarily when
+  // profiling a slow path. See docs/audits/third-party-integrations.md TPI-12.
+  tracesSampler: (ctx) => {
+    const name = ctx.transactionContext.name ?? '';
+    if (name.includes('/api/notifications/')) return 0;
+    return process.env.VERCEL_ENV === 'production' ? 0.02 : 1.0;
+  },
 
   // Drop noise from expected domain errors — they're already mapped to HTTP
   // status codes by api-helpers.ts and are not actionable bugs.

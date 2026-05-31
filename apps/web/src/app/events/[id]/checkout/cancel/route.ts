@@ -13,29 +13,35 @@ import { log } from '@/lib/log';
  * leave it alone.
  */
 export async function GET(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-    const { id: eventId } = await params;
-    const sessionId = req.nextUrl.searchParams.get('session') ?? undefined;
-    const origin = req.nextUrl.origin;
+  const { id: eventId } = await params;
+  const sessionId = req.nextUrl.searchParams.get('session') ?? undefined;
+  const origin = req.nextUrl.origin;
 
-    if (sessionId) {
-        const admin = getAdminSupabase();
-        const { error } = await admin
-            .from('event_attendees')
-            .delete()
-            .eq('event_id', eventId)
-            .eq('checkout_session_id', sessionId)
-            .eq('payment_status', 'pending');
-        if (error) {
-            log.warn('[checkout/cancel] release pending failed', {
-                error: error.message,
-                eventId,
-                sessionId,
-            });
-        }
+  if (sessionId) {
+    const admin = getAdminSupabase();
+    // session_id is globally unique — look up the payment row first,
+    // then delete the participant (payment cascades).
+    const { data: payRow } = await admin
+      .from('event_participant_payments')
+      .select('participant_id')
+      .eq('checkout_session_id', sessionId)
+      .eq('payment_status', 'pending')
+      .maybeSingle();
+    const pid = (payRow as { participant_id: string } | null)?.participant_id;
+    const { error } = pid
+      ? await admin.from('event_participants').delete().eq('id', pid)
+      : { error: null };
+    if (error) {
+      log.warn('[checkout/cancel] release pending failed', {
+        error: error.message,
+        eventId,
+        sessionId,
+      });
     }
+  }
 
-    return NextResponse.redirect(`${origin}/events/${eventId}?rsvp=cancel`);
+  return NextResponse.redirect(`${origin}/events/${eventId}?rsvp=cancel`);
 }

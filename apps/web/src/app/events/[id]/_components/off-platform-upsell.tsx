@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import { dismissOffPlatformUpsell } from '../off-platform-upsell-actions';
 
 /**
@@ -25,7 +26,7 @@ export function OffPlatformUpsell({
 }) {
   return (
     <aside
-      className="border-border-base bg-fg/5 rounded-lg border p-4"
+      className="border-border-base bg-fg/5 rounded-shape-sm border p-4"
       aria-label="Switch to on-platform payments"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -39,7 +40,7 @@ export function OffPlatformUpsell({
         <div className="flex shrink-0 items-center gap-2">
           <Link
             href={`/events/${eventId}/edit`}
-            className="bg-primary text-primary-fg rounded px-3 py-1 text-sm whitespace-nowrap"
+            className={`${primaryButtonClass()} whitespace-nowrap`}
           >
             Switch
           </Link>

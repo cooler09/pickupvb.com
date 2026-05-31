@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { NotFoundError, UnauthorizedError } from '@pickupvb/domain';
+import { SupabaseBroadcastRepository } from '@pickupvb/infrastructure';
 import { requireRealUser } from '@/lib/server-auth';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 
@@ -36,31 +38,22 @@ export async function hideBroadcastAction(
   try {
     // Authorize via the sender_id column. We can't rely on the soft-deleted
     // SELECT policy because that filters the row out for everyone, including
-    // the sender; we need to read it first to confirm ownership before
-    // marking it deleted. Use a head/count check on the live row instead.
-    const { data: row } = await supabase
-      .from('broadcasts')
-      .select('id, sender_id')
-      .eq('id', broadcastId)
-      .maybeSingle();
-    const broadcast = row as { id: string; sender_id: string } | null;
+    // the sender; we need to read it first (on the user client) to confirm
+    // ownership before marking it deleted.
+    const broadcast = await new SupabaseBroadcastRepository(supabase).findSender(broadcastId);
     if (!broadcast) throw new NotFoundError('broadcast', broadcastId);
-    if (broadcast.sender_id !== user.id)
+    if (broadcast.senderId !== user.id)
       throw new UnauthorizedError('You can only hide broadcasts you sent.');
 
     // RLS quirk: `broadcasts_select_sender` filters `deleted_at is null`,
     // which Postgres applies as an implicit WITH CHECK on UPDATE — flipping
     // deleted_at through the user-scoped client fails because the after-image
-    // would be invisible to the sender. Sender check is enforced above.
-    const admin = getAdminSupabase();
-    const { error: updErr } = await admin
-      .from('broadcasts')
-      .update({ deleted_at: new Date().toISOString() } as never)
-      .eq('id', broadcastId);
-    if (updErr) return { error: updErr.message };
+    // would be invisible to the sender. Sender check is enforced above, so the
+    // admin-client soft-delete is the sanctioned bypass (pitfall #8).
+    await new SupabaseBroadcastRepository(getAdminSupabase()).softDelete(broadcastId);
 
     revalidatePath(eventOrTeamPath);
-    if (eventId) updateTag(`event:${eventId}`);
+    if (eventId) updateTag(eventCacheTag(eventId));
     return { ok: true };
   } catch (err) {
     if (err instanceof UnauthorizedError) return { error: err.message };

@@ -19,7 +19,15 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        // The public bracket-spectator page lives under the `/events/*/bracket`
+        // subtree that we disallow below to block the host/captain workspace.
+        // A `Disallow` is a prefix match, so it would also shadow
+        // `/events/<id>/bracket/watch` (+ its `/og` route) — a deliberately
+        // public, indexable + shareable page with a canonical, OG image route,
+        // and Twitter card. Google/Bing resolve allow-vs-disallow by *longest
+        // match*, so this more-specific `Allow` wins for `/watch` and lets
+        // crawlers + OG-unfurl bots reach it while the workspace stays blocked.
+        allow: ['/', '/events/*/bracket/watch'],
         disallow: [
           '/api/',
           '/auth/',
@@ -37,7 +45,8 @@ export default function robots(): MetadataRoute.Robots {
           '/s/',
           '/sentry-test',
           '/events/new',
-          // Edit pages and bracket admin are per-event subroutes.
+          // Edit pages and bracket admin are per-event subroutes. The public
+          // spectator subpath `/events/*/bracket/watch` is re-allowed above.
           '/events/*/edit',
           '/events/*/bracket',
           '/groups/new',

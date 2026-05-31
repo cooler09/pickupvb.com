@@ -92,7 +92,7 @@ export function EventCard({ event, friendNameById }: Props) {
       : (event.seriesName ?? null);
 
   return (
-    <li className="border-border-base bg-surface hover:border-primary/40 rounded-lg border p-4">
+    <li className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm border p-4">
       <Link href={`/events/${event.id}`} className="hover:text-primary block font-semibold">
         {event.title}
       </Link>

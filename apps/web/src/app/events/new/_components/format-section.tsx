@@ -1,0 +1,140 @@
+'use client';
+
+/**
+ * Section 4 of the create-event form (architecture audit P3-1): the
+ * format-dependent body. Open play → "Session details" ({@link OpenPlayBody});
+ * tournament → "Divisions" ({@link DivisionsRepeater}); external → just the
+ * external URL ({@link ExternalFields}). Pricing / payment-settings subsections
+ * trail the body for on-platform open-play / tournament respectively. Owns the
+ * derived `show*` flags so the orchestrator doesn't have to.
+ */
+import type { Dispatch, SetStateAction } from 'react';
+import { EventPosition, EventType } from '@pickupvb/domain';
+import { cardClass, cardSubClass, cardTitleClass, type CapacityKind } from './form-primitives';
+import DivisionsRepeater from './divisions-repeater';
+import ExternalFields from './external-fields';
+import OpenPlayBody from './open-play-body';
+import { PaymentSettingsSubsection, PricingSubsection } from './payment-fields';
+
+export default function FormatSection({
+  type,
+  isExternal,
+  capacityKind,
+  setCapacityKind,
+  positionCounts,
+  setPositionCounts,
+  positionTotal,
+  fieldErrors,
+  values,
+  submitted,
+  canCollectPayments,
+  paymentsOffPlatform,
+  setPaymentsOffPlatform,
+  viewerHasProBenefits,
+}: {
+  type: EventType;
+  isExternal: boolean;
+  capacityKind: CapacityKind;
+  setCapacityKind: (v: CapacityKind) => void;
+  positionCounts: Record<EventPosition, number>;
+  setPositionCounts: Dispatch<SetStateAction<Record<EventPosition, number>>>;
+  positionTotal: number;
+  fieldErrors: Record<string, string> | undefined;
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
+  canCollectPayments: boolean;
+  paymentsOffPlatform: boolean;
+  setPaymentsOffPlatform: (v: boolean) => void;
+  viewerHasProBenefits: boolean;
+}) {
+  const byPosition = capacityKind === 'by_position';
+  const showPricing = !isExternal && type === EventType.OpenPlay;
+  // Tournament divisions collect their own per-division price below; keep the
+  // event-level payment settings (refund window, fee absorption) separate.
+  const showPaymentSettings = !isExternal && type === EventType.Tournament;
+  const showCapacity = type === EventType.OpenPlay && !isExternal;
+
+  return (
+    <>
+      <section className={cardClass}>
+        <div>
+          <h2 className={cardTitleClass}>
+            {isExternal
+              ? 'External registration'
+              : type === EventType.OpenPlay
+                ? 'Session details'
+                : 'Divisions'}
+          </h2>
+          <p className={cardSubClass}>
+            {isExternal
+              ? "Where players go to sign up. We'll link out from your event page."
+              : type === EventType.OpenPlay
+                ? 'Surface, skill level, how many spots, and what it costs.'
+                : 'Add one or more divisions — each gets its own skill tier, capacity, and entry price.'}
+          </p>
+        </div>
+
+        {isExternal ? (
+          <ExternalFields type={type} fieldErrors={fieldErrors} values={values} />
+        ) : type === EventType.OpenPlay ? (
+          <OpenPlayBody
+            capacityKind={capacityKind}
+            setCapacityKind={setCapacityKind}
+            byPosition={byPosition}
+            positionCounts={positionCounts}
+            setPositionCounts={setPositionCounts}
+            positionTotal={positionTotal}
+            fieldErrors={fieldErrors}
+            values={values}
+            submitted={submitted}
+          />
+        ) : (
+          <>
+            <DivisionsRepeater
+              defaultSurface="indoor"
+              requireAtLeastOne
+              {...(fieldErrors ? { fieldErrors } : {})}
+            />
+          </>
+        )}
+
+        {showPricing && (
+          <PricingSubsection
+            fieldErrors={fieldErrors}
+            values={values}
+            submitted={submitted}
+            canCollectPayments={canCollectPayments}
+            paymentsOffPlatform={paymentsOffPlatform}
+            setPaymentsOffPlatform={setPaymentsOffPlatform}
+            viewerHasProBenefits={viewerHasProBenefits}
+          />
+        )}
+        {showPaymentSettings && (
+          <PaymentSettingsSubsection
+            values={values}
+            submitted={submitted}
+            canCollectPayments={canCollectPayments}
+            paymentsOffPlatform={paymentsOffPlatform}
+            setPaymentsOffPlatform={setPaymentsOffPlatform}
+            viewerHasProBenefits={viewerHasProBenefits}
+          />
+        )}
+      </section>
+
+      {/* Hidden fields the server action expects. Top-level format/gender
+          aren't part of the open-play UI but the schema accepts them as
+          optional — for tournaments we surface them inside the Division 1
+          card via TournamentBody. */}
+      {showCapacity && byPosition && <input type="hidden" name="byPosition" value="on" />}
+      {/* `capacityKind` is consumed by the server action; default to unlimited
+          when by-position is selected (server ignores capacity in that mode). */}
+      {showCapacity && (
+        <input
+          type="hidden"
+          name="capacityKind"
+          value={capacityKind === 'fixed' ? 'fixed' : 'unlimited'}
+        />
+      )}
+    </>
+  );
+}

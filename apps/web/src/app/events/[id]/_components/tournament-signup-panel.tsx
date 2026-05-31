@@ -92,7 +92,7 @@ export function TournamentSignupPanel({
   const divisionById = new Map(divisions.map((d) => [d.id, d] as const));
 
   return (
-    <section className="border-border-base space-y-4 rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm space-y-4 border p-4">
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-fg text-lg font-semibold">Tournament teams</h2>

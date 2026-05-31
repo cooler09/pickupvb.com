@@ -45,6 +45,9 @@ function DivisionForm({
   const [teamComposition, setTeamComposition] = useState<string>(
     initial?.teamComposition ?? 'solo',
   );
+  const [priceUsd, setPriceUsd] = useState<string>(
+    initial?.priceCents != null ? (initial.priceCents / 100).toFixed(2) : '',
+  );
   return (
     <form action={action} className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -122,7 +125,7 @@ function DivisionForm({
             <option value="solo">Individual signup</option>
             <option value="team">Pre-formed team</option>
             <option value="pair_draw">Pair draw</option>
-            <option value="partner_required">Bring partner(s)</option>
+            <option value="partners">Bring partner(s)</option>
           </select>
         </div>
         <div>
@@ -156,22 +159,28 @@ function DivisionForm({
             name="priceUsd"
             min={0}
             step="0.01"
-            defaultValue={initial?.priceCents != null ? (initial.priceCents / 100).toFixed(2) : ''}
+            value={priceUsd}
+            onChange={(e) => setPriceUsd(e.target.value)}
             placeholder="0.00"
             className={inputClass}
           />
         </div>
-        <div>
-          <label className={labelClass}>Charge</label>
-          <select
-            name="priceUnit"
-            defaultValue={initial?.priceUnit ?? 'per_player'}
-            className={inputClass}
-          >
-            <option value="per_player">Per player</option>
-            <option value="per_team">Per team</option>
-          </select>
-        </div>
+        {/* ADR 0012 — price-unit only matters when the division charges
+            money. Free divisions are normalized server-side to the unit
+            implied by the team-registration mode. */}
+        {Number(priceUsd) > 0 && (
+          <div>
+            <label className={labelClass}>Charge</label>
+            <select
+              name="priceUnit"
+              defaultValue={initial?.priceUnit ?? 'per_player'}
+              className={inputClass}
+            >
+              <option value="per_player">Per player</option>
+              <option value="per_team">Per team</option>
+            </select>
+          </div>
+        )}
         <div className="sm:col-span-2">
           <label className={labelClass}>Prize</label>
           <input
@@ -237,7 +246,7 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
   }
 
   return (
-    <section className="border-border-base bg-fg/[0.02] space-y-3 rounded-lg border p-4">
+    <section className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
       <header className="flex items-center justify-between">
         <h2 className="text-fg text-base font-semibold">Manage divisions</h2>
         <span className="text-muted text-xs">{divisions.length} total</span>

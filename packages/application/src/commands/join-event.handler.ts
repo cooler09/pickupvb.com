@@ -1,5 +1,11 @@
-import type { AnalyticsPort, EventRepository } from '@pickupvb/domain';
-import { NotFoundError, isEventPosition, ValidationError } from '@pickupvb/domain';
+import type { AnalyticsPort, EventWriteStore } from '@pickupvb/domain';
+import {
+  DivisionId,
+  NotFoundError,
+  UserId,
+  isEventPosition,
+  ValidationError,
+} from '@pickupvb/domain';
 import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   JoinEventAsFreeAgentCommand,
@@ -11,14 +17,14 @@ import {
 
 export class JoinEventHandler {
   constructor(
-    private readonly repo: EventRepository,
+    private readonly repo: EventWriteStore,
     private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute({ eventId, userId }: JoinEventCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.joinAsPlayer(userId as never);
+    event.joinAsPlayer(UserId(userId));
     await this.repo.save(event);
     if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
@@ -26,7 +32,7 @@ export class JoinEventHandler {
 
 export class JoinEventWithPositionHandler {
   constructor(
-    private readonly repo: EventRepository,
+    private readonly repo: EventWriteStore,
     private readonly analytics?: AnalyticsPort,
   ) {}
 
@@ -36,7 +42,7 @@ export class JoinEventWithPositionHandler {
     }
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.joinAsPlayerWithPosition(userId as never, position);
+    event.joinAsPlayerWithPosition(UserId(userId), position);
     await this.repo.save(event);
     if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
@@ -44,21 +50,24 @@ export class JoinEventWithPositionHandler {
 
 export class LeaveEventHandler {
   constructor(
-    private readonly repo: EventRepository,
+    private readonly repo: EventWriteStore,
     private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute({ eventId, userId }: LeaveEventCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.leave(userId as never);
+    event.leave(UserId(userId));
     await this.repo.save(event);
     if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
 export class JoinEventAsFreeAgentHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({
     eventId,
@@ -68,22 +77,26 @@ export class JoinEventAsFreeAgentHandler {
   }: JoinEventAsFreeAgentCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    // Aggregate owns division existence + allowFreeAgents check.
-    event.joinAsFreeAgent(userId as never, divisionId as never, notes);
+    // The aggregate owns the division-existence + allowFreeAgents check and
+    // now carries the chosen division on the entry (ADR 0019), so save()
+    // persists it in one write path — no separate attach step.
+    event.joinAsFreeAgent(UserId(userId), DivisionId(divisionId), notes);
     await this.repo.save(event);
-    // Persist the division pick via dedicated port (aggregate's
-    // `_freeAgents` map has no slot for division_id).
-    await this.repo.attachFreeAgentToDivision(eventId, userId, divisionId);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
 export class LeaveEventAsFreeAgentHandler {
-  constructor(private readonly repo: EventRepository) {}
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
 
   async execute({ eventId, userId }: LeaveEventAsFreeAgentCommand): Promise<void> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    event.leaveAsFreeAgent(userId as never);
+    event.leaveAsFreeAgent(UserId(userId));
     await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }

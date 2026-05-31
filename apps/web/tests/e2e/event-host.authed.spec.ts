@@ -1,8 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
+import { withAuthContext } from './_helpers/browser';
 
 /**
  * Host-only event management flows.
@@ -21,33 +22,25 @@ let beforeAllError: string | null = null;
 
 test.beforeAll(async ({ browser }) => {
   test.setTimeout(60_000);
-  const context = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
-  const page = await context.newPage();
   testEventTitle = `E2E Host Test ${Date.now()}`;
 
-  try {
-    const created = await createFreeOpenPlayEvent(page, { title: testEventTitle });
-    eventUrl = created.url;
-  } catch (err) {
-    beforeAllError = err instanceof Error ? err.message : String(err);
-    // Surface the failure so the next agent can see WHY creation failed
-    // instead of every test silently skipping with the same message.
-    // eslint-disable-next-line no-console
-    console.error('[event-host beforeAll] event creation failed:', beforeAllError);
-  } finally {
-    await context.close();
-  }
+  await withAuthContext(browser, STORAGE_PATHS.attendeeA, async (page) => {
+    try {
+      const created = await createFreeOpenPlayEvent(page, { title: testEventTitle });
+      eventUrl = created.url;
+    } catch (err) {
+      beforeAllError = err instanceof Error ? err.message : String(err);
+      // Surface the failure so the next agent can see WHY creation failed
+      // instead of every test silently skipping with the same message.
+      // eslint-disable-next-line no-console
+      console.error('[event-host beforeAll] event creation failed:', beforeAllError);
+    }
+  });
 });
 
 test.afterAll(async ({ browser }) => {
   if (!eventUrl) return;
-  const context = await browser.newContext({ storageState: STORAGE_PATHS.attendeeA });
-  const page = await context.newPage();
-  try {
-    await cancelEvent(page, eventUrl);
-  } finally {
-    await context.close();
-  }
+  await withAuthContext(browser, STORAGE_PATHS.attendeeA, (page) => cancelEvent(page, eventUrl!));
 });
 
 test.describe('event host flows', () => {
@@ -151,27 +144,26 @@ test.describe('event host flows', () => {
     skipIfMissingAuth(STORAGE_PATHS.proHost, 'pro-host');
     test.setTimeout(90_000);
 
-    const ctx = await browser.newContext({ storageState: STORAGE_PATHS.proHost });
-    const page = await ctx.newPage();
-    let proEventUrl: string | null = null;
-    try {
-      const created = await createFreeOpenPlayEvent(page, {
-        title: `E2E Pro Sponsor ${Date.now()}`,
-      });
-      proEventUrl = created.url;
+    await withAuthContext(browser, STORAGE_PATHS.proHost, async (page) => {
+      let proEventUrl: string | null = null;
+      try {
+        const created = await createFreeOpenPlayEvent(page, {
+          title: `E2E Pro Sponsor ${Date.now()}`,
+        });
+        proEventUrl = created.url;
 
-      await page.goto(`${proEventUrl}/edit`);
-      await page.waitForLoadState('domcontentloaded');
+        await page.goto(`${proEventUrl}/edit`);
+        await page.waitForLoadState('domcontentloaded');
 
-      // SponsorPanel renders `<h2>Sponsor slot (Pro)</h2>` (see
-      // apps/web/src/app/events/[id]/edit/sponsor-panel.tsx).
-      await expect(page.getByRole('heading', { name: /sponsor slot/i })).toBeVisible({
-        timeout: 10_000,
-      });
-    } finally {
-      if (proEventUrl) await cancelEvent(page, proEventUrl);
-      await ctx.close().catch(() => {});
-    }
+        // SponsorPanel renders `<h2>Sponsor slot (Pro)</h2>` (see
+        // apps/web/src/app/events/[id]/edit/sponsor-panel.tsx).
+        await expect(page.getByRole('heading', { name: /sponsor slot/i })).toBeVisible({
+          timeout: 10_000,
+        });
+      } finally {
+        if (proEventUrl) await cancelEvent(page, proEventUrl);
+      }
+    });
   });
 
   test('co-host section: add attendee-b, verify listed, remove', async ({ page, browser }) => {
@@ -202,20 +194,16 @@ test.describe('event host flows', () => {
     skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
 
     // Get attendee-b's display name for the UserPicker search.
-    const bContext = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
-    const bPage = await bContext.newPage();
     let bDisplayName: string | null = null;
     let bHandle: string | null = null;
-    try {
+    await withAuthContext(browser, STORAGE_PATHS.attendeeB, async (bPage) => {
       await bPage.goto('/profile');
       await bPage.waitForLoadState('domcontentloaded');
       const dnInput = bPage.locator('input[name="display_name"]').first();
       bDisplayName = (await dnInput.count()) > 0 ? await dnInput.inputValue() : null;
       const hInput = bPage.locator('input[name="handle"]').first();
       bHandle = (await hInput.count()) > 0 ? await hInput.inputValue() : null;
-    } finally {
-      await bContext.close();
-    }
+    });
 
     const searchTerm = bDisplayName || bHandle;
     if (!searchTerm) {
@@ -364,7 +352,7 @@ test.describe('event host flows', () => {
       // the page has two buttons named "Join this event" once the dialog
       // is open).
       const joinDialog = bPage.getByRole('dialog', { name: /join this event/i });
-      if (await joinDialog.isVisible().catch(() => false)) {
+      if (await isVisibleOrTimeout(joinDialog)) {
         await joinDialog.getByRole('button', { name: /join this event/i }).click();
       }
       await bPage.waitForLoadState('domcontentloaded');
@@ -456,7 +444,7 @@ test.describe('event host flows', () => {
         // Leave is also a two-step: scope the confirm click to the dialog
         // so we don't re-click the trigger button.
         const leaveDialog = bPage.getByRole('dialog', { name: /leave|confirm/i });
-        if (await leaveDialog.isVisible().catch(() => false)) {
+        if (await isVisibleOrTimeout(leaveDialog)) {
           const confirmInDialog = leaveDialog
             .getByRole('button', { name: /leave event|confirm|yes/i })
             .filter({ hasNotText: /cancel/i })

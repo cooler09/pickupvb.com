@@ -142,6 +142,8 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
         user_id: user.id,
         tip_id: tipId,
       },
+      // One pending tip row → at most one Checkout Session (TPI-5).
+      idempotencyKey: `tip:${tipId}`,
     });
   } catch (err) {
     // Roll back the pending row.

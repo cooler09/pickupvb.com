@@ -1,70 +1,9 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { deleteTeamBySlug } from './_helpers/cleanup';
-
-/**
- * Finds a team URL that the current user captains, by loading /teams and
- * reading the "Captained" section of the MyTeamsPanel (a client component).
- */
-async function findCaptainedTeamUrl(page: Page): Promise<string | null> {
-  await page.goto('/teams');
-
-  // MyTeamsPanel is a client component that hydrates after navigation.
-  // Poll for a captained team link rather than guessing with a fixed sleep;
-  // returns null cleanly if no team is captained.
-  const teamLink = page
-    .locator('section')
-    .filter({ hasText: /captained/i })
-    .first()
-    .locator('a[href*="/teams/"]')
-    .first();
-
-  try {
-    await expect(teamLink).toBeVisible({ timeout: 10_000 });
-  } catch {
-    return null;
-  }
-  return await teamLink.getAttribute('href');
-}
-
-/**
- * Ensures the page (already signed in) has a known unique display_name set on
- * its profile and returns the resulting display_name. The UserPicker typeahead
- * matches against `profiles_public.display_name`; without an explicit value
- * the seeded test users may have an email-prefix or empty display_name that
- * isn't searchable.
- *
- * Idempotent: if the existing display_name already starts with the desired
- * prefix, the helper returns it as-is without re-saving.
- */
-async function ensureSearchableDisplayName(page: Page, prefix: string): Promise<string> {
-  await page.goto('/profile');
-  await page.waitForLoadState('domcontentloaded');
-  const dnInput = page.locator('input[name="display_name"]').first();
-  await expect(dnInput).toBeVisible({ timeout: 10_000 });
-  const current = await dnInput.inputValue();
-  if (current && current.startsWith(prefix)) return current;
-
-  const next = `${prefix} ${Math.random().toString(36).slice(2, 7)}`;
-  await dnInput.fill(next);
-  await page
-    .getByRole('button', { name: /save changes|save profile|update profile/i })
-    .first()
-    .click();
-  // Wait for the success Alert ("Profile updated.") or for the input value to
-  // be persisted after the server action returns.
-  await page
-    .getByText(/profile updated/i)
-    .first()
-    .waitFor({ timeout: 10_000 })
-    .catch(() => {
-      /* tolerate no alert; we re-check value below */
-    });
-  await page.waitForLoadState('domcontentloaded');
-  return next;
-}
+import { ensureSearchableDisplayName, findCaptainedTeamUrl } from './_helpers/navigation';
 
 /**
  * Tournament team (roster) flows (Section 8 of the test plan).
@@ -146,7 +85,7 @@ test.describe('create team', () => {
       // redirect to /teams?deleted=1 and that the team page now 404s
       // (RLS SELECT filter on deleted_at).
       const openDeleteBtn = page.getByRole('button', { name: /^delete team…?$/i });
-      if (await openDeleteBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      if (await isVisibleOrTimeout(openDeleteBtn, 5_000)) {
         await openDeleteBtn.click();
         await page.getByRole('button', { name: /yes, delete team/i }).click();
         await page.waitForURL(/\/teams(\?.*)?$/, { timeout: 15_000 });
@@ -348,12 +287,10 @@ test.describe('team invites', () => {
       // Reload as captain — attendee-b should not appear on the roster.
       await page.goto(teamUrl!);
       await page.waitForLoadState('domcontentloaded');
-      const hasSearchTerm = await page
-        .locator('main')
-        .getByText(searchTerm!)
-        .first()
-        .isVisible({ timeout: 5_000 })
-        .catch(() => false);
+      const hasSearchTerm = await isVisibleOrTimeout(
+        page.locator('main').getByText(searchTerm!).first(),
+        5_000,
+      );
       expect(hasSearchTerm, 'Declined invite — attendee-b should not be on roster').toBe(false);
     } finally {
       // Cleanup: cancel any remaining pending invite from captain's side.
@@ -477,11 +414,10 @@ test.describe('team broadcast', () => {
       await sendBtn.click();
       await page.waitForLoadState('domcontentloaded');
 
-      const success = await page
-        .getByText(/sent|delivered|message sent/i)
-        .first()
-        .isVisible({ timeout: 10_000 })
-        .catch(() => false);
+      const success = await isVisibleOrTimeout(
+        page.getByText(/sent|delivered|message sent/i).first(),
+        10_000,
+      );
       const formReset = (await bodyTextarea.inputValue().catch(() => 'x')) === '';
       expect(success || formReset, 'Broadcast should send without error').toBe(true);
     } finally {

@@ -68,21 +68,21 @@ export function TournamentRegisterPanel({
   // No choice to surface — render the single available panel directly.
   if (!teamEnabled) {
     return (
-      <section className="border-border-base overflow-hidden rounded-lg border" id="signup">
+      <section className="border-border-base rounded-shape-sm overflow-hidden border" id="signup">
         {freeAgentPanel}
       </section>
     );
   }
   if (!freeAgentEnabled) {
     return (
-      <section className="border-border-base overflow-hidden rounded-lg border" id="signup">
+      <section className="border-border-base rounded-shape-sm overflow-hidden border" id="signup">
         {teamPanel}
       </section>
     );
   }
 
   return (
-    <section className="border-border-base overflow-hidden rounded-lg border" id="signup">
+    <section className="border-border-base rounded-shape-sm overflow-hidden border" id="signup">
       <div className="border-border-base bg-fg/[0.02] border-b px-4 py-3">
         <div
           role="radiogroup"

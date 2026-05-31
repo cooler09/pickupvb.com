@@ -10,6 +10,7 @@ import {
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import { NearMeButton } from './near-me-button';
+import { Fab } from '@/components/fab';
 import { EventCard, type EventCardData } from './_components/event-card';
 import { CommunityListingCard } from '@/app/community/_components/community-listing-card';
 import {
@@ -359,6 +360,24 @@ export default async function EventsPage(props: {
           </ul>
         </section>
       )}
+      {user && (
+        <Fab href="/events/new" label="Host an event">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </Fab>
+      )}
     </section>
   );
 }
@@ -401,7 +420,7 @@ function EmptyState({
   }
 
   return (
-    <div className="border-border-base bg-surface rounded-lg border p-8 text-center">
+    <div className="border-border-base bg-surface rounded-shape-sm border p-8 text-center">
       <h3 className="text-fg text-base font-semibold">{title}</h3>
       {body && <p className="text-muted mt-1 text-sm">{body}</p>}
       <div className="mt-4 flex flex-wrap justify-center gap-3">

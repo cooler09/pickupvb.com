@@ -14,6 +14,10 @@ export type EventPricing = {
   passProcessingFeeToBuyer: boolean;
   refundWindowHours: number;
   hostId: string;
+  // Step 5a: child rows (`event_attendees`) are keyed by division_id only.
+  // The per-player checkout flow targets the primary (sort_order = 0)
+  // division; this is its id.
+  divisionId: string;
 };
 
 export async function getEventPricing(eventId: string): Promise<EventPricing | null> {
@@ -36,7 +40,7 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
       .maybeSingle(),
     supabase
       .from('event_divisions')
-      .select('price_cents')
+      .select('id, price_cents')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true })
       .limit(1)
@@ -49,12 +53,14 @@ export async function getEventPricing(eventId: string): Promise<EventPricing | n
     pass_processing_fee_to_buyer: boolean;
     refund_window_hours: number;
   };
-  type DivRow = { price_cents: number | null };
+  type DivRow = { id: string; price_cents: number | null };
   const e = eventRes.data as unknown as EventRow;
   const d = (divRes.data as unknown as DivRow | null) ?? null;
+  if (!d) return null;
   return {
     hostId: e.host_id,
-    priceCents: d?.price_cents ?? 0,
+    priceCents: d.price_cents ?? 0,
+    divisionId: d.id,
     hostAbsorbsFee: e.host_absorbs_fee ?? false,
     passProcessingFeeToBuyer: e.pass_processing_fee_to_buyer ?? false,
     refundWindowHours: e.refund_window_hours ?? 24,

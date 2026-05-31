@@ -1,3 +1,6 @@
+'use client';
+
+import { CloseOnSettled, FormModal, ModalFooter } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import {
   hostForceWithdrawTeamRegistration,
@@ -26,7 +29,7 @@ export type HostAdHocTeamRow = {
   amountPaidCents: number;
   rosterSize: number;
   /** Who created this registration — ADR 0017. */
-  source: 'captain' | 'host' | 'walk_in';
+  source: 'ad_hoc' | 'walk_in';
   /** Phone for walk-in captains (null for captain/host sources). */
   captainPhone: string | null;
   /** Freeform note attached when the host marked a walk-in paid in cash. */
@@ -84,7 +87,7 @@ function divisionLabel(divisions: ReadonlyArray<DivisionLabel>, id: string): str
 export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Props) {
   const adHocDivisions = divisions.filter((d) => d.isAdHoc);
   return (
-    <section className="border-border-base bg-fg/[0.02] space-y-3 rounded-lg border p-4">
+    <section className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
       <header>
         <h3 className="text-fg text-sm font-semibold">Team registrations</h3>
         <p className="text-muted text-xs">
@@ -94,72 +97,97 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
       </header>
 
       {adHocDivisions.length > 0 && (
-        <details className="border-border-base bg-surface rounded-md border p-3">
-          <summary className="text-fg cursor-pointer text-xs font-semibold select-none">
-            Add walk-in team
-          </summary>
-          <form
-            action={registerWalkInTeamFromForm.bind(null, eventId, returnPath)}
-            className="mt-3 space-y-2 text-sm"
-          >
-            <div className="grid gap-2 sm:grid-cols-2">
+        <FormModal
+          trigger={(open) => (
+            <button
+              type="button"
+              onClick={open}
+              className="bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90"
+            >
+              + Add walk-in team
+            </button>
+          )}
+          title="Add walk-in team"
+          description="Register a team that signed up the day of. Captain and additional roster are optional — you can edit later."
+          size="lg"
+        >
+          {(close) => (
+            <form
+              action={registerWalkInTeamFromForm.bind(null, eventId, returnPath)}
+              className="space-y-3 text-sm"
+            >
+              <CloseOnSettled onSettled={close} />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-muted text-xs font-medium">Division</span>
+                  <select
+                    name="division_id"
+                    required
+                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                  >
+                    {adHocDivisions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-muted text-xs font-medium">Team name</span>
+                  <input
+                    name="team_name"
+                    required
+                    maxLength={120}
+                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-muted text-xs font-medium">Captain name</span>
+                  <input
+                    name="captain_display_name"
+                    required
+                    maxLength={80}
+                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-muted text-xs font-medium">Captain phone (optional)</span>
+                  <input
+                    name="captain_phone"
+                    maxLength={40}
+                    inputMode="tel"
+                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                  />
+                </label>
+              </div>
               <label className="flex flex-col gap-1">
-                <span className="text-muted text-xs font-medium">Division</span>
-                <select
-                  name="division_id"
-                  required
+                <span className="text-muted text-xs font-medium">
+                  Additional players (one per line, optional)
+                </span>
+                <textarea
+                  name="members"
+                  rows={3}
                   className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                />
+              </label>
+              <ModalFooter>
+                <button
+                  type="button"
+                  onClick={close}
+                  className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
                 >
-                  {adHocDivisions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-muted text-xs font-medium">Team name</span>
-                <input
-                  name="team_name"
-                  required
-                  maxLength={120}
-                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-muted text-xs font-medium">Captain name</span>
-                <input
-                  name="captain_display_name"
-                  required
-                  maxLength={80}
-                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-muted text-xs font-medium">Captain phone (optional)</span>
-                <input
-                  name="captain_phone"
-                  maxLength={40}
-                  inputMode="tel"
-                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
-                />
-              </label>
-            </div>
-            <label className="flex flex-col gap-1">
-              <span className="text-muted text-xs font-medium">
-                Additional players (one per line, optional)
-              </span>
-              <textarea
-                name="members"
-                rows={3}
-                className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
-              />
-            </label>
-            <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50">
-              Add walk-in team
-            </SubmitButton>
-          </form>
-        </details>
+                  Cancel
+                </button>
+                <SubmitButton
+                  pendingChildren="Adding…"
+                  className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
+                >
+                  Add walk-in team
+                </SubmitButton>
+              </ModalFooter>
+            </form>
+          )}
+        </FormModal>
       )}
       {rows.length === 0 ? (
         <p className="text-muted text-xs">No teams have registered yet.</p>

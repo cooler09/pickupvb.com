@@ -16,7 +16,7 @@ type Props = {
  */
 export function AddTeamMemberForm({ teamId, returnPath, existingMemberIds }: Props) {
   return (
-    <section className="border-border-base rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm border p-4">
       <h2 className="text-muted mb-3 text-sm font-semibold tracking-wide uppercase">
         Add a teammate
       </h2>

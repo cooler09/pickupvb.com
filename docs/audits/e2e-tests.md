@@ -1,4 +1,55 @@
-# E2E tests — DRY/SOLID audit — 2026-05-25
+# E2E tests — quality & coverage audit
+
+> **Status (2026-05-30):** Coverage pass + phased game plan. The 2026-05-25
+> audit below was a DRY/SOLID review of the test _code_; this pass adds the
+> missing _coverage_ lens and a roadmap. **The DRY/SOLID findings stand —
+> read them too**; the coverage section just sits on top.
+>
+> **What landed since 2026-05-25:** the `_helpers/` layer now exists —
+> [auth.ts](../../apps/web/tests/e2e/_helpers/auth.ts) (`defineAuthSetup` /
+> `skipIfMissingAuth`), [paths.ts](../../apps/web/tests/e2e/_helpers/paths.ts)
+> (`STORAGE_PATHS`), [predicates.ts](../../apps/web/tests/e2e/_helpers/predicates.ts)
+> (`isVisibleOrTimeout`), [event-create.ts](../../apps/web/tests/e2e/_helpers/event-create.ts)
+> (`createFreeOpenPlayEvent` / `createPaidEvent` / `cancelEvent` /
+> `pickFutureDateTime`), [cleanup.ts](../../apps/web/tests/e2e/_helpers/cleanup.ts)
+> (opt-in admin deletes), and [stripe.ts](../../apps/web/tests/e2e/_helpers/stripe.ts)
+> (Checkout drivers). That **resolves P2 #4, #5, #7** and the proposed
+> `events.ts` helper — see the remediation log. **Resolved since** (Phase 0
+> increments A + B): the `.catch(() => false)` / `networkidle` sweep (C7),
+> `navigation.ts` (#6), `browser.ts` / `withAuthContext` (#8), the
+> `isVisibleOrTimeout` no-op-timeout fix, the skip-budget guard (C1), and
+> (increment C) per-worker storage state (#3). **Phase 0 is complete.**
+>
+> **Phase 1 (brackets, C3) is also done:** [bracket.authed.spec.ts](../../apps/web/tests/e2e/bracket.authed.spec.ts)
+> (4 tests) self-provisions a disposable tournament via walk-in teams and asserts
+> result-advances-winner, a read-only board for a non-host/non-captain viewer
+> (UI-level authz), record-all → champion, and reset-reverts-and-clears-downstream.
+>
+> **Phase 2 (leagues, C2) is also done:** [league.authed.spec.ts](../../apps/web/tests/e2e/league.authed.spec.ts)
+> (3 tests) + [\_helpers/league.ts](../../apps/web/tests/e2e/_helpers/league.ts). Leagues
+> have **no UI provisioning path at all** (the `/events/new` type chooser offers only
+> Open Play / Tournament; the signup area renders nothing for `type === 'league'`), so
+> the helper self-provisions the league (event + roster division + N rostered teams) via
+> the opt-in service-role admin client and the spec drives the schedule / forfeit
+> surfaces through the real UI. Tests: host adds a match → records the result through the
+> RLS-gated `record_league_match_result` RPC; a non-host viewer sees the schedule
+> read-only; host forfeits and reinstates a rostered team. **Reality-check:** the audit
+> framed C2 as "schedule gen, standings, forfeit," but the _built_ surface is narrower —
+> hosts add matches **manually** (no auto schedule-generation), there is **no standings
+> UI** (standings code is bracket-only), so "standings" is exercised as "the recorded
+> score + Final status render on the schedule row." Live dev run still to confirm.
+> Next: Phase 3 (divisions, C4).
+>
+> **Headline:** the suite is _broad_ (~30 specs, ~180 `test()` cases) but
+> _shallow exactly where the risk is_. The newest, highest-stakes features —
+> **leagues, brackets, divisions, payments** — are read-only page-loads plus
+> `test.fixme` placeholders, so a green run exercises **zero** mutating
+> tournament or payment paths. The reliability spine is **C1**: the
+> defensive-skip / `test.fixme` habit that lets _absent_ coverage report as
+> green. Direction set with the maintainer (2026-05-30): **self-provisioning
+> tests** (each mutating test creates and tears down its own fixture) over a
+> shared seed, and **all four feature areas in scope**. Game plan in the next
+> section.
 
 > **Status (2026-05-25):** New audit. Triggered by repeated remediation
 > loops on `event-host.authed.spec.ts` (co-host add/remove) where
@@ -13,6 +64,308 @@
 > waits, defensive `.catch(() => false)`) are actively causing flake.
 > The auth-setup-factory and per-worker-storage-state extractions are the
 > highest-leverage P2s.
+
+## Coverage audit & game plan (2026-05-30)
+
+### Method & confidence
+
+Built from the verified file inventory under
+[apps/web/tests/e2e/](../../apps/web/tests/e2e/), the per-spec
+`test()` / `.skip` / `test.fixme` counts, and the helper inventory.
+File-level links are exact; **line anchors are intentionally omitted** in
+this section because the `test.fixme` blocks move every bundle. The
+[e2e README](../../apps/web/tests/e2e/README.md) "Unblocking skipped tests"
+section is the companion blocker taxonomy and stays the source of truth for
+_why_ a given flow is parked.
+
+### Current coverage snapshot
+
+Depth legend — ✅ exercises a mutating flow · 🟡 read-only / page-load ·
+⛔ none (or `test.fixme` only).
+
+| Feature area                  | Primary spec                                                                    | Depth | Note                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------- | :---: | ------------------------------------------------------------------- |
+| Public smoke / nav / auth     | `smoke` · `navigation` · `auth.public` · `auth-extended.public`                 |  🟡   | Appropriate — GET-only by design                                    |
+| Players / groups (public)     | `players.public` · `groups.public`                                              |  🟡   | Directory search + public profile                                   |
+| Accessibility / SEO           | `accessibility.public` · `meta-seo.public`                                      |  🟡   | Viewport, focus, theme, meta tags                                   |
+| Profile edit                  | `profile` · `profile-edit`                                                      |  ✅   | Edit + restore display name / city / handle / prefs                 |
+| Event create + RSVP           | `events`                                                                        |  ✅   | `/events/new`, RSVP join/leave                                      |
+| Host management               | `event-host`                                                                    |  ✅   | Create/edit/cancel/cohost — but brittle (see #9 SRP)                |
+| Event attendance              | `event-attendance`                                                              |  🟡   | Position RSVP only; **paid / capacity / tip = fixme**               |
+| Teams                         | `teams`                                                                         |  🟡   | Create `@destructive`; **invite / remove / broadcast = fixme**      |
+| Groups / community            | `groups` · `groups-manage` · `community`                                        |  ✅   | Follow, create+delete listing; **members flow partly fixme**        |
+| Hero images                   | `hero-image`                                                                    |  ✅   | Upload/remove on profile / event / group                            |
+| Authorization / visibility    | `authorization` · `visibility-gating`                                           |  ✅   | Redirect / guard assertions                                         |
+| Notifications                 | `notifications`                                                                 |  🟡   | Bell + panel; **worker / reminders / email = ⛔**                   |
+| Billing / Pro                 | `billing-stripe`                                                                |  🟡   | Page loads only                                                     |
+| **Brackets**                  | `tournament`                                                                    |  🟡   | Page-load only; **6 bracket mutations = fixme** (incl. advancement) |
+| **Divisions**                 | `tournament`                                                                    |  ⛔   | Create-only; registration/winner = fixme                            |
+| **Leagues**                   | _none_                                                                          |  ⛔   | Zero references anywhere — not even a fixme                         |
+| **Standalone brackets**       | `standalone-bracket`                                                            |  ✅   | ADR 0025: UI self-provision create→add→seed→generate→record→watch   |
+| **Payments / Stripe**         | `billing-stripe` · `event-attendance` · `refund-window-gating`                  |  ⛔   | `stripe.ts` helper exists; every paid flow is fixme                 |
+| Admin                         | `admin`                                                                         |  ⛔   | All fixme — needs multi-actor fixtures                              |
+| Schedule / scoreboard / tools | _none_ (`events/[id]/schedule`, `tools/scoreboard`)                             |  ⛔   | No spec                                                             |
+| Short links / claim           | partial (`/e/<code>` via `tournament`)                                          |  ⛔   | `s/[code]`, `claim/` untested                                       |
+| CSV / API routes              | _none_ (`api/.../statement.csv`, `api/events/[id]/join`, `api/notifications/*`) |  ⛔   | No request-context coverage                                         |
+
+### Coverage findings (graded)
+
+#### C1 (P1) — Defensive skips + `test.fixme` placeholders let absent coverage pass green
+
+The suite's biggest risk isn't a flaky test — it's a _green_ test that runs
+nothing. `test.fixme` bodies are empty and always skip; precondition probes
+`test.skip` when ambient data is missing. The worst offenders by skip/fixme
+density: [tournament.authed.spec.ts](../../apps/web/tests/e2e/tournament.authed.spec.ts)
+(read-only + ~14 fixme), [event-attendance.authed.spec.ts](../../apps/web/tests/e2e/event-attendance.authed.spec.ts),
+[teams.authed.spec.ts](../../apps/web/tests/e2e/teams.authed.spec.ts),
+[billing-stripe.authed.spec.ts](../../apps/web/tests/e2e/billing-stripe.authed.spec.ts),
+[admin.authed.spec.ts](../../apps/web/tests/e2e/admin.authed.spec.ts),
+[groups-manage.authed.spec.ts](../../apps/web/tests/e2e/groups-manage.authed.spec.ts).
+
+**Fix (the reliability contract — see below):** convert each fixme to a
+self-provisioning test that creates and tears down its own fixture, and make
+a missing precondition that the test _should have created_ a hard **failure**,
+not a skip. Reserve `test.skip` for sanctioned infra gates only (Stripe test
+run, email inbox, deploy-flag), gate those behind explicit env flags, and add
+a **skip-budget** guard so a regression can't silently inflate the skip count.
+
+#### C2 (P1) — Leagues: zero coverage
+
+> **Resolved 2026-05-30 (Phase 2).** New
+> [league.authed.spec.ts](../../apps/web/tests/e2e/league.authed.spec.ts) (**3 tests**) +
+> [\_helpers/league.ts](../../apps/web/tests/e2e/_helpers/league.ts). **Key constraint
+> discovered:** leagues have **no UI create or team-registration path** — the event-type
+> chooser offers only Open Play / Tournament and the event-detail signup area skips
+> `type === 'league'` entirely. So the bracket phase's "self-provision through the UI"
+> shape is impossible here; the helper instead inserts the league (event + one `roster`
+> division + N rostered teams captained by the host) through the **opt-in service-role
+> admin client** (`E2E_CLEANUP_SUPABASE_*`, the same client `cleanup.ts` uses) and the
+> spec drives only the schedule + forfeit UI. Each test owns + tears down its fixture
+> (`deleteLeagueFixture` CASCADEs the event; standalone teams are hard-deleted). The
+> three tests: (1) host adds a match then records 25–10 through the user-scoped,
+> RLS-gated `record_league_match_result` RPC; (2) a non-host/non-captain viewer
+> (attendee-b) sees the schedule **read-only** — no add form, no result-entry disclosure,
+> no score inputs (the schedule renders result entry to hosts only); (3) host **marks a
+> team forfeited** in the host-tools "League teams" panel then **reinstates** it (toggle
+> verified via button counts). **The audit's framing was partly aspirational:** there is
+> no auto schedule-generation (hosts add matches by hand) and no league standings UI
+> (standings code is bracket-only), so "standings after a result" is covered as the
+> recorded score + `Final` status rendering on the schedule row. Because there is no
+> non-admin way to stand a league up, the whole spec is a **sanctioned infra-gated skip**
+> when the admin client isn't configured — loud, counted against the skip budget, not a
+> silent `test.fixme`. Live dev run still to confirm.
+
+No league spec exists; the only references are zero — not one `test.fixme` exists in
+[tournament.authed.spec.ts](../../apps/web/tests/e2e/tournament.authed.spec.ts).
+This is the newest feature area (journal: `league-schedule-ui`,
+`league-team-forfeit`, `p1-2-league-schedule`) and the match-result write path
+is a `SECURITY DEFINER` RPC (`record_league_match_result`), exactly where a
+silent RLS/authorization regression would hide.
+
+**Fix:** new `league.authed.spec.ts`. Self-provision a league event via a new
+`createLeague` helper (or a `[E2E]`-prefixed seed), then cover: schedule
+generation, standings update after a recorded result, and team forfeit. Drive
+[league-team-actions.ts](../../apps/web/src/app/events/[id]/league-team-actions.ts)
+and [schedule/actions.ts](../../apps/web/src/app/events/[id]/schedule/actions.ts).
+
+#### C3 (P1) — Brackets: read-only only; advancement + captain RLS untested
+
+> **Resolved 2026-05-30 (Phase 1).** New
+> [bracket.authed.spec.ts](../../apps/web/tests/e2e/bracket.authed.spec.ts)
+> self-provisions a disposable ad-hoc tournament (host = the default per-worker
+> attendee-a) and drives the whole pipeline via the host-only **walk-in team**
+> escape hatch — create → seed → generate → record → reset — with one account,
+> no Stripe. **Four tests:** (1) a recorded semifinal **advances exactly that
+> match's winner into the final** (the winner is the one team appearing in two
+> cards); (2) a non-host / non-captain viewer (attendee-b) sees the board
+> **read-only** — no result-entry form, no score inputs; (3) recording **all**
+> matches resolves a **champion** (🏆 banner + "Final results", nothing left to
+> play); (4) **resetting** a recorded semifinal reverts it to unplayed and pulls
+> the advanced team back out of the final (recursive downstream clear). The
+> authorization assertion is intentionally **UI-level** (the form is only
+> rendered to host/captain); the RPC-gate rejection itself
+> (`record_bracket_match_result`) stays owned by the DB `SECURITY DEFINER`
+> policy + a future application-layer test. The persistent `E2ETFR` seed stays
+> read-only. Helper: [\_helpers/tournament.ts](../../apps/web/tests/e2e/_helpers/tournament.ts).
+> Live dev run still to confirm (see the increment journal). The only remaining
+> bracket fixme in `tournament.authed.spec.ts` is division-winner (Phase 3, C4).
+
+[tournament.authed.spec.ts](../../apps/web/tests/e2e/tournament.authed.spec.ts)
+asserts the bracket _page renders_; all six mutations (register / withdraw /
+rename / free-agent / seed / **record-result-advances-winner**) are fixme.
+Highest-value gap because match-result writes go through the captain-vs-host
+authorization path (journal: `captain-rls-match-result`,
+`record_bracket_match_result` RPC; AGENTS pitfall #8) and winner advancement
+touches a downstream match the caller may not own.
+
+**Fix:** new `bracket.authed.spec.ts`. Self-provision a roster tournament +
+division + seeded bracket (a disposable clone — keep the persistent `E2ETFR`
+seed for read-only). Assert a recorded result **advances the winner into the
+next match**, and assert a non-captain / non-host is **rejected**. Drive
+[bracket/actions.ts](../../apps/web/src/app/events/[id]/bracket/actions.ts).
+
+#### C4 (P2) — Divisions: multi-division registration unverified
+
+[division-actions.ts](../../apps/web/src/app/events/[id]/division-actions.ts)
+and [record-division-winner-actions.ts](../../apps/web/src/app/events/[id]/record-division-winner-actions.ts)
+are untested beyond multi-division _creation_ (registration into a chosen division and the division-winner path are not covered). The multi-division `division_id` requirement (AGENTS
+pitfall #6 — the DB trigger only fills it for single-division events) is a
+boundary that breaks silently.
+
+**Fix:** `divisions.authed.spec.ts`. Self-provision a 2-division event;
+register a team and assert it lands in the **chosen** division; record a
+division winner. Pairs naturally with C3 (same tournament fixture).
+
+#### C5 (P2) — Payments / Stripe: helpers exist, no green checkout flow
+
+[stripe.ts](../../apps/web/tests/e2e/_helpers/stripe.ts) already drives the
+hosted Checkout (`fillStripeCheckout`, `clickConfirmedSubmit`, `waitForStripeRedirect`, `expectStripeDeclineError`, `pollUiFor`) but
+every paid flow is fixme: paid RSVP, team/roster checkout, tips, refund-window
+gating, and Pro subscription. Files:
+[billing-stripe.authed.spec.ts](../../apps/web/tests/e2e/billing-stripe.authed.spec.ts),
+[event-attendance.authed.spec.ts](../../apps/web/tests/e2e/event-attendance.authed.spec.ts),
+[refund-window-gating.authed.spec.ts](../../apps/web/tests/e2e/refund-window-gating.authed.spec.ts).
+
+**Fix:** stand up the Stripe-test fixture run — a `stripe-host` with Connect
+onboarded ([auth.stripe-host.setup.ts](../../apps/web/tests/e2e/auth.stripe-host.setup.ts)
+is already wired) and the permanent dev webhook endpoint (tests do not spawn `stripe listen` — they `pollUiFor` the webhook-driven state after Checkout)
+for webhook-driven assertions. Convert the fixmes to real tests gated behind
+the existing `shouldSkipStripeTests()` gate — a **genuine** infra gate
+(`SKIP_STRIPE_E2E=1` and localhost both opt out) → a sanctioned loud-skip
+under the skip budget, not a silent fixme. Use the `4242…` success and
+`4000…0002` decline cards already documented in `stripe.ts`.
+
+#### C6 (P3) — Untested surfaces
+
+No spec touches: the event **schedule** page (`events/[id]/schedule`),
+**scoreboard** tools (`tools/scoreboard` + `/remote`), the **claim** flow
+(`claim/`), `s/[code]` short links, **receipts/earnings CSV**
+(`api/receipts/[year]/statement.csv`, `api/earnings/[year]/statement.csv`),
+and the notification **worker / reminders / outbox** API routes.
+
+**Fix:** add focused smoke specs as each lands in a phase. CSV + API routes
+are cheapest asserted via Playwright's `request` context (GET + status +
+content-type) rather than a full page nav.
+
+#### C7 (P2) — Reliability remediation incomplete (carries P1 #1 / #2 forward)
+
+> **Update (2026-05-30, increment B):** Phase 0's remaining items are **done.**
+> `navigation.ts` (#6) and `browser.ts` / `withAuthContext` (#8) now exist and
+> are adopted (see remediation log); the skip-budget guard (C1) is wired into
+> `playwright.config.ts` (warn-only until `E2E_SKIP_BUDGET=<N>` is exported, then
+> it fails the run when the skip count exceeds N); and the `isVisibleOrTimeout`
+> no-op flagged below is **fixed** — it now uses `waitFor({ state: 'visible',
+timeout })`, so the `timeout` arg actually polls. Verified: e2e tsc baseline
+> unchanged at 23 (identical per-file: tournament 14 / groups-manage 6 /
+> auth-extended 2 / player-social 1), `playwright --list` parses all 186 tests.
+> **#3 (per-worker storage state) closed in increment C** (per-worker auth
+> fixture; see below) — Phase 0 is now done. See the
+> [increment-B journal entry](../journal/2026-05-30-bundle-e2e-phase0-increment-b.md).
+>
+> **Update (2026-05-30):** the **`.catch(() => false)` sweep is done** —
+> 42 → 1 suite-wide; the one survivor is a response-promise coercion in
+> `event-host`, not a visibility probe. **`networkidle` was already done**
+> (the remaining grep hits are comments explaining why it's avoided; zero
+> real `waitForLoadState('networkidle')` calls). Both verified type-clean
+> (e2e tsc baseline unchanged at 23) and `playwright --list` parses all
+> 186 tests. See the remediation log and the
+> [Phase 0 increment-A journal entry](../journal/2026-05-30-bundle-e2e-phase0-increment-a.md).
+> Still open under C7: the `browser.ts` / `navigation.ts` helpers and the
+> skip-budget guard (deferred to a later increment), plus a latent
+> follow-up — `isVisibleOrTimeout`'s `timeout` arg is a Playwright no-op
+> (`isVisible({ timeout })` is ignored), so it never actually waits.
+
+`isVisibleOrTimeout` exists but isn't fully adopted, and `networkidle`
+survives in only ~5 occurrences across 3 specs (`authorization`, `event-host`, `profile-edit`); the larger residue is the ~42 raw `.catch(() => false)` sites, and `isVisibleOrTimeout` is adopted in only 10 specs (e.g.
+[event-attendance.authed.spec.ts](../../apps/web/tests/e2e/event-attendance.authed.spec.ts),
+[groups-manage.authed.spec.ts](../../apps/web/tests/e2e/groups-manage.authed.spec.ts),
+[teams.authed.spec.ts](../../apps/web/tests/e2e/teams.authed.spec.ts),
+[regression.authed.spec.ts](../../apps/web/tests/e2e/regression.authed.spec.ts),
+[auth-extended.public.spec.ts](../../apps/web/tests/e2e/auth-extended.public.spec.ts)).
+
+**Fix:** finish the sweep — replace remaining `networkidle` with deterministic
+assertions and raw `.catch(() => false)` with `isVisibleOrTimeout`. This is
+Phase 0 work; it must land before the brittle specs get _more_ flows piled on.
+
+### The reliability contract (self-provisioning)
+
+The pattern every **mutating** test must follow once Phase 0 lands:
+
+1. **Arrange** — create the fixture through a `_helpers` factory
+   (`createFreeOpenPlayEvent` today; `createRosterTournament`,
+   `createLeague`, `createTeam` to be added). Name it with the `[E2E]` /
+   `E2E Test ` prefix so the [cleanup](../../apps/web/tests/e2e/_helpers/cleanup.ts)
+   sweep can reclaim leaks.
+2. **Teardown** — record the id and delete it in `afterAll`
+   (`cancelEvent` / `deleteEventById` / `deleteTeamBySlug`). Cleanup is
+   opt-in via `E2E_CLEANUP_SUPABASE_*`; document that requirement next to
+   the run command.
+3. **Act / assert against the just-created fixture** — never ambient dev
+   data. This is what kills the "no event in this environment" skips.
+4. **Missing self-provisioned precondition ⇒ `expect(...).toBeTruthy()`
+   FAIL**, never `test.skip`. A test that couldn't build its own fixture is
+   a _broken test_, and should be loud.
+5. **`test.skip` is reserved for sanctioned infra gates** (Stripe run, email
+   inbox, deploy flag), each behind an explicit env flag and counted against
+   a **skip budget** the run fails on if exceeded.
+6. **Keep the persistent `E2ETFA` / `E2ETFR` seeds for read-only assertions;**
+   mutations create disposable clones so they never corrupt the shared seed.
+
+### Game plan (phased)
+
+Ordered by risk-reduction per unit of work. Each phase ends green with **no
+new silent skips**.
+
+|  Phase   | Theme                  | Findings           | Exit criteria                                                                                                                                                                                                                                                                       |
+| :------: | ---------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0** ✅ | Reliability foundation | C1, C7, #3, #6, #8 | **Done** (increments A–C): `networkidle`/`catch` swept; `isVisibleOrTimeout` fixed; `navigation.ts` + `browser.ts` exist + adopted; skip-budget guard wired (warn-only until `E2E_SKIP_BUDGET` set); per-worker auth fixture (#3) — live `--workers=4+` run on dev still to confirm |
+|  **1**   | Brackets               | C3                 | Result-advances-winner + captain/host authorization tested against a self-provisioned bracket                                                                                                                                                                                       |
+| **2** ✅ | Leagues                | C2                 | **Done:** `league.authed.spec.ts` + `_helpers/league.ts` (admin-client self-provision, no UI create path) — host add-match → record via RLS RPC, non-host read-only, forfeit/reinstate. Live dev run to confirm                                                                     |
+|  **3**   | Divisions              | C4                 | Multi-division registration lands in the chosen division; division winner recorded                                                                                                                                                                                                  |
+|  **4**   | Payments / Stripe      | C5                 | Paid RSVP, team/roster checkout, tip, refund-window, Pro — green on dev; localhost auto-skips                                                                                                                                                                                       |
+|  **5**   | Surface fill-in        | C6                 | schedule, scoreboard, short links, claim, CSV/API smoke                                                                                                                                                                                                                             |
+
+**Phase 0 — Reliability foundation (do first; everything else compounds on it).**
+Finish C7's `networkidle`/`catch` sweep. Add the two missing helpers the
+multi-actor coverage needs: `browser.ts` `withAuthContext(browser, state, fn)`
+(P2 #8) and `navigation.ts` for the duplicated `findOwnedGroupUrl` /
+`findCaptainedTeamUrl` / `ensureSearchableDisplayName` (P2 #6). Write the
+self-provisioning helpers the later phases consume (`createRosterTournament`,
+`createLeague`, `createTeam`) alongside the existing `createFreeOpenPlayEvent`.
+Add a skip-budget assertion (fail the run if sanctioned skips exceed N).
+Optionally take the per-worker storage-state fix (#3) here so later parallel
+suites don't reintroduce the refresh-token race.
+
+**Phase 1 — Brackets (C3).** Highest risk: advancement + captain RLS. One
+self-provisioned roster tournament with a seeded bracket; assert winner
+advancement and the non-captain/non-host rejection. Split host-flow brittleness
+(#9) opportunistically while in this area.
+
+**Phase 2 — Leagues (C2).** New spec + `createLeague`. Schedule generation,
+standings after a result, forfeit. Mirror the bracket authorization assertions
+for the league RPC.
+
+**Phase 3 — Divisions (C4).** Reuse the Phase-1 tournament fixture; assert
+`division_id` routing and the division-winner path.
+
+**Phase 4 — Payments / Stripe (C5).** Stand up the Stripe-test run
+(Connect-onboarded host + the permanent dev webhook endpoint; `pollUiFor` after Checkout). Convert the paid fixmes; assert
+both the success card and the decline card, plus the refund-window gate.
+
+**Phase 5 — Surface fill-in (C6).** Cheap smoke for the remaining ⛔ surfaces;
+CSV/API via the `request` context.
+
+### Open decisions for these phases
+
+1. **Skip budget threshold + CI wiring** — what N, and fail the run or just
+   warn? (Recommend: fail above the count of sanctioned infra-gated skips.)
+2. **Stripe paid flows in the standard dev run or a separate workflow?** They
+   need the permanent dev webhook + a non-localhost target and run slower
+   (Checkout round-trip + `pollUiFor`) — likely their own manual /
+   nightly job, not the per-deploy `e2e-develop.yml`.
+3. **Disposable-clone vs. shared-seed for tournament mutations** — the
+   contract says clone; confirm the seed snippet can be parameterized for a
+   `[E2E]`-prefixed throwaway so Phase 1/3 don't churn `E2ETFR`.
 
 ## Findings
 
@@ -81,6 +434,18 @@ For teardown, accept only `Target closed` / `already closed`; rethrow
 everything else.
 
 #### 3. Supabase refresh-token race + shared storageState
+
+> **Resolved 2026-05-30 (increment C).** Per-worker auth landed in
+> [\_helpers/fixtures.ts](../../apps/web/tests/e2e/_helpers/fixtures.ts): one
+> **independent** attendee-a sign-in per worker → `worker-<parallelIndex>.json`,
+> with the test-scoped `storageState` overridden to return it. The 20 authed
+> specs import `test` from the fixture (pure import-path swap), and the `workers`
+> cap is lifted (`undefined` locally; **CI stays `1` by choice**, not for the
+> race). This is Playwright's documented "account per parallel worker" recipe, so
+> the fix is structural — but a live `--workers=4+` run against dev is still
+> needed to confirm the race is gone in practice, and the secondary roles
+> (attendee-b / hosts / admin) still share files (follow-up). See the
+> [increment-C journal](../journal/2026-05-30-bundle-e2e-phase0-increment-c.md).
 
 [playwright.config.ts#L31-L40](../../apps/web/playwright.config.ts#L31-L40)
 documents the issue: `fullyParallel: true` + shared `STORAGE_STATE` +
@@ -280,4 +645,245 @@ it's instantly familiar.
 
 ## Remediation log
 
-_(empty — first audit pass)_
+### 2026-05-31 — Standalone brackets (ADR 0025): create → seed → generate → record → watch
+
+- **New coverage for the post-audit standalone-bracket feature.** ADR 0025
+  shipped event-free, owner-scoped brackets after this audit's snapshot was
+  taken, and the
+  [standalone-brackets journal](../journal/2026-05-30-standalone-brackets.md)
+  flagged the explicit gap: _"No e2e yet. A Playwright spec (create → add teams
+  → seed → generate → record → open watch link) should be added and run green
+  against dev."_ This bundle implements exactly that.
+- **New [standalone-bracket.authed.spec.ts](../../apps/web/tests/e2e/standalone-bracket.authed.spec.ts)
+  (2 tests) + [\_helpers/standalone-bracket.ts](../../apps/web/tests/e2e/_helpers/standalone-bracket.ts)**
+  (`createStandaloneBracket` / `addStandaloneTeams` /
+  `seedAndGenerateStandaloneBracket`). Unlike leagues (C2 — no UI provisioning
+  path, admin-client fixture), standalone brackets have a full UI create flow at
+  `/brackets/new`, so the spec **self-provisions entirely through the UI** as
+  the default per-worker attendee-a — one signed-in real user runs the whole
+  pipeline (no second actor, no Stripe, no admin client to stand it up).
+- **Reuses the scope-agnostic board ops.** `BoardView` / `MatchCard` are the
+  same components the event path renders (the standalone page passes
+  `scope={kind:'standalone'}`), so `recordFirstPendingMatch` from
+  [\_helpers/tournament.ts](../../apps/web/tests/e2e/_helpers/tournament.ts)
+  drives the board unchanged. The standalone-specific surface under test is the
+  create page, the typed-in-teams modal (`WalkInTeamForm` with
+  `showRoster={false}` — a controlled input with no `name` attr, kept open
+  across adds), the standalone seed/generate/record server actions (the record
+  routes through `record_bracket_match_result`'s **owner branch**), the
+  owner-only workspace, and the public watch view.
+- **The two tests:** (1) **full pipeline + spectator link** — create a
+  best-of-1 single-elim, add 4 teams, seed + generate, record one semifinal
+  (winner advances → one team in 2 cards), then **click the workspace's "Open
+  public spectator view →" link** and assert the `/brackets/[id]/watch` page
+  renders the same live board **read-only** (advanced team in 2 cards, no
+  Enter/Edit summary, no score inputs); (2) **owner-only workspace** — a
+  signed-in non-owner (attendee-b) visiting `/brackets/[id]` is **redirected to
+  `/brackets/[id]/watch`** and sees the board with no result-entry affordance.
+- **Cleanup is admin-only.** Standalone brackets expose no UI delete path (the
+  workspace only offers share / watch links), so teardown hard-deletes via the
+  new `deleteBracketById(id)` in
+  [\_helpers/cleanup.ts](../../apps/web/tests/e2e/_helpers/cleanup.ts) —
+  `event_brackets` CASCADEs to `bracket_teams` / seeds / matches (migration
+  `20260821000000`). Opt-in via `E2E_CLEANUP_SUPABASE_*`; the fixture leaks
+  otherwise, matching the event bracket spec. **The broad
+  `sweepLeakedE2EFixtures()` does NOT yet reclaim leaked standalone brackets**
+  (they have no `E2E `-prefixed name column to match on) — follow-up.
+- **Verified:** `playwright --list` = **195 tests / 33 files** (was 190/31; both
+  new tests collect); e2e tsc baseline unchanged at **20** (new files add 0 —
+  the throwaway `tests/**` tsconfig with `incremental: false` shows zero new
+  errors); prettier-clean. **Not verified:** a live run against
+  `dev.pickupvb.com` (no creds here; the tests mutate + the spec depends on the
+  three `20260821*` migrations being deployed to dev). Full rationale:
+  [journal 2026-05-31-bundle-e2e-standalone-brackets](../journal/2026-05-31-bundle-e2e-standalone-brackets.md).
+
+### 2026-05-30 — Phase 2: league schedule + record + forfeit (closes C2)
+
+- **C2 — RESOLVED (UI coverage); live dev run pending.** New
+  [league.authed.spec.ts](../../apps/web/tests/e2e/league.authed.spec.ts) (**3 tests**) +
+  [\_helpers/league.ts](../../apps/web/tests/e2e/_helpers/league.ts)
+  (`createLeagueFixture` / `deleteLeagueFixture` / `leagueFixtureAvailable`).
+- **Leagues have no UI provisioning path — admin-client self-provision instead.**
+  Unlike brackets (walk-in escape hatch + `/events/new` flow), the event-type chooser
+  offers only Open Play / Tournament and `EventSignupArea` skips `type === 'league'`, so
+  there is no UI to create a league or register a league team. The helper inserts the
+  event (`type='league'`, host = the default per-worker attendee-a, wide/live window so
+  the `LeagueSchedule.addMatch` in-window invariant is easy to satisfy) + one `roster`
+  division + N rostered teams (captained by the host, so one account drives everything)
+  through the **opt-in service-role client** shared with `cleanup.ts`. Mirrors the row
+  recipe in `supabase/snippets/seed-tournament-fixture.sql`, but writes
+  `event_team_entries` (the table the league loaders + `listRegisteredTeams` actually
+  read), not the older `event_teams`.
+- **The three tests:** (1) **schedule + record** — host adds a Week-1 match between the
+  two teams, then records 25–10 via the per-row "Edit / record result" disclosure, which
+  drives `recordResultFromForm` → the user-scoped, RLS-gated
+  `record_league_match_result` RPC (host passes `is_event_host_for_division`); the score
+  - `Final` status render on the row. (2) **authz (UI-level)** — attendee-b (neither
+    host/co-host nor a captain; the host captains both teams) sees the schedule but **no
+    add form, no result-entry disclosure, no score inputs** — the schedule renders result
+    entry to hosts only. (3) **forfeit** — host **marks a team forfeited** in the
+    host-tools "League teams" panel then **reinstates** it; the toggle is asserted via
+    button counts (2 "Mark forfeited" ↔ 1 "Reinstate"), reopening the collapsed Host-tools
+    `<details>` after each redirect.
+- **Audit framing corrected.** C2 said "schedule gen, standings, forfeit," but the built
+  surface has **no auto schedule-generation** (hosts add matches by hand — the
+  forfeit-action comment confirms generation is a deferred follow-up) and **no league
+  standings UI** (the only `standings` code is bracket-only). "Standings after a result"
+  is therefore exercised as the recorded score + `Final` status on the schedule row.
+- **Sanctioned infra gate, not a silent fixme.** Because leagues can't be created without
+  service-role access, the spec `test.skip`s loudly (counted against the skip budget)
+  when `E2E_CLEANUP_SUPABASE_*` / `TEST_USER_EMAIL` are unset, per the reliability
+  contract's "sanctioned infra gate" exception.
+- **Verified:** typed `.insert(...)` calls compile clean against the generated `Database`
+  types (validates every required column / enum / the EWKT `geo` write); `playwright
+--list` = **9 tests / 2 files** for the league spec (all 3 collect), skip-budget
+  reporter clean; `pnpm typecheck` + `pnpm lint` unchanged (e2e is excluded from both;
+  the throwaway `tests/**` tsc shows zero new real errors — only the pre-existing,
+  config-artifact `process` warning shared by every helper); prettier-clean. **Not
+  verified:** a live run against `dev.pickupvb.com` (no creds here; tests mutate via the
+  admin client). Full rationale:
+  [journal 2026-05-30-bundle-e2e-phase2-leagues](../journal/2026-05-30-bundle-e2e-phase2-leagues.md).
+
+### 2026-05-30 — Phase 1: bracket result-advances-winner + read-only authz (closes C3)
+
+- **C3 — RESOLVED (UI coverage); live dev run pending.** New
+  [bracket.authed.spec.ts](../../apps/web/tests/e2e/bracket.authed.spec.ts)
+  (**4 tests**) + [\_helpers/tournament.ts](../../apps/web/tests/e2e/_helpers/tournament.ts)
+  (`createAdHocTournament` / `addWalkInTeam` / `createAndGenerateBracket` /
+  `recordFirstPendingMatch` / `resetFirstCompletedMatch`).
+- **Self-provisioning, single account.** The host-only walk-in escape hatch
+  (`addAdHocTeamFromForm`) lets the default per-worker attendee-a register ≥ 2
+  teams and run create → seed → generate → record → reset with no second actor
+  and no Stripe. Each test owns its fixture and tears it down (`cancelEvent` +
+  `deleteEventById`); the persistent `E2ETFR` seed stays read-only.
+- **The four tests:** (1) **advancement** — record one semifinal of a 4-team
+  single-elim → **exactly one team appears in two match cards** (winner-agnostic
+  signal it advanced into the final); (2) **authorization** (UI-level) —
+  attendee-b sees the board but no `Enter/Edit result` form and no score inputs;
+  (3) **champion** — record all three matches → the bracket completes, the
+  `🏆 Champion decided …` banner (tree-bracket.tsx, `role="status"`) shows, the
+  header flips to "Final results", and no `Enter result` forms remain;
+  (4) **reset** — record one semifinal, then **Clear** it → the match reverts to
+  pending (2 playable semis again, 0 completed) and the advanced team is pulled
+  back out of the final (no team in two cards), exercising the recursive
+  `resetMatch` downstream-clear contract.
+- **Gotcha encoded in the helper:** `CreateBracketHandler` creates the bracket
+  with **zero seeds**; `bracket.generate()` throws "Need at least 2 seeded
+  teams" until the host clicks **Save seeding**. The helper does Create → Save
+  seeding → Generate (the save step is harmless even if seeds already existed).
+- **Retired** three now-covered `tournament.authed.spec.ts` fixmes (advancement,
+  reset-match, champion → pointer comments to the new spec); the
+  division-winner fixme stays for Phase 3 (C4).
+- **Verified:** e2e tsc **23 → 20** (new files add 0; retiring the three
+  single-arg `test.fixme('string')` calls — each one of the pre-existing errors
+  — took `tournament` 14 → 11); `playwright --list` = **190 tests / 31 files**
+  (was 186/30); prettier-clean. **Not verified:** a live run against
+  `dev.pickupvb.com` (no creds here) — maintainer to confirm green. Full
+  rationale: [journal 2026-05-30-bundle-e2e-phase1-brackets](../journal/2026-05-30-bundle-e2e-phase1-brackets.md).
+
+### 2026-05-30 — Phase 0 increment C: per-worker auth (closes #3 → Phase 0 done)
+
+- **#3 (refresh-token race + shared storageState) — RESOLVED (structural).**
+  New [\_helpers/fixtures.ts](../../apps/web/tests/e2e/_helpers/fixtures.ts)
+  implements Playwright's worker-scoped "account per parallel worker" pattern:
+  attendee-a signs in **independently** once per `parallelIndex` →
+  `.playwright/.auth/worker-<i>.json`, and the test-scoped `storageState` option
+  is overridden to use it. Independent sessions ⇒ independent refresh-token
+  families ⇒ no cross-worker invalidation.
+- **20 authed specs migrated** — `from '@playwright/test'` →
+  `from './_helpers/fixtures'` (the fixture `export *`s the rest, so `expect` /
+  `type Page` are unchanged). No other spec edits.
+- **`workers` cap lifted** — remote-local `2` → `undefined`; CI kept at `1`
+  **by choice** (avoid an unverified load change on shared dev data + dev
+  Supabase `/token` rate limits), not because the race requires it.
+- **Kept the `setup` projects + `user.json` + role files** — the fixture fixes
+  the **primary** session only; direct `STORAGE_PATHS.*` contexts and secondary
+  roles still load shared files (per-worker for those is a follow-up).
+- **Verified:** e2e tsc unchanged at **23** (identical per-file; `fixtures.ts`
+  clean), `playwright --list` = 186 tests / 30 files (all migrated specs
+  collect), reporter fires. **Not verified:** the live parallel-load payoff —
+  needs a `--workers=4+` run against `dev.pickupvb.com` (maintainer).
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-c](../journal/2026-05-30-bundle-e2e-phase0-increment-c.md).
+
+### 2026-05-30 — Phase 0 increment B: helpers, `withAuthContext`, skip-budget (closes #6, #8, C1)
+
+- **#6 (`navigation.ts`) — RESOLVED.**
+  [\_helpers/navigation.ts](../../apps/web/tests/e2e/_helpers/navigation.ts)
+  now owns `findOwnedGroupUrl` / `findCaptainedTeamUrl` /
+  `ensureSearchableDisplayName`; the copies in `groups`, `groups-manage`, and
+  `teams` are deleted and import from it. `findOwnedGroupUrl` unified to the
+  trailing-slash-stripping variant (idempotent for the `groups-manage` callers).
+- **#8 (`browser.ts` / `withAuthContext`) — RESOLVED.**
+  [\_helpers/browser.ts](../../apps/web/tests/e2e/_helpers/browser.ts) wraps
+  `newContext → newPage → try/finally close`; adopted at the self-contained
+  second-context blocks in `event-host` (`beforeAll`/`afterAll`/pro-sponsor/
+  co-host name-fetch), `groups`, and `groups-manage`. The interleaved-context
+  sites (`teams`, `player-social`, `event-host` broadcast) are intentionally
+  left for the Phase 1+ rewrite — wrapping them would rewrite test control flow.
+- **C1 (skip-budget guard) — RESOLVED (mechanism); threshold deferred.**
+  [\_helpers/skip-budget-reporter.ts](../../apps/web/tests/e2e/_helpers/skip-budget-reporter.ts)
+  is wired into [playwright.config.ts](../../apps/web/playwright.config.ts).
+  Warn-only by default; fails the run when `skipped > E2E_SKIP_BUDGET`. Open
+  decision #1 (the N, and fail-vs-warn in CI) preserved for the maintainer.
+- **`isVisibleOrTimeout` no-op `timeout` — FIXED.** Now
+  `waitFor({ state: 'visible', timeout })` instead of the ignored
+  `isVisible({ timeout })`.
+- **Verified:** e2e tsc baseline unchanged at **23**, identical per-file to
+  stashed HEAD (tournament 14, groups-manage 6, auth-extended 2, player-social 1
+  — increment A's "tournament 14" was correct; count with `incremental: false`,
+  since the base config's `incremental: true` leaves a stale `.tsbuildinfo` that
+  wobbles repeated counts). `playwright --list` = 186 tests / 30 files (reporter
+  loads); prettier-clean. Throwaway `tsconfig.e2e.tmp.json` used and deleted.
+  One self-inflicted reporter type error (`onEnd` return type, TS2416) was
+  caught by this check and fixed before hand-off.
+- **Still open in Phase 0:** #3 (per-worker storage state) only.
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-b](../journal/2026-05-30-bundle-e2e-phase0-increment-b.md).
+
+### 2026-05-30 — Phase 0 increment A: defensive-`catch` sweep (C7, partial)
+
+- **`.catch(() => false)` visibility probes → `isVisibleOrTimeout`** across
+  13 specs (`authorization`, `profile-edit`, `hero-image`, `admin`,
+  `auth-extended.public`, `event-attendance`, `notifications`,
+  `billing-stripe`, `player-social`, `groups`, `groups-manage`, `teams`,
+  `event-host`). Suite-wide count **42 → 1** (the survivor is a
+  response-promise coercion, not a probe).
+- **`networkidle`: confirmed already done** — no real calls remain; the
+  grep hits are explanatory comments. C7's "finish the sweep" is, for the
+  code half, complete.
+- **Verified:** e2e tsc baseline unchanged (23 pre-existing errors, zero
+  added — confirmed by a throwaway `tests/**` tsconfig, since e2e specs are
+  excluded from `pnpm typecheck`/`lint`); `playwright --list` parses all
+  186 tests; prettier-clean. No app code or config touched.
+- **Deferred** (still open under C7 / Phase 0): `browser.ts`
+  `withAuthContext` (#8), `navigation.ts` (#6), skip-budget guard (C1), and
+  fixing `isVisibleOrTimeout`'s no-op `timeout` arg.
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-a](../journal/2026-05-30-bundle-e2e-phase0-increment-a.md).
+
+### 2026-05-30 — helper layer landed; coverage pass added
+
+- **P2 #4 (auth-setup factory) — RESOLVED.** `defineAuthSetup` /
+  `skipIfMissingAuth` now live in
+  [\_helpers/auth.ts](../../apps/web/tests/e2e/_helpers/auth.ts); the six
+  `auth.*.setup.ts` files collapsed to a few lines each.
+- **P2 #5 (`existsSync` skip boilerplate) — RESOLVED.** Replaced by
+  `skipIfMissingAuth(STORAGE_PATHS.<role>, '<role>')`.
+- **P2 #7 (storage-path math) — RESOLVED.** Central
+  [\_helpers/paths.ts](../../apps/web/tests/e2e/_helpers/paths.ts)
+  exports `STORAGE_PATHS`.
+- **Proposed `events.ts` helper — RESOLVED** as
+  [\_helpers/event-create.ts](../../apps/web/tests/e2e/_helpers/event-create.ts)
+  (`createFreeOpenPlayEvent` / `createPaidEvent` / `cancelEvent` /
+  `pickFutureDateTime`), plus [\_helpers/cleanup.ts](../../apps/web/tests/e2e/_helpers/cleanup.ts)
+  (opt-in admin deletes) and [\_helpers/stripe.ts](../../apps/web/tests/e2e/_helpers/stripe.ts)
+  (Checkout drivers) — neither was in the original layout.
+- **P1 #2 (`.catch(() => false)`) — helper landed, adoption incomplete.**
+  `isVisibleOrTimeout` exists in
+  [\_helpers/predicates.ts](../../apps/web/tests/e2e/_helpers/predicates.ts);
+  not yet swept across all specs → folded into **C7**.
+- **P1 #1 (`networkidle`) — partially done.** ~5 occurrences remain →
+  folded into **C7**.
+- **Still open from 2026-05-25:** #3 (per-worker storage state), #6
+  (`navigation.ts`), #8 (`browser.ts` / `withAuthContext`), #9
+  (`event-host` SRP split), #11, #12.
+- **Added this pass:** coverage findings **C1–C7** and the phased game
+  plan above. No test code changed in this pass (plan/audit only).

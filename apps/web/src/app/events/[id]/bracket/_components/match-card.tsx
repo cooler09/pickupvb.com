@@ -1,21 +1,32 @@
 import type { Match } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
-import { recordMatchResultFromForm, resetMatch } from '../actions';
-import type { TeamLite } from './labels';
+import { LiveScore } from '../../_components/live-score';
+import { ScoreLiveButton } from '../../_components/score-live-button';
+import { bindBracketActions, eventScope } from './bracket-action-binding';
+import type { BracketScope, TeamLite } from './labels';
 
 export function MatchCard(props: {
-  eventId: string;
-  divisionId: string;
+  /** Event path only — present for the live-scoring launcher. Standalone
+   *  brackets (ADR 0025) omit these and pass `scope`. */
+  eventId?: string;
+  divisionId?: string;
+  /** Standalone scope; defaults to the event scope from eventId/divisionId. */
+  scope?: BracketScope;
   match: Match;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
   isHost: boolean;
   viewerId: string | null;
+  /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
+  liveScoringEnabled?: boolean;
 }) {
+  const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
+  const a = bindBracketActions(scope);
   const m = props.match;
-  const teamA = m.teamAId ? props.teamById.get(m.teamAId) : null;
-  const teamB = m.teamBId ? props.teamById.get(m.teamBId) : null;
-  const winner = m.winnerTeamId;
+  const teamA = m.entryAId ? props.teamById.get(m.entryAId) : null;
+  const teamB = m.entryBId ? props.teamById.get(m.entryBId) : null;
+  const workTeam = m.workTeamId ? props.teamById.get(m.workTeamId) : null;
+  const winner = m.winnerEntryId;
   const canEdit =
     props.isHost ||
     (props.viewerId !== null &&
@@ -29,7 +40,7 @@ export function MatchCard(props: {
 
   return (
     <div
-      className={`rounded-lg border p-3 text-sm ${
+      className={`rounded-shape-sm border p-3 text-sm ${
         m.status === 'completed' ? 'border-green-500/30 bg-green-500/5' : 'border-border-base bg-bg'
       }`}
     >
@@ -37,10 +48,19 @@ export function MatchCard(props: {
         <span>Match {m.matchNumber}</span>
         <span className="capitalize">{m.status.replace('_', ' ')}</span>
       </div>
+      {(m.court || m.slot) && (
+        <p className="text-muted -mt-1 mb-2 text-xs">
+          {m.court ? <span className="text-fg/70 font-medium">{m.court}</span> : null}
+          {m.court && m.slot ? ' · ' : null}
+          {m.slot ? <span>Slot {m.slot}</span> : null}
+        </p>
+      )}
       <ul className="space-y-1">
-        <TeamRow team={teamA} wins={aWins} isWinner={winner === m.teamAId} />
-        <TeamRow team={teamB} wins={bWins} isWinner={winner === m.teamBId} />
+        <TeamRow team={teamA} wins={aWins} isWinner={winner === m.entryAId} />
+        <TeamRow team={teamB} wins={bWins} isWinner={winner === m.entryBId} />
       </ul>
+
+      {m.status !== 'completed' && m.status !== 'bye' && <LiveScore matchId={String(m.id)} />}
 
       {m.sets.length > 0 && (
         <p className="text-muted mt-2 text-xs">
@@ -48,20 +68,38 @@ export function MatchCard(props: {
         </p>
       )}
 
+      {workTeam && (
+        <p className="text-muted mt-2 text-xs">
+          <span className="text-fg/70 font-medium">Work team: </span>
+          {workTeam.name}
+        </p>
+      )}
+
+      {props.liveScoringEnabled && canEdit && m.status !== 'bye' && teamA && teamB && (
+        <div className="mt-2">
+          <ScoreLiveButton
+            kind="bracket"
+            matchId={String(m.id)}
+            teamA={teamA.name}
+            teamB={teamB.name}
+            bestOf={props.bestOf}
+            {...(scope.kind === 'standalone'
+              ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
+              : {
+                  eventId: scope.eventId,
+                  divisionId: scope.divisionId,
+                  returnPath: `/events/${scope.eventId}/bracket?division=${scope.divisionId}`,
+                })}
+          />
+        </div>
+      )}
+
       {canEdit && m.status !== 'bye' && teamA && teamB && (
         <details className="mt-2">
           <summary className="text-primary cursor-pointer text-xs hover:underline">
             {m.status === 'completed' ? 'Edit result' : 'Enter result'}
           </summary>
-          <form
-            action={recordMatchResultFromForm.bind(
-              null,
-              props.eventId,
-              props.divisionId,
-              String(m.id),
-            )}
-            className="mt-2 space-y-1"
-          >
+          <form action={a.recordResult(String(m.id))} className="mt-2 space-y-1">
             {Array.from({ length: setsToShow }, (_, i) => {
               const existing = m.sets[i];
               return (
@@ -91,7 +129,7 @@ export function MatchCard(props: {
               </SubmitButton>
               {m.status === 'completed' && (
                 <SubmitButton
-                  formAction={resetMatch.bind(null, props.eventId, props.divisionId, String(m.id))}
+                  formAction={a.resetMatch(String(m.id))}
                   className="border-border-base text-fg/80 hover:bg-fg/5 rounded border px-2 py-0.5 text-xs disabled:opacity-50"
                 >
                   Clear
@@ -106,7 +144,7 @@ export function MatchCard(props: {
 }
 
 function TeamRow(props: {
-  team: { teamId: string; name: string } | null | undefined;
+  team: { name: string } | null | undefined;
   wins: number;
   isWinner: boolean;
 }) {

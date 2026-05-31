@@ -132,15 +132,15 @@ export type AgeGroup = (typeof AgeGroup)[keyof typeof AgeGroup];
 /**
  * How players sign up for a division.
  *   - `Solo`             individuals (open-play style)
- *   - `Team`             full pre-formed team registers
+ *   - `Partners`         fixed N-person team built at signup time (doubles, triples)
  *   - `PairDraw`         sign up as a pair/triple; drawn with another into the playing team
- *   - `PartnerRequired`  fixed N-person team built at signup time
+ *   - `Team`             full pre-formed team registers
  */
 export const TeamComposition = {
   Solo: 'solo',
   Team: 'team',
   PairDraw: 'pair_draw',
-  PartnerRequired: 'partner_required',
+  Partners: 'partners',
 } as const;
 export type TeamComposition = (typeof TeamComposition)[keyof typeof TeamComposition];
 
@@ -184,6 +184,15 @@ export type TeamRegistrationMode = (typeof TeamRegistrationMode)[keyof typeof Te
 export const EventType = {
   OpenPlay: 'open_play',
   Tournament: 'tournament',
+  /**
+   * Recurring rostered competition across a season. Per-division
+   * teams are pre-defined (every division must use
+   * {@link TeamRegistrationMode.Roster} and a non-solo composition);
+   * weekly fixtures live in a dedicated schedule table (P1 #2, not
+   * yet implemented). Scaffolded by
+   * `20260729000100_add_league_to_event_type.sql`.
+   */
+  League: 'league',
 } as const;
 export type EventType = (typeof EventType)[keyof typeof EventType];
 

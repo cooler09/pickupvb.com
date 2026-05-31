@@ -46,7 +46,7 @@ export function TipJar({
     // so we have nowhere to route the funds. Render a short note instead
     // of the form so the section doesn't look broken or unresponsive.
     return (
-      <section className="border-border-base rounded-lg border p-4">
+      <section className="border-border-base rounded-shape-sm border p-4">
         <header className="flex items-baseline justify-between">
           <h2 className="text-fg text-sm font-semibold">Tip the host</h2>
         </header>
@@ -59,7 +59,7 @@ export function TipJar({
   }
 
   return (
-    <section className="border-border-base rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm border p-4">
       <header className="flex items-baseline justify-between">
         <h2 className="text-fg text-sm font-semibold">Tip the host</h2>
         {totalCents > 0 && (

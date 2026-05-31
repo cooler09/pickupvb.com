@@ -38,7 +38,7 @@ export function EventSponsorSection({ sponsor }: { sponsor: EventSponsor | null 
   );
 
   return (
-    <section className="border-border-base bg-surface rounded-lg border p-4">
+    <section className="border-border-base bg-surface rounded-shape-sm border p-4">
       {sponsor.linkUrl ? (
         <a
           href={sponsor.linkUrl}

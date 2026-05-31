@@ -243,10 +243,10 @@ begin
   --    Each division has 2 teams, so the bracket is a single championship
   --    match in round 1.
   -- ==========================================================================
-  select id into v_bracket_a from public.tournament_brackets where division_id = v_div_a;
+  select id into v_bracket_a from public.event_brackets where division_id = v_div_a;
 
   if v_bracket_a is null then
-    insert into public.tournament_brackets (event_id, division_id, format, status)
+    insert into public.event_brackets (event_id, division_id, format, status)
       values (v_event_roster, v_div_a, 'single_elimination', 'setup')
       returning id into v_bracket_a;
 
@@ -264,10 +264,10 @@ begin
     returning id into v_match_a_fin;
   end if;
 
-  select id into v_bracket_b from public.tournament_brackets where division_id = v_div_b;
+  select id into v_bracket_b from public.event_brackets where division_id = v_div_b;
 
   if v_bracket_b is null then
-    insert into public.tournament_brackets (event_id, division_id, format, status)
+    insert into public.event_brackets (event_id, division_id, format, status)
       values (v_event_roster, v_div_b, 'single_elimination', 'setup')
       returning id into v_bracket_b;
 

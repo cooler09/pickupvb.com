@@ -1,4 +1,4 @@
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import { InvariantViolation } from '../shared/result.js';
 import { Capacity } from './capacity.js';
 import {
@@ -14,6 +14,7 @@ import {
 import { assertFormatAllowedForSurface } from './rules.js';
 
 export type DivisionId = Brand<string, 'DivisionId'>;
+export const DivisionId = idConstructor<'DivisionId'>();
 
 const MAX_LABEL_LEN = 60;
 const MAX_TIER_LABEL_LEN = 40;
@@ -33,7 +34,7 @@ export interface CreateDivisionProps {
   /** Optional free-form override when the structured tier is insufficient. */
   tierLabel?: string | null;
   teamComposition?: TeamComposition;
-  /** Required when {@link teamComposition} is `PartnerRequired` or `PairDraw`. */
+  /** Required when {@link teamComposition} is `Partners` or `PairDraw`. */
   teamSize?: number | null;
   /** Per-division capacity. `null` = inherit event-level capacity. */
   capacity?: Capacity | null;
@@ -133,7 +134,7 @@ export class Division {
     }
     if (
       (teamComposition === TeamComposition.PairDraw ||
-        teamComposition === TeamComposition.PartnerRequired) &&
+        teamComposition === TeamComposition.Partners) &&
       teamSize === null
     ) {
       throw new InvariantViolation(

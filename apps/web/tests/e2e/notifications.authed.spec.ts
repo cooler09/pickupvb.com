@@ -1,6 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { isVisibleOrTimeout } from './_helpers/predicates';
 
 /**
  * Notification flows (Section 13 of the test plan).
@@ -105,11 +106,10 @@ test.describe('in-app notification bell', () => {
       await bPage.waitForLoadState('domcontentloaded');
 
       // If already following, unfollow first so the follow action is fresh.
-      const alreadyFollowing = await bPage
-        .getByRole('button', { name: /following|unfollow/i })
-        .first()
-        .isVisible({ timeout: 3_000 })
-        .catch(() => false);
+      const alreadyFollowing = await isVisibleOrTimeout(
+        bPage.getByRole('button', { name: /following|unfollow/i }).first(),
+        3_000,
+      );
       if (alreadyFollowing) {
         await bPage
           .getByRole('button', { name: /following|unfollow/i })
@@ -141,11 +141,7 @@ test.describe('in-app notification bell', () => {
       await expect(dialog).toBeVisible({ timeout: 10_000 });
 
       // The dialog content should show at least one notification item.
-      const hasItem = await dialog
-        .getByText(/followed|follow/i)
-        .first()
-        .isVisible({ timeout: 5_000 })
-        .catch(() => false);
+      const hasItem = await isVisibleOrTimeout(dialog.getByText(/followed|follow/i).first(), 5_000);
       expect(hasItem, 'Notification item should appear in the dialog').toBe(true);
 
       // After opening the dialog the bell should mark notifications read — badge clears.

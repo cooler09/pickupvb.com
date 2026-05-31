@@ -3,6 +3,7 @@ import {
   EventTeamRegistration,
   RegistrationMember,
   RegistrationPaymentStatus,
+  RegistrationSource,
   type EventTeamRegistrationId,
   type EventTeamRegistrationMemberId,
 } from './event-team-registration.js';
@@ -144,6 +145,47 @@ describe('EventTeamRegistration.create', () => {
   });
 });
 
+describe('EventTeamRegistration walk-in source', () => {
+  // Pins the source ↔ identity discriminant the boundary (and the DB
+  // check constraint `event_team_entries_captain_identity`) depend on:
+  // walk-ins must carry a typed-at-the-table captain display name
+  // distinct from the team name, and must NOT link a captain account.
+  function makeWalkIn(props: {
+    captainId?: string | null;
+    captainDisplayName: string | null;
+  }): EventTeamRegistration {
+    return EventTeamRegistration.create({
+      id: REG,
+      eventId: EVENT,
+      divisionId: DIV,
+      captainId: (props.captainId ?? null) as UserId | null,
+      name: 'Spike Force',
+      members: [guestMember('m', 'Guest A')],
+      source: RegistrationSource.WalkIn,
+      captainDisplayName: props.captainDisplayName,
+    });
+  }
+
+  it('preserves captainDisplayName distinct from the team name', () => {
+    const reg = makeWalkIn({ captainDisplayName: 'Jamie Q.' });
+    expect(reg.name).toBe('Spike Force');
+    expect(reg.captainDisplayName).toBe('Jamie Q.');
+    expect(reg.captainId).toBeNull();
+    expect(reg.source).toBe(RegistrationSource.WalkIn);
+  });
+
+  it('requires a captainDisplayName', () => {
+    expect(() => makeWalkIn({ captainDisplayName: null })).toThrow(InvariantViolation);
+    expect(() => makeWalkIn({ captainDisplayName: '   ' })).toThrow(InvariantViolation);
+  });
+
+  it('rejects a linked captain account', () => {
+    expect(() => makeWalkIn({ captainId: 'captain', captainDisplayName: 'Jamie Q.' })).toThrow(
+      InvariantViolation,
+    );
+  });
+});
+
 describe('EventTeamRegistration.addMember / removeMember', () => {
   it('adds a member when payment has not started', () => {
     const reg = makeReg([userMember('m1', 'u1')]);
@@ -230,5 +272,86 @@ describe('EventTeamRegistration payment transitions', () => {
     reg.expireCheckout();
     reg.addMember(guestMember('m2', 'Guest', 1));
     expect(reg.rosterSize).toBe(2);
+  });
+});
+
+describe('EventTeamRegistration forfeit lifecycle', () => {
+  it('starts unforfeited', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    expect(reg.forfeitedAt).toBeNull();
+  });
+
+  it('markForfeited stamps the timestamp and bumps updatedAt', async () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    const before = reg.updatedAt;
+    await new Promise((r) => setTimeout(r, 2));
+    const at = new Date('2026-10-15T12:00:00Z');
+    reg.markForfeited(at);
+    expect(reg.forfeitedAt).toEqual(at);
+    expect(reg.updatedAt.getTime()).toBeGreaterThan(before.getTime());
+  });
+
+  it('markForfeited is idempotent — keeps the original timestamp', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    const first = new Date('2026-10-15T12:00:00Z');
+    reg.markForfeited(first);
+    reg.markForfeited(new Date('2026-11-01T00:00:00Z'));
+    expect(reg.forfeitedAt).toEqual(first);
+  });
+
+  it('rejects an invalid Date', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    expect(() => reg.markForfeited(new Date('not-a-date'))).toThrow(InvariantViolation);
+  });
+
+  it('reinstate clears the timestamp', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.markForfeited(new Date('2026-10-15T12:00:00Z'));
+    reg.reinstate();
+    expect(reg.forfeitedAt).toBeNull();
+  });
+
+  it('reinstate on an active team is a no-op', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    const before = reg.updatedAt;
+    reg.reinstate();
+    expect(reg.forfeitedAt).toBeNull();
+    expect(reg.updatedAt.getTime()).toBe(before.getTime());
+  });
+
+  it('forfeit is orthogonal to payment status — a paid team can forfeit', () => {
+    const reg = makeReg([userMember('m1', 'u1')]);
+    reg.markCheckoutPending('cs_1');
+    reg.markPaid({
+      paymentIntentId: 'pi_1',
+      amountCents: 12000,
+      paidAt: new Date('2026-09-01T00:00:00Z'),
+    });
+    reg.markForfeited(new Date('2026-10-15T12:00:00Z'));
+    expect(reg.paymentStatus).toBe(RegistrationPaymentStatus.Paid);
+    expect(reg.forfeitedAt).not.toBeNull();
+  });
+
+  it('rehydrate round-trips forfeitedAt', () => {
+    const at = new Date('2026-10-15T12:00:00Z');
+    const reg = EventTeamRegistration.rehydrate({
+      id: REG,
+      eventId: EVENT,
+      divisionId: DIV,
+      captainId: CAP,
+      name: 'Spike Force',
+      members: [userMember('m1', 'u1')],
+      source: RegistrationSource.Captain,
+      paymentStatus: RegistrationPaymentStatus.None,
+      checkoutSessionId: null,
+      paymentIntentId: null,
+      amountPaidCents: null,
+      paidAt: null,
+      paymentNote: null,
+      forfeitedAt: at,
+      createdAt: new Date('2026-09-01T00:00:00Z'),
+      updatedAt: new Date('2026-09-01T00:00:00Z'),
+    });
+    expect(reg.forfeitedAt).toEqual(at);
   });
 });

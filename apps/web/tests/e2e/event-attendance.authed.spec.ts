@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
@@ -100,11 +100,10 @@ test.describe('position RSVP', () => {
     await page.goto(href);
 
     // The roster section may show positions, player counts by position, or attendee list.
-    const hasRoster = await page
-      .getByText(/roster|attendees|going|setter|libero|outside|opposite|middle/i)
-      .first()
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
+    const hasRoster = await isVisibleOrTimeout(
+      page.getByText(/roster|attendees|going|setter|libero|outside|opposite|middle/i).first(),
+      5_000,
+    );
 
     // Not all events have position-based rosters; pass if neither exists.
     // This test just verifies the page doesn't crash when position data is rendered.

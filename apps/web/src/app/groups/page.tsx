@@ -1,7 +1,9 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { Pagination } from '@/components/pagination';
+import { primaryButtonClass } from '@/components/primary-button';
 import { NewGroupButton } from './_components/new-group-button';
 
 // Public listing rendered with the sessionless anon client so the route
@@ -26,16 +28,6 @@ export const metadata = {
 
 const PAGE_SIZE = 24;
 
-type GroupRow = {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  avatar_url: string | null;
-  home_city: string | null;
-  region: string | null;
-};
-
 export default async function GroupsIndexPage(props: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
@@ -44,20 +36,14 @@ export default async function GroupsIndexPage(props: {
   const q = (searchParams.q ?? '').trim();
   const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const from = (pageNum - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
 
-  let query = supabase
-    .from('groups')
-    .select('id, slug, name, description, avatar_url, home_city, region', {
-      count: 'exact',
-    })
-    .order('name', { ascending: true })
-    .range(from, to);
-  if (q) query = query.or(`name.ilike.%${q}%,slug.ilike.%${q}%,home_city.ilike.%${q}%`);
-
-  const { data, count } = await query;
-  const groups = (data as GroupRow[] | null) ?? [];
-  const total = count ?? groups.length;
+  const { cards: groups, total } = await new SupabaseGroupQueryRepository(supabase).searchDirectory(
+    {
+      ...(q ? { search: q } : {}),
+      limit: PAGE_SIZE,
+      offset: from,
+    },
+  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
@@ -76,28 +62,36 @@ export default async function GroupsIndexPage(props: {
           defaultValue={q}
           className="border-border-base bg-surface flex-1 rounded-md border px-3 py-2 text-sm"
         />
-        <button
-          type="submit"
-          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-sm"
-        >
+        <button type="submit" className={primaryButtonClass()}>
           Search
         </button>
       </form>
       {groups.length === 0 ? (
-        <p className="border-border-base text-muted rounded-lg border border-dashed p-6 text-center text-sm">
-          {q ? 'No groups match your search.' : 'No groups yet — be the first to create one.'}
-        </p>
+        <div className="border-border-base rounded-shape-sm flex flex-col items-center gap-3 border border-dashed p-8 text-center">
+          <p className="text-fg text-sm font-medium">
+            {q ? 'No groups match your search.' : 'No groups yet.'}
+          </p>
+          <p className="text-muted text-xs">
+            {q
+              ? 'Try a different search term, or browse all groups.'
+              : 'Be the first to create one — groups are how clubs and crews host events together.'}
+          </p>
+          {/* `<NewGroupButton />` self-hides for signed-out viewers, so this
+              extra CTA only appears to people who can act on it. Anonymous
+              visitors just see the encouraging copy above. */}
+          <NewGroupButton />
+        </div>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {groups.map((g) => (
             <li key={g.id}>
               <Link
                 href={`/groups/${g.slug}`}
-                className="border-border-base bg-surface hover:border-primary/40 flex items-start gap-3 rounded-lg border p-3"
+                className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-start gap-3 border p-3"
               >
-                {g.avatar_url ? (
+                {g.avatarUrl ? (
                   <Image
-                    src={g.avatar_url}
+                    src={g.avatarUrl}
                     alt=""
                     width={48}
                     height={48}
@@ -113,9 +107,9 @@ export default async function GroupsIndexPage(props: {
                 )}
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{g.name}</p>
-                  {g.home_city && (
+                  {g.homeCity && (
                     <p className="text-muted truncate text-xs">
-                      {g.home_city}
+                      {g.homeCity}
                       {g.region ? `, ${g.region}` : ''}
                     </p>
                   )}

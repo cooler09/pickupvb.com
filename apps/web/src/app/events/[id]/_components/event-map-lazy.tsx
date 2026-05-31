@@ -8,10 +8,8 @@ import dynamic from 'next/dynamic';
  * inside server components — the hint must come from a client boundary.
  */
 const EventMap = dynamic(() => import('@/components/event-map'), {
-    ssr: false,
-    loading: () => (
-        <div className="h-[320px] w-full animate-pulse rounded-lg bg-fg/5" />
-    ),
+  ssr: false,
+  loading: () => <div className="rounded-shape-sm bg-fg/5 h-[320px] w-full animate-pulse" />,
 });
 
 export default EventMap;

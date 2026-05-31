@@ -34,9 +34,21 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
   const maxSpotsRaw = fieldOrUndefined(formData, 'maxSpots');
   const priceUsd = fieldOrUndefined(formData, 'priceUsd');
   const priceUnitRaw = fieldOrUndefined(formData, 'priceUnit');
-  const priceUnit = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
+  const priceUnitFromForm = priceUnitRaw === 'per_team' ? 'per_team' : 'per_player';
   const prizeText = fieldOrUndefined(formData, 'prizeText');
   const tierLabel = fieldOrUndefined(formData, 'tierLabel');
+
+  // ADR 0016 — read team-mode early so we can normalize the price unit
+  // for free divisions (where the picker is hidden in the UI).
+  const teamRegRaw = fieldOrUndefined(formData, 'teamRegistrationMode');
+  const teamMode: 'ad_hoc' | 'roster' | null =
+    teamRegRaw === 'ad_hoc' ? 'ad_hoc' : teamRegRaw === 'roster' ? 'roster' : null;
+
+  // ADR 0012 — free divisions skip the price-unit constraint; normalize
+  // the stored unit so it always matches the registration mode.
+  const priceCentsParsed = priceUsd ? parsePriceCents(priceUsd) : undefined;
+  const isFree = !priceCentsParsed || priceCentsParsed <= 0;
+  const priceUnit = isFree ? (teamMode === null ? 'per_player' : 'per_team') : priceUnitFromForm;
 
   const dto = {
     label: field(formData, 'label'),
@@ -59,13 +71,13 @@ function divisionInputFromForm(formData: FormData): DivisionInputDto {
     allowFreeAgents: bool(formData, 'allowFreeAgents'),
     // ADR 0016 — per-division team registration paradigm. Form sends
     // 'ad_hoc' | 'roster' | 'none'; map 'none' → null.
-    ...(() => {
-      const raw = fieldOrUndefined(formData, 'teamRegistrationMode');
-      if (raw === 'ad_hoc') return { teamRegistrationMode: 'ad_hoc' as const };
-      if (raw === 'roster') return { teamRegistrationMode: 'roster' as const };
-      if (raw === 'none') return { teamRegistrationMode: null };
-      return {} as const;
-    })(),
+    ...(teamRegRaw === 'ad_hoc'
+      ? { teamRegistrationMode: 'ad_hoc' as const }
+      : teamRegRaw === 'roster'
+        ? { teamRegistrationMode: 'roster' as const }
+        : teamRegRaw === 'none'
+          ? { teamRegistrationMode: null }
+          : {}),
   };
   return DivisionInputSchema.parse(dto);
 }

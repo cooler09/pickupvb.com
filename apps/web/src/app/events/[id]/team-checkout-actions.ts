@@ -180,6 +180,8 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
         registration_id: String(registration.id),
         captain_id: user.id,
       },
+      // One team registration → at most one Checkout Session (TPI-5).
+      idempotencyKey: `team:${String(registration.id)}`,
     });
   } catch (err) {
     await log.error('[team-checkout] session create failed', err, {

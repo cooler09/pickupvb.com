@@ -98,7 +98,7 @@ export function ShareLink({ path, title, code, label = 'Share' }: Props) {
       <div
         role="dialog"
         aria-label="Share this page"
-        className="border-border-base bg-surface absolute right-0 z-30 mt-2 w-72 space-y-3 rounded-lg border p-3 shadow-lg"
+        className="border-border-base bg-surface rounded-shape-sm absolute right-0 z-30 mt-2 w-72 space-y-3 border p-3 shadow-lg"
       >
         <div>
           <label className="text-muted mb-1 block text-[10px] font-semibold tracking-wide uppercase">

@@ -1,7 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { SetProfileHeroImageCommand } from '@pickupvb/application';
 import { getServerSupabase } from '@/lib/supabase';
+import { getUserProfileHandlers } from '@/lib/handlers';
 
 type EntityType = 'events' | 'groups' | 'profiles';
 
@@ -68,14 +70,17 @@ export async function saveHeroImageUrl(
       .eq('id', entityId);
     if (error) return { ok: false, error: 'Save failed.' };
   } else {
-    // profiles — users can only update their own
+    // profiles — users can only update their own (ADR 0020: profile writes go
+    // through the UserProfile aggregate). Events/groups stay raw above —
+    // different aggregates, out of scope for this migration.
     if (entityId !== user.id) return { ok: false, error: 'Not authorized.' };
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({ hero_image_url: url })
-      .eq('id', entityId);
-    if (error) return { ok: false, error: 'Save failed.' };
+    try {
+      const { setHeroImage: handler } = await getUserProfileHandlers();
+      await handler.execute(new SetProfileHeroImageCommand(user.id, url));
+    } catch {
+      return { ok: false, error: 'Save failed.' };
+    }
   }
 
   revalidatePath(returnPath);

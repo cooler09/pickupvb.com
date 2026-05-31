@@ -35,8 +35,9 @@ export default function ToolsPage() {
     {
       slug: 'bracket',
       title: 'Tournament bracket creator',
-      desc: 'Single & double elimination.',
-      status: 'soon',
+      desc: 'Single & double elimination, round robin, pool play. Track results live and share a spectator link. (Sign-in required.)',
+      href: '/brackets' as Route,
+      status: 'live',
     },
     {
       slug: 'seeding',
@@ -78,12 +79,14 @@ export default function ToolsPage() {
               {t.href ? (
                 <Link
                   href={t.href}
-                  className="border-border-base hover:border-primary hover:bg-primary/5 block rounded-lg border p-4 transition-colors"
+                  className="border-border-base hover:border-primary hover:bg-primary/5 rounded-shape-sm block border p-4 transition-colors"
                 >
                   {inner}
                 </Link>
               ) : (
-                <div className="border-border-base rounded-lg border p-4 opacity-80">{inner}</div>
+                <div className="border-border-base rounded-shape-sm border p-4 opacity-80">
+                  {inner}
+                </div>
               )}
             </li>
           );

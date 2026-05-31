@@ -16,6 +16,13 @@ export type SendEmailInput = {
   subject: string;
   html: string;
   text: string;
+  /**
+   * Optional Resend idempotency key. The cron worker passes the outbox row id
+   * so a redelivery after a crash between the send and `markSent` returns the
+   * original email instead of sending a duplicate. Resend dedupes on this key
+   * for 24h. See docs/audits/third-party-integrations.md TPI-8.
+   */
+  idempotencyKey?: string;
 };
 
 export type SendEmailResult = {
@@ -41,6 +48,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     headers: {
       'content-type': 'application/json',
       authorization: `Bearer ${apiKey}`,
+      ...(input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : {}),
     },
     body: JSON.stringify({
       from,

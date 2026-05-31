@@ -32,7 +32,7 @@ export function ScoreboardSetupForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="border-border-base space-y-5 rounded-lg border p-5">
+    <form onSubmit={onSubmit} className="border-border-base rounded-shape-sm space-y-5 border p-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label htmlFor="teamA" className={labelClass}>

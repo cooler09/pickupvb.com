@@ -1,15 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import {
+  DivisionId,
   NotFoundError,
   Team,
+  TeamId,
   UnauthorizedError,
   ValidationError,
-  type EventRepository,
+  type AnalyticsPort,
+  type EventWriteStore,
   type Format,
-  type TeamId,
   type TeamRepository,
   type UserId,
 } from '@pickupvb/domain';
+import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   AcceptTeamInviteCommand,
   AddTeamMemberCommand,
@@ -24,7 +27,7 @@ export class CreateTeamHandler {
   constructor(private readonly repo: TeamRepository) {}
 
   async execute({ captainId, name, format }: CreateTeamCommand): Promise<{ id: string }> {
-    const id = randomUUID() as never as TeamId;
+    const id = TeamId(randomUUID());
     const team = Team.create({
       id,
       captainId: captainId as UserId,
@@ -109,21 +112,19 @@ export class SetTeamExtraMembersHandler {
 /**
  * Tournament team registration. Crosses two aggregates:
  *   - the Team must exist and be captained by the requester
- *   - the Team's format must match the Event's format
+ *   - the Team's format must match the chosen Division's format
  *   - the Event aggregate enforces the rest (must be tournament, published, …)
  *
- * Note: we run `event.registerTeam(...)` purely to execute the aggregate's
- * invariants (status / type / start-time / duplicate guards) but we do
- * **not** call `events.save(event)`. The aggregate's `_teams` set carries
- * only team ids and has no slot for the captain-chosen `divisionId`, which
- * is NOT NULL on `event_teams`. We persist the join row via the dedicated
- * `attachTeamToDivision` port instead. The aggregate's in-memory mutation
- * is discarded; the next `findById` rehydrates `_teams` from the DB.
+ * The aggregate owns the team↔division registration (ADR 0019):
+ * `registerTeam(teamId, divisionId)` records which division the team joined
+ * and re-checks that the division exists, so `events.save(event)` persists
+ * the join in a single write path — no aggregate-sidestepping port.
  */
 export class RegisterTeamHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly teams: TeamRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute({ eventId, teamId, requesterId, divisionId }: RegisterTeamCommand): Promise<void> {
@@ -134,11 +135,6 @@ export class RegisterTeamHandler {
     }
     const event = await this.events.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    if (event.format && event.format !== team.format) {
-      throw new ValidationError(
-        `Team format (${team.format}) doesn't match event format (${event.format}).`,
-      );
-    }
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
     if (division.format && division.format !== team.format) {
@@ -146,17 +142,19 @@ export class RegisterTeamHandler {
         `Team format (${team.format}) doesn't match division format (${division.format}).`,
       );
     }
-    // Run aggregate invariants (status / start-time / duplicate guard).
-    event.registerTeam(team.id);
-    event.pullEvents();
-    await this.events.attachTeamToDivision(eventId, String(team.id), divisionId);
+    // Aggregate invariants (status / start-time / division-exists / duplicate)
+    // run inside registerTeam; save() persists the team↔division join.
+    event.registerTeam(team.id, DivisionId(divisionId));
+    await this.events.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }
 
 export class WithdrawTeamHandler {
   constructor(
-    private readonly events: EventRepository,
+    private readonly events: EventWriteStore,
     private readonly teams: TeamRepository,
+    private readonly analytics?: AnalyticsPort,
   ) {}
 
   async execute({ eventId, teamId, requesterId }: WithdrawTeamCommand): Promise<void> {
@@ -169,5 +167,6 @@ export class WithdrawTeamHandler {
     if (!event) throw new NotFoundError('event', eventId);
     event.withdrawTeam(team.id);
     await this.events.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }
 }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
+import { SupabaseSocialGraphRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { FriendsList } from '@/components/friends-list';
-import { loadFriendEdges } from '@/lib/mappers/friend';
 import { AddFriendForm } from './_components/add-friend-form';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,9 @@ export default async function FriendsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login?next=/friends');
 
-  const { friends, mutualIds } = await loadFriendEdges(supabase, user.id);
+  const { friends, mutualIds } = await new SupabaseSocialGraphRepository(supabase).getFriendEdges(
+    user.id,
+  );
 
   // Hide the viewer + everyone they already follow from the picker.
   const excludeIds = [user.id, ...friends.map((f) => f.id)];

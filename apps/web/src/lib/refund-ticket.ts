@@ -16,15 +16,15 @@ import { log } from './log';
  *   delete the row, the buyer needs to contact the host.
  */
 export type RefundOutcome =
-    | { kind: 'refunded' }
-    | { kind: 'not_paid' }
-    | { kind: 'window_closed'; reason: string }
-    | { kind: 'failed'; reason: string };
+  | { kind: 'refunded' }
+  | { kind: 'not_paid' }
+  | { kind: 'window_closed'; reason: string }
+  | { kind: 'failed'; reason: string };
 
 type AttRow = {
-    payment_status: string;
-    payment_intent_id: string | null;
-    amount_paid_cents: number | null;
+  payment_status: string;
+  payment_intent_id: string | null;
+  amount_paid_cents: number | null;
 };
 
 /**
@@ -42,67 +42,85 @@ type AttRow = {
  * but the message is propagated for surfacing.
  */
 export async function refundAttendeeTicket(
-    eventId: string,
-    userId: string,
+  eventId: string,
+  userId: string,
 ): Promise<RefundOutcome> {
-    const admin = getAdminSupabase();
-    const { data: row } = await admin
-        .from('event_attendees')
-        .select('payment_status, payment_intent_id, amount_paid_cents')
-        .eq('event_id', eventId)
-        .eq('user_id', userId)
-        .maybeSingle();
-    const att = row as unknown as AttRow | null;
+  const admin = getAdminSupabase();
+  const { data: row } = await admin
+    .from('event_participants')
+    .select(
+      'id, payment:event_participant_payments(payment_status, payment_intent_id, amount_paid_cents), division:event_divisions!inner(event_id)',
+    )
+    .eq('role', 'attendee')
+    .eq('division.event_id', eventId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  type EmbedRow = {
+    id: string;
+    payment: {
+      payment_status: string;
+      payment_intent_id: string | null;
+      amount_paid_cents: number;
+    } | null;
+  };
+  const embed = row as unknown as EmbedRow | null;
+  const att: AttRow | null = embed
+    ? {
+        payment_status: embed.payment?.payment_status ?? 'pending',
+        payment_intent_id: embed.payment?.payment_intent_id ?? null,
+        amount_paid_cents: embed.payment?.amount_paid_cents ?? 0,
+      }
+    : null;
+  const participantId = embed?.id ?? null;
 
-    if (!att || att.payment_status !== 'paid' || !att.payment_intent_id || !isStripeConfigured()) {
-        return { kind: 'not_paid' };
-    }
+  if (!att || att.payment_status !== 'paid' || !att.payment_intent_id || !isStripeConfigured()) {
+    return { kind: 'not_paid' };
+  }
 
-    const window = await assertWithinRefundWindow(eventId);
-    if (!window.ok) {
-        return { kind: 'window_closed', reason: window.reason };
-    }
+  const window = await assertWithinRefundWindow(eventId);
+  if (!window.ok) {
+    return { kind: 'window_closed', reason: window.reason };
+  }
 
-    let refundAmount: number | null = null;
-    try {
-        const stripe = getStripe();
-        const refund = await stripe.refunds.create({
-            payment_intent: att.payment_intent_id,
-            reason: 'requested_by_customer',
-            refund_application_fee: true,
-            reverse_transfer: true,
-        });
-        refundAmount = refund.amount ?? null;
-    } catch (err) {
-        await log.error('[refund] failed', err, { eventId, userId });
-        const reason = err instanceof Error ? err.message : 'Refund failed.';
-        return { kind: 'failed', reason };
-    }
+  let refundAmount: number | null = null;
+  try {
+    const stripe = getStripe();
+    const refund = await stripe.refunds.create({
+      payment_intent: att.payment_intent_id,
+      reason: 'requested_by_customer',
+      refund_application_fee: true,
+      reverse_transfer: true,
+    });
+    refundAmount = refund.amount ?? null;
+  } catch (err) {
+    await log.error('[refund] failed', err, { eventId, userId });
+    const reason = err instanceof Error ? err.message : 'Refund failed.';
+    return { kind: 'failed', reason };
+  }
 
-    // Synchronously remove the attendee and audit-log the refund so the
-    // page reflects the change on the next render. The charge.refunded
-    // webhook runs later and is idempotent.
-    const { error: delErr } = await admin
-        .from('event_attendees')
-        .delete()
-        .eq('event_id', eventId)
-        .eq('user_id', userId);
-    if (delErr) {
-        await log.error('[refund] delete attendee after refund failed', delErr, {
-            eventId,
-            userId,
-        });
-    }
-    const { error: auditErr } = await admin.from('event_payment_audit').insert({
-        event_id: eventId,
-        user_id: userId,
-        action: 'refunded',
-        amount_cents: refundAmount ?? att.amount_paid_cents ?? 0,
-        payment_intent_id: att.payment_intent_id,
-    } as never);
-    if (auditErr) {
-        await log.error('[refund] audit insert failed', auditErr, { eventId, userId });
-    }
+  // Synchronously remove the attendee and audit-log the refund so the
+  // page reflects the change on the next render. The charge.refunded
+  // webhook runs later and is idempotent.
+  const { error: delErr } = await admin
+    .from('event_participants')
+    .delete()
+    .eq('id', participantId!);
+  if (delErr) {
+    await log.error('[refund] delete attendee after refund failed', delErr, {
+      eventId,
+      userId,
+    });
+  }
+  const { error: auditErr } = await admin.from('event_payment_audit').insert({
+    event_id: eventId,
+    user_id: userId,
+    action: 'refunded',
+    amount_cents: refundAmount ?? att.amount_paid_cents ?? 0,
+    payment_intent_id: att.payment_intent_id,
+  } as never);
+  if (auditErr) {
+    await log.error('[refund] audit insert failed', auditErr, { eventId, userId });
+  }
 
-    return { kind: 'refunded' };
+  return { kind: 'refunded' };
 }

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import { getAdminSupabase } from '@/lib/supabase-admin';
@@ -54,10 +55,19 @@ export async function cancelEventAction(
 
   // Snapshot attendees BEFORE refund (refunds delete rows).
   const { data: attRows } = await admin
-    .from('event_attendees')
-    .select('user_id, payment_status')
-    .eq('event_id', eventId);
-  const attendees = (attRows as { user_id: string; payment_status: string }[] | null) ?? [];
+    .from('event_participants')
+    .select(
+      'user_id, payment:event_participant_payments(payment_status), division:event_divisions!inner(event_id)',
+    )
+    .eq('role', 'attendee')
+    .eq('division.event_id', eventId);
+  const attendees =
+    (attRows as { user_id: string; payment: { payment_status: string } | null }[] | null)?.map(
+      (a) => ({
+        user_id: a.user_id,
+        payment_status: a.payment?.payment_status ?? 'pending',
+      }),
+    ) ?? [];
 
   // Mark cancelled. RLS allows hosts to update their own event; we use the
   // user-session client to keep that audit trail.
@@ -105,6 +115,6 @@ export async function cancelEventAction(
 
   revalidatePath(`/events/${eventId}`);
   revalidatePath('/events');
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirect(`/events/${eventId}`);
 }

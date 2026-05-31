@@ -1,4 +1,4 @@
-import type { Brand } from '../shared/brand.js';
+import { idConstructor, type Brand } from '../shared/brand.js';
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { InvariantViolation } from '../shared/result.js';
 import {
@@ -8,6 +8,7 @@ import {
 import type { UserId } from './volleyball-event.js';
 
 export type EventTeamPaymentId = Brand<string, 'EventTeamPaymentId'>;
+export const EventTeamPaymentId = idConstructor<'EventTeamPaymentId'>();
 
 /**
  * Captain-checkout payment for a roster-mode tournament team (ADR 0007).

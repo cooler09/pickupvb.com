@@ -69,7 +69,7 @@ export function AttendeeList({
 }) {
   if (attendees.length === 0) {
     return (
-      <p className="border-border-base text-muted rounded-lg border border-dashed p-4 text-sm">
+      <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-4 text-sm">
         No one&apos;s signed up yet — be the first!
       </p>
     );
@@ -85,7 +85,7 @@ export function AttendeeList({
         return (
           <li
             key={a.user_id}
-            className="border-border-base flex items-center gap-3 rounded-lg border px-3 py-2"
+            className="border-border-base rounded-shape-sm flex items-center gap-3 border px-3 py-2"
           >
             <Link
               href={`/players/${a.handle ?? a.user_id}`}

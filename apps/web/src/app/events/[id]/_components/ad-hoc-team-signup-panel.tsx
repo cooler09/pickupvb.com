@@ -54,7 +54,7 @@ export type AdHocTeamPublicEntry = {
    * "Walk-in" pill next to the payment pill on the public roster so
    * viewers can tell same-day adds from pre-registered teams.
    */
-  source: 'captain' | 'host' | 'walk_in';
+  source: 'ad_hoc' | 'walk_in';
   captainName: string | null;
   /**
    * Roster excluding the captain (captain is rendered separately so the
@@ -153,7 +153,7 @@ export function AdHocTeamSignupPanel({
   const hasRegisterable = perTeamDivisions.length > 0;
 
   return (
-    <section className="border-border-base space-y-4 rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm space-y-4 border p-4">
       <header>
         <h2 className="text-fg text-lg font-semibold">Register a team</h2>
         <p className="text-muted text-sm">

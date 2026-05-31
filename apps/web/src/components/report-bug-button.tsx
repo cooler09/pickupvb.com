@@ -89,7 +89,7 @@ export function ReportBugButton({
         ref={dialogRef}
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="border-border-base bg-surface text-fg m-auto w-full max-w-md rounded-lg border p-0 shadow-xl backdrop:bg-black/50"
+        className="border-border-base bg-surface text-fg rounded-shape-sm m-auto w-full max-w-md border p-0 shadow-xl backdrop:bg-black/50"
       >
         <form onSubmit={handleSubmit} className="space-y-3 p-5">
           <h2 id={titleId} className="text-base font-semibold">

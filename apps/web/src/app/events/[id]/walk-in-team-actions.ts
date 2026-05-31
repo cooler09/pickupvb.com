@@ -15,6 +15,7 @@
  */
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { eventCacheTag } from '@/lib/cache-tags';
 import {
   MarkWalkInPaidCashCommand,
   RegisterWalkInTeamCommand,
@@ -98,7 +99,7 @@ export async function registerWalkInTeamFromForm(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_registered');
 }
 
@@ -122,6 +123,6 @@ export async function markWalkInPaidCashFromForm(
   }
 
   revalidatePath(returnPath);
-  updateTag(`event:${eventId}`);
+  updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_marked_paid');
 }

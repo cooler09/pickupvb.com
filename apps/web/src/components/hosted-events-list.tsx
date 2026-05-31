@@ -157,7 +157,7 @@ export function HostedEventsList({
 }) {
   if (events.length === 0) {
     return (
-      <p className="border-border-base text-muted rounded-lg border border-dashed p-4 text-sm">
+      <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-4 text-sm">
         {emptyState}
       </p>
     );
@@ -173,7 +173,7 @@ export function HostedEventsList({
         return (
           <li
             key={e.id}
-            className="border-border-base bg-surface hover:border-primary/40 rounded-lg border p-3"
+            className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm border p-3"
           >
             <Link
               href={`/events/${e.id}`}

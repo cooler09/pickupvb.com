@@ -5,11 +5,17 @@ import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import {
+  SupabaseGroupQueryRepository,
+  SupabaseSocialGraphRepository,
+} from '@pickupvb/infrastructure';
 import { FriendsList } from '@/components/friends-list';
-import { loadFriendEdges } from '@/lib/mappers/friend';
 import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
+import { MyVideosSection } from './_components/my-videos-section';
 import { HandleEditor } from './_components/handle-editor';
+import { ListProfileMediaQuery } from '@pickupvb/application';
+import { getMediaHandlers } from '@/lib/handlers';
 import { ProBadge } from '@/components/pro-badge';
 import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
@@ -40,7 +46,7 @@ type ProfileRow = {
   website_url: string | null;
 };
 
-const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
+const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -80,9 +86,11 @@ export default async function ProfilePage() {
   };
 
   // Outgoing friend edges (people you've added) + incoming-edge user-id
-  // set, used to flag mutual friendships in the FriendsList UI. Shared
-  // mapper also used by /friends.
-  const { friends, mutualIds } = await loadFriendEdges(supabase, user.id);
+  // set, used to flag mutual friendships in the FriendsList UI. Same
+  // SocialGraphQueries port read as /friends.
+  const { friends, mutualIds } = await new SupabaseSocialGraphRepository(supabase).getFriendEdges(
+    user.id,
+  );
 
   const hostedEvents = await loadVisibleHostedEvents(supabase, user.id, {
     startsAfter: new Date(),
@@ -94,30 +102,20 @@ export default async function ProfilePage() {
   ]);
 
   // Groups the user is a member of (with role).
-  const { data: myGroupRows } = await supabase
-    .from('group_members')
-    .select('role, groups:groups!inner(id, slug, name, avatar_url, home_city)')
-    .eq('user_id', user.id);
-  type MyGroupRow = {
-    role: 'owner' | 'admin' | 'member';
-    groups: {
-      id: string;
-      slug: string;
-      name: string;
-      avatar_url: string | null;
-      home_city: string | null;
-    } | null;
-  };
-  const myGroups = ((myGroupRows as MyGroupRow[] | null) ?? []).filter(
-    (r): r is MyGroupRow & { groups: NonNullable<MyGroupRow['groups']> } => r.groups !== null,
+  const memberships = await new SupabaseGroupQueryRepository(supabase).listMembershipsForUser(
+    user.id,
   );
-  const groupsForSection: MyGroup[] = myGroups.map((r) => ({
-    id: r.groups.id,
-    slug: r.groups.slug,
-    name: r.groups.name,
-    avatarUrl: r.groups.avatar_url,
-    homeCity: r.groups.home_city,
-    role: r.role,
+
+  // The user's own videos (active + auto-hidden) for the manage section.
+  const { listProfileMedia } = await getMediaHandlers();
+  const myVideos = await listProfileMedia.execute(new ListProfileMediaQuery(user.id, user.id));
+  const groupsForSection: MyGroup[] = memberships.map((m) => ({
+    id: m.group.id,
+    slug: m.group.slug,
+    name: m.group.name,
+    avatarUrl: m.group.avatarUrl,
+    homeCity: m.group.homeCity,
+    role: m.role,
   }));
 
   // Outstanding team invites.
@@ -200,7 +198,7 @@ export default async function ProfilePage() {
 
       {/* Action required */}
       {pendingInvites.length > 0 && (
-        <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-5">
+        <section className="rounded-shape-sm space-y-3 border border-amber-500/40 bg-amber-500/5 p-5">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
               Pending team invites
@@ -256,6 +254,14 @@ export default async function ProfilePage() {
         <MyGroupsSection groups={groupsForSection} />
       </section>
 
+      {/* Videos */}
+      <section className={cardClass}>
+        <SectionHeader title="Videos" count={myVideos.length} />
+        <div className="mt-4">
+          <MyVideosSection items={myVideos} />
+        </div>
+      </section>
+
       {/* Following */}
       <section className={cardClass}>
         <SectionHeader title="Following" count={friends.length} />
@@ -265,7 +271,7 @@ export default async function ProfilePage() {
       </section>
 
       {/* Edit profile */}
-      <details className="group border-border-base bg-surface rounded-lg border">
+      <details className="group border-border-base bg-surface rounded-shape-sm border">
         <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
           <span>Edit profile</span>
           <span className="text-muted text-xs group-open:hidden">
@@ -340,8 +346,8 @@ function ActionTile({
       href={href}
       className={
         isPrimary
-          ? 'bg-primary text-primary-fg block rounded-lg p-4 transition hover:opacity-90'
-          : 'border-border-base bg-surface hover:border-primary/40 block rounded-lg border p-4 transition'
+          ? 'bg-primary text-primary-fg rounded-shape-sm block p-4 transition hover:opacity-90'
+          : 'border-border-base bg-surface hover:border-primary/40 rounded-shape-sm block border p-4 transition'
       }
     >
       <p className="text-sm font-semibold">{title}</p>

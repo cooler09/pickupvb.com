@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { HostedEventsList } from '@/components/hosted-events-list';
 import { loadVisibleGroupHostedEvents } from '@/components/group-hosted-events';
@@ -21,49 +22,14 @@ import { HeroImage } from '@/components/hero-image';
 export const revalidate = 60;
 
 const PAST_EVENTS_PER_PAGE = 10;
-const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
-
-type GroupRow = {
-  id: string;
-  slug: string;
-  name: string;
-  description: string;
-  avatar_url: string | null;
-  hero_image_url: string | null;
-  home_city: string | null;
-  region: string | null;
-  created_by: string;
-};
-
-type MemberRow = {
-  user_id: string;
-  role: 'owner' | 'admin' | 'member';
-};
-
-type ProfilePublicRow = {
-  id: string;
-  handle: string;
-  display_name: string;
-  avatar_url: string | null;
-};
+const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = createSupabaseAnonClient();
-  const { data } = await supabase
-    .from('groups')
-    .select('slug, name, description, home_city, region')
-    .eq('slug', params.id)
-    .maybeSingle();
-  const row = data as {
-    slug: string;
-    name: string;
-    description: string | null;
-    home_city: string | null;
-    region: string | null;
-  } | null;
+  const row = await new SupabaseGroupQueryRepository(supabase).findDetailBySlug(params.id);
   if (!row) return { title: 'Group' };
-  const place = [row.home_city, row.region].filter(Boolean).join(', ');
+  const place = [row.homeCity, row.region].filter(Boolean).join(', ');
   const description = row.description
     ? row.description.slice(0, 200)
     : `${row.name}${place ? ` — ${place}` : ''}. A volleyball group on PickupVB.`;
@@ -92,67 +58,40 @@ export default async function GroupProfilePage(props: {
   const mpage = Math.max(1, Number.parseInt(searchParams.mpage ?? '1', 10) || 1);
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
+  const groupQueries = new SupabaseGroupQueryRepository(supabase);
 
-  const { data: groupData } = await supabase
-    .from('groups')
-    .select(
-      'id, slug, name, description, avatar_url, hero_image_url, home_city, region, created_by',
-    )
-    .eq('slug', params.id)
-    .maybeSingle();
-  const group = groupData as GroupRow | null;
+  const group = await groupQueries.findDetailBySlug(params.id);
   if (!group) notFound();
 
   // Members and hosted events (upcoming + past split at SQL) are independent.
   const now = new Date();
-  const [{ data: memberRows }, upcoming, past] = await Promise.all([
-    supabase
-      .from('group_members')
-      .select('user_id, role')
-      .eq('group_id', group.id)
-      .order('joined_at', { ascending: true }),
+  const [memberCards, upcoming, past] = await Promise.all([
+    groupQueries.listMembers(group.id),
     loadVisibleGroupHostedEvents(supabase, group.id, { startsAfter: now }),
     loadVisibleGroupHostedEvents(supabase, group.id, { startsBefore: now }),
   ]);
-  const memberRowsTyped = (memberRows as MemberRow[] | null) ?? [];
 
-  // profiles_public has no FK relationships so the nested join syntax won't
-  // work — fetch profiles separately and merge in JS.
-  const memberUserIds = memberRowsTyped.map((m) => m.user_id);
-  const profilesMap = new Map<string, ProfilePublicRow>();
-  if (memberUserIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from('profiles_public')
-      .select('id, handle, display_name, avatar_url')
-      .in('id', memberUserIds);
-    for (const p of (profileRows as ProfilePublicRow[] | null) ?? []) {
-      profilesMap.set(p.id, p);
-    }
-  }
-
-  const managerIds = memberRowsTyped
+  const managerIds = memberCards
     .filter((m) => m.role === 'owner' || m.role === 'admin')
-    .map((m) => m.user_id);
+    .map((m) => m.userId);
 
   const returnPath = `/groups/${group.slug}`;
 
-  // Map row shape to the component's camelCase prop shape.
-  const members: GroupMember[] = memberRowsTyped.map((m) => {
-    const p = profilesMap.get(m.user_id) ?? null;
-    return {
-      userId: m.user_id,
-      role: m.role,
-      profile: p
-        ? {
-            displayName: p.display_name,
-            firstName: null,
-            lastName: null,
-            avatarUrl: p.avatar_url,
-            handle: p.handle,
-          }
-        : null,
-    };
-  });
+  // Map the read model to the component's prop shape (first/last name aren't
+  // part of the public profile card).
+  const members: GroupMember[] = memberCards.map((m) => ({
+    userId: m.userId,
+    role: m.role,
+    profile: m.profile
+      ? {
+          displayName: m.profile.displayName,
+          firstName: null,
+          lastName: null,
+          avatarUrl: m.profile.avatarUrl,
+          handle: m.profile.handle,
+        }
+      : null,
+  }));
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
@@ -167,11 +106,11 @@ export default async function GroupProfilePage(props: {
         slug={group.slug}
         name={group.name}
         description={group.description}
-        homeCity={group.home_city}
+        homeCity={group.homeCity}
         region={group.region}
-        avatarUrl={group.avatar_url}
+        avatarUrl={group.avatarUrl}
       />
-      <HeroImage url={group.hero_image_url} alt={group.name} priority />
+      <HeroImage url={group.heroImageUrl} alt={group.name} priority />
 
       <GroupHeader
         group={{
@@ -179,8 +118,8 @@ export default async function GroupProfilePage(props: {
           slug: group.slug,
           name: group.name,
           description: group.description,
-          avatarUrl: group.avatar_url,
-          homeCity: group.home_city,
+          avatarUrl: group.avatarUrl,
+          homeCity: group.homeCity,
           region: group.region,
         }}
         stats={{ members: members.length, upcoming: upcoming.length }}
