@@ -87,7 +87,7 @@ function divisionLabel(divisions: ReadonlyArray<DivisionLabel>, id: string): str
 export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Props) {
   const adHocDivisions = divisions.filter((d) => d.isAdHoc);
   return (
-    <section className="border-border-base bg-fg/[0.02] space-y-3 rounded-lg border p-4">
+    <section className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
       <header>
         <h3 className="text-fg text-sm font-semibold">Team registrations</h3>
         <p className="text-muted text-xs">

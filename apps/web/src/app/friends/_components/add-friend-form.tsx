@@ -10,7 +10,7 @@ type Props = {
 
 export function AddFriendForm({ returnPath, excludeIds }: Props) {
   return (
-    <section className="border-border-base rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm border p-4">
       <h2 className="text-muted mb-3 text-sm font-semibold tracking-wide uppercase">
         Follow a player
       </h2>

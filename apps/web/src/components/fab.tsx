@@ -35,7 +35,9 @@ export function Fab({
   /** Render as the extended FAB shape (rectangular pill with text). */
   extended?: boolean;
 }) {
-  const shape = extended ? 'h-14 rounded-2xl px-4 gap-2' : 'h-14 w-14 rounded-2xl justify-center';
+  const shape = extended
+    ? 'h-14 rounded-shape-lg px-4 gap-2'
+    : 'h-14 w-14 rounded-shape-lg justify-center';
   return (
     <Link
       href={href}

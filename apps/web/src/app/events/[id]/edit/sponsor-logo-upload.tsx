@@ -102,7 +102,7 @@ export function SponsorLogoUpload({ eventId, userId, currentUrl }: Props) {
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="border-border-base text-muted hover:border-primary hover:text-fg focus-visible:ring-primary flex w-full flex-col items-center gap-1 rounded-lg border-2 border-dashed py-5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
+          className="border-border-base text-muted hover:border-primary hover:text-fg focus-visible:ring-primary rounded-shape-sm flex w-full flex-col items-center gap-1 border-2 border-dashed py-5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
         >
           {uploading ? (
             <span className="text-sm">Uploading…</span>

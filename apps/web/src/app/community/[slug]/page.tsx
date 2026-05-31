@@ -304,7 +304,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         <p className="text-muted text-sm">Submitted by {detail.submitter.displayName}</p>
       </header>
 
-      <div className="border-border-base bg-surface space-y-1 rounded-lg border p-4">
+      <div className="border-border-base bg-surface rounded-shape-sm space-y-1 border p-4">
         <p className="text-fg text-sm font-semibold">When</p>
         <p className="text-sm">
           <LocalDateTime iso={startsAt} variant="eventDateLong" timeZone={detail.timeZone} /> at{' '}
@@ -350,7 +350,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         </section>
       )}
 
-      <section className="border-primary/40 bg-primary/5 space-y-3 rounded-lg border-2 p-4">
+      <section className="border-primary/40 bg-primary/5 rounded-shape-sm space-y-3 border-2 p-4">
         <p className="text-sm">
           RSVP and full details are on the external site ({hostLabel}). PickupVB doesn&rsquo;t
           handle signups for community listings.

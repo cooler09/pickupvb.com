@@ -246,7 +246,7 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
   }
 
   return (
-    <section className="border-border-base bg-fg/[0.02] space-y-3 rounded-lg border p-4">
+    <section className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
       <header className="flex items-center justify-between">
         <h2 className="text-fg text-base font-semibold">Manage divisions</h2>
         <span className="text-muted text-xs">{divisions.length} total</span>

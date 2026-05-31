@@ -67,7 +67,7 @@ export default async function GroupsIndexPage(props: {
         </button>
       </form>
       {groups.length === 0 ? (
-        <div className="border-border-base flex flex-col items-center gap-3 rounded-lg border border-dashed p-8 text-center">
+        <div className="border-border-base rounded-shape-sm flex flex-col items-center gap-3 border border-dashed p-8 text-center">
           <p className="text-fg text-sm font-medium">
             {q ? 'No groups match your search.' : 'No groups yet.'}
           </p>
@@ -87,7 +87,7 @@ export default async function GroupsIndexPage(props: {
             <li key={g.id}>
               <Link
                 href={`/groups/${g.slug}`}
-                className="border-border-base bg-surface hover:border-primary/40 flex items-start gap-3 rounded-lg border p-3"
+                className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-start gap-3 border p-3"
               >
                 {g.avatarUrl ? (
                   <Image

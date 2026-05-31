@@ -88,7 +88,7 @@ export default async function CommunityListingsPage(props: {
 
       <form
         method="get"
-        className="border-border-base bg-surface grid gap-3 rounded-lg border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+        className="border-border-base bg-surface rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
       >
         <label className="text-sm">
           <span className="text-muted block text-xs font-semibold tracking-wide uppercase">

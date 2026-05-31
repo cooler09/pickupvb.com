@@ -36,7 +36,7 @@ type Props = {
  */
 export function MemberRowItem({ groupId, member, isSelf, viewerIsOwner, returnPath }: Props) {
   return (
-    <li className="border-border-base bg-surface flex items-center gap-3 rounded-lg border p-3">
+    <li className="border-border-base bg-surface rounded-shape-sm flex items-center gap-3 border p-3">
       <Link
         href={`/players/${member.profile?.handle ?? member.userId}`}
         className="hover:text-primary flex-1 text-sm font-medium"

@@ -21,7 +21,7 @@ export function HostToolsSection({
 }) {
   if (!event.canManage) return null;
   return (
-    <details className="border-border-base group rounded-lg border p-3 open:p-4">
+    <details className="border-border-base group rounded-shape-sm border p-3 open:p-4">
       <summary className="text-fg cursor-pointer text-sm font-semibold select-none">
         Host tools
       </summary>

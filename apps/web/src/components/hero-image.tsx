@@ -17,12 +17,12 @@ export function HeroImage({ url, alt, priority = false }: Props) {
     return (
       <div
         aria-hidden="true"
-        className="from-primary/15 to-highlight/30 h-48 w-full rounded-xl bg-gradient-to-br"
+        className="from-primary/15 to-highlight/30 rounded-shape-md h-48 w-full bg-gradient-to-br"
       />
     );
   }
   return (
-    <div className="relative h-48 w-full overflow-hidden rounded-xl">
+    <div className="rounded-shape-md relative h-48 w-full overflow-hidden">
       <Image
         src={url}
         alt={alt}

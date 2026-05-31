@@ -22,7 +22,7 @@ import { HeroImage } from '@/components/hero-image';
 export const revalidate = 60;
 
 const PAST_EVENTS_PER_PAGE = 10;
-const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
+const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;

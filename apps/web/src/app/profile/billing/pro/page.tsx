@@ -57,29 +57,29 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       </header>
 
       {!isStripeConfigured() && (
-        <div className="border-border-base bg-surface rounded-lg border p-4 text-sm">
+        <div className="border-border-base bg-surface rounded-shape-sm border p-4 text-sm">
           Payments are not configured on this server.
         </div>
       )}
 
       {sp.status === 'success' && (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800">
+        <div className="rounded-shape-sm border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800">
           Thanks! Your subscription is being activated — it usually shows as active within a few
           seconds.
         </div>
       )}
       {sp.error === 'anonymous' && (
-        <div className="border-secondary bg-secondary/10 rounded-lg border p-4 text-sm">
+        <div className="border-secondary bg-secondary/10 rounded-shape-sm border p-4 text-sm">
           You need a permanent account (with email) to subscribe.
         </div>
       )}
       {sp.error === 'no_customer' && (
-        <div className="border-secondary bg-secondary/10 rounded-lg border p-4 text-sm">
+        <div className="border-secondary bg-secondary/10 rounded-shape-sm border p-4 text-sm">
           No subscription yet. Start one below.
         </div>
       )}
 
-      <section className="border-border-base rounded-lg border p-6">
+      <section className="border-border-base rounded-shape-sm border p-6">
         <h2 className="text-xl font-semibold">What you get</h2>
         <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm">
           <li>
@@ -121,7 +121,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       </section>
 
       {active && sub ? (
-        <section className="space-y-4 rounded-lg border border-emerald-300 bg-emerald-50/40 p-6">
+        <section className="rounded-shape-sm space-y-4 border border-emerald-300 bg-emerald-50/40 p-6">
           <div className="flex items-baseline justify-between">
             <h2 className="text-xl font-semibold">Pro {sub.plan ? `(${sub.plan})` : ''}</h2>
             <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white uppercase">
@@ -148,7 +148,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
         </section>
       ) : (
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <article className="border-border-base space-y-3 rounded-lg border p-6">
+          <article className="border-border-base rounded-shape-sm space-y-3 border p-6">
             <h2 className="text-lg font-semibold">Monthly</h2>
             <p className="text-3xl font-bold">
               ${PRO_MONTHLY_PRICE_USD}
@@ -164,7 +164,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
               </SubmitButton>
             </form>
           </article>
-          <article className="border-primary space-y-3 rounded-lg border-2 p-6">
+          <article className="border-primary rounded-shape-sm space-y-3 border-2 p-6">
             <h2 className="text-lg font-semibold">
               Yearly{' '}
               <span className="bg-primary/10 text-primary ml-1 rounded px-2 py-0.5 text-xs font-medium">

@@ -150,7 +150,7 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
         <div
           role="dialog"
           aria-label="Notifications"
-          className="border-border-base bg-surface absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border shadow-lg"
+          className="border-border-base bg-surface rounded-shape-sm absolute right-0 z-50 mt-2 w-80 overflow-hidden border shadow-lg"
         >
           <div className="border-border-base flex items-center justify-between border-b px-3 py-2">
             <span className="text-sm font-semibold">Notifications</span>

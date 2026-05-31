@@ -60,7 +60,7 @@ export function SetupView(props: {
           "Generate bracket". Put it above the fold with the readiness
           summary (team count, format) so they don't scroll past seeding to
           find it. Discard sits next to it as a secondary action. */}
-      <div className="border-primary/40 bg-primary/5 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
+      <div className="border-primary/40 bg-primary/5 rounded-shape-sm flex flex-wrap items-center justify-between gap-3 border p-4">
         <div className="space-y-0.5">
           <p className="text-fg text-sm font-semibold">
             {canGenerate ? 'Ready to generate' : 'Add a team to continue'}
@@ -89,7 +89,7 @@ export function SetupView(props: {
       </div>
 
       {(newlyAdded.length > 0 || droppedSeedCount > 0) && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+        <div className="rounded-shape-sm border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
           {newlyAdded.length > 0 && (
             <p>
               {newlyAdded.length} newly registered team
@@ -161,7 +161,7 @@ function SeedingForm(props: {
   return (
     <form
       action={seedBracketFromForm.bind(null, props.eventId, props.divisionId)}
-      className="border-border-base space-y-2 rounded-lg border p-4"
+      className="border-border-base rounded-shape-sm space-y-2 border p-4"
     >
       <h3 className="text-fg text-sm font-semibold">Seeding order</h3>
       <p className="text-muted text-xs">

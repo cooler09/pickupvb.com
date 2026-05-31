@@ -86,7 +86,7 @@ export default async function PlayersIndexPage(props: {
         </button>
       </form>
       {players.length === 0 ? (
-        <p className="border-border-base text-muted rounded-lg border border-dashed p-6 text-center text-sm">
+        <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-6 text-center text-sm">
           {hasFilter
             ? 'No players match those filters.'
             : 'No players yet — be the first to sign up.'}
@@ -97,7 +97,7 @@ export default async function PlayersIndexPage(props: {
             <li key={p.id}>
               <Link
                 href={`/players/${p.handle}`}
-                className="border-border-base bg-surface hover:border-primary/40 flex items-center gap-3 rounded-lg border p-3"
+                className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-center gap-3 border p-3"
               >
                 {p.avatarUrl ? (
                   <Image

@@ -15,7 +15,7 @@ type Props = {
  */
 export function ExtraMembersForm({ teamId, returnPath, value }: Props) {
   return (
-    <section className="border-border-base rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm border p-4">
       <h2 className="text-muted mb-1 text-sm font-semibold tracking-wide uppercase">
         Off-site players
       </h2>

@@ -78,12 +78,14 @@ export default function ToolsPage() {
               {t.href ? (
                 <Link
                   href={t.href}
-                  className="border-border-base hover:border-primary hover:bg-primary/5 block rounded-lg border p-4 transition-colors"
+                  className="border-border-base hover:border-primary hover:bg-primary/5 rounded-shape-sm block border p-4 transition-colors"
                 >
                   {inner}
                 </Link>
               ) : (
-                <div className="border-border-base rounded-lg border p-4 opacity-80">{inner}</div>
+                <div className="border-border-base rounded-shape-sm border p-4 opacity-80">
+                  {inner}
+                </div>
               )}
             </li>
           );

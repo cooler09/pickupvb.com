@@ -69,7 +69,7 @@ export function FreeAgentSignupPanel({
   const signupDivisions = divisions.filter((d) => d.allowFreeAgents);
 
   return (
-    <section className="border-border-base space-y-4 rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm space-y-4 border p-4">
       <header>
         <h2 className="text-fg text-lg font-semibold">Free agents</h2>
         <p className="text-muted text-sm">

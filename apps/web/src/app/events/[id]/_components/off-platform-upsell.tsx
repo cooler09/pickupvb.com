@@ -26,7 +26,7 @@ export function OffPlatformUpsell({
 }) {
   return (
     <aside
-      className="border-border-base bg-fg/5 rounded-lg border p-4"
+      className="border-border-base bg-fg/5 rounded-shape-sm border p-4"
       aria-label="Switch to on-platform payments"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

@@ -51,7 +51,7 @@ export function HostsSection({
   primaryHostUserSocial,
 }: Props) {
   return (
-    <section className="border-border-base space-y-2 rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm space-y-2 border p-4">
       <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Hosted by</h2>
       <ul className="flex flex-wrap gap-2">
         {primaryHostGroup && (

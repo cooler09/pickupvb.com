@@ -57,7 +57,7 @@ export function EventMetaSection({
   return (
     <section
       aria-label="Event details"
-      className="border-border-base bg-fg/[0.02] rounded-lg border p-4"
+      className="border-border-base bg-fg/[0.02] rounded-shape-sm border p-4"
     >
       <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-[max-content_1fr]">
         {seriesLabel && (

@@ -69,7 +69,7 @@ export function HeroImageUpload({ entityType, entityId, userId, currentUrl, onSa
   return (
     <div className="space-y-2">
       {url ? (
-        <div className="border-border-base overflow-hidden rounded-lg border">
+        <div className="border-border-base rounded-shape-sm overflow-hidden border">
           <div className="relative h-40 w-full">
             <Image src={url} alt="" fill className="object-cover" />
             {uploading && (
@@ -105,7 +105,7 @@ export function HeroImageUpload({ entityType, entityId, userId, currentUrl, onSa
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="border-border-base text-muted hover:border-primary hover:text-fg focus-visible:ring-primary flex w-full flex-col items-center gap-1 rounded-lg border-2 border-dashed py-6 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
+          className="border-border-base text-muted hover:border-primary hover:text-fg focus-visible:ring-primary rounded-shape-sm flex w-full flex-col items-center gap-1 border-2 border-dashed py-6 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60"
         >
           {uploading ? (
             <span className="text-sm">Uploading…</span>

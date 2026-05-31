@@ -57,7 +57,10 @@ export function EventFilterForm({
   const advancedActive = Boolean(ageGroup || teamComposition || seriesName || location);
 
   return (
-    <form method="get" className="border-border-base bg-surface space-y-3 rounded-lg border p-4">
+    <form
+      method="get"
+      className="border-border-base bg-surface rounded-shape-sm space-y-3 border p-4"
+    >
       {when !== 'upcoming' && <input type="hidden" name="when" value={when} />}
       {location && (
         <>

@@ -201,7 +201,7 @@ export default async function BracketWatchPage(props: {
       <BracketRealtimeRefresher divisionId={selectedDivision.id} bracketId={bracket?.id ?? null} />
 
       {(!bracket || bracket.status === 'setup') && (
-        <div className="border-border-base bg-bg rounded-lg border p-6 text-center">
+        <div className="border-border-base bg-bg rounded-shape-sm border p-6 text-center">
           <p className="text-fg/80 text-sm">
             {bracket
               ? 'Seeding is in progress. The bracket will appear here once the host generates it.'

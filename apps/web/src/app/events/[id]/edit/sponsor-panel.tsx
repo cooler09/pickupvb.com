@@ -41,7 +41,7 @@ export function SponsorPanel({
   const removeAction = removeSponsor.bind(null, eventId, returnPath);
 
   return (
-    <section className="border-border-base space-y-4 rounded-lg border p-4">
+    <section className="border-border-base rounded-shape-sm space-y-4 border p-4">
       <header className="space-y-1">
         <h2 className="text-fg text-lg font-semibold">Sponsor slot (Pro)</h2>
         <p className="text-muted text-sm">

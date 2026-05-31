@@ -87,7 +87,7 @@ export function BoardView(props: {
     return (
       <div
         id={`match-${String(m.id)}`}
-        className={`scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
+        className={`rounded-shape-sm scroll-mt-24 ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
       >
         <MatchCard
           eventId={props.eventId}
@@ -159,7 +159,7 @@ export function BoardView(props: {
       )}
 
       {isPoolPlay && poolPlayComplete && !playoffExists && (
-        <div className="border-primary/40 bg-primary/5 rounded-lg border p-3 text-sm">
+        <div className="border-primary/40 bg-primary/5 rounded-shape-sm border p-3 text-sm">
           {props.isHost ? (
             <form
               action={generatePlayoff.bind(null, props.eventId, props.divisionId)}
@@ -244,7 +244,7 @@ function PoolsView(props: {
                   <div
                     key={m.id}
                     id={`match-${String(m.id)}`}
-                    className={`min-w-55 scroll-mt-24 rounded-lg ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
+                    className={`rounded-shape-sm min-w-55 scroll-mt-24 ${isHighlighted ? 'ring-primary ring-2 ring-offset-2 ring-offset-transparent' : ''}`}
                   >
                     {canReorder && (
                       <ReorderControls

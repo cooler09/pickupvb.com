@@ -34,7 +34,7 @@ export function MatchCard(props: {
 
   return (
     <div
-      className={`rounded-lg border p-3 text-sm ${
+      className={`rounded-shape-sm border p-3 text-sm ${
         m.status === 'completed' ? 'border-green-500/30 bg-green-500/5' : 'border-border-base bg-bg'
       }`}
     >

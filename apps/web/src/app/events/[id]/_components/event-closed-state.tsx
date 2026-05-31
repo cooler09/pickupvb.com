@@ -26,7 +26,7 @@ export function EventClosedState({
   if (status === 'cancelled') {
     return (
       <section
-        className="border-secondary bg-secondary/10 text-fg rounded-lg border p-4 text-sm"
+        className="border-secondary bg-secondary/10 text-fg rounded-shape-sm border p-4 text-sm"
         role="status"
       >
         <p className="font-semibold">This event was cancelled.</p>
@@ -41,7 +41,7 @@ export function EventClosedState({
     const isTournament = eventType === 'tournament';
     return (
       <section
-        className="border-border-base bg-fg/5 space-y-2 rounded-lg border p-4 text-sm"
+        className="border-border-base bg-fg/5 rounded-shape-sm space-y-2 border p-4 text-sm"
         role="status"
       >
         <p className="text-fg font-semibold">

@@ -116,7 +116,7 @@ export default async function TeamsIndexPage(props: {
           </button>
         </form>
         {discoverTeams.length === 0 ? (
-          <div className="border-border-base flex flex-col items-center gap-3 rounded-lg border border-dashed p-8 text-center">
+          <div className="border-border-base rounded-shape-sm flex flex-col items-center gap-3 border border-dashed p-8 text-center">
             <p className="text-fg text-sm font-medium">
               {hasFilter ? 'No teams match those filters.' : 'No teams yet.'}
             </p>

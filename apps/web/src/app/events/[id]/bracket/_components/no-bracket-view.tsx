@@ -19,7 +19,7 @@ export function NoBracketView(props: {
   }
   const ready = props.teamCount >= 2;
   return (
-    <section className="border-border-base bg-fg/5 space-y-4 rounded-lg border p-4">
+    <section className="border-border-base bg-fg/5 rounded-shape-sm space-y-4 border p-4">
       <div className="space-y-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-fg text-lg font-semibold">Create bracket</h2>

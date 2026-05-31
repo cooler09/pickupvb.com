@@ -278,7 +278,7 @@ export function FormatPickerForm(props: {
               <label
                 key={f.value}
                 className={
-                  'relative block cursor-pointer rounded-lg border p-3 text-sm transition ' +
+                  'rounded-shape-sm relative block cursor-pointer border p-3 text-sm transition ' +
                   (selected
                     ? 'border-primary bg-primary/5 ring-primary/30 ring-2'
                     : 'border-border-base bg-bg hover:border-primary/40') +
@@ -534,7 +534,7 @@ export function FormatPickerForm(props: {
         </>
       )}
 
-      <div className="border-border-base bg-bg sticky bottom-2 z-10 flex flex-wrap items-center gap-3 rounded-lg border p-3 shadow-sm">
+      <div className="border-border-base bg-bg rounded-shape-sm sticky bottom-2 z-10 flex flex-wrap items-center gap-3 border p-3 shadow-sm">
         <SubmitButton
           disabled={props.teamCount < 2 || belowMin || poolPlayUnderfilled || fixedGamesInvalid}
           className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"

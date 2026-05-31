@@ -530,7 +530,7 @@ function WinnerOverlay({
 }) {
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="rounded-xl bg-white p-8 text-center text-black shadow-xl">
+      <div className="rounded-shape-md bg-white p-8 text-center text-black shadow-xl">
         <p className="text-xs font-semibold tracking-widest text-emerald-600 uppercase">
           Match won
         </p>
@@ -578,7 +578,7 @@ function ShareModal({
       onClick={onClose}
     >
       <div
-        className={`w-full max-w-lg rounded-xl ${surface} p-6 shadow-2xl`}
+        className={`rounded-shape-md w-full max-w-lg ${surface} p-6 shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold">Remote control link</h2>

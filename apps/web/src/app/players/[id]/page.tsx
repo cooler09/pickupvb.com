@@ -100,7 +100,7 @@ export default async function PlayerProfilePage(props: {
       <HeroImage url={profile.heroImageUrl} alt={name} priority />
 
       {/* ── Identity card ─────────────────────────────────────── */}
-      <header className="border-border-base bg-surface rounded-lg border p-5">
+      <header className="border-border-base bg-surface rounded-shape-sm border p-5">
         <div className="flex items-start gap-4">
           {profile.avatarUrl ? (
             <Image

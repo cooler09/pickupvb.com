@@ -18,7 +18,7 @@ export function DeleteGroupPanel({ groupId, groupName }: { groupId: string; grou
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
+    <div className="rounded-shape-sm border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
       <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">Delete group</h2>
       <p className="mt-1 text-xs text-red-900/80 dark:text-red-200/80">
         Hides <strong>{groupName}</strong> from every public surface. Members and follow history are

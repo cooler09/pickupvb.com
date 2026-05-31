@@ -25,7 +25,7 @@ export function FriendsList({
 }) {
   if (friends.length === 0) {
     return (
-      <p className="border-border-base text-muted rounded-lg border border-dashed p-4 text-sm">
+      <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-4 text-sm">
         You aren&apos;t following any players yet. Open any{' '}
         <Link href="/events" className="text-primary font-medium hover:underline">
           event
@@ -43,7 +43,7 @@ export function FriendsList({
         return (
           <li
             key={p.id}
-            className="border-border-base flex items-center gap-3 rounded-lg border px-3 py-2"
+            className="border-border-base rounded-shape-sm flex items-center gap-3 border px-3 py-2"
           >
             <Link
               href={`/players/${p.handle}`}

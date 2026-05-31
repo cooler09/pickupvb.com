@@ -178,7 +178,7 @@ export default async function EventDetailPage(props: {
         />
       </header>
 
-      <section className="border-border-base overflow-hidden rounded-lg border sm:grid sm:grid-cols-2">
+      <section className="border-border-base rounded-shape-sm overflow-hidden border sm:grid sm:grid-cols-2">
         <div className="sm:border-border-base p-4 sm:border-r">
           <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">When</h2>
           <p className="text-fg mt-1 font-medium">
@@ -258,7 +258,7 @@ export default async function EventDetailPage(props: {
       )}
 
       {event.type === 'tournament' && (
-        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
+        <section className="border-border-base bg-fg/5 rounded-shape-sm border p-4">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="text-fg text-base font-semibold">Bracket</h2>
@@ -274,7 +274,7 @@ export default async function EventDetailPage(props: {
       )}
 
       {event.type === 'league' && (
-        <section className="border-border-base bg-fg/5 rounded-lg border p-4">
+        <section className="border-border-base bg-fg/5 rounded-shape-sm border p-4">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="text-fg text-base font-semibold">Schedule</h2>

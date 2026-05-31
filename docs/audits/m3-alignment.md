@@ -1,5 +1,45 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
+> first value-preserving shape migration + a lock-eliminated shape
+> ratchet. **The 10-bundle arc (129–138) shipped every primitive and
+> token, but adoption stalled** — a re-audit of the call sites found the
+> app still ~95% on legacy ad-hoc styling. Snapshot (`apps/web/src`,
+> 2026-05-30): **401** raw palette utilities (`text-red-600`,
+> `bg-amber-100`…) vs 12 `md-` role utilities (P1 #1); **77** `text-Nxl`
+>
+> - 1181 `text-lg/sm/xs` vs 39 type-role usages (P1 #2); **132** ad-hoc
+>   `hover:bg-fg/N` / `hover:opacity-N` vs 12 `state-layer` (P2 #4); **53**
+>   `shadow-sm/lg/xl` vs 12 elevation utilities (P2 #5); **567** raw
+>   `rounded-*` vs 7 `rounded-shape-*` _before_ this bundle (P2 #7); **192**
+>   bare `<input>` vs 3 `<TextField>` (P2 #13); FAB on 1 page (P2 #10). The
+>   🟡 headers conflated "primitive shipped" with "adopted across app" — see
+>   the new [Adoption status](#adoption-status-2026-05-30) section for the
+>   corrected split and the go-forward strategy.
+>
+> **What shipped this bundle (P2 #7, value-preserving subset):** a
+> codemod of the _exact-pixel_ raw shape classes to the M3 shape scale —
+> `rounded-lg → rounded-shape-sm` (8 px), `rounded-xl → rounded-shape-md`
+> (12 px), `rounded-2xl → rounded-shape-lg` (16 px), plus form-modal's
+> directional `rounded-t-2xl → rounded-t-shape-lg` — **162 sites across
+> 88 files, zero visual change** (Tailwind v4 defaults make each a 1:1
+> pixel match). The dominant bucket `rounded-md` (405; Tailwind's 6 px
+> has **no** M3 token — `shape-sm` is 8 px, `shape-xs` is 4 px) and all
+> 53 `shadow-*` (M3 elevation is a deliberate two-layer key+ambient
+> shadow, visually distinct from Tailwind's presets) are **not**
+> value-preserving and were left for role-aware migration. New
+> **lock-eliminated ratchet** in
+> [eslint.config.mjs](../../apps/web/eslint.config.mjs):
+> `no-restricted-syntax` errors on re-introduced raw `rounded-lg/xl/2xl`
+> (matches className string literals + template elements as whole tokens;
+> `rounded-shape-*` and directional forms are not false-positives) so the
+> migration can't silently regress. The color / type / `rounded-md`
+> ratchets are **deferred to land with their migration** — erroring now
+> breaks the build, warning now floods lint with ~900 entries and buries
+> the 3 real pre-existing warnings. Verify 15/15 typecheck · lint 3
+> pre-existing warnings · 179+50 tests · 8/8 build. See
+> [Bundle 139 journal](../journal/2026-05-30-bundle-139.md).
+
 > **Status update (2026-05-28, Bundle 138):** System theme mode shipped
 > — **P3 #19 closed.** Three-way preference (`light | dark | system`)
 > stored in the existing `pvb-theme` cookie; the DB profile column
@@ -380,6 +420,70 @@ migrations driven by the per-component backlog below.
 
 ---
 
+## Adoption status (2026-05-30)
+
+The 10-bundle arc (129–138) is **complete as a primitive/token program**
+and **~5% complete as an adoption program.** The per-finding 🟡 headers
+mark "vocabulary shipped"; they do **not** mean the app consumes it. The
+gap, measured in `apps/web/src` on 2026-05-30:
+
+| Finding             | Legacy still in tree                 | M3 adopted                         | State                                 |
+| ------------------- | ------------------------------------ | ---------------------------------- | ------------------------------------- |
+| P1 #1 color roles   | 401 raw palette utils                | 12 `md-` roles                     | primitive only                        |
+| P1 #2 type scale    | 77 `text-Nxl` + 1181 `text-lg/sm/xs` | 39 type-role usages                | primitive only                        |
+| P1 #3 touch targets | —                                    | swept                              | **adopted**                           |
+| P2 #4 state layer   | 132 ad-hoc hovers                    | 12 `state-layer`                   | primitive only                        |
+| P2 #5 elevation     | 53 `shadow-*`                        | 12 `elevation-*`                   | primitive only                        |
+| P2 #7 shape         | 405 `rounded-md` (lg/xl/2xl now 0)   | 162 `rounded-shape-*`              | **exact-match subset adopted (B139)** |
+| P2 #8/#9/#11/#14    | —                                    | Toast / Dialog / BottomNav / Sheet | **adopted**                           |
+| P2 #10 FAB          | host / group / team pages            | 1 page (`/events`)                 | primitive + 1 site                    |
+| P2 #12 menu         | bell + host `<details>`              | NavDropdown                        | partial                               |
+| P2 #13 TextField    | 192 bare `<input>`                   | 3 sites                            | primitive + 3 sites                   |
+| P2 #15 density      | dense lists                          | 2 tables                           | primitive + 2 sites                   |
+
+**Why opportunistic migration stalled** (a strategy bug, not a
+discipline failure):
+
+1. **The compatibility aliases removed the forcing function.** Bundle
+   129 deliberately kept `--tw-color-*` pointing at the M3 roles so
+   everything renders identically. Right call for a zero-risk rollout —
+   but it means migrating a call site produces _zero visible change_, so
+   it never out-prioritizes feature work. The safety mechanism is itself
+   why adoption died.
+2. **Open question #5 was never resolved.** No lint guard forbade new
+   `text-Nxl` / raw palette colors / raw `rounded-*`, so the legacy
+   counts _grow_ with every feature — a losing race, not a slow win.
+   Bundle 139 starts closing this (shape ratchet).
+3. **🟡 hid the gap.** "8 bundles closed findings" reads as ~80% done;
+   it's ~80% of the _primitives_ and ~5% of the _adoption_.
+
+**Go-forward strategy (supersedes "migrate opportunistically"):**
+
+- **Stop the bleed first — ratchet behind migration.** Each finding
+  gets a `no-restricted-syntax` rule the moment its legacy count hits
+  zero (P2 #7's `rounded-lg/xl/2xl` rule landed in Bundle 139). A rule on
+  a category still heavily legacy either breaks the build (`error`) or
+  floods lint with ~900 warnings (`warn`) — so the ratchet _follows_ the
+  migration, it does not precede it.
+- **Value-preserving codemod for exact-pixel buckets.** Where a legacy
+  class maps 1:1 onto an M3 token (shape lg/xl/2xl in Bundle 139), a
+  scripted sweep is zero-visual-change and safe. Do it once per such
+  bucket, then ratchet.
+- **Defer the judgment-heavy migrations and be honest they're work.**
+  `rounded-md` (no exact token), all `shadow-*` (an M3 restyle), the
+  color roles (dark-mode correctness — the audit's _original_ motivation),
+  and the type scale require per-component decisions — the same effort
+  class as a feature. Prioritize them by _user-visible value_ (color →
+  dark mode; TextField → top-traffic forms; FAB → mobile host UX), not by
+  finding number, and treat `rounded-md` / elevation as opportunistic
+  unless a visual-review bundle is explicitly scheduled.
+- **The design-system goal is already banked.** Tokens + Toast / Dialog /
+  BottomNav / FAB / TextField / BottomSheet / density exist for _new_
+  work. Retrofitting 1,000+ legacy call sites is a separate, optional ROI
+  question — not a prerequisite for the audit's purpose.
+
+---
+
 ## P1 findings (ship-blocking design-system gaps)
 
 ### #1 No principled color system — ad-hoc Tailwind palette utilities mixed with brand tokens 🟡 Tokens shipped (2026-05-28, Bundle 129)
@@ -553,7 +657,7 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   in [globals.css](../../apps/web/src/app/globals.css) instead of
   per-keyframe (`match-flash` already does this — generalize).
 
-### #7 No shape scale — every container picks its own `rounded-*` 🟡 Tokens shipped (2026-05-28, Bundle 129)
+### #7 No shape scale — every container picks its own `rounded-*` 🟡 Tokens shipped (Bundle 129); exact-match `rounded-{lg,xl,2xl}` migrated + ratcheted (Bundle 139); `rounded-md` / `shadow-*` deferred
 
 - **Where:** `rounded-md` (`PrimaryButton`), `rounded-lg` (`FormModal`),
   `rounded-xl` (event cards on `/events`), `rounded-2xl` (hero panel),
@@ -564,6 +668,18 @@ inline-flex items-center justify-center` — 48 px = 12 × 4 px in
   chips → `full`. Document the mapping in
   [globals.css](../../apps/web/src/app/globals.css) so the next
   component author doesn't reinvent it.
+- **Migration status (Bundle 139):** the **value-preserving** raw classes
+  were codemodded to the M3 scale and are now ratcheted at `error` so
+  they can't return — `rounded-lg → rounded-shape-sm` (8 px),
+  `rounded-xl → rounded-shape-md` (12 px), `rounded-2xl → rounded-shape-lg`
+  (16 px), plus `rounded-t-2xl → rounded-t-shape-lg`. **Not yet migrated
+  (judgment, not a codemod):** `rounded-md` (405 sites; Tailwind's 6 px
+  has no exact M3 token, and the right target is role-dependent —
+  button → `sm`, card → `md`) and all 53 `shadow-*` (P2 #5; M3's
+  two-layer key+ambient elevation is a deliberate restyle, so it needs a
+  visual-review bundle, not a sed). `rounded-full` (68) stays as-is — it
+  is `shape-full`. See [Adoption status](#adoption-status-2026-05-30) for
+  the ratchet-behind-migration strategy.
 
 ### #8 Toast UX diverges from M3 Snackbar (queueing, action affordance, position)
 
@@ -825,6 +941,57 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Bundle 139 — Adoption reality-check + value-preserving shape migration (2026-05-30)
+
+Re-audit of the call sites after the 129–138 arc. The arc shipped every
+primitive and token; **adoption is ~5%.** Reframed the audit to separate
+"primitive shipped" from "adopted across app" (new
+[Adoption status](#adoption-status-2026-05-30) section + corrected 🟡
+semantics), recorded the go-forward strategy (ratchet-behind-migration,
+value-preserving codemod for exact-match buckets, defer judgment-heavy
+color / type / `rounded-md` / elevation), and landed the first
+value-preserving migration for **P2 #7**.
+
+**Files touched:**
+
+- **88 component/page files under
+  [apps/web/src](../../apps/web/src)** — value-preserving shape codemod
+  (null-delimited `xargs` + `perl -i`, whole-token word boundaries so
+  responsive prefixes like `sm:rounded-2xl` and the new `rounded-shape-*`
+  classes are handled / untouched correctly):
+  `rounded-lg → rounded-shape-sm` (8 px ≡ 8 px),
+  `rounded-xl → rounded-shape-md` (12 px ≡ 12 px),
+  `rounded-2xl → rounded-shape-lg` (16 px ≡ 16 px). **162 sites, zero
+  visual change.**
+- [apps/web/src/components/form-modal.tsx](../../apps/web/src/components/form-modal.tsx)
+  — directional `rounded-t-2xl → rounded-t-shape-lg` (16 px ≡ 16 px) for
+  the bottom-sheet top corners (Tailwind v4 generates the per-side
+  `rounded-t-shape-*` utilities from the `--radius-shape-*` theme keys).
+- [apps/web/eslint.config.mjs](../../apps/web/eslint.config.mjs) — new
+  `no-restricted-syntax` block (scoped `src/**/*.{ts,tsx}`) erroring on
+  re-introduced raw `rounded-lg/xl/2xl` in className string literals and
+  template-literal quasis. Whole-token regex
+  (`(?:^|[\s:])rounded-(?:lg|xl|2xl)(?![\w-])`) so `rounded-shape-*` and
+  directional forms are not false-positives. **Lock-eliminated only** —
+  the migrated classes are at 0, so the rule is green now and fails the
+  build the moment one returns.
+
+**Deliberately _not_ done** (each is a judgment migration, not a sed —
+flagged so the next agent doesn't blind-codemod them): `rounded-md` (405;
+6 px → no exact M3 token, role-dependent target), all 53 `shadow-*`
+(P2 #5; M3 two-layer elevation is a visual restyle), and the color (P1 #1)
+/ type-scale (P1 #2) ratchets (would break the build at `error` or flood
+lint with ~900 warnings at `warn` — they land _with_ their migration).
+
+**Findings updated:**
+
+- **P2 #7** → 🟡 exact-match subset migrated + ratcheted; `rounded-md` /
+  `shadow-*` deferred.
+
+**Verify:** 15/15 typecheck · lint 3 pre-existing warnings (the same
+`set-state-in-effect` trio; the shape ratchet adds 0) · 179+50 tests ·
+8/8 build.
 
 ### Bundle 138 — System theme mode (2026-05-28)
 

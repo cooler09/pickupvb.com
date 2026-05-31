@@ -76,10 +76,10 @@ export function FormModal({
   //             prefix.
   const positionClass =
     presentation === 'sheet'
-      ? 'md-sheet-motion fixed inset-x-0 bottom-0 w-full rounded-t-2xl pb-safe'
+      ? 'md-sheet-motion fixed inset-x-0 bottom-0 w-full rounded-t-shape-lg pb-safe'
       : presentation === 'auto'
-        ? `md-sheet-motion sm:md-dialog-motion fixed inset-x-0 bottom-0 w-full rounded-t-2xl pb-safe sm:inset-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:pb-0 ${widthClass}`
-        : `md-dialog-motion fixed top-1/2 left-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-2xl ${widthClass}`;
+        ? `md-sheet-motion sm:md-dialog-motion fixed inset-x-0 bottom-0 w-full rounded-t-shape-lg pb-safe sm:inset-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-shape-lg sm:pb-0 ${widthClass}`
+        : `md-dialog-motion fixed top-1/2 left-1/2 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-shape-lg ${widthClass}`;
 
   return (
     <RadixDialog.Root open={isOpen} onOpenChange={setIsOpen}>

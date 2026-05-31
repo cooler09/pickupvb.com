@@ -18,7 +18,8 @@ export type CapacityKind = 'unlimited' | 'fixed' | 'by_position';
 export const labelClass = 'block text-sm font-medium text-fg';
 export const inputClass =
   'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-export const cardClass = 'border-border-base bg-surface space-y-5 rounded-lg border p-5 sm:p-6';
+export const cardClass =
+  'border-border-base bg-surface space-y-5 rounded-shape-sm border p-5 sm:p-6';
 export const cardTitleClass = 'text-fg text-base font-semibold';
 export const cardSubClass = 'text-muted text-sm';
 
@@ -118,7 +119,7 @@ export function TypeCard({
   const checked = value === current;
   return (
     <label
-      className={`block cursor-pointer rounded-lg border p-4 transition-colors ${
+      className={`rounded-shape-sm block cursor-pointer border p-4 transition-colors ${
         checked
           ? 'border-primary bg-primary/5 ring-primary/30 ring-2'
           : 'border-border-base hover:bg-fg/5'

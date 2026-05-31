@@ -211,7 +211,7 @@ export default async function EarningsPage() {
       </div>
 
       {transactions.length === 0 ? (
-        <div className="border-border-base bg-surface text-muted rounded-lg border p-6 text-sm">
+        <div className="border-border-base bg-surface text-muted rounded-shape-sm border p-6 text-sm">
           No online ticket sales yet. When attendees pay for one of your events through PickupVB,
           the totals will show up here.
         </div>
@@ -219,7 +219,7 @@ export default async function EarningsPage() {
         <>
           {/* ── Totals ──────────────────────────────────────── */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="border-border-base bg-surface rounded-lg border p-4">
+            <div className="border-border-base bg-surface rounded-shape-sm border p-4">
               <p className="text-muted text-xs font-semibold tracking-wide uppercase">
                 {currentYear} estimated payout
               </p>
@@ -239,7 +239,7 @@ export default async function EarningsPage() {
                 </div>
               </dl>
             </div>
-            <div className="border-border-base bg-surface rounded-lg border p-4">
+            <div className="border-border-base bg-surface rounded-shape-sm border p-4">
               <p className="text-muted text-xs font-semibold tracking-wide uppercase">
                 All-time estimated payout
               </p>
@@ -267,7 +267,7 @@ export default async function EarningsPage() {
           </p>
 
           {/* ── By event (primary breakdown) ────────────────── */}
-          <section className="border-border-base bg-surface overflow-hidden rounded-lg border">
+          <section className="border-border-base bg-surface rounded-shape-sm overflow-hidden border">
             <div className="border-border-base border-b p-4">
               <h2 className="text-fg text-sm font-semibold">By event</h2>
               <p className="text-muted mt-0.5 text-xs">
@@ -330,7 +330,7 @@ export default async function EarningsPage() {
           {/* ── Monthly + statements ────────────────────────── */}
           <div className="grid gap-4 md:grid-cols-2">
             {months.length > 0 && (
-              <details className="group border-border-base bg-surface rounded-lg border" open>
+              <details className="group border-border-base bg-surface rounded-shape-sm border" open>
                 <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4">
                   <div>
                     <h2 className="text-fg text-sm font-semibold">{currentYear} by month</h2>
@@ -375,7 +375,7 @@ export default async function EarningsPage() {
             )}
 
             {yearsWithActivity.length > 0 && (
-              <section className="border-border-base bg-surface rounded-lg border p-4">
+              <section className="border-border-base bg-surface rounded-shape-sm border p-4">
                 <h2 className="text-fg text-sm font-semibold">Annual statements</h2>
                 <p className="text-muted mt-1 text-xs">
                   Per-year CSV of every paid signup. Good for taxes and bookkeeping.

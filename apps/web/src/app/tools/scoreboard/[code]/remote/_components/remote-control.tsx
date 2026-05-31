@@ -117,7 +117,7 @@ export function RemoteControl({ code, initialConfig }: Props) {
 
       {winner && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
-          <div className="rounded-xl bg-white p-6 text-center text-black shadow-xl">
+          <div className="rounded-shape-md bg-white p-6 text-center text-black shadow-xl">
             <p className="text-xs font-semibold tracking-widest text-emerald-600 uppercase">
               Match won
             </p>
@@ -170,7 +170,7 @@ function TeamRemote({
         <button
           type="button"
           onClick={onMinus}
-          className={`flex items-center justify-center rounded-xl border ${border} text-3xl font-bold`}
+          className={`rounded-shape-md flex items-center justify-center border ${border} text-3xl font-bold`}
           aria-label={`Subtract point from ${name}`}
         >
           −
@@ -178,7 +178,7 @@ function TeamRemote({
         <button
           type="button"
           onClick={onPlus}
-          className="flex items-center justify-center rounded-xl bg-emerald-500 text-3xl font-bold text-white"
+          className="rounded-shape-md flex items-center justify-center bg-emerald-500 text-3xl font-bold text-white"
           aria-label={`Add point to ${name}`}
         >
           +
@@ -189,7 +189,7 @@ function TeamRemote({
           <button
             type="button"
             onClick={onWinSet}
-            className="w-full rounded-xl bg-amber-500 py-3 text-sm font-bold tracking-widest text-black uppercase"
+            className="rounded-shape-md w-full bg-amber-500 py-3 text-sm font-bold tracking-widest text-black uppercase"
           >
             Set point — Win set
           </button>

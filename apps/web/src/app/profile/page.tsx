@@ -43,7 +43,7 @@ type ProfileRow = {
   website_url: string | null;
 };
 
-const cardClass = 'border-border-base bg-surface rounded-lg border p-5 sm:p-6';
+const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
@@ -191,7 +191,7 @@ export default async function ProfilePage() {
 
       {/* Action required */}
       {pendingInvites.length > 0 && (
-        <section className="space-y-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-5">
+        <section className="rounded-shape-sm space-y-3 border border-amber-500/40 bg-amber-500/5 p-5">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
               Pending team invites
@@ -256,7 +256,7 @@ export default async function ProfilePage() {
       </section>
 
       {/* Edit profile */}
-      <details className="group border-border-base bg-surface rounded-lg border">
+      <details className="group border-border-base bg-surface rounded-shape-sm border">
         <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
           <span>Edit profile</span>
           <span className="text-muted text-xs group-open:hidden">
@@ -331,8 +331,8 @@ function ActionTile({
       href={href}
       className={
         isPrimary
-          ? 'bg-primary text-primary-fg block rounded-lg p-4 transition hover:opacity-90'
-          : 'border-border-base bg-surface hover:border-primary/40 block rounded-lg border p-4 transition'
+          ? 'bg-primary text-primary-fg rounded-shape-sm block p-4 transition hover:opacity-90'
+          : 'border-border-base bg-surface hover:border-primary/40 rounded-shape-sm block border p-4 transition'
       }
     >
       <p className="text-sm font-semibold">{title}</p>
