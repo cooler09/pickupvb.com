@@ -16,7 +16,8 @@ export function escapeLike(value: string): string {
   return value.replace(/[%_]/g, (m) => `\\${m}`);
 }
 
-const CARD_COLUMNS = 'id, handle, display_name, home_city, avatar_url';
+const CARD_COLUMNS =
+  'id, handle, display_name, home_city, avatar_url, primary_position, secondary_position, tertiary_position';
 
 type CardRow = {
   id: string;
@@ -24,6 +25,9 @@ type CardRow = {
   display_name: string | null;
   home_city: string | null;
   avatar_url: string | null;
+  primary_position: string | null;
+  secondary_position: string | null;
+  tertiary_position: string | null;
 };
 
 function toCard(row: CardRow): ProfileCard {
@@ -33,6 +37,9 @@ function toCard(row: CardRow): ProfileCard {
     displayName: row.display_name ?? 'Player',
     homeCity: row.home_city,
     avatarUrl: row.avatar_url,
+    positions: [row.primary_position, row.secondary_position, row.tertiary_position].filter(
+      (p): p is string => Boolean(p),
+    ),
   };
 }
 

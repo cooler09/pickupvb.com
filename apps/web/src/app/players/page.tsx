@@ -4,6 +4,10 @@ import type { ProfileCard } from '@pickupvb/domain';
 import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { Pagination } from '@/components/pagination';
+import { POSITION_LABEL } from '@/lib/enum-labels';
+import { fieldInputClass } from '@/components/field-styles';
+import { primaryButtonClass } from '@/components/primary-button';
+import { PlayersFollowProvider, FollowButton } from './_components/players-follow';
 
 // Public listing; no viewer-specific state. Rendered with the sessionless
 // anon client so the route stays ISR-cacheable. Mutations elsewhere should
@@ -58,30 +62,29 @@ export default async function PlayersIndexPage(props: {
   return (
     <div className="mx-auto max-w-4xl space-y-6 py-4">
       <header>
-        <h1 className="text-2xl font-bold">Players</h1>
+        <h1 className="text-2xl font-bold">
+          Players <span className="text-muted text-base font-normal">· {total}</span>
+        </h1>
         <p className="text-muted text-sm">
           Find people to follow, add to your team, or invite to a group.
         </p>
       </header>
-      <form className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+      <form className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
         <input
           type="search"
           name="q"
           placeholder="Search by name…"
           defaultValue={q}
-          className="border-border-base bg-surface rounded-md border px-3 py-2 text-sm"
+          className={fieldInputClass}
         />
         <input
           type="search"
           name="city"
           placeholder="Home city"
           defaultValue={city}
-          className="border-border-base bg-surface rounded-md border px-3 py-2 text-sm"
+          className={fieldInputClass}
         />
-        <button
-          type="submit"
-          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-sm"
-        >
+        <button type="submit" className={primaryButtonClass()}>
           Search
         </button>
       </form>
@@ -92,12 +95,12 @@ export default async function PlayersIndexPage(props: {
             : 'No players yet — be the first to sign up.'}
         </p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {players.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/players/${p.handle}`}
-                className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-center gap-3 border p-3"
+        <PlayersFollowProvider playerIds={players.map((p) => p.id)}>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {players.map((p) => (
+              <li
+                key={p.id}
+                className="border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative flex items-center gap-3 border p-3 focus-within:ring-2"
               >
                 {p.avatarUrl ? (
                   <Image
@@ -105,7 +108,7 @@ export default async function PlayersIndexPage(props: {
                     alt=""
                     width={40}
                     height={40}
-                    className="h-10 w-10 rounded-full object-cover"
+                    className="h-10 w-10 shrink-0 rounded-full object-cover"
                   />
                 ) : (
                   <span
@@ -115,14 +118,35 @@ export default async function PlayersIndexPage(props: {
                     {initialsOf(p)}
                   </span>
                 )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{nameOf(p)}</p>
+                {/* Stretched link: the name covers the whole tile so the avatar,
+                    city, and position chips are all clickable; the Follow button
+                    (z-10) sits above the overlay and captures its own click. */}
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/players/${p.handle}`}
+                    className="hover:text-primary block truncate text-sm font-semibold after:absolute after:inset-0 focus-visible:outline-none"
+                  >
+                    {nameOf(p)}
+                  </Link>
                   {p.homeCity && <p className="text-muted truncate text-xs">{p.homeCity}</p>}
+                  {p.positions.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {p.positions.map((pos) => (
+                        <span
+                          key={pos}
+                          className="bg-fg/5 text-fg/80 rounded px-1.5 py-0.5 text-[11px]"
+                        >
+                          {POSITION_LABEL[pos] ?? pos}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                <FollowButton playerId={p.id} />
+              </li>
+            ))}
+          </ul>
+        </PlayersFollowProvider>
       )}
       <Pagination
         basePath="/players"

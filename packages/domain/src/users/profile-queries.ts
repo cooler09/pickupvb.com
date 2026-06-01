@@ -60,6 +60,12 @@ export interface ProfileCard {
   displayName: string;
   homeCity: string | null;
   avatarUrl: string | null;
+  /**
+   * Ordered playing positions (primary → tertiary), nulls dropped. The
+   * directory card's decision signal for "who plays what"; empty when the
+   * player hasn't set any. Sourced from `profiles_public`.
+   */
+  positions: string[];
 }
 
 export interface ProfileSearchQuery {
