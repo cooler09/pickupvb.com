@@ -10,6 +10,7 @@ import {
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import { NearMeButton } from './near-me-button';
+import { LocationSearch } from './location-search';
 import { Fab } from '@/components/fab';
 import { EventCard, isEventFree, type EventCardData } from './_components/event-card';
 import { CommunityListingCard } from '@/app/community/_components/community-listing-card';
@@ -319,9 +320,14 @@ export default async function EventsPage(props: {
           followingCount={friendIds.length}
           hrefFor={tabHref}
         />
-        <div className="ml-auto">
-          <NearMeButton />
-        </div>
+        {/* Location controls only apply to the search tabs — the Following
+            feed isn't location-scoped, so hide them there. */}
+        {when !== 'following' && (
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <LocationSearch />
+            <NearMeButton />
+          </div>
+        )}
       </div>
 
       <EventFilterForm

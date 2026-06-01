@@ -71,7 +71,7 @@ export function EventFilterForm({
   price,
   location,
 }: Props) {
-  const advancedActive = Boolean(ageGroup || teamComposition || seriesName || location);
+  const advancedActive = Boolean(ageGroup || teamComposition || seriesName);
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -161,6 +161,23 @@ export function EventFilterForm({
         )}
       </div>
 
+      {/* Radius is a primary control once a location is active (set via the
+          Near-me button or the City/ZIP search) — not buried under "More
+          filters" — since it's the main knob for widening/narrowing results. */}
+      {location && (
+        <label className="block text-sm sm:max-w-48">
+          <span className={labelClass}>Radius (km)</span>
+          <input
+            name="radiusKm"
+            type="number"
+            min={1}
+            max={500}
+            defaultValue={location.radiusKm}
+            className={selectClass}
+          />
+        </label>
+      )}
+
       <details className="group" {...(advancedActive ? { open: true } : {})}>
         <summary className="text-primary hover:bg-fg/5 flex w-fit cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs font-medium select-none">
           <span className="group-open:hidden">More filters</span>
@@ -216,19 +233,6 @@ export function EventFilterForm({
               className={selectClass}
             />
           </label>
-          {location && (
-            <label className="text-sm">
-              <span className={labelClass}>Radius (km)</span>
-              <input
-                name="radiusKm"
-                type="number"
-                min={1}
-                max={500}
-                defaultValue={location.radiusKm}
-                className={selectClass}
-              />
-            </label>
-          )}
         </div>
       </details>
 

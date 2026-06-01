@@ -34,7 +34,8 @@ This file is complementary to — not a duplicate of:
 > [2026-06-01-find-events-discovery-bundle.md](../journal/2026-06-01-find-events-discovery-bundle.md)
 > and [2026-06-01-following-feed-capacity.md](../journal/2026-06-01-following-feed-capacity.md).
 > A further follow-up closed **F-6** (Free/Paid filter, in-memory, migration-free).
-> Standing backlog: **F-7** (P2) and **F-9…F-13** (P3).
+> **F-7** (manual city/ZIP location + primary radius) also shipped 2026-06-01.
+> All P2s are now resolved. Standing backlog: **F-9…F-13** (P3 polish).
 >
 > Grounding fact that shaped grading: the `search_events` RPC **already projects
 > `priceCents`/`priceUnit` per division, `spotsRemaining`, `distanceKm`, and
@@ -179,17 +180,25 @@ on mobile that's a lot of scroll-to-content.
 
 ### C. Location (visitor / player)
 
-#### F-7 — Location is GPS-or-nothing; radius is buried · **P2** · open
+#### F-7 — Location is GPS-or-nothing; radius is buried · **P2** · ✅ resolved 2026-06-01
 
-"Near me" is a one-shot geolocation grab
-([near-me-button.tsx](../../apps/web/src/app/events/near-me-button.tsx)) with no
-manual fallback — deny the prompt or want another city and there's no ZIP/city
-input. Radius only appears **after** a location is set and is hidden inside
-"More filters"
-([event-filter-form.tsx#L197-L207](../../apps/web/src/app/events/_components/event-filter-form.tsx#L197-L207)).
-For a discovery page this is the weakest axis.
-**Fix:** add a city/ZIP text input beside "Near me" (geocode to lat/lng), and
-surface radius as a primary control whenever a location is active.
+"Near me" was a one-shot geolocation grab with no manual fallback — deny the
+prompt or want another city and there was no ZIP/city input. Radius only
+appeared **after** a location was set and was hidden inside "More filters".
+For a discovery page this was the weakest axis.
+**Fix (done):** added a **City/ZIP search** beside Near-me
+([location-search.tsx](../../apps/web/src/app/events/location-search.tsx) +
+[location-actions.ts](../../apps/web/src/app/events/location-actions.ts)),
+geocoding free text to lat/lng via the **existing** geocoder — new
+`geocodePlace(query)` in [geocode.ts](../../apps/web/src/lib/geocode.ts) reuses
+the MapTiler/Nominatim path (no new dependency, no migration). Both location
+controls are grouped and shown only on the search tabs (the Following feed
+isn't location-scoped). **Radius** moved out of "More filters" to a primary
+control that appears whenever a location is active
+([event-filter-form.tsx](../../apps/web/src/app/events/_components/event-filter-form.tsx)).
+_Not done (intentional, would be a separate finding): reverse-geocoding the
+active coords back to a place name in the chip / input (shows "Within N km",
+not the city)._
 
 ### D. Consistency / design-system polish
 
@@ -260,3 +269,17 @@ Journal: [2026-06-01-price-filter.md](../journal/2026-06-01-price-filter.md).
   `PRICES`/`PriceFilter`/`PRICE_FILTER_LABEL` in `event-filter-options.ts`;
   chip + removal wired through `ActiveFilterChips`.
 - _Price on the Following card still open_ (F-2 follow-up).
+
+### 2026-06-01 — Manual location + primary radius (F-7)
+
+Closed the last open P2. Migration-free, reuses the existing geocoder.
+Journal: [2026-06-01-manual-location.md](../journal/2026-06-01-manual-location.md).
+
+- **F-7 ✅** — `LocationSearch` (City/ZIP) beside Near-me geocodes free text via
+  the new `geocodePlace(query)` (extracted a shared `geocodeQuery` in
+  `geocode.ts`, reusing the MapTiler/Nominatim path) through a thin
+  `geocodePlaceAction`. Sets `lat`/`lng`/`radiusKm` and resets `page`, like
+  Near-me. Location controls grouped + gated to the search tabs. Radius promoted
+  from "More filters" to a primary control shown whenever a location is active.
+- _Reverse-geocoding coords → place name in the chip/input deferred_ (would be a
+  new, separate finding).
