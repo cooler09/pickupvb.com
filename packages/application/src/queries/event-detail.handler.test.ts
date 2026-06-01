@@ -30,6 +30,7 @@ function fakeRepo(meta: EventBracketMetaReadModel | null): EventReadModels {
     getDetail: async () => null as unknown as EventDetailReadModel,
     search: async (_q: EventSearchQuery) => [] as VolleyballEventSummary[],
     findIdByShortCode: async () => null,
+    listAttending: async () => [] as VolleyballEventSummary[],
   };
 }
 

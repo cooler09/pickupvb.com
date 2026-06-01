@@ -5,7 +5,7 @@ import type {
   VolleyballEventSummary,
 } from '@pickupvb/domain';
 import { NotFoundError, skillTierBand } from '@pickupvb/domain';
-import { GetEventByIdQuery, SearchEventsQuery } from '../messages';
+import { GetAttendingEventsQuery, GetEventByIdQuery, SearchEventsQuery } from '../messages';
 
 export class SearchEventsHandler {
   constructor(private readonly repo: EventReadModels) {}
@@ -17,6 +17,21 @@ export class SearchEventsHandler {
     }
     if (viewerId) query.viewerId = viewerId;
     return this.repo.search(query);
+  }
+}
+
+export class GetAttendingEventsHandler {
+  constructor(private readonly repo: EventReadModels) {}
+
+  execute({
+    viewerId,
+    startsAfter,
+    limit,
+  }: GetAttendingEventsQuery): Promise<VolleyballEventSummary[]> {
+    return this.repo.listAttending(viewerId, {
+      startsAfter,
+      ...(limit !== undefined ? { limit } : {}),
+    });
   }
 }
 

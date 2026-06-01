@@ -292,6 +292,19 @@ export class GetEventByIdQuery {
   constructor(public readonly id: string) {}
 }
 
+/**
+ * Upcoming events the viewer is attending (individual RSVP), for the profile
+ * hub's "Your events" section. `startsAfter` is passed in from the page
+ * boundary (usually "now") so the read side stays clock-free.
+ */
+export class GetAttendingEventsQuery {
+  constructor(
+    public readonly viewerId: string,
+    public readonly startsAfter: Date,
+    public readonly limit?: number,
+  ) {}
+}
+
 export class GetEventDetailQuery {
   constructor(
     public readonly id: string,

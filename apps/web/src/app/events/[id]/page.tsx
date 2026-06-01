@@ -165,7 +165,7 @@ export default async function EventDetailPage(props: {
           <OffPlatformUpsell eventId={event.id} returnPath={returnPath} />
         )}
 
-      <HeroImage url={heroImageUrl} alt={event.title} priority />
+      <HeroImage url={heroImageUrl} alt={event.title} surface={event.surface} priority />
 
       <header className="space-y-2">
         <EventHero

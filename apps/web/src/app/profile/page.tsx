@@ -4,6 +4,8 @@ import Image from 'next/image';
 import type { Route } from 'next';
 import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
+import { relativeEventDay } from '@/lib/date-formats';
+import { EventCard, type EventCardData } from '../events/_components/event-card';
 import { ProfileForm } from './profile-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
 import { AvatarPanel } from '@/components/avatar-panel';
@@ -17,8 +19,8 @@ import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-e
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 import { MyVideosSection } from './_components/my-videos-section';
 import { HandleEditor } from './_components/handle-editor';
-import { ListProfileMediaQuery } from '@pickupvb/application';
-import { getMediaHandlers } from '@/lib/handlers';
+import { GetAttendingEventsQuery, ListProfileMediaQuery } from '@pickupvb/application';
+import { getMediaHandlers, handlers } from '@/lib/handlers';
 import { ProBadge } from '@/components/pro-badge';
 import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
@@ -54,6 +56,8 @@ const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:
 
 const HOSTED_PER_PAGE = 8;
 const FOLLOWING_PER_PAGE = 24;
+// Rich event cards (thumbnails) — keep the per-page count modest.
+const ATTENDING_PER_PAGE = 6;
 // Videos are embedded players (iframes) — keep the per-page count low.
 const VIDEOS_PER_PAGE = 6;
 
@@ -72,6 +76,7 @@ export default async function ProfilePage(props: {
   const hpage = Math.max(1, Number.parseInt(searchParams.hpage ?? '1', 10) || 1);
   const fpage = Math.max(1, Number.parseInt(searchParams.fpage ?? '1', 10) || 1);
   const vpage = Math.max(1, Number.parseInt(searchParams.vpage ?? '1', 10) || 1);
+  const apage = Math.max(1, Number.parseInt(searchParams.apage ?? '1', 10) || 1);
 
   const { supabase, user } = await getCurrentUser();
   if (!user) redirect('/login?next=/profile');
@@ -112,10 +117,38 @@ export default async function ProfilePage(props: {
     user.id,
   );
 
+  const now = new Date();
   const hostedEvents = await loadVisibleHostedEvents(supabase, user.id, {
-    startsAfter: new Date(),
+    startsAfter: now,
   });
   const upcomingHosted = hostedEvents;
+
+  // Events the player has joined (individual RSVP) — the hub's "Your events"
+  // section. Rendered with the shared EventCard; degrades to an empty array on
+  // failure so the rest of the hub still renders.
+  const attendingSummaries = await handlers.getAttendingEvents
+    .execute(new GetAttendingEventsQuery(user.id, now))
+    .catch(() => []);
+  const attendingEvents: EventCardData[] = attendingSummaries.map((e) => ({
+    id: e.id,
+    title: e.title,
+    surface: e.surface,
+    skillLevel: e.skillLevel,
+    type: e.type,
+    startsAt: e.startsAt,
+    timeZone: e.timeZone,
+    city: e.city,
+    region: e.region,
+    heroImageUrl: e.heroImageUrl,
+    relativeDay: relativeEventDay(e.startsAt, e.timeZone, now),
+    spotsRemaining: e.spotsRemaining,
+    distanceKm: e.distanceKm,
+    seriesName: e.seriesName,
+    seriesPosition: e.seriesPosition,
+    seriesSize: e.seriesSize,
+    isFundraiser: e.isFundraiser,
+    divisions: e.divisions,
+  }));
   const [viewerIsPro, viewerIsAdmin] = await Promise.all([
     isPro(user.id),
     isPlatformAdmin(user.id),
@@ -252,6 +285,43 @@ export default async function ProfilePage(props: {
           </ul>
         </section>
       )}
+
+      {/* Your events (RSVPs) */}
+      <section id="your-events" className={cardClass}>
+        <SectionHeader
+          title="Your events"
+          count={attendingEvents.length}
+          countLabel="upcoming"
+          action={{ href: '/events', label: 'Find events' }}
+        />
+        <div className="mt-4 space-y-4">
+          {attendingEvents.length === 0 ? (
+            <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-4 text-sm">
+              You haven&apos;t joined any upcoming events.{' '}
+              <Link href={'/events' as Route} className="text-primary font-medium hover:underline">
+                Find one near you →
+              </Link>
+            </p>
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {attendingEvents
+                .slice((apage - 1) * ATTENDING_PER_PAGE, apage * ATTENDING_PER_PAGE)
+                .map((e) => (
+                  <EventCard key={e.id} event={e} />
+                ))}
+            </ul>
+          )}
+          <Pagination
+            basePath="/profile"
+            page={apage}
+            pageSize={ATTENDING_PER_PAGE}
+            total={attendingEvents.length}
+            searchParams={searchParams}
+            pageParam="apage"
+            scrollToId="your-events"
+          />
+        </div>
+      </section>
 
       {/* Hosting */}
       <section id="hosting" className={cardClass}>

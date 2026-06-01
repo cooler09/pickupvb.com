@@ -27,6 +27,7 @@ import {
   type EventDetailReadModel,
   type EventPosition,
   type EventRepository,
+  type EventSearchDivision,
   type EventSearchQuery,
   type VolleyballEventSummary,
 } from '@pickupvb/domain';
@@ -799,6 +800,168 @@ export class SupabaseEventRepository implements EventRepository {
       if (row.hero_image_url) map.set(row.id, row.hero_image_url);
     }
     return map;
+  }
+
+  async listAttending(
+    userId: string,
+    opts: { startsAfter?: Date; limit?: number } = {},
+  ): Promise<VolleyballEventSummary[]> {
+    // Events the user joined as an individual attendee. `event_participants` is
+    // keyed by `division_id`; the event id comes through the division join.
+    // Scoping to this user's own rows is the authorization here — RLS isn't
+    // relied on (the static repo runs on the admin client).
+    const { data: pRows, error: pErr } = await this.client
+      .from('event_participants')
+      .select('division:event_divisions!inner(event_id)')
+      .eq('user_id', userId)
+      .eq('role', 'attendee');
+    if (pErr) throw new Error(`listAttending participants failed: ${pErr.message}`);
+    type PRow = { division: { event_id: string } | null };
+    const eventIds = Array.from(
+      new Set(
+        ((pRows ?? []) as unknown as PRow[])
+          .map((r) => r.division?.event_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    );
+    if (eventIds.length === 0) return [];
+
+    // Upcoming events among them, soonest first. `events_view` gives the
+    // computed attendee_count (capacity badge) plus the scalar / series /
+    // fundraiser fields. format/gender/skill_level live on divisions now
+    // (ADR 0006 Phase 9c), so they're derived from the primary division below.
+    let q = this.client
+      .from('events_view')
+      .select(
+        'id, title, surface, type, starts_at, time_zone, city, region, attendee_count, hero_image_url, is_fundraiser, series_name, series_position, series_size, registration_mode',
+      )
+      .in('id', eventIds)
+      .order('starts_at', { ascending: true });
+    if (opts.startsAfter) q = q.gte('starts_at', opts.startsAfter.toISOString());
+    if (opts.limit) q = q.limit(opts.limit);
+    const { data: evData, error: evErr } = await q;
+    if (evErr) throw new Error(`listAttending events failed: ${evErr.message}`);
+    type EvRow = {
+      id: string;
+      title: string;
+      surface: Surface;
+      type: EventType;
+      starts_at: string;
+      time_zone: string | null;
+      city: string;
+      region: string;
+      attendee_count: number | null;
+      hero_image_url: string | null;
+      is_fundraiser: boolean | null;
+      series_name: string | null;
+      series_position: number | null;
+      series_size: number | null;
+      registration_mode: RegistrationMode | null;
+    };
+    const evRows = (evData ?? []) as unknown as EvRow[];
+    if (evRows.length === 0) return [];
+
+    // Hydrate the full divisions array (price chip + division-list chips) and
+    // the primary division (event-level format/gender/skill + capacity for the
+    // "spots left" badge) the same way `search`'s RPC projects them — read in
+    // JS to avoid altering the large `search_events` function (cf. F-13).
+    const divisionsByEvent = new Map<string, EventSearchDivision[]>();
+    const primaryByEvent = new Map<
+      string,
+      {
+        format: Format | null;
+        gender: Gender | null;
+        skillTier: SkillTier;
+        capacityKind: 'fixed' | 'unlimited' | null;
+        maxSpots: number | null;
+      }
+    >();
+    const { data: dRows, error: dErr } = await this.client
+      .from('event_divisions')
+      .select(
+        'event_id, id, sort_order, label, surface, format, gender, skill_tier, tier_label, age_group, team_composition, capacity_kind, max_spots, price_cents, price_unit',
+      )
+      .in(
+        'event_id',
+        evRows.map((r) => r.id),
+      )
+      .order('sort_order', { ascending: true });
+    if (dErr) throw new Error(`listAttending divisions failed: ${dErr.message}`);
+    type DRow = {
+      event_id: string;
+      id: string;
+      sort_order: number;
+      label: string;
+      surface: Surface;
+      format: Format | null;
+      gender: Gender | null;
+      skill_tier: SkillTier;
+      tier_label: string | null;
+      age_group: AgeGroup;
+      team_composition: TeamComposition;
+      capacity_kind: 'fixed' | 'unlimited' | null;
+      max_spots: number | null;
+      price_cents: number | null;
+      price_unit: PriceUnit;
+    };
+    for (const d of (dRows ?? []) as DRow[]) {
+      const arr = divisionsByEvent.get(d.event_id) ?? [];
+      arr.push({
+        id: d.id,
+        label: d.label,
+        surface: d.surface,
+        format: d.format,
+        gender: d.gender,
+        skillTier: d.skill_tier,
+        tierLabel: d.tier_label,
+        ageGroup: d.age_group,
+        teamComposition: d.team_composition,
+        priceCents: d.price_cents,
+        priceUnit: d.price_unit,
+      });
+      divisionsByEvent.set(d.event_id, arr);
+      if (!primaryByEvent.has(d.event_id)) {
+        primaryByEvent.set(d.event_id, {
+          format: d.format,
+          gender: d.gender,
+          skillTier: d.skill_tier,
+          capacityKind: d.capacity_kind,
+          maxSpots: d.max_spots,
+        });
+      }
+    }
+
+    return evRows.map((r) => {
+      const primary = primaryByEvent.get(r.id);
+      const spotsRemaining =
+        primary && primary.capacityKind === 'fixed' && primary.maxSpots !== null
+          ? primary.maxSpots - (r.attendee_count ?? 0)
+          : null;
+      return {
+        id: r.id,
+        title: r.title,
+        surface: r.surface,
+        format: primary?.format ?? null,
+        gender: primary?.gender ?? null,
+        skillLevel: primary
+          ? (skillTierBand(primary.skillTier) as SkillLevel)
+          : SkillLevel.Intermediate,
+        type: r.type,
+        startsAt: new Date(r.starts_at),
+        timeZone: r.time_zone,
+        city: r.city,
+        region: r.region,
+        spotsRemaining,
+        distanceKm: null,
+        seriesName: r.series_name,
+        seriesPosition: r.series_position,
+        seriesSize: r.series_size,
+        isFundraiser: r.is_fundraiser ?? false,
+        registrationMode: r.registration_mode ?? RegistrationMode.Platform,
+        heroImageUrl: r.hero_image_url,
+        divisions: divisionsByEvent.get(r.id) ?? [],
+      };
+    });
   }
 
   // ----- Read-side: detail page -----------------------------------------
