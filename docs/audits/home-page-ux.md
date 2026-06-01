@@ -197,10 +197,14 @@ The hero, "What you can do" Host card, and host-pitch CTAs
 [#L253](../../apps/web/src/app/page.tsx#L253)) route `is_anonymous` users
 straight to `/events/new`, where the submit action rejects them
 ([events/new/actions.ts#L46-L49](../../apps/web/src/app/events/new/actions.ts#L46-L49))
-— a mid-form wall. This is **already** documented as persona-ux **V-4** (P3,
-open), which names the homepage explicitly. Listed here for completeness; the fix
-(gate host entry points on `is_anonymous` → `/claim?next=/events/new`) lives with
-V-4. **Not re-graded.**
+— a mid-form wall. This is documented as persona-ux **V-4**, which names the
+homepage explicitly. **Not re-graded here.**
+
+**Resolved via V-4 (2026-06-01):** `/events/new` now redirects anonymous users to
+`/claim?next=/events/new` (mirroring `/teams/new`). Since all three home host
+CTAs funnel there, an anon user who taps them lands on the claim flow instead of
+the bare form — no home-local change was needed. See persona-ux V-4 + journal
+[2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
 
 #### H-6 — A returning signed-in player sees the visitor's marketing page · **P3** (optional / product call)
 

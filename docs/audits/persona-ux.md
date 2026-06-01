@@ -1,6 +1,6 @@
 # Persona UX / UI Audit
 
-_Last updated: 2026-05-31_
+_Last updated: 2026-06-01_
 
 Site-wide UX/UI audit through two lenses the existing audits don't cover head-on:
 
@@ -193,18 +193,33 @@ instead of `TextField` + `primaryButtonClass`, and is one of the 4-space-indent
 outliers. **Fix:** adopt `TextField` (email/password) + `primaryButtonClass('md')`
 for the submit; let the `GoogleButton` stay as-is.
 
-#### V-4 — Anonymous users are funneled into host depth with no claim nudge · **P3**
+#### V-4 — Anonymous users are funneled into host depth with no claim nudge · **P3** · ✅ resolved 2026-06-01
 
-`/events/new` only guards `if (!user)`
+`/events/new` only guarded `if (!user)`
 ([events/new/page.tsx#L31-L33](../../apps/web/src/app/events/new/page.tsx#L31-L33)),
-so an `is_anonymous` user is shown the full create-event form — and the home page
+so an `is_anonymous` user was shown the full create-event form — and the home page
 ([page.tsx#L161](../../apps/web/src/app/page.tsx#L161)), events header
 ([events/page.tsx#L251](../../apps/web/src/app/events/page.tsx#L251)), and Host
 nav dropdown all surface "Host an event" to them (the checks use `user`, which is
 truthy for anon). Hosting needs a claimed account + Stripe payout to be useful,
-so anon hosts hit a wall mid-form. **Fix:** on host entry points, detect
-`is_anonymous` and route to `/claim?next=/events/new` (or show an inline "finish
-your account to host" gate) rather than the bare form.
+so anon hosts hit a wall mid-form.
+
+**Fix (done):** added a page-level gate to
+[events/new/page.tsx](../../apps/web/src/app/events/new/page.tsx) —
+`if (isAnonymousUser(user)) redirect('/claim?next=/events/new')` — directly
+mirroring the existing gate on
+[teams/new/page.tsx](../../apps/web/src/app/teams/new/page.tsx). Because **every**
+entry point named above funnels to `/events/new`, this single gate routes anon
+users from all of them (home CTAs, events header, profile "Host an event" tile
+[PR-6], the Host nav dropdown, and direct URLs) to the claim flow instead of the
+bare form — matching the house convention, where `/teams/new`'s own entry CTAs
+likewise link straight through and rely on the gate. The submit action
+([events/new/actions.ts#L46](../../apps/web/src/app/events/new/actions.ts#L46))
+already rejected anon as a backstop, so this is the matching UX gate.
+_Known limitation (shared with `/teams/new`, pre-existing, not introduced here):
+the claim email-confirmation flow redirects to `/reset-password?from=claim` and
+does **not** propagate `?next=`, so the user isn't auto-returned to `/events/new`
+after claiming — see Follow-ups._
 
 ---
 
@@ -385,6 +400,22 @@ Implemented this pass (verify chain green: typecheck / lint / 621 tests / build)
   recipe a lint error — no exceptions, since the sweep hit zero. Verified clean
   tree passes + probe fires. AGENTS.md pattern 11 already covers the convention.
 
+### 2026-06-01 — V-4 anon→claim host gate
+
+- **V-4 — fixed.** [events/new/page.tsx](../../apps/web/src/app/events/new/page.tsx)
+  now gates anonymous users with
+  `if (isAnonymousUser(user)) redirect('/claim?next=/events/new')`, directly
+  mirroring the existing gate on
+  [teams/new/page.tsx](../../apps/web/src/app/teams/new/page.tsx). Because every
+  host entry point (home CTAs, events header, profile "Host an event" tile [PR-6],
+  the Host nav dropdown, direct URLs) funnels to `/events/new`, this single
+  page-level gate routes anon users from all of them to the claim flow — matching
+  the house convention, where `/teams/new`'s own entry CTAs link straight through
+  and rely on the gate. The submit action already rejected anon as a backstop.
+  Closes the profile-hub audit's **PR-6** and the home audit's **H-5** cross-refs.
+  Journal:
+  [2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2:** V-2/V-3 (login page field primitives — its inputs still bypass
@@ -394,12 +425,18 @@ Implemented this pass (verify chain green: typecheck / lint / 621 tests / build)
   ratchet-locked._
 - **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
   `primaryButtonClass` emits `text-primary-fg`; re-measure), CC-5/H-2 (FormModal
-  conversion — also in events-page-ux.md), V-4 (anon→claim host gate), P-2
+  conversion — also in events-page-ux.md), P-2
   (StatusPill primitive), H-3 (row-action tap targets), secondary/outlined-button
   convergence (the `border-border-base hover:bg-fg/5` pattern → `secondaryButtonClass`,
   a separate fuzzier set not covered by the CC-1 ratchet).
 - **New primitive worth adding:** an `errorButtonClass`/`destructiveButtonClass`
   in `primary-button.tsx` so destructive confirms stop hand-rolling `bg-red-600`.
+- **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim
+  email-confirmation flow ([claim/actions.ts#L88-L90](../../apps/web/src/app/claim/actions.ts#L88-L90))
+  hardcodes the post-confirmation redirect to `/reset-password?from=claim` and
+  drops the `?next=` from the `/claim` URL, so neither the V-4 host gate nor the
+  `/teams/new` gate auto-returns the user to where they were headed. Thread `next`
+  through `emailRedirectTo` (and `/auth/callback`) to honor it. Affects both gates.
 
 ---
 

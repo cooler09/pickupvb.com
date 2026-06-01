@@ -211,9 +211,15 @@ An `is_anonymous` user passes the `if (!user) redirect(...)` guard
 ([page.tsx#L77](../../apps/web/src/app/profile/page.tsx#L77)) and sees the entire
 hub, including "Host an event" and "Payouts & Stripe." The site-wide anon→claim
 banner (nav) is the current mitigation, but the hub itself surfaces host/payment
-depth to a user who can't use it. Same theme as persona-ux **V-4** (P3, open).
-**Not re-graded** — optionally gate the host/payout quick actions on
-`!isAnonymous` here when V-4 is addressed.
+depth to a user who can't use it. Same theme as persona-ux **V-4**.
+
+**Resolved via V-4 (2026-06-01):** the profile hub's "Host an event" tile (like
+every host entry point) funnels to `/events/new`, which now redirects anonymous
+users to `/claim?next=/events/new` — so the tile no longer drops an anon user
+into the bare create-event form. The "Payouts & Stripe" tile is already gated on
+`isHost` (PR-2), and an anon user has no Stripe account, so it doesn't show. No
+profile-local change was needed. See persona-ux V-4 + journal
+[2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
 
 ---
 
