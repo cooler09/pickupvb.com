@@ -2448,6 +2448,8 @@ export type Database = {
           handle: string;
           hero_image_url: string | null;
           home_city: string | null;
+          latitude: number | null;
+          longitude: number | null;
           id: string;
           instagram_handle: string | null;
           is_platform_admin: boolean;
@@ -2478,6 +2480,8 @@ export type Database = {
           handle: string;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id: string;
           instagram_handle?: string | null;
           is_platform_admin?: boolean;
@@ -2508,6 +2512,8 @@ export type Database = {
           handle?: string;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id?: string;
           instagram_handle?: string | null;
           is_platform_admin?: boolean;
@@ -3078,6 +3084,8 @@ export type Database = {
           handle: string | null;
           hero_image_url: string | null;
           home_city: string | null;
+          latitude: number | null;
+          longitude: number | null;
           id: string | null;
           instagram_handle: string | null;
           primary_position: string | null;
@@ -3098,6 +3106,8 @@ export type Database = {
           handle?: string | null;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id?: string | null;
           instagram_handle?: string | null;
           primary_position?: string | null;
@@ -3118,6 +3128,8 @@ export type Database = {
           handle?: string | null;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id?: string | null;
           instagram_handle?: string | null;
           primary_position?: string | null;

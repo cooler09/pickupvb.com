@@ -13,7 +13,7 @@ import { geocodePlaceAction } from './location-actions';
  * fallback when the user denies geolocation or wants to browse another city).
  * Preserves the active filters in the URL, like Near-me, and resets pagination.
  */
-export function LocationSearch() {
+export function LocationSearch({ basePath = '/events' }: { basePath?: Route } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, start] = useTransition();
@@ -39,7 +39,7 @@ export function LocationSearch() {
       params.set('lng', res.longitude.toFixed(6));
       if (!params.get('radiusKm')) params.set('radiusKm', '40');
       params.delete('page');
-      router.push(`/events?${params.toString()}` as Route);
+      router.push(`${basePath}?${params.toString()}` as Route);
     });
   }
 

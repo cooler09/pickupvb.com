@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { Route } from 'next';
 import type { ProfileCard } from '@pickupvb/domain';
 import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
@@ -8,6 +9,8 @@ import { POSITION_LABEL } from '@/lib/enum-labels';
 import { fieldInputClass } from '@/components/field-styles';
 import { primaryButtonClass } from '@/components/primary-button';
 import { PlayersFollowProvider, FollowButton } from './_components/players-follow';
+import { NearMeButton } from '../events/near-me-button';
+import { LocationSearch } from '../events/location-search';
 
 // Public listing; no viewer-specific state. Rendered with the sessionless
 // anon client so the route stays ISR-cacheable. Mutations elsewhere should
@@ -43,21 +46,31 @@ function initialsOf(p: ProfileCard): string {
 }
 
 export default async function PlayersIndexPage(props: {
-  searchParams: Promise<{ q?: string; city?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    lat?: string;
+    lng?: string;
+    radiusKm?: string;
+    page?: string;
+  }>;
 }) {
   const searchParams = await props.searchParams;
   const q = (searchParams.q ?? '').trim();
-  const city = (searchParams.city ?? '').trim();
+  const lat = Number.parseFloat(searchParams.lat ?? '');
+  const lng = Number.parseFloat(searchParams.lng ?? '');
+  const radiusKm = Number.parseFloat(searchParams.radiusKm ?? '') || 40;
+  const hasLocation = Number.isFinite(lat) && Number.isFinite(lng);
   const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
 
   const profiles = new SupabaseProfileRepository(createSupabaseAnonClient());
   const { cards: players, total } = await profiles.searchDirectory({
     ...(q ? { nameLike: q } : {}),
-    ...(city ? { cityLike: city } : {}),
+    ...(hasLocation ? { near: { latitude: lat, longitude: lng, radiusKm } } : {}),
     limit: PAGE_SIZE,
     offset: (pageNum - 1) * PAGE_SIZE,
   });
-  const hasFilter = q.length > 0 || city.length > 0;
+  const hasFilter = q.length > 0 || hasLocation;
+  const clearLocationHref = (q ? `/players?q=${encodeURIComponent(q)}` : '/players') as Route;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 py-4">
@@ -69,25 +82,39 @@ export default async function PlayersIndexPage(props: {
           Find people to follow, add to your team, or invite to a group.
         </p>
       </header>
-      <form className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
-        <input
-          type="search"
-          name="q"
-          placeholder="Search by name…"
-          defaultValue={q}
-          className={fieldInputClass}
-        />
-        <input
-          type="search"
-          name="city"
-          placeholder="Home city"
-          defaultValue={city}
-          className={fieldInputClass}
-        />
-        <button type="submit" className={primaryButtonClass()}>
-          Search
-        </button>
-      </form>
+      <div className="flex flex-wrap items-center gap-2">
+        <form className="flex flex-1 items-center gap-2">
+          <input
+            type="search"
+            name="q"
+            placeholder="Search by name…"
+            defaultValue={q}
+            className={`${fieldInputClass} flex-1`}
+          />
+          {/* Preserve an active location across a name search (the GET form
+              only submits its own fields). */}
+          {hasLocation && (
+            <>
+              <input type="hidden" name="lat" value={lat} />
+              <input type="hidden" name="lng" value={lng} />
+              <input type="hidden" name="radiusKm" value={radiusKm} />
+            </>
+          )}
+          <button type="submit" className={primaryButtonClass()}>
+            Search
+          </button>
+        </form>
+        <LocationSearch basePath="/players" />
+        <NearMeButton basePath="/players" />
+      </div>
+      {hasLocation && (
+        <p className="text-muted text-xs">
+          Showing players within {radiusKm} km of your location ·{' '}
+          <Link href={clearLocationHref} className="text-primary hover:underline">
+            Clear
+          </Link>
+        </p>
+      )}
       {players.length === 0 ? (
         <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-6 text-center text-sm">
           {hasFilter
@@ -128,7 +155,14 @@ export default async function PlayersIndexPage(props: {
                   >
                     {nameOf(p)}
                   </Link>
-                  {p.homeCity && <p className="text-muted truncate text-xs">{p.homeCity}</p>}
+                  {(p.homeCity || p.distanceKm != null) && (
+                    <p className="text-muted truncate text-xs">
+                      {p.homeCity}
+                      {p.distanceKm != null
+                        ? `${p.homeCity ? ' · ' : ''}${Math.round(p.distanceKm)} km away`
+                        : ''}
+                    </p>
+                  )}
                   {p.positions.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
                       {p.positions.map((pos) => (

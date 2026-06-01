@@ -8,6 +8,7 @@ import { isPosition, type Position } from '@/lib/enum-labels';
 import { normalizeHandle, normalizeWebsiteUrl } from '@/lib/social-handles';
 import { requireSession } from '@/lib/server-auth';
 import { getUserProfileHandlers } from '@/lib/handlers';
+import { geocodePlace } from '@/lib/geocode';
 
 export type ProfileFormState = {
   error: string | null;
@@ -24,7 +25,7 @@ export async function updateProfile(
   _prev: ProfileFormState,
   formData: FormData,
 ): Promise<ProfileFormState> {
-  const { user } = await requireSession();
+  const { supabase, user } = await requireSession();
 
   const firstName = fieldOrNull(formData, 'first_name', 60);
   const lastName = fieldOrNull(formData, 'last_name', 60);
@@ -85,6 +86,19 @@ export async function updateProfile(
     if (err instanceof NotFoundError) return { error: 'Profile not found.', success: false };
     throw err;
   }
+
+  // Geocode the home city → lat/lng for player "near me" discovery (PL-5).
+  // Derived/cosmetic, so written directly here (like theme/hero/avatar, not
+  // through the profile aggregate) and best-effort: a geocode miss or a cleared
+  // city just nulls the coords, so the player drops out of proximity results.
+  let coords: { latitude: number; longitude: number } | null = null;
+  if (homeCity) {
+    coords = await geocodePlace(homeCity).catch(() => null);
+  }
+  await supabase
+    .from('profiles')
+    .update({ latitude: coords?.latitude ?? null, longitude: coords?.longitude ?? null })
+    .eq('id', user.id);
 
   revalidatePath('/profile');
   revalidatePath('/', 'layout');

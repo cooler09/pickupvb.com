@@ -6,7 +6,7 @@ import type { Route } from 'next';
 import { useToast } from '@/components/toast';
 import { secondaryButtonClass } from '@/components/primary-button';
 
-export function NearMeButton() {
+export function NearMeButton({ basePath = '/events' }: { basePath?: Route } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, start] = useTransition();
@@ -24,7 +24,7 @@ export function NearMeButton() {
         params.set('lng', pos.coords.longitude.toFixed(6));
         if (!params.get('radiusKm')) params.set('radiusKm', '40');
         params.delete('page');
-        start(() => router.push(`/events?${params.toString()}` as Route));
+        start(() => router.push(`${basePath}?${params.toString()}` as Route));
       },
       (err) =>
         show({
