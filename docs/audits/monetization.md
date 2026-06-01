@@ -12,6 +12,128 @@ signal; P3 = opportunistic / post-product-market-fit.
 
 ---
 
+## Status — 2026-05-31 — Re-evaluation (post chat / media / live-scoring / MapTiler)
+
+**Trigger:** a week of feature shipping since the 2026-05-24 audit — chat /
+messaging ([ADR 0028](../adr/0028-chat-messaging.md)), event + profile media
+([ADR 0024](../adr/0024-event-and-profile-media.md)), avatars / profile
+pictures, broadcast notifications ([ADR 0027](../adr/0027-realtime-broadcast-notifications.md)),
+standalone brackets ([ADR 0025](../adr/0025-standalone-brackets.md)), and the
+MapTiler cutover ([TPI-1/3](third-party-integrations.md)) — changed the **cost**
+side of the ledger without adding revenue. Re-evaluated against the user ask:
+cover server + third-party costs and turn a profit **without** taxing the
+community.
+
+### Headline
+
+- **Every feature shipped since 2026-05-24 is a cost center, not a revenue
+  center.** Chat, media galleries, avatars, live scores, broadcast
+  notifications, and MapTiler are engagement / retention / community plays.
+  That's the right call — but it means the revenue engine (Pro + take-rate +
+  host sponsor slot) now covers a **bigger base**.
+- **The engine itself is sound and doesn't need re-pricing.**
+  [ADR 0014](../adr/0014-monetization-strategy.md) locks $10/mo + 5%/2.5%
+  pre-launch with measurable revisit triggers; nothing here argues to move
+  those levers. The lever to pull is **Pro conversion**, not Pro price.
+- **The single highest-ROI move is already designed and unbuilt:** ship live
+  match scoring ([ADR 0023](../adr/0023-live-match-scoring.md), Proposed) as
+  the next Pro perk. It earns $10 for the tournament / league serial host —
+  the exact archetype Pro targets — and draws the monetization line where ADR
+  0014 says it belongs (manual scoring free for everyone; the live,
+  match-bound, auto-saving scoreboard is Pro).
+
+### Revised cost floor
+
+The 2026-05-24 floor (~$70–110/mo pre-Twilio) predates three new cost
+surfaces:
+
+| New since 2026-05-24                                                                        | Cost driver                                                                                                                                                                                                                          | Posture                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MapTiler** (geocoding + tiles, [integrations.md § MapTiler](../integrations.md#maptiler)) | Per-request: autocomplete on every event-create + tiles on every event-detail map. Free tier (~100k tile loads/mo) is fine at 2–3 metros; paid (~$25–30/mo) once tiles / geocoding scale.                                            | Pure infra — covered by blended take-rate + Pro, **not** a new paywall.                                                                                                           |
+| **Supabase Realtime** (chat DMs / rooms, live scores, broadcast bell)                       | Concurrent peak connections (= active tabs) + messages/mo. Named the "single biggest concurrent-connection + cost lever" in [TPI-7](third-party-integrations.md). Within Pro's ~500-conn / 5M-msg base at launch; usage-based after. | Absorbed by Supabase Pro base until scale. Watch concurrent-conn growth as chat adoption rises.                                                                                   |
+| **Supabase Storage + egress** (media, avatars, chat attachments, sponsor logos, hero)       | Egress on every image view is the real lever (100GB storage / 250GB egress in Pro, then $0.021/GB + $0.09/GB).                                                                                                                       | Retention sweeps already mitigate ([chat retention](../../supabase/migrations/20260829000000_chat_retention.sql), hero/sponsor orphan walkers). Tier **volume** on Pro (see R-2). |
+
+**Revised floor ≈ $95–140/mo** at launch (old floor + MapTiler + a small
+Realtime / Storage usage buffer), still pre-Twilio. Break-even shifts modestly:
+**~12–15 Pro subs OR ~$2–2.8k GMV/mo** clears it — still very reachable for
+2–3 metros. But the grown base is the reason the conversion-side findings below
+matter more than they did a week ago.
+
+### New findings
+
+#### R-1 (P1) — Ship the designed live-scoring Pro perk
+
+**File:** [ADR 0023](../adr/0023-live-match-scoring.md) (Proposed, unbuilt);
+gate at `isPro(event.hostId)` ([pro.ts](../../apps/web/src/lib/pro.ts)).
+
+The strongest unrealized conversion lever. Live, match-bound, auto-saving
+scoreboard for Pro hosts; manual score entry stays free for everyone (no
+clawback). Targets the tournament / league host — the high-GMV serial host Pro
+was built for — with a feature reason to upgrade independent of the fee
+discount. Already specced end-to-end in the ADR. **Estimate:** per the ADR's
+phased plan (6 steps, mostly low / medium).
+
+#### R-2 (P2) — Tier the new media / storage surfaces by _volume_, not by community gate
+
+**File:** [ADR 0024](../adr/0024-event-and-profile-media.md) (media);
+chat attachments ([ADR 0028](../adr/0028-chat-messaging.md)).
+
+Media galleries, chat image attachments, and avatars all consume egress — the
+cost surface that grew most this week. Community-safe recovery: a **generous
+free quota** (e.g. N photos / event at standard resolution) with Pro getting
+higher limits / longer retention / video. **Gate volume, never viewing or basic
+posting.** Recovers storage / egress from the heaviest users without paywalling
+a core community surface. **Estimate: 1 bundle** once the free-tier numbers are
+chosen.
+
+#### R-3 (P2) — Standalone brackets as a Pro / à-la-carte surface
+
+**File:** [ADR 0025](../adr/0025-standalone-brackets.md).
+
+The in-event bracket generator stays free (no clawback per ADR 0014). But
+**standalone** brackets are a net-new surface — a free cap (e.g. 1 active
+standalone bracket) with Pro unlimited is a clean, no-takeaway lever that
+monetizes the tournament-organizer power user. **Estimate: half a bundle.**
+
+#### R-4 (P3 → promote on Twilio) — Reaffirm SMS-as-Pro when Twilio lands
+
+Carries over [P3 #11](#11-sms-as-a-pro-perk-when-twilio-lands). SMS is the
+clearest "Pro pays for what it costs us" lever (real per-message cost ~$0.008
+US). Decide gating **in** the SMS bundle (Pro-only or low free quota) so it
+isn't shipped free-first then clawed back.
+
+#### R-5 (P3) — Tip-jar fee posture as a trust signal
+
+Carries over [P3 #9](#9-tip-jar-take-rate-parity-with-tickets-is-probably-wrong).
+Re-decide deliberately: a "we don't take a cut of tips" stance is a strong
+community-trust signal at near-zero revenue cost pre-launch (tip volume is
+small). Either drop or cap the tip fee — and market it. Goodwill / brand lever
+more than a revenue one.
+
+### What NOT to do (community protection — reaffirmed)
+
+- **No platform-sold display ads** on event / group / home pages (ADR 0014).
+- **No clawback** of existing free features — co-hosts, groups, broadcasts,
+  in-event brackets, basic chat / DMs.
+- **No chat / DM paywall.** Messaging is community infrastructure and a
+  retention driver; monetize the host toolkit _around_ it, never the
+  conversation.
+- **No per-metro price discrimination** (ADR 0014 rejected).
+- **Don't churn** the 5%/2.5% take-rate or the $10 price pre-launch — ADR
+  0014's success-criteria triggers are the only sanctioned reason to move them.
+
+### Open questions (need the user)
+
+1. **Live scoring (R-1)** — green-light to build as the next Pro perk?
+2. **Media tiering (R-2)** — comfortable giving Pro higher media limits / video
+   with a generous free photo quota, or keep all media uncapped-free for now
+   (pure cost)?
+3. **Tip fee (R-5)** — keep 5%/2.5% on tips, or drop / cap it as a trust signal?
+4. **Standalone brackets (R-3)** — OK to introduce a free cap (1 active) with
+   Pro unlimited on the new standalone surface?
+
+---
+
 ## Feature status
 
 Quick-reference table. Detailed findings follow below.
@@ -613,6 +735,15 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-05-31 — Re-evaluation (no code landed).** Re-ran the monetization
+  lens after a week of feature shipping (chat / media / avatars / live scores /
+  broadcast notifications / MapTiler). Findings + revised cost floor in the
+  **[Status — 2026-05-31](#status--2026-05-31--re-evaluation-post-chat--media--live-scoring--maptiler)**
+  block at the top. Net: the new features are cost centers; the revenue engine
+  is sound; the lever is Pro **conversion**, not price. New P1 = ship the
+  already-designed live-scoring Pro perk (R-1, [ADR 0023](../adr/0023-live-match-scoring.md)).
+  Four open questions await the user before any bundle lands.
 
 - **2026-05-27 — Bundle 100** — **P2 #7 — off-platform event
   upsell.** Soft, dismissible nudge rendered above the hero on

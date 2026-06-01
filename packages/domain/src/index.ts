@@ -9,5 +9,6 @@ export * from './payments/index.js';
 export * from './community-listings/index.js';
 export * from './media/index.js';
 export * from './messaging/index.js';
+export * from './moderation/index.js';
 export * from './notifications/index.js';
 export * from './scoring/index.js';
