@@ -1,25 +1,23 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { TextField } from '@/components/text-field';
 import { createTeamAction, type TeamFormState } from '../actions';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 
 const initial: TeamFormState = {};
-const labelClass = 'block text-sm font-medium text-fg';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
 
 function SubmitBtn() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Creating…' : 'Create team'}
     </button>
   );

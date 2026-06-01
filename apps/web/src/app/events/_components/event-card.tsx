@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   SURFACE_LABEL,
   TYPE_LABEL,
@@ -33,10 +34,26 @@ export type EventCardData = {
   startsAt: Date | string;
   /** IANA timezone for the venue. */
   timeZone?: string | null;
+  /**
+   * Server-computed relative day label ("Today" / "Tomorrow" / "Sat") for
+   * events within a week; null/absent → show the absolute date. Computed at the
+   * page boundary so the card stays a pure server component.
+   */
+  relativeDay?: string | null;
   city: string;
   region: string;
+  /** Public hero image URL for the card thumbnail; null/absent → tinted fallback. */
+  heroImageUrl?: string | null;
   spotsRemaining: number | null;
   distanceKm: number | null;
+  /**
+   * Per-division price cents for the price chip. Set by the Following feed
+   * (which doesn't carry full `divisions`); on the search tabs the chip falls
+   * back to reading prices off `divisions`. See {@link eventPriceCents}.
+   */
+  priceCents?: ReadonlyArray<number | null>;
+  /** Primary division's price unit (`per_team` shows a "/team" suffix). */
+  priceUnit?: string | null;
   /** Following-tab metadata. */
   hostFriendId?: string;
   attendingFriendIds?: string[];
@@ -75,6 +92,101 @@ function followingLabel(event: EventCardData, friendNameById: Map<string, string
   return `${goingNames[0]} and ${goingNames.length - 1} others going`;
 }
 
+/** Spots-remaining count at or below this renders the urgent "N left" badge. */
+const LOW_SPOTS_THRESHOLD = 4;
+
+/** Surface-keyed tint for the thumbnail placeholder when there's no hero image. */
+const SURFACE_TINT: Record<string, string> = {
+  sand: 'bg-amber-100',
+  grass: 'bg-green-100',
+  indoor: 'bg-sky-100',
+};
+
+/**
+ * Card thumbnail: the event's hero image, or a surface-tinted placeholder with
+ * a faint volleyball glyph when none is set. Decorative (`alt=""`) — the title
+ * sits directly beneath. Sits in flow under the title's stretched link, so the
+ * whole card stays one click target.
+ */
+function CardThumb({ url, surface }: { url: string | null | undefined; surface: string }) {
+  return (
+    <div
+      className={`relative mb-3 aspect-video overflow-hidden rounded-md ${
+        url ? 'bg-fg/5' : (SURFACE_TINT[surface] ?? 'bg-fg/5')
+      }`}
+    >
+      {url ? (
+        <Image
+          src={url}
+          alt=""
+          fill
+          sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+          className="object-cover"
+        />
+      ) : (
+        <div className="text-fg/20 flex h-full items-center justify-center" aria-hidden="true">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 3a9 9 0 0 1 6.5 15.2M12 3a9 9 0 0 0-6.5 15.2M3.6 9.4A9 9 0 0 1 20.4 13.6" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Format integer cents as USD, dropping the decimals on whole-dollar amounts. */
+function formatPriceCents(cents: number): string {
+  const dollars = cents / 100;
+  return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
+/**
+ * Per-division price cents for a card, from whichever source the feed
+ * populated: the explicit `priceCents` list (Following feed) or the prices on
+ * `divisions` (search tabs). The single source of truth for both the price chip
+ * and the events page's Free/Paid filter, so the two never disagree.
+ */
+export function eventPriceCents(event: EventCardData): ReadonlyArray<number | null> {
+  return event.priceCents ?? (event.divisions ?? []).map((d) => d.priceCents);
+}
+
+/** True when every listed price is free (0 / null). False when the list is empty. */
+export function isEventFree(cents: ReadonlyArray<number | null>): boolean {
+  return cents.length > 0 && cents.every((c) => (c ?? 0) === 0);
+}
+
+/**
+ * Build the price chip from a card's per-division price cents plus the primary
+ * division's unit. Returns null when there are no prices to show.
+ *
+ * - all free → "Free"
+ * - one uniform price → "$10" (with "/team" when priced per team)
+ * - mixed prices → "From $X" (lowest paid division)
+ */
+function priceLabel(
+  cents: ReadonlyArray<number | null>,
+  unit: string | null | undefined,
+): { text: string; free: boolean } | null {
+  if (cents.length === 0) return null;
+  if (isEventFree(cents)) return { text: 'Free', free: true };
+  const nums = cents.map((c) => c ?? 0);
+  const positive = nums.filter((c) => c > 0);
+  const min = Math.min(...positive);
+  const uniform = positive.length === nums.length && new Set(positive).size === 1;
+  if (uniform) {
+    return { text: `${formatPriceCents(min)}${unit === 'per_team' ? '/team' : ''}`, free: false };
+  }
+  return { text: `From ${formatPriceCents(min)}`, free: false };
+}
+
 /**
  * Reusable event tile used by the events list, the Following feed, and any
  * future "events for player/group" page. Pure presentational — accepts a
@@ -90,19 +202,39 @@ export function EventCard({ event, friendNameById }: Props) {
     event.seriesName && event.seriesPosition && event.seriesSize
       ? `${event.seriesName} · ${event.seriesPosition}/${event.seriesSize}`
       : (event.seriesName ?? null);
+  const price = priceLabel(eventPriceCents(event), event.priceUnit ?? divisions[0]?.priceUnit);
 
   return (
-    <li className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm border p-4">
-      <Link href={`/events/${event.id}`} className="hover:text-primary block font-semibold">
+    <li className="border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
+      <CardThumb url={event.heroImageUrl} surface={event.surface} />
+      {/* Stretched link makes the whole tile tappable; there are no other
+          interactive children, so `focus-within` rings the entire card on
+          keyboard focus. */}
+      <Link
+        href={`/events/${event.id}`}
+        className="hover:text-primary block font-semibold after:absolute after:inset-0 focus-visible:outline-none"
+      >
         {event.title}
       </Link>
       {seriesLabel && <p className="text-muted mt-0.5 text-[11px]">{seriesLabel}</p>}
       <p className="text-muted mt-1 text-xs">
-        <LocalDateTime
-          iso={startsAtIso}
-          variant="eventStart"
-          {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
-        />
+        {event.relativeDay ? (
+          <>
+            <span className="text-fg font-medium">{event.relativeDay}</span>
+            {' · '}
+            <LocalDateTime
+              iso={startsAtIso}
+              variant="time"
+              {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
+            />
+          </>
+        ) : (
+          <LocalDateTime
+            iso={startsAtIso}
+            variant="eventStart"
+            {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
+          />
+        )}
       </p>
       <p className="text-fg/80 mt-1 text-sm">
         {event.city}, {event.region}
@@ -114,6 +246,17 @@ export function EventCard({ event, friendNameById }: Props) {
         <span className="bg-primary/15 text-primary rounded px-1.5 py-0.5">
           {TYPE_LABEL[event.type] ?? event.type}
         </span>
+        {price && (
+          <span
+            className={
+              price.free
+                ? 'rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800'
+                : 'bg-fg/5 text-fg rounded px-1.5 py-0.5 font-semibold'
+            }
+          >
+            {price.text}
+          </span>
+        )}
         {(() => {
           // Surface: show event-level by default, but if divisions disagree
           // (a tournament that mixes indoor + sand) call it out as "varies".
@@ -153,6 +296,24 @@ export function EventCard({ event, friendNameById }: Props) {
         {event.isFundraiser && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Fundraiser</span>
         )}
+        {(() => {
+          // Capacity urgency. spots_remaining is populated on every tab —
+          // by the search RPC (Upcoming/Past) and the Following-feed repo —
+          // from the primary division's fixed capacity; null when open-ended.
+          const spots = event.spotsRemaining;
+          if (spots === null) return null;
+          if (spots <= 0) {
+            return <span className="bg-fg/10 text-muted rounded px-1.5 py-0.5">Full</span>;
+          }
+          if (spots <= LOW_SPOTS_THRESHOLD) {
+            return (
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">
+                {spots} left
+              </span>
+            );
+          }
+          return <span className="bg-fg/5 text-muted rounded px-1.5 py-0.5">{spots} spots</span>;
+        })()}
       </div>
       {divisions.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1 text-[11px]">
@@ -181,9 +342,6 @@ export function EventCard({ event, friendNameById }: Props) {
         </ul>
       )}
       {label && <p className="text-primary mt-2 text-[11px] font-medium">{label}</p>}
-      {event.spotsRemaining !== null && (
-        <p className="text-muted mt-2 text-xs">{event.spotsRemaining} spots open</p>
-      )}
     </li>
   );
 }

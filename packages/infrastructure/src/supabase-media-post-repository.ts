@@ -367,7 +367,17 @@ export class SupabaseMediaPostRepository implements MediaPostRepository {
     const postIds = rows.map((r) => r.id);
 
     const [profilesRes, reportsRes] = await Promise.all([
-      this.client.from('profiles').select('id, display_name, avatar_url').in('id', submitterIds),
+      // Submitter cards come from `profiles_public`, not the base `profiles`
+      // table: this repo runs on a user-scoped client and the base SELECT policy
+      // is owner-only (PII audit P1 #4), so reading `profiles` directly would
+      // return only the viewer's own row — every other author's name/avatar would
+      // be null (and anonymous viewers would get nothing). The view is the
+      // sanctioned public projection; deleted authors fall out of it → name
+      // renders via the UI fallback.
+      this.client
+        .from('profiles_public')
+        .select('id, display_name, avatar_url')
+        .in('id', submitterIds),
       viewerId
         ? this.table('media_post_reports')
             .select('post_id')

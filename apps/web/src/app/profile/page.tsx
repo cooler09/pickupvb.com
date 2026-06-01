@@ -1,10 +1,15 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { Route } from 'next';
 import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
+import { relativeEventDay } from '@/lib/date-formats';
+import { EventCard, type EventCardData } from '../events/_components/event-card';
 import { ProfileForm } from './profile-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import { AvatarPanel } from '@/components/avatar-panel';
+import { Pagination } from '@/components/pagination';
 import {
   SupabaseGroupQueryRepository,
   SupabaseSocialGraphRepository,
@@ -14,8 +19,8 @@ import { HostedEventsList, loadVisibleHostedEvents } from '@/components/hosted-e
 import { MyGroupsSection, type MyGroup } from './_components/my-groups-section';
 import { MyVideosSection } from './_components/my-videos-section';
 import { HandleEditor } from './_components/handle-editor';
-import { ListProfileMediaQuery } from '@pickupvb/application';
-import { getMediaHandlers } from '@/lib/handlers';
+import { GetAttendingEventsQuery, ListProfileMediaQuery } from '@pickupvb/application';
+import { getMediaHandlers, handlers } from '@/lib/handlers';
 import { ProBadge } from '@/components/pro-badge';
 import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
@@ -33,6 +38,7 @@ type ProfileRow = {
   display_name: string;
   home_city: string | null;
   hero_image_url: string | null;
+  avatar_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -48,19 +54,37 @@ type ProfileRow = {
 
 const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
 
+const HOSTED_PER_PAGE = 8;
+const FOLLOWING_PER_PAGE = 24;
+// Rich event cards (thumbnails) — keep the per-page count modest.
+const ATTENDING_PER_PAGE = 6;
+// Videos are embedded players (iframes) — keep the per-page count low.
+const VIDEOS_PER_PAGE = 6;
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
-export default async function ProfilePage() {
+export default async function ProfilePage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const rawSearchParams = await props.searchParams;
+  const searchParams: Record<string, string | undefined> = Object.fromEntries(
+    Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+  );
+  const hpage = Math.max(1, Number.parseInt(searchParams.hpage ?? '1', 10) || 1);
+  const fpage = Math.max(1, Number.parseInt(searchParams.fpage ?? '1', 10) || 1);
+  const vpage = Math.max(1, Number.parseInt(searchParams.vpage ?? '1', 10) || 1);
+  const apage = Math.max(1, Number.parseInt(searchParams.apage ?? '1', 10) || 1);
+
   const { supabase, user } = await getCurrentUser();
   if (!user) redirect('/login?next=/profile');
 
   const { data } = await supabase
     .from('profiles')
     .select(
-      'handle, first_name, last_name, display_name, home_city, hero_image_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'handle, first_name, last_name, display_name, home_city, hero_image_url, avatar_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -72,6 +96,7 @@ export default async function ProfilePage() {
     last_name: row?.last_name ?? null,
     display_name: row?.display_name ?? user.email?.split('@')[0] ?? 'Player',
     home_city: row?.home_city ?? null,
+    avatar_url: row?.avatar_url ?? null,
     auto_accept_team_invites: row?.auto_accept_team_invites ?? false,
     show_pro_badge: row?.show_pro_badge ?? true,
     primary_position: row?.primary_position ?? null,
@@ -92,10 +117,38 @@ export default async function ProfilePage() {
     user.id,
   );
 
+  const now = new Date();
   const hostedEvents = await loadVisibleHostedEvents(supabase, user.id, {
-    startsAfter: new Date(),
+    startsAfter: now,
   });
   const upcomingHosted = hostedEvents;
+
+  // Events the player has joined (individual RSVP) — the hub's "Your events"
+  // section. Rendered with the shared EventCard; degrades to an empty array on
+  // failure so the rest of the hub still renders.
+  const attendingSummaries = await handlers.getAttendingEvents
+    .execute(new GetAttendingEventsQuery(user.id, now))
+    .catch(() => []);
+  const attendingEvents: EventCardData[] = attendingSummaries.map((e) => ({
+    id: e.id,
+    title: e.title,
+    surface: e.surface,
+    skillLevel: e.skillLevel,
+    type: e.type,
+    startsAt: e.startsAt,
+    timeZone: e.timeZone,
+    city: e.city,
+    region: e.region,
+    heroImageUrl: e.heroImageUrl,
+    relativeDay: relativeEventDay(e.startsAt, e.timeZone, now),
+    spotsRemaining: e.spotsRemaining,
+    distanceKm: e.distanceKm,
+    seriesName: e.seriesName,
+    seriesPosition: e.seriesPosition,
+    seriesSize: e.seriesSize,
+    isFundraiser: e.isFundraiser,
+    divisions: e.divisions,
+  }));
   const [viewerIsPro, viewerIsAdmin] = await Promise.all([
     isPro(user.id),
     isPlatformAdmin(user.id),
@@ -144,12 +197,22 @@ export default async function ProfilePage() {
       {/* Identity hero */}
       <section className={cardClass}>
         <div className="flex items-start gap-4 sm:gap-5">
-          <div
-            aria-hidden
-            className="bg-primary/15 text-primary flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold sm:h-20 sm:w-20 sm:text-2xl"
-          >
-            {initials(profile.display_name)}
-          </div>
+          {profile.avatar_url ? (
+            <Image
+              src={profile.avatar_url}
+              alt=""
+              width={80}
+              height={80}
+              className="h-16 w-16 shrink-0 rounded-full object-cover sm:h-20 sm:w-20"
+            />
+          ) : (
+            <div
+              aria-hidden
+              className="bg-primary/15 text-primary flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold sm:h-20 sm:w-20 sm:text-2xl"
+            >
+              {initials(profile.display_name)}
+            </div>
+          )}
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-muted text-xs font-semibold tracking-wide uppercase">Your profile</p>
             <div className="flex flex-wrap items-center gap-2">
@@ -223,17 +286,54 @@ export default async function ProfilePage() {
         </section>
       )}
 
+      {/* Your events (RSVPs) */}
+      <section id="your-events" className={cardClass}>
+        <SectionHeader
+          title="Your events"
+          count={attendingEvents.length}
+          countLabel="upcoming"
+          action={{ href: '/events', label: 'Find events' }}
+        />
+        <div className="mt-4 space-y-4">
+          {attendingEvents.length === 0 ? (
+            <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-4 text-sm">
+              You haven&apos;t joined any upcoming events.{' '}
+              <Link href={'/events' as Route} className="text-primary font-medium hover:underline">
+                Find one near you →
+              </Link>
+            </p>
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {attendingEvents
+                .slice((apage - 1) * ATTENDING_PER_PAGE, apage * ATTENDING_PER_PAGE)
+                .map((e) => (
+                  <EventCard key={e.id} event={e} />
+                ))}
+            </ul>
+          )}
+          <Pagination
+            basePath="/profile"
+            page={apage}
+            pageSize={ATTENDING_PER_PAGE}
+            total={attendingEvents.length}
+            searchParams={searchParams}
+            pageParam="apage"
+            scrollToId="your-events"
+          />
+        </div>
+      </section>
+
       {/* Hosting */}
-      <section className={cardClass}>
+      <section id="hosting" className={cardClass}>
         <SectionHeader
           title="Hosting"
           count={upcomingHosted.length}
           countLabel="upcoming"
           action={{ href: '/events/new', label: '+ New event' }}
         />
-        <div className="mt-4">
+        <div className="mt-4 space-y-4">
           <HostedEventsList
-            events={upcomingHosted}
+            events={upcomingHosted.slice((hpage - 1) * HOSTED_PER_PAGE, hpage * HOSTED_PER_PAGE)}
             emptyState={
               <>
                 No upcoming events yet.{' '}
@@ -246,6 +346,15 @@ export default async function ProfilePage() {
               </>
             }
           />
+          <Pagination
+            basePath="/profile"
+            page={hpage}
+            pageSize={HOSTED_PER_PAGE}
+            total={upcomingHosted.length}
+            searchParams={searchParams}
+            pageParam="hpage"
+            scrollToId="hosting"
+          />
         </div>
       </section>
 
@@ -255,18 +364,42 @@ export default async function ProfilePage() {
       </section>
 
       {/* Videos */}
-      <section className={cardClass}>
+      <section id="videos" className={cardClass}>
         <SectionHeader title="Videos" count={myVideos.length} />
-        <div className="mt-4">
-          <MyVideosSection items={myVideos} />
+        <div className="mt-4 space-y-4">
+          <MyVideosSection
+            items={myVideos.slice((vpage - 1) * VIDEOS_PER_PAGE, vpage * VIDEOS_PER_PAGE)}
+          />
+          <Pagination
+            basePath="/profile"
+            page={vpage}
+            pageSize={VIDEOS_PER_PAGE}
+            total={myVideos.length}
+            searchParams={searchParams}
+            pageParam="vpage"
+            scrollToId="videos"
+          />
         </div>
       </section>
 
       {/* Following */}
-      <section className={cardClass}>
+      <section id="following" className={cardClass}>
         <SectionHeader title="Following" count={friends.length} />
-        <div className="mt-4">
-          <FriendsList friends={friends} mutualIds={mutualIds} returnPath="/profile" />
+        <div className="mt-4 space-y-4">
+          <FriendsList
+            friends={friends.slice((fpage - 1) * FOLLOWING_PER_PAGE, fpage * FOLLOWING_PER_PAGE)}
+            mutualIds={mutualIds}
+            returnPath="/profile"
+          />
+          <Pagination
+            basePath="/profile"
+            page={fpage}
+            pageSize={FOLLOWING_PER_PAGE}
+            total={friends.length}
+            searchParams={searchParams}
+            pageParam="fpage"
+            scrollToId="following"
+          />
         </div>
       </section>
 
@@ -284,6 +417,13 @@ export default async function ProfilePage() {
         </div>
       </details>
 
+      <AvatarPanel
+        userId={user.id}
+        currentUrl={profile.avatar_url}
+        initials={initials(profile.display_name)}
+        returnPath={`/players/${profile.handle}`}
+      />
+
       <HeroImagePanel
         entityType="profiles"
         entityId={user.id}
@@ -291,6 +431,32 @@ export default async function ProfilePage() {
         currentUrl={row?.hero_image_url ?? null}
         returnPath={`/players/${profile.handle}`}
       />
+
+      {/* Privacy & your data */}
+      <section className={cardClass}>
+        <SectionHeader title="Privacy & your data" />
+        <p className="text-muted mt-2 text-sm">
+          Download a copy of your PickupVB data — your profile, events, payments, messages, and more
+          — as a single JSON file.
+        </p>
+        {/* Plain anchor: the route streams a file download (content-disposition:
+            attachment), so a server-rendered link is all that's needed. */}
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <a
+            href="/api/account/export"
+            download
+            className="border-border-base hover:bg-fg/5 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium"
+          >
+            Download my data
+          </a>
+          <Link
+            href={'/profile/account/delete' as Route}
+            className="text-sm font-medium text-red-600 hover:underline"
+          >
+            Delete account
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

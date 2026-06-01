@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ThemePreference } from '@/lib/theme';
@@ -236,10 +237,7 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                   >
                     Sign in
                   </Link>
-                  <Link
-                    href="/login?mode=sign-up"
-                    className="bg-primary hover:bg-primary/90 rounded-md px-3 py-2 text-center text-sm font-medium text-white"
-                  >
+                  <Link href="/login?mode=sign-up" className={primaryButtonClass('md')}>
                     Sign up
                   </Link>
                 </div>

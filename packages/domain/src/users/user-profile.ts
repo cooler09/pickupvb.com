@@ -1,6 +1,7 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { InvariantViolation, ValidationError } from '../shared/result.js';
 import type { UserId } from '../events/volleyball-event.js';
+import { assertCleanName } from '../moderation/content-moderation.js';
 
 export type { UserId };
 
@@ -93,6 +94,7 @@ export class UserProfile extends AggregateRoot<UserId> {
     private _showProBadge: boolean,
     private _themePreference: string,
     private _heroImageUrl: string | null,
+    private _avatarUrl: string | null,
     private _businessInfo: ProfileBusinessInfo,
     private _friends: Set<UserId>,
   ) {
@@ -113,6 +115,8 @@ export class UserProfile extends AggregateRoot<UserId> {
     if (!displayName) {
       throw new ValidationError('Display name is required.');
     }
+    // Identity field — reject any profanity rather than mask it (ADR 0030).
+    assertCleanName(displayName);
     if (!HANDLE_RE.test(props.handle)) {
       throw new ValidationError(HANDLE_ERROR);
     }
@@ -128,6 +132,7 @@ export class UserProfile extends AggregateRoot<UserId> {
       false,
       false,
       'light',
+      null,
       null,
       { businessName: null, businessAddress: null, taxId: null },
       new Set(),
@@ -154,6 +159,7 @@ export class UserProfile extends AggregateRoot<UserId> {
     showProBadge: boolean;
     themePreference: string;
     heroImageUrl: string | null;
+    avatarUrl: string | null;
     businessInfo: ProfileBusinessInfo;
   }): UserProfile {
     return new UserProfile(
@@ -169,6 +175,7 @@ export class UserProfile extends AggregateRoot<UserId> {
       props.showProBadge,
       props.themePreference,
       props.heroImageUrl,
+      props.avatarUrl,
       { ...props.businessInfo },
       new Set(),
     );
@@ -207,6 +214,9 @@ export class UserProfile extends AggregateRoot<UserId> {
   get heroImageUrl(): string | null {
     return this._heroImageUrl;
   }
+  get avatarUrl(): string | null {
+    return this._avatarUrl;
+  }
   get businessInfo(): Readonly<ProfileBusinessInfo> {
     return this._businessInfo;
   }
@@ -220,6 +230,8 @@ export class UserProfile extends AggregateRoot<UserId> {
     if (!displayName) {
       throw new ValidationError('Display name is required.');
     }
+    // Identity field — reject any profanity rather than mask it (ADR 0030).
+    assertCleanName(displayName);
     this._displayName = displayName;
     this._firstName = edit.firstName;
     this._lastName = edit.lastName;
@@ -251,6 +263,11 @@ export class UserProfile extends AggregateRoot<UserId> {
   /** Set (or clear, with `null`) the profile hero/banner image URL. */
   setHeroImage(url: string | null): void {
     this._heroImageUrl = url;
+  }
+
+  /** Set (or clear, with `null`) the profile avatar (profile-picture) URL. */
+  setAvatar(url: string | null): void {
+    this._avatarUrl = url;
   }
 
   /** Replace the buyer-side business/receipt fields. */

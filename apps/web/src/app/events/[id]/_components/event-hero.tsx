@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { LocalDateTime } from '@/components/local-datetime';
 import { formatEventDateLong } from '@/lib/date-formats';
@@ -33,7 +34,6 @@ type Props = {
   spotsRemaining: number | null;
   priceLabel: string;
   registrationClosesAt: Date | null;
-  canManage: boolean;
   cta: EventHeroCta;
   /** Number of divisions; passed through to EventTags. */
   divisionCount?: number;
@@ -77,7 +77,6 @@ export function EventHero({
   spotsRemaining,
   priceLabel,
   registrationClosesAt,
-  canManage,
   cta,
   divisionCount,
   closingSoon = false,
@@ -85,9 +84,9 @@ export function EventHero({
 }: Props) {
   return (
     <header className="space-y-2">
-      {/* Row 1 — tags on the left, secondary actions on the right.
-          Pairing them frees a vertical block and right-anchors the
-          host's Edit link out of the primary read path. */}
+      {/* Row 1 — tags on the left, share on the right. Host management
+          (Edit, etc.) lives on the dedicated /manage dashboard, reached via
+          the "Manage event" strip the page renders above the hero. */}
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <EventTags
           type={type}
@@ -102,14 +101,6 @@ export function EventHero({
         />
         <div className="flex shrink-0 items-center gap-3 text-sm">
           <EventShareLink shortCode={shortCode} title={title} />
-          {canManage && (
-            <Link
-              href={`/events/${eventId}/edit` as Route}
-              className="text-primary hover:underline"
-            >
-              Edit
-            </Link>
-          )}
         </div>
       </div>
 
@@ -170,18 +161,12 @@ export function EventHero({
       {(cta || priceLabel) && (
         <div className="flex flex-wrap items-center gap-3 pt-1">
           {cta?.kind === 'internal' && (
-            <Link
-              href={cta.href}
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold"
-            >
+            <Link href={cta.href} className={primaryButtonClass('md')}>
               {cta.label}
             </Link>
           )}
           {cta?.kind === 'anchor' && (
-            <a
-              href={cta.hash}
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold"
-            >
+            <a href={cta.hash} className={primaryButtonClass('md')}>
               {cta.label}
             </a>
           )}
@@ -189,7 +174,7 @@ export function EventHero({
             <a
               href={externalLinkHref(cta.href)}
               rel="noopener noreferrer"
-              className="bg-primary text-primary-fg hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold"
+              className={primaryButtonClass('md')}
             >
               {cta.label} <span aria-hidden="true">↗</span>
             </a>

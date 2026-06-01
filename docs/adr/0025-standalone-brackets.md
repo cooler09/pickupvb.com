@@ -111,3 +111,30 @@ to events.
 - If `bracket_teams` ever needs rosters/captains/registration, it should grow
   toward the `event_team_entries` shape rather than the reverse — at which point
   unifying the two competitor tables can be revisited.
+
+## Addendum 2026-06-01: free-tier active-bracket cap (monetization R-3)
+
+Standalone brackets shipped uncapped. As a net-new monetization surface (the
+[2026-05-31 monetization re-eval](../audits/monetization.md) R-3), Free hosts may
+now have **1 active standalone bracket at a time**; Pro hosts are unlimited.
+
+- **"Active" = not yet completed** (`status` in `setup`/`active`). A Free host
+  keeps their full history of `completed` tournaments — only an in-progress
+  bracket occupies the slot, and finishing or deleting it frees it. This is the
+  community-friendly reading of "1 active": you can run one tournament at a time,
+  not "you may only ever have created one."
+- **Net-new gate, not a clawback.** The in-event bracket generator stays free and
+  uncapped; this caps only the event-free standalone surface. Consistent with
+  [ADR 0014](0014-monetization-strategy.md) ("Pro grows via net-new features,
+  never takeaways from existing free users").
+- **Enforced in the web layer, like the paid-event cap.** `validateActiveBracketCap`
+  ([apps/web/src/lib/standalone-bracket-cap.ts](../../apps/web/src/lib/standalone-bracket-cap.ts))
+  mirrors `validateHostPaidEventCap` — Pro (and platform admins via
+  `hasProBenefits`) short-circuit; otherwise it counts non-completed
+  `listByOwner` rows. The domain/handlers stay Pro-unaware. Both the
+  `createStandaloneBracketFromForm` action (hard gate) and the `/brackets/new`
+  page (proactive upgrade card) consult it. Unit-tested in
+  `standalone-bracket-cap.test.ts`.
+- **Revisit trigger:** loosening the cap (e.g. to 2) or switching "active" to
+  "any" is a one-constant / one-predicate change — but, like the ADR 0014 levers,
+  do it as a documented amendment, not a silent bump.

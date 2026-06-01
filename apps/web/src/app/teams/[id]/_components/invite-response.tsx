@@ -1,4 +1,5 @@
 import { SubmitButton } from '@/components/submit-button';
+import { primaryButtonClass } from '@/components/primary-button';
 import { acceptInviteAction, declineInviteAction } from '../../actions';
 
 type Props = {
@@ -22,9 +23,7 @@ export function InviteResponse({ teamId, teamName, returnPath }: Props) {
       </p>
       <div className="flex flex-wrap gap-2">
         <form action={acceptInviteAction.bind(null, teamId, returnPath)}>
-          <SubmitButton className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50">
-            Accept invite
-          </SubmitButton>
+          <SubmitButton className={primaryButtonClass('sm')}>Accept invite</SubmitButton>
         </form>
         <form action={declineInviteAction.bind(null, teamId, returnPath)}>
           <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-50">

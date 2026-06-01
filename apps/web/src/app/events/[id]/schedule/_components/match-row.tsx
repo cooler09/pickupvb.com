@@ -34,6 +34,7 @@ const STATUS_LABEL: Record<Status, string> = {
   cancelled: 'Cancelled',
 };
 
+// eslint-disable-next-line no-restricted-syntax -- compact inline schedule-table cell input, not a labeled form field (persona-ux.md CC-2 exception)
 const inputClass =
   'border-border-base bg-bg text-fg w-full rounded border px-2 py-1 text-sm focus:ring-1';
 

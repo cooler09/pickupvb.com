@@ -8,6 +8,7 @@ import { handleAccountUpdated, handlePayoutPaid } from '@/lib/webhooks/connect';
 import { handleCheckoutCompleted, handleCheckoutExpired } from '@/lib/webhooks/checkout';
 import { handleChargeRefunded, handlePaymentFailed } from '@/lib/webhooks/charge';
 import { handleSubscriptionChange } from '@/lib/webhooks/subscription';
+import { decideWebhookProcessing } from '@/lib/webhooks/idempotency';
 
 /**
  * Stripe webhook receiver.
@@ -86,9 +87,23 @@ export async function POST(request: Request) {
     // all (downstream handlers are idempotent).
     return NextResponse.json({ error: 'LOG_FAILED' }, { status: 500 });
   }
-  if (!insertedRows || insertedRows.length === 0) {
-    // Row already existed — duplicate delivery. Return 200 so Stripe
-    // stops retrying.
+
+  // Dedupe on `processed_at`, not mere row existence (TPI-6): a row stuck at
+  // `processed_at IS NULL` is an earlier attempt that crashed between this claim
+  // and the handler completing — re-drive it instead of losing the event.
+  const insertedNew = Boolean(insertedRows && insertedRows.length > 0);
+  let existingProcessedAt: string | null = null;
+  if (!insertedNew) {
+    const { data: existing } = await admin
+      .from('stripe_webhook_events')
+      .select('processed_at')
+      .eq('id', event.id)
+      .single();
+    existingProcessedAt =
+      (existing as { processed_at: string | null } | null)?.processed_at ?? null;
+  }
+  if (decideWebhookProcessing(insertedNew, existingProcessedAt) === 'deduped') {
+    // Already fully processed — return 200 so Stripe stops retrying.
     return NextResponse.json({ ok: true, deduped: true });
   }
 
@@ -99,9 +114,9 @@ export async function POST(request: Request) {
       eventId: event.id,
       eventType: event.type,
     });
-    // Don't mark processed_at — Stripe will retry, we'll dedupe via
-    // unique key on next attempt only AFTER... wait, we already inserted.
-    // Delete the log row so the retry isn't deduped.
+    // Delete the claim row so Stripe's retry re-drives promptly. Even if this
+    // delete itself fails (the orphan case), the row stays at
+    // `processed_at IS NULL` and the next retry re-drives it anyway (TPI-6).
     await admin.from('stripe_webhook_events').delete().eq('id', event.id);
     return NextResponse.json({ error: 'HANDLER_FAILED' }, { status: 500 });
   }

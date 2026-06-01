@@ -20,7 +20,6 @@ import { EventStructuredData } from './_components/event-structured-data';
 import { EventFlashBanners } from './_components/event-flash-banners';
 import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
-import { HostToolsSection } from './_components/host-tools-section';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
 import { EventMediaLink } from './_components/event-media-link';
@@ -115,17 +114,13 @@ export default async function EventDetailPage(props: {
     paid,
     breakdown,
     priceLabel,
-    viewerIsPro,
     tipTotalCents,
     hostStripeReady,
     primaryHostUserSocial,
-    eligibleTeamsByDivision,
-    leagueTeamsByDivision,
     payments,
     viewerPaymentStatus,
     adHocViewerRegistrations,
     adHocAllRegistrations,
-    adHocHostRows,
     attendeesForList,
     filledByPosition,
     viewerPosition,
@@ -142,6 +137,20 @@ export default async function EventDetailPage(props: {
         ← Back to events
       </Link>
 
+      {event.canManage && (
+        <div className="border-primary/30 bg-primary/5 rounded-shape-sm flex flex-wrap items-center justify-between gap-3 border p-4">
+          <div className="min-w-0">
+            <p className="text-fg text-sm font-semibold">You&apos;re hosting this event</p>
+            <p className="text-muted text-xs">
+              Edit details, manage registrations, message players, and record results.
+            </p>
+          </div>
+          <Link href={`/events/${event.id}/manage` as Route} className={primaryButtonClass('md')}>
+            Manage event
+          </Link>
+        </div>
+      )}
+
       <EventFlashBanners
         created={pickQuery(searchParams, 'created')}
         tip={pickQuery(searchParams, 'tip')}
@@ -156,7 +165,7 @@ export default async function EventDetailPage(props: {
           <OffPlatformUpsell eventId={event.id} returnPath={returnPath} />
         )}
 
-      <HeroImage url={heroImageUrl} alt={event.title} priority />
+      <HeroImage url={heroImageUrl} alt={event.title} surface={event.surface} priority />
 
       <header className="space-y-2">
         <EventHero
@@ -178,7 +187,6 @@ export default async function EventDetailPage(props: {
           spotsRemaining={event.spotsRemaining}
           priceLabel={priceLabel}
           registrationClosesAt={event.registrationClosesAt}
-          canManage={event.canManage}
           cta={cta}
           divisionCount={event.divisions.length}
           closingSoon={closingSoon}
@@ -271,7 +279,7 @@ export default async function EventDetailPage(props: {
             <div>
               <h2 className="text-fg text-base font-semibold">Bracket</h2>
               <p className="text-muted text-xs">
-                Set up the tournament bracket and report match results.
+                View the tournament bracket, matchups, and live results.
               </p>
             </div>
             <Link href={`/events/${event.id}/bracket` as Route} className={primaryButtonClass()}>
@@ -286,9 +294,7 @@ export default async function EventDetailPage(props: {
           <div className="flex items-center justify-between gap-2">
             <div>
               <h2 className="text-fg text-base font-semibold">Schedule</h2>
-              <p className="text-muted text-xs">
-                Manage the weekly slate and record match results.
-              </p>
+              <p className="text-muted text-xs">View the weekly schedule, matchups, and scores.</p>
             </div>
             <Link href={`/events/${event.id}/schedule` as Route} className={primaryButtonClass()}>
               Open schedule
@@ -308,15 +314,8 @@ export default async function EventDetailPage(props: {
         canManage={event.canManage}
         viewerHostableGroups={event.viewerHostableGroups}
         returnPath={returnPath}
+        showCoHostControls={false}
         {...(primaryHostUserSocial ? { primaryHostUserSocial } : {})}
-      />
-
-      <HostToolsSection
-        event={event}
-        returnPath={returnPath}
-        adHocHostRows={adHocHostRows}
-        eligibleTeamsByDivision={eligibleTeamsByDivision}
-        leagueTeamsByDivision={leagueTeamsByDivision}
       />
 
       <AttendeesPanel
@@ -327,7 +326,10 @@ export default async function EventDetailPage(props: {
         returnPath={returnPath}
         payments={payments}
         paid={paid}
-        viewerIsPro={viewerIsPro}
+        page={Math.max(1, Number.parseInt(pickQuery(searchParams, 'apage') ?? '1', 10) || 1)}
+        searchParams={Object.fromEntries(
+          Object.entries(searchParams ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+        )}
       />
 
       {event.type === 'tournament' && !event.paymentsOffPlatform && (

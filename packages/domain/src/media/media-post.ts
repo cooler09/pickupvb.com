@@ -2,6 +2,7 @@ import { AggregateRoot } from '../shared/aggregate-root.js';
 import { idConstructor, type Brand } from '../shared/brand.js';
 import { ConflictError, InvariantViolation } from '../shared/result.js';
 import type { EventId, UserId } from '../events/volleyball-event.js';
+import { maskPublicText } from '../moderation/content-moderation.js';
 import { ExternalVideoUrl } from './external-video-url.js';
 
 export type MediaPostId = Brand<string, 'MediaPostId'>;
@@ -38,7 +39,8 @@ function normalizeTitle(raw: string): string {
   if (t.length < 3 || t.length > 200) {
     throw new InvariantViolation('Title must be 3–200 characters.');
   }
-  return t;
+  // Public surface — mask Tier-A profanity, block Tier-B (ADR 0030).
+  return maskPublicText(t);
 }
 
 /**
@@ -81,7 +83,7 @@ export class MediaPost extends AggregateRoot<MediaPostId> {
       props.kind,
       props.videoUrl,
       title,
-      (props.description ?? '').trim(),
+      maskPublicText((props.description ?? '').trim()),
       'active',
       0,
       false,
@@ -154,7 +156,8 @@ export class MediaPost extends AggregateRoot<MediaPostId> {
       throw new ConflictError('Cannot update a removed media post.');
     }
     if (props.title !== undefined) this._title = normalizeTitle(props.title);
-    if (props.description !== undefined) this._description = props.description.trim();
+    if (props.description !== undefined)
+      this._description = maskPublicText(props.description.trim());
     if (props.videoUrl !== undefined) this._videoUrl = props.videoUrl;
   }
 

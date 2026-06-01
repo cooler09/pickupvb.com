@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { SupabaseNotificationPreferencesRepository } from '@pickupvb/infrastructure';
@@ -67,10 +68,7 @@ export default async function NotificationsPrefsPage() {
           </div>
         </section>
 
-        <SubmitButton
-          className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 font-medium text-white disabled:opacity-60"
-          pendingChildren="Saving…"
-        >
+        <SubmitButton className={primaryButtonClass('md')} pendingChildren="Saving…">
           Save preferences
         </SubmitButton>
       </form>

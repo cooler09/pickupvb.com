@@ -97,6 +97,25 @@ export async function platformFeeCentsFor(hostId: string, amountCents: number): 
 }
 
 /**
+ * Platform fee on a tip — always **zero**, every tier.
+ *
+ * A tip is a discretionary attendee→host transfer the platform didn't enable
+ * (unlike a ticket sale). Taking a cut of it is hard to defend and a weak trust
+ * signal, so PickupVB takes no platform fee on tips: 100% of the tip reaches the
+ * host, less only Stripe's processing fee (which goes to Stripe, not us, on
+ * every card charge). See [ADR 0014](../../../../docs/adr/0014-monetization-strategy.md)
+ * § "Platform fee" (tip-fee amendment 2026-06-01) and
+ * [monetization audit R-5](../../../../docs/audits/monetization.md).
+ *
+ * Kept as a named function (not an inline `0`) so the decision is testable and
+ * there is exactly one place to change if we ever move to a capped tip fee —
+ * the same discipline ADR 0014 applies to the ticket fee rate.
+ */
+export function tipPlatformFeeCents(_amountCents: number): number {
+  return 0;
+}
+
+/**
  * Stripe processing fee that should be added to the buyer's bill as a
  * separate line item, given the event's pass-through choice and the
  * fee-absorption mode.

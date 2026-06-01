@@ -32,6 +32,12 @@ describe('MediaPost.create', () => {
     expect(() => make('clip', { title: 'x'.repeat(201) })).toThrow(InvariantViolation);
   });
 
+  it('masks profanity in the title (public surface, mask-at-write — ADR 0030)', () => {
+    const p = make('clip', { title: 'absolute fucking banger' });
+    expect(p.title).not.toContain('fuck');
+    expect(p.title).toContain('*');
+  });
+
   it('only sets liveStartedAt for live streams', () => {
     const live = MediaPost.create({
       id: MediaPostId('1'),

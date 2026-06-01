@@ -1,10 +1,11 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { primaryButtonClass } from '@/components/primary-button';
 import { addProfileMediaAction, type AddProfileMediaState } from '../media-actions';
+import { fieldInputClass as inputClass } from '@/components/field-styles';
 
 const initialState: AddProfileMediaState = {};
-const inputClass = 'w-full rounded-md border border-border-base bg-bg px-3 py-2 text-sm';
 
 export function AddProfileVideoForm() {
   const [state, formAction] = useFormState(addProfileMediaAction, initialState);
@@ -69,11 +70,7 @@ export function AddProfileVideoForm() {
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary text-primary-fg hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Adding…' : 'Add video'}
     </button>
   );

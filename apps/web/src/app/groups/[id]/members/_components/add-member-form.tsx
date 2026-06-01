@@ -1,4 +1,5 @@
 import { UserPicker } from '@/components/user-picker';
+import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
 import { addMemberFromForm } from '../members-actions';
 
@@ -51,10 +52,7 @@ export function AddMemberForm({
           </select>
         </div>
         <div className="flex justify-end">
-          <SubmitButton
-            className="bg-primary hover:bg-primary/90 rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60"
-            pendingChildren="Adding…"
-          >
+          <SubmitButton className={primaryButtonClass('sm')} pendingChildren="Adding…">
             Add member
           </SubmitButton>
         </div>

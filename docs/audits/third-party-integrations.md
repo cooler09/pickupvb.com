@@ -32,11 +32,33 @@ debounced DB kick as the primary trigger, so `BATCH=50` is a per-claim size, not
 a per-invocation ceiling. The `*/5` cron is now a safety-net sweep. No change
 needed.
 
-Verify quad green (web 83 tests incl. the new one; lint 0 errors; build 8/8).
-**Remaining open: 4 P2** (TPI-1 + TPI-3 free-OSM services, TPI-7 Realtime →
-Broadcast, TPI-14 reminders cron) **+ 4 P3** (TPI-2, TPI-6, TPI-11, TPI-13).
-Maps/geocoding direction chosen: **MapTiler** (one vendor for tiles +
-geocoding/autocomplete) — see TPI-1/2/3.
+**TPI-14 also resolved** (2026-05-31, separate bundle) — the reminders cron now
+caps reminders per run + fans out with bounded concurrency, so a timeout can't
+strand a marked-but-undelivered tail; orchestration extracted to a testable
+`sweep.ts`. See the remediation log.
+
+**TPI-7 resolved** (2026-05-31, [ADR 0027](../adr/0027-realtime-broadcast-notifications.md))
+— the notification bell moved off `postgres_changes` to a per-user **private
+Broadcast channel** fed by a DB trigger; **verified live on dev** (the quad
+couldn't exercise the realtime/RLS/trigger path). Discovery: `notifications` was
+never in the `supabase_realtime` publication, so the old path was inert anyway.
+
+**TPI-1 + TPI-2 + TPI-3 resolved** (2026-05-31, **MapTiler**) — address
+autocomplete + server geocode now route through MapTiler when keyed (OSM only as
+the no-key dev fallback), and the map serves MapTiler tiles. Shared client +
+unit-tested parser in `lib/maptiler.ts`; CSP + `.env.example` + integrations doc
+updated.
+
+**TPI-6 + TPI-11 + TPI-13 resolved** (2026-05-31, P3 bundle) — webhook now
+dedupes on `processed_at` so a crashed claim is re-driven, not lost (+ test);
+Sentry on-error replay rate trimmed 1.0 → 0.3 to bound quota; PostHog `flushAt:1`
+closed as working-as-intended (the serverless safety default).
+
+Verify quad green (web 98 tests; lint 0 errors; build 8/8).
+**Audit fully remediated — every finding resolved or closed, including TPI-7
+(verified live on dev). 0 P1 · 0 P2 · 0 P3 outstanding.** Optional, non-finding
+follow-ups remain (TPI-7 tab-visibility gating; an edge `s-maxage` cache on the
+geocoding proxy; a realtime e2e).
 
 ---
 
@@ -87,7 +109,7 @@ server/edge; notification worker cron `* * * * *`→`*/5`) are **good cost moves
 
 ### Geocoding — OpenStreetMap Nominatim + Photon
 
-#### TPI-1 (P2) — Address typeahead runs against free OSM endpoints that forbid autocomplete
+#### TPI-1 (P2) — ✅ Resolved 2026-05-31 — Address typeahead runs against free OSM endpoints that forbid autocomplete
 
 [apps/web/src/app/api/geocode/autocomplete/route.ts](../../apps/web/src/app/api/geocode/autocomplete/route.ts#L17-L25)
 proxies every address keystroke (after a 400 ms / 3-char client debounce in
@@ -109,24 +131,26 @@ to **Photon** (komoot's public instance) with a **Nominatim** fallback.
 with autocomplete traffic will get `429`/`403`, and address entry silently
 degrades to the empty-suggestions path for _all_ users on that IP.
 
-**Fix:** move autocomplete to a provider with an autocomplete SLA + API key —
-Mapbox Search Box, Google Places Autocomplete, Radar, LocationIQ, or MapTiler
-Geocoding (most have generous free tiers) — or self-host Photon. The proxy shape
-already isolates the swap to this one file. Also add an edge
-`Cache-Control: s-maxage=3600, stale-while-revalidate` keyed on `q` so repeated
-prefixes are served from the CDN without a function invocation.
+**Fix (shipped 2026-05-31 — MapTiler):** autocomplete now routes through MapTiler
+geocoding when `MAPTILER_API_KEY` is set; the Photon→Nominatim chain stays only as
+the no-key dev fallback (never prod volume). On a MapTiler outage prod degrades to
+empty suggestions (manual entry), not back to OSM. Shared client +
+response-parser in [lib/maptiler.ts](../../apps/web/src/lib/maptiler.ts)
+(parser unit-tested in
+[maptiler.test.ts](../../apps/web/src/lib/maptiler.test.ts), 5 cases), consumed by
+[the route](../../apps/web/src/app/api/geocode/autocomplete/route.ts). Edge
+`s-maxage` caching on the proxy remains an optional follow-up.
 
-#### TPI-2 (P3) — Server-side event geocode also uses Nominatim
+#### TPI-2 (P3) — ✅ Resolved 2026-05-31 — Server-side event geocode also uses Nominatim
 
-[apps/web/src/lib/geocode.ts](../../apps/web/src/lib/geocode.ts#L22-L42) geocodes
-the address once on event create/edit (cached 24 h, polite `User-Agent`). Far
-lower volume than TPI-1 and the module header already flags the swap path. Roll
-it onto the same paid provider chosen for TPI-1 so there's one geocoding vendor,
-one key, one rate budget.
+[apps/web/src/lib/geocode.ts](../../apps/web/src/lib/geocode.ts) geocodes the
+address once on event create/edit. Now routes through MapTiler
+(`maptilerGeocodeOne`) when keyed, Nominatim only as the no-key dev fallback —
+same vendor, key, and rate budget as TPI-1 (resolved in the same bundle).
 
 ### Map tiles — OpenStreetMap tile server
 
-#### TPI-3 (P2) — Leaflet ships OSM's public tile server `{s}.tile.openstreetmap.org`
+#### TPI-3 (P2) — ✅ Resolved 2026-05-31 — Leaflet ships OSM's public tile server `{s}.tile.openstreetmap.org`
 
 [apps/web/src/components/event-map.tsx](../../apps/web/src/components/event-map.tsx#L36-L39)
 points `TileLayer` at `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`. The
@@ -136,12 +160,12 @@ subdomain-rotation scheme is also deprecated. Same failure mode as TPI-1 —
 tiles get throttled/blocked, not billed, and the map breaks for everyone on the
 egress IP.
 
-**Fix:** switch the `url` to a managed raster/vector tile provider with a key
-(MapTiler, Stadia Maps, Protomaps, Mapbox) and add `maxZoom`. Bonus perf: the
-component is a client component pulling in `leaflet` + `leaflet/dist/leaflet.css`
-on the event-detail route; `dynamic(() => import('./event-map'), { ssr: false })`
-keeps that bundle off pages that don't render a map (cross-ref
-[performance.md](performance.md)).
+**Fix (shipped 2026-05-31):** [event-map.tsx](../../apps/web/src/components/event-map.tsx)
+now serves **MapTiler** raster tiles (`streets-v2`) when `NEXT_PUBLIC_MAPTILER_KEY`
+is set, with `maxZoom` + MapTiler/OSM attribution; the OSM tile URL stays as the
+no-key dev fallback. CSP `img-src` gained `https://api.maptiler.com`. (The perf
+bonus was already in place — `EventMap` is dynamic-imported `ssr:false` via
+`event-map-lazy.tsx`.)
 
 ### Stripe
 
@@ -175,7 +199,7 @@ unlikely — but duplicate sessions/subscriptions are reachable.
 **Fix:** pass a deterministic second arg `{ idempotencyKey }` derived from
 `(userId, eventId, kind, amountCents)`. Stripe dedupes server-side for 24 h.
 
-#### TPI-6 (P3) — Webhook event can be orphaned if the function dies between dedup-insert and processing
+#### TPI-6 (P3) — ✅ Resolved 2026-05-31 — Webhook event can be orphaned if the function dies between dedup-insert and processing
 
 [webhooks/stripe/route.ts](../../apps/web/src/app/api/webhooks/stripe/route.ts#L72-L115)
 inserts the dedup row _before_ dispatching, then `delete`s it if the handler
@@ -186,10 +210,17 @@ retry is deduped at line 89 and the event is **silently dropped**. Low
 probability (handlers are fast, the code even comments the awkwardness) but it's
 a real data-loss seam on the payments path.
 
-**Fix:** dedupe on `processed_at IS NOT NULL` rather than mere row existence
-(insert with `processed_at NULL` as a _claim_, and only treat a row with
-`processed_at` set as a true duplicate), or add a sweep that re-drives
-`processed_at IS NULL` rows older than N minutes.
+**Fix (shipped 2026-05-31):** dedupe on `processed_at`, not row existence. The
+route now treats the claim row as a _claim_ — on a redelivery it reads
+`processed_at` and only returns `deduped` when it's set; a row stuck at
+`processed_at IS NULL` (a crashed claim) is **re-driven** on the next Stripe
+retry. Decision extracted to a pure
+[lib/webhooks/idempotency.ts](../../apps/web/src/lib/webhooks/idempotency.ts)
+(`decideWebhookProcessing`) + test
+[idempotency.test.ts](../../apps/web/src/lib/webhooks/idempotency.test.ts) (3
+cases incl. the orphan-re-drive regression guard). Handlers are idempotent, so
+re-driving an orphan — or the rare concurrent double-delivery this also lets
+through — is safe.
 
 ### Telemetry — Sentry
 
@@ -204,16 +235,19 @@ still `0.1`. Browser pageload/navigation transactions are typically the
 was meant to address. Align it (e.g. `0.02–0.05`), or use a `tracesSampler` to
 keep checkout/critical routes sampled higher and everything else low.
 
-#### TPI-11 (P3) — Sentry Replay integration is bundled for every visitor though session replay is off
+#### TPI-11 (P3) — ✅ Resolved 2026-05-31 — Sentry Replay integration is bundled for every visitor though session replay is off
 
-[instrumentation-client.ts](../../apps/web/instrumentation-client.ts#L16-L21)
-registers `replayIntegration` with `replaysSessionSampleRate: 0` /
+[instrumentation-client.ts](../../apps/web/instrumentation-client.ts) registers
+`replayIntegration` with `replaysSessionSampleRate: 0` /
 `replaysOnErrorSampleRate: 1.0`. Replay only _activates_ on errors, but the
-integration code (tens of KB gzipped) ships to **every** page load. Two levers:
-(a) lazy-load replay via `Sentry.lazyLoadIntegration` so the bytes only load when
-an error triggers capture; (b) consider `replaysOnErrorSampleRate < 1.0` so a
-prod error _spike_ can't burn the replay quota in one incident. (Perf cross-ref
-[performance.md](performance.md).)
+integration ships to every page load.
+
+**Resolution:** lowered `replaysOnErrorSampleRate` 1.0 → **0.3** to bound
+replay-quota cost during an error spike (the cost-at-scale lever). The bundle
+weight is **kept** — lazy-loading was investigated and rejected: on-error replay
+must buffer from page load to capture the pre-error session, so it can't be
+deferred without losing the feature. On-error session replays remain a deliberate
+debugging tool; 30% of error sessions are recorded.
 
 #### TPI-12 (P3) — ✅ Resolved 2026-05-31 — No `tracesSampler` to zero-out cron/health transactions
 
@@ -224,7 +258,7 @@ returning `0` for `transactionContext.name?.startsWith('/api/notifications/')`.
 
 ### Telemetry — PostHog
 
-#### TPI-13 (P3) — `flushAt: 1` issues one HTTP request per captured event
+#### TPI-13 (P3) — ✅ Closed 2026-05-31 (working as intended) — `flushAt: 1` issues one HTTP request per captured event
 
 [posthog-analytics.ts](../../packages/infrastructure/src/posthog-analytics.ts#L51-L61)
 sets `flushAt: 1, flushInterval: 0`. This is **correct and necessary** for
@@ -235,14 +269,17 @@ request captures several events it fires N separate flushes instead of one
 batch. PostHog bills per _event ingested_ (so no ingest-cost change), but each
 flush extends the invocation via `after()` and adds outbound requests.
 
-**Fix (low priority):** keep `flushAt: 1` as the safety default, or batch within
-a request — enqueue all captures and flush once in a single `after()` at request
-end. Current behavior is safe; it's just chatty. Don't change without keeping the
-`after()` lifetime guarantee.
+**Resolution — closed wontfix (working as intended):** keep `flushAt: 1`. It's
+the documented serverless safety default; request-level batching would risk
+re-introducing the silent event-drop bug (`analytics.test.ts` exists precisely to
+guard it) for a negligible gain — PostHog bills per event ingested, so the only
+"cost" is a few extra outbound HTTP requests on the rare multi-capture request.
+Not worth the regression risk. Re-open only if a profile shows the extra flushes
+materially extending invocation time.
 
 ### Supabase Realtime
 
-#### TPI-7 (P2) — Per-user Realtime connection on every page, over the non-scaling `postgres_changes` path
+#### TPI-7 (P2) — ✅ Resolved 2026-05-31 (verified live on dev) — Per-user Realtime connection on every page, over the non-scaling `postgres_changes` path
 
 [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx#L53-L81)
 opens a Supabase Realtime channel subscribed to `postgres_changes` INSERTs on
@@ -272,6 +309,22 @@ evaluation. Tactical mitigations meanwhile: gate the bell subscription on
 connection, and consider polling (the bell is low-urgency) instead of a
 persistent socket.
 
+**Shipped (the bell) 2026-05-31 — verified live on dev ([ADR 0027](../adr/0027-realtime-broadcast-notifications.md)):**
+the notification bell now subscribes to a **private Broadcast channel**
+`notifications:{userId}`, fed by an `AFTER INSERT` trigger
+([20260823000000_notification_broadcast.sql](../../supabase/migrations/20260823000000_notification_broadcast.sql))
+that calls `realtime.broadcast_changes(...)`; a `realtime.messages` SELECT policy
+authorizes each user to their own topic. **Discovery during the work:**
+`public.notifications` is **not in the `supabase_realtime` publication** in any
+migration, so the prior `postgres_changes` path was inert in a
+migration-provisioned DB — Broadcast both fixes the live path _and_ removes the
+non-scaling subscription. **Scope = bell only:** `match_live_scores` stays on
+`postgres_changes` (deliberate per its own migration) and the bracket watchers are
+event-scoped. **Verified live on dev** — a notification increments the bell badge
+live, and a _different_ user does not receive it (RLS topic isolation). Degrades
+gracefully if misconfigured (notifications still persist + render on next load).
+Tab-visibility gating + an e2e remain optional follow-ups.
+
 ### Notifications / Vercel Cron workers
 
 #### TPI-8 (P3) — ✅ Resolved 2026-05-31 — Outbox email send has no provider idempotency key → duplicate emails on retry
@@ -300,7 +353,7 @@ rather than a single batch, and a debounced DB kick is the primary trigger
 ceiling, so there's no throughput cliff. The `*/5` cron is a safety-net sweep.
 No code change from this audit.
 
-#### TPI-14 (P2) — Reminders cron marks-sent-first then dispatches sequentially inside one 60 s function, with no row cap
+#### TPI-14 (P2) — ✅ Resolved 2026-05-31 — Reminders cron marks-sent-first then dispatches sequentially inside one 60 s function, with no row cap
 
 [reminders/route.ts](../../apps/web/src/app/api/notifications/reminders/route.ts#L65-L99)
 loops events (N+1: one `event_participants` query per event), stamps
@@ -317,10 +370,21 @@ then calls `notify(...)` **sequentially** per attendee. Two issues at scale:
   so the "dispatch sequentially to avoid hammering rate limits" comment doesn't
   apply here.
 
-**Fix:** batch-insert the outbox rows (one insert per event instead of one
-`notify` per attendee), and cap events/attendees processed per run with the
-15-min cadence draining the remainder; or move the per-attendee fan-out into the
-worker so the reminder cron only enqueues a single "remind event X" job.
+**Fix (shipped 2026-05-31):** added a hard per-run cap (`MAX_REMINDERS_PER_RUN`)
+shared across both windows + bounded-concurrency fan-out, so a run always
+finishes well inside `maxDuration` and a capped run defers the remainder to the
+next 15-min cron instead of stranding a marked-but-undelivered tail. Mark-first
+(at-most-once) is kept deliberately — both reminder kinds include the
+**non-idempotent `in_app` channel** (`insertInApp` has no idempotency key), so an
+enqueue-then-mark flip would duplicate bell entries on a re-fire. The
+sequential-`notify` framing in the original finding was half-right: `notify` is
+not just a DB insert — it does a per-user prefs read + an auth email lookup — so
+the lever is bounded concurrency, not a cross-user batch insert (the per-user
+email/in_app resolution isn't batchable through the outbox port). Orchestration
+extracted into [sweep.ts](../../apps/web/src/app/api/notifications/reminders/sweep.ts)
+behind an injected `ReminderPort` + dispatch fn (Next forbids non-handler exports
+from `route.ts`), tested in
+[sweep.test.ts](../../apps/web/src/app/api/notifications/reminders/sweep.test.ts).
 
 ---
 
@@ -388,5 +452,93 @@ worker so the reminder cron only enqueues a single "remind event X" job.
 Verify quad green: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 (web 83 tests, lint 0 errors, build 8/8).
 
-**Still open: 4 P2** (TPI-1, TPI-3, TPI-7, TPI-14) **+ 4 P3** (TPI-2, TPI-6,
-TPI-11, TPI-13). Maps/geocoding vendor direction chosen: **MapTiler**.
+**2026-05-31 — TPI-14 (reminders cron) resolved.**
+
+- Added `MAX_REMINDERS_PER_RUN` (250) + `DISPATCH_CONCURRENCY` (8) and a shared
+  per-run budget across both reminder windows; each event's attendees are pulled
+  with `.limit(remainingBudget)` so the overflow stays unmarked for the next run.
+  Mark-first / at-most-once preserved (the `in_app` channel isn't idempotent).
+- Extracted the orchestration into
+  [sweep.ts](../../apps/web/src/app/api/notifications/reminders/sweep.ts)
+  (`runReminderSweep` + `mapWithConcurrency` behind a `ReminderPort`);
+  [route.ts](../../apps/web/src/app/api/notifications/reminders/route.ts) now only
+  wires the Supabase-backed port + `notify` + auth.
+- +7 tests in
+  [sweep.test.ts](../../apps/web/src/app/api/notifications/reminders/sweep.test.ts)
+  pinning: cap respected, **no attendee marked without being dispatched**
+  (no-silent-drop invariant), mark-before-dispatch ordering, idempotency-key
+  shape, cross-window budget sharing, and the concurrency bound. Verify quad
+  green (web 90 tests).
+- Side-note (not a bug): `events.location_city` / `location_region` are absent
+  from the stale generated types, so the event query casts through a null-union
+  exactly like the existing `rsvp-actions.ts` pattern — preserved verbatim.
+
+**2026-05-31 — TPI-7 (notification bell) migrated to Broadcast — verified live on dev.**
+[ADR 0027](../adr/0027-realtime-broadcast-notifications.md).
+
+- New migration
+  [20260823000000_notification_broadcast.sql](../../supabase/migrations/20260823000000_notification_broadcast.sql):
+  `public.broadcast_notification()` SECURITY DEFINER trigger fn + `AFTER INSERT`
+  trigger on `public.notifications` calling `realtime.broadcast_changes(...)` to
+  the per-user topic `notifications:{user_id}`, and a `realtime.messages` SELECT
+  policy authorizing each authenticated user to their own topic.
+- [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx)
+  rewired from `postgres_changes` to a `{ private: true }` Broadcast channel +
+  `realtime.setAuth(session.access_token)`; stable topic (RLS match) with a
+  `cancelled` guard for the strict-mode double-mount.
+- **Discovery:** `public.notifications` is in no `supabase_realtime` publication,
+  so the prior `postgres_changes` path was inert in a migration-provisioned DB —
+  Broadcast fixes the live path _and_ removes the non-scaling subscription.
+- **Scope = bell only.** `match_live_scores` stays on `postgres_changes`
+  (deliberate per its migration); bracket watchers are event-scoped.
+- Verify quad green (typecheck/lint/build; tests unchanged — realtime isn't
+  unit-testable). **Verified live on dev** (2026-05-31): a notification increments
+  the bell badge live, and a different user does not receive it (RLS topic
+  isolation). Finding closed.
+
+**2026-05-31 — TPI-1 + TPI-2 + TPI-3 (geocoding + map tiles) → MapTiler.**
+
+- New [lib/maptiler.ts](../../apps/web/src/lib/maptiler.ts) — shared server
+  geocoding client (`maptilerAutocomplete`, `maptilerGeocodeOne`) + a pure
+  `parseMapTilerFeatures` parser, unit-tested in
+  [maptiler.test.ts](../../apps/web/src/lib/maptiler.test.ts) (5 cases:
+  `[lon,lat]` flip, context-id city/region/postal/country mapping, municipality
+  fallback, city-level feature, dropped bad/empty rows).
+- [autocomplete route](../../apps/web/src/app/api/geocode/autocomplete/route.ts)
+  - [geocode.ts](../../apps/web/src/lib/geocode.ts) use MapTiler when
+    `MAPTILER_API_KEY` is set; the OSM endpoints (Photon/Nominatim) stay only as the
+    no-key dev fallback. Prod degrades to empty suggestions on a MapTiler outage,
+    never back to OSM.
+- [event-map.tsx](../../apps/web/src/components/event-map.tsx) serves MapTiler
+  `streets-v2` tiles (`NEXT_PUBLIC_MAPTILER_KEY`) with `maxZoom` + attribution,
+  OSM tiles as the dev fallback. CSP `img-src` += `https://api.maptiler.com`.
+- Two keys by design (server geocoding `MAPTILER_API_KEY` vs. browser-restricted
+  `NEXT_PUBLIC_MAPTILER_KEY`) — documented in `.env.example` + `docs/integrations.md`.
+- Vitest: aliased `server-only` to a stub so server modules (maptiler/stripe) are
+  unit-testable. Verify quad green (web 95 tests, lint 0 errors, build 8/8).
+- **Live check owed:** set both keys on dev, confirm typeahead returns MapTiler
+  results and the event map renders MapTiler tiles.
+
+**2026-05-31 — P3 bundle (TPI-6, TPI-11, TPI-13) — every finding now closed.**
+
+- **TPI-6** — Stripe webhook dedupes on `processed_at`, not row existence: a
+  claim row stuck at `processed_at IS NULL` (crashed mid-handler) is re-driven on
+  the next Stripe retry instead of silently dropped. Decision extracted to a pure
+  [lib/webhooks/idempotency.ts](../../apps/web/src/lib/webhooks/idempotency.ts) +
+  test (3 cases, incl. the orphan-re-drive regression guard). Idempotent handlers
+  make the re-drive (and the rare concurrent double-delivery it allows) safe.
+- **TPI-11** — `replaysOnErrorSampleRate` 1.0 → 0.3 in
+  [instrumentation-client.ts](../../apps/web/instrumentation-client.ts) to bound
+  replay-quota cost on an error spike. Bundle weight kept — lazy-loading would
+  lose on-error replay (it must buffer from page load). User chose keep+lower.
+- **TPI-13** — closed **working-as-intended**: `flushAt: 1` is the documented
+  serverless safety default; batching risks re-introducing the silent
+  event-drop bug for negligible gain (PostHog bills per event, not per request).
+  No code change.
+
+Verify quad green (web 98 tests, lint 0 errors, build 8/8).
+
+**Nothing open.** 0 P1 · 0 P2 · 0 P3 — every finding resolved or closed, TPI-7
+included (verified live on dev 2026-05-31). Optional, non-finding follow-ups
+remain: TPI-7 tab-visibility gating, an edge `s-maxage` cache on the geocoding
+proxy, and a realtime e2e.

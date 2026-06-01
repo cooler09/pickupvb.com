@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
-import { consumeRateLimit, getClientIp } from '@/lib/rate-limit';
+import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
 import { getViewer } from '@/lib/server-auth';
 
 export type ClaimState = {
@@ -93,8 +93,8 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
   // form to spam a target with confirmation emails. Audit P2 #6.
   const ip = await getClientIp();
   const [ipGate, emailGate] = await Promise.all([
-    consumeRateLimit({ key: `claim:ip:${ip}`, limit: 20, windowSeconds: 3600 }),
-    consumeRateLimit({ key: `claim:email:${email}`, limit: 5, windowSeconds: 3600 }),
+    consumeRateLimit({ key: rateLimitKey('claim', 'ip', ip), limit: 20, windowSeconds: 3600 }),
+    consumeRateLimit({ key: rateLimitKey('claim', 'email', email), limit: 5, windowSeconds: 3600 }),
   ]);
   const blocked = !ipGate.allowed ? ipGate : !emailGate.allowed ? emailGate : null;
   if (blocked) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useRef, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 
 /**
  * Opens a modal that collects a short title + description, then opens a
@@ -143,10 +144,7 @@ export function ReportBugButton({
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white"
-            >
+            <button type="submit" className={primaryButtonClass('md')}>
               Continue to GitHub
             </button>
           </div>

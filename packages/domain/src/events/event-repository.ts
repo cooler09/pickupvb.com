@@ -52,6 +52,19 @@ export interface EventReadModels {
   getDetail(id: string, viewerId: string | null): Promise<EventDetailReadModel | null>;
 
   /**
+   * Upcoming events the given user is attending as an individual (an
+   * `event_participants` row with role `attendee`), soonest-first. Same rich
+   * {@link VolleyballEventSummary} projection as {@link search} so the profile
+   * hub can render them with the shared event card; `distanceKm` is always null
+   * (no location context on the hub). `opts.startsAfter` is supplied by the
+   * caller (the page boundary) so the read side stays clock-free.
+   */
+  listAttending(
+    userId: string,
+    opts?: { startsAfter?: Date; limit?: number },
+  ): Promise<VolleyballEventSummary[]>;
+
+  /**
    * Lightweight, viewer-independent metadata projection for the bracket /
    * schedule / watch spectator pages (performance audit P3 #15) — avoids the
    * ~14-query `getDetail` read model when only event type, divisions, host,
@@ -395,6 +408,8 @@ export interface VolleyballEventSummary {
   seriesSize: number | null;
   isFundraiser: boolean;
   registrationMode: RegistrationMode;
+  /** Public hero image URL for the discovery-card thumbnail; null when unset. */
+  heroImageUrl: string | null;
   /** Divisions on this event, sorted by `sort_order`. */
   divisions: ReadonlyArray<EventSearchDivision>;
 }

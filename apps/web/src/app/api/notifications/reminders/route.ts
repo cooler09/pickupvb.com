@@ -6,32 +6,66 @@
  *   2h  window: events starting in 90min-150min that haven't been reminded
  *
  * Dedupe is at the attendee row level via `reminder_24h_sent_at` /
- * `reminder_2h_sent_at`. We mark sent BEFORE dispatching so a partial
- * failure can't re-fire — accepting at-most-once over at-least-once for
- * reminders (better to miss one than spam).
+ * `reminder_2h_sent_at`. We mark sent BEFORE dispatching so a partial failure
+ * can't re-fire — at-most-once over at-least-once (better to miss one than
+ * spam; the reminder kinds include the non-idempotent `in_app` channel, so a
+ * re-fire would duplicate the bell entry).
  *
- * Schedule: every 15 minutes is enough granularity. Vercel cron runs this.
+ * **Bounded per run (TPI-14).** Marking sent before dispatch means an unbounded
+ * run could time out mid-loop and strand a marked-but-undelivered tail. The
+ * sweep core caps the work at `MAX_REMINDERS_PER_RUN` and fans each event's
+ * attendees out with bounded concurrency, so a run always finishes well inside
+ * `maxDuration`. The orchestration lives in [sweep.ts](./sweep.ts) behind an
+ * injected `ReminderPort` so it's unit-testable; this file just wires the
+ * Supabase-backed port + `notify` and handles auth.
  */
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { notify } from '@/lib/notify';
 import { log } from '@/lib/log';
+import {
+  runReminderSweep,
+  type ReminderColumn,
+  type ReminderDispatch,
+  type ReminderEvent,
+  type ReminderPort,
+} from './sweep';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-type EventRow = {
-  id: string;
-  title: string;
-  starts_at: string;
-  location_city: string | null;
-  location_region: string | null;
-};
-
-type AttendeeRow = {
-  user_id: string;
-};
+function makeReminderPort(admin: ReturnType<typeof createSupabaseAdminClient>): ReminderPort {
+  return {
+    async findWindowEvents(windowStart, windowEnd) {
+      const { data } = await admin
+        .from('events')
+        .select('id, title, starts_at, location_city, location_region')
+        .gte('starts_at', windowStart.toISOString())
+        .lte('starts_at', windowEnd.toISOString())
+        .neq('status', 'cancelled');
+      return (data as ReminderEvent[] | null) ?? [];
+    },
+    async findUnremindedAttendees(eventId, column: ReminderColumn, limit) {
+      const { data } = await admin
+        .from('event_participants')
+        .select('id, user_id, division:event_divisions!inner(event_id)')
+        .eq('role', 'attendee')
+        .eq('division.event_id', eventId)
+        .is(column, null)
+        .limit(limit);
+      const rows = (data as { id: string; user_id: string }[] | null) ?? [];
+      return rows.map((r) => ({ id: r.id, userId: r.user_id }));
+    },
+    async markReminded(column: ReminderColumn, participantIds) {
+      if (participantIds.length === 0) return;
+      await admin
+        .from('event_participants')
+        .update({ [column]: new Date().toISOString() } as never)
+        .in('id', participantIds);
+    },
+  };
+}
 
 async function authorized(request: Request): Promise<boolean> {
   const secret = process.env['CRON_SECRET'];
@@ -40,94 +74,18 @@ async function authorized(request: Request): Promise<boolean> {
   return header === `Bearer ${secret}`;
 }
 
-function locationOf(e: EventRow): string {
-  return [e.location_city, e.location_region].filter(Boolean).join(', ');
-}
-
-async function sendBatch(
-  admin: ReturnType<typeof createSupabaseAdminClient>,
-  kind: 'event.reminder.24h' | 'event.reminder.2h',
-  columnName: 'reminder_24h_sent_at' | 'reminder_2h_sent_at',
-  windowStart: Date,
-  windowEnd: Date,
-): Promise<{ events: number; reminders: number }> {
-  // Find events in the time window.
-  const { data: eventRows } = await admin
-    .from('events')
-    .select('id, title, starts_at, location_city, location_region')
-    .gte('starts_at', windowStart.toISOString())
-    .lte('starts_at', windowEnd.toISOString())
-    .neq('status', 'cancelled');
-  const events = (eventRows as EventRow[] | null) ?? [];
-  if (events.length === 0) return { events: 0, reminders: 0 };
-
-  let totalReminders = 0;
-  for (const ev of events) {
-    // Find attendees of this event who haven't been reminded yet.
-    const { data: attRows } = await admin
-      .from('event_participants')
-      .select('id, user_id, division:event_divisions!inner(event_id)')
-      .eq('role', 'attendee')
-      .eq('division.event_id', ev.id)
-      .is(columnName, null);
-    const attendees = (attRows as (AttendeeRow & { id: string })[] | null) ?? [];
-    if (attendees.length === 0) continue;
-
-    // Mark sent FIRST to prevent double-fire on cron overlap.
-    const participantIds = attendees.map((a) => a.id);
-    await admin
-      .from('event_participants')
-      .update({ [columnName]: new Date().toISOString() } as never)
-      .in('id', participantIds);
-
-    const location = locationOf(ev);
-    // Dispatch sequentially to avoid hammering rate limits.
-    for (const att of attendees) {
-      await notify(
-        kind,
-        att.user_id,
-        {
-          eventId: ev.id,
-          eventTitle: ev.title,
-          startsAt: ev.starts_at,
-          location,
-        },
-        { idempotencyKey: `${kind}:${ev.id}:${att.user_id}` },
-      );
-      totalReminders += 1;
-    }
-  }
-  return { events: events.length, reminders: totalReminders };
-}
-
 export async function GET(request: Request): Promise<NextResponse> {
   if (!(await authorized(request))) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const admin = createSupabaseAdminClient();
-  const now = new Date();
+  const dispatch: ReminderDispatch = (kind, userId, payload, opts) =>
+    notify(kind, userId, payload, opts);
 
   try {
-    const r24 = await sendBatch(
-      admin,
-      'event.reminder.24h',
-      'reminder_24h_sent_at',
-      new Date(now.getTime() + 22 * 60 * 60 * 1000),
-      new Date(now.getTime() + 26 * 60 * 60 * 1000),
-    );
-    const r2 = await sendBatch(
-      admin,
-      'event.reminder.2h',
-      'reminder_2h_sent_at',
-      new Date(now.getTime() + 90 * 60 * 1000),
-      new Date(now.getTime() + 150 * 60 * 1000),
-    );
-    return NextResponse.json({
-      ok: true,
-      r24: r24,
-      r2: r2,
-    });
+    const result = await runReminderSweep(makeReminderPort(admin), dispatch, new Date());
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     await log.error('[reminders-cron] failed', err);
     return NextResponse.json({ ok: false }, { status: 500 });

@@ -62,3 +62,37 @@ export function formatDateShort(d: Date | string, timeZone?: TZ): string {
     ...(timeZone ? { timeZone } : {}),
   });
 }
+
+/** Calendar-day ordinal (days since epoch) for a date in the given tz. */
+function dayOrdinal(d: Date, timeZone: TZ): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    ...(timeZone ? { timeZone } : {}),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const val = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  return Math.floor(Date.UTC(val('year'), val('month') - 1, val('day')) / 86_400_000);
+}
+
+/**
+ * Relative day label for an event start, anchored to the **event's own
+ * timezone** (so "Today" means the event is today where it's held): "Today" /
+ * "Tomorrow" for 0–1 days out, the short weekday ("Sat") for 2–6 days out,
+ * else null (caller shows the absolute date). `now` is passed in — computed at
+ * the server page boundary — so this stays pure (no `Date.now()` in render,
+ * per the React Compiler purity rule).
+ */
+export function relativeEventDay(d: Date | string, timeZone: TZ, now: Date): string | null {
+  const date = d instanceof Date ? d : new Date(d);
+  const diff = dayOrdinal(date, timeZone) - dayOrdinal(now, timeZone);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff >= 2 && diff <= 6) {
+    return date.toLocaleDateString(undefined, {
+      weekday: 'short',
+      ...(timeZone ? { timeZone } : {}),
+    });
+  }
+  return null;
+}

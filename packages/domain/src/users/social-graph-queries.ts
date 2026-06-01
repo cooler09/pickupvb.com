@@ -70,4 +70,20 @@ export interface FollowingFeedItem {
   hostFriendId: string | null;
   /** Friend ids attending (excluding the host). */
   attendingFriendIds: ReadonlyArray<string>;
+  /**
+   * Spots left on the primary division when it has a fixed capacity
+   * (`max_spots − attendee_count`); null for open-ended capacity. Mirrors
+   * `spots_remaining` from the `search_events` RPC so the event card renders
+   * the same capacity badge here as on the Upcoming/Past tabs.
+   */
+  spotsRemaining: number | null;
+  /** Public hero image URL for the discovery-card thumbnail; null when unset. */
+  heroImageUrl: string | null;
+  /**
+   * Per-division price cents (one entry per division, in `sort_order`), so the
+   * card can render the same Free / `$X` / `From $X` chip as the search tabs.
+   */
+  priceCents: ReadonlyArray<number | null>;
+  /** Primary division's price unit (`per_player` / `per_team`) for the chip. */
+  priceUnit: string | null;
 }

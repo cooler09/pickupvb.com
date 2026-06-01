@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Metadata } from 'next/types';
 import { SearchCommunityListingsQuery } from '@pickupvb/application';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
+import { isPlatformAdmin } from '@/lib/admin';
 import { CommunityListingCard } from './_components/community-listing-card';
 
 const SURFACES = ['indoor', 'grass', 'sand'] as const;
@@ -37,6 +39,7 @@ export default async function CommunityListingsPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const { user } = await getCurrentUser();
+  const admin = user ? await isPlatformAdmin(user.id) : false;
 
   const get = (k: string): string | undefined => {
     const v = searchParams[k];
@@ -69,21 +72,25 @@ export default async function CommunityListingsPage(props: {
             hosting.
           </p>
         </div>
-        {user ? (
-          <Link
-            href="/community/new"
-            className="bg-primary hover:bg-primary/90 shrink-0 rounded-md px-4 py-2 font-medium text-white"
-          >
-            Submit a listing
-          </Link>
-        ) : (
-          <Link
-            href={{ pathname: '/login', query: { next: '/community/new' } }}
-            className="bg-primary hover:bg-primary/90 shrink-0 rounded-md px-4 py-2 font-medium text-white"
-          >
-            Sign in to submit
-          </Link>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {user ? (
+            <Link href="/community/new" className={primaryButtonClass('md')}>
+              Submit a listing
+            </Link>
+          ) : (
+            <Link
+              href={{ pathname: '/login', query: { next: '/community/new' } }}
+              className={primaryButtonClass('md')}
+            >
+              Sign in to submit
+            </Link>
+          )}
+          {admin && (
+            <Link href="/admin/community-import" className="text-primary text-sm hover:underline">
+              Import listings (admin)
+            </Link>
+          )}
+        </div>
       </div>
 
       <form
@@ -142,10 +149,7 @@ export default async function CommunityListingsPage(props: {
           </select>
         </label>
         <div className="flex items-end">
-          <button
-            type="submit"
-            className="bg-primary hover:bg-primary/90 h-[34px] rounded-md px-4 text-sm font-semibold text-white"
-          >
+          <button type="submit" className={`${primaryButtonClass('sm')} h-[34px]`}>
             Apply
           </button>
         </div>

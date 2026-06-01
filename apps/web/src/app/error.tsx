@@ -1,6 +1,7 @@
 'use client';
 
 import * as Sentry from '@sentry/nextjs';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { useEffect } from 'react';
 
@@ -30,11 +31,7 @@ export default function RootError({
         happening.
       </p>
       <div className="flex flex-wrap justify-center gap-2">
-        <button
-          type="button"
-          onClick={reset}
-          className="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm"
-        >
+        <button type="button" onClick={reset} className={primaryButtonClass('md')}>
           Try again
         </button>
         <Link

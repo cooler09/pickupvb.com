@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { addFriend, removeFriend } from '@/app/friends/actions';
+import { startDmWithUser } from '@/app/_actions/chat-actions';
 import { ShareLink } from '@/components/share-link';
 
 type Props = {
@@ -30,6 +32,8 @@ type ViewerState =
 export function PlayerViewerActions({ profileId, profileHandle, profileName, returnPath }: Props) {
   const [state, setState] = useState<ViewerState>({ status: 'loading' });
   const [isPending, startTransition] = useTransition();
+  const [isMessaging, startMessaging] = useTransition();
+  const router = useRouter();
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -79,6 +83,13 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
       } catch {
         setState({ status: 'other', isFollowing: true });
       }
+    });
+  }
+
+  function handleMessage() {
+    startMessaging(async () => {
+      const res = await startDmWithUser(profileId);
+      if (res.ok) router.push(`/messages/${res.value.conversationId}` as Route);
     });
   }
 
@@ -141,6 +152,13 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
           + Follow
         </button>
       )}
+      <button
+        onClick={handleMessage}
+        disabled={isMessaging}
+        className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-60"
+      >
+        {isMessaging ? 'Opening…' : 'Message'}
+      </button>
       <ShareLink path={`/players/${profileHandle}`} title={profileName} />
     </>
   );

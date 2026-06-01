@@ -7,6 +7,24 @@ traces. Latency estimates are educated guesses; treat them as relative,
 not absolute. Confirm with Vercel Analytics + Supabase slow-query log
 before/after each fix.
 
+**Status update (2026-05-31) — pagination sweep (unbounded UI lists):** a
+read-only scan for list views that render an entire result set with no paging,
+prompted by the `/profile` Hosting section. Found and **fixed 6 P2 list views**,
+all reusing the shared
+[`Pagination`](../../apps/web/src/components/pagination.tsx) control + the
+established in-memory-slice convention (the group/player past-events pattern) —
+no schema or domain-port changes. Resolved: `/profile` Hosting,
+`/profile/receipts`, the `/profile/billing/earnings` "By event" table, the
+`/events/[id]` open-play attendee roster, `/friends`, and
+`/groups/[id]/members`. A follow-up P3 pass then paged the profile
+**Following + Videos** sub-lists the same way (Groups left unpaged on purpose —
+bounded + owns its own count). The two migration-backed P3 items (the 50-row
+inbox cap, the `/events` + `/community` discovery-feed caps) are **deferred** —
+both need a production RPC migration, and the feeds also need a feed-vs-directory
+product call. Full write-up:
+[Remediation log](#2026-05-31--pagination-sweep-unbounded-ui-lists) ·
+[journal](../journal/2026-05-31-pagination-sweep.md).
+
 **Status update (2026-05-31) — P2 #14 + P3 #15 resolved:** the two open
 spectator-page items from the 2026-05-30 re-audit are shipped.
 `/events/[id]/bracket` and `/events/[id]/schedule` dropped `force-dynamic` and
@@ -669,6 +687,35 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-05-31 — Pagination sweep (unbounded UI lists)
+
+Scan for UI list views that render a full result set with no pagination. Each
+fix reuses the shared
+[`Pagination`](../../apps/web/src/components/pagination.tsx) component + the
+established in-memory-slice convention: slice the already-loaded array, render a
+paged window, and compute totals / exclude-sets / counts over the **full** set.
+Graded P2 where the list grows monotonically over time or per power-user; P3
+where bounded in practice.
+
+| Item                                       | Grade | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------ | ----- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/profile` Hosting                         | P2    | ✅ Done | `hpage` param, `HOSTED_PER_PAGE = 8`, slices `loadVisibleHostedEvents` output (prolific hosts accumulate many upcoming events). [profile/page.tsx](../../apps/web/src/app/profile/page.tsx)                                                                                                                                                                                                                                                           |
+| `/profile/receipts`                        | P2    | ✅ Done | `page` param, `RECEIPTS_PER_PAGE = 20`. Pages the grouped transactions; YTD/all-time totals, CSV-statement years, and the `payment_intent_id` grouping still run over the full ledger. Raw `.range()` rejected — it would split a paid+refund pair across pages. [receipts/page.tsx](../../apps/web/src/app/profile/receipts/page.tsx)                                                                                                                |
+| `/profile/billing/earnings`                | P2    | ✅ Done | `page` param, `EVENTS_PER_PAGE = 20`. Pages the all-time "By event" table; YTD monthly breakdown (≤12 rows) and totals untouched. [earnings/page.tsx](../../apps/web/src/app/profile/billing/earnings/page.tsx)                                                                                                                                                                                                                                       |
+| `/events/[id]` attendee roster (open-play) | P2    | ✅ Done | `apage` param, `ATTENDEES_PER_PAGE = 30` in [attendees-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/attendees-panel.tsx); unlimited-capacity rosters were unbounded. Hosts still get the whole list via CSV export. Server-side paging kept `AttendeeList` a server component (per-row bound follow / mark-paid actions) — a client "show all" toggle would hit the RSC function-prop pitfall.                                       |
+| `/friends` (Following)                     | P2    | ✅ Done | `page` param, `FRIENDS_PER_PAGE = 24`. Slices the display only — the full follow set is retained for `excludeIds` (add-friend picker) + the header count. No domain-port change: `findCardsByIds` is one `in(...)` query, not N+1, and `excludeIds` needs every id anyway. [friends/page.tsx](../../apps/web/src/app/friends/page.tsx)                                                                                                                |
+| `/groups/[id]/members` (manage)            | P2    | ✅ Done | `page` param, `MEMBERS_PER_PAGE = 24`. Full list retained for `existingMemberIds` + count. [members/page.tsx](../../apps/web/src/app/groups/%5Bid%5D/members/page.tsx)                                                                                                                                                                                                                                                                                |
+| `/profile` Following + Videos              | P3    | ✅ Done | Same file as Hosting: `fpage` / `FOLLOWING_PER_PAGE = 24` (slices `friends`, full set kept for the count) and `vpage` / `VIDEOS_PER_PAGE = 6` (videos are iframe embeds → small page). [profile/page.tsx](../../apps/web/src/app/profile/page.tsx). **Groups left unpaged on purpose** — bounded (self-managed memberships, <10 typical) and `MyGroupsSection` owns its own count display, so paging would change the component contract for no gain. |
+| `/messages` inbox cap                      | P3    | 🔴 Open | `get_inbox` RPC hard-caps at `p_limit: 50` with no "load older" — conversations past 50 are unreachable. Real paging needs a migration (offset/cursor + a count fn) + port change. **Deferred 2026-05-31** — not worth a production schema migration for a P3 at current scale. [supabase-messaging-repository.ts](../../packages/infrastructure/src/supabase-messaging-repository.ts)                                                                |
+| `/events` + `/community` discovery feeds   | P3    | 🔴 Open | Capped at `limit: 30` / `60` with no page nav; items past the cap are unreachable. Real paging needs offset + total on the search RPCs (migration) **and** a feed-vs-directory product call. **Deferred 2026-05-31** pending that decision.                                                                                                                                                                                                           |
+| `/profile/billing/analytics`               | P3    | 🔴 Open | Loads all host events to aggregate, displays `slice(0, 10)`. Display bounded; the query is not — a perf concern, not a UI-pagination one.                                                                                                                                                                                                                                                                                                             |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
+
+See [Bundle journal](../journal/2026-05-31-pagination-sweep.md) for the
+in-memory-slice-vs-`.range()` decision, the attendee server-component
+constraint, and why the friends fix skipped the domain port.
 
 ### 2026-05-31 — Bracket / schedule cacheable spectator pages (P2 #14 + P3 #15)
 

@@ -126,8 +126,13 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
     const attendeeEventIds = Array.from(attendingByEvent.keys());
 
     let q = this.client
-      .from('events')
-      .select('id, title, surface, type, starts_at, time_zone, city, region, host_id')
+      // events_view (not base events) so we get the computed attendee_count
+      // for the capacity badge; everything else is e.* so the filters below
+      // are unchanged.
+      .from('events_view')
+      .select(
+        'id, title, surface, type, starts_at, time_zone, city, region, host_id, attendee_count, hero_image_url',
+      )
       .eq('visibility', 'public')
       .gte('starts_at', filters.startsAfter.toISOString())
       .order('starts_at', { ascending: true })
@@ -174,23 +179,54 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
       city: string;
       region: string;
       host_id: string;
+      attendee_count: number | null;
+      hero_image_url: string | null;
     };
-    const evRows = (rows ?? []) as EvRow[];
+    const evRows = (rows ?? []) as unknown as EvRow[];
 
-    // Hydrate per-event skill from the primary (lowest sort_order) division.
+    // Hydrate per-event skill + capacity from the primary (lowest sort_order)
+    // division. Capacity drives the card's "spots left" badge, computed the
+    // same way as the search_events RPC: fixed capacity → max_spots minus the
+    // view's attendee_count; open-ended capacity → null.
     const eventIds = evRows.map((r) => r.id);
     const skillByEvent = new Map<string, SkillLevel>();
+    const capacityByEvent = new Map<
+      string,
+      { capacityKind: string | null; maxSpots: number | null }
+    >();
+    // Prices: every division (for the Free / $X / From $X chip); unit: primary.
+    const pricesByEvent = new Map<string, (number | null)[]>();
+    const priceUnitByEvent = new Map<string, string>();
     if (eventIds.length > 0) {
       const { data: dRows, error: dErr } = await this.client
         .from('event_divisions')
-        .select('event_id, skill_tier, sort_order')
+        .select(
+          'event_id, skill_tier, sort_order, capacity_kind, max_spots, price_cents, price_unit',
+        )
         .in('event_id', eventIds)
         .order('sort_order', { ascending: true });
       if (dErr) throw new Error(`searchFollowingFeed skill hydrate failed: ${dErr.message}`);
-      type DRow = { event_id: string; skill_tier: SkillTier; sort_order: number };
+      type DRow = {
+        event_id: string;
+        skill_tier: SkillTier;
+        sort_order: number;
+        capacity_kind: string | null;
+        max_spots: number | null;
+        price_cents: number | null;
+        price_unit: string;
+      };
       for (const d of (dRows ?? []) as DRow[]) {
+        const prices = pricesByEvent.get(d.event_id) ?? [];
+        prices.push(d.price_cents);
+        pricesByEvent.set(d.event_id, prices);
+        // skill / capacity / price unit come from the primary (first) division.
         if (!skillByEvent.has(d.event_id)) {
           skillByEvent.set(d.event_id, skillTierBand(d.skill_tier) as unknown as SkillLevel);
+          capacityByEvent.set(d.event_id, {
+            capacityKind: d.capacity_kind,
+            maxSpots: d.max_spots,
+          });
+          priceUnitByEvent.set(d.event_id, d.price_unit);
         }
       }
     }
@@ -201,6 +237,11 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
       const attendingFriendIds = (attendingByEvent.get(r.id) ?? []).filter(
         (uid) => uid !== r.host_id,
       );
+      const cap = capacityByEvent.get(r.id);
+      const spotsRemaining =
+        cap && cap.capacityKind === 'fixed' && cap.maxSpots !== null
+          ? cap.maxSpots - (r.attendee_count ?? 0)
+          : null;
       return {
         id: r.id,
         title: r.title,
@@ -213,6 +254,10 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
         region: r.region,
         hostFriendId,
         attendingFriendIds,
+        spotsRemaining,
+        heroImageUrl: r.hero_image_url,
+        priceCents: pricesByEvent.get(r.id) ?? [],
+        priceUnit: priceUnitByEvent.get(r.id) ?? null,
       };
     });
   }

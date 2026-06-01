@@ -51,4 +51,5 @@ export const NOTICE_LABEL: Record<string, { tone: 'success' | 'error'; text: str
   notfound: { tone: 'error', text: 'Not found.' },
   invalid: { tone: 'error', text: 'Invalid input.' },
   error: { tone: 'error', text: 'Something went wrong.' },
+  cap: { tone: 'error', text: 'Bracket limit reached.' },
 };

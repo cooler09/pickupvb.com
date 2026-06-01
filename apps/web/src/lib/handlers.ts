@@ -19,6 +19,11 @@ import {
   SupabaseSocialGraphRepository,
   SupabaseTeamRepository,
   SupabaseUserRepository,
+  SupabaseConversationRepository,
+  SupabaseMessageRepository,
+  SupabaseMessageQueries,
+  SupabaseConversationQueries,
+  SupabaseDeletionRequestRepository,
 } from '@pickupvb/infrastructure';
 import {
   AcceptTeamInviteHandler,
@@ -82,6 +87,7 @@ import {
   ReorderPoolMatchesHandler,
   SearchCommunityListingsHandler,
   SearchEventsHandler,
+  GetAttendingEventsHandler,
   SeedBracketHandler,
   CreateStandaloneBracketHandler,
   SeedStandaloneBracketHandler,
@@ -101,6 +107,7 @@ import {
   RemoveGroupMemberHandler,
   UnfollowGroupHandler,
   RemoveFriendHandler,
+  SetProfileAvatarHandler,
   SetProfileHeroImageHandler,
   SetProfileThemeHandler,
   UnhideCommunityListingHandler,
@@ -113,6 +120,18 @@ import {
   UpsertLiveMatchScoreHandler,
   WithdrawAdHocTeamRegistrationHandler,
   WithdrawTeamHandler,
+  OpenConversationHandler,
+  OpenDmHandler,
+  SendMessageHandler,
+  EditMessageHandler,
+  DeleteMessageHandler,
+  ReportMessageHandler,
+  MarkConversationReadHandler,
+  ListMessagesHandler,
+  ListInboxHandler,
+  CountUnreadConversationsHandler,
+  RequestAccountDeletionHandler,
+  CancelAccountDeletionHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
 import { getAdminSupabase } from './supabase-admin';
@@ -189,6 +208,7 @@ export const handlers = {
   joinEventAsFreeAgent: new JoinEventAsFreeAgentHandler(eventRepo, analytics),
   leaveEventAsFreeAgent: new LeaveEventAsFreeAgentHandler(eventRepo, analytics),
   searchEvents: new SearchEventsHandler(eventRepo),
+  getAttendingEvents: new GetAttendingEventsHandler(eventRepo),
   getEventById: new GetEventByIdHandler(eventRepo),
   getEventDetail: new GetEventDetailHandler(eventRepo),
   getEventBracketMeta: new GetEventBracketMetaHandler(eventRepo),
@@ -243,7 +263,7 @@ export const handlers = {
   removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   setLeagueTeamForfeited: new SetLeagueTeamForfeitedHandler(eventRepo),
   // Community listings
-  createCommunityListing: new CreateCommunityListingHandler(communityListingRepo),
+  createCommunityListing: new CreateCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   updateCommunityListing: new UpdateCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   deleteCommunityListing: new DeleteCommunityListingHandler(communityListingRepo, isPlatformAdmin),
   reportCommunityListing: new ReportCommunityListingHandler(communityListingRepo),
@@ -354,6 +374,74 @@ export async function getMediaHandlers(): Promise<{
 }
 
 /**
+ * Per-request handlers for chat / messaging (ADR 0028). Built around a
+ * *user-scoped* client so every chat write is authorized by RLS — the
+ * `messages` INSERT/UPDATE policies and the `get_or_create_conversation`
+ * membership RPC read the real `auth.uid()` (AGENTS.md pitfall #8). The
+ * module-singleton admin-client `handlers` would bypass that gate.
+ */
+export async function getChatHandlers(): Promise<{
+  openConversation: OpenConversationHandler;
+  openDm: OpenDmHandler;
+  sendMessage: SendMessageHandler;
+  editMessage: EditMessageHandler;
+  deleteMessage: DeleteMessageHandler;
+  reportMessage: ReportMessageHandler;
+  markConversationRead: MarkConversationReadHandler;
+  listMessages: ListMessagesHandler;
+  listInbox: ListInboxHandler;
+  countUnreadConversations: CountUnreadConversationsHandler;
+}> {
+  const client = await getServerSupabase();
+  const conversationRepo = new SupabaseConversationRepository(client);
+  const messageRepo = new SupabaseMessageRepository(client);
+  const messageQueries = new SupabaseMessageQueries(client);
+  const conversationQueries = new SupabaseConversationQueries(client);
+
+  // Pre-flight of `can_moderate_conversation` — consulted only on the rarer
+  // non-sender delete path (DeleteMessageHandler skips it for self-deletes).
+  const canModerate = async (conversationId: string): Promise<boolean> => {
+    const { data, error } = await client.rpc('can_moderate_conversation', {
+      p_conversation_id: conversationId,
+    });
+    if (error) return false;
+    return data === true;
+  };
+
+  return {
+    openConversation: new OpenConversationHandler(conversationRepo),
+    openDm: new OpenDmHandler(conversationRepo),
+    sendMessage: new SendMessageHandler(messageRepo),
+    editMessage: new EditMessageHandler(messageRepo),
+    deleteMessage: new DeleteMessageHandler(messageRepo, canModerate),
+    reportMessage: new ReportMessageHandler(messageRepo),
+    markConversationRead: new MarkConversationReadHandler(conversationRepo),
+    listMessages: new ListMessagesHandler(messageQueries),
+    listInbox: new ListInboxHandler(conversationQueries),
+    countUnreadConversations: new CountUnreadConversationsHandler(conversationQueries),
+  };
+}
+
+/**
+ * Per-request handlers for account deletion (ADR 0029). User-scoped client so
+ * the `deletion_requests` RLS (`auth.uid() = user_id`) is the real gate on the
+ * arm / cancel writes — a user can only schedule or cancel their own deletion.
+ * The cron's execute path builds its own admin-scoped repo (see the
+ * execute-deletions route), not this factory.
+ */
+export async function getAccountDeletionHandlers(): Promise<{
+  requestAccountDeletion: RequestAccountDeletionHandler;
+  cancelAccountDeletion: CancelAccountDeletionHandler;
+}> {
+  const client = await getServerSupabase();
+  const repo = new SupabaseDeletionRequestRepository(client);
+  return {
+    requestAccountDeletion: new RequestAccountDeletionHandler(repo),
+    cancelAccountDeletion: new CancelAccountDeletionHandler(repo),
+  };
+}
+
+/**
  * Per-request handlers for the user's own profile writes (ADR 0020).
  *
  * Like `getMatchResultHandlers()`, these are built per request around a
@@ -366,6 +454,7 @@ export async function getUserProfileHandlers(): Promise<{
   changeHandle: ChangeHandleHandler;
   setTheme: SetProfileThemeHandler;
   setHeroImage: SetProfileHeroImageHandler;
+  setAvatar: SetProfileAvatarHandler;
   updateBusinessInfo: UpdateBusinessInfoHandler;
   addFriend: AddFriendHandler;
   removeFriend: RemoveFriendHandler;
@@ -377,6 +466,7 @@ export async function getUserProfileHandlers(): Promise<{
     changeHandle: new ChangeHandleHandler(userRepo),
     setTheme: new SetProfileThemeHandler(userRepo),
     setHeroImage: new SetProfileHeroImageHandler(userRepo),
+    setAvatar: new SetProfileAvatarHandler(userRepo),
     updateBusinessInfo: new UpdateBusinessInfoHandler(userRepo),
     addFriend: new AddFriendHandler(userRepo),
     removeFriend: new RemoveFriendHandler(userRepo),

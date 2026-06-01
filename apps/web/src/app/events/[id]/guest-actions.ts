@@ -7,7 +7,7 @@ import { CapacityExceededError, ConflictError } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
-import { consumeRateLimit, getClientIp } from '@/lib/rate-limit';
+import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
 import { getServerSupabase } from '@/lib/supabase';
 import { verifyTurnstileToken } from '@/lib/turnstile';
 
@@ -94,12 +94,12 @@ export async function signupAsGuest(
     const ip = await getClientIp();
     const [ipGate, emailGate] = await Promise.all([
       consumeRateLimit({
-        key: `guest-signup:ip:${ip}`,
+        key: rateLimitKey('guest-signup', 'ip', ip),
         limit: 20,
         windowSeconds: 3600,
       }),
       consumeRateLimit({
-        key: `guest-signup:email:${email.toLowerCase()}`,
+        key: rateLimitKey('guest-signup', 'email', email),
         limit: 5,
         windowSeconds: 3600,
       }),

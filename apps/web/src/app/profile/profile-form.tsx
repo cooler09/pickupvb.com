@@ -1,9 +1,14 @@
 'use client';
 
 import { useFormState, useFormStatus } from 'react-dom';
+import { primaryButtonClass } from '@/components/primary-button';
 import { POSITIONS, POSITION_LABEL } from '@/lib/enum-labels';
 import { Alert } from '@/components/alert';
 import { updateProfile, type ProfileFormState } from './actions';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 
 type Profile = {
   first_name: string | null;
@@ -25,18 +30,10 @@ type Profile = {
 
 const initialState: ProfileFormState = { error: null, success: false };
 
-const labelClass = 'block text-sm font-medium text-fg';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
-
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="bg-primary hover:bg-primary/90 inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:opacity-60"
-    >
+    <button type="submit" disabled={pending} className={primaryButtonClass('md')}>
       {pending ? 'Saving…' : 'Save changes'}
     </button>
   );

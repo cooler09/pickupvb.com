@@ -12,6 +12,186 @@ signal; P3 = opportunistic / post-product-market-fit.
 
 ---
 
+## Status — 2026-05-31 — Re-evaluation (post chat / media / live-scoring / MapTiler)
+
+**Trigger:** a week of feature shipping since the 2026-05-24 audit — chat /
+messaging ([ADR 0028](../adr/0028-chat-messaging.md)), event + profile media
+([ADR 0024](../adr/0024-event-and-profile-media.md)), avatars / profile
+pictures, broadcast notifications ([ADR 0027](../adr/0027-realtime-broadcast-notifications.md)),
+standalone brackets ([ADR 0025](../adr/0025-standalone-brackets.md)), and the
+MapTiler cutover ([TPI-1/3](third-party-integrations.md)) — changed the **cost**
+side of the ledger without adding revenue. Re-evaluated against the user ask:
+cover server + third-party costs and turn a profit **without** taxing the
+community.
+
+### Headline
+
+- **Every feature shipped since 2026-05-24 is a cost center, not a revenue
+  center.** Chat, media galleries, avatars, live scores, broadcast
+  notifications, and MapTiler are engagement / retention / community plays.
+  That's the right call — but it means the revenue engine (Pro + take-rate +
+  host sponsor slot) now covers a **bigger base**.
+- **The engine itself is sound and doesn't need re-pricing.**
+  [ADR 0014](../adr/0014-monetization-strategy.md) locks $10/mo + 5%/2.5%
+  pre-launch with measurable revisit triggers; nothing here argues to move
+  those levers. The lever to pull is **Pro conversion**, not Pro price.
+- **Correction (2026-06-01): the perk we flagged as "the highest-ROI unbuilt
+  move" — live match scoring — is in fact already built.** ADR 0023's phases
+  1–5 all shipped 2026-05-30 (domain `LiveMatchScore`, `match_live_scores`
+  migration + RPC, application handlers + finalize mappings, infra adapter, the
+  Pro-gated `ScoreLiveButton`, and the public live-view island). The original
+  bullet relied on the ADR's stale "Proposed" status and a stale memory note.
+  The conversion lever **exists**; the only remainder is the Phase-6 realtime
+  e2e on a deployed env. See R-1 below.
+
+### Revised cost floor
+
+The 2026-05-24 floor (~$70–110/mo pre-Twilio) predates three new cost
+surfaces:
+
+| New since 2026-05-24                                                                        | Cost driver                                                                                                                                                                                                                          | Posture                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MapTiler** (geocoding + tiles, [integrations.md § MapTiler](../integrations.md#maptiler)) | Per-request: autocomplete on every event-create + tiles on every event-detail map. Free tier (~100k tile loads/mo) is fine at 2–3 metros; paid (~$25–30/mo) once tiles / geocoding scale.                                            | Pure infra — covered by blended take-rate + Pro, **not** a new paywall.                                                                                                           |
+| **Supabase Realtime** (chat DMs / rooms, live scores, broadcast bell)                       | Concurrent peak connections (= active tabs) + messages/mo. Named the "single biggest concurrent-connection + cost lever" in [TPI-7](third-party-integrations.md). Within Pro's ~500-conn / 5M-msg base at launch; usage-based after. | Absorbed by Supabase Pro base until scale. Watch concurrent-conn growth as chat adoption rises.                                                                                   |
+| **Supabase Storage + egress** (media, avatars, chat attachments, sponsor logos, hero)       | Egress on every image view is the real lever (100GB storage / 250GB egress in Pro, then $0.021/GB + $0.09/GB).                                                                                                                       | Retention sweeps already mitigate ([chat retention](../../supabase/migrations/20260829000000_chat_retention.sql), hero/sponsor orphan walkers). Tier **volume** on Pro (see R-2). |
+
+**Revised floor ≈ $95–140/mo** at launch (old floor + MapTiler + a small
+Realtime / Storage usage buffer), still pre-Twilio. Break-even shifts modestly:
+**~12–15 Pro subs OR ~$2–2.8k GMV/mo** clears it — still very reachable for
+2–3 metros. But the grown base is the reason the conversion-side findings below
+matter more than they did a week ago.
+
+### New findings
+
+#### R-1 (P1) — Live-scoring Pro perk — ✅ already built; only e2e remains (corrected 2026-06-01)
+
+**File:** [ADR 0023](../adr/0023-live-match-scoring.md) (status corrected to
+Accepted/implemented 2026-06-01); gate at `isPro(event.hostId)`
+([pro.ts](../../apps/web/src/lib/pro.ts)).
+
+**Correction:** this was filed as "the strongest unrealized conversion lever …
+unbuilt." It is in fact **built and integrated.** ADR 0023 phases 1–5 all
+shipped 2026-05-30 — domain `LiveMatchScore`
+([packages/domain/src/scoring/](../../packages/domain/src/scoring/)), the
+`match_live_scores` table + `upsert_match_live_score` / `clear_match_live_score`
+RPCs ([20260815000000_match_live_scores.sql](../../supabase/migrations/20260815000000_match_live_scores.sql)),
+application handlers + finalize mappings
+([live-match-score.handler.ts](../../packages/application/src/commands/live-match-score.handler.ts),
+[live-match-finalize.ts](../../packages/application/src/scoring/live-match-finalize.ts)),
+the Supabase adapter, the Pro-gated `ScoreLiveButton`
+([score-live-button.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/score-live-button.tsx)),
+and the public live-view island
+([live-scores-provider.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/live-scores-provider.tsx)).
+DB types reconciled; `pnpm typecheck` green (15/15). The line is drawn exactly
+where ADR 0014 says — manual scoring free for everyone, the live auto-saving
+scoreboard is the Pro perk.
+
+**Remaining (Phase 6 only):** runtime/e2e verification of the realtime
+round-trip (score → public live update → finalize) on a deployed env — no
+`score-live` Playwright spec exists yet. Optional polish: an upgrade prompt for
+non-Pro hosts on the "Score live" affordance (currently the button simply
+doesn't render for non-Pro). **The conversion lever already exists in the
+product.**
+
+#### R-2 (P2) — Media/storage volume — ⚠️ premise corrected 2026-06-01; no clean Pro paywall exists
+
+**File:** [ADR 0024](../adr/0024-event-and-profile-media.md) (media);
+chat attachments ([ADR 0028](../adr/0028-chat-messaging.md)).
+
+**Correction:** R-2 assumed "media galleries" store image bytes worth metering.
+They don't. The actual storage/egress map:
+
+- **ADR 0024 media (videos/clips/streams) = external links** (YouTube/Twitch
+  URLs) — the platform "hosts nothing," so it costs ~$0. Metering it would tax
+  free community content for no savings.
+- **Avatar / hero / sponsor logo = one upload each** (10 / 8 / 4 MB caps). No
+  "volume" to tier.
+- **Chat attachments = the only real byte-volume surface** (10 MB × 10/message,
+  image-only, bucket-enforced) — but chat is a **community surface** (DMs/team
+  rooms). Our own do-not list forbids a chat/DM paywall, and the buyer persona is
+  the host, not the chatter, so a Pro gate there is both community-hostile and
+  persona-mismatched.
+
+So a straight "Pro media quota" has no community-safe home. Two honest paths
+were put to the user:
+
+- **Path A — cost-control, not monetization. ✅ Shipped 2026-06-01 (user chose
+  this).** Keep media free/uncapped-by-tier; bound cost with _universal_ limits +
+  the retention sweeps already shipped ([chat retention](../../supabase/migrations/20260829000000_chat_retention.sql),
+  hero/sponsor orphan walkers). Shipped a **per-user chat-attachment upload cap**:
+  ≤ 40 attachment-bearing messages / rolling 24h, enforced in `sendChatMessage`
+  ([chat-actions.ts](../../apps/web/src/app/_actions/chat-actions.ts)) via the
+  existing fail-open `consumeRateLimit` limiter; text chat is never throttled.
+  `rateLimitKey` gained a hashed `'user'` dimension. Bounds runaway / abuse
+  upload volume without taxing the community or paywalling a chat surface. No Pro
+  gate, no migration.
+- **Path B (NOT chosen) — build a net-new host feature worth gating.** Nothing
+  today fits, so the community-safe option would be a _new additive_ host
+  capability, e.g. an **event photo gallery** (hosts upload recap photos —
+  doesn't exist today). Free ~15 photos/event; Pro ~150 + clips; viewing always
+  free. A **feature build, not a quota tweak** — 1–2 bundles. Held until there's
+  a real signal hosts want photo uploads; revisit then as a feature decision.
+
+#### R-3 (P2) — Standalone brackets as a Pro / à-la-carte surface — ✅ Shipped 2026-06-01
+
+**File:** [ADR 0025 addendum](../adr/0025-standalone-brackets.md#addendum-2026-06-01-free-tier-active-bracket-cap-monetization-r-3).
+
+The in-event bracket generator stays free (no clawback per ADR 0014). Shipped the
+free cap on the **net-new standalone surface**: Free hosts run **1 active
+(non-completed) standalone bracket at a time**; Pro unlimited. Completed brackets
+don't count, so a Free host keeps their history and only an in-progress bracket
+occupies the slot. `validateActiveBracketCap`
+([standalone-bracket-cap.ts](../../apps/web/src/lib/standalone-bracket-cap.ts),
+unit-tested) mirrors the paid-event cap (Pro/admin short-circuit, else count
+`listByOwner` non-completed rows); enforced in the create action and surfaced as
+a proactive upgrade card on `/brackets/new`. Pricing / features copy updated.
+
+#### R-4 (P3 → promote on Twilio) — Reaffirm SMS-as-Pro when Twilio lands
+
+Carries over [P3 #11](#11-sms-as-a-pro-perk-when-twilio-lands). SMS is the
+clearest "Pro pays for what it costs us" lever (real per-message cost ~$0.008
+US). Decide gating **in** the SMS bundle (Pro-only or low free quota) so it
+isn't shipped free-first then clawed back.
+
+#### R-5 (P3) — Tip-jar fee posture as a trust signal — ✅ Shipped 2026-06-01 (dropped to 0%)
+
+Carries over [P3 #9](#9-tip-jar-take-rate-parity-with-tickets-is-probably-wrong).
+**Decision: drop the tip fee to 0% on every tier** (not a cap — a clean "we take
+nothing on tips" is the stronger, more marketable signal). Ticket fees unchanged.
+`tipPlatformFeeCents()` returns 0
+([event-pricing.ts](../../apps/web/src/lib/event-pricing.ts), unit-tested);
+[tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts) stores
+`platform_fee_cents = 0`;
+[checkout-session.ts](../../apps/web/src/lib/checkout-session.ts) omits
+`application_fee_amount` when 0 so the destination charge transfers the full tip.
+Pricing / Pro / tip-jar copy and the [ADR 0014 amendment](../adr/0014-monetization-strategy.md)
+record it. Stripe's processing fee still applies (it's Stripe's, not ours) and
+the tip UI says so. P3 #9 closed.
+
+### What NOT to do (community protection — reaffirmed)
+
+- **No platform-sold display ads** on event / group / home pages (ADR 0014).
+- **No clawback** of existing free features — co-hosts, groups, broadcasts,
+  in-event brackets, basic chat / DMs.
+- **No chat / DM paywall.** Messaging is community infrastructure and a
+  retention driver; monetize the host toolkit _around_ it, never the
+  conversation.
+- **No per-metro price discrimination** (ADR 0014 rejected).
+- **Don't churn** the 5%/2.5% take-rate or the $10 price pre-launch — ADR
+  0014's success-criteria triggers are the only sanctioned reason to move them.
+
+### Open questions (need the user)
+
+1. **Live scoring (R-1)** — green-light to build as the next Pro perk?
+2. **Media tiering (R-2)** — comfortable giving Pro higher media limits / video
+   with a generous free photo quota, or keep all media uncapped-free for now
+   (pure cost)?
+3. **Tip fee (R-5)** — keep 5%/2.5% on tips, or drop / cap it as a trust signal?
+4. **Standalone brackets (R-3)** — OK to introduce a free cap (1 active) with
+   Pro unlimited on the new standalone surface?
+
+---
+
 ## Feature status
 
 Quick-reference table. Detailed findings follow below.
@@ -613,6 +793,46 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-01 — R-2 resolved (Path A, cost-control — no paywall).** Premise
+  corrected first: ADR 0024 "media" is external links (≈$0 storage); avatar/hero/
+  logo are one upload each; the only real byte-volume surface is **chat
+  attachments**, a community surface a Pro gate must not touch. User chose Path A.
+  Shipped a universal per-user chat-attachment upload cap (≤ 40 attachment
+  messages / 24h) in `sendChatMessage` over the existing fail-open
+  `consumeRateLimit`; text chat unthrottled; `rateLimitKey` gained a hashed
+  `'user'` dimension. No Pro gate, no migration. Path B (Pro event photo gallery)
+  held pending host demand. Verify quad green.
+
+- **2026-06-01 — R-3 shipped — standalone-bracket free cap.** Free hosts run 1
+  active (non-completed) standalone bracket at a time; Pro unlimited. Completed
+  brackets don't count (history preserved). `validateActiveBracketCap`
+  ([standalone-bracket-cap.ts](../../apps/web/src/lib/standalone-bracket-cap.ts),
+  unit-tested) mirrors the paid-event cap; enforced in
+  `createStandaloneBracketFromForm` + a proactive upgrade card on `/brackets/new`.
+  Net-new gate on a net-new surface — the in-event bracket generator stays free
+  and uncapped. [ADR 0025 addendum](../adr/0025-standalone-brackets.md) + pricing/
+  features copy. Verify quad green.
+
+- **2026-06-01 — R-5 shipped — tip fee dropped to 0%.** PickupVB now takes no
+  platform fee on tips, any tier (`tipPlatformFeeCents()` → 0, unit-tested);
+  `checkout-session.ts` omits `application_fee_amount` when 0 so the host
+  receives 100% of the tip, less only Stripe's processing fee. Ticket fees
+  unchanged. Copy updated across pricing / Pro / tip-jar; recorded as an
+  [ADR 0014 amendment](../adr/0014-monetization-strategy.md). Also corrected the
+  2026-05-31 re-eval's R-1 finding: **live scoring is already built** (ADR 0023
+  phases 1–5, 2026-05-30) — the "unbuilt" framing relied on a stale ADR status +
+  memory note, both fixed; only the Phase-6 realtime e2e remains. Verify quad
+  green.
+
+- **2026-05-31 — Re-evaluation (no code landed).** Re-ran the monetization
+  lens after a week of feature shipping (chat / media / avatars / live scores /
+  broadcast notifications / MapTiler). Findings + revised cost floor in the
+  **[Status — 2026-05-31](#status--2026-05-31--re-evaluation-post-chat--media--live-scoring--maptiler)**
+  block at the top. Net: the new features are cost centers; the revenue engine
+  is sound; the lever is Pro **conversion**, not price. New P1 = ship the
+  already-designed live-scoring Pro perk (R-1, [ADR 0023](../adr/0023-live-match-scoring.md)).
+  Four open questions await the user before any bundle lands.
 
 - **2026-05-27 — Bundle 100** — **P2 #7 — off-platform event
   upsell.** Soft, dismissible nudge rendered above the hero on

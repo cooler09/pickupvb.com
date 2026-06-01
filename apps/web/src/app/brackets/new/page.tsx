@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { requireRealUser } from '@/lib/server-auth';
 import { FormatPickerForm } from '@/app/events/[id]/bracket/_components/format-picker-form';
 import { NOTICE_LABEL } from '@/app/events/[id]/bracket/_components/labels';
+import { primaryButtonClass } from '@/components/primary-button';
+import { validateActiveBracketCap } from '@/lib/standalone-bracket-cap';
 import { createStandaloneBracketFromForm } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -22,11 +24,16 @@ function pickQuery(
 export default async function NewStandaloneBracketPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireRealUser('/brackets/new');
+  const { user } = await requireRealUser('/brackets/new');
   const searchParams = await props.searchParams;
   const noticeCode = pickQuery(searchParams, 'notice');
   const noticeMsg = pickQuery(searchParams, 'msg');
   const notice = noticeCode ? (NOTICE_LABEL[noticeCode] ?? null) : null;
+
+  // Free hosts run one active bracket at a time (ADR 0025 addendum / R-3). When
+  // already at the cap, show the upgrade path instead of a format picker that
+  // would only bounce on submit.
+  const cap = await validateActiveBracketCap(user.id);
 
   return (
     <article className="mx-auto max-w-3xl space-y-6 p-4">
@@ -52,11 +59,29 @@ export default async function NewStandaloneBracketPage(props: {
         </div>
       )}
 
-      <FormatPickerForm
-        action={createStandaloneBracketFromForm}
-        enforceMinTeams={false}
-        teamCount={0}
-      />
+      {cap.ok ? (
+        <FormatPickerForm
+          action={createStandaloneBracketFromForm}
+          enforceMinTeams={false}
+          teamCount={0}
+        />
+      ) : (
+        <div className="border-primary/30 bg-primary/5 rounded-shape-sm space-y-3 border p-5">
+          <h2 className="text-fg text-base font-semibold">You{'’'}re running a bracket already</h2>
+          <p className="text-muted text-sm">{cap.reason}</p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/profile/billing/pro" className={primaryButtonClass('md')}>
+              Upgrade to Pro
+            </Link>
+            <Link
+              href="/brackets"
+              className="border-border-base bg-surface hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
+            >
+              My brackets
+            </Link>
+          </div>
+        </div>
+      )}
     </article>
   );
 }

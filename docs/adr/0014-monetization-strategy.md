@@ -63,6 +63,36 @@ short reason and an explicit "revisit when" trigger.
   ties at ~$100. We picked the lever that helps the typical
   $20-ticket open play, not the corporate $200-ticket clinic.
 
+### Amendment 2026-06-01: tips take no platform fee (any tier)
+
+**Supersedes** the "5% Free / 2.5% Pro on tickets **+ tips**" line above for the
+**tips** half only. As of 2026-06-01 the platform fee on tips is **0% on every
+tier.** Ticket fees are unchanged (5% Free / 2.5% Pro).
+
+- **Why drop it, not keep parity with tickets:** a ticket sale is a transaction
+  the platform _enabled_ (listing, capacity, checkout, refunds) — a take-rate is
+  defensible there. A **tip** is a discretionary attendee→host transfer the
+  platform didn't broker; skimming it reads as rent-seeking and is the weakest
+  possible trust signal. "100% of your tip goes to the host" is a strong,
+  cheap community signal — and pre-launch tip volume is small, so the forgone
+  revenue is negligible against the goodwill.
+- **Why 0%, not a small cap:** a cap ("$0.30 + 0% after") is harder to explain
+  and dilutes the signal. A clean "we take nothing on tips" is the marketable
+  line; the cap can be revisited only if tip volume ever becomes a material,
+  abuse-prone surface (it isn't at 2–3 metros).
+- **What stays true:** Stripe's processing fee (~2.9% + 30¢) still comes off any
+  card charge — it's Stripe's, not ours, and the tip UI says so. We do not pass
+  it to the tipper as a line item (tips are small; a fee line would dwarf the
+  gesture).
+- **Implementation:** `tipPlatformFeeCents()` in
+  [apps/web/src/lib/event-pricing.ts](../../apps/web/src/lib/event-pricing.ts)
+  returns 0 (named, unit-tested — the single place to change for a future cap);
+  [tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts) uses it
+  and stores `platform_fee_cents = 0`;
+  [checkout-session.ts](../../apps/web/src/lib/checkout-session.ts) omits
+  `application_fee_amount` when 0 so the destination charge transfers the full
+  tip. Pricing / Pro / tip-jar copy updated. Source: monetization audit R-5.
+
 ### Free-tier cap: 1 paid event per rolling 30 days
 
 - **Why 1, not 0:** "zero paid events on Free" makes us pure

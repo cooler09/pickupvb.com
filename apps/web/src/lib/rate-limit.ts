@@ -4,6 +4,10 @@ import { headers } from 'next/headers';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { log } from '@/lib/log';
 
+// Re-exported so call sites build keys + consume the limiter from one import.
+// The builder lives in its own (dependency-free) module to stay unit-testable.
+export { rateLimitKey } from '@/lib/rate-limit-key';
+
 /**
  * Fixed-window rate limiter backed by the `public.rate_limits` table and
  * the `consume_rate_limit()` SQL function (see migration
@@ -30,7 +34,8 @@ export interface RateLimitResult {
 }
 
 export interface RateLimitOptions {
-  /** Stable key. Combine the route + dimension (ip / email) at the call site. */
+  /** Stable key. Build it with {@link rateLimitKey} so the per-actor portion
+   * (email / IP) is hashed, never stored raw in `rate_limits.key` (P3 #10). */
   key: string;
   /** Max events permitted within the window. */
   limit: number;

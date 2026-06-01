@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import { useRouter } from 'next/navigation';
 import type { Route } from 'next';
 import { DEFAULT_CONFIG } from '../_lib/types.js';
 import { generateRoomCode } from '../_lib/room-code.js';
-
-const labelClass = 'text-fg block text-sm font-medium';
-const inputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-bg px-3 py-2 text-sm text-fg shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+import {
+  fieldInputClass as inputClass,
+  fieldLabelClass as labelClass,
+} from '@/components/field-styles';
 
 export function ScoreboardSetupForm() {
   const router = useRouter();
@@ -109,10 +110,7 @@ export function ScoreboardSetupForm() {
       </div>
 
       <div className="border-border-base border-t pt-4">
-        <button
-          type="submit"
-          className="bg-primary hover:bg-primary/90 focus-visible:ring-primary w-full rounded-md px-4 py-2.5 font-semibold text-white shadow-sm focus:outline-none focus-visible:ring-2"
-        >
+        <button type="submit" className={`${primaryButtonClass('md')} w-full`}>
           Start scoreboard
         </button>
         <p className="text-muted mt-2 text-center text-xs">

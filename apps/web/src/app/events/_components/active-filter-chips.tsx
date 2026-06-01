@@ -7,13 +7,15 @@ import {
   AGE_GROUP_LABEL,
   TEAM_COMPOSITION_LABEL,
 } from '@/lib/enum-labels';
+import { PRICE_FILTER_LABEL } from './event-filter-options';
 import type {
   AgeGroupFilter,
+  PriceFilter,
   Skill,
   Surface,
   TeamCompositionFilter,
   Type,
-} from './event-filter-form';
+} from './event-filter-options';
 import type { Timeframe } from './event-timeframe-tabs';
 
 type Props = {
@@ -24,6 +26,7 @@ type Props = {
   ageGroup: AgeGroupFilter | undefined;
   teamComposition: TeamCompositionFilter | undefined;
   seriesName: string | undefined;
+  price: PriceFilter | undefined;
   location: { lat: number; lng: number; radiusKm: number } | null;
   /** Returns the page href with the named filter removed. */
   buildRemoveHref: (key: FilterKey) => Route;
@@ -38,6 +41,7 @@ export type FilterKey =
   | 'ageGroup'
   | 'teamComposition'
   | 'seriesName'
+  | 'price'
   | 'location';
 
 /**
@@ -51,6 +55,7 @@ export function ActiveFilterChips({
   ageGroup,
   teamComposition,
   seriesName,
+  price,
   location,
   buildRemoveHref,
   clearAllHref,
@@ -59,6 +64,7 @@ export function ActiveFilterChips({
   if (surface) chips.push({ key: 'surface', label: SURFACE_LABEL[surface] ?? surface });
   if (type) chips.push({ key: 'type', label: TYPE_LABEL[type] ?? type });
   if (skillBand) chips.push({ key: 'skillBand', label: SKILL_LABEL[skillBand] ?? skillBand });
+  if (price) chips.push({ key: 'price', label: PRICE_FILTER_LABEL[price] });
   if (ageGroup) chips.push({ key: 'ageGroup', label: AGE_GROUP_LABEL[ageGroup] ?? ageGroup });
   if (teamComposition)
     chips.push({

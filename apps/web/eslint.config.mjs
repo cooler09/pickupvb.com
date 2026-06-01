@@ -57,6 +57,51 @@ const config = [
           message:
             'Use the M3 shape scale (rounded-shape-sm/md/lg) instead of raw rounded-lg/xl/2xl in template literals. Eliminated in Bundle 139 — see docs/audits/m3-alignment.md P2 #7.',
         },
+        // Field-vocabulary ratchet (docs/audits/persona-ux.md CC-2, Bundle
+        // 2026-05-31b). Bundle 2 collapsed 17 forked local
+        // `const inputClass`/`labelClass`/`selectClass = '…tailwind…'`
+        // definitions onto the shared recipe in
+        // `@/components/field-styles` (and `TextField`). These forbid
+        // re-declaring a hand-rolled field class so the convergence can't
+        // silently regress. Matches only a *string/template-literal* RHS, so
+        // the re-exports in `form-primitives.tsx`
+        // (`export const inputClass = fieldInputClass`) — Identifier RHS — and
+        // the `field-styles.ts` source (`fieldInputClass`, different name) are
+        // not flagged. Two surfaces opt out with `eslint-disable` + a reason
+        // (event-filter-form's compact filter controls, match-row's inline
+        // schedule-table cell) — they're a different control class than
+        // labeled form fields.
+        {
+          selector:
+            "VariableDeclarator[id.name=/^(input|label|select)Class$/][init.type='Literal']",
+          message:
+            "Don't hand-roll a field class string. Import fieldInputClass / fieldLabelClass / fieldSubLabelClass / fieldHintClass / fieldErrorClass from '@/components/field-styles' (or use <TextField>). See docs/audits/persona-ux.md CC-2.",
+        },
+        {
+          selector:
+            "VariableDeclarator[id.name=/^(input|label|select)Class$/][init.type='TemplateLiteral']",
+          message:
+            "Don't hand-roll a field class string. Import the field classes from '@/components/field-styles' (or use <TextField>). See docs/audits/persona-ux.md CC-2.",
+        },
+        // Primary-button ratchet (docs/audits/persona-ux.md CC-1, Bundle
+        // 2026-05-31d). The CC-1 sweep migrated every hand-rolled
+        // `bg-primary hover:bg-primary/90 … text-white` button to
+        // `primaryButtonClass(size)` (the canonical M3 filled button uses the
+        // `state-layer` overlay, never `hover:bg-primary/90`). `hover:bg-primary/90`
+        // is therefore a reliable fingerprint of the old recipe — forbid it so it
+        // can't re-enter. There are intentionally **no exceptions** (the sweep hit
+        // zero remaining occurrences); a genuinely new filled-button surface should
+        // import `primaryButtonClass` / `secondaryButtonClass` instead.
+        {
+          selector: 'Literal[value=/hover:bg-primary\\/90/]',
+          message:
+            "Don't hand-roll the primary-button recipe (`bg-primary hover:bg-primary/90 text-white …`). Use primaryButtonClass(size) / secondaryButtonClass(size) from '@/components/primary-button'. See docs/audits/persona-ux.md CC-1.",
+        },
+        {
+          selector: 'TemplateElement[value.cooked=/hover:bg-primary\\/90/]',
+          message:
+            "Don't hand-roll the primary-button recipe in a template literal. Use primaryButtonClass / secondaryButtonClass from '@/components/primary-button'. See docs/audits/persona-ux.md CC-1.",
+        },
       ],
     },
   },

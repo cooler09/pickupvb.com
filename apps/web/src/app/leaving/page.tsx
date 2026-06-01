@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { redirect } from 'next/navigation';
 import { isTrustedExternalUrl } from '@/lib/external-link';
@@ -95,7 +96,7 @@ export default async function LeavingPage(props: { searchParams: SearchParams })
           href={destination}
           target="_blank"
           rel="noopener noreferrer nofollow external"
-          className="bg-primary text-primary-fg hover:bg-primary/90 rounded-md px-4 py-2 text-center text-sm font-semibold"
+          className={primaryButtonClass('md')}
         >
           Continue to {displayHost} <span aria-hidden="true">↗</span>
           <span className="sr-only"> (opens in new tab)</span>

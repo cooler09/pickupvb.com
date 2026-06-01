@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
+import { Pagination } from '@/components/pagination';
 import { AddMemberForm } from './_components/add-member-form';
 import { MemberRowItem, type MemberListItem } from './_components/member-row-item';
 
@@ -11,8 +12,15 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function GroupMembersPage(props: { params: Promise<{ id: string }> }) {
+const MEMBERS_PER_PAGE = 24;
+
+export default async function GroupMembersPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
+}) {
   const params = await props.params;
+  const searchParams = await props.searchParams;
+  const page = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const supabase = await getServerSupabase();
   const {
     data: { user },
@@ -45,6 +53,10 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
   const returnPath = `/groups/${group.slug}/members`;
   const viewerIsOwner = myRole === 'owner';
 
+  // Keep the full `members` list for the exclude set + count; only page the
+  // rendered rows so a large group doesn't render every member at once.
+  const pageMembers = members.slice((page - 1) * MEMBERS_PER_PAGE, page * MEMBERS_PER_PAGE);
+
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
       <header className="space-y-1">
@@ -61,12 +73,12 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
         existingMemberIds={members.map((m) => m.userId)}
       />
 
-      <section className="space-y-2">
+      <section id="members" className="space-y-2">
         <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">
-          Current members
+          Current members ({members.length})
         </h2>
         <ul className="space-y-2">
-          {members.map((m) => (
+          {pageMembers.map((m) => (
             <MemberRowItem
               key={m.userId}
               groupId={group.id}
@@ -77,6 +89,14 @@ export default async function GroupMembersPage(props: { params: Promise<{ id: st
             />
           ))}
         </ul>
+        <Pagination
+          basePath={returnPath}
+          page={page}
+          pageSize={MEMBERS_PER_PAGE}
+          total={members.length}
+          searchParams={searchParams}
+          scrollToId="members"
+        />
       </section>
     </div>
   );

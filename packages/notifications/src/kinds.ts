@@ -14,65 +14,71 @@
  */
 
 export type NotificationKind =
-    | 'event.signup.confirmed'
-    | 'event.waitlist.promoted'
-    | 'event.cancelled'
-    | 'event.updated'
-    | 'event.reminder.24h'
-    | 'event.reminder.2h'
-    | 'payment.refunded'
-    | 'host.payout.paid'
-    | 'host.stripe.action_required'
-    | 'social.follow.new'
-    | 'team.invite'
-    | 'broadcast.host_message';
+  | 'event.signup.confirmed'
+  | 'event.waitlist.promoted'
+  | 'event.cancelled'
+  | 'event.updated'
+  | 'event.reminder.24h'
+  | 'event.reminder.2h'
+  | 'payment.refunded'
+  | 'host.payout.paid'
+  | 'host.stripe.action_required'
+  | 'social.follow.new'
+  | 'team.invite'
+  | 'broadcast.host_message'
+  | 'account.deletion.requested'
+  | 'account.deletion.cancelled';
 
 export type NotificationCategory =
-    | 'transactional' // never disable-able
-    | 'event_reminders'
-    | 'waitlist'
-    | 'group_activity'
-    | 'social'
-    | 'host_payouts'
-    | 'broadcasts'
-    | 'marketing';
+  | 'transactional' // never disable-able
+  | 'event_reminders'
+  | 'waitlist'
+  | 'group_activity'
+  | 'social'
+  | 'host_payouts'
+  | 'broadcasts'
+  | 'marketing';
 
 export type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
 
 export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
-    'event.signup.confirmed': 'transactional',
-    'event.waitlist.promoted': 'waitlist',
-    'event.cancelled': 'transactional',
-    'event.updated': 'event_reminders',
-    'event.reminder.24h': 'event_reminders',
-    'event.reminder.2h': 'event_reminders',
-    'payment.refunded': 'transactional',
-    'host.payout.paid': 'host_payouts',
-    'host.stripe.action_required': 'transactional',
-    'social.follow.new': 'social',
-    'team.invite': 'group_activity',
-    'broadcast.host_message': 'broadcasts',
+  'event.signup.confirmed': 'transactional',
+  'event.waitlist.promoted': 'waitlist',
+  'event.cancelled': 'transactional',
+  'event.updated': 'event_reminders',
+  'event.reminder.24h': 'event_reminders',
+  'event.reminder.2h': 'event_reminders',
+  'payment.refunded': 'transactional',
+  'host.payout.paid': 'host_payouts',
+  'host.stripe.action_required': 'transactional',
+  'social.follow.new': 'social',
+  'team.invite': 'group_activity',
+  'broadcast.host_message': 'broadcasts',
+  'account.deletion.requested': 'transactional',
+  'account.deletion.cancelled': 'transactional',
 };
 
 /** Default channels for each kind. Per-user prefs further filter this set. */
 export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel[]> = {
-    'event.signup.confirmed': ['email', 'in_app'],
-    'event.waitlist.promoted': ['email', 'push', 'in_app'],
-    'event.cancelled': ['email', 'push', 'in_app'],
-    'event.updated': ['email', 'push', 'in_app'],
-    'event.reminder.24h': ['email', 'in_app'],
-    'event.reminder.2h': ['email', 'push', 'in_app'],
-    'payment.refunded': ['email', 'in_app'],
-    'host.payout.paid': ['email', 'in_app'],
-    'host.stripe.action_required': ['email', 'in_app'],
-    'social.follow.new': ['in_app'],
-    'team.invite': ['email', 'push', 'in_app'],
-    'broadcast.host_message': ['email', 'push', 'in_app'],
+  'event.signup.confirmed': ['email', 'in_app'],
+  'event.waitlist.promoted': ['email', 'push', 'in_app'],
+  'event.cancelled': ['email', 'push', 'in_app'],
+  'event.updated': ['email', 'push', 'in_app'],
+  'event.reminder.24h': ['email', 'in_app'],
+  'event.reminder.2h': ['email', 'push', 'in_app'],
+  'payment.refunded': ['email', 'in_app'],
+  'host.payout.paid': ['email', 'in_app'],
+  'host.stripe.action_required': ['email', 'in_app'],
+  'social.follow.new': ['in_app'],
+  'team.invite': ['email', 'push', 'in_app'],
+  'broadcast.host_message': ['email', 'push', 'in_app'],
+  'account.deletion.requested': ['email', 'in_app'],
+  'account.deletion.cancelled': ['email', 'in_app'],
 };
 
 /** Categories that cannot be disabled by user preference. */
 export const TRANSACTIONAL_CATEGORIES: ReadonlySet<NotificationCategory> = new Set([
-    'transactional',
+  'transactional',
 ]);
 
 // ─── Payload contracts ─────────────────────────────────────────────────
@@ -80,68 +86,73 @@ export const TRANSACTIONAL_CATEGORIES: ReadonlySet<NotificationCategory> = new S
 // get a type-safe payload at every trigger site.
 
 export type NotificationPayloadMap = {
-    'event.signup.confirmed': {
-        eventId: string;
-        eventTitle: string;
-        startsAt: string; // ISO
-        location: string;
-    };
-    'event.waitlist.promoted': {
-        eventId: string;
-        eventTitle: string;
-        startsAt: string;
-    };
-    'event.cancelled': {
-        eventId: string;
-        eventTitle: string;
-        startsAt: string;
-        reason: string | null;
-    };
-    'event.updated': {
-        eventId: string;
-        eventTitle: string;
-        changeSummary: string;
-    };
-    'event.reminder.24h': {
-        eventId: string;
-        eventTitle: string;
-        startsAt: string;
-        location: string;
-    };
-    'event.reminder.2h': {
-        eventId: string;
-        eventTitle: string;
-        startsAt: string;
-        location: string;
-    };
-    'payment.refunded': {
-        eventId: string;
-        eventTitle: string;
-        amountCents: number;
-    };
-    'host.payout.paid': {
-        amountCents: number;
-        arrivalDate: string;
-    };
-    'host.stripe.action_required': {
-        message: string;
-    };
-    'social.follow.new': {
-        followerId: string;
-        followerName: string;
-    };
-    'team.invite': {
-        teamSlug: string;
-        groupName: string;
-        inviterName: string;
-    };
-    'broadcast.host_message': {
-        eventId?: string;
-        groupId?: string;
-        subject: string;
-        body: string;
-        senderName: string;
-    };
+  'event.signup.confirmed': {
+    eventId: string;
+    eventTitle: string;
+    startsAt: string; // ISO
+    location: string;
+  };
+  'event.waitlist.promoted': {
+    eventId: string;
+    eventTitle: string;
+    startsAt: string;
+  };
+  'event.cancelled': {
+    eventId: string;
+    eventTitle: string;
+    startsAt: string;
+    reason: string | null;
+  };
+  'event.updated': {
+    eventId: string;
+    eventTitle: string;
+    changeSummary: string;
+  };
+  'event.reminder.24h': {
+    eventId: string;
+    eventTitle: string;
+    startsAt: string;
+    location: string;
+  };
+  'event.reminder.2h': {
+    eventId: string;
+    eventTitle: string;
+    startsAt: string;
+    location: string;
+  };
+  'payment.refunded': {
+    eventId: string;
+    eventTitle: string;
+    amountCents: number;
+  };
+  'host.payout.paid': {
+    amountCents: number;
+    arrivalDate: string;
+  };
+  'host.stripe.action_required': {
+    message: string;
+  };
+  'social.follow.new': {
+    followerId: string;
+    followerName: string;
+  };
+  'team.invite': {
+    teamSlug: string;
+    groupName: string;
+    inviterName: string;
+  };
+  'broadcast.host_message': {
+    eventId?: string;
+    groupId?: string;
+    subject: string;
+    body: string;
+    senderName: string;
+  };
+  'account.deletion.requested': {
+    /** ISO date the account is scheduled to be permanently deleted. */
+    scheduledFor: string;
+  };
+  'account.deletion.cancelled': Record<string, never>;
 };
 
 export type NotificationPayload<K extends NotificationKind> = NotificationPayloadMap[K];

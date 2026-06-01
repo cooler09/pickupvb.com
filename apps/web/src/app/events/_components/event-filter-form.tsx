@@ -1,3 +1,8 @@
+'use client';
+
+import { useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Route } from 'next';
 import {
   SURFACE_LABEL,
   TYPE_LABEL,
@@ -5,18 +10,25 @@ import {
   AGE_GROUP_LABEL,
   TEAM_COMPOSITION_LABEL,
 } from '@/lib/enum-labels';
-
-export const SURFACES = ['indoor', 'grass', 'sand'] as const;
-export const TYPES = ['open_play', 'tournament'] as const;
-export const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
-export const AGE_GROUPS = ['adult', 'hs', '18u', '16u', '14u', 'jr_high'] as const;
-export const TEAM_COMPOSITIONS = ['solo', 'team', 'pair_draw', 'partners'] as const;
-
-export type Surface = (typeof SURFACES)[number];
-export type Type = (typeof TYPES)[number];
-export type Skill = (typeof SKILLS)[number];
-export type AgeGroupFilter = (typeof AGE_GROUPS)[number];
-export type TeamCompositionFilter = (typeof TEAM_COMPOSITIONS)[number];
+import { primaryButtonClass } from '@/components/primary-button';
+import {
+  SURFACES,
+  TYPES,
+  SKILLS,
+  AGE_GROUPS,
+  TEAM_COMPOSITIONS,
+  PRICES,
+  PRICE_FILTER_LABEL,
+  SORTS,
+  SORT_LABEL,
+  type Surface,
+  type Type,
+  type Skill,
+  type AgeGroupFilter,
+  type TeamCompositionFilter,
+  type PriceFilter,
+  type SortOption,
+} from './event-filter-options';
 
 type Props = {
   when: 'upcoming' | 'past' | 'following';
@@ -26,12 +38,21 @@ type Props = {
   ageGroup: AgeGroupFilter | undefined;
   teamComposition: TeamCompositionFilter | undefined;
   seriesName: string | undefined;
+  /** Free / Paid filter (applied in-memory; works on every tab). */
+  price: PriceFilter | undefined;
+  /**
+   * Result ordering. Absence = the per-tab date order. "Nearest" is only
+   * offered when a location is active; the whole control is hidden on Following.
+   */
+  sort: SortOption | undefined;
   /** When set, renders hidden lat/lng inputs and a Radius (km) field. */
   location: { lat: number; lng: number; radiusKm: number } | null;
 };
 
+// eslint-disable-next-line no-restricted-syntax -- compact filter-bar select, not a labeled form field (persona-ux.md CC-2 exception)
 const selectClass =
   'mt-1 w-full rounded-md border border-border-base bg-surface px-2 py-1.5 text-sm';
+// eslint-disable-next-line no-restricted-syntax -- uppercase filter-bar label, distinct from form field labels (persona-ux.md CC-2 exception)
 const labelClass = 'text-muted block text-xs font-semibold tracking-wide uppercase';
 
 /**
@@ -40,9 +61,9 @@ const labelClass = 'text-muted block text-xs font-semibold tracking-wide upperca
  * tab is preserved via a hidden field so applying filters doesn't drop the
  * user back into Upcoming.
  *
- * Layout: the three most-used filters (surface / type / skill) sit on a single
- * row; less-used filters (age, team, series, radius) live behind a "More
- * filters" toggle — open by default if any of them are active.
+ * Layout: the most-used filters (surface / type / skill / price) sit on a
+ * single row; less-used filters (age, team, series, radius) live behind a
+ * "More filters" toggle — open by default if any of them are active.
  */
 export function EventFilterForm({
   when,
@@ -52,14 +73,40 @@ export function EventFilterForm({
   ageGroup,
   teamComposition,
   seriesName,
+  price,
+  sort,
   location,
 }: Props) {
-  const advancedActive = Boolean(ageGroup || teamComposition || seriesName || location);
+  const advancedActive = Boolean(ageGroup || teamComposition || seriesName);
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  // Auto-apply: navigate as soon as a control changes, so filtering feels
+  // instant (matching the Near-me button). The form keeps `method="get"` and
+  // the Apply button so it still works with JS disabled. Rebuilding the query
+  // from FormData drops `page` (resetting pagination) and preserves the hidden
+  // `when` / `lat` / `lng` fields.
+  const apply = (form: HTMLFormElement) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(form).entries()) {
+      const v = String(value).trim();
+      if (v) params.set(key, v);
+    }
+    const q = params.toString();
+    start(() => router.push((q ? `/events?${q}` : '/events') as Route));
+  };
 
   return (
     <form
       method="get"
-      className="border-border-base bg-surface rounded-shape-sm space-y-3 border p-4"
+      onChange={(e) => apply(e.currentTarget)}
+      onSubmit={(e) => {
+        e.preventDefault();
+        apply(e.currentTarget);
+      }}
+      className={`border-border-base bg-surface rounded-shape-sm space-y-3 border p-4 transition-opacity ${
+        pending ? 'opacity-60' : ''
+      }`}
     >
       {when !== 'upcoming' && <input type="hidden" name="when" value={when} />}
       {location && (
@@ -69,7 +116,7 @@ export function EventFilterForm({
         </>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">
           <span className={labelClass}>Surface</span>
           <select name="surface" defaultValue={surface ?? ''} className={selectClass}>
@@ -103,7 +150,35 @@ export function EventFilterForm({
             ))}
           </select>
         </label>
+        <label className="text-sm">
+          <span className={labelClass}>Price</span>
+          <select name="price" defaultValue={price ?? ''} className={selectClass}>
+            <option value="">Any</option>
+            {PRICES.map((p) => (
+              <option key={p} value={p}>
+                {PRICE_FILTER_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+
+      {/* Radius is a primary control once a location is active (set via the
+          Near-me button or the City/ZIP search) — not buried under "More
+          filters" — since it's the main knob for widening/narrowing results. */}
+      {location && (
+        <label className="block text-sm sm:max-w-48">
+          <span className={labelClass}>Radius (km)</span>
+          <input
+            name="radiusKm"
+            type="number"
+            min={1}
+            max={500}
+            defaultValue={location.radiusKm}
+            className={selectClass}
+          />
+        </label>
+      )}
 
       <details className="group" {...(advancedActive ? { open: true } : {})}>
         <summary className="text-primary hover:bg-fg/5 flex w-fit cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-xs font-medium select-none">
@@ -160,27 +235,32 @@ export function EventFilterForm({
               className={selectClass}
             />
           </label>
-          {location && (
-            <label className="text-sm">
-              <span className={labelClass}>Radius (km)</span>
-              <input
-                name="radiusKm"
-                type="number"
-                min={1}
-                max={500}
-                defaultValue={location.radiusKm}
-                className={selectClass}
-              />
-            </label>
-          )}
         </div>
       </details>
 
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          className="bg-primary hover:bg-primary/90 rounded-md px-4 py-1.5 text-sm font-semibold text-white"
-        >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {when === 'following' ? (
+          <span />
+        ) : (
+          <label className="flex items-center gap-2 text-sm">
+            <span className={labelClass}>Sort</span>
+            <select
+              name="sort"
+              defaultValue={sort ?? ''}
+              className="border-border-base bg-surface rounded-md border px-2 py-1.5 text-sm"
+            >
+              <option value="">Date</option>
+              {/* "Nearest" needs distances, which only exist with a location. */}
+              {location && <option value="distance">{SORT_LABEL.distance}</option>}
+              {SORTS.filter((s) => s !== 'distance').map((s) => (
+                <option key={s} value={s}>
+                  {SORT_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <button type="submit" className={primaryButtonClass('md')}>
           Apply filters
         </button>
       </div>

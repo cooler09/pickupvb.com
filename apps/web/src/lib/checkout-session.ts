@@ -15,7 +15,12 @@ export type DestinationCheckoutSessionInput = {
   destinationAccountId: string;
   /** Pre-built line items — shape varies per kind (ticket vs tip). */
   lineItems: NonNullable<Stripe.Checkout.SessionCreateParams['line_items']>;
-  /** Platform cut, in cents. May be 0 (e.g. tournament free pass). */
+  /**
+   * Platform cut, in cents. May be 0 — tips take no platform fee (ADR 0014
+   * tip-fee amendment) and some flows (e.g. a free pass) have none either. When
+   * 0, `application_fee_amount` is omitted entirely rather than sent as `0`, so
+   * the destination charge transfers the full amount to the host.
+   */
   applicationFeeAmount: number;
   /** Where Stripe sends the buyer on success / cancel. */
   successUrl: string;
@@ -57,7 +62,13 @@ export async function createDestinationCheckoutSession(
       ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
       line_items: input.lineItems,
       payment_intent_data: {
-        application_fee_amount: input.applicationFeeAmount,
+        // Omit (don't send 0) when there's no platform cut — e.g. tips, which
+        // take no platform fee. A 0 application fee with transfer_data would
+        // route the full charge to the host anyway; omitting is cleaner and
+        // dodges any Stripe edge-case validation on a zero fee.
+        ...(input.applicationFeeAmount > 0
+          ? { application_fee_amount: input.applicationFeeAmount }
+          : {}),
         transfer_data: { destination: input.destinationAccountId },
       },
       success_url: input.successUrl,

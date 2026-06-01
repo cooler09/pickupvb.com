@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import { DayPicker } from 'react-day-picker';
 import { format } from 'date-fns';
 import 'react-day-picker/style.css';
@@ -139,7 +140,7 @@ export default function DateTimePicker({
             <button
               type="button"
               onClick={closeAndReturnFocus}
-              className="bg-primary hover:bg-primary/90 ml-auto rounded-md px-3 py-1 text-xs font-semibold text-white"
+              className={`${primaryButtonClass('sm')} ml-auto`}
             >
               Done
             </button>

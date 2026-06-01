@@ -146,10 +146,14 @@ never holds funds.
 
 | Tier     | Fee on tickets                      | Fee on tips |
 | -------- | ----------------------------------- | ----------- |
-| Free     | 5%                                  | 5%          |
-| Pro Host | 2.5% (`PRO_PLATFORM_FEE_BPS = 250`) | 2.5%        |
+| Free     | 5%                                  | **0%**      |
+| Pro Host | 2.5% (`PRO_PLATFORM_FEE_BPS = 250`) | **0%**      |
 
-Constants in [apps/web/src/lib/pro.ts](../apps/web/src/lib/pro.ts).
+Tips take **no** platform fee on any tier (ADR 0014 tip-fee amendment,
+2026-06-01) — `tipPlatformFeeCents()` in
+[apps/web/src/lib/event-pricing.ts](../apps/web/src/lib/event-pricing.ts)
+returns 0. Ticket-fee constants in
+[apps/web/src/lib/pro.ts](../apps/web/src/lib/pro.ts).
 
 **Connect onboarding.** Hosts complete a Stripe Express account link
 before they can publish a paid event. Account state is mirrored to
@@ -191,7 +195,8 @@ runs checkout.
 | Free events             | Unlimited                                      | Unlimited                        |
 | Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                        |
 | Platform fee on tickets | 5%                                             | **2.5%**                         |
-| Platform fee on tips    | 5%                                             | **2.5%**                         |
+| Platform fee on tips    | None                                           | None                             |
+| Standalone brackets     | 1 active at a time                             | Unlimited                        |
 | CSV attendee export     | —                                              | ✓                                |
 | Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`) |
 
@@ -213,12 +218,15 @@ runs checkout.
 
 ## 6. Tip jar
 
-Optional gratuity flow on every event. Attendees tip the host; the
-platform takes the standard fee.
+Optional gratuity flow on every event. Attendees tip the host; **PickupVB
+takes no platform fee on tips** — 100% of the tip reaches the host, less
+only Stripe's processing fee (ADR 0014 tip-fee amendment, 2026-06-01).
 
 - Constants: [apps/web/src/app/events/[id]/tip-constants.ts](../apps/web/src/app/events/%5Bid%5D/tip-constants.ts) — min $1, max $500.
 - Implemented as a separate Stripe Checkout Session (`mode: 'payment'`,
-  metadata flags it as a tip). Routed via Connect like ticket sales.
+  metadata flags it as a tip). Routed via Connect like ticket sales, but
+  with **no `application_fee_amount`** — `tipPlatformFeeCents()` returns 0,
+  so the destination charge transfers the full tip to the host.
 - Totals are aggregated by a cheap RPC and shown to attendees; hidden
   from the host themselves to keep gratuity decisions independent.
 

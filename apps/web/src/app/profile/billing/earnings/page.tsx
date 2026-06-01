@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
+import { Pagination } from '@/components/pagination';
 import { isPro, PRO_PLATFORM_FEE_BPS } from '@/lib/pro';
 import { PLATFORM_FEE_BPS } from '@/lib/stripe';
 
@@ -10,6 +11,8 @@ export const metadata = {
   title: 'Earnings — PickupVB',
   robots: { index: false, follow: false },
 };
+
+const EVENTS_PER_PAGE = 20;
 
 type AuditRow = {
   id: string;
@@ -57,7 +60,9 @@ function formatMonth(iso: string): string {
  * mid-year, the historical estimate may be slightly off — Stripe is the
  * final word, hence the disclaimer.
  */
-export default async function EarningsPage() {
+export default async function EarningsPage(props: { searchParams: Promise<{ page?: string }> }) {
+  const searchParams = await props.searchParams;
+  const page = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const supabase = await getServerSupabase();
   const {
     data: { user },
@@ -161,6 +166,9 @@ export default async function EarningsPage() {
   const events = Array.from(byEvent.values()).sort((a, b) =>
     a.eventStartsAt < b.eventStartsAt ? 1 : -1,
   );
+  // Totals span every event; only the per-event table is paged so a host with
+  // a long event history doesn't render hundreds of rows at once.
+  const pageEvents = events.slice((page - 1) * EVENTS_PER_PAGE, page * EVENTS_PER_PAGE);
 
   // Monthly breakdown for YTD.
   type MonthAgg = { key: string; label: string; gross: number; refunded: number; net: number };
@@ -267,7 +275,10 @@ export default async function EarningsPage() {
           </p>
 
           {/* ── By event (primary breakdown) ────────────────── */}
-          <section className="border-border-base bg-surface rounded-shape-sm overflow-hidden border">
+          <section
+            id="by-event"
+            className="border-border-base bg-surface rounded-shape-sm overflow-hidden border"
+          >
             <div className="border-border-base border-b p-4">
               <h2 className="text-fg text-sm font-semibold">By event</h2>
               <p className="text-muted mt-0.5 text-xs">
@@ -297,7 +308,7 @@ export default async function EarningsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {events.map((e) => (
+                  {pageEvents.map((e) => (
                     <tr key={e.eventId} className="border-border-base border-t">
                       <td>
                         <Link
@@ -325,6 +336,18 @@ export default async function EarningsPage() {
                 </tbody>
               </table>
             </div>
+            {events.length > EVENTS_PER_PAGE && (
+              <div className="border-border-base border-t p-4">
+                <Pagination
+                  basePath="/profile/billing/earnings"
+                  page={page}
+                  pageSize={EVENTS_PER_PAGE}
+                  total={events.length}
+                  searchParams={searchParams}
+                  scrollToId="by-event"
+                />
+              </div>
+            )}
           </section>
 
           {/* ── Monthly + statements ────────────────────────── */}

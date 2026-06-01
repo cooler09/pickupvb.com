@@ -19,9 +19,10 @@ gracefully so local dev works without secrets).
 | [PostHog](#posthog)                           | Product analytics (server-side)                    | Recommended            | Yes (no-op adapter)                |
 | [Vercel](#vercel)                             | Hosting, Cron, Analytics, Speed Insights           | Yes                    | N/A                                |
 | [Web Push (VAPID)](#web-push-vapid)           | Browser push notifications                         | Optional               | Yes (no push sent)                 |
-| [Photon (Komoot)](#photon-komoot)             | Geocoding autocomplete (primary)                   | No (free, no key)      | Works                              |
-| [Nominatim (OSM)](#nominatim-osm)             | Geocoding autocomplete (fallback)                  | No (free, no key)      | Works                              |
-| [Leaflet + OSM tiles](#leaflet--osm-tiles)    | Map rendering                                      | No (free, no key)      | Works                              |
+| [MapTiler](#maptiler)                         | Geocoding (prod) + map tiles (prod)                | Recommended (prod)     | Yes (OSM fallback)                 |
+| [Photon (Komoot)](#photon-komoot)             | Geocoding autocomplete (dev fallback)              | No (free, no key)      | Works (dev only)                   |
+| [Nominatim (OSM)](#nominatim-osm)             | Geocoding autocomplete (dev fallback)              | No (free, no key)      | Works (dev only)                   |
+| [Leaflet + OSM tiles](#leaflet--osm-tiles)    | Map rendering (OSM tiles = dev fallback)           | No (free, no key)      | Works (dev only)                   |
 
 ---
 
@@ -335,10 +336,40 @@ worker treats push as best-effort and won't block other channels.
 
 ---
 
+## MapTiler
+
+**What it does.** Production geocoding (address autocomplete + single-address
+geocode) **and** map tiles. Paid, SLA-backed, and — unlike the OSM endpoints —
+permits autocomplete. The default once keys are set; the free OSM paths below
+are the local-dev fallback only (audit
+[TPI-1 / TPI-3](audits/third-party-integrations.md)).
+
+**Env vars.** Two, because a browser tile key must be referrer-restricted and a
+referrer-restricted key can't serve server-side geocoding requests:
+
+| Var                        | Where   | Use                                | Restriction                 |
+| -------------------------- | ------- | ---------------------------------- | --------------------------- |
+| `MAPTILER_API_KEY`         | Server  | `/api/geocode/*`, `lib/geocode.ts` | Unrestricted / IP-allowlist |
+| `NEXT_PUBLIC_MAPTILER_KEY` | Browser | Leaflet tiles in `event-map.tsx`   | Allowed-origins (domains)   |
+
+**Where it's wired in.**
+[apps/web/src/lib/maptiler.ts](../apps/web/src/lib/maptiler.ts) (shared geocoding
+client + the response parser, unit-tested in `maptiler.test.ts`), consumed by
+[geocode/autocomplete/route.ts](../apps/web/src/app/api/geocode/autocomplete/route.ts)
+and [lib/geocode.ts](../apps/web/src/lib/geocode.ts); tiles in
+[event-map.tsx](../apps/web/src/components/event-map.tsx).
+
+**Behavior without keys.** Geocoding falls back to Photon→Nominatim; tiles fall
+back to the OSM tile server. Dev-only — these must not carry production volume.
+On a MapTiler outage in prod, autocomplete degrades to empty suggestions (manual
+entry), never to the OSM endpoints.
+
+---
+
 ## Photon (Komoot)
 
-**What it does.** Primary typeahead geocoder for venue / city
-autocomplete. Free, no API key, OSM-based, typeahead-optimized.
+**What it does.** Geocoding autocomplete **dev fallback** (used only when
+`MAPTILER_API_KEY` is unset). Free, no API key, OSM-based, typeahead-optimized.
 
 **Env vars.** None — public anonymous API.
 
@@ -346,17 +377,16 @@ autocomplete. Free, no API key, OSM-based, typeahead-optimized.
 [apps/web/src/app/api/geocode/autocomplete/route.ts](../apps/web/src/app/api/geocode/autocomplete/route.ts).
 Falls back to Nominatim on error.
 
-**Caveats.** Public instance is rate-limited. If volume grows, self-host
-Photon (Docker image) and point `PHOTON_URL` at it — currently
-hard-coded.
+**Caveats.** Public instance is rate-limited and its policy forbids production
+autocomplete volume — that's why prod uses MapTiler. Keep this path dev-only.
 
 ---
 
 ## Nominatim (OSM)
 
-**What it does.** Fallback geocoder when Photon errors or returns
-nothing. Same OSM data but not typeahead-optimized — used for
-robustness.
+**What it does.** Second-tier **dev fallback** geocoder, when Photon errors or
+returns nothing (and only when MapTiler is unconfigured). Same OSM data, not
+typeahead-optimized — used for robustness in dev.
 
 **Env vars.** None — public anonymous API.
 
@@ -377,17 +407,18 @@ or move to a paid provider (Mapbox / Geoapify / OpenCage).
 
 **Where it's wired in.**
 [apps/web/src/components/event-map.tsx](../apps/web/src/components/event-map.tsx).
-Uses `react-leaflet` + the default OpenStreetMap tile server.
+Uses `react-leaflet`; tiles come from **MapTiler** when `NEXT_PUBLIC_MAPTILER_KEY`
+is set, else the OSM tile server (dev fallback). `EventMap` is already
+dynamic-imported (`ssr: false`) via `event-map-lazy.tsx`, so the Leaflet bundle
+stays off pages without a map.
 
-**External assets.** Leaflet's default marker icons are pulled from
-`unpkg.com/leaflet@1.9.4/dist/images/…`. If we ever block third-party
-asset CDNs via CSP, mirror those PNGs into `/public` and switch the
-`L.Icon.Default` URLs.
+**External assets.** Leaflet's default marker icons are self-hosted under
+`/public/leaflet/` (not unpkg) — see the `L.icon(...)` in `event-map.tsx`.
 
-**Caveats.** The OSM tile server has a usage policy
-(<https://operations.osmfoundation.org/policies/tiles/>). For meaningful
-traffic, switch to a hosted tile provider (MapTiler, Stadia Maps,
-CloudFlare's tile mirror) and set the appropriate `attribution` prop.
+**Caveats.** The OSM tile server's usage policy
+(<https://operations.osmfoundation.org/policies/tiles/>) forbids production
+volume — that's why prod tiles come from MapTiler. Keep the OSM URL as the
+dev-only fallback.
 
 ---
 

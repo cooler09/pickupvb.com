@@ -696,3 +696,127 @@ proration rule, a cross-aggregate guard), promote that rule into the domain and
 add a command handler for the mutation — at that point the facade stops being a
 read shortcut and the handler earns its place. Until then, the facade-over-port
 shape is the sanctioned convention.
+
+### 11. Use the shared CTA + field vocabularies — don't hand-roll class strings
+
+There is one canonical home for button and form-field class strings; a
+`no-restricted-syntax` ratchet in
+[apps/web/eslint.config.mjs](apps/web/eslint.config.mjs) enforces it (persona-ux
+audit CC-1/CC-2):
+
+- **Buttons:** import from
+  [primary-button.tsx](apps/web/src/components/primary-button.tsx)
+  (`primaryButtonClass` / `secondaryButtonClass` / `tonalButtonClass` /
+  `textButtonClass`) instead of writing `bg-primary hover:bg-primary/90
+text-white …`. The four M3 variants take a `'sm' | 'md'` size.
+- **Fields:** import from
+  [field-styles.ts](apps/web/src/components/field-styles.ts) (`fieldInputClass`
+  / `fieldLabelClass` / `fieldSubLabelClass` / `fieldHintClass` /
+  `fieldErrorClass`) for bare `<input>` / `<textarea>` / `<select>`, or use the
+  richer [TextField](apps/web/src/components/text-field.tsx) primitive when a
+  field wants adornments / auto-wired `aria`. The recipes share the same chassis
+  tokens so they mix without a seam. **Declaring a new local `const
+inputClass`/`labelClass`/`selectClass = '…'` is a lint error.** A genuinely
+  different control class (e.g. a compact inline table cell, a filter-bar select)
+  opts out with `// eslint-disable-next-line no-restricted-syntax -- <reason>`.
+
+This is the same ratchet-behind-migration strategy as the M3 shape-scale lock
+(see [docs/audits/m3-alignment.md](docs/audits/m3-alignment.md)): the migration
+collapses the drift, the lint rule keeps it from re-accumulating. Reference fix:
+[docs/audits/persona-ux.md](docs/audits/persona-ux.md) remediation log
+(2026-05-31 bundles).
+
+### 12. Paginate list views with the shared `Pagination` — slice the display, keep the full set for aggregates
+
+Any view that renders a list which can grow unbounded (per user, per event, or
+over time) must page it with
+[`Pagination`](apps/web/src/components/pagination.tsx). The convention, used in
+~9 places (the `/players` `/groups` `/teams` directories, the `/groups/[id]` +
+`/players/[id]` past-events sections, and the 2026-05-31 pagination-sweep
+fixes):
+
+1. Read a page param off `searchParams` (`Math.max(1, Number.parseInt(... ?? '1', 10) || 1)`).
+2. Slice the **already-loaded** array for display.
+3. Render `<Pagination basePath pageSize total searchParams [pageParam] [scrollToId]>`.
+4. **Compute totals / counts / exclude-sets over the full array, not the page
+   slice** — the `(N)` header count, `excludeIds` (add-friend / add-member
+   pickers), CSV-statement years, and money totals all need the whole set.
+
+`pageParam` lets one page host several independent paginators
+(`mpage`/`ppage`/`hpage`/`apage`); `scrollToId` anchors the jump to the section.
+`Pagination` returns `null` at ≤1 page — when it sits in a bordered/padded
+wrapper, guard the wrapper with `total > PER_PAGE` so an empty strip doesn't
+render.
+
+Prefer the in-memory slice over a SQL `.range()` when the list is **derived**
+(grouped/merged in memory — e.g. receipts grouped by `payment_intent_id`, hosted
+events merged from primary + co-host queries): a `.range()` over the raw rows
+would split a logical record across pages. Reach for SQL `limit`/`offset` +
+`count: 'exact'` only when the list maps 1:1 to rows and the fetch itself is the
+cost (the directory pages). Don't convert a server component to a client
+component just to add a "show all" toggle if it renders per-row bound server
+actions — that hits pitfall "Passing a function … from a Server Component to a
+Client Component" above (reference: the `/events/[id]` attendee roster kept
+`AttendeeList` server-side and paged via an `apage` param instead). Open backlog
+of remaining unpaginated lists:
+[performance.md § Pagination sweep](docs/audits/performance.md#2026-05-31--pagination-sweep-unbounded-ui-lists).
+
+### 13. Read another user's display card from `profiles_public`, never base `profiles`
+
+The base `public.profiles` SELECT policy is **owner-only**
+(`auth.uid() = id OR is_platform_admin()`, PII audit P1 #4). So on any
+**session-scoped client** (`getServerSupabase()`) or **`SECURITY INVOKER`**
+SQL function, a read of another user's `display_name` / `avatar_url` — whether a
+PostgREST embed (`sender:profiles!fk(...)`), a `.from('profiles').in('id', …)`,
+or a `join public.profiles` — resolves to **null / no-row for everyone except the
+caller** (and to nothing at all for anon viewers). RLS fails safe, so there's no
+leak — but the feature silently shows "Member" / blank names. This has now bitten
+three times after the bundle-89 sweep (chat `listMessages`, chat `get_inbox` DM
+titles, media-post author cards — all fixed 2026-05-31).
+
+The fix is always the same: read the **`profiles_public`** view
+(`packages/supabase` generated types include it; granted to `anon` +
+`authenticated`; definer-equivalent so it bypasses base-table RLS regardless of
+the caller's security mode; already filters `deleted_at IS NULL`). For a
+display-card join in app code, fetch the rows then `profiles_public` by collected
+ids and merge in JS — PostgREST can't embed a view (no FK metadata). Reference
+fixes: `loadSenderCards` in
+[supabase-messaging-repository.ts](packages/infrastructure/src/supabase-messaging-repository.ts),
+`decorate` in
+[supabase-media-post-repository.ts](packages/infrastructure/src/supabase-media-post-repository.ts),
+and the `join public.profiles_public` in
+[20260827000000_fix_get_inbox_dm_title_profiles_public.sql](supabase/migrations/20260827000000_fix_get_inbox_dm_title_profiles_public.sql).
+The **admin client** is the only path that may read base `profiles` directly, and
+only for fields not in the view (`first_name` / `last_name` / `business_*`) on
+already-authorized host/system reads — e.g. `SupabaseEventRepository`. Full
+write-up: [privacy.md #13](docs/audits/privacy.md).
+
+### 14. Storage orphan-sweep walkers: match the liveness check to how the row stores the reference
+
+There are now three `storage.objects` orphan-sweep walkers
+(`purge_hero_image_orphans`, `purge_sponsor_logo_orphans`,
+`purge_chat_attachment_orphans`) — all SECURITY DEFINER, `search_path = ''`, with
+`perform set_config('storage.allow_delete_query', 'true', true)` as the
+supported escape hatch past the `protect_delete` BEFORE-DELETE trigger, and a
+`grace_hours` window (default 24h) so freshly-uploaded objects aren't reaped
+before the referencing row lands. When adding a fourth, clone the shape — but the
+**liveness join is not copy-paste**, it depends on what the parent row stores:
+
+- **Public buckets store a full URL with a `?t=<ms>` cache-buster**
+  (`HeroImageUpload` / sponsor logos). Liveness must match the bare path tail
+  **OR** the path + `'?%'`: `url like '%/'||name OR url like '%/'||name||'?%'`. A
+  bare `like '%/'||name` with no trailing wildcard **never matches a live row**
+  and the cron deletes every live image after the grace window — this shipped as
+  a **P1 data-loss bug** in the hero walker
+  ([20260819000000](supabase/migrations/20260819000000_fix_hero_image_orphan_cache_buster.sql)).
+- **Private buckets store the bare object path** (chat attachments —
+  `messages.attachments[].path`, built as `{conversation_id}/{user_id}/{uuid}.{ext}`,
+  no URL, no cache-buster). Liveness is an exact `o.name = path` membership test
+  (unnest the jsonb with `cross join lateral jsonb_array_elements(...)`); no
+  LIKE-wildcard needed, and filter `path is not null` to dodge the `NOT IN (… NULL …)`
+  trap. Reference:
+  [20260829000000_chat_retention.sql](supabase/migrations/20260829000000_chat_retention.sql).
+
+Before cloning, open the upload component and confirm whether it persists a URL
+or a path. Pair a content-scrub job (e.g. the soft-deleted-message scrub) ahead
+of the sweep so de-referenced objects are reclaimed the same night.
