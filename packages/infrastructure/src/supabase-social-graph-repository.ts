@@ -194,10 +194,15 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
       string,
       { capacityKind: string | null; maxSpots: number | null }
     >();
+    // Prices: every division (for the Free / $X / From $X chip); unit: primary.
+    const pricesByEvent = new Map<string, (number | null)[]>();
+    const priceUnitByEvent = new Map<string, string>();
     if (eventIds.length > 0) {
       const { data: dRows, error: dErr } = await this.client
         .from('event_divisions')
-        .select('event_id, skill_tier, sort_order, capacity_kind, max_spots')
+        .select(
+          'event_id, skill_tier, sort_order, capacity_kind, max_spots, price_cents, price_unit',
+        )
         .in('event_id', eventIds)
         .order('sort_order', { ascending: true });
       if (dErr) throw new Error(`searchFollowingFeed skill hydrate failed: ${dErr.message}`);
@@ -207,14 +212,21 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
         sort_order: number;
         capacity_kind: string | null;
         max_spots: number | null;
+        price_cents: number | null;
+        price_unit: string;
       };
       for (const d of (dRows ?? []) as DRow[]) {
+        const prices = pricesByEvent.get(d.event_id) ?? [];
+        prices.push(d.price_cents);
+        pricesByEvent.set(d.event_id, prices);
+        // skill / capacity / price unit come from the primary (first) division.
         if (!skillByEvent.has(d.event_id)) {
           skillByEvent.set(d.event_id, skillTierBand(d.skill_tier) as unknown as SkillLevel);
           capacityByEvent.set(d.event_id, {
             capacityKind: d.capacity_kind,
             maxSpots: d.max_spots,
           });
+          priceUnitByEvent.set(d.event_id, d.price_unit);
         }
       }
     }
@@ -244,6 +256,8 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
         attendingFriendIds,
         spotsRemaining,
         heroImageUrl: r.hero_image_url,
+        priceCents: pricesByEvent.get(r.id) ?? [],
+        priceUnit: priceUnitByEvent.get(r.id) ?? null,
       };
     });
   }

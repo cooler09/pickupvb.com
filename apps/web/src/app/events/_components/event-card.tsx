@@ -46,6 +46,14 @@ export type EventCardData = {
   heroImageUrl?: string | null;
   spotsRemaining: number | null;
   distanceKm: number | null;
+  /**
+   * Per-division price cents for the price chip. Set by the Following feed
+   * (which doesn't carry full `divisions`); on the search tabs the chip falls
+   * back to reading prices off `divisions`. See {@link eventPriceCents}.
+   */
+  priceCents?: ReadonlyArray<number | null>;
+  /** Primary division's price unit (`per_team` shows a "/team" suffix). */
+  priceUnit?: string | null;
   /** Following-tab metadata. */
   hostFriendId?: string;
   attendingFriendIds?: string[];
@@ -141,37 +149,40 @@ function formatPriceCents(cents: number): string {
 }
 
 /**
- * True when every division is free (price 0 / unset) — i.e. the card shows the
- * green "Free" chip. Shared with the events page's "Free only" price filter so
- * the filter matches the visible chip exactly. False for an event with no
- * divisions (price is then unknown, not free).
+ * Per-division price cents for a card, from whichever source the feed
+ * populated: the explicit `priceCents` list (Following feed) or the prices on
+ * `divisions` (search tabs). The single source of truth for both the price chip
+ * and the events page's Free/Paid filter, so the two never disagree.
  */
-export function isEventFree(divisions: ReadonlyArray<EventCardDivision>): boolean {
-  if (divisions.length === 0) return false;
-  return divisions.every((d) => (d.priceCents ?? 0) === 0);
+export function eventPriceCents(event: EventCardData): ReadonlyArray<number | null> {
+  return event.priceCents ?? (event.divisions ?? []).map((d) => d.priceCents);
+}
+
+/** True when every listed price is free (0 / null). False when the list is empty. */
+export function isEventFree(cents: ReadonlyArray<number | null>): boolean {
+  return cents.length > 0 && cents.every((c) => (c ?? 0) === 0);
 }
 
 /**
- * Build the price chip from a card's divisions. Returns null when there's no
- * price information to show (e.g. the Following feed, which doesn't project
- * divisions). `free` lets the caller pick the green treatment.
+ * Build the price chip from a card's per-division price cents plus the primary
+ * division's unit. Returns null when there are no prices to show.
  *
- * - all divisions free → "Free"
+ * - all free → "Free"
  * - one uniform price → "$10" (with "/team" when priced per team)
  * - mixed prices → "From $X" (lowest paid division)
  */
 function priceLabel(
-  divisions: ReadonlyArray<EventCardDivision>,
+  cents: ReadonlyArray<number | null>,
+  unit: string | null | undefined,
 ): { text: string; free: boolean } | null {
-  if (divisions.length === 0) return null;
-  if (isEventFree(divisions)) return { text: 'Free', free: true };
-  const cents = divisions.map((d) => d.priceCents ?? 0);
-  const positive = cents.filter((c) => c > 0);
+  if (cents.length === 0) return null;
+  if (isEventFree(cents)) return { text: 'Free', free: true };
+  const nums = cents.map((c) => c ?? 0);
+  const positive = nums.filter((c) => c > 0);
   const min = Math.min(...positive);
-  const uniform = positive.length === divisions.length && new Set(positive).size === 1;
+  const uniform = positive.length === nums.length && new Set(positive).size === 1;
   if (uniform) {
-    const unit = divisions[0]?.priceUnit === 'per_team' ? '/team' : '';
-    return { text: `${formatPriceCents(min)}${unit}`, free: false };
+    return { text: `${formatPriceCents(min)}${unit === 'per_team' ? '/team' : ''}`, free: false };
   }
   return { text: `From ${formatPriceCents(min)}`, free: false };
 }
@@ -191,7 +202,7 @@ export function EventCard({ event, friendNameById }: Props) {
     event.seriesName && event.seriesPosition && event.seriesSize
       ? `${event.seriesName} · ${event.seriesPosition}/${event.seriesSize}`
       : (event.seriesName ?? null);
-  const price = priceLabel(divisions);
+  const price = priceLabel(eventPriceCents(event), event.priceUnit ?? divisions[0]?.priceUnit);
 
   return (
     <li className="border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">

@@ -13,7 +13,12 @@ import { relativeEventDay } from '@/lib/date-formats';
 import { NearMeButton } from './near-me-button';
 import { LocationSearch } from './location-search';
 import { Fab } from '@/components/fab';
-import { EventCard, isEventFree, type EventCardData } from './_components/event-card';
+import {
+  EventCard,
+  eventPriceCents,
+  isEventFree,
+  type EventCardData,
+} from './_components/event-card';
 import { CommunityListingCard } from '@/app/community/_components/community-listing-card';
 import { EventFilterForm } from './_components/event-filter-form';
 import {
@@ -70,9 +75,9 @@ function pickWhen(value: string | undefined): Timeframe | undefined {
 
 /** Cheapest division price (free = 0) for the "Price: low to high" sort. */
 function minPriceCents(event: EventCardData): number {
-  const divisions = event.divisions ?? [];
-  if (divisions.length === 0) return Number.POSITIVE_INFINITY;
-  return Math.min(...divisions.map((d) => d.priceCents ?? 0));
+  const cents = eventPriceCents(event);
+  if (cents.length === 0) return Number.POSITIVE_INFINITY;
+  return Math.min(...cents.map((c) => c ?? 0));
 }
 
 type FollowingEmptyReason = 'not_signed_in' | 'no_follows' | null;
@@ -154,6 +159,8 @@ export default async function EventsPage(props: {
         city: it.city,
         region: it.region,
         heroImageUrl: it.heroImageUrl,
+        priceCents: it.priceCents,
+        priceUnit: it.priceUnit,
         relativeDay: relativeEventDay(it.startsAt, it.timeZone, now),
         spotsRemaining: it.spotsRemaining,
         distanceKm: null,
@@ -213,13 +220,13 @@ export default async function EventsPage(props: {
     }));
   }
 
-  // Free / Paid filter, in-memory over the fetched set (price lives on
-  // divisions, not as a search arg). Skipped on Following — that feed projects
-  // no divisions, so isEventFree can't decide. "free" matches the green chip
+  // Free / Paid filter, in-memory over the fetched set (price isn't a search
+  // arg). Works on every tab — `eventPriceCents` reads prices off `divisions`
+  // (search) or the explicit list (Following). "free" matches the green chip
   // (every division free); "paid" is the complement.
-  if (when !== 'following' && price) {
+  if (price) {
     events = events.filter((ev) => {
-      const free = isEventFree(ev.divisions ?? []);
+      const free = isEventFree(eventPriceCents(ev));
       return price === 'free' ? free : !free;
     });
   }
@@ -259,7 +266,7 @@ export default async function EventsPage(props: {
     ageGroup ||
     teamComposition ||
     seriesName ||
-    (when !== 'following' && price) ||
+    price ||
     hasLocation,
   );
   // Count for the collapsed "Filters (N)" trigger — mirrors the chips exactly
@@ -271,7 +278,7 @@ export default async function EventsPage(props: {
     (ageGroup ? 1 : 0) +
     (teamComposition ? 1 : 0) +
     (seriesName ? 1 : 0) +
-    (when !== 'following' && price ? 1 : 0) +
+    (price ? 1 : 0) +
     (hasLocation ? 1 : 0);
 
   // Build URLs for tabs / chip removal / clear-all. All preserve the current
@@ -291,10 +298,10 @@ export default async function EventsPage(props: {
     set('ageGroup', ageGroup);
     set('teamComposition', teamComposition);
     set('seriesName', seriesName);
+    set('price', price);
     if (target !== 'following') {
-      // Price + sort + location don't apply to the Following feed — drop them
-      // when switching to that tab so a stale param doesn't linger in the URL.
-      set('price', price);
+      // Sort + location don't apply to the Following feed — drop them when
+      // switching to that tab so a stale param doesn't linger in the URL.
       set('sort', sort);
       if (overrides.location !== null && hasLocation) {
         params.set('lat', String(lat));
@@ -436,7 +443,7 @@ export default async function EventsPage(props: {
         ageGroup={ageGroup}
         teamComposition={teamComposition}
         seriesName={seriesName}
-        price={when !== 'following' ? price : undefined}
+        price={price}
         location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
         buildRemoveHref={buildRemoveHref}
         clearAllHref={clearAllHref}

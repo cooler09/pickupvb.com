@@ -37,9 +37,9 @@ This file is complementary to — not a duplicate of:
 > **F-7** (manual city/ZIP location + primary radius) also shipped 2026-06-01.
 > **Every finding is now resolved (F-1…F-13).** P3 bundles on 2026-06-01 closed
 > **F-9** (sort), **F-12** (design-system tidy), **F-10** (relative date labels),
-> **F-13** (card thumbnails), and **F-11** (filter-chrome consolidation). No open
-> backlog — re-audit if the page changes materially. (One small carry-over noted
-> under F-4: _price_ on the Following card.)
+> **F-13** (card thumbnails), and **F-11** (filter-chrome consolidation). The
+> last carry-over — _price_ on the Following card (chip + Free/Paid filter) — also
+> shipped 2026-06-01. **Nothing open** — re-audit if the page changes materially.
 >
 > Grounding fact that shaped grading: the `search_events` RPC **already projects
 > `priceCents`/`priceUnit` per division, `spotsRemaining`, `distanceKm`, and
@@ -111,9 +111,12 @@ computing `spots_remaining` exactly like the `search_events` RPC — **no
 migration**. `spotsRemaining` added to `FollowingFeedItem`.
 [supabase-social-graph-repository.ts](../../packages/infrastructure/src/supabase-social-graph-repository.ts),
 [social-graph-queries.ts](../../packages/domain/src/users/social-graph-queries.ts).
-**Still pending (folds into F-2):** _price_ on the Following card — the feed
-projects no `divisions` array, so `priceLabel` returns null there. Closing it
-means projecting the primary division's price onto `FollowingFeedItem`.
+**Following-card price (folds into F-2/F-6) ✅ done 2026-06-01:** the feed now
+projects per-division `priceCents` + the primary `priceUnit` onto
+`FollowingFeedItem`, so the price chip **and** the Free/Paid filter work on the
+Following tab too. The card's price logic was unified behind `eventPriceCents`
+(reads the explicit list on Following, falls back to `divisions` on the search
+tabs), so the filter and chip share one source of truth.
 
 #### F-9 — No sort control · **P3** · ✅ resolved 2026-06-01
 
@@ -352,3 +355,17 @@ Journal: [2026-06-01-filter-disclosure.md](../journal/2026-06-01-filter-disclosu
   the summary; results sit higher. Disclosure (not modal) keeps auto-apply and
   the no-JS path intact. Named group (`group/panel`) prevents the outer open
   state from leaking into the form's inner "More filters" (unnamed `group`).
+
+### 2026-06-01 — Following-card price (F-2/F-6 carry-over)
+
+The one carry-over from the audit; closes it fully.
+Journal: [2026-06-01-following-feed-price.md](../journal/2026-06-01-following-feed-price.md).
+
+- **✅** — `FollowingFeedItem` now projects per-division `priceCents` + the
+  primary `priceUnit` (collected in the feed's existing division-hydrate query),
+  so the price chip renders on Following. The card's price logic was unified
+  behind `eventPriceCents(event)` (explicit list on Following, `divisions`
+  fallback on search), letting the **Free/Paid filter** drop its
+  `when !== 'following'` gates — the select now shows on Following and the
+  in-memory filter applies there. Sort stays non-Following (its "Nearest" needs
+  location). Migration-free.

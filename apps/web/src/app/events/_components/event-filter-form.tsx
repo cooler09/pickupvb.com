@@ -38,10 +38,7 @@ type Props = {
   ageGroup: AgeGroupFilter | undefined;
   teamComposition: TeamCompositionFilter | undefined;
   seriesName: string | undefined;
-  /**
-   * Free / Paid filter. Only rendered on non-Following tabs — the Following
-   * feed projects no division prices, so there's nothing to filter on.
-   */
+  /** Free / Paid filter (applied in-memory; works on every tab). */
   price: PriceFilter | undefined;
   /**
    * Result ordering. Absence = the per-tab date order. "Nearest" is only
@@ -153,21 +150,17 @@ export function EventFilterForm({
             ))}
           </select>
         </label>
-        {/* Price needs per-division price data, which the Following feed
-            doesn't project — so only offer it on Upcoming/Past. */}
-        {when !== 'following' && (
-          <label className="text-sm">
-            <span className={labelClass}>Price</span>
-            <select name="price" defaultValue={price ?? ''} className={selectClass}>
-              <option value="">Any</option>
-              {PRICES.map((p) => (
-                <option key={p} value={p}>
-                  {PRICE_FILTER_LABEL[p]}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <label className="text-sm">
+          <span className={labelClass}>Price</span>
+          <select name="price" defaultValue={price ?? ''} className={selectClass}>
+            <option value="">Any</option>
+            {PRICES.map((p) => (
+              <option key={p} value={p}>
+                {PRICE_FILTER_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Radius is a primary control once a location is active (set via the
