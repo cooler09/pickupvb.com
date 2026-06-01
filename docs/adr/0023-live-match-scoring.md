@@ -1,7 +1,11 @@
 # 0023. Live match scoring — scoreboard ↔ scheduled match, Pro-gated
 
-- **Status:** Proposed
-- **Date:** 2026-05-30
+- **Status:** Accepted — implemented (phases 1–5 shipped 2026-05-30; see journal
+  entries `2026-05-30-live-match-scoring-phase1..5*`). Code-complete and
+  integrated (`match_live_scores` + RPCs in generated types; typecheck green).
+  **Remaining (phase 6):** runtime/e2e verification of the realtime round-trip
+  on a deployed env — no `score-live` Playwright spec exists yet.
+- **Date:** 2026-05-30 (proposed) · 2026-06-01 (status updated to reflect ship)
 - **Relates to:** [ADR 0001 — Hexagonal architecture with CQRS-lite](0001-hexagonal-cqrs.md), [ADR 0006 — Event divisions](0006-event-divisions.md), [ADR 0014 — Monetization strategy](0014-monetization-strategy.md), [ADR 0018 — Pool play configuration (bestOf)](0018-pool-play-configuration.md)
 
 ## Context

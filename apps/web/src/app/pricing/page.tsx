@@ -30,7 +30,7 @@ export const metadata = {
 const FREE_TIER_FEATURES = [
   'Unlimited free events',
   `${FREE_PAID_EVENT_CAP_30D} paid event per 30 days (rolling)`,
-  '5% platform fee on tickets and tips',
+  '5% platform fee on tickets — never any fee on tips',
   'Sponsor slot — $3/event à-la-carte',
   'Group pages, co-hosts, free-agent signups',
   'Event check-in & roster management',
@@ -38,7 +38,7 @@ const FREE_TIER_FEATURES = [
 
 const PRO_TIER_FEATURES = [
   'Unlimited paid events',
-  '2.5% platform fee on tickets and tips (half of free)',
+  '2.5% platform fee on tickets (half of free) — never any fee on tips',
   'Saved event templates — publish new dates in one click',
   'Host analytics — fill rate, GMV trend, repeat-attendee rate',
   'Sponsor slot included on every event',
@@ -219,7 +219,8 @@ export default async function PricingPage() {
                 free={`${FREE_PAID_EVENT_CAP_30D} (rolling window)`}
                 pro="Unlimited"
               />
-              <Row label="Platform fee — tickets & tips" free="5%" pro="2.5%" />
+              <Row label="Platform fee — tickets" free="5%" pro="2.5%" />
+              <Row label="Platform fee — tips" free="None" pro="None" />
               <Row label="Stripe processing fee" free="~2.9% + 30¢" pro="~2.9% + 30¢" />
               <Row label="Saved event templates" free="—" pro="✓" />
               <Row label="Host analytics dashboard" free="—" pro="✓" />
@@ -251,7 +252,7 @@ export default async function PricingPage() {
         />
         <Faq
           q="How does the platform fee work?"
-          a="Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings. Stripe's processing fee (~2.9% + 30¢) always comes out of your payout — it goes to Stripe, not PickupVB."
+          a="Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings. Tips are different — PickupVB never takes a fee on tips, so 100% reaches the host. Stripe's processing fee (~2.9% + 30¢) always comes out of your payout on any charge — it goes to Stripe, not PickupVB."
         />
         <Faq
           q="What are event templates?"

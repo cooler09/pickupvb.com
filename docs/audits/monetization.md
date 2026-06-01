@@ -35,12 +35,14 @@ community.
   [ADR 0014](../adr/0014-monetization-strategy.md) locks $10/mo + 5%/2.5%
   pre-launch with measurable revisit triggers; nothing here argues to move
   those levers. The lever to pull is **Pro conversion**, not Pro price.
-- **The single highest-ROI move is already designed and unbuilt:** ship live
-  match scoring ([ADR 0023](../adr/0023-live-match-scoring.md), Proposed) as
-  the next Pro perk. It earns $10 for the tournament / league serial host —
-  the exact archetype Pro targets — and draws the monetization line where ADR
-  0014 says it belongs (manual scoring free for everyone; the live,
-  match-bound, auto-saving scoreboard is Pro).
+- **Correction (2026-06-01): the perk we flagged as "the highest-ROI unbuilt
+  move" — live match scoring — is in fact already built.** ADR 0023's phases
+  1–5 all shipped 2026-05-30 (domain `LiveMatchScore`, `match_live_scores`
+  migration + RPC, application handlers + finalize mappings, infra adapter, the
+  Pro-gated `ScoreLiveButton`, and the public live-view island). The original
+  bullet relied on the ADR's stale "Proposed" status and a stale memory note.
+  The conversion lever **exists**; the only remainder is the Phase-6 realtime
+  e2e on a deployed env. See R-1 below.
 
 ### Revised cost floor
 
@@ -61,17 +63,35 @@ matter more than they did a week ago.
 
 ### New findings
 
-#### R-1 (P1) — Ship the designed live-scoring Pro perk
+#### R-1 (P1) — Live-scoring Pro perk — ✅ already built; only e2e remains (corrected 2026-06-01)
 
-**File:** [ADR 0023](../adr/0023-live-match-scoring.md) (Proposed, unbuilt);
-gate at `isPro(event.hostId)` ([pro.ts](../../apps/web/src/lib/pro.ts)).
+**File:** [ADR 0023](../adr/0023-live-match-scoring.md) (status corrected to
+Accepted/implemented 2026-06-01); gate at `isPro(event.hostId)`
+([pro.ts](../../apps/web/src/lib/pro.ts)).
 
-The strongest unrealized conversion lever. Live, match-bound, auto-saving
-scoreboard for Pro hosts; manual score entry stays free for everyone (no
-clawback). Targets the tournament / league host — the high-GMV serial host Pro
-was built for — with a feature reason to upgrade independent of the fee
-discount. Already specced end-to-end in the ADR. **Estimate:** per the ADR's
-phased plan (6 steps, mostly low / medium).
+**Correction:** this was filed as "the strongest unrealized conversion lever …
+unbuilt." It is in fact **built and integrated.** ADR 0023 phases 1–5 all
+shipped 2026-05-30 — domain `LiveMatchScore`
+([packages/domain/src/scoring/](../../packages/domain/src/scoring/)), the
+`match_live_scores` table + `upsert_match_live_score` / `clear_match_live_score`
+RPCs ([20260815000000_match_live_scores.sql](../../supabase/migrations/20260815000000_match_live_scores.sql)),
+application handlers + finalize mappings
+([live-match-score.handler.ts](../../packages/application/src/commands/live-match-score.handler.ts),
+[live-match-finalize.ts](../../packages/application/src/scoring/live-match-finalize.ts)),
+the Supabase adapter, the Pro-gated `ScoreLiveButton`
+([score-live-button.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/score-live-button.tsx)),
+and the public live-view island
+([live-scores-provider.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/live-scores-provider.tsx)).
+DB types reconciled; `pnpm typecheck` green (15/15). The line is drawn exactly
+where ADR 0014 says — manual scoring free for everyone, the live auto-saving
+scoreboard is the Pro perk.
+
+**Remaining (Phase 6 only):** runtime/e2e verification of the realtime
+round-trip (score → public live update → finalize) on a deployed env — no
+`score-live` Playwright spec exists yet. Optional polish: an upgrade prompt for
+non-Pro hosts on the "Score live" affordance (currently the button simply
+doesn't render for non-Pro). **The conversion lever already exists in the
+product.**
 
 #### R-2 (P2) — Tier the new media / storage surfaces by _volume_, not by community gate
 
@@ -102,13 +122,20 @@ clearest "Pro pays for what it costs us" lever (real per-message cost ~$0.008
 US). Decide gating **in** the SMS bundle (Pro-only or low free quota) so it
 isn't shipped free-first then clawed back.
 
-#### R-5 (P3) — Tip-jar fee posture as a trust signal
+#### R-5 (P3) — Tip-jar fee posture as a trust signal — ✅ Shipped 2026-06-01 (dropped to 0%)
 
 Carries over [P3 #9](#9-tip-jar-take-rate-parity-with-tickets-is-probably-wrong).
-Re-decide deliberately: a "we don't take a cut of tips" stance is a strong
-community-trust signal at near-zero revenue cost pre-launch (tip volume is
-small). Either drop or cap the tip fee — and market it. Goodwill / brand lever
-more than a revenue one.
+**Decision: drop the tip fee to 0% on every tier** (not a cap — a clean "we take
+nothing on tips" is the stronger, more marketable signal). Ticket fees unchanged.
+`tipPlatformFeeCents()` returns 0
+([event-pricing.ts](../../apps/web/src/lib/event-pricing.ts), unit-tested);
+[tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts) stores
+`platform_fee_cents = 0`;
+[checkout-session.ts](../../apps/web/src/lib/checkout-session.ts) omits
+`application_fee_amount` when 0 so the destination charge transfers the full tip.
+Pricing / Pro / tip-jar copy and the [ADR 0014 amendment](../adr/0014-monetization-strategy.md)
+record it. Stripe's processing fee still applies (it's Stripe's, not ours) and
+the tip UI says so. P3 #9 closed.
 
 ### What NOT to do (community protection — reaffirmed)
 
@@ -735,6 +762,17 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-01 — R-5 shipped — tip fee dropped to 0%.** PickupVB now takes no
+  platform fee on tips, any tier (`tipPlatformFeeCents()` → 0, unit-tested);
+  `checkout-session.ts` omits `application_fee_amount` when 0 so the host
+  receives 100% of the tip, less only Stripe's processing fee. Ticket fees
+  unchanged. Copy updated across pricing / Pro / tip-jar; recorded as an
+  [ADR 0014 amendment](../adr/0014-monetization-strategy.md). Also corrected the
+  2026-05-31 re-eval's R-1 finding: **live scoring is already built** (ADR 0023
+  phases 1–5, 2026-05-30) — the "unbuilt" framing relied on a stale ADR status +
+  memory note, both fixed; only the Phase-6 realtime e2e remains. Verify quad
+  green.
 
 - **2026-05-31 — Re-evaluation (no code landed).** Re-ran the monetization
   lens after a week of feature shipping (chat / media / avatars / live scores /

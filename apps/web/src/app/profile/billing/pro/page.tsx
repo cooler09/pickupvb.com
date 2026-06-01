@@ -88,8 +88,8 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
             paid event per 30 days.
           </li>
           <li>
-            <strong className="text-fg">2.5% platform fee</strong> on tickets and tips — half what
-            free hosts pay.
+            <strong className="text-fg">2.5% platform fee</strong> on tickets — half what free hosts
+            pay. Tips are always fee-free for every host.
           </li>
           <li>
             <strong className="text-fg">Saved event templates.</strong> Save any event as a

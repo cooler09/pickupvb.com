@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import type Stripe from 'stripe';
 import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
-import { platformFeeCentsFor } from '@/lib/event-pricing';
+import { tipPlatformFeeCents } from '@/lib/event-pricing';
 import { getServerSupabase } from '@/lib/supabase';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
@@ -86,7 +86,10 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
     .maybeSingle();
   const displayName = (profile as { display_name: string | null } | null)?.display_name ?? null;
 
-  const platformCut = await platformFeeCentsFor(event.host_id, amountCents!);
+  // PickupVB takes no platform fee on tips (ADR 0014 tip-fee amendment) — the
+  // host receives 100% of the tip, less only Stripe's processing fee. Stored as
+  // 0 on the tip row and omitted from the destination charge's application fee.
+  const platformCut = tipPlatformFeeCents(amountCents!);
 
   // Insert pending tip row up front so the webhook can match by session id.
   // RLS: event_tips_insert_own gates this on auth.uid() = tipper_user_id

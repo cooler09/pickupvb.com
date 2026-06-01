@@ -68,7 +68,8 @@ export function TipJar({
         )}
       </header>
       <p className="text-muted mt-1 text-xs">
-        Optional — show appreciation. Tips go directly to the host.
+        Optional — show appreciation. 100% goes to the host: PickupVB takes no fee on tips (only
+        Stripe&apos;s card processing fee applies).
       </p>
 
       {!open ? (
