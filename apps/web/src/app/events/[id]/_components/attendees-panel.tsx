@@ -1,5 +1,3 @@
-import Link from 'next/link';
-import type { Route } from 'next';
 import { AttendeeList } from '@/components/attendee-list';
 import { Pagination } from '@/components/pagination';
 import type { EventDetailReadModel } from '@pickupvb/domain';
@@ -15,7 +13,6 @@ export function AttendeesPanel({
   returnPath,
   payments,
   paid,
-  viewerIsPro,
   page,
   searchParams,
 }: {
@@ -26,7 +23,6 @@ export function AttendeesPanel({
   returnPath: string;
   payments: Map<string, AttendeePaymentInfo> | undefined;
   paid: boolean;
-  viewerIsPro: boolean;
   page: number;
   searchParams: Record<string, string | undefined>;
 }) {
@@ -65,26 +61,6 @@ export function AttendeesPanel({
             scrollToId="attendees"
           />
         </div>
-      )}
-      {event.canManage && (
-        <p className="text-muted mt-3 text-xs">
-          {viewerIsPro ? (
-            <a
-              href={`/api/events/${event.id}/attendees.csv`}
-              className="text-primary hover:underline"
-            >
-              Export attendees as CSV
-            </a>
-          ) : (
-            <>
-              CSV attendee export is a{' '}
-              <Link href={'/profile/billing/pro' as Route} className="text-primary hover:underline">
-                Pro
-              </Link>{' '}
-              feature.
-            </>
-          )}
-        </p>
       )}
     </section>
   );

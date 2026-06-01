@@ -34,7 +34,6 @@ type Props = {
   spotsRemaining: number | null;
   priceLabel: string;
   registrationClosesAt: Date | null;
-  canManage: boolean;
   cta: EventHeroCta;
   /** Number of divisions; passed through to EventTags. */
   divisionCount?: number;
@@ -78,7 +77,6 @@ export function EventHero({
   spotsRemaining,
   priceLabel,
   registrationClosesAt,
-  canManage,
   cta,
   divisionCount,
   closingSoon = false,
@@ -86,9 +84,9 @@ export function EventHero({
 }: Props) {
   return (
     <header className="space-y-2">
-      {/* Row 1 — tags on the left, secondary actions on the right.
-          Pairing them frees a vertical block and right-anchors the
-          host's Edit link out of the primary read path. */}
+      {/* Row 1 — tags on the left, share on the right. Host management
+          (Edit, etc.) lives on the dedicated /manage dashboard, reached via
+          the "Manage event" strip the page renders above the hero. */}
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <EventTags
           type={type}
@@ -103,14 +101,6 @@ export function EventHero({
         />
         <div className="flex shrink-0 items-center gap-3 text-sm">
           <EventShareLink shortCode={shortCode} title={title} />
-          {canManage && (
-            <Link
-              href={`/events/${eventId}/edit` as Route}
-              className="text-primary hover:underline"
-            >
-              Edit
-            </Link>
-          )}
         </div>
       </div>
 

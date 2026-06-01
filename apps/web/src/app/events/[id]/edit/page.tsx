@@ -8,7 +8,6 @@ import { getAdminSupabase } from '@/lib/supabase-admin';
 import { hasProBenefits } from '@/lib/admin';
 import EditEventForm from './edit-event-form';
 import { isPricingLocked } from '@/lib/pricing-lock';
-import { CancelEventPanel } from './cancel-event-panel';
 import { SponsorPanel } from './sponsor-panel';
 import { HeroImagePanel } from '@/components/hero-image-panel';
 
@@ -83,21 +82,6 @@ export default async function EditEventPage(props: {
     sponsorRow?.access_kind === 'ala_carte' && sponsorRow?.paid_at !== null;
   const sponsorFlash = pickQuery(searchParams, 'sponsor');
   const sponsorMsg = pickQuery(searchParams, 'sponsor_msg');
-
-  // For the cancel panel: how many paid attendees would be refunded.
-  let paidAttendeeCount = 0;
-  if (event.status !== 'cancelled') {
-    const { count } = await admin
-      .from('event_participants')
-      .select(
-        'user_id, payment:event_participant_payments!inner(payment_status), division:event_divisions!inner(event_id)',
-        { head: true, count: 'exact' },
-      )
-      .eq('role', 'attendee')
-      .eq('division.event_id', id)
-      .eq('payment.payment_status', 'paid');
-    paidAttendeeCount = count ?? 0;
-  }
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
@@ -180,14 +164,6 @@ export default async function EditEventPage(props: {
           {...(sponsorMsg ? { sponsorMsg } : {})}
         />
       </div>
-
-      {event.status !== 'cancelled' && (
-        <CancelEventPanel
-          eventId={id}
-          attendeeCount={event.attendees.filter((a) => !a.waitlist).length}
-          paidAttendeeCount={paidAttendeeCount}
-        />
-      )}
     </section>
   );
 }

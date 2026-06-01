@@ -31,6 +31,13 @@ type Props = {
   returnPath: string;
   /** Optional social handles for the primary host user (rendered inline). */
   primaryHostUserSocial?: SocialHandles;
+  /**
+   * Whether to render the inline co-host management affordances (remove ✕ on
+   * each chip + the "Add co-host" form). Defaults to `true`. The public event
+   * page passes `false` so "Hosted by" reads as a display-only credit — co-host
+   * management lives on the dedicated `/events/[id]/manage` dashboard instead.
+   */
+  showCoHostControls?: boolean;
 };
 
 /**
@@ -38,6 +45,10 @@ type Props = {
  * and users) with inline remove buttons for managers, and a collapsible
  * "Add co-host" form. All co-host mutations route through the
  * `addCoHostFromForm` / `removeEventCoHost` server actions.
+ *
+ * When `showCoHostControls` is `false` (the public event page) the section is
+ * read-only — just the credit chips — and the management surface moves to the
+ * `/manage` dashboard.
  */
 export function HostsSection({
   eventId,
@@ -49,7 +60,9 @@ export function HostsSection({
   viewerHostableGroups,
   returnPath,
   primaryHostUserSocial,
+  showCoHostControls = true,
 }: Props) {
+  const manage = canManage && showCoHostControls;
   return (
     <section className="border-border-base rounded-shape-sm space-y-2 border p-4">
       <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Hosted by</h2>
@@ -107,7 +120,7 @@ export function HostsSection({
               {g.name}
               <span className="text-muted text-xs">(co-host)</span>
             </Link>
-            {canManage && (
+            {manage && (
               <form
                 action={removeEventCoHost.bind(null, eventId, { groupId: g.id }, returnPath)}
                 className="ml-1 inline"
@@ -132,7 +145,7 @@ export function HostsSection({
               {profileName(p)}
               <span className="text-muted text-xs">(co-host)</span>
             </Link>
-            {canManage && (
+            {manage && (
               <form
                 action={removeEventCoHost.bind(null, eventId, { userId: p.id }, returnPath)}
                 className="ml-1 inline"
@@ -150,7 +163,7 @@ export function HostsSection({
         ))}
       </ul>
 
-      {canManage && (
+      {manage && (
         <details className="mt-2">
           <summary className="text-primary cursor-pointer text-xs font-medium hover:underline">
             + Add co-host
