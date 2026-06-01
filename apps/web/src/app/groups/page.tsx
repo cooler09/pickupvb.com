@@ -87,7 +87,7 @@ export default async function GroupsIndexPage(props: {
         </div>
       ) : (
         <GroupsFollowProvider groupIds={groups.map((g) => g.id)}>
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="stagger-in grid gap-3 sm:grid-cols-2">
             {groups.map((g) => (
               <GroupCard key={g.id} group={g} action={<GroupFollowButton groupId={g.id} />} />
             ))}

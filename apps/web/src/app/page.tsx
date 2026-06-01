@@ -112,7 +112,7 @@ export default async function HomePage(props: {
               Browse all →
             </Link>
           </div>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="stagger-in grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {upcomingEvents.slice(0, 6).map((e) => (
               <EventCard
                 key={e.id}
@@ -185,7 +185,7 @@ export default async function HomePage(props: {
               See all →
             </Link>
           </div>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="stagger-in grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {groupRows.map((g) => (
               <GroupCard key={g.id} group={g} />
             ))}

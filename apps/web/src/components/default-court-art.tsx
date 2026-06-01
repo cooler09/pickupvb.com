@@ -24,14 +24,26 @@ const BRAND_GRADIENT = 'from-primary/20 via-highlight/25 to-primary/10';
  * `surface` is required but accepts `undefined`/`null` (→ brand court) so both
  * the always-present card surface and the optional hero surface flow in
  * without an `exactOptionalPropertyTypes` spread dance at the call site.
+ *
+ * `animated` opts into the one-shot entrance flourish — the court tape
+ * "chalks in" (stroke-draw) and the ball does a single slow spin-in. Reserved
+ * for the wide hero (one per page); cards leave it off so a grid of six stays
+ * calm. Both animations are pure CSS in globals.css and self-defang under
+ * `prefers-reduced-motion`.
  */
-export function DefaultCourtArt({ surface }: { surface: string | null | undefined }) {
+export function DefaultCourtArt({
+  surface,
+  animated = false,
+}: {
+  surface: string | null | undefined;
+  animated?: boolean;
+}) {
   const gradient = (surface && SURFACE_GRADIENT[surface]) || BRAND_GRADIENT;
   return (
     <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} aria-hidden="true">
       {/* Court markings — stretched to fill; white lines read as court tape. */}
       <svg
-        className="absolute inset-0 h-full w-full text-white/55"
+        className={`absolute inset-0 h-full w-full text-white/55${animated ? 'court-line-draw' : ''}`}
         viewBox="0 0 360 120"
         preserveAspectRatio="none"
         fill="none"
@@ -46,7 +58,7 @@ export function DefaultCourtArt({ surface }: { surface: string | null | undefine
       {/* Volleyball — same glyph as the card thumbnail, sized off box height so
           it scales from card to hero. Dark and faint: a motif, not a focal. */}
       <svg
-        className="text-fg/12 absolute top-1/2 right-[7%] aspect-square h-[58%] -translate-y-1/2"
+        className={`text-fg/12 absolute top-1/2 right-[7%] aspect-square h-[58%] -translate-y-1/2${animated ? 'ball-spin-in' : ''}`}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"

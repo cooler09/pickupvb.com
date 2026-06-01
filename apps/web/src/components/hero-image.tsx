@@ -26,7 +26,7 @@ export function HeroImage({ url, alt, priority = false, surface }: Props) {
   if (!url) {
     return (
       <div className="rounded-shape-md relative h-48 w-full overflow-hidden">
-        <DefaultCourtArt surface={surface} />
+        <DefaultCourtArt surface={surface} animated />
       </div>
     );
   }

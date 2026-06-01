@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { ConfettiBurst } from '@/components/confetti-burst';
 import { rsvpBannerFor, RSVP_BANNER_CLASS } from '@/lib/event-rsvp-flash';
 import GuestSignupForm from '../guest-signup-form';
 import { joinEvent, leaveEvent } from '../rsvp-actions';
@@ -24,7 +25,8 @@ export function RsvpPanel({ eventId, eventTitle, isAttending, isRealUser, rsvp, 
   return (
     <div className="space-y-4">
       {banner && (
-        <div role="status" className={RSVP_BANNER_CLASS[banner.tone]}>
+        <div role="status" className={`relative ${RSVP_BANNER_CLASS[banner.tone]}`}>
+          {banner.tone === 'success' && <ConfettiBurst />}
           {banner.text}
           {rsvp === 'guest_joined' && (
             <>
