@@ -464,7 +464,8 @@ export default async function ProfilePage(props: {
         </div>
       </section>
 
-      {/* Edit profile */}
+      {/* Edit profile — fields + profile photo + hero image co-located under
+          one disclosure so the identity-edit affordances live together (PR-4). */}
       <details
         id="edit-profile"
         open={editOpen}
@@ -473,29 +474,27 @@ export default async function ProfilePage(props: {
         <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
           <span>Edit profile</span>
           <span className="text-muted text-xs group-open:hidden">
-            Name, city, positions, socials…
+            Name, city, positions, photos, socials…
           </span>
           <span className="text-muted hidden text-xs group-open:inline">Collapse</span>
         </summary>
-        <div className="border-border-base border-t p-4 sm:p-6">
+        <div className="border-border-base space-y-6 border-t p-4 sm:p-6">
           <ProfileForm profile={profile} email={user.email ?? ''} isPro={viewerIsPro} />
+          <AvatarPanel
+            userId={user.id}
+            currentUrl={profile.avatar_url}
+            initials={initials(profile.display_name)}
+            returnPath={`/players/${profile.handle}`}
+          />
+          <HeroImagePanel
+            entityType="profiles"
+            entityId={user.id}
+            userId={user.id}
+            currentUrl={row?.hero_image_url ?? null}
+            returnPath={`/players/${profile.handle}`}
+          />
         </div>
       </details>
-
-      <AvatarPanel
-        userId={user.id}
-        currentUrl={profile.avatar_url}
-        initials={initials(profile.display_name)}
-        returnPath={`/players/${profile.handle}`}
-      />
-
-      <HeroImagePanel
-        entityType="profiles"
-        entityId={user.id}
-        userId={user.id}
-        currentUrl={row?.hero_image_url ?? null}
-        returnPath={`/players/${profile.handle}`}
-      />
 
       {/* Privacy & your data */}
       <section className={cardClass}>
@@ -610,7 +609,10 @@ function ActionTile({
       href={href}
       className={
         isPrimary
-          ? 'bg-primary text-primary-fg rounded-shape-sm block p-4 transition hover:opacity-90'
+          ? // Filled-primary surface: M3 state-layer (currentColor overlay at
+            // system alphas) for hover/focus/pressed — same signature as
+            // `primaryButtonClass`, not a one-off `hover:opacity-90` (PR-5).
+            'bg-primary text-primary-fg state-layer rounded-shape-sm block p-4'
           : 'border-border-base bg-surface hover:border-primary/40 rounded-shape-sm block border p-4 transition'
       }
     >
