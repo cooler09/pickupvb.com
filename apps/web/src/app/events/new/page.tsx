@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
+import { isAnonymousUser } from '@/lib/server-auth';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { hasProBenefits } from '@/lib/admin';
 import NewEventForm from './new-event-form';
@@ -30,6 +31,13 @@ export default async function NewEventPage(props: {
 
   if (!user) {
     redirect('/login?next=/events/new');
+  }
+  // Hosting needs a claimed account (+ Stripe payout) to be useful, so route an
+  // anonymous user to finish their account first instead of showing the full
+  // create-event form they can't submit (persona-ux V-4). Mirrors the gate on
+  // `/teams/new`; the submit action also rejects anon as a backstop.
+  if (isAnonymousUser(user)) {
+    redirect('/claim?next=/events/new');
   }
 
   // Groups the user can host as (must be owner/admin).

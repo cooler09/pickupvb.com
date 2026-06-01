@@ -43,10 +43,17 @@ const SIZING: Record<PrimaryButtonSize, string> = {
   md: 'px-4 py-2 text-sm',
 };
 
-const BASE = 'state-layer inline-flex items-center justify-center rounded-md font-semibold';
+// Tactile press: a tiny scale-down on `:active` gives every button physical
+// feedback. `transition-transform` covers the individual `scale`/`translate`
+// properties in Tailwind v4; the global `prefers-reduced-motion` rule defangs
+// the transition (the state still applies, just without the travel).
+const BASE =
+  'state-layer inline-flex items-center justify-center rounded-md font-semibold transition-transform active:scale-[0.98]';
 
 export function primaryButtonClass(size: PrimaryButtonSize = 'sm'): string {
-  return `bg-primary text-primary-fg ${SIZING[size]} ${BASE} shadow-sm disabled:opacity-60`;
+  // The headline CTA also lifts a hair on hover — a "serve" nudge that marks
+  // it as the primary action without disturbing layout.
+  return `bg-primary text-primary-fg ${SIZING[size]} ${BASE} shadow-sm hover:-translate-y-0.5 disabled:opacity-60`;
 }
 
 /**

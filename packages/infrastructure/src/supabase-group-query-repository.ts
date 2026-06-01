@@ -15,7 +15,7 @@ import { SupabaseProfileRepository, escapeLike } from './supabase-profile-reposi
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 const CARD_COLUMNS = 'id, slug, name, description, avatar_url, home_city, region';
-const DETAIL_COLUMNS = `${CARD_COLUMNS}, hero_image_url, created_by`;
+const DETAIL_COLUMNS = `${CARD_COLUMNS}, created_by`;
 // Embedded card via the single-valued group_members → groups FK.
 const MEMBERSHIP_COLUMNS = `role, groups:groups!inner(${CARD_COLUMNS})`;
 
@@ -32,7 +32,6 @@ type CardRow = {
 };
 
 type DetailRow = CardRow & {
-  hero_image_url: string | null;
   created_by: string | null;
 };
 
@@ -51,7 +50,6 @@ function toCard(row: CardRow): GroupCard {
 function toDetail(row: DetailRow): GroupDetail {
   return {
     ...toCard(row),
-    heroImageUrl: row.hero_image_url,
     createdBy: row.created_by,
   };
 }
@@ -86,7 +84,29 @@ export class SupabaseGroupQueryRepository implements GroupQueries {
     const { data, count, error } = await query;
     if (error) throw new Error(`searchDirectory failed: ${error.message}`);
     const cards = ((data as CardRow[] | null) ?? []).map(toCard);
-    return { cards, total: count ?? cards.length };
+    const counts = await this.countMembers(cards.map((c) => c.id));
+    const withCounts = cards.map((c) => ({ ...c, memberCount: counts.get(c.id) ?? 0 }));
+    return { cards: withCounts, total: count ?? cards.length };
+  }
+
+  /**
+   * Member counts for a set of group ids, for the directory's social-proof
+   * chip. `group_members` is publicly selectable (RLS `using (true)`), so this
+   * works on the sessionless anon client. Cosmetic — on error we return an
+   * empty map and the cards omit the count rather than failing the page.
+   */
+  private async countMembers(ids: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (ids.length === 0) return out;
+    const { data, error } = await this.client
+      .from('group_members')
+      .select('group_id')
+      .in('group_id', ids);
+    if (error) return out;
+    for (const r of (data as { group_id: string }[] | null) ?? []) {
+      out.set(r.group_id, (out.get(r.group_id) ?? 0) + 1);
+    }
+    return out;
   }
 
   async listCards(limit: number): Promise<GroupCard[]> {

@@ -7,7 +7,6 @@ import { POSITION_LABEL } from '@/lib/enum-labels';
 import { relativeEventDay } from '@/lib/date-formats';
 import { EventCard, type EventCardData } from '../events/_components/event-card';
 import { ProfileForm } from './profile-form';
-import { HeroImagePanel } from '@/components/hero-image-panel';
 import { AvatarPanel } from '@/components/avatar-panel';
 import { Pagination } from '@/components/pagination';
 import {
@@ -25,6 +24,7 @@ import { ProBadge } from '@/components/pro-badge';
 import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
 import { isPro } from '@/lib/pro';
+import { getHostStripeAccount } from '@/lib/host-stripe-account';
 
 export const metadata = {
   title: 'Your profile — PickupVB',
@@ -37,7 +37,6 @@ type ProfileRow = {
   last_name: string | null;
   display_name: string;
   home_city: string | null;
-  hero_image_url: string | null;
   avatar_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
@@ -77,6 +76,10 @@ export default async function ProfilePage(props: {
   const fpage = Math.max(1, Number.parseInt(searchParams.fpage ?? '1', 10) || 1);
   const vpage = Math.max(1, Number.parseInt(searchParams.vpage ?? '1', 10) || 1);
   const apage = Math.max(1, Number.parseInt(searchParams.apage ?? '1', 10) || 1);
+  // Deep-link the Edit-profile disclosure open (the onboarding card's
+  // "Complete your profile" step links here). Native <details> stays
+  // user-toggleable afterwards.
+  const editOpen = searchParams.edit === '1';
 
   const { supabase, user } = await getCurrentUser();
   if (!user) redirect('/login?next=/profile');
@@ -84,7 +87,7 @@ export default async function ProfilePage(props: {
   const { data } = await supabase
     .from('profiles')
     .select(
-      'handle, first_name, last_name, display_name, home_city, hero_image_url, avatar_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'handle, first_name, last_name, display_name, home_city, avatar_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -149,10 +152,15 @@ export default async function ProfilePage(props: {
     isFundraiser: e.isFundraiser,
     divisions: e.divisions,
   }));
-  const [viewerIsPro, viewerIsAdmin] = await Promise.all([
+  const [viewerIsPro, viewerIsAdmin, hostStripeAccountId] = await Promise.all([
     isPro(user.id),
     isPlatformAdmin(user.id),
+    getHostStripeAccount(user.id),
   ]);
+  // "Is this person a host?" drives the adaptive payout tile — show it once
+  // they have upcoming events to manage or a connected Stripe account, not to
+  // every player by default (persona-ux PR-2).
+  const isHost = upcomingHosted.length > 0 || hostStripeAccountId !== null;
 
   // Groups the user is a member of (with role).
   const memberships = await new SupabaseGroupQueryRepository(supabase).listMembershipsForUser(
@@ -191,6 +199,19 @@ export default async function ProfilePage(props: {
   ]
     .filter((p): p is string => Boolean(p))
     .map((p) => POSITION_LABEL[p] ?? p);
+
+  // First-run nudge: a brand-new user (sparse profile + zero activity anywhere)
+  // gets a single "Get started" card instead of a wall of empty sections. It
+  // disappears the moment they fill in a profile field or take any first action
+  // (PR-3) — it's a welcome, not a persistent checklist.
+  const profileIncomplete = !profile.home_city && positions.length === 0 && !profile.avatar_url;
+  const hasNoActivity =
+    attendingEvents.length === 0 &&
+    upcomingHosted.length === 0 &&
+    friends.length === 0 &&
+    memberships.length === 0 &&
+    myVideos.length === 0;
+  const showOnboarding = profileIncomplete && hasNoActivity;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
@@ -239,24 +260,62 @@ export default async function ProfilePage(props: {
         </div>
       </section>
 
-      {/* Quick actions */}
+      {/* First-run "Get started" card (sparse profile + zero activity). */}
+      {showOnboarding && (
+        <section className="border-primary/30 bg-primary/5 rounded-shape-sm border p-5 sm:p-6">
+          <h2 className="text-lg font-bold">Welcome to PickupVB</h2>
+          <p className="text-muted mt-1 text-sm">
+            A few quick steps to get the most out of your account.
+          </p>
+          <ol className="mt-4 space-y-2">
+            <GetStartedStep
+              n={1}
+              href={'/profile?edit=1#edit-profile' as Route}
+              title="Complete your profile"
+              description="Add a photo, your home city, and positions"
+            />
+            <GetStartedStep
+              n={2}
+              href={'/events' as Route}
+              title="Find your first event"
+              description="Pickup, leagues, and tournaments near you"
+            />
+            <GetStartedStep
+              n={3}
+              href={'/players' as Route}
+              title="Follow some players"
+              description="See what your crew is signed up for next"
+            />
+          </ol>
+        </section>
+      )}
+
+      {/* Quick actions — player intents lead; host/payout depth is adaptive. */}
       <nav aria-label="Quick actions" className="grid gap-3 sm:grid-cols-3">
+        <ActionTile
+          href={'/events' as Route}
+          title="Find events"
+          description="Pickup, leagues & tournaments"
+          variant="primary"
+        />
+        <ActionTile href={'/messages' as Route} title="Messages" description="Your conversations" />
+        <ActionTile
+          href={'/profile/receipts' as Route}
+          title="Receipts"
+          description="Your payments"
+        />
         <ActionTile
           href={'/events/new' as Route}
           title="Host an event"
           description="Open play or tournament"
-          variant="primary"
         />
-        <ActionTile
-          href={'/profile/billing' as Route}
-          title="Payouts & Stripe"
-          description="Connect your account"
-        />
-        <ActionTile
-          href={'/profile/receipts' as Route}
-          title="Receipts"
-          description="Past payments"
-        />
+        {isHost && (
+          <ActionTile
+            href={'/profile/billing' as Route}
+            title="Payouts & Stripe"
+            description="Manage your payouts"
+          />
+        )}
       </nav>
 
       {/* Action required */}
@@ -323,6 +382,27 @@ export default async function ProfilePage(props: {
         </div>
       </section>
 
+      {/* Following */}
+      <section id="following" className={cardClass}>
+        <SectionHeader title="Following" count={friends.length} />
+        <div className="mt-4 space-y-4">
+          <FriendsList
+            friends={friends.slice((fpage - 1) * FOLLOWING_PER_PAGE, fpage * FOLLOWING_PER_PAGE)}
+            mutualIds={mutualIds}
+            returnPath="/profile"
+          />
+          <Pagination
+            basePath="/profile"
+            page={fpage}
+            pageSize={FOLLOWING_PER_PAGE}
+            total={friends.length}
+            searchParams={searchParams}
+            pageParam="fpage"
+            scrollToId="following"
+          />
+        </div>
+      </section>
+
       {/* Hosting */}
       <section id="hosting" className={cardClass}>
         <SectionHeader
@@ -382,55 +462,30 @@ export default async function ProfilePage(props: {
         </div>
       </section>
 
-      {/* Following */}
-      <section id="following" className={cardClass}>
-        <SectionHeader title="Following" count={friends.length} />
-        <div className="mt-4 space-y-4">
-          <FriendsList
-            friends={friends.slice((fpage - 1) * FOLLOWING_PER_PAGE, fpage * FOLLOWING_PER_PAGE)}
-            mutualIds={mutualIds}
-            returnPath="/profile"
-          />
-          <Pagination
-            basePath="/profile"
-            page={fpage}
-            pageSize={FOLLOWING_PER_PAGE}
-            total={friends.length}
-            searchParams={searchParams}
-            pageParam="fpage"
-            scrollToId="following"
-          />
-        </div>
-      </section>
-
-      {/* Edit profile */}
-      <details className="group border-border-base bg-surface rounded-shape-sm border">
+      {/* Edit profile — fields + profile photo + hero image co-located under
+          one disclosure so the identity-edit affordances live together (PR-4). */}
+      <details
+        id="edit-profile"
+        open={editOpen}
+        className="group border-border-base bg-surface rounded-shape-sm border"
+      >
         <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
           <span>Edit profile</span>
           <span className="text-muted text-xs group-open:hidden">
-            Name, city, positions, socials…
+            Name, city, positions, photos, socials…
           </span>
           <span className="text-muted hidden text-xs group-open:inline">Collapse</span>
         </summary>
-        <div className="border-border-base border-t p-4 sm:p-6">
+        <div className="border-border-base space-y-6 border-t p-4 sm:p-6">
           <ProfileForm profile={profile} email={user.email ?? ''} isPro={viewerIsPro} />
+          <AvatarPanel
+            userId={user.id}
+            currentUrl={profile.avatar_url}
+            initials={initials(profile.display_name)}
+            returnPath={`/players/${profile.handle}`}
+          />
         </div>
       </details>
-
-      <AvatarPanel
-        userId={user.id}
-        currentUrl={profile.avatar_url}
-        initials={initials(profile.display_name)}
-        returnPath={`/players/${profile.handle}`}
-      />
-
-      <HeroImagePanel
-        entityType="profiles"
-        entityId={user.id}
-        userId={user.id}
-        currentUrl={row?.hero_image_url ?? null}
-        returnPath={`/players/${profile.handle}`}
-      />
 
       {/* Privacy & your data */}
       <section className={cardClass}>
@@ -495,6 +550,39 @@ function SectionHeader({
   );
 }
 
+function GetStartedStep({
+  n,
+  href,
+  title,
+  description,
+}: {
+  n: number;
+  href: Route;
+  title: string;
+  description: string;
+}) {
+  return (
+    <li>
+      <Link
+        href={href}
+        className="border-border-base bg-surface hover:border-primary/40 flex items-center gap-3 rounded-md border p-3"
+      >
+        <span
+          aria-hidden
+          className="bg-primary/15 text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+        >
+          {n}
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-medium">{title}</span>
+          <span className="text-muted block text-xs">{description}</span>
+        </span>
+        <span className="text-primary ml-auto shrink-0 text-sm">→</span>
+      </Link>
+    </li>
+  );
+}
+
 function ActionTile({
   href,
   title,
@@ -512,7 +600,10 @@ function ActionTile({
       href={href}
       className={
         isPrimary
-          ? 'bg-primary text-primary-fg rounded-shape-sm block p-4 transition hover:opacity-90'
+          ? // Filled-primary surface: M3 state-layer (currentColor overlay at
+            // system alphas) for hover/focus/pressed — same signature as
+            // `primaryButtonClass`, not a one-off `hover:opacity-90` (PR-5).
+            'bg-primary text-primary-fg state-layer rounded-shape-sm block p-4'
           : 'border-border-base bg-surface hover:border-primary/40 rounded-shape-sm block border p-4 transition'
       }
     >

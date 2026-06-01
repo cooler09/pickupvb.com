@@ -105,6 +105,7 @@ import {
   DeleteGroupHandler,
   FollowGroupHandler,
   RemoveGroupMemberHandler,
+  SetGroupAvatarHandler,
   UnfollowGroupHandler,
   RemoveFriendHandler,
   SetProfileAvatarHandler,
@@ -482,6 +483,7 @@ export async function getUserProfileHandlers(): Promise<{
 export async function getGroupHandlers(): Promise<{
   createGroup: CreateGroupHandler;
   updateGroupProfile: UpdateGroupProfileHandler;
+  setGroupAvatar: SetGroupAvatarHandler;
   addGroupMember: AddGroupMemberHandler;
   removeGroupMember: RemoveGroupMemberHandler;
   changeGroupMemberRole: ChangeGroupMemberRoleHandler;
@@ -522,6 +524,7 @@ export async function getGroupHandlers(): Promise<{
   return {
     createGroup: new CreateGroupHandler(groupRepo),
     updateGroupProfile: new UpdateGroupProfileHandler(groupRepo),
+    setGroupAvatar: new SetGroupAvatarHandler(groupRepo),
     addGroupMember: new AddGroupMemberHandler(groupRepo),
     removeGroupMember: new RemoveGroupMemberHandler(groupRepo),
     changeGroupMemberRole: new ChangeGroupMemberRoleHandler(groupRepo),

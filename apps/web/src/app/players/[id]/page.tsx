@@ -13,7 +13,6 @@ import { SocialLinks } from '@/components/social-links';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
-import { HeroImage } from '@/components/hero-image';
 import { ProfileVideoGrid } from '@/components/profile-video-grid';
 
 /**
@@ -101,7 +100,6 @@ export default async function PlayerProfilePage(props: {
           { name, url: `https://pickupvb.com/players/${profile.handle}` },
         ]}
       />
-      <HeroImage url={profile.heroImageUrl} alt={name} priority />
 
       {/* ── Identity card ─────────────────────────────────────── */}
       <header className="border-border-base bg-surface rounded-shape-sm border p-5">

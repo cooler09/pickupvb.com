@@ -60,6 +60,12 @@ export interface ProfileCard {
   displayName: string;
   homeCity: string | null;
   avatarUrl: string | null;
+  /**
+   * Ordered playing positions (primary → tertiary), nulls dropped. The
+   * directory card's decision signal for "who plays what"; empty when the
+   * player hasn't set any. Sourced from `profiles_public`.
+   */
+  positions: string[];
 }
 
 export interface ProfileSearchQuery {
@@ -92,15 +98,13 @@ export interface ProfileDirectoryPage {
 /**
  * The full public player-profile projection for the `/players/[handle]` page:
  * the card fields plus the display-only extras (positions, social handles,
- * hero image, pro-badge preference). All PII-safe — sourced from
- * `profiles_public`.
+ * pro-badge preference). All PII-safe — sourced from `profiles_public`.
  */
 export interface PlayerProfile {
   id: string;
   handle: string;
   displayName: string;
   avatarUrl: string | null;
-  heroImageUrl: string | null;
   homeCity: string | null;
   showProBadge: boolean | null;
   primaryPosition: string | null;

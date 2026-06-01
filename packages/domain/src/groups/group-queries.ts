@@ -16,17 +16,23 @@ export interface GroupCard {
   avatarUrl: string | null;
   homeCity: string | null;
   region: string | null;
+  /**
+   * Member count for the directory's social-proof chip. Optional + additive:
+   * only the directory listing populates it (via an aggregate over
+   * `group_members`); other card sources (home peek, "my groups") leave it
+   * undefined and the card hides the chip.
+   */
+  memberCount?: number;
 }
 
 /** A group's full public profile (detail page, edit form, OG image). The card
- * fields plus the hero image and the creator id. */
+ * fields plus the creator id. */
 export interface GroupDetail {
   id: string;
   slug: string;
   name: string;
   description: string;
   avatarUrl: string | null;
-  heroImageUrl: string | null;
   homeCity: string | null;
   region: string | null;
   createdBy: string | null;

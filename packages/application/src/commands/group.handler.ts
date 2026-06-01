@@ -14,6 +14,7 @@ import {
   DeleteGroupCommand,
   FollowGroupCommand,
   RemoveGroupMemberCommand,
+  SetGroupAvatarCommand,
   UnfollowGroupCommand,
   UpdateGroupProfileCommand,
 } from '../messages';
@@ -35,7 +36,6 @@ export class CreateGroupHandler {
       description: input.description,
       homeCity: input.homeCity,
       region: input.region,
-      avatarUrl: input.avatarUrl,
     });
     await this.repo.add(group);
     return { id: group.id, slug: group.slug };
@@ -53,6 +53,26 @@ export class UpdateGroupProfileHandler {
     const group = await this.repo.findById(GroupId(groupId));
     if (!group) throw new NotFoundError('group', groupId);
     group.editProfile(edit);
+    await this.repo.save(group);
+    return { slug: group.slug };
+  }
+}
+
+/**
+ * Set or clear a group's avatar (logo) URL (ADR 0021). Decoupled from
+ * `UpdateGroupProfileHandler` so the avatar upload widget can persist a new URL
+ * without re-submitting the whole profile form (and the profile form never
+ * clobbers an uploaded avatar). Owner/admin authorization is the `groups_update`
+ * RLS policy at the user-scoped `save` boundary. Returns the slug so the caller
+ * can revalidate the public `/groups/{slug}` path.
+ */
+export class SetGroupAvatarHandler {
+  constructor(private readonly repo: GroupRepository) {}
+
+  async execute({ groupId, url }: SetGroupAvatarCommand): Promise<{ slug: string }> {
+    const group = await this.repo.findById(GroupId(groupId));
+    if (!group) throw new NotFoundError('group', groupId);
+    group.setAvatar(url);
     await this.repo.save(group);
     return { slug: group.slug };
   }

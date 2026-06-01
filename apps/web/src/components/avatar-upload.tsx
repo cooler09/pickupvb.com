@@ -13,6 +13,19 @@ type Props = {
   initials: string;
   /** Called with the new public URL after a successful upload, or null on removal. */
   onSave: (url: string | null) => Promise<void>;
+  /**
+   * Storage object path to write (within the `avatars` bucket). Defaults to
+   * `${userId}/avatar.webp` (the user's own avatar). Group avatars pass
+   * `${userId}/groups/${groupId}/avatar.webp` — the leading `${userId}/`
+   * segment satisfies the bucket's owner-path RLS, and the
+   * `purge_avatar_orphans` walker treats it as live via `groups.avatar_url`.
+   */
+  objectPath?: string;
+  /**
+   * Preview + crop shape. `'circle'` (default) for people; `'rounded'` for
+   * group logos, matching how each is rendered elsewhere.
+   */
+  shape?: 'circle' | 'rounded';
 };
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB cap on the *source* file (pre-crop)
@@ -28,12 +41,21 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB cap on the *source* file (pre-crop)
  * WebP, the storage object is always `avatar.webp` — a re-upload overwrites
  * the same path rather than leaving a stale extension behind.
  */
-export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
+export function AvatarUpload({
+  userId,
+  currentUrl,
+  initials,
+  onSave,
+  objectPath,
+  shape = 'circle',
+}: Props) {
   const [url, setUrl] = useState<string | null>(currentUrl);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const roundedClass = shape === 'rounded' ? 'rounded-shape-sm' : 'rounded-full';
 
   // Revoke any outstanding object URL on unmount to avoid leaking it.
   useEffect(() => {
@@ -58,7 +80,7 @@ export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
 
   async function handleCropped(blob: Blob) {
     // Crop output is always WebP, so the object path is stable.
-    const path = `${userId}/avatar.webp`;
+    const path = objectPath ?? `${userId}/avatar.webp`;
     setUploading(true);
     setError(null);
 
@@ -96,21 +118,23 @@ export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
         {url ? (
           <Image
             src={url}
-            alt="Your avatar"
+            alt="Avatar"
             fill
             sizes="80px"
-            className="rounded-full object-cover"
+            className={`${roundedClass} object-cover`}
           />
         ) : (
           <div
             aria-hidden
-            className="bg-primary/15 text-primary flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold"
+            className={`bg-primary/15 text-primary flex h-20 w-20 items-center justify-center ${roundedClass} text-2xl font-semibold`}
           >
             {initials}
           </div>
         )}
         {uploading && (
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
+          <div
+            className={`absolute inset-0 flex items-center justify-center ${roundedClass} bg-black/50 backdrop-blur-sm`}
+          >
             <span className="text-xs font-medium text-white">…</span>
           </div>
         )}
@@ -157,7 +181,12 @@ export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
         }}
       />
 
-      <AvatarCropDialog imageSrc={cropSrc} onConfirm={handleCropped} onCancel={closeCropper} />
+      <AvatarCropDialog
+        imageSrc={cropSrc}
+        cropShape={shape === 'rounded' ? 'rect' : 'round'}
+        onConfirm={handleCropped}
+        onCancel={closeCropper}
+      />
     </div>
   );
 }

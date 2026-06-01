@@ -16,7 +16,8 @@ export function escapeLike(value: string): string {
   return value.replace(/[%_]/g, (m) => `\\${m}`);
 }
 
-const CARD_COLUMNS = 'id, handle, display_name, home_city, avatar_url';
+const CARD_COLUMNS =
+  'id, handle, display_name, home_city, avatar_url, primary_position, secondary_position, tertiary_position';
 
 type CardRow = {
   id: string;
@@ -24,6 +25,9 @@ type CardRow = {
   display_name: string | null;
   home_city: string | null;
   avatar_url: string | null;
+  primary_position: string | null;
+  secondary_position: string | null;
+  tertiary_position: string | null;
 };
 
 function toCard(row: CardRow): ProfileCard {
@@ -33,11 +37,14 @@ function toCard(row: CardRow): ProfileCard {
     displayName: row.display_name ?? 'Player',
     homeCity: row.home_city,
     avatarUrl: row.avatar_url,
+    positions: [row.primary_position, row.secondary_position, row.tertiary_position].filter(
+      (p): p is string => Boolean(p),
+    ),
   };
 }
 
 const PLAYER_COLUMNS =
-  'id, handle, display_name, avatar_url, hero_image_url, home_city, show_pro_badge, ' +
+  'id, handle, display_name, avatar_url, home_city, show_pro_badge, ' +
   'primary_position, secondary_position, tertiary_position, ' +
   'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url';
 
@@ -46,7 +53,6 @@ type PlayerRow = {
   handle: string | null;
   display_name: string | null;
   avatar_url: string | null;
-  hero_image_url: string | null;
   home_city: string | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -78,7 +84,6 @@ function toPlayer(row: PlayerRow): PlayerProfile {
     handle: row.handle ?? '',
     displayName: row.display_name ?? 'Player',
     avatarUrl: row.avatar_url,
-    heroImageUrl: row.hero_image_url,
     homeCity: row.home_city,
     showProBadge: row.show_pro_badge,
     primaryPosition: row.primary_position,

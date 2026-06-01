@@ -450,6 +450,175 @@ body {
 
 /*
  * ============================================================================
+ *  Personality / brand motion — volleyball + court motif.
+ *
+ *  Dependency-free flourishes that give the site character without a motion
+ *  library. Every animation here touches only compositor-friendly properties
+ *  (transform / translate / rotate / opacity / box-shadow / stroke-*) so
+ *  there's no layout thrash or CLS, and durations / easings come from the M3
+ *  motion tokens above.
+ *
+ *  Motion policy (mirrors `match-flash` and the global
+ *  `prefers-reduced-motion: reduce` block at the foot of this file):
+ *    - Decorative one-shot entrances (`court-line-draw`, `ball-spin-in`,
+ *      `fade-up`/`stagger-in`, `confetti-pop`) are defanged to ~0ms by the
+ *      global reduced-motion rule — they snap to their END keyframe (visible,
+ *      settled), so nothing is ever left permanently hidden if motion is off.
+ *    - Functional motion that conveys meaning (`spots-pulse` — capacity
+ *      urgency) is *finite* (< 5s total, so WCAG 2.2.2 needs no pause control)
+ *      and ships an explicit static fallback under reduced motion.
+ *
+ *  Property-separation rule: entrance animations animate the *individual*
+ *  `translate` / `rotate` properties, while `card-lift` animates the
+ *  `transform` shorthand. They are independent CSS properties, so a finished
+ *  `both`-filled entrance (which pins `translate: 0 0`) never clobbers a
+ *  `:hover` lift on the same element. Don't "simplify" one onto the other.
+ * ============================================================================
+ */
+
+/* --- Court "chalk-in": stroke-draw the court tape on first paint ----------- */
+/* `stroke-dasharray`/`-dashoffset` are inherited SVG properties, so setting
+ * them on the parent <svg> cascades to the rect + lines. 900 exceeds the
+ * longest path (the ~832u boundary rect) so every line fully reveals. */
+@keyframes court-line-draw {
+  from {
+    stroke-dashoffset: 900;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.court-line-draw {
+  stroke-dasharray: 900;
+  animation: court-line-draw var(--md-sys-motion-duration-long4)
+    var(--md-sys-motion-easing-emphasized-decelerate) both;
+}
+
+/* --- Lazy ball: a single slow spin-in as the hero settles ------------------ */
+/* Animates the individual `rotate` property (not `transform`) so it doesn't
+ * fight the Tailwind `-translate-y-1/2` centering utility on the same <svg>. */
+@keyframes ball-spin-in {
+  from {
+    rotate: -90deg;
+    opacity: 0;
+  }
+  to {
+    rotate: 0deg;
+    opacity: 1;
+  }
+}
+.ball-spin-in {
+  transform-origin: center;
+  animation: ball-spin-in 1.4s var(--md-sys-motion-easing-emphasized-decelerate) both;
+}
+
+/* --- Card hover-lift: M3 elevation + a few px of rise ---------------------- */
+/* `@media (hover: hover)` so touch devices don't get stuck in the lifted
+ * state after a tap. Uses `transform` (see property-separation rule above). */
+@utility card-lift {
+  transition:
+    transform var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized),
+    box-shadow var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-emphasized);
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--md-sys-elevation-3);
+    }
+  }
+}
+
+/* --- Spots-left urgency pulse (functional; finite < 5s) -------------------- */
+/* 1.5s × 3 = 4.5s of motion then rest — under the WCAG 2.2.2 5s threshold, so
+ * no pause control is required. Amber ring matches the "N left" badge. */
+@keyframes spots-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(217 119 6 / 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgb(217 119 6 / 0.35);
+  }
+}
+.spots-pulse {
+  animation: spots-pulse 1.5s var(--md-sys-motion-easing-standard) 3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spots-pulse {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(217 119 6 / 0.4);
+  }
+}
+
+/* --- Staggered fade-up for card grids -------------------------------------- */
+/* Animates the individual `translate` property so a finished entrance never
+ * pins the `transform` that `card-lift` uses for its hover (see rule above).
+ * Apply to a list/grid wrapper; direct children fade up in sequence. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@utility stagger-in {
+  & > * {
+    animation: fade-up var(--md-sys-motion-duration-medium3)
+      var(--md-sys-motion-easing-emphasized-decelerate) both;
+  }
+  & > *:nth-child(2) {
+    animation-delay: 40ms;
+  }
+  & > *:nth-child(3) {
+    animation-delay: 80ms;
+  }
+  & > *:nth-child(4) {
+    animation-delay: 120ms;
+  }
+  & > *:nth-child(5) {
+    animation-delay: 160ms;
+  }
+  & > *:nth-child(6) {
+    animation-delay: 200ms;
+  }
+  & > *:nth-child(n + 7) {
+    animation-delay: 240ms;
+  }
+}
+
+/* --- Confetti burst (success delight) -------------------------------------- */
+/* Pure-CSS celebratory toss used by <ConfettiBurst/>. Pieces fan up-and-out
+ * from a center anchor then fade. Direction/rotation/colour/delay are supplied
+ * per-piece as inline custom properties. Defanged to ~0ms (→ final keyframe,
+ * opacity 0 = invisible) under reduced motion by the global rule. */
+@keyframes confetti-pop {
+  0% {
+    transform: translate(-50%, 0) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--cf-dx)), var(--cf-dy)) rotate(var(--cf-rot));
+    opacity: 0;
+  }
+}
+.confetti-piece {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 0.5rem;
+  width: 0.5rem;
+  border-radius: 9999px;
+  will-change: transform, opacity;
+  animation: confetti-pop 0.9s var(--md-sys-motion-easing-emphasized-decelerate) both;
+}
+
+/*
+ * ============================================================================
  *  M3 safe-area utilities (Bundle 1 — P2 #16).
  *
  *  Tailwind 4 `@utility` shorthand for iOS notch / Android gesture-bar safe

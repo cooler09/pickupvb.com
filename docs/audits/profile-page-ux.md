@@ -23,17 +23,22 @@ This file is complementary to — not a duplicate of:
   ([page.tsx#L365-L389](../../apps/web/src/app/profile/page.tsx#L365-L389)) is a
   privacy-audit surface; UX of it is fine, so it's not re-litigated here.
 
-> **Status update (2026-06-01):** File created from a full persona-lens
-> evaluation of the profile hub. **The headline shipped the same day: PR-1 ✅** —
-> a new `GetAttendingEvents` query + `EventReadModels.listAttending` port +
-> Supabase adapter now power a **"Your events"** section (rendered with the
-> shared `EventCard`) above Hosting, so the player can finally see the games
-> they've RSVP'd to. Remaining open: four **P3** items (PR-2…PR-5) and one
-> cross-ref to persona-ux V-4 (PR-6). **No P1**: the page works; `robots:
-noindex` is set ([page.tsx#L27-L30](../../apps/web/src/app/profile/page.tsx#L27-L30))
-> and the owner reads their own `profiles` row on the session client
-> (RLS-correct). See **Remediation log** + journal
-> [2026-06-01-profile-your-events.md](../journal/2026-06-01-profile-your-events.md).
+> **Status update (2026-06-01):** Full persona-lens evaluation of the profile
+> hub — **all five gradeable findings (PR-1…PR-5) shipped the same day; nothing
+> open but the PR-6 cross-ref to persona-ux V-4.** PR-1 — a new
+> `GetAttendingEvents` query + `EventReadModels.listAttending` port + Supabase
+> adapter power a **"Your events"** section (shared `EventCard`), so the player
+> sees the games they've RSVP'd to. PR-2 — the hub is now **player-first**: quick
+> actions lead with "Find events" (host depth is adaptive); sections read Your
+> events → Following → Hosting → Groups → Videos. PR-3 — a brand-new user (sparse
+> profile + zero activity) gets a single **"Welcome to PickupVB"** get-started
+> card instead of a wall of empty sections. PR-4 — the profile-photo + hero-image
+> editors now live **inside** the "Edit profile" disclosure with the form. PR-5 —
+> the primary quick-action tile uses the shared **`state-layer`** hover (was a
+> one-off `hover:opacity-90`). **No P1**: the page works; `robots: noindex` is set
+> ([page.tsx#L27-L30](../../apps/web/src/app/profile/page.tsx#L27-L30)) and the
+> owner reads their own `profiles` row on the session client (RLS-correct). See
+> the **Remediation log** + the dated profile journals under `docs/journal/`.
 
 ---
 
@@ -112,7 +117,7 @@ Graded **P2** — a high-leverage player gap, but not ship-blocking (RSVPs were
 recoverable via the event page / notifications) and the fix was a real increment
 (new query + port), so it wasn't a same-day quick win like home H-1.
 
-#### PR-2 — Quick actions + section order are host-weighted on a player-first hub · **P3**
+#### PR-2 — Quick actions + section order are host-weighted on a player-first hub · **P3** · ✅ resolved 2026-06-01
 
 The three quick-action tiles
 ([page.tsx#L210-L227](../../apps/web/src/app/profile/page.tsx#L210-L227)) are all
@@ -122,15 +127,19 @@ player's own activity sits at the bottom (Following) or is missing entirely
 (RSVPs — PR-1). For a hub whose primary persona is the player/attendee, the IA
 leads with host concerns a brand-new player has no use for yet.
 
-**Recommended fix:** lead the quick actions with player intents (Find events /
-Your events / Messages) and make the host/payout tiles **adaptive** — show
-"Payouts & Stripe" once the user has hosted or has a Stripe account, not to
-everyone by default. Reorder content sections player-first: Your events (PR-1) →
-Following → Hosting → Groups → Videos. P3 (ties to PR-1).
+**Fix (done):** quick actions now lead with the player intent — **"Find
+events"** is the primary tile (was "Host an event"), followed by **Messages**
+and **Receipts**; **"Host an event"** is kept but demoted to a secondary tile,
+and **"Payouts & Stripe"** is now **adaptive** — it renders only when `isHost`
+(`upcomingHosted.length > 0 || getHostStripeAccount(...) !== null`), so a player
+who's never hosted no longer sees payout depth. Content sections were reordered
+player-first: **Your events → Following → Hosting → Groups → Videos** (Following
+moved up from the bottom). [profile/page.tsx](../../apps/web/src/app/profile/page.tsx).
+The primary-tile hover treatment is untouched here — that's **PR-5**.
 
 ### B. First-run & information architecture
 
-#### PR-3 — The empty/first-run hub has no onboarding · **P3**
+#### PR-3 — The empty/first-run hub has no onboarding · **P3** · ✅ resolved 2026-06-01
 
 A brand-new user lands on a stack of empty sections (no events, no groups, no
 videos, no following) — each has its own empty state, but there's no top-level
@@ -138,12 +147,19 @@ videos, no following) — each has its own empty state, but there's no top-level
 positions all unset). The first impression of one's own hub is a wall of
 nothing.
 
-**Recommended fix:** when the profile is sparse (no city/positions/avatar +
-zero activity), render a single lightweight onboarding card at the top —
-"Complete your profile" (deep-link the Edit disclosure open) + "Find your first
-event" — in place of, or above, the empty sections. P3.
+**Fix (done):** when the profile is sparse **and** there's zero activity
+(`!home_city && positions.length === 0 && !avatar_url`, and no attending/hosted
+events, follows, groups, or videos) the hub now leads with a single lightweight
+**"Welcome to PickupVB"** card — a 3-step list: _Complete your profile_
+(deep-links the Edit disclosure open via `?edit=1#edit-profile`), _Find your
+first event_ (`/events`), _Follow some players_ (`/players`). The card vanishes
+the moment the user fills any profile field or takes any first action, so it
+never nags an established user. The Edit `<details>` gained `id="edit-profile"`
 
-#### PR-4 — "Edit profile" is collapsed, but the Avatar + Hero editors sprawl open below it · **P3**
+- `open={editOpen}` (native, so still user-toggleable after the deep-link).
+  [profile/page.tsx](../../apps/web/src/app/profile/page.tsx). P3.
+
+#### PR-4 — "Edit profile" is collapsed, but the Avatar + Hero editors sprawl open below it · **P3** · ✅ resolved 2026-06-01
 
 Name / city / positions / socials hide behind a `<details>` disclosure
 ([page.tsx#L337-L348](../../apps/web/src/app/profile/page.tsx#L337-L348)), while
@@ -153,13 +169,20 @@ identity" is split in two — the form is one click away, the photo editors are
 always open — and the always-open panels push the Privacy section far down the
 page.
 
-**Recommended fix:** co-locate all three under one "Edit profile" disclosure (or
-a single "Profile & photos" card), so the edit affordances live together and the
-hub stays scannable. P3.
+**Fix (done):** the `AvatarPanel` and `HeroImagePanel` now render **inside** the
+"Edit profile" `<details>` content (after `ProfileForm`, `space-y-6`), so all
+three identity-edit affordances open together behind one disclosure and the
+always-open photo cards no longer push Privacy down the page. The summary hint
+gained "photos"; the PR-3 deep-link (`?edit=1#edit-profile`) now reveals the
+photo editors too. [profile/page.tsx](../../apps/web/src/app/profile/page.tsx). P3.
 
 ### C. Design-system consistency
 
-#### PR-5 — The primary "Host an event" tile drifts from the canonical primary surface · **P3**
+#### PR-5 — The primary quick-action tile drifts from the canonical primary surface · **P3** · ✅ resolved 2026-06-01
+
+> Note: PR-2 moved which tile is primary — it's now **"Find events"** (was "Host
+> an event") — but the `hover:opacity-90` drift travelled with the
+> `variant="primary"` branch, so PR-5 applies unchanged.
 
 The primary `ActionTile`
 ([page.tsx#L444-L446](../../apps/web/src/app/profile/page.tsx#L444-L446)) styles
@@ -169,10 +192,16 @@ is a one-off `opacity-90` instead of the **M3 state-layer** every
 `primaryButtonClass` surface uses — so a "primary" affordance on the hub hovers
 differently from every other primary affordance in the app.
 
-**Recommended fix:** bridge the tile to the shared state-layer treatment (extract
-the state-layer utility, or have the tile compose `primaryButtonClass`'s chassis
-where layout allows). Cross-ref persona-ux **CC-1/CC-3**. P3 (minor — it's a
-hover nuance, not a token error).
+**Fix (done):** the primary `ActionTile` branch swapped `transition
+hover:opacity-90` for the shared **`state-layer`** utility — the same
+`currentColor`-overlay-at-M3-alphas signature `primaryButtonClass` uses for
+hover/focus/pressed — so the hub's primary tile now hovers identically to every
+other primary surface. The tile keeps its card chassis (`block p-4`,
+`rounded-shape-sm`); `state-layer` supplies its own `position`/`isolation` and
+inherits the radius. The secondary tile's `hover:border-primary/40` is left
+as-is — that's the standard clickable-card hover used app-wide (EventCard, group
+cards), not a drift. Cross-ref persona-ux **CC-1/CC-3**.
+[profile/page.tsx](../../apps/web/src/app/profile/page.tsx). P3.
 
 ### D. Persona coverage (cross-ref)
 
@@ -182,9 +211,15 @@ An `is_anonymous` user passes the `if (!user) redirect(...)` guard
 ([page.tsx#L77](../../apps/web/src/app/profile/page.tsx#L77)) and sees the entire
 hub, including "Host an event" and "Payouts & Stripe." The site-wide anon→claim
 banner (nav) is the current mitigation, but the hub itself surfaces host/payment
-depth to a user who can't use it. Same theme as persona-ux **V-4** (P3, open).
-**Not re-graded** — optionally gate the host/payout quick actions on
-`!isAnonymous` here when V-4 is addressed.
+depth to a user who can't use it. Same theme as persona-ux **V-4**.
+
+**Resolved via V-4 (2026-06-01):** the profile hub's "Host an event" tile (like
+every host entry point) funnels to `/events/new`, which now redirects anonymous
+users to `/claim?next=/events/new` — so the tile no longer drops an anon user
+into the bare create-event form. The "Payouts & Stripe" tile is already gated on
+`isHost` (PR-2), and an anon user has no Stripe account, so it doesn't show. No
+profile-local change was needed. See persona-ux V-4 + journal
+[2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
 
 ---
 
@@ -211,6 +246,75 @@ with a handler unit test. Verified `pnpm typecheck && lint && test && build`
     ([profile/page.tsx](../../apps/web/src/app/profile/page.tsx)). Migration-free —
     hydrates from `events_view` + `event_divisions` like `searchFollowingFeed`.
 
-_Open: PR-2 (player-first quick actions + order), PR-3 (first-run onboarding),
-PR-4 (co-locate edit affordances), PR-5 (primary-tile state-layer parity). PR-6
-lives with persona-ux V-4._
+_Open after PR-1: PR-2 (player-first quick actions + order), PR-3 (first-run
+onboarding), PR-4 (co-locate edit affordances), PR-5 (primary-tile state-layer
+parity). PR-6 lives with persona-ux V-4._
+
+### 2026-06-01 — Player-first hub (PR-2)
+
+Web-only IA pass on the same hub. Verified `pnpm typecheck && lint && test &&
+build` (all green). Journal:
+[2026-06-01-profile-player-first.md](../journal/2026-06-01-profile-player-first.md).
+
+- **PR-2 ✅** — quick actions reordered to lead with the player intent ("Find
+  events" is now the primary tile; Messages + Receipts follow; "Host an event"
+  demoted to secondary). "Payouts & Stripe" is now **adaptive** — gated on
+  `isHost` (`upcomingHosted.length > 0 || getHostStripeAccount(...) !== null`),
+  folded into the existing `isPro`/`isPlatformAdmin` `Promise.all`. Content
+  sections reordered player-first: **Your events → Following → Hosting → Groups →
+  Videos** (Following moved up). [profile/page.tsx](../../apps/web/src/app/profile/page.tsx).
+
+_Open after PR-2: PR-3 (first-run onboarding), PR-4 (co-locate edit affordances),
+PR-5 (primary-tile state-layer parity). PR-6 lives with persona-ux V-4._
+
+### 2026-06-01 — First-run "Get started" card (PR-3)
+
+Web-only first-run nudge on the same hub. Verified `pnpm typecheck && lint &&
+test && build` (all green). Journal:
+[2026-06-01-profile-onboarding.md](../journal/2026-06-01-profile-onboarding.md).
+
+- **PR-3 ✅** — a brand-new user (`profileIncomplete && hasNoActivity`) now sees
+  a single **"Welcome to PickupVB"** card at the top with a 3-step list —
+  _Complete your profile_ (deep-links the Edit `<details>` open via
+  `?edit=1#edit-profile`), _Find your first event_ (`/events`), _Follow some
+  players_ (`/players`) — instead of a wall of empty sections. The card is an
+  AND of "sparse profile" + "zero activity," so it vanishes after any first
+  action; the Edit disclosure gained `id="edit-profile"` + `open={editOpen}` and
+  stays user-toggleable. [profile/page.tsx](../../apps/web/src/app/profile/page.tsx).
+
+_Open after PR-3: PR-4 (co-locate edit affordances), PR-5 (primary-tile
+state-layer parity). PR-6 lives with persona-ux V-4._
+
+### 2026-06-01 — Co-locate the identity editors (PR-4)
+
+Web-only IA tidy on the same hub. Verified `pnpm typecheck && lint && test &&
+build` (all green). Journal:
+[2026-06-01-profile-edit-colocate.md](../journal/2026-06-01-profile-edit-colocate.md).
+
+- **PR-4 ✅** — `AvatarPanel` + `HeroImagePanel` moved **inside** the "Edit
+  profile" `<details>` content (after `ProfileForm`, `space-y-6`), so the three
+  identity editors open together behind one disclosure instead of the two photo
+  cards sprawling always-open below it (which had pushed Privacy far down). The
+  PR-3 `?edit=1#edit-profile` deep-link now reveals the photo editors too; the
+  summary hint gained "photos". [profile/page.tsx](../../apps/web/src/app/profile/page.tsx).
+
+_Open after PR-4: PR-5 (primary-tile state-layer parity). PR-6 lives with
+persona-ux V-4._
+
+### 2026-06-01 — Primary-tile state-layer parity (PR-5)
+
+One-line design-system tweak on the same hub. Verified `pnpm typecheck && lint
+&& test && build` (all green). Journal:
+[2026-06-01-profile-tile-state-layer.md](../journal/2026-06-01-profile-tile-state-layer.md).
+
+- **PR-5 ✅** — the primary `ActionTile` branch swapped `transition
+hover:opacity-90` for the shared **`state-layer`** utility (the
+  `currentColor`-overlay-at-M3-alphas signature `primaryButtonClass` uses), so
+  the hub's primary tile hovers identically to every other primary surface. Card
+  chassis kept; `state-layer` supplies its own position/isolation and inherits
+  the radius. The secondary tile's `hover:border-primary/40` (the app-wide
+  clickable-card hover) is intentionally left as-is.
+  [profile/page.tsx](../../apps/web/src/app/profile/page.tsx).
+
+**All gradeable findings (PR-1…PR-5) are now resolved. Only PR-6 remains, and it
+lives with persona-ux V-4.**

@@ -82,12 +82,9 @@ export default function NewGroupForm() {
           <input id="region" name="region" maxLength={80} className={inputClass} />
         </div>
       </div>
-      <div>
-        <label htmlFor="avatar_url" className={labelClass}>
-          Avatar URL <span className="text-fg/50">(optional)</span>
-        </label>
-        <input id="avatar_url" name="avatar_url" type="url" className={inputClass} />
-      </div>
+      <p className="text-muted text-xs">
+        You can add a group avatar (logo) after creating, from the group&apos;s edit page.
+      </p>
       <div className="flex justify-end">
         <SubmitBtn />
       </div>

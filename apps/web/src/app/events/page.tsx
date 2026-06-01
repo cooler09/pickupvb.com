@@ -459,7 +459,7 @@ export default async function EventsPage(props: {
         />
       ) : (
         <>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="stagger-in grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {pageEvents.map((e) => (
               <EventCard
                 key={e.id}
@@ -495,7 +495,7 @@ export default async function EventsPage(props: {
               See all
             </Link>
           </div>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="stagger-in grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {communityListings.map((listing) => (
               <CommunityListingCard
                 key={listing.id}

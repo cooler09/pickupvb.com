@@ -30,7 +30,6 @@ export async function createGroupAction(
   const description = field(formData, 'description');
   const homeCity = field(formData, 'home_city');
   const region = field(formData, 'region');
-  const avatarUrl = field(formData, 'avatar_url');
 
   let slugCreated: string;
   try {
@@ -42,7 +41,6 @@ export async function createGroupAction(
         description,
         homeCity: homeCity || null,
         region: region || null,
-        avatarUrl: avatarUrl || null,
       }),
     );
     slugCreated = created.slug;
@@ -72,7 +70,6 @@ export async function updateGroupAction(
   const description = field(formData, 'description');
   const homeCity = field(formData, 'home_city');
   const region = field(formData, 'region');
-  const avatarUrl = field(formData, 'avatar_url');
 
   let slug: string;
   try {
@@ -83,7 +80,6 @@ export async function updateGroupAction(
         description,
         homeCity: homeCity || null,
         region: region || null,
-        avatarUrl: avatarUrl || null,
       }),
     );
     slug = res.slug;

@@ -13,11 +13,19 @@ export function TeamCard({
   team,
   role,
   captainName,
+  rosterCount,
+  teamSize,
 }: {
   team: TeamCardData;
   role: 'captain' | 'member' | 'pending' | 'public';
   captainName?: string | null;
+  /** Active roster size (+ extras). With `teamSize`, renders a recruiting/full chip. */
+  rosterCount?: number;
+  /** Target size (players per side). */
+  teamSize?: number;
 }) {
+  const showRoster = typeof rosterCount === 'number' && typeof teamSize === 'number';
+  const recruiting = showRoster && rosterCount! < teamSize!;
   const badge =
     role === 'captain'
       ? { label: 'Captain', className: 'bg-primary/15 text-primary' }
@@ -41,6 +49,17 @@ export function TeamCard({
             {FORMAT_LABEL[team.format] ?? team.format}
             {captainName ? ` · Captain: ${captainName}` : ''}
           </p>
+          {showRoster && (
+            <p className="mt-1 text-[11px]">
+              {recruiting ? (
+                <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800">
+                  {rosterCount}/{teamSize} · Recruiting
+                </span>
+              ) : (
+                <span className="bg-fg/10 text-muted rounded px-1.5 py-0.5">Full</span>
+              )}
+            </p>
+          )}
         </div>
         {badge && (
           <span

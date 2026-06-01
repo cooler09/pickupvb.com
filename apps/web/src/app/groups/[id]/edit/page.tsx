@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import EditGroupForm from './edit-group-form';
-import { HeroImagePanel } from '@/components/hero-image-panel';
+import { GroupAvatarPanel } from '@/components/group-avatar-panel';
 import { DeleteGroupPanel } from './delete-group-panel';
 
 export const dynamic = 'force-dynamic';
@@ -30,11 +30,11 @@ export default async function EditGroupPage(props: { params: Promise<{ id: strin
         <h1 className="text-2xl font-bold">Edit {group.name}</h1>
       </header>
       <EditGroupForm group={group} />
-      <HeroImagePanel
-        entityType="groups"
-        entityId={group.id}
+      <GroupAvatarPanel
+        groupId={group.id}
         userId={user.id}
-        currentUrl={group.heroImageUrl}
+        currentUrl={group.avatarUrl}
+        initials={group.name.slice(0, 2).toUpperCase()}
         returnPath={`/groups/${group.slug}`}
       />
       {role === 'owner' && <DeleteGroupPanel groupId={group.id} groupName={group.name} />}

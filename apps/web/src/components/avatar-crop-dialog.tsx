@@ -9,6 +9,10 @@ import { primaryButtonClass, secondaryButtonClass } from './primary-button';
 type Props = {
   /** Object URL of the locally-picked image, or null when the dialog is closed. */
   imageSrc: string | null;
+  /** Crop selection shape — `'round'` (default) for people, `'rect'` for group
+   *  logos. The output blob is always a square WebP either way; this only
+   *  changes the in-dialog selection mask. */
+  cropShape?: 'round' | 'rect';
   /** Called with the cropped square (WebP) when the user confirms. */
   onConfirm: (blob: Blob) => Promise<void> | void;
   /** Called when the user cancels or dismisses without cropping. */
@@ -29,7 +33,7 @@ const MAX_ZOOM = 3;
  * (see cropImageToBlob) and hands it to `onConfirm`; the parent uploads that
  * blob, so storage holds the cropped avatar rather than the full original.
  */
-export function AvatarCropDialog({ imageSrc, onConfirm, onCancel }: Props) {
+export function AvatarCropDialog({ imageSrc, cropShape = 'round', onConfirm, onCancel }: Props) {
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [areaPixels, setAreaPixels] = useState<Area | null>(null);
@@ -100,7 +104,7 @@ export function AvatarCropDialog({ imageSrc, onConfirm, onCancel }: Props) {
                   crop={crop}
                   zoom={zoom}
                   aspect={1}
-                  cropShape="round"
+                  cropShape={cropShape}
                   showGrid={false}
                   minZoom={MIN_ZOOM}
                   maxZoom={MAX_ZOOM}

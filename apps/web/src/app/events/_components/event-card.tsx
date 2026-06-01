@@ -10,6 +10,7 @@ import {
   GENDER_LABEL,
 } from '@/lib/enum-labels';
 import { LocalDateTime } from '@/components/local-datetime';
+import { DefaultCourtArt } from '@/components/default-court-art';
 
 export type EventCardDivision = {
   id: string;
@@ -95,25 +96,17 @@ function followingLabel(event: EventCardData, friendNameById: Map<string, string
 /** Spots-remaining count at or below this renders the urgent "N left" badge. */
 const LOW_SPOTS_THRESHOLD = 4;
 
-/** Surface-keyed tint for the thumbnail placeholder when there's no hero image. */
-const SURFACE_TINT: Record<string, string> = {
-  sand: 'bg-amber-100',
-  grass: 'bg-green-100',
-  indoor: 'bg-sky-100',
-};
-
 /**
- * Card thumbnail: the event's hero image, or a surface-tinted placeholder with
- * a faint volleyball glyph when none is set. Decorative (`alt=""`) — the title
- * sits directly beneath. Sits in flow under the title's stretched link, so the
- * whole card stays one click target.
+ * Card thumbnail: the event's hero image, or the surface-aware volleyball court
+ * ({@link DefaultCourtArt}) when none is set — the same motif the detail-page
+ * hero uses, so cards and heroes match. Decorative (`alt=""`) — the title sits
+ * directly beneath. Sits in flow under the title's stretched link, so the whole
+ * card stays one click target.
  */
 function CardThumb({ url, surface }: { url: string | null | undefined; surface: string }) {
   return (
     <div
-      className={`relative mb-3 aspect-video overflow-hidden rounded-md ${
-        url ? 'bg-fg/5' : (SURFACE_TINT[surface] ?? 'bg-fg/5')
-      }`}
+      className={`relative mb-3 aspect-video overflow-hidden rounded-md ${url ? 'bg-fg/5' : ''}`}
     >
       {url ? (
         <Image
@@ -124,19 +117,7 @@ function CardThumb({ url, surface }: { url: string | null | undefined; surface: 
           className="object-cover"
         />
       ) : (
-        <div className="text-fg/20 flex h-full items-center justify-center" aria-hidden="true">
-          <svg
-            width="40"
-            height="40"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 3a9 9 0 0 1 6.5 15.2M12 3a9 9 0 0 0-6.5 15.2M3.6 9.4A9 9 0 0 1 20.4 13.6" />
-          </svg>
-        </div>
+        <DefaultCourtArt surface={surface} />
       )}
     </div>
   );
@@ -205,7 +186,7 @@ export function EventCard({ event, friendNameById }: Props) {
   const price = priceLabel(eventPriceCents(event), event.priceUnit ?? divisions[0]?.priceUnit);
 
   return (
-    <li className="border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
+    <li className="card-lift border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
       <CardThumb url={event.heroImageUrl} surface={event.surface} />
       {/* Stretched link makes the whole tile tappable; there are no other
           interactive children, so `focus-within` rings the entire card on
@@ -307,7 +288,7 @@ export function EventCard({ event, friendNameById }: Props) {
           }
           if (spots <= LOW_SPOTS_THRESHOLD) {
             return (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">
+              <span className="spots-pulse rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">
                 {spots} left
               </span>
             );

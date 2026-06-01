@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
+import { ConfettiBurst } from '@/components/confetti-burst';
 import { rsvpBannerFor, RSVP_BANNER_CLASS } from '@/lib/event-rsvp-flash';
 import { startTeamRegistrationCheckout } from '../team-checkout-actions';
 import {
@@ -165,8 +166,9 @@ export function AdHocTeamSignupPanel({
       {banner && (
         <div
           role={banner.tone === 'success' ? 'status' : 'alert'}
-          className={RSVP_BANNER_CLASS[banner.tone]}
+          className={`relative ${RSVP_BANNER_CLASS[banner.tone]}`}
         >
+          {banner.tone === 'success' && <ConfettiBurst />}
           {banner.text}
         </div>
       )}
