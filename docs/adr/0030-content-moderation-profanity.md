@@ -1,12 +1,25 @@
 # 0030. Content moderation — profanity filtering across community surfaces
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented 2026-06-01)
 - **Date:** 2026-05-31
 - **Relates to:** [ADR 0024 — Event & profile media](0024-event-and-profile-media.md)
   (the report → auto-hide UGC template this builds on), [ADR 0028 — Chat
   messaging](0028-chat-messaging.md) (the `conversations.kind` public/private
   discriminator and the `Message` write aggregate), [ADR 0004 — Typed domain
   errors](0004-typed-domain-errors.md) (extreme matches throw `ValidationError`).
+
+## Implementation decisions (2026-06-01)
+
+Two choices refined the proposal at build time (narrative:
+[journal 2026-06-01](../journal/2026-06-01-content-moderation-profanity.md)):
+
+1. **Mask-at-write** for public content (the stored value is the censored
+   string) — resolving the "Open decision — mask at write vs. read" below.
+2. **Names hard-block at creation** rather than mask — a third policy,
+   `'block-profane'`, rejects **any** profanity in identity fields (profile
+   display name, group / team name, event title). Content fields still mask;
+   DMs still block extreme only. This overrides the "mask everything" framing in
+   the original "Hook the existing validation chokepoints" bullet for names.
 
 ## Context
 
