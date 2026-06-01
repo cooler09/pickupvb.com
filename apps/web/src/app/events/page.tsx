@@ -134,7 +134,7 @@ export default async function EventsPage(props: {
         timeZone: it.timeZone,
         city: it.city,
         region: it.region,
-        spotsRemaining: null,
+        spotsRemaining: it.spotsRemaining,
         distanceKm: null,
         ...(it.hostFriendId ? { hostFriendId: it.hostFriendId } : {}),
         ...(it.attendingFriendIds.length > 0

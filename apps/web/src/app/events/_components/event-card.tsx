@@ -206,8 +206,9 @@ export function EventCard({ event, friendNameById }: Props) {
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Fundraiser</span>
         )}
         {(() => {
-          // Capacity urgency, populated on Upcoming/Past (the search RPC
-          // computes spots_remaining). Null on the Following feed today.
+          // Capacity urgency. spots_remaining is populated on every tab —
+          // by the search RPC (Upcoming/Past) and the Following-feed repo —
+          // from the primary division's fixed capacity; null when open-ended.
           const spots = event.spotsRemaining;
           if (spots === null) return null;
           if (spots <= 0) {
