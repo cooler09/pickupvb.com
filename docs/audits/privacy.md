@@ -65,9 +65,9 @@ this bundle as **#13** (P1, correctness regression — not a data-leak).
 - **Found + fixed this bundle:** **#13** — profiles-RLS regression in chat
   `listMessages`, chat `get_inbox` DM titles, and media-post `decorate` author
   cards. All three now read `profiles_public`. See remediation log.
-- **Newly logged, still open:** **#14** (P2) chat `messages` + `chat-attachments`
-  have no retention/purge; **#15** (P2) chat tables aren't in the account-deletion
-  design sketch or the data-export inventory.
+- **Newly logged:** **#14** (P2) chat `messages` + `chat-attachments` had no
+  retention/purge (now resolved — see below); **#15** (P2) chat tables weren't in
+  the account-deletion design sketch or the data-export inventory.
 - **Data-export endpoint (P3 #12) — now shipped (2026-05-31):**
   `GET /api/account/export` + a profile "Download my data" link, covering the
   full table inventory incl. chat (resolves the export half of #15). See P3 #12
@@ -80,11 +80,14 @@ this bundle as **#13** (P1, correctness regression — not a data-leak).
 - **`rate_limits.key` plaintext (P3 #10) — now resolved (2026-05-31):** a shared
   `rateLimitKey()` helper hashes the email/IP portion (salted via
   `RATE_LIMIT_SALT`) at all call sites. See P3 #10 + remediation log.
-- **Remaining backlog:** only **#14 (chat `messages` / `chat-attachments`
-  retention, P2)** is open — and it primarily lives in
-  [data-lifecycle.md](data-lifecycle.md). Every other privacy finding (P1–P3) is
-  resolved. P3 #11 (deleted-profile indexing) is **resolved by side-effect** (see
-  its entry).
+- **Chat retention (#14, P2) — now resolved (2026-05-31):**
+  [20260829000000_chat_retention.sql](../../supabase/migrations/20260829000000_chat_retention.sql)
+  adds a `chat-attachments` orphan-sweep walker + daily cron, a 30-day scrub of
+  soft-deleted message body/attachments, and relaxes `messages_nonempty` so a
+  tombstone can be emptied. See #14 + the remediation log; the data-lifecycle
+  inventory is updated in [data-lifecycle.md](data-lifecycle.md) §1.
+- **Remaining backlog:** **none.** Every privacy finding (P1–P3) is resolved. P3
+  #11 (deleted-profile indexing) is **resolved by side-effect** (see its entry).
 
 ## P1 — fix before adding any "Delete account" feature
 
@@ -437,6 +440,19 @@ object is no longer passed or persisted. Only `charges_enabled`,
   — private `chat-attachments` bucket, no orphan sweep.
 
 **Category:** data retention
+**Status:** ✅ resolved (2026-05-31) —
+[20260829000000_chat_retention.sql](../../supabase/migrations/20260829000000_chat_retention.sql).
+Both sub-gaps closed: (1) `public.purge_chat_attachment_orphans(grace)` + a daily
+06:45 UTC cron reclaims attachment objects no longer referenced by any
+`messages.attachments[].path` (exact-path match — chat stores the bare object
+path, not a cache-busted public URL, so no LIKE-wildcard needed); (2) a
+`messages_scrub_soft_deleted_30d` cron (06:30 UTC) nulls `body`/`attachments` on
+rows soft-deleted > 30 days ago (option (a) — keep the tombstone, strip the PII),
+with `messages_nonempty` relaxed to allow an emptied tombstone. Ordering: scrub
+de-references aged tombstones, then the sweep reclaims the same night. Validated
+against the local DB (live-empty insert still rejected; orphan deleted while a
+referenced object survives). See the remediation log + [data-lifecycle.md](data-lifecycle.md)
+§1 (chat now in the inventory).
 
 Direct messages and room messages are user-to-user free text — exactly where
 people paste phone numbers, addresses, and payment details. They accumulate
@@ -641,6 +657,32 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-05-31 — #14: chat retention (attachment orphan sweep + message scrub)
+
+[20260829000000_chat_retention.sql](../../supabase/migrations/20260829000000_chat_retention.sql).
+Two sub-gaps closed in one migration:
+
+1. **Attachment orphan sweep.** `public.purge_chat_attachment_orphans(grace)` —
+   a SECURITY DEFINER walker (cloned from the sponsor/hero walkers, `search_path=''`,
+   `storage.allow_delete_query` escape hatch) deletes `chat-attachments` objects
+   no longer referenced by any `messages.attachments[].path`. Chat stores the
+   **bare** object path (not a cache-busted public URL like hero/sponsor), so
+   liveness is an exact `o.name = path` membership test over the unnested
+   attachments — no LIKE-wildcard. Daily cron at 06:45 UTC.
+2. **Soft-deleted body scrub.** `messages_scrub_soft_deleted_30d` cron (06:30 UTC)
+   nulls `body`/`attachments` on rows soft-deleted > 30 days ago (audit option (a)
+   — keep the tombstone, strip the PII; the read path already renders deleted rows
+   empty, so this is observable-behaviour-neutral). `messages_nonempty` relaxed to
+   `deleted_at is not null OR <has content>` so an emptied tombstone is legal while
+   live inserts still require content. The scrub runs before the sweep so
+   de-referenced objects are reclaimed the same night.
+
+Validated against the local DB: live-empty insert still rejected by
+`messages_nonempty`; a 40-day-old soft-deleted row scrubs to empty; the walker
+deletes an unreferenced object while retaining one pinned by a live message. No
+typed-schema change (`gen:types` output unaffected — CHECK + functions + crons
+only), so no app-code edits. Verify quad green.
 
 ### 2026-05-31 — P3 #10: hash email/IP in `rate_limits.key`
 

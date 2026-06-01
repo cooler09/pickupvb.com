@@ -790,3 +790,33 @@ The **admin client** is the only path that may read base `profiles` directly, an
 only for fields not in the view (`first_name` / `last_name` / `business_*`) on
 already-authorized host/system reads — e.g. `SupabaseEventRepository`. Full
 write-up: [privacy.md #13](docs/audits/privacy.md).
+
+### 14. Storage orphan-sweep walkers: match the liveness check to how the row stores the reference
+
+There are now three `storage.objects` orphan-sweep walkers
+(`purge_hero_image_orphans`, `purge_sponsor_logo_orphans`,
+`purge_chat_attachment_orphans`) — all SECURITY DEFINER, `search_path = ''`, with
+`perform set_config('storage.allow_delete_query', 'true', true)` as the
+supported escape hatch past the `protect_delete` BEFORE-DELETE trigger, and a
+`grace_hours` window (default 24h) so freshly-uploaded objects aren't reaped
+before the referencing row lands. When adding a fourth, clone the shape — but the
+**liveness join is not copy-paste**, it depends on what the parent row stores:
+
+- **Public buckets store a full URL with a `?t=<ms>` cache-buster**
+  (`HeroImageUpload` / sponsor logos). Liveness must match the bare path tail
+  **OR** the path + `'?%'`: `url like '%/'||name OR url like '%/'||name||'?%'`. A
+  bare `like '%/'||name` with no trailing wildcard **never matches a live row**
+  and the cron deletes every live image after the grace window — this shipped as
+  a **P1 data-loss bug** in the hero walker
+  ([20260819000000](supabase/migrations/20260819000000_fix_hero_image_orphan_cache_buster.sql)).
+- **Private buckets store the bare object path** (chat attachments —
+  `messages.attachments[].path`, built as `{conversation_id}/{user_id}/{uuid}.{ext}`,
+  no URL, no cache-buster). Liveness is an exact `o.name = path` membership test
+  (unnest the jsonb with `cross join lateral jsonb_array_elements(...)`); no
+  LIKE-wildcard needed, and filter `path is not null` to dodge the `NOT IN (… NULL …)`
+  trap. Reference:
+  [20260829000000_chat_retention.sql](supabase/migrations/20260829000000_chat_retention.sql).
+
+Before cloning, open the upload component and confirm whether it persists a URL
+or a path. Pair a content-scrub job (e.g. the soft-deleted-message scrub) ahead
+of the sweep so de-referenced objects are reclaimed the same night.

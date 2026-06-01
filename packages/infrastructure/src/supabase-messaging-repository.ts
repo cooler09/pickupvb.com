@@ -82,7 +82,16 @@ export class SupabaseConversationRepository implements ConversationRepository {
       } as never,
       { onConflict: 'conversation_id,user_id' },
     );
-    if (error) throw new Error(`Conversation.markRead(${conversationId}) failed: ${error.message}`);
+    // Advancing your own read cursor is best-effort. A platform admin can open a
+    // conversation they're not a member of: the `conversations` SELECT policy has
+    // an `is_platform_admin()` bypass that `conversation_participants_insert`
+    // deliberately lacks (an admin isn't a participant — writing their row would
+    // make them look like one, e.g. leak into a DM). The upsert is then RLS-denied
+    // (42501), but there's simply no cursor to maintain for a non-participant, so
+    // swallow it. Anything else is a real failure and stays loud.
+    if (error && error.code !== RLS_DENIED) {
+      throw new Error(`Conversation.markRead(${conversationId}) failed: ${error.message}`);
+    }
   }
 }
 
