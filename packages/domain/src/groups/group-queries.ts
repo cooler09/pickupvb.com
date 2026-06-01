@@ -26,14 +26,13 @@ export interface GroupCard {
 }
 
 /** A group's full public profile (detail page, edit form, OG image). The card
- * fields plus the hero image and the creator id. */
+ * fields plus the creator id. */
 export interface GroupDetail {
   id: string;
   slug: string;
   name: string;
   description: string;
   avatarUrl: string | null;
-  heroImageUrl: string | null;
   homeCity: string | null;
   region: string | null;
   createdBy: string | null;

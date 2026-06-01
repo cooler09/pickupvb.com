@@ -9,7 +9,6 @@ import { GroupViewerActions, GroupManageMembersLink } from './_components/group-
 import { MembersSection, type GroupMember } from './_components/members-section';
 import { GroupJsonLd } from './_components/group-jsonld';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
-import { HeroImage } from '@/components/hero-image';
 
 /**
  * ISR cache for anonymous traffic. The public group profile (header,
@@ -110,7 +109,6 @@ export default async function GroupProfilePage(props: {
         region={group.region}
         avatarUrl={group.avatarUrl}
       />
-      <HeroImage url={group.heroImageUrl} alt={group.name} priority />
 
       <GroupHeader
         group={{

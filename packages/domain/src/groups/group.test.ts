@@ -50,7 +50,6 @@ const EDIT: GroupProfileEdit = {
   description: 'desc',
   homeCity: 'Norfolk',
   region: 'VA',
-  avatarUrl: 'https://img/a.png',
 };
 
 describe('Group.create', () => {
@@ -125,7 +124,6 @@ describe('Group.editProfile', () => {
     expect(g.description).toBe('desc');
     expect(g.homeCity).toBe('Norfolk');
     expect(g.region).toBe('VA');
-    expect(g.avatarUrl).toBe('https://img/a.png');
   });
 
   it('leaves the slug and createdBy untouched', () => {
@@ -138,6 +136,32 @@ describe('Group.editProfile', () => {
   it('rejects an empty name', () => {
     const g = created();
     expect(() => g.editProfile({ ...EDIT, name: '' })).toThrow(ValidationError);
+  });
+});
+
+describe('Group.setAvatar', () => {
+  it('sets and clears the avatar url', () => {
+    const g = created();
+    expect(g.avatarUrl).toBeNull();
+    g.setAvatar('https://img/logo.webp');
+    expect(g.avatarUrl).toBe('https://img/logo.webp');
+    g.setAvatar(null);
+    expect(g.avatarUrl).toBeNull();
+  });
+
+  it('normalizes an empty string to null', () => {
+    const g = created();
+    g.setAvatar('');
+    expect(g.avatarUrl).toBeNull();
+  });
+
+  // The avatar has its own write path so the profile-edit form can't clobber an
+  // uploaded avatar (the whole point of the GroupProfileEdit/setAvatar split).
+  it('editProfile leaves an uploaded avatar untouched', () => {
+    const g = created();
+    g.setAvatar('https://img/logo.webp');
+    g.editProfile(EDIT);
+    expect(g.avatarUrl).toBe('https://img/logo.webp');
   });
 });
 

@@ -24,7 +24,6 @@ type Group = {
   id: string;
   name: string;
   description: string;
-  avatarUrl: string | null;
   homeCity: string | null;
   region: string | null;
 };
@@ -86,18 +85,6 @@ export default function EditGroupForm({ group }: { group: Group }) {
             className={inputClass}
           />
         </div>
-      </div>
-      <div>
-        <label htmlFor="avatar_url" className={labelClass}>
-          Avatar URL
-        </label>
-        <input
-          id="avatar_url"
-          name="avatar_url"
-          type="url"
-          defaultValue={group.avatarUrl ?? ''}
-          className={inputClass}
-        />
       </div>
       <div className="flex justify-end">
         <SubmitBtn />

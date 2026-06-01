@@ -26,13 +26,15 @@ const SLUG_ERROR = 'Slug must be 3–40 chars, lowercase letters, numbers, dashe
 const NAME_ERROR = 'Name is required (1–80 chars).';
 
 /** The user-editable group profile fields (everything the edit form sets; the
- * slug is immutable after creation and `createdBy` never changes). */
+ * slug is immutable after creation and `createdBy` never changes). The avatar
+ * is **not** here — it has its own write path (`setAvatar`), set by the upload
+ * widget, so saving the profile form never clobbers an uploaded avatar (mirrors
+ * the `UserProfile` avatar split). */
 export interface GroupProfileEdit {
   name: string;
   description: string;
   homeCity: string | null;
   region: string | null;
-  avatarUrl: string | null;
 }
 
 export interface GroupMemberChange {
@@ -183,7 +185,8 @@ export class Group extends AggregateRoot<GroupId> {
   }
 
   /** Apply an edit from the group settings form. Name is required (1–80);
-   * the slug is immutable so it is not part of the edit. */
+   * the slug is immutable so it is not part of the edit. The avatar is set
+   * separately via `setAvatar` and is deliberately left untouched here. */
   editProfile(edit: GroupProfileEdit): void {
     const name = edit.name.trim();
     Group.assertName(name);
@@ -191,7 +194,13 @@ export class Group extends AggregateRoot<GroupId> {
     this._description = maskPublicText(edit.description.trim());
     this._homeCity = edit.homeCity;
     this._region = edit.region;
-    this._avatarUrl = edit.avatarUrl;
+  }
+
+  /** Set or clear the group's avatar (logo) URL. Owner/admin authorization is
+   * enforced by the `groups_update` RLS policy at the repository boundary
+   * (the user-scoped client `save`), same as `editProfile`. */
+  setAvatar(url: string | null): void {
+    this._avatarUrl = url || null;
   }
 
   // ---- Membership -----------------------------------------------------------

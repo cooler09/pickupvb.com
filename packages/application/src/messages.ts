@@ -597,6 +597,14 @@ export class UpdateGroupProfileCommand {
   ) {}
 }
 
+export class SetGroupAvatarCommand {
+  constructor(
+    public readonly groupId: string,
+    /** Storage URL, or `null` to clear the group avatar (logo). */
+    public readonly url: string | null,
+  ) {}
+}
+
 export class AddGroupMemberCommand {
   constructor(
     public readonly groupId: string,

@@ -15,7 +15,7 @@ import { SupabaseProfileRepository, escapeLike } from './supabase-profile-reposi
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 const CARD_COLUMNS = 'id, slug, name, description, avatar_url, home_city, region';
-const DETAIL_COLUMNS = `${CARD_COLUMNS}, hero_image_url, created_by`;
+const DETAIL_COLUMNS = `${CARD_COLUMNS}, created_by`;
 // Embedded card via the single-valued group_members → groups FK.
 const MEMBERSHIP_COLUMNS = `role, groups:groups!inner(${CARD_COLUMNS})`;
 
@@ -32,7 +32,6 @@ type CardRow = {
 };
 
 type DetailRow = CardRow & {
-  hero_image_url: string | null;
   created_by: string | null;
 };
 
@@ -51,7 +50,6 @@ function toCard(row: CardRow): GroupCard {
 function toDetail(row: DetailRow): GroupDetail {
   return {
     ...toCard(row),
-    heroImageUrl: row.hero_image_url,
     createdBy: row.created_by,
   };
 }
