@@ -22,12 +22,14 @@ import {
   AGE_GROUPS,
   TEAM_COMPOSITIONS,
   PRICES,
+  SORTS,
   type Skill,
   type Surface,
   type Type,
   type AgeGroupFilter,
   type TeamCompositionFilter,
   type PriceFilter,
+  type SortOption,
 } from './_components/event-filter-options';
 import { EventTimeframeTabs, type Timeframe } from './_components/event-timeframe-tabs';
 import { ActiveFilterChips, type FilterKey } from './_components/active-filter-chips';
@@ -65,6 +67,13 @@ function pickWhen(value: string | undefined): Timeframe | undefined {
   return value === 'past' || value === 'following' || value === 'upcoming' ? value : undefined;
 }
 
+/** Cheapest division price (free = 0) for the "Price: low to high" sort. */
+function minPriceCents(event: EventCardData): number {
+  const divisions = event.divisions ?? [];
+  if (divisions.length === 0) return Number.POSITIVE_INFINITY;
+  return Math.min(...divisions.map((d) => d.priceCents ?? 0));
+}
+
 type FollowingEmptyReason = 'not_signed_in' | 'no_follows' | null;
 
 export default async function EventsPage(props: {
@@ -94,6 +103,9 @@ export default async function EventsPage(props: {
   // Price filter (Free / Paid). Applied in-memory below; only meaningful on
   // Upcoming/Past, where the search projects per-division prices.
   const price: PriceFilter | undefined = pick(get('price'), PRICES);
+  // Sort order. Absence = the per-tab date order. Distance/price are applied
+  // in-memory below (non-Following only).
+  const sort: SortOption | undefined = pick(get('sort'), SORTS);
 
   // Pre-fetch the viewer's friends once. Used for both the Following-tab
   // count badge (always) and the per-card "why" labels (Following tab only).
@@ -207,6 +219,18 @@ export default async function EventsPage(props: {
     });
   }
 
+  // Sort override (in-memory, non-Following). Absence keeps the per-tab date
+  // order built above. Nulls sort last so events missing the key don't jump
+  // to the front.
+  if (when !== 'following' && sort) {
+    events = [...events].sort((a, b) => {
+      if (sort === 'distance') {
+        return (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity);
+      }
+      return minPriceCents(a) - minPriceCents(b);
+    });
+  }
+
   const communityListings =
     when === 'upcoming'
       ? await handlers.searchCommunityListings.execute(
@@ -252,9 +276,10 @@ export default async function EventsPage(props: {
     set('teamComposition', teamComposition);
     set('seriesName', seriesName);
     if (target !== 'following') {
-      // Price + location don't apply to the Following feed — drop them when
-      // switching to that tab so a stale param doesn't linger in the URL.
+      // Price + sort + location don't apply to the Following feed — drop them
+      // when switching to that tab so a stale param doesn't linger in the URL.
       set('price', price);
+      set('sort', sort);
       if (overrides.location !== null && hasLocation) {
         params.set('lat', String(lat));
         params.set('lng', String(lng));
@@ -339,6 +364,7 @@ export default async function EventsPage(props: {
         teamComposition={teamComposition}
         seriesName={seriesName}
         price={price}
+        sort={sort}
         location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
       />
 

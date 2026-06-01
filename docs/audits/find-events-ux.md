@@ -35,7 +35,10 @@ This file is complementary to — not a duplicate of:
 > and [2026-06-01-following-feed-capacity.md](../journal/2026-06-01-following-feed-capacity.md).
 > A further follow-up closed **F-6** (Free/Paid filter, in-memory, migration-free).
 > **F-7** (manual city/ZIP location + primary radius) also shipped 2026-06-01.
-> All P2s are now resolved. Standing backlog: **F-9…F-13** (P3 polish).
+> All P2s are now resolved. A P3 polish bundle closed **F-9** (sort) and
+> **F-12** (design-system tidy) on 2026-06-01. Standing backlog: **F-10**
+> (relative dates), **F-11** (filter-chrome consolidation), **F-13** (card
+> thumbnails) — all P3.
 >
 > Grounding fact that shaped grading: the `search_events` RPC **already projects
 > `priceCents`/`priceUnit` per division, `spotsRemaining`, `distanceKm`, and
@@ -111,14 +114,18 @@ migration**. `spotsRemaining` added to `FollowingFeedItem`.
 projects no `divisions` array, so `priceLabel` returns null there. Closing it
 means projecting the primary division's price onto `FollowingFeedItem`.
 
-#### F-9 — No sort control · **P3** · open
+#### F-9 — No sort control · **P3** · ✅ resolved 2026-06-01
 
-Results are RPC date-ascending (past events re-sorted descending in
-[page.tsx](../../apps/web/src/app/events/page.tsx)); with Near-me active there's
-no "by distance" / "soonest" / "cheapest" option, though `distanceKm` is already
-on each card.
-**Fix:** a small sort `<select>` (date / distance / price) folded into the
-filter form; sort the in-memory set before the pagination slice.
+Results were RPC date-ascending only (past re-sorted descending); with Near-me
+active there was no "by distance" / "cheapest" option, though `distanceKm` and
+per-division prices are already on each card.
+**Fix (done):** a `Sort` select in the filter-form footer — `Date` (default,
+per-tab order), `Nearest` (shown only when a location is active), and
+`Price: low to high`. Applied in-memory before the pagination slice (nulls
+last). Non-Following only; dropped from the URL when switching to Following.
+[event-filter-form.tsx](../../apps/web/src/app/events/_components/event-filter-form.tsx),
+[page.tsx](../../apps/web/src/app/events/page.tsx). New shared
+`SORTS`/`SortOption`/`SORT_LABEL` in `event-filter-options.ts`.
 
 #### F-10 — Absolute dates only, no relative grouping · **P3** · open
 
@@ -202,23 +209,17 @@ not the city)._
 
 ### D. Consistency / design-system polish
 
-#### F-12 — The page's own controls bypass the shared vocabulary · **P3** · open
+#### F-12 — The page's own controls bypass the shared vocabulary · **P3** · ✅ resolved 2026-06-01
 
-Cross-refs persona-ux CC-1/CC-3 and m3-alignment:
+Cross-refs persona-ux CC-1/CC-3 and m3-alignment. All three drifts fixed:
 
-- [near-me-button.tsx#L42-L44](../../apps/web/src/app/events/near-me-button.tsx#L42-L44)
-  hand-rolls its class instead of `secondaryButtonClass`/`tonalButtonClass`, and
-  uses a 📍 emoji ([#L44](../../apps/web/src/app/events/near-me-button.tsx#L44))
-  rather than the SVG-icon convention.
-- [event-timeframe-tabs.tsx#L17](../../apps/web/src/app/events/_components/event-timeframe-tabs.tsx#L17)
-  and [#L51](../../apps/web/src/app/events/_components/event-timeframe-tabs.tsx#L51)
-  hardcode `bg-primary text-white` / `bg-white/20 text-white` instead of the
-  `text-primary-fg` token (persona-ux CC-3 class).
-- Both files use **4-space indentation** — outliers from the repo's 2-space norm
-  (same class as the `login/page.tsx` outlier noted in persona-ux V-3).
-
-**Fix:** route the Near-me button through `secondaryButtonClass`, swap the emoji
-for an SVG pin, tokenize the tab active state, reformat to 2-space.
+- [near-me-button.tsx](../../apps/web/src/app/events/near-me-button.tsx) now uses
+  `secondaryButtonClass('sm')` (was a hand-rolled class) and an SVG map-pin (was
+  a 📍 emoji) — matching the new `LocationSearch` Search button beside it.
+- [event-timeframe-tabs.tsx](../../apps/web/src/app/events/_components/event-timeframe-tabs.tsx)
+  active tab + count badge now use the `text-primary-fg` / `bg-primary-fg/20`
+  tokens (were `text-white` / `bg-white/20`).
+- Both files reformatted from 4-space to the repo's 2-space norm.
 
 ---
 
@@ -283,3 +284,16 @@ Journal: [2026-06-01-manual-location.md](../journal/2026-06-01-manual-location.m
   from "More filters" to a primary control shown whenever a location is active.
 - _Reverse-geocoding coords → place name in the chip/input deferred_ (would be a
   new, separate finding).
+
+### 2026-06-01 — P3 polish: sort + design-system (F-9, F-12)
+
+First P3 bundle. Both migration-free.
+Journal: [2026-06-01-find-events-p3-polish.md](../journal/2026-06-01-find-events-p3-polish.md).
+
+- **F-9 ✅** — `Sort` select (Date / Nearest / Price: low to high) in the
+  filter-form footer; in-memory sort before the pagination slice, nulls last;
+  "Nearest" only when a location is active; non-Following only. New shared
+  `SORTS`/`SortOption`/`SORT_LABEL`.
+- **F-12 ✅** — Near-me button → `secondaryButtonClass` + SVG pin (matches the
+  adjacent `LocationSearch` button); timeframe tabs → `text-primary-fg` /
+  `bg-primary-fg/20` tokens; both files reformatted to 2-space.

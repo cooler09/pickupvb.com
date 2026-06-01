@@ -19,12 +19,15 @@ import {
   TEAM_COMPOSITIONS,
   PRICES,
   PRICE_FILTER_LABEL,
+  SORTS,
+  SORT_LABEL,
   type Surface,
   type Type,
   type Skill,
   type AgeGroupFilter,
   type TeamCompositionFilter,
   type PriceFilter,
+  type SortOption,
 } from './event-filter-options';
 
 type Props = {
@@ -40,6 +43,11 @@ type Props = {
    * feed projects no division prices, so there's nothing to filter on.
    */
   price: PriceFilter | undefined;
+  /**
+   * Result ordering. Absence = the per-tab date order. "Nearest" is only
+   * offered when a location is active; the whole control is hidden on Following.
+   */
+  sort: SortOption | undefined;
   /** When set, renders hidden lat/lng inputs and a Radius (km) field. */
   location: { lat: number; lng: number; radiusKm: number } | null;
 };
@@ -69,6 +77,7 @@ export function EventFilterForm({
   teamComposition,
   seriesName,
   price,
+  sort,
   location,
 }: Props) {
   const advancedActive = Boolean(ageGroup || teamComposition || seriesName);
@@ -236,7 +245,28 @@ export function EventFilterForm({
         </div>
       </details>
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {when === 'following' ? (
+          <span />
+        ) : (
+          <label className="flex items-center gap-2 text-sm">
+            <span className={labelClass}>Sort</span>
+            <select
+              name="sort"
+              defaultValue={sort ?? ''}
+              className="border-border-base bg-surface rounded-md border px-2 py-1.5 text-sm"
+            >
+              <option value="">Date</option>
+              {/* "Nearest" needs distances, which only exist with a location. */}
+              {location && <option value="distance">{SORT_LABEL.distance}</option>}
+              {SORTS.filter((s) => s !== 'distance').map((s) => (
+                <option key={s} value={s}>
+                  {SORT_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button type="submit" className={primaryButtonClass('md')}>
           Apply filters
         </button>
