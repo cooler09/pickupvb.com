@@ -1,11 +1,12 @@
 import Link from 'next/link';
-import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
+import { SupabaseTeamQueryRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
+import { fieldInputClass } from '@/components/field-styles';
 import { MyTeamsPanel } from './_components/my-teams-panel';
-import { TeamCard, type TeamCardData } from './_components/team-card';
+import { TeamCard } from './_components/team-card';
 
 // Public "discover" listing rendered with the sessionless anon client so
 // the route stays ISR-cacheable. Viewer-only sections (captained, rostered,
@@ -31,8 +32,6 @@ const PAGE_SIZE = 24;
 const FORMAT_OPTIONS = ['doubles', 'triples', 'quads', 'sixes'] as const;
 type FormatOption = (typeof FORMAT_OPTIONS)[number];
 
-type DiscoverRow = TeamCardData;
-
 export default async function TeamsIndexPage(props: {
   searchParams: Promise<{ q?: string; format?: string; page?: string }>;
 }) {
@@ -48,27 +47,19 @@ export default async function TeamsIndexPage(props: {
     : undefined;
   const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const from = (pageNum - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
 
-  // Public "discover" query — runs for everyone, signed in or not.
-  let discoverQuery = supabase
-    .from('teams')
-    .select('id, slug, name, format, captain_id', { count: 'exact' })
-    .order('name', { ascending: true })
-    .range(from, to);
-  if (q) {
-    discoverQuery = discoverQuery.ilike('name', `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`);
-  }
-  if (format) discoverQuery = discoverQuery.eq('format', format);
-  const { data: discoverData, count: discoverCount } = await discoverQuery;
-  const discoverTeams = (discoverData as DiscoverRow[] | null) ?? [];
-  const discoverTotal = discoverCount ?? discoverTeams.length;
+  // Public "discover" listing — runs for everyone, signed in or not. The read,
+  // captain-name resolution, and per-team roster counts (TM-1) all live behind
+  // the TeamQueries port (TM-4).
+  const { cards: discoverTeams, total: discoverTotal } = await new SupabaseTeamQueryRepository(
+    supabase,
+  ).searchDirectory({
+    ...(q ? { nameLike: q } : {}),
+    ...(format ? { format } : {}),
+    limit: PAGE_SIZE,
+    offset: from,
+  });
   const hasFilter = q.length > 0 || !!format;
-
-  // Resolve captain display names via the ProfileQueries port (no FK join on
-  // the public view).
-  const captainIds = [...new Set(discoverTeams.map((t) => t.captain_id).filter(Boolean))];
-  const captainCards = await new SupabaseProfileRepository(supabase).findCardsByIds(captainIds);
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-4">
@@ -86,22 +77,22 @@ export default async function TeamsIndexPage(props: {
       <section className="space-y-3">
         <div>
           <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">
-            Discover teams
+            Discover teams · {discoverTotal}
           </h2>
           <p className="text-muted text-xs">Browse public tournament rosters across PickupVB.</p>
         </div>
-        <form className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+        <form className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-center">
           <input
             type="search"
             name="q"
             placeholder="Search by team name…"
             defaultValue={q}
-            className="border-border-base bg-surface rounded-md border px-3 py-2 text-sm"
+            className={fieldInputClass}
           />
           <select
             name="format"
             defaultValue={format ?? ''}
-            className="border-border-base bg-surface rounded-md border px-3 py-2 text-sm"
+            className={fieldInputClass}
             aria-label="Filter by format"
           >
             <option value="">Any format</option>
@@ -136,9 +127,17 @@ export default async function TeamsIndexPage(props: {
             {discoverTeams.map((t) => (
               <TeamCard
                 key={t.id}
-                team={t}
+                team={{
+                  id: t.id,
+                  slug: t.slug,
+                  name: t.name,
+                  format: t.format,
+                  captain_id: t.captainId,
+                }}
                 role="public"
-                captainName={captainCards.get(t.captain_id)?.displayName ?? null}
+                captainName={t.captainName}
+                rosterCount={t.rosterCount}
+                teamSize={t.teamSize}
               />
             ))}
           </ul>

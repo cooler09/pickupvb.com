@@ -22,13 +22,16 @@ This file is complementary to — not a duplicate of:
   query, not behind a read-side port like `/players` + `/groups`) is the P2-1
   read-port theme, noted from the UX-consistency angle.
 
-> **Status update (2026-06-01):** Full persona-lens evaluation. **Nothing shipped
-> yet** — findings pass. Like `/groups`, this is a **well-built page — no P1, no
-> P2**: it already uses a shared `TeamCard`, the Search button is already
-> `primaryButtonClass()`, it has a **format filter** (more than the other
-> directories), and `MyTeamsPanel` already handles anon/signed-out (a "Sign in to
-> create a team" gate). Four **P3** items (TM-1…TM-4), most mirroring the sibling
-> directories.
+> **Status update (2026-06-01):** Full persona-lens evaluation; **all four
+> findings (TM-1…TM-4) shipped the same day.** No P1, no P2 — a well-built page
+> that got polish + convergence: TM-1 a **"N/size · Recruiting / Full"** roster
+> chip on the discover card; TM-2 search input + format select →
+> `fieldInputClass`; TM-3 a "Discover teams · {total}" count; TM-4 the inline
+> discover query extracted into a **`TeamQueries.searchDirectory`** port +
+> `SupabaseTeamQueryRepository` (mirroring `ProfileQueries`/`GroupQueries`), which
+> is where TM-1's roster + captain hydration now live. The three Connect
+> directories now read through parallel read-side ports. **No follow/join-from-
+> directory finding** — team rosters are captain-invite-only.
 >
 > Grounding facts: `team_members` is publicly selectable (RLS `using (true)`) and
 > `teams.extra_member_count` + the `format` enum (doubles=2 … sixes=6) are
@@ -73,7 +76,7 @@ captain recruits you. Not a gap.
 
 ### A. Information scent (the card's job)
 
-#### TM-1 — Discover cards don't show roster size / "recruiting vs full" · **P3**
+#### TM-1 — Discover cards don't show roster size / "recruiting vs full" · **P3** · ✅ resolved 2026-06-01
 
 The discover `TeamCard` shows name + format + captain
 ([team-card.tsx#L38-L44](../../apps/web/src/app/teams/_components/team-card.tsx#L38-L44)),
@@ -84,35 +87,38 @@ anon-safe: `team_members` (RLS `using (true)`) for the active roster,
 `teams.extra_member_count` for off-site players, and the `format` enum for the
 target size (doubles=2, triples=3, quads=4, sixes=6).
 
-**Recommended fix:** count active members for the visible team ids (one query,
-anon-safe — the same "one scoped lookup for the page" shape as the groups
-`countMembers`), add `extra_member_count` to the discover select + `TeamCardData`,
-and render a roster chip on the card — e.g. **"3/4 · recruiting"** (or "Full"
-when `rostered >= size`). Keep `TeamCard`'s existing role badge; add the chip as
-an optional field so the My-teams panel can opt in later. P3 (informational — you
-can't join from here regardless; but high-value scent for the recruit persona).
+**Fix (done):** the new `TeamQueries.searchDirectory` (TM-4) projects
+`rosterCount` (active `team_members` count, anon-safe, + `extra_member_count`) and
+`teamSize` (via the domain `playersPerSide(format)`) per card. `TeamCard` gained
+optional `rosterCount`/`teamSize` props and renders a chip — **"3/4 ·
+Recruiting"** (emerald) while `rosterCount < teamSize`, else **"Full"** (muted).
+The role badge is unchanged; the My-teams panel can opt into the chip later.
+[team-card.tsx](../../apps/web/src/app/teams/_components/team-card.tsx),
+[supabase-team-query-repository.ts](../../packages/infrastructure/src/supabase-team-query-repository.ts).
 
 ### B. Consistency / convergence
 
-#### TM-2 — Search input + format select bypass the shared field vocabulary · **P3** (PL-3/G-3 analog)
+#### TM-2 — Search input + format select bypass the shared field vocabulary · **P3** (PL-3/G-3 analog) · ✅ resolved 2026-06-01
 
 The search input and the format `<select>` hand-roll `border-border-base
 bg-surface rounded-md border px-3 py-2 text-sm`
 ([page.tsx#L94-L113](../../apps/web/src/app/teams/page.tsx#L94-L113)) instead of
 `fieldInputClass` / the shared select recipe. (The Search button is already
-canonical.) **Recommended fix:** input → `fieldInputClass`, select → the shared
-field-select class, with `sm:items-center` on the row so the label-oriented
-`mt-1` aligns (as in the PL-3/G-3 fixes). Cross-ref persona-ux **CC-2**.
+canonical.) **Fix (done):** both the input **and** the format `<select>` now use
+`fieldInputClass` (a select takes the same chassis cleanly), with `sm:items-center`
+on the row so the label-oriented `mt-1` aligns. Cross-ref persona-ux **CC-2**.
+[teams/page.tsx](../../apps/web/src/app/teams/page.tsx).
 
-#### TM-3 — No result count on the Discover section · **P3** (PL-4/G-4 analog)
+#### TM-3 — No result count on the Discover section · **P3** (PL-4/G-4 analog) · ✅ resolved 2026-06-01
 
 The discover query returns `discoverTotal`
 ([page.tsx#L63-L65](../../apps/web/src/app/teams/page.tsx#L63-L65)) but the
 "Discover teams" header never shows it — unlike the `Players · {total}` /
-`Groups · {total}` counts just added. **Recommended fix:** show the count on the
-"Discover teams" subhead (e.g. "Discover teams · {total}").
+`Groups · {total}` counts just added. **Fix (done):** the "Discover teams"
+header now reads "Discover teams · {total}".
+[teams/page.tsx](../../apps/web/src/app/teams/page.tsx).
 
-#### TM-4 — The discover read is a raw inline query, not behind a read-side port · **P3** (consistency / architecture)
+#### TM-4 — The discover read is a raw inline query, not behind a read-side port · **P3** (consistency / architecture) · ✅ resolved 2026-06-01
 
 `/players` and `/groups` read their directories through `ProfileQueries.searchDirectory`
 / `GroupQueries.searchDirectory` (read-side ports, architecture P2-1), but the
@@ -120,11 +126,16 @@ teams discover listing issues a raw `supabase.from('teams').select(...)` **inlin
 in the page** ([page.tsx#L54-L71](../../apps/web/src/app/teams/page.tsx#L54-L71)),
 including the captain-name resolution. It works, but it's the odd one out and has
 no test seam — and it's the natural home for the TM-1 roster-count logic.
-**Recommended fix (optional, architecture-flavored):** extract a
-`TeamQueries.searchDirectory` port + Supabase adapter (mirroring the other two),
-moving the team query + captain hydration + TM-1 roster counts off the page. P3 —
-lighter alternative is to keep it inline and just add the count there; flagged so
-the inconsistency is on record.
+**Fix (done):** extracted a `TeamQueries.searchDirectory` port
+([team-queries.ts](../../packages/domain/src/teams/team-queries.ts)) + a
+`SupabaseTeamQueryRepository` adapter
+([supabase-team-query-repository.ts](../../packages/infrastructure/src/supabase-team-query-repository.ts))
+mirroring `ProfileQueries`/`GroupQueries` — the team query, captain-name
+hydration (adapter-composes-`SupabaseProfileRepository`), and TM-1 roster counts
+all moved off the page. The page now calls `new SupabaseTeamQueryRepository(supabase).searchDirectory(...)`
+([teams/page.tsx](../../apps/web/src/app/teams/page.tsx)), shedding its inline
+`supabase.from('teams')` query + `SupabaseProfileRepository` import. The three
+directories now read through parallel read-side ports.
 
 ---
 
@@ -136,5 +147,25 @@ the inconsistency is on record.
 
 ## Remediation log
 
-_None yet — findings pass only (2026-06-01). Update this section with a dated
-entry when a bundle lands, per [README.md](README.md)._
+### 2026-06-01 — TM-1…TM-4 bundle (roster signal + vocab + count + read-side port)
+
+Shipped all four findings the same day. Verified `pnpm typecheck && lint && test
+&& build` (all green; one mid-build typecheck fix — `.eq('format', format as
+Format)` — since `TeamDirectoryQuery.format` is a plain `string` at the port
+boundary but the column is the format enum). Journal:
+[2026-06-01-teams-directory.md](../journal/2026-06-01-teams-directory.md).
+
+- **TM-4 ✅** — new `TeamQueries.searchDirectory` port
+  ([team-queries.ts](../../packages/domain/src/teams/team-queries.ts)) +
+  `SupabaseTeamQueryRepository`
+  ([supabase-team-query-repository.ts](../../packages/infrastructure/src/supabase-team-query-repository.ts));
+  the page sheds its inline query + `SupabaseProfileRepository` import.
+- **TM-1 ✅** — `TeamDirectoryCard.rosterCount`/`teamSize` (active `team_members`
+  count + `extra_member_count`; `playersPerSide(format)`); `TeamCard` renders a
+  "N/size · Recruiting" / "Full" chip.
+- **TM-2 ✅** — search input + format select → `fieldInputClass`, row `sm:items-center`.
+- **TM-3 ✅** — "Discover teams · {total}" header count.
+
+_All findings resolved. The three Connect directories (`/players`, `/groups`,
+`/teams`) now share the read-side-port + card-signal + (where applicable)
+follow-island patterns. Re-audit if the page changes materially._
