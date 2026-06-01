@@ -22,12 +22,14 @@ This file is complementary to — not a duplicate of:
 - [persona-ux.md](persona-ux.md) — CTA/field vocabulary; G-3 is the CC-2 drift.
 - [privacy.md](privacy.md) — public group reads; no PII surface to re-litigate.
 
-> **Status update (2026-06-01):** Full persona-lens evaluation. **Nothing shipped
-> yet** — findings pass. This is a **well-built directory**: there's **no P1 and
-> no P2** — the card already carries name + location + a 2-line description
-> (richer than the players card was pre-PL-1), it's ISR-cacheable, paginated, and
-> `NewGroupButton` already self-hides for anon/signed-out. Five **P3** polish +
-> consistency items (G-1…G-5), most mirroring the players fixes.
+> **Status update (2026-06-01):** Full persona-lens evaluation; **all five
+> findings (G-1…G-5) shipped the same day.** No P1, no P2 — a well-built
+> directory that got polish + convergence: G-1 a **member-count** chip on the
+> card (anon-safe aggregate over `group_members`); G-2 **follow from the
+> directory** via a `GroupsFollowProvider` + `GroupFollowButton` (the groups twin
+> of the players follow-island); G-3 search input → `fieldInputClass`; G-4
+> "Groups & organizations · {total}" count; G-5 a shared **`GroupCard`** used by
+> both the directory and the home peek — **which closes home-page-ux H-4.**
 >
 > Grounding facts that shaped grading: `GroupCard`
 > ([group-queries.ts#L11-L19](../../packages/domain/src/groups/group-queries.ts#L11-L19))
@@ -69,7 +71,7 @@ This file is complementary to — not a duplicate of:
 
 ### A. Information scent (the card's job)
 
-#### G-1 — No social-proof / activity signal on the card · **P3**
+#### G-1 — No social-proof / activity signal on the card · **P3** · ✅ resolved 2026-06-01
 
 The card answers "what is this group" (name + city + description) but not "is it
 **alive**" — there's no member count, follower count, or "N upcoming events." For
@@ -77,50 +79,59 @@ a visitor deciding whether a club is worth joining, size/activity is the missing
 signal. Unlike the players PL-1 fix (a column already in `profiles_public`), this
 is **not** a column-add: `groups` has no count column, so it needs an aggregate
 over `group_members` / `group_followers` (and event count over `events.host_group_id`).
-**Recommended fix:** fetch counts for the visible group ids in one grouped query
-(the same "one scoped lookup for the whole page" shape as the PL-2 provider) and
-render e.g. "12 members · 3 upcoming" on the card. Start with member **or**
-follower count (one query) before adding event count. P3 (social proof, not a
-blocker; the card already reads as a real group).
+**Fix (done):** `searchDirectory` now fetches **member counts** for the visible
+group ids in one query over `group_members` (RLS `using (true)`, so it works on
+the anon client) and tallies in JS, attaching `memberCount` to each `GroupCard`
+(degrades to no chip on error). The card renders "N members" beside the location.
+Chose member count over follower count because `group_followers` is owner-only
+and its aggregate view is granted to `authenticated` (not `anon`), so it isn't
+readable on the public ISR page; event count deferred (a heavier join). New
+optional `GroupCard.memberCount`
+([group-queries.ts](../../packages/domain/src/groups/group-queries.ts),
+[supabase-group-query-repository.ts](../../packages/infrastructure/src/supabase-group-query-repository.ts)).
 
 ### B. Acting on intent
 
-#### G-2 — Can't follow a group from the directory — only click through · **P3** (PL-2 analog)
+#### G-2 — Can't follow a group from the directory — only click through · **P3** (PL-2 analog) · ✅ resolved 2026-06-01
 
 Groups are followable (`group_followers` + `followGroup`/`unfollowGroup`, and the
 group detail page has a follow button via
 [group-viewer-actions.tsx](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx)),
 but the directory card only links through — the same missed loop PL-2 fixed for
-players. **Recommended fix:** reuse the **exact** pattern just built for players
-— a `GroupsFollowProvider` that resolves the viewer + their followed-group set
-once (one `group_followers` lookup scoped to the visible ids) and per-card
-`FollowButton` islands calling `followGroup`/`unfollowGroup`, rendering nothing
-for loading/anon, layered onto the ISR shell. Card gets the stretched-link
-treatment so the button coexists with whole-tile navigation. Graded **P3** for
-the same reason as PL-2 (following from the group page is the designed path), but
-it's high-leverage because the pattern + actions already exist.
+players. **Fix (done):** new
+[groups/\_components/groups-follow.tsx](../../apps/web/src/app/groups/_components/groups-follow.tsx)
+— the groups twin of `players-follow.tsx`: a `GroupsFollowProvider` resolves the
+viewer + their followed-group set once (one `group_followers` lookup scoped to
+the visible ids; the viewer reads their own edges, which the owner-only select
+policy allows) and per-card `GroupFollowButton` islands call
+`followGroup`/`unfollowGroup` optimistically, rendering nothing for loading/anon
+so the ISR shell is untouched. The button rides in the shared `GroupCard`'s
+`action` slot above its stretched-link overlay (G-5). Graded **P3** like PL-2
+(the group page is the designed follow path), but cheap because the pattern +
+actions already existed.
 
 ### C. Consistency / convergence
 
-#### G-3 — Search input bypasses the shared field vocabulary · **P3** (PL-3 analog)
+#### G-3 — Search input bypasses the shared field vocabulary · **P3** (PL-3 analog) · ✅ resolved 2026-06-01
 
 The search input hand-rolls `border-border-base bg-surface flex-1 rounded-md
 border px-3 py-2 text-sm`
 ([page.tsx#L57-L64](../../apps/web/src/app/groups/page.tsx#L57-L64)) instead of
 `fieldInputClass`. (The Search button is already canonical — only the input
-drifts here, the mirror image of PL-3 where the button drifted.) **Recommended
-fix:** input → `fieldInputClass` (with `items-center` on the row so its
-label-oriented `mt-1` aligns, as in the PL-3 fix). Cross-ref persona-ux **CC-2**.
+drifts here, the mirror image of PL-3 where the button drifted.) **Fix (done):**
+input → `` `${fieldInputClass} flex-1` `` with `items-center` on the flex row so
+the label-oriented `mt-1` aligns. Cross-ref persona-ux **CC-2**.
+[groups/page.tsx](../../apps/web/src/app/groups/page.tsx).
 
-#### G-4 — No result count · **P3** (PL-4 analog)
+#### G-4 — No result count · **P3** (PL-4 analog) · ✅ resolved 2026-06-01
 
 `searchDirectory` returns `total`
 ([page.tsx#L40-L46](../../apps/web/src/app/groups/page.tsx#L40-L46)) but the
-"Groups & organizations" header never shows it. **Recommended fix:** show the
-count in the header (e.g. "Groups & organizations · {total}"), matching the
-`Players · {total}` from PL-4.
+"Groups & organizations" header never shows it. **Fix (done):** the header now
+reads "Groups & organizations · {total}", matching the `Players · {total}` from
+PL-4. [groups/page.tsx](../../apps/web/src/app/groups/page.tsx).
 
-#### G-5 — Group card is hand-rolled here **and** on the home page, and drifting · **P3** (closes home H-4)
+#### G-5 — Group card is hand-rolled here **and** on the home page, and drifting · **P3** (closes home H-4) · ✅ resolved 2026-06-01
 
 The group tile is reimplemented at
 [page.tsx#L86-L123](../../apps/web/src/app/groups/page.tsx#L86-L123) and again on
@@ -128,11 +139,15 @@ the home page
 ([page.tsx#L181-L208](../../apps/web/src/app/page.tsx#L181-L208)); they've already
 diverged (home: 1-char avatar fallback in a `<div>`, no description; directory:
 2-char fallback in an `aria-hidden <span>`, 2-line description). This is exactly
-**home-page-ux H-4** (still open). **Recommended fix:** extract a `GroupCard`
-server component under `apps/web/src/app/groups/_components/group-card.tsx`
-(props: `slug`, `name`, `avatarUrl`, `homeCity`, `region`, `description?`, and
-optionally the G-1 counts) and use it on both pages — the same shared-component
-playbook as `EventCard`. Closes G-5 **and** H-4 in one move.
+**home-page-ux H-4**. **Fix (done):** extracted a shared `GroupCard` server
+component ([group-card.tsx](../../apps/web/src/app/groups/_components/group-card.tsx))
+— whole-tile stretched link, optional `memberCount` chip (G-1) and an optional
+`action` slot (the G-2 follow button) — and used it on **both** the directory
+([groups/page.tsx](../../apps/web/src/app/groups/page.tsx)) and the home-page peek
+([page.tsx](../../apps/web/src/app/page.tsx)), deleting both hand-rolled copies.
+Same shared-component playbook as `EventCard`. **Closes home-page-ux H-4.** (Home
+cards now also show the description — a free improvement; the `Image` import was
+dropped from the home page as it's no longer used there.)
 
 ---
 
@@ -144,5 +159,25 @@ playbook as `EventCard`. Closes G-5 **and** H-4 in one move.
 
 ## Remediation log
 
-_None yet — findings pass only (2026-06-01). Update this section with a dated
-entry when a bundle lands, per [README.md](README.md)._
+### 2026-06-01 — G-1…G-5 bundle (counts + follow + vocab + shared card)
+
+Shipped all five findings the same day. Verified `pnpm typecheck && lint && test
+&& build` (all green; the two new components added zero lint warnings). Journal:
+[2026-06-01-groups-directory.md](../journal/2026-06-01-groups-directory.md).
+
+- **G-1 ✅** — `searchDirectory` attaches `memberCount` via an anon-safe aggregate
+  over `group_members`; the card shows "N members". New optional
+  `GroupCard.memberCount`.
+- **G-2 ✅** — new
+  [groups/\_components/groups-follow.tsx](../../apps/web/src/app/groups/_components/groups-follow.tsx)
+  (`GroupsFollowProvider` + `GroupFollowButton`), the groups twin of
+  `players-follow.tsx`, reading `group_followers` and calling
+  `followGroup`/`unfollowGroup`; renders nothing for anon, layered on the ISR shell.
+- **G-3 ✅** — search input → `` `${fieldInputClass} flex-1` `` with `items-center`.
+- **G-4 ✅** — "Groups & organizations · {total}" header count.
+- **G-5 ✅** — shared `GroupCard`
+  ([group-card.tsx](../../apps/web/src/app/groups/_components/group-card.tsx)) on
+  both the directory and the home peek; both hand-rolled copies deleted.
+  **Closes home-page-ux H-4.**
+
+_All findings resolved. Re-audit if the page changes materially._

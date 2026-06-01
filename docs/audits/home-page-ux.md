@@ -31,9 +31,12 @@ This file is complementary to — not a duplicate of:
 > evaluation of the landing page. **The headline shipped the same day: H-1 ✅** —
 > the homepage now maps the full `EventCardData` like the listing page, so the
 > price chip, capacity/`Full` badge, relative dates, and hero thumbnail render on
-> the landing page (render-only, zero new query). Remaining open: five **P3**
-> items (H-2…H-6, one of which is a cross-ref to persona-ux V-4). **No P1**: the
-> page works and is SEO-covered by the layout. See **Remediation log** + journal
+> the landing page (render-only, zero new query). **Since then: H-4 ✅** (the
+> group card was extracted into a shared `GroupCard` via groups-page-ux G-5) and
+> **H-5 ✅** (anon host CTAs gated via persona-ux V-4). Remaining open: **H-2**
+> (near-me CTA honesty), **H-3** (empty-peek fallback), **H-6** (signed-in
+> personalization, optional). **No P1**: the page works and is SEO-covered by the
+> layout. See **Remediation log** + journal
 > [2026-06-01-home-card-parity.md](../journal/2026-06-01-home-card-parity.md).
 >
 > Grounding facts that shaped grading:
@@ -168,7 +171,7 @@ looks dead. P3.
 
 ### C. Consistency / DRY
 
-#### H-4 — The group card is hand-rolled twice and already drifting · **P3**
+#### H-4 — The group card is hand-rolled twice and already drifting · **P3** · ✅ resolved 2026-06-01
 
 The homepage reimplements the group tile
 ([page.tsx#L181-L208](../../apps/web/src/app/page.tsx#L181-L208)) that
@@ -181,11 +184,14 @@ shared component (`groups/_components/` holds only `new-group-button.tsx`). Two
 copies of one widget guarantee future drift — the same problem the shared
 `EventCard` solved for events.
 
-**Recommended fix:** extract a `GroupCard` server component
-(`apps/web/src/app/groups/_components/group-card.tsx`; props `slug`, `name`,
-`avatarUrl`, `homeCity`, `region`, `description?`) and use it on both pages.
-Aligns with the persona-ux design-system theme (one canonical vocabulary per
-widget). P3.
+**Fix (done — via groups-page-ux G-5, 2026-06-01):** extracted a shared
+`GroupCard` server component
+([group-card.tsx](../../apps/web/src/app/groups/_components/group-card.tsx)) and
+used it on both the home peek and the `/groups` directory, deleting both
+hand-rolled copies; the home `Image` import was dropped (now unused). The home
+card now also shows the group description. See
+[groups-page-ux.md](groups-page-ux.md) G-5 + journal
+[2026-06-01-groups-directory.md](../journal/2026-06-01-groups-directory.md).
 
 ### D. Persona coverage
 
