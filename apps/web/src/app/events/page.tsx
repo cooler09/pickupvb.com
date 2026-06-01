@@ -262,6 +262,17 @@ export default async function EventsPage(props: {
     (when !== 'following' && price) ||
     hasLocation,
   );
+  // Count for the collapsed "Filters (N)" trigger — mirrors the chips exactly
+  // (sort is ordering, not a filter, so it's excluded).
+  const activeFilterCount =
+    (surface ? 1 : 0) +
+    (type ? 1 : 0) +
+    (skillBand ? 1 : 0) +
+    (ageGroup ? 1 : 0) +
+    (teamComposition ? 1 : 0) +
+    (seriesName ? 1 : 0) +
+    (when !== 'following' && price ? 1 : 0) +
+    (hasLocation ? 1 : 0);
 
   // Build URLs for tabs / chip removal / clear-all. All preserve the current
   // tab unless the caller explicitly overrides it.
@@ -360,18 +371,62 @@ export default async function EventsPage(props: {
         )}
       </div>
 
-      <EventFilterForm
-        when={when}
-        surface={surface}
-        type={type}
-        skillBand={skillBand}
-        ageGroup={ageGroup}
-        teamComposition={teamComposition}
-        seriesName={seriesName}
-        price={price}
-        sort={sort}
-        location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
-      />
+      {/* Filters collapse behind a single trigger so the results sit higher on
+          the page; the active-filter chips below stay visible as the summary.
+          Named group (`group/panel`) so the form's inner "More filters" details
+          (unnamed `group`) doesn't react to the outer open state. Native
+          <details> keeps the no-JS path working (toggle + Apply submit). */}
+      <details className="group/panel">
+        <summary
+          className={`${secondaryButtonClass('sm')} w-fit cursor-pointer list-none gap-1.5 select-none`}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="bg-primary text-primary-fg rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+              {activeFilterCount}
+            </span>
+          )}
+          <svg
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="h-3 w-3 transition-transform group-open/panel:rotate-180"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </summary>
+        <div className="mt-3">
+          <EventFilterForm
+            when={when}
+            surface={surface}
+            type={type}
+            skillBand={skillBand}
+            ageGroup={ageGroup}
+            teamComposition={teamComposition}
+            seriesName={seriesName}
+            price={price}
+            sort={sort}
+            location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
+          />
+        </div>
+      </details>
 
       <ActiveFilterChips
         when={when}

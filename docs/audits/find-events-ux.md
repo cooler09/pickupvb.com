@@ -35,10 +35,11 @@ This file is complementary to — not a duplicate of:
 > and [2026-06-01-following-feed-capacity.md](../journal/2026-06-01-following-feed-capacity.md).
 > A further follow-up closed **F-6** (Free/Paid filter, in-memory, migration-free).
 > **F-7** (manual city/ZIP location + primary radius) also shipped 2026-06-01.
-> All P2s are now resolved. P3 bundles on 2026-06-01 closed **F-9** (sort),
-> **F-12** (design-system tidy), **F-10** (relative date labels), and **F-13**
-> (card thumbnails). **Only standing item: F-11** (filter-chrome consolidation,
-> P3) — held pending a layout/IA decision.
+> **Every finding is now resolved (F-1…F-13).** P3 bundles on 2026-06-01 closed
+> **F-9** (sort), **F-12** (design-system tidy), **F-10** (relative date labels),
+> **F-13** (card thumbnails), and **F-11** (filter-chrome consolidation). No open
+> backlog — re-audit if the page changes materially. (One small carry-over noted
+> under F-4: _price_ on the Following card.)
 >
 > Grounding fact that shaped grading: the `search_events` RPC **already projects
 > `priceCents`/`priceUnit` per division, `spotsRemaining`, `distanceKm`, and
@@ -191,13 +192,19 @@ The subheader described the timeframe but never said how many matched.
 **Fix (done):** subheader now leads with `"14 events · …"`.
 [page.tsx](../../apps/web/src/app/events/page.tsx).
 
-#### F-11 — Filter chrome stacks four strips before the first result · **P3** · open
+#### F-11 — Filter chrome stacks four strips before the first result · **P3** · ✅ resolved 2026-06-01
 
-Header → tabs+Near-me row → filter card → active-chips row all render before any
-event ([page.tsx#L290-L318](../../apps/web/src/app/events/page.tsx#L290-L318));
-on mobile that's a lot of scroll-to-content.
-**Fix:** collapse the filter card behind a single "Filters (2)" trigger
-(disclosure or modal), keeping the active chips as the always-visible summary.
+Header → tabs+Near-me row → filter card → active-chips row all rendered before
+any event; on mobile that's a lot of scroll-to-content.
+**Fix (done):** the filter form now collapses behind a single **"Filters (N)"**
+trigger (the count mirrors the chips), so the results sit higher; the
+active-filter chips stay visible below as the always-on summary. Chose a native
+`<details>` disclosure over a modal — lowest risk, preserves the auto-apply flow,
+and keeps the **no-JS path** working (the disclosure toggles and the Apply button
+submits without JS). [page.tsx](../../apps/web/src/app/events/page.tsx). The
+trigger uses a **named** Tailwind group (`group/panel`) so the form's inner
+"More filters" disclosure (unnamed `group`) doesn't react to the outer open
+state.
 
 ### C. Location (visitor / player)
 
@@ -334,3 +341,14 @@ Journal: [2026-06-01-card-thumbnails.md](../journal/2026-06-01-card-thumbnails.m
   it off its existing `events_view` query. `heroImageUrl` added to
   `VolleyballEventSummary` + `FollowingFeedItem`. Thumbnail sits under the
   stretched link, so the whole card stays one click target.
+
+### 2026-06-01 — Filter-chrome consolidation (F-11)
+
+Closes the audit — all findings resolved.
+Journal: [2026-06-01-filter-disclosure.md](../journal/2026-06-01-filter-disclosure.md).
+
+- **F-11 ✅** — filter form collapses behind a native `<details>` "Filters (N)"
+  trigger (count mirrors the chips, computed in the page); chips stay visible as
+  the summary; results sit higher. Disclosure (not modal) keeps auto-apply and
+  the no-JS path intact. Named group (`group/panel`) prevents the outer open
+  state from leaking into the form's inner "More filters" (unnamed `group`).
