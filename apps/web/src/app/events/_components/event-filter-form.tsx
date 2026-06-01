@@ -17,11 +17,14 @@ import {
   SKILLS,
   AGE_GROUPS,
   TEAM_COMPOSITIONS,
+  PRICES,
+  PRICE_FILTER_LABEL,
   type Surface,
   type Type,
   type Skill,
   type AgeGroupFilter,
   type TeamCompositionFilter,
+  type PriceFilter,
 } from './event-filter-options';
 
 type Props = {
@@ -32,6 +35,11 @@ type Props = {
   ageGroup: AgeGroupFilter | undefined;
   teamComposition: TeamCompositionFilter | undefined;
   seriesName: string | undefined;
+  /**
+   * Free / Paid filter. Only rendered on non-Following tabs — the Following
+   * feed projects no division prices, so there's nothing to filter on.
+   */
+  price: PriceFilter | undefined;
   /** When set, renders hidden lat/lng inputs and a Radius (km) field. */
   location: { lat: number; lng: number; radiusKm: number } | null;
 };
@@ -48,9 +56,9 @@ const labelClass = 'text-muted block text-xs font-semibold tracking-wide upperca
  * tab is preserved via a hidden field so applying filters doesn't drop the
  * user back into Upcoming.
  *
- * Layout: the three most-used filters (surface / type / skill) sit on a single
- * row; less-used filters (age, team, series, radius) live behind a "More
- * filters" toggle — open by default if any of them are active.
+ * Layout: the most-used filters (surface / type / skill / price) sit on a
+ * single row; less-used filters (age, team, series, radius) live behind a
+ * "More filters" toggle — open by default if any of them are active.
  */
 export function EventFilterForm({
   when,
@@ -60,6 +68,7 @@ export function EventFilterForm({
   ageGroup,
   teamComposition,
   seriesName,
+  price,
   location,
 }: Props) {
   const advancedActive = Boolean(ageGroup || teamComposition || seriesName || location);
@@ -101,7 +110,7 @@ export function EventFilterForm({
         </>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">
           <span className={labelClass}>Surface</span>
           <select name="surface" defaultValue={surface ?? ''} className={selectClass}>
@@ -135,6 +144,21 @@ export function EventFilterForm({
             ))}
           </select>
         </label>
+        {/* Price needs per-division price data, which the Following feed
+            doesn't project — so only offer it on Upcoming/Past. */}
+        {when !== 'following' && (
+          <label className="text-sm">
+            <span className={labelClass}>Price</span>
+            <select name="price" defaultValue={price ?? ''} className={selectClass}>
+              <option value="">Any</option>
+              {PRICES.map((p) => (
+                <option key={p} value={p}>
+                  {PRICE_FILTER_LABEL[p]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <details className="group" {...(advancedActive ? { open: true } : {})}>

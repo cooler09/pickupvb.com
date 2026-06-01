@@ -11,7 +11,7 @@ import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import { NearMeButton } from './near-me-button';
 import { Fab } from '@/components/fab';
-import { EventCard, type EventCardData } from './_components/event-card';
+import { EventCard, isEventFree, type EventCardData } from './_components/event-card';
 import { CommunityListingCard } from '@/app/community/_components/community-listing-card';
 import { EventFilterForm } from './_components/event-filter-form';
 import {
@@ -20,11 +20,13 @@ import {
   SKILLS,
   AGE_GROUPS,
   TEAM_COMPOSITIONS,
+  PRICES,
   type Skill,
   type Surface,
   type Type,
   type AgeGroupFilter,
   type TeamCompositionFilter,
+  type PriceFilter,
 } from './_components/event-filter-options';
 import { EventTimeframeTabs, type Timeframe } from './_components/event-timeframe-tabs';
 import { ActiveFilterChips, type FilterKey } from './_components/active-filter-chips';
@@ -88,6 +90,9 @@ export default async function EventsPage(props: {
   );
   const seriesNameRaw = get('seriesName')?.trim();
   const seriesName = seriesNameRaw && seriesNameRaw.length > 0 ? seriesNameRaw : undefined;
+  // Price filter (Free / Paid). Applied in-memory below; only meaningful on
+  // Upcoming/Past, where the search projects per-division prices.
+  const price: PriceFilter | undefined = pick(get('price'), PRICES);
 
   // Pre-fetch the viewer's friends once. Used for both the Following-tab
   // count badge (always) and the per-card "why" labels (Following tab only).
@@ -190,6 +195,17 @@ export default async function EventsPage(props: {
     }));
   }
 
+  // Free / Paid filter, in-memory over the fetched set (price lives on
+  // divisions, not as a search arg). Skipped on Following — that feed projects
+  // no divisions, so isEventFree can't decide. "free" matches the green chip
+  // (every division free); "paid" is the complement.
+  if (when !== 'following' && price) {
+    events = events.filter((ev) => {
+      const free = isEventFree(ev.divisions ?? []);
+      return price === 'free' ? free : !free;
+    });
+  }
+
   const communityListings =
     when === 'upcoming'
       ? await handlers.searchCommunityListings.execute(
@@ -207,7 +223,14 @@ export default async function EventsPage(props: {
 
   const hasLocation = lat !== null && lng !== null;
   const hasAnyFilter = Boolean(
-    surface || type || skillBand || ageGroup || teamComposition || seriesName || hasLocation,
+    surface ||
+    type ||
+    skillBand ||
+    ageGroup ||
+    teamComposition ||
+    seriesName ||
+    (when !== 'following' && price) ||
+    hasLocation,
   );
 
   // Build URLs for tabs / chip removal / clear-all. All preserve the current
@@ -228,6 +251,9 @@ export default async function EventsPage(props: {
     set('teamComposition', teamComposition);
     set('seriesName', seriesName);
     if (target !== 'following') {
+      // Price + location don't apply to the Following feed — drop them when
+      // switching to that tab so a stale param doesn't linger in the URL.
+      set('price', price);
       if (overrides.location !== null && hasLocation) {
         params.set('lat', String(lat));
         params.set('lng', String(lng));
@@ -306,6 +332,7 @@ export default async function EventsPage(props: {
         ageGroup={ageGroup}
         teamComposition={teamComposition}
         seriesName={seriesName}
+        price={price}
         location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
       />
 
@@ -317,6 +344,7 @@ export default async function EventsPage(props: {
         ageGroup={ageGroup}
         teamComposition={teamComposition}
         seriesName={seriesName}
+        price={when !== 'following' ? price : undefined}
         location={hasLocation ? { lat: lat!, lng: lng!, radiusKm } : null}
         buildRemoveHref={buildRemoveHref}
         clearAllHref={clearAllHref}

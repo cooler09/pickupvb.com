@@ -85,6 +85,17 @@ function formatPriceCents(cents: number): string {
 }
 
 /**
+ * True when every division is free (price 0 / unset) — i.e. the card shows the
+ * green "Free" chip. Shared with the events page's "Free only" price filter so
+ * the filter matches the visible chip exactly. False for an event with no
+ * divisions (price is then unknown, not free).
+ */
+export function isEventFree(divisions: ReadonlyArray<EventCardDivision>): boolean {
+  if (divisions.length === 0) return false;
+  return divisions.every((d) => (d.priceCents ?? 0) === 0);
+}
+
+/**
  * Build the price chip from a card's divisions. Returns null when there's no
  * price information to show (e.g. the Following feed, which doesn't project
  * divisions). `free` lets the caller pick the green treatment.
@@ -97,8 +108,8 @@ function priceLabel(
   divisions: ReadonlyArray<EventCardDivision>,
 ): { text: string; free: boolean } | null {
   if (divisions.length === 0) return null;
+  if (isEventFree(divisions)) return { text: 'Free', free: true };
   const cents = divisions.map((d) => d.priceCents ?? 0);
-  if (Math.max(...cents) === 0) return { text: 'Free', free: true };
   const positive = cents.filter((c) => c > 0);
   const min = Math.min(...positive);
   const uniform = positive.length === divisions.length && new Set(positive).size === 1;

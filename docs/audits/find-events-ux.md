@@ -33,7 +33,8 @@ This file is complementary to — not a duplicate of:
 > **Remediation log** + journals
 > [2026-06-01-find-events-discovery-bundle.md](../journal/2026-06-01-find-events-discovery-bundle.md)
 > and [2026-06-01-following-feed-capacity.md](../journal/2026-06-01-following-feed-capacity.md).
-> Standing backlog: **F-6, F-7** (P2) and **F-9…F-13** (P3).
+> A further follow-up closed **F-6** (Free/Paid filter, in-memory, migration-free).
+> Standing backlog: **F-7** (P2) and **F-9…F-13** (P3).
 >
 > Grounding fact that shaped grading: the `search_events` RPC **already projects
 > `priceCents`/`priceUnit` per division, `spotsRemaining`, `distanceKm`, and
@@ -147,15 +148,20 @@ inconsistent and slow.
 (form dims while pending), `method="get"` + Apply button kept as the no-JS
 fallback. [event-filter-form.tsx](../../apps/web/src/app/events/_components/event-filter-form.tsx).
 
-#### F-6 — No way to filter by price (esp. "Free") · **P2** · open
+#### F-6 — No way to filter by price (esp. "Free") · **P2** · ✅ resolved 2026-06-01
 
 Filters cover surface/type/skill/age/team/series/radius but not price — "free
-pickup tonight" is a top visitor intent and price/`registrationMode` are already
-in the model.
-[event-filter-form.tsx](../../apps/web/src/app/events/_components/event-filter-form.tsx).
-**Fix:** add a "Free only" toggle (or price band) to the primary filter row;
-the RPC already accepts division price data — add a `p_max_price` / `p_free_only`
-arg or post-filter the in-memory set.
+pickup tonight" is a top visitor intent and per-division prices are already in
+the search projection.
+**Fix (done):** added a `Price: Any / Free / Paid` select to the primary filter
+row and filter the already-fetched set **in-memory** (migration-free) — "free"
+reuses the exported `isEventFree(divisions)` so it matches the green "Free"
+chip exactly; "paid" is the complement. Only offered on Upcoming/Past (the
+Following feed projects no divisions); dropped from the URL when switching to
+Following.
+[event-filter-form.tsx](../../apps/web/src/app/events/_components/event-filter-form.tsx),
+[page.tsx](../../apps/web/src/app/events/page.tsx),
+[event-card.tsx](../../apps/web/src/app/events/_components/event-card.tsx) (`isEventFree`).
 
 #### F-8 — No result count · **P3** · ✅ resolved 2026-06-01
 
@@ -240,3 +246,17 @@ Following tab too. Migration-free. Journal:
   Following mapping.
 - _Price on the Following card remains open_ (folds into F-2 — needs the
   primary division's price projected onto `FollowingFeedItem`).
+
+### 2026-06-01 — Price filter (F-6)
+
+Added a Free/Paid filter, in-memory over the fetched set (no migration).
+Journal: [2026-06-01-price-filter.md](../journal/2026-06-01-price-filter.md).
+
+- **F-6 ✅** — `Price: Any / Free / Paid` select in the primary filter row;
+  page filters `events` with the exported `isEventFree(divisions)` (free = green
+  chip; paid = complement) before pagination, so the count + pages reflect the
+  filtered set. Scoped to Upcoming/Past (the Following feed has no division
+  prices); the param is dropped when switching to Following. New shared
+  `PRICES`/`PriceFilter`/`PRICE_FILTER_LABEL` in `event-filter-options.ts`;
+  chip + removal wired through `ActiveFilterChips`.
+- _Price on the Following card still open_ (F-2 follow-up).
