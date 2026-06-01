@@ -7,6 +7,7 @@ import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
+import { relativeEventDay } from '@/lib/date-formats';
 import { EventCard } from './events/_components/event-card';
 import { Icon } from '@/components/icon';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
@@ -122,10 +123,18 @@ export default async function HomePage(props: {
                   skillLevel: e.skillLevel,
                   type: e.type,
                   startsAt: e.startsAt,
+                  timeZone: e.timeZone,
                   city: e.city,
                   region: e.region,
-                  spotsRemaining: null,
-                  distanceKm: null,
+                  heroImageUrl: e.heroImageUrl,
+                  relativeDay: relativeEventDay(e.startsAt, e.timeZone, now),
+                  spotsRemaining: e.spotsRemaining,
+                  distanceKm: e.distanceKm,
+                  seriesName: e.seriesName,
+                  seriesPosition: e.seriesPosition,
+                  seriesSize: e.seriesSize,
+                  isFundraiser: e.isFundraiser,
+                  divisions: e.divisions,
                 }}
               />
             ))}
