@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
+import { AvatarCropDialog } from './avatar-crop-dialog';
 
 type Props = {
   /** Authenticated user's id — the first path segment in Storage (RLS gate). */
@@ -14,43 +15,62 @@ type Props = {
   onSave: (url: string | null) => Promise<void>;
 };
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_BYTES = 10 * 1024 * 1024; // 10 MB cap on the *source* file (pre-crop)
 
 /**
- * File-picker upload widget for the user's avatar (profile picture). Uploads
- * directly to the `avatars` Supabase Storage bucket using the browser client
- * (RLS gates writes to the caller's own user_id path prefix), then calls
- * `onSave` so the parent can persist the URL via a server action.
+ * File-picker + crop upload widget for the user's avatar (profile picture).
  *
- * The image is displayed in a circular frame with `object-cover`, so a
- * non-square upload is center-cropped at render time — no client-side crop
- * tool (matches the HeroImageUpload accept-as-is behaviour).
+ * Flow: pick a file → AvatarCropDialog opens with a round, aspect-locked
+ * crop + zoom → on confirm we get a square WebP blob, upload it to the
+ * `avatars` Supabase Storage bucket via the browser client (RLS gates writes
+ * to the caller's own user_id path prefix), then call `onSave` so the parent
+ * can persist the URL via a server action. Because the crop output is always
+ * WebP, the storage object is always `avatar.webp` — a re-upload overwrites
+ * the same path rather than leaving a stale extension behind.
  */
 export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
   const [url, setUrl] = useState<string | null>(currentUrl);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File) {
+  // Revoke any outstanding object URL on unmount to avoid leaking it.
+  useEffect(() => {
+    return () => {
+      if (cropSrc) URL.revokeObjectURL(cropSrc);
+    };
+  }, [cropSrc]);
+
+  function handlePickedFile(file: File) {
     if (file.size > MAX_BYTES) {
-      setError('Image must be under 5 MB.');
+      setError('Image must be under 10 MB.');
       return;
     }
-    const ext = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
-    // Path: {userId}/avatar.{ext}
-    const path = `${userId}/avatar.${ext}`;
+    setError(null);
+    setCropSrc(URL.createObjectURL(file));
+  }
+
+  function closeCropper() {
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    setCropSrc(null);
+  }
+
+  async function handleCropped(blob: Blob) {
+    // Crop output is always WebP, so the object path is stable.
+    const path = `${userId}/avatar.webp`;
     setUploading(true);
     setError(null);
 
     const supabase = createSupabaseBrowserClient();
     const { error: uploadErr } = await supabase.storage
       .from('avatars')
-      .upload(path, file, { upsert: true, contentType: file.type });
+      .upload(path, blob, { upsert: true, contentType: 'image/webp' });
 
     if (uploadErr) {
       setError('Upload failed. Please try again.');
       setUploading(false);
+      closeCropper();
       return;
     }
 
@@ -62,6 +82,7 @@ export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
     await onSave(publicUrl);
     setUrl(publicUrl);
     setUploading(false);
+    closeCropper();
   }
 
   async function handleRemove() {
@@ -120,7 +141,7 @@ export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
             </>
           )}
         </div>
-        <p className="text-muted text-xs">JPEG, PNG, or WebP · Max 5 MB · Square works best</p>
+        <p className="text-muted text-xs">JPEG, PNG, or WebP · Max 10 MB</p>
         {error && <p className="text-destructive text-xs">{error}</p>}
       </div>
 
@@ -131,10 +152,12 @@ export function AvatarUpload({ userId, currentUrl, initials, onSave }: Props) {
         className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) void handleFile(file);
+          if (file) handlePickedFile(file);
           e.target.value = '';
         }}
       />
+
+      <AvatarCropDialog imageSrc={cropSrc} onConfirm={handleCropped} onCancel={closeCropper} />
     </div>
   );
 }
