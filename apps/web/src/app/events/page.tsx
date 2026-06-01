@@ -13,8 +13,8 @@ import { NearMeButton } from './near-me-button';
 import { Fab } from '@/components/fab';
 import { EventCard, type EventCardData } from './_components/event-card';
 import { CommunityListingCard } from '@/app/community/_components/community-listing-card';
+import { EventFilterForm } from './_components/event-filter-form';
 import {
-  EventFilterForm,
   SURFACES,
   TYPES,
   SKILLS,
@@ -25,10 +25,14 @@ import {
   type Type,
   type AgeGroupFilter,
   type TeamCompositionFilter,
-} from './_components/event-filter-form';
+} from './_components/event-filter-options';
 import { EventTimeframeTabs, type Timeframe } from './_components/event-timeframe-tabs';
 import { ActiveFilterChips, type FilterKey } from './_components/active-filter-chips';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+import { Pagination } from '@/components/pagination';
+
+/** Cards per page in the events grid (fills the 3-column grid evenly). */
+const PAGE_SIZE = 12;
 
 export const metadata: Metadata = {
   title: 'Volleyball events',
@@ -140,7 +144,10 @@ export default async function EventsPage(props: {
     }
   } else {
     const filters: Parameters<typeof handlers.searchEvents.execute>[0]['filters'] = {
-      limit: 30,
+      // Fetch a generous ceiling and paginate in-memory (the search RPC
+      // returns a flat list with no total count). Beats the old hard cap of
+      // 30 that silently hid every event past the first page.
+      limit: 120,
       ...(when === 'upcoming' ? { startsAfter: now } : { startsBefore: now }),
       ...(lat !== null && lng !== null
         ? { near: { latitude: lat, longitude: lng, radiusKm } }
@@ -235,13 +242,25 @@ export default async function EventsPage(props: {
   const buildRemoveHref = (key: FilterKey): Route => buildHref({ [key]: null });
   const clearAllHref = (when === 'upcoming' ? '/events' : `/events?when=${when}`) as Route;
 
+  // Paginate the result set in-memory. Filter/tab/chip links don't carry a
+  // `page` param, so changing a filter naturally resets to page 1; clamp here
+  // so a stale `?page=` from the URL can't land on an empty slice.
+  const total = events.length;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(Math.max(1, Number.parseInt(get('page') ?? '1', 10) || 1), totalPages);
+  const pageEvents = events.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const flatParams: Record<string, string | undefined> = {};
+  for (const k of Object.keys(searchParams)) flatParams[k] = get(k);
+
   const subheader = (() => {
     const parts: string[] = [];
     if (when === 'upcoming') parts.push('Upcoming events');
     else if (when === 'following') parts.push('From people you follow');
     else parts.push('Past events');
     if (hasLocation) parts.push(`within ${radiusKm} km`);
-    return parts.join(' ');
+    const label = parts.join(' ');
+    if (total === 0) return label;
+    return `${total} ${total === 1 ? 'event' : 'events'} · ${label}`;
   })();
 
   return (
@@ -312,11 +331,24 @@ export default async function EventsPage(props: {
           canHost={!!user}
         />
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {events.map((e) => (
-            <EventCard key={e.id} event={e} {...(when === 'following' ? { friendNameById } : {})} />
-          ))}
-        </ul>
+        <>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pageEvents.map((e) => (
+              <EventCard
+                key={e.id}
+                event={e}
+                {...(when === 'following' ? { friendNameById } : {})}
+              />
+            ))}
+          </ul>
+          <Pagination
+            basePath="/events"
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            searchParams={flatParams}
+          />
+        </>
       )}
 
       {communityListings.length > 0 && (

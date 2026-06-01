@@ -13,7 +13,7 @@ import type {
   Surface,
   TeamCompositionFilter,
   Type,
-} from './event-filter-form';
+} from './event-filter-options';
 import type { Timeframe } from './event-timeframe-tabs';
 
 type Props = {

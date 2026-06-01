@@ -75,6 +75,40 @@ function followingLabel(event: EventCardData, friendNameById: Map<string, string
   return `${goingNames[0]} and ${goingNames.length - 1} others going`;
 }
 
+/** Spots-remaining count at or below this renders the urgent "N left" badge. */
+const LOW_SPOTS_THRESHOLD = 4;
+
+/** Format integer cents as USD, dropping the decimals on whole-dollar amounts. */
+function formatPriceCents(cents: number): string {
+  const dollars = cents / 100;
+  return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
+/**
+ * Build the price chip from a card's divisions. Returns null when there's no
+ * price information to show (e.g. the Following feed, which doesn't project
+ * divisions). `free` lets the caller pick the green treatment.
+ *
+ * - all divisions free → "Free"
+ * - one uniform price → "$10" (with "/team" when priced per team)
+ * - mixed prices → "From $X" (lowest paid division)
+ */
+function priceLabel(
+  divisions: ReadonlyArray<EventCardDivision>,
+): { text: string; free: boolean } | null {
+  if (divisions.length === 0) return null;
+  const cents = divisions.map((d) => d.priceCents ?? 0);
+  if (Math.max(...cents) === 0) return { text: 'Free', free: true };
+  const positive = cents.filter((c) => c > 0);
+  const min = Math.min(...positive);
+  const uniform = positive.length === divisions.length && new Set(positive).size === 1;
+  if (uniform) {
+    const unit = divisions[0]?.priceUnit === 'per_team' ? '/team' : '';
+    return { text: `${formatPriceCents(min)}${unit}`, free: false };
+  }
+  return { text: `From ${formatPriceCents(min)}`, free: false };
+}
+
 /**
  * Reusable event tile used by the events list, the Following feed, and any
  * future "events for player/group" page. Pure presentational — accepts a
@@ -90,10 +124,17 @@ export function EventCard({ event, friendNameById }: Props) {
     event.seriesName && event.seriesPosition && event.seriesSize
       ? `${event.seriesName} · ${event.seriesPosition}/${event.seriesSize}`
       : (event.seriesName ?? null);
+  const price = priceLabel(divisions);
 
   return (
-    <li className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm border p-4">
-      <Link href={`/events/${event.id}`} className="hover:text-primary block font-semibold">
+    <li className="border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
+      {/* Stretched link makes the whole tile tappable; there are no other
+          interactive children, so `focus-within` rings the entire card on
+          keyboard focus. */}
+      <Link
+        href={`/events/${event.id}`}
+        className="hover:text-primary block font-semibold after:absolute after:inset-0 focus-visible:outline-none"
+      >
         {event.title}
       </Link>
       {seriesLabel && <p className="text-muted mt-0.5 text-[11px]">{seriesLabel}</p>}
@@ -114,6 +155,17 @@ export function EventCard({ event, friendNameById }: Props) {
         <span className="bg-primary/15 text-primary rounded px-1.5 py-0.5">
           {TYPE_LABEL[event.type] ?? event.type}
         </span>
+        {price && (
+          <span
+            className={
+              price.free
+                ? 'rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800'
+                : 'bg-fg/5 text-fg rounded px-1.5 py-0.5 font-semibold'
+            }
+          >
+            {price.text}
+          </span>
+        )}
         {(() => {
           // Surface: show event-level by default, but if divisions disagree
           // (a tournament that mixes indoor + sand) call it out as "varies".
@@ -153,6 +205,23 @@ export function EventCard({ event, friendNameById }: Props) {
         {event.isFundraiser && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Fundraiser</span>
         )}
+        {(() => {
+          // Capacity urgency, populated on Upcoming/Past (the search RPC
+          // computes spots_remaining). Null on the Following feed today.
+          const spots = event.spotsRemaining;
+          if (spots === null) return null;
+          if (spots <= 0) {
+            return <span className="bg-fg/10 text-muted rounded px-1.5 py-0.5">Full</span>;
+          }
+          if (spots <= LOW_SPOTS_THRESHOLD) {
+            return (
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">
+                {spots} left
+              </span>
+            );
+          }
+          return <span className="bg-fg/5 text-muted rounded px-1.5 py-0.5">{spots} spots</span>;
+        })()}
       </div>
       {divisions.length > 0 && (
         <ul className="mt-2 flex flex-wrap gap-1 text-[11px]">
@@ -181,9 +250,6 @@ export function EventCard({ event, friendNameById }: Props) {
         </ul>
       )}
       {label && <p className="text-primary mt-2 text-[11px] font-medium">{label}</p>}
-      {event.spotsRemaining !== null && (
-        <p className="text-muted mt-2 text-xs">{event.spotsRemaining} spots open</p>
-      )}
     </li>
   );
 }

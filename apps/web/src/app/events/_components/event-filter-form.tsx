@@ -1,3 +1,8 @@
+'use client';
+
+import { useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Route } from 'next';
 import {
   SURFACE_LABEL,
   TYPE_LABEL,
@@ -6,18 +11,18 @@ import {
   TEAM_COMPOSITION_LABEL,
 } from '@/lib/enum-labels';
 import { primaryButtonClass } from '@/components/primary-button';
-
-export const SURFACES = ['indoor', 'grass', 'sand'] as const;
-export const TYPES = ['open_play', 'tournament'] as const;
-export const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
-export const AGE_GROUPS = ['adult', 'hs', '18u', '16u', '14u', 'jr_high'] as const;
-export const TEAM_COMPOSITIONS = ['solo', 'team', 'pair_draw', 'partners'] as const;
-
-export type Surface = (typeof SURFACES)[number];
-export type Type = (typeof TYPES)[number];
-export type Skill = (typeof SKILLS)[number];
-export type AgeGroupFilter = (typeof AGE_GROUPS)[number];
-export type TeamCompositionFilter = (typeof TEAM_COMPOSITIONS)[number];
+import {
+  SURFACES,
+  TYPES,
+  SKILLS,
+  AGE_GROUPS,
+  TEAM_COMPOSITIONS,
+  type Surface,
+  type Type,
+  type Skill,
+  type AgeGroupFilter,
+  type TeamCompositionFilter,
+} from './event-filter-options';
 
 type Props = {
   when: 'upcoming' | 'past' | 'following';
@@ -58,11 +63,35 @@ export function EventFilterForm({
   location,
 }: Props) {
   const advancedActive = Boolean(ageGroup || teamComposition || seriesName || location);
+  const router = useRouter();
+  const [pending, start] = useTransition();
+
+  // Auto-apply: navigate as soon as a control changes, so filtering feels
+  // instant (matching the Near-me button). The form keeps `method="get"` and
+  // the Apply button so it still works with JS disabled. Rebuilding the query
+  // from FormData drops `page` (resetting pagination) and preserves the hidden
+  // `when` / `lat` / `lng` fields.
+  const apply = (form: HTMLFormElement) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of new FormData(form).entries()) {
+      const v = String(value).trim();
+      if (v) params.set(key, v);
+    }
+    const q = params.toString();
+    start(() => router.push((q ? `/events?${q}` : '/events') as Route));
+  };
 
   return (
     <form
       method="get"
-      className="border-border-base bg-surface rounded-shape-sm space-y-3 border p-4"
+      onChange={(e) => apply(e.currentTarget)}
+      onSubmit={(e) => {
+        e.preventDefault();
+        apply(e.currentTarget);
+      }}
+      className={`border-border-base bg-surface rounded-shape-sm space-y-3 border p-4 transition-opacity ${
+        pending ? 'opacity-60' : ''
+      }`}
     >
       {when !== 'upcoming' && <input type="hidden" name="when" value={when} />}
       {location && (
