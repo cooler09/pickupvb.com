@@ -1,6 +1,12 @@
 'use server';
 
-import { DomainError, UserId, type MessageAttachment, type MessagePage } from '@pickupvb/domain';
+import {
+  DomainError,
+  UserId,
+  type ConversationKind,
+  type MessageAttachment,
+  type MessagePage,
+} from '@pickupvb/domain';
 import {
   DeleteMessageCommand,
   EditMessageCommand,
@@ -102,6 +108,9 @@ export async function sendChatMessage(
   conversationId: string,
   body: string,
   attachments: MessageAttachment[] = [],
+  /** Surface kind, set server-side at render (mask rooms vs block-extreme DMs,
+   * ADR 0030). Defaults to the stricter room treatment. */
+  kind: ConversationKind = 'team',
 ): Promise<ChatResult<{ id: string }>> {
   const v = await viewer();
   if (!v || v.isAnon) return { ok: false, error: 'anon' };
@@ -109,7 +118,7 @@ export async function sendChatMessage(
   try {
     const h = await getChatHandlers();
     const out = await h.sendMessage.execute(
-      new SendMessageCommand(conversationId, v.id, body, v.isAnon, attachments),
+      new SendMessageCommand(conversationId, v.id, body, v.isAnon, attachments, kind),
     );
     return { ok: true, value: out };
   } catch (e) {
@@ -134,12 +143,16 @@ export async function loadOlderChatMessages(
   }
 }
 
-export async function editChatMessage(messageId: string, body: string): Promise<ChatResult<null>> {
+export async function editChatMessage(
+  messageId: string,
+  body: string,
+  kind: ConversationKind = 'team',
+): Promise<ChatResult<null>> {
   const v = await viewer();
   if (!v || v.isAnon) return { ok: false, error: 'anon' };
   try {
     const h = await getChatHandlers();
-    await h.editMessage.execute(new EditMessageCommand(messageId, v.id, body));
+    await h.editMessage.execute(new EditMessageCommand(messageId, v.id, body, kind));
     return { ok: true, value: null };
   } catch (e) {
     return { ok: false, error: toChatError(e) };

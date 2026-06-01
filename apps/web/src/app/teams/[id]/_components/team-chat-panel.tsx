@@ -63,6 +63,7 @@ export function TeamChatPanel({ teamId, participants }: Props) {
         <ConversationView
           conversationId={state.conversationId}
           viewerId={state.viewerId}
+          kind="team"
           initialMessages={state.page.messages}
           initialHasMore={state.page.hasMore}
           initialNextBefore={state.page.nextBefore}

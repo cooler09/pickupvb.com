@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { parseRawPattern } from 'obscenity';
-import { ContentModeration, contentModeration } from './content-moderation.js';
+import {
+  ContentModeration,
+  contentModeration,
+  maskPublicText,
+  assertCleanName,
+} from './content-moderation.js';
 import { ValidationError } from '../shared/result.js';
 
 // A benign sentinel so the *mechanism* tests don't hardcode real slurs — the
@@ -58,6 +63,42 @@ describe('ContentModeration — block-extreme policy (private DMs)', () => {
     expect(() => sentinelModeration.screen(`go away ${SENTINEL}`, 'block-extreme')).toThrow(
       ValidationError,
     );
+  });
+});
+
+describe('ContentModeration — block-profane policy (names/identifiers)', () => {
+  it('accepts a clean name unchanged', () => {
+    const r = contentModeration.screen('Sand Sharks VB', 'block-profane');
+    expect(r.cleaned).toBe('Sand Sharks VB');
+    expect(r.hadProfanity).toBe(false);
+  });
+
+  it('rejects ANY Tier-A profanity rather than masking it', () => {
+    expect(() => contentModeration.screen('The Fuckers', 'block-profane')).toThrow(ValidationError);
+  });
+
+  it('rejects Tier-B extreme content too', () => {
+    expect(() => sentinelModeration.screen(`Team ${SENTINEL}`, 'block-profane')).toThrow(
+      ValidationError,
+    );
+  });
+
+  it('still allows an allowlisted name (no false-positive block)', () => {
+    expect(contentModeration.screen('Scunthorpe Spikers', 'block-profane').cleaned).toBe(
+      'Scunthorpe Spikers',
+    );
+  });
+});
+
+describe('ContentModeration — convenience helpers', () => {
+  it('maskPublicText returns the censored string', () => {
+    expect(maskPublicText('clean text')).toBe('clean text');
+    expect(maskPublicText('this is fuck')).not.toContain('fuck');
+  });
+
+  it('assertCleanName passes clean names and throws on profane ones', () => {
+    expect(assertCleanName('Beach Doubles')).toBe('Beach Doubles');
+    expect(() => assertCleanName('Shit Squad')).toThrow(ValidationError);
   });
 });
 

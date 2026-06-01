@@ -6,6 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
+  type ConversationKind,
   type MessageAttachment,
   type MessageAttachmentView,
   type MessageView,
@@ -26,6 +27,9 @@ const BUCKET = 'chat-attachments';
 type Props = {
   conversationId: string;
   viewerId: string;
+  /** Surface kind — drives the moderation policy (mask rooms vs block-extreme
+   * DMs, ADR 0030). Set server-side by the rendering page. */
+  kind: ConversationKind;
   initialMessages: MessageView[];
   initialHasMore: boolean;
   initialNextBefore: string | null;
@@ -110,6 +114,7 @@ function imageDimensions(file: File): Promise<{ width: number; height: number }>
 export function ConversationView({
   conversationId,
   viewerId,
+  kind,
   initialMessages,
   initialHasMore,
   initialNextBefore,
@@ -307,7 +312,7 @@ export function ConversationView({
     setMessages((prev) => mergeMessages(prev, [tempView]));
     setDraft('');
     setPending([]);
-    const res = await sendChatMessage(conversationId, body, attachments);
+    const res = await sendChatMessage(conversationId, body, attachments, kind);
     setSending(false);
     if (!res.ok) {
       setMessages((prev) => prev.filter((m) => m.id !== tempView.id));
@@ -329,7 +334,7 @@ export function ConversationView({
         ? prev.filter((m) => m.id !== tempView.id)
         : prev.map((m) => (m.id === tempView.id ? { ...m, id: res.value.id } : m)),
     );
-  }, [conversationId, viewerId, draft, pending, sending, resolveSender]);
+  }, [conversationId, viewerId, draft, pending, sending, resolveSender, kind]);
 
   const loadOlder = useCallback(async () => {
     if (!nextBefore || loadingOlder) return;
@@ -348,7 +353,7 @@ export function ConversationView({
     async (messageId: string) => {
       const body = editDraft.trim();
       if (!body) return;
-      const res = await editChatMessage(messageId, body);
+      const res = await editChatMessage(messageId, body, kind);
       if (res.ok) {
         setMessages((prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, body, isEdited: true } : m)),
@@ -357,7 +362,7 @@ export function ConversationView({
       setEditingId(null);
       setEditDraft('');
     },
-    [editDraft],
+    [editDraft, kind],
   );
 
   const remove = useCallback(async (messageId: string) => {

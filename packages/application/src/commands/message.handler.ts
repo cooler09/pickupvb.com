@@ -60,6 +60,7 @@ export class SendMessageHandler {
     body,
     isAnonymous,
     attachments,
+    conversationKind,
   }: SendMessageCommand): Promise<{ id: string }> {
     const message = Message.compose({
       id: MessageId(randomUUID()),
@@ -68,6 +69,8 @@ export class SendMessageHandler {
       body,
       isAnonymous,
       attachments,
+      // DMs are private (block extreme only); rooms are public (mask). ADR 0030.
+      policy: conversationKind === 'dm' ? 'block-extreme' : 'mask',
     });
     await this.repo.add(message);
     return { id: message.id };
@@ -78,10 +81,10 @@ export class SendMessageHandler {
 export class EditMessageHandler {
   constructor(private readonly repo: MessageRepository) {}
 
-  async execute({ messageId, actorId, body }: EditMessageCommand): Promise<void> {
+  async execute({ messageId, actorId, body, conversationKind }: EditMessageCommand): Promise<void> {
     const message = await this.repo.findById(MessageId(messageId));
     if (!message) throw new NotFoundError('message', messageId);
-    message.edit(UserId(actorId), body);
+    message.edit(UserId(actorId), body, conversationKind === 'dm' ? 'block-extreme' : 'mask');
     await this.repo.save(message);
   }
 }

@@ -165,3 +165,42 @@ describe('Message.softDelete', () => {
     expect(m.isDeleted).toBe(true);
   });
 });
+
+describe('Message moderation policy (ADR 0030)', () => {
+  function compose(body: string, policy?: 'mask' | 'block-extreme') {
+    return Message.compose({
+      id: mid,
+      conversationId: cid,
+      senderId: sender,
+      body,
+      isAnonymous: false,
+      ...(policy ? { policy } : {}),
+    });
+  }
+
+  it("masks Tier-A profanity in a room ('mask' is the default)", () => {
+    const m = compose('this is fuck');
+    expect(m.body).not.toContain('fuck');
+    expect(m.body).toContain('*');
+  });
+
+  it("leaves Tier-A profanity untouched in a DM ('block-extreme')", () => {
+    const m = compose('what the fuck', 'block-extreme');
+    expect(m.body).toBe('what the fuck');
+  });
+
+  it('blocks Tier-B extreme content on both surfaces', () => {
+    expect(() => compose('you are a retard', 'mask')).toThrow(ValidationError);
+    expect(() => compose('you are a retard', 'block-extreme')).toThrow(ValidationError);
+  });
+
+  it('masks on edit for a room but not a DM', () => {
+    const room = composed();
+    room.edit(sender, 'damn fuck');
+    expect(room.body).not.toContain('fuck');
+
+    const dm = composed();
+    dm.edit(sender, 'damn fuck', 'block-extreme');
+    expect(dm.body).toBe('damn fuck');
+  });
+});

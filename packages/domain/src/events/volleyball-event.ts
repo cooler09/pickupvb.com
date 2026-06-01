@@ -32,6 +32,7 @@ import {
   TeamWithdrawn,
 } from './events.js';
 import { Location } from './location.js';
+import { assertCleanName, maskPublicText } from '../moderation/content-moderation.js';
 
 export type EventId = Brand<string, 'EventId'>;
 export const EventId = idConstructor<'EventId'>();
@@ -344,8 +345,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     const evt = new VolleyballEvent(
       props.id,
       props.hostId,
-      props.title.trim(),
-      props.description.trim(),
+      // Title is an identity field (hard-block profanity); description is public
+      // long-form (mask Tier-A, block Tier-B). ADR 0030.
+      assertCleanName(props.title.trim()),
+      maskPublicText(props.description.trim()),
       props.rules.trim(),
       props.surface,
       props.type,

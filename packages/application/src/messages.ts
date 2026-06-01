@@ -11,6 +11,7 @@ import type {
 } from '@pickupvb/types';
 import type {
   CoHostParty,
+  ConversationKind,
   FollowingFeedFilters,
   GroupProfileEdit,
   GroupRole,
@@ -657,6 +658,10 @@ export class SendMessageCommand {
     public readonly isAnonymous: boolean,
     /** Already-uploaded image attachments (Phase 4); empty for text-only. */
     public readonly attachments: MessageAttachment[] = [],
+    /** Drives the moderation policy (ADR 0030): `'dm'` → block-extreme only,
+     * the three room kinds → mask Tier-A profanity. Defaults to the stricter
+     * room treatment. */
+    public readonly conversationKind: ConversationKind = 'team',
   ) {}
 }
 
@@ -665,6 +670,9 @@ export class EditMessageCommand {
     public readonly messageId: string,
     public readonly actorId: string,
     public readonly body: string,
+    /** Mirrors {@link SendMessageCommand.conversationKind} — drives the
+     * moderation policy on the edited body. */
+    public readonly conversationKind: ConversationKind = 'team',
   ) {}
 }
 

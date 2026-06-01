@@ -8,6 +8,7 @@ import {
   ValidationError,
 } from '../shared/result.js';
 import type { UserId } from '../events/volleyball-event.js';
+import { assertCleanName, maskPublicText } from '../moderation/content-moderation.js';
 
 export type { UserId };
 
@@ -106,7 +107,7 @@ export class Group extends AggregateRoot<GroupId> {
       props.id,
       props.slug,
       name,
-      props.description?.trim() ?? '',
+      maskPublicText(props.description?.trim() ?? ''),
       props.homeCity?.trim() || null,
       props.region?.trim() || null,
       props.avatarUrl || null,
@@ -148,6 +149,8 @@ export class Group extends AggregateRoot<GroupId> {
     if (name.length < 1 || name.length > 80) {
       throw new ValidationError(NAME_ERROR, { field: 'name' });
     }
+    // Identity field — reject any profanity rather than mask it (ADR 0030).
+    assertCleanName(name);
   }
 
   get slug(): string {
@@ -185,7 +188,7 @@ export class Group extends AggregateRoot<GroupId> {
     const name = edit.name.trim();
     Group.assertName(name);
     this._name = name;
-    this._description = edit.description.trim();
+    this._description = maskPublicText(edit.description.trim());
     this._homeCity = edit.homeCity;
     this._region = edit.region;
     this._avatarUrl = edit.avatarUrl;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Team, type TeamId, type UserId, type TeamMemberStatus } from './team.js';
 import { Format } from '../events/enums.js';
-import { InvariantViolation } from '../shared/result.js';
+import { InvariantViolation, ValidationError } from '../shared/result.js';
 
 const CAPTAIN = 'cap-1' as UserId;
 const ALICE = 'alice' as UserId;
@@ -47,6 +47,17 @@ describe('Team.create', () => {
     expect(() =>
       Team.create({ id: 't-x' as TeamId, captainId: CAPTAIN, name: '   ', format: Format.Quads }),
     ).toThrow(InvariantViolation);
+  });
+
+  it('hard-blocks a profane name rather than masking it (ADR 0030)', () => {
+    expect(() =>
+      Team.create({
+        id: 't-x' as TeamId,
+        captainId: CAPTAIN,
+        name: 'Shit Squad',
+        format: Format.Quads,
+      }),
+    ).toThrow(ValidationError);
   });
 });
 

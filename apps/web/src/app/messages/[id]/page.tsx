@@ -92,6 +92,7 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
       <ConversationView
         conversationId={id}
         viewerId={user.id}
+        kind={conv.kind}
         initialMessages={page.messages}
         initialHasMore={page.hasMore}
         initialNextBefore={page.nextBefore}

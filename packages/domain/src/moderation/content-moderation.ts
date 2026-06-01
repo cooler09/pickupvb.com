@@ -13,28 +13,33 @@ import { ValidationError } from '../shared/result.js';
 /**
  * How a surface wants user text screened (see ADR 0030).
  *
- * - `'mask'` — public surfaces (titles, descriptions, profile/group/event
- *   names, and the team/event/group chat rooms). Tier-A profanity is censored
- *   into the returned `cleaned` string; Tier-B extreme content is blocked.
+ * - `'mask'` — public long-form content (descriptions, media/listing titles,
+ *   and the team/event/group chat rooms). Tier-A profanity is censored into the
+ *   returned `cleaned` string; Tier-B extreme content is blocked.
  * - `'block-extreme'` — private surfaces (DMs). Tier-A profanity is left
  *   untouched (adults may swear at each other in a 1:1 thread); only Tier-B
  *   extreme content is blocked.
+ * - `'block-profane'` — identity / name fields (profile display name, group /
+ *   team name, event title). A masked name reads badly ("The ****ers") and a
+ *   name is picked once, so **any** profanity (Tier-A or Tier-B) is rejected at
+ *   creation rather than censored (ADR 0030, decision: hard-block names).
  *
- * Both policies block Tier-B — extreme content is never acceptable anywhere.
+ * Every policy blocks Tier-B — extreme content is never acceptable anywhere.
  */
-export type ModerationPolicy = 'mask' | 'block-extreme';
+export type ModerationPolicy = 'mask' | 'block-extreme' | 'block-profane';
 
 export interface ScreenResult {
   /**
    * The text after masking. For `'mask'` this is the input with Tier-A
-   * profanity replaced by asterisks; for `'block-extreme'` it is the input
-   * returned unchanged. Either way it never contains Tier-B content (that path
-   * throws before returning).
+   * profanity replaced by asterisks; for `'block-extreme'` / `'block-profane'`
+   * it is the input returned unchanged (those policies throw rather than
+   * rewrite). Either way it never contains content the policy disallows.
    */
   cleaned: string;
   /**
    * True when any Tier-A profanity was present — whether or not it was masked.
-   * Lets a caller decide to e.g. shadow-flag a DM that was let through.
+   * Lets a caller decide to e.g. shadow-flag a DM that was let through. Always
+   * `false` from a `'block-profane'` result (that path throws on any profanity).
    */
   hadProfanity: boolean;
 }
@@ -174,6 +179,14 @@ export class ContentModeration {
       return { cleaned: text, hadProfanity: this.profanity.hasMatch(text) };
     }
 
+    if (policy === 'block-profane') {
+      // Identity / name field: reject any profanity rather than mask it.
+      if (this.profanity.hasMatch(text)) {
+        throw new ValidationError('Please choose a name without profanity.', { reason: 'profane' });
+      }
+      return { cleaned: text, hadProfanity: false };
+    }
+
     const matches = this.profanity.getAllMatches(text);
     if (matches.length === 0) {
       return { cleaned: text, hadProfanity: false };
@@ -187,3 +200,22 @@ export class ContentModeration {
  * so callers reuse this rather than `new ContentModeration()` per request.
  */
 export const contentModeration = new ContentModeration();
+
+/**
+ * Mask Tier-A profanity in a public long-form field (description, media/listing
+ * title, chat-room body), blocking Tier-B. Returns the censored string to store
+ * — mask-at-write (ADR 0030). The common call shape, so aggregates don't repeat
+ * the `.screen(...).cleaned` boilerplate.
+ */
+export function maskPublicText(text: string): string {
+  return contentModeration.screen(text, 'mask').cleaned;
+}
+
+/**
+ * Reject **any** profanity (Tier-A or Tier-B) in an identity / name field
+ * (display name, group / team name, event title). Returns the text unchanged on
+ * success; throws `ValidationError` otherwise. Hard-block-at-creation (ADR 0030).
+ */
+export function assertCleanName(text: string): string {
+  return contentModeration.screen(text, 'block-profane').cleaned;
+}

@@ -3,6 +3,7 @@ import { idConstructor, type Brand } from '../shared/brand.js';
 import { ConflictError, InvariantViolation } from '../shared/result.js';
 import type { EventId, UserId } from '../events/volleyball-event.js';
 import type { Format, SkillLevel, Surface } from '../events/enums.js';
+import { maskPublicText } from '../moderation/content-moderation.js';
 import { ExternalUrl } from './external-url.js';
 
 export type CommunityListingId = Brand<string, 'CommunityListingId'>;
@@ -83,7 +84,8 @@ function normalizeTitle(raw: string): string {
   if (t.length < 3 || t.length > 200) {
     throw new InvariantViolation('Title must be 3–200 characters.');
   }
-  return t;
+  // Public surface — mask Tier-A profanity, block Tier-B (ADR 0030).
+  return maskPublicText(t);
 }
 
 function assertTimeOrder(starts: Date, ends: Date | null): void {
@@ -138,7 +140,7 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
       props.id,
       props.submitterUserId,
       title,
-      (props.description ?? '').trim(),
+      maskPublicText((props.description ?? '').trim()),
       props.externalUrl,
       props.externalHostName?.trim() || null,
       props.startsAt,
@@ -269,7 +271,8 @@ export class CommunityListing extends AggregateRoot<CommunityListingId> {
     const nextEnds = props.endsAt !== undefined ? props.endsAt : this._endsAt;
     assertTimeOrder(nextStarts, nextEnds);
     if (props.title !== undefined) this._title = normalizeTitle(props.title);
-    if (props.description !== undefined) this._description = props.description.trim();
+    if (props.description !== undefined)
+      this._description = maskPublicText(props.description.trim());
     if (props.externalUrl !== undefined) this._externalUrl = props.externalUrl;
     if (props.externalHostName !== undefined) {
       this._externalHostName = props.externalHostName?.trim() || null;

@@ -1,5 +1,6 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { InvariantViolation } from '../shared/result.js';
+import { assertCleanName } from '../moderation/content-moderation.js';
 import { Format } from '../events/enums.js';
 import { playersPerSide } from '../events/rules.js';
 import type { TeamId, UserId } from '../events/volleyball-event.js';
@@ -38,13 +39,16 @@ export class Team extends AggregateRoot<TeamId> {
    * {@link InvariantViolation} when the name is empty after trimming.
    */
   static create(props: { id: TeamId; captainId: UserId; name: string; format: Format }): Team {
-    if (!props.name.trim()) {
+    const name = props.name.trim();
+    if (!name) {
       throw new InvariantViolation('Team name is required.');
     }
+    // Identity field — reject any profanity rather than mask it (ADR 0030).
+    assertCleanName(name);
     return new Team(
       props.id,
       props.captainId,
-      props.name.trim(),
+      name,
       props.format,
       new Map([[props.captainId, 'active']]),
       0,

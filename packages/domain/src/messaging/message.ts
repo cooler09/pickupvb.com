@@ -1,6 +1,7 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { idConstructor, type Brand } from '../shared/brand.js';
 import { ConflictError, UnauthorizedError, ValidationError } from '../shared/result.js';
+import { contentModeration, type ModerationPolicy } from '../moderation/content-moderation.js';
 import type { UserId } from '../events/volleyball-event.js';
 import type { ConversationId } from './conversation.js';
 
@@ -75,13 +76,17 @@ export class Message extends AggregateRoot<MessageId> {
     body: string;
     isAnonymous: boolean;
     attachments?: MessageAttachment[];
+    /** Moderation policy for the surface: `'mask'` for context rooms (public),
+     * `'block-extreme'` for DMs (private). Defaults to the stricter `'mask'`.
+     * See ADR 0030. */
+    policy?: ModerationPolicy;
   }): Message {
     if (props.isAnonymous) {
       throw new UnauthorizedError('Sign in to send messages.');
     }
     const attachments = props.attachments ?? [];
     Message.assertAttachments(attachments);
-    const body = Message.assertContent(props.body, attachments);
+    const body = Message.assertContent(props.body, attachments, props.policy ?? 'mask');
     return new Message(
       props.id,
       props.conversationId,
@@ -120,7 +125,11 @@ export class Message extends AggregateRoot<MessageId> {
    * `messages_nonempty` CHECK). Returns the trimmed body (possibly empty when
    * attachments stand in for it).
    */
-  private static assertContent(raw: string, attachments: MessageAttachment[]): string {
+  private static assertContent(
+    raw: string,
+    attachments: MessageAttachment[],
+    policy: ModerationPolicy,
+  ): string {
     const body = raw.trim();
     if (body.length === 0 && attachments.length === 0) {
       throw new ValidationError('Message cannot be empty.', { field: 'body' });
@@ -130,7 +139,9 @@ export class Message extends AggregateRoot<MessageId> {
         field: 'body',
       });
     }
-    return body;
+    // Screen per the surface policy: rooms mask Tier-A profanity (stored
+    // censored — mask-at-write), DMs leave it; both block Tier-B. ADR 0030.
+    return contentModeration.screen(body, policy).cleaned;
   }
 
   private static assertAttachments(attachments: MessageAttachment[]): void {
@@ -173,15 +184,16 @@ export class Message extends AggregateRoot<MessageId> {
     return this._deletedAt !== null;
   }
 
-  /** Edit the body — sender only, and not after deletion. */
-  edit(actorId: UserId, body: string): void {
+  /** Edit the body — sender only, and not after deletion. `policy` mirrors
+   * `compose` (room `'mask'` vs DM `'block-extreme'`); defaults to `'mask'`. */
+  edit(actorId: UserId, body: string, policy: ModerationPolicy = 'mask'): void {
     if (actorId !== this._senderId) {
       throw new UnauthorizedError('You can only edit your own messages.');
     }
     if (this._deletedAt !== null) {
       throw new ConflictError('Cannot edit a deleted message.');
     }
-    this._body = Message.assertContent(body, this._attachments);
+    this._body = Message.assertContent(body, this._attachments, policy);
     this._editedAt = new Date();
   }
 
