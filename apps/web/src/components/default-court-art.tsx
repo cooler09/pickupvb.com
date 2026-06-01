@@ -1,0 +1,60 @@
+/**
+ * Surface-keyed gradient for the default court. Mirrors the playing-surface
+ * tints used across cards and heroes; falls back to a neutral brand court for
+ * groups/profiles and unknown surfaces.
+ */
+const SURFACE_GRADIENT: Record<string, string> = {
+  sand: 'from-amber-200 via-orange-100 to-amber-300',
+  grass: 'from-emerald-200 via-green-100 to-green-300',
+  indoor: 'from-sky-200 via-cyan-100 to-blue-200',
+};
+
+const BRAND_GRADIENT = 'from-primary/20 via-highlight/25 to-primary/10';
+
+/**
+ * Decorative default banner art: a top-down volleyball court (boundary, center
+ * net line, dashed attack lines) over a surface-tinted gradient, with a
+ * translucent ball offset to the right. Pure inline SVG — no asset, no network
+ * — and it fills its `relative` parent via `absolute inset-0`, so the same
+ * motif works at any size: the wide event/group/profile hero and the 16:9
+ * event-card thumbnail alike. Court lines stretch with the box (white reads as
+ * real court tape); the ball scales off the box height so it stays round and
+ * proportional. Decorative only (`aria-hidden`) — the title sits alongside.
+ *
+ * `surface` is required but accepts `undefined`/`null` (→ brand court) so both
+ * the always-present card surface and the optional hero surface flow in
+ * without an `exactOptionalPropertyTypes` spread dance at the call site.
+ */
+export function DefaultCourtArt({ surface }: { surface: string | null | undefined }) {
+  const gradient = (surface && SURFACE_GRADIENT[surface]) || BRAND_GRADIENT;
+  return (
+    <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} aria-hidden="true">
+      {/* Court markings — stretched to fill; white lines read as court tape. */}
+      <svg
+        className="absolute inset-0 h-full w-full text-white/55"
+        viewBox="0 0 360 120"
+        preserveAspectRatio="none"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+      >
+        <rect x="18" y="14" width="324" height="92" rx="2" />
+        <line x1="180" y1="14" x2="180" y2="106" />
+        <line x1="120" y1="14" x2="120" y2="106" strokeDasharray="4 5" />
+        <line x1="240" y1="14" x2="240" y2="106" strokeDasharray="4 5" />
+      </svg>
+      {/* Volleyball — same glyph as the card thumbnail, sized off box height so
+          it scales from card to hero. Dark and faint: a motif, not a focal. */}
+      <svg
+        className="text-fg/12 absolute top-1/2 right-[7%] aspect-square h-[58%] -translate-y-1/2"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="0.75"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3a9 9 0 0 1 6.5 15.2M12 3a9 9 0 0 0-6.5 15.2M3.6 9.4A9 9 0 0 1 20.4 13.6" />
+      </svg>
+    </div>
+  );
+}
