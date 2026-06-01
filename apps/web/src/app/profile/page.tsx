@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { Route } from 'next';
 import { getCurrentUser } from '@/lib/server-auth';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { ProfileForm } from './profile-form';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import { AvatarPanel } from '@/components/avatar-panel';
 import { Pagination } from '@/components/pagination';
 import {
   SupabaseGroupQueryRepository,
@@ -34,6 +36,7 @@ type ProfileRow = {
   display_name: string;
   home_city: string | null;
   hero_image_url: string | null;
+  avatar_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
   primary_position: string | null;
@@ -76,7 +79,7 @@ export default async function ProfilePage(props: {
   const { data } = await supabase
     .from('profiles')
     .select(
-      'handle, first_name, last_name, display_name, home_city, hero_image_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'handle, first_name, last_name, display_name, home_city, hero_image_url, avatar_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -88,6 +91,7 @@ export default async function ProfilePage(props: {
     last_name: row?.last_name ?? null,
     display_name: row?.display_name ?? user.email?.split('@')[0] ?? 'Player',
     home_city: row?.home_city ?? null,
+    avatar_url: row?.avatar_url ?? null,
     auto_accept_team_invites: row?.auto_accept_team_invites ?? false,
     show_pro_badge: row?.show_pro_badge ?? true,
     primary_position: row?.primary_position ?? null,
@@ -160,12 +164,22 @@ export default async function ProfilePage(props: {
       {/* Identity hero */}
       <section className={cardClass}>
         <div className="flex items-start gap-4 sm:gap-5">
-          <div
-            aria-hidden
-            className="bg-primary/15 text-primary flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold sm:h-20 sm:w-20 sm:text-2xl"
-          >
-            {initials(profile.display_name)}
-          </div>
+          {profile.avatar_url ? (
+            <Image
+              src={profile.avatar_url}
+              alt=""
+              width={80}
+              height={80}
+              className="h-16 w-16 shrink-0 rounded-full object-cover sm:h-20 sm:w-20"
+            />
+          ) : (
+            <div
+              aria-hidden
+              className="bg-primary/15 text-primary flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold sm:h-20 sm:w-20 sm:text-2xl"
+            >
+              {initials(profile.display_name)}
+            </div>
+          )}
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-muted text-xs font-semibold tracking-wide uppercase">Your profile</p>
             <div className="flex flex-wrap items-center gap-2">
@@ -332,6 +346,13 @@ export default async function ProfilePage(props: {
           <ProfileForm profile={profile} email={user.email ?? ''} isPro={viewerIsPro} />
         </div>
       </details>
+
+      <AvatarPanel
+        userId={user.id}
+        currentUrl={profile.avatar_url}
+        initials={initials(profile.display_name)}
+        returnPath={`/players/${profile.handle}`}
+      />
 
       <HeroImagePanel
         entityType="profiles"

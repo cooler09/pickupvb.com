@@ -106,6 +106,7 @@ import {
   RemoveGroupMemberHandler,
   UnfollowGroupHandler,
   RemoveFriendHandler,
+  SetProfileAvatarHandler,
   SetProfileHeroImageHandler,
   SetProfileThemeHandler,
   UnhideCommunityListingHandler,
@@ -451,6 +452,7 @@ export async function getUserProfileHandlers(): Promise<{
   changeHandle: ChangeHandleHandler;
   setTheme: SetProfileThemeHandler;
   setHeroImage: SetProfileHeroImageHandler;
+  setAvatar: SetProfileAvatarHandler;
   updateBusinessInfo: UpdateBusinessInfoHandler;
   addFriend: AddFriendHandler;
   removeFriend: RemoveFriendHandler;
@@ -462,6 +464,7 @@ export async function getUserProfileHandlers(): Promise<{
     changeHandle: new ChangeHandleHandler(userRepo),
     setTheme: new SetProfileThemeHandler(userRepo),
     setHeroImage: new SetProfileHeroImageHandler(userRepo),
+    setAvatar: new SetProfileAvatarHandler(userRepo),
     updateBusinessInfo: new UpdateBusinessInfoHandler(userRepo),
     addFriend: new AddFriendHandler(userRepo),
     removeFriend: new RemoveFriendHandler(userRepo),

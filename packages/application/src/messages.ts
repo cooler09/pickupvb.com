@@ -535,6 +535,14 @@ export class SetProfileHeroImageCommand {
   ) {}
 }
 
+export class SetProfileAvatarCommand {
+  constructor(
+    public readonly userId: string,
+    /** Storage URL, or `null` to clear the avatar (profile picture). */
+    public readonly url: string | null,
+  ) {}
+}
+
 export class UpdateBusinessInfoCommand {
   constructor(
     public readonly userId: string,

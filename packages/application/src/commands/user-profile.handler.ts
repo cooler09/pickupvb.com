@@ -3,6 +3,7 @@ import {
   AddFriendCommand,
   ChangeHandleCommand,
   RemoveFriendCommand,
+  SetProfileAvatarCommand,
   SetProfileHeroImageCommand,
   SetProfileThemeCommand,
   UpdateBusinessInfoCommand,
@@ -59,6 +60,18 @@ export class SetProfileHeroImageHandler {
     const profile = await this.repo.findById(UserId(userId));
     if (!profile) throw new NotFoundError('profile', userId);
     profile.setHeroImage(url);
+    await this.repo.save(profile);
+  }
+}
+
+/** Set or clear the profile avatar (profile-picture) URL (ADR 0020). */
+export class SetProfileAvatarHandler {
+  constructor(private readonly repo: UserRepository) {}
+
+  async execute({ userId, url }: SetProfileAvatarCommand): Promise<void> {
+    const profile = await this.repo.findById(UserId(userId));
+    if (!profile) throw new NotFoundError('profile', userId);
+    profile.setAvatar(url);
     await this.repo.save(profile);
   }
 }

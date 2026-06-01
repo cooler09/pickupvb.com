@@ -28,6 +28,7 @@ function rehydrated(
     showProBadge: true,
     themePreference: 'dark',
     heroImageUrl: 'https://img/hero.png',
+    avatarUrl: 'https://img/avatar.png',
     businessInfo: { businessName: 'Bumps LLC', businessAddress: '1 Net St', taxId: '12-345' },
     ...overrides,
   });
@@ -161,6 +162,7 @@ describe('UserProfile auxiliary writes', () => {
     const p = rehydrated();
     expect(p.themePreference).toBe('dark');
     expect(p.heroImageUrl).toBe('https://img/hero.png');
+    expect(p.avatarUrl).toBe('https://img/avatar.png');
     expect(p.businessInfo).toEqual({
       businessName: 'Bumps LLC',
       businessAddress: '1 Net St',
@@ -180,6 +182,14 @@ describe('UserProfile auxiliary writes', () => {
     expect(p.heroImageUrl).toBe('https://img/new.png');
     p.setHeroImage(null);
     expect(p.heroImageUrl).toBeNull();
+  });
+
+  it('setAvatar sets and clears the url', () => {
+    const p = rehydrated();
+    p.setAvatar('https://img/new-avatar.png');
+    expect(p.avatarUrl).toBe('https://img/new-avatar.png');
+    p.setAvatar(null);
+    expect(p.avatarUrl).toBeNull();
   });
 
   it('setBusinessInfo replaces the fields and does not alias the input', () => {
