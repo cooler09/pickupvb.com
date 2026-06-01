@@ -9,6 +9,7 @@ import {
 } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
+import { relativeEventDay } from '@/lib/date-formats';
 import { NearMeButton } from './near-me-button';
 import { LocationSearch } from './location-search';
 import { Fab } from '@/components/fab';
@@ -152,6 +153,7 @@ export default async function EventsPage(props: {
         timeZone: it.timeZone,
         city: it.city,
         region: it.region,
+        relativeDay: relativeEventDay(it.startsAt, it.timeZone, now),
         spotsRemaining: it.spotsRemaining,
         distanceKm: null,
         ...(it.hostFriendId ? { hostFriendId: it.hostFriendId } : {}),
@@ -198,6 +200,7 @@ export default async function EventsPage(props: {
       timeZone: e.timeZone,
       city: e.city,
       region: e.region,
+      relativeDay: relativeEventDay(e.startsAt, e.timeZone, now),
       spotsRemaining: e.spotsRemaining,
       distanceKm: e.distanceKm,
       seriesName: e.seriesName,

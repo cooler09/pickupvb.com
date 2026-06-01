@@ -33,6 +33,12 @@ export type EventCardData = {
   startsAt: Date | string;
   /** IANA timezone for the venue. */
   timeZone?: string | null;
+  /**
+   * Server-computed relative day label ("Today" / "Tomorrow" / "Sat") for
+   * events within a week; null/absent → show the absolute date. Computed at the
+   * page boundary so the card stays a pure server component.
+   */
+  relativeDay?: string | null;
   city: string;
   region: string;
   spotsRemaining: number | null;
@@ -150,11 +156,23 @@ export function EventCard({ event, friendNameById }: Props) {
       </Link>
       {seriesLabel && <p className="text-muted mt-0.5 text-[11px]">{seriesLabel}</p>}
       <p className="text-muted mt-1 text-xs">
-        <LocalDateTime
-          iso={startsAtIso}
-          variant="eventStart"
-          {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
-        />
+        {event.relativeDay ? (
+          <>
+            <span className="text-fg font-medium">{event.relativeDay}</span>
+            {' · '}
+            <LocalDateTime
+              iso={startsAtIso}
+              variant="time"
+              {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
+            />
+          </>
+        ) : (
+          <LocalDateTime
+            iso={startsAtIso}
+            variant="eventStart"
+            {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
+          />
+        )}
       </p>
       <p className="text-fg/80 mt-1 text-sm">
         {event.city}, {event.region}

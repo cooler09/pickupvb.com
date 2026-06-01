@@ -35,10 +35,10 @@ This file is complementary to — not a duplicate of:
 > and [2026-06-01-following-feed-capacity.md](../journal/2026-06-01-following-feed-capacity.md).
 > A further follow-up closed **F-6** (Free/Paid filter, in-memory, migration-free).
 > **F-7** (manual city/ZIP location + primary radius) also shipped 2026-06-01.
-> All P2s are now resolved. A P3 polish bundle closed **F-9** (sort) and
-> **F-12** (design-system tidy) on 2026-06-01. Standing backlog: **F-10**
-> (relative dates), **F-11** (filter-chrome consolidation), **F-13** (card
-> thumbnails) — all P3.
+> All P2s are now resolved. P3 polish bundles closed **F-9** (sort), **F-12**
+> (design-system tidy), and **F-10** (relative date labels) on 2026-06-01.
+> Standing backlog: **F-11** (filter-chrome consolidation) and **F-13** (card
+> thumbnails) — both P3.
 >
 > Grounding fact that shaped grading: the `search_events` RPC **already projects
 > `priceCents`/`priceUnit` per division, `spotsRemaining`, `distanceKm`, and
@@ -127,12 +127,19 @@ last). Non-Following only; dropped from the URL when switching to Following.
 [page.tsx](../../apps/web/src/app/events/page.tsx). New shared
 `SORTS`/`SortOption`/`SORT_LABEL` in `event-filter-options.ts`.
 
-#### F-10 — Absolute dates only, no relative grouping · **P3** · open
+#### F-10 — Absolute dates only, no relative grouping · **P3** · ✅ resolved 2026-06-01
 
-Cards show `Jun 14, 6:00 PM`; players think "tonight / this weekend".
-**Fix:** relative labels ("Today", "Tomorrow", "Sat") via
-[LocalDateTime](../../apps/web/src/components/local-datetime.tsx), or day-group
-section headers in the grid.
+Cards showed `Sat, Jun 14, 6:00 PM`; players think "tonight / this weekend".
+**Fix (done):** cards now lead with a relative day label — **Today / Tomorrow**
+(0–1 days out) or the short weekday **Sat** (2–6 days), then the time; beyond a
+week (and for past events) they fall back to the absolute date. New pure
+`relativeEventDay(startsAt, timeZone, now)` in
+[date-formats.ts](../../apps/web/src/lib/date-formats.ts) (+ test) anchors "today"
+to the **event's own timezone** and takes `now` from the server page boundary,
+so the card stays a pure server component (no `Date.now()` in render).
+[event-card.tsx](../../apps/web/src/app/events/_components/event-card.tsx),
+[page.tsx](../../apps/web/src/app/events/page.tsx). Chose per-card labels over
+day-group section headers (the latter fights the pagination slice).
 
 #### F-13 — Cards are text-only, no visual anchor · **P3** · open
 
@@ -297,3 +304,13 @@ Journal: [2026-06-01-find-events-p3-polish.md](../journal/2026-06-01-find-events
 - **F-12 ✅** — Near-me button → `secondaryButtonClass` + SVG pin (matches the
   adjacent `LocationSearch` button); timeframe tabs → `text-primary-fg` /
   `bg-primary-fg/20` tokens; both files reformatted to 2-space.
+
+### 2026-06-01 — Relative date labels (F-10)
+
+Journal: [2026-06-01-relative-event-dates.md](../journal/2026-06-01-relative-event-dates.md).
+
+- **F-10 ✅** — cards lead with Today / Tomorrow / short-weekday (0–6 days),
+  else the absolute date. New pure `relativeEventDay(startsAt, timeZone, now)` in
+  `date-formats.ts` (+ unit test) anchors "today" to the event timezone and
+  takes `now` from the server boundary (pure server component). Per-card labels,
+  not day-group headers (which would fight pagination).
