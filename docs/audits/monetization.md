@@ -93,18 +93,44 @@ non-Pro hosts on the "Score live" affordance (currently the button simply
 doesn't render for non-Pro). **The conversion lever already exists in the
 product.**
 
-#### R-2 (P2) — Tier the new media / storage surfaces by _volume_, not by community gate
+#### R-2 (P2) — Media/storage volume — ⚠️ premise corrected 2026-06-01; no clean Pro paywall exists
 
 **File:** [ADR 0024](../adr/0024-event-and-profile-media.md) (media);
 chat attachments ([ADR 0028](../adr/0028-chat-messaging.md)).
 
-Media galleries, chat image attachments, and avatars all consume egress — the
-cost surface that grew most this week. Community-safe recovery: a **generous
-free quota** (e.g. N photos / event at standard resolution) with Pro getting
-higher limits / longer retention / video. **Gate volume, never viewing or basic
-posting.** Recovers storage / egress from the heaviest users without paywalling
-a core community surface. **Estimate: 1 bundle** once the free-tier numbers are
-chosen.
+**Correction:** R-2 assumed "media galleries" store image bytes worth metering.
+They don't. The actual storage/egress map:
+
+- **ADR 0024 media (videos/clips/streams) = external links** (YouTube/Twitch
+  URLs) — the platform "hosts nothing," so it costs ~$0. Metering it would tax
+  free community content for no savings.
+- **Avatar / hero / sponsor logo = one upload each** (10 / 8 / 4 MB caps). No
+  "volume" to tier.
+- **Chat attachments = the only real byte-volume surface** (10 MB × 10/message,
+  image-only, bucket-enforced) — but chat is a **community surface** (DMs/team
+  rooms). Our own do-not list forbids a chat/DM paywall, and the buyer persona is
+  the host, not the chatter, so a Pro gate there is both community-hostile and
+  persona-mismatched.
+
+So a straight "Pro media quota" has no community-safe home. Two honest paths
+were put to the user:
+
+- **Path A — cost-control, not monetization. ✅ Shipped 2026-06-01 (user chose
+  this).** Keep media free/uncapped-by-tier; bound cost with _universal_ limits +
+  the retention sweeps already shipped ([chat retention](../../supabase/migrations/20260829000000_chat_retention.sql),
+  hero/sponsor orphan walkers). Shipped a **per-user chat-attachment upload cap**:
+  ≤ 40 attachment-bearing messages / rolling 24h, enforced in `sendChatMessage`
+  ([chat-actions.ts](../../apps/web/src/app/_actions/chat-actions.ts)) via the
+  existing fail-open `consumeRateLimit` limiter; text chat is never throttled.
+  `rateLimitKey` gained a hashed `'user'` dimension. Bounds runaway / abuse
+  upload volume without taxing the community or paywalling a chat surface. No Pro
+  gate, no migration.
+- **Path B (NOT chosen) — build a net-new host feature worth gating.** Nothing
+  today fits, so the community-safe option would be a _new additive_ host
+  capability, e.g. an **event photo gallery** (hosts upload recap photos —
+  doesn't exist today). Free ~15 photos/event; Pro ~150 + clips; viewing always
+  free. A **feature build, not a quota tweak** — 1–2 bundles. Held until there's
+  a real signal hosts want photo uploads; revisit then as a feature decision.
 
 #### R-3 (P2) — Standalone brackets as a Pro / à-la-carte surface — ✅ Shipped 2026-06-01
 
@@ -767,6 +793,16 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-01 — R-2 resolved (Path A, cost-control — no paywall).** Premise
+  corrected first: ADR 0024 "media" is external links (≈$0 storage); avatar/hero/
+  logo are one upload each; the only real byte-volume surface is **chat
+  attachments**, a community surface a Pro gate must not touch. User chose Path A.
+  Shipped a universal per-user chat-attachment upload cap (≤ 40 attachment
+  messages / 24h) in `sendChatMessage` over the existing fail-open
+  `consumeRateLimit`; text chat unthrottled; `rateLimitKey` gained a hashed
+  `'user'` dimension. No Pro gate, no migration. Path B (Pro event photo gallery)
+  held pending host demand. Verify quad green.
 
 - **2026-06-01 — R-3 shipped — standalone-bracket free cap.** Free hosts run 1
   active (non-completed) standalone bracket at a time; Pro unlimited. Completed

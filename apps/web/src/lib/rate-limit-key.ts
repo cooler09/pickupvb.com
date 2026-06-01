@@ -10,12 +10,19 @@ import { createHash } from 'node:crypto';
  * brute-forcing the small (2^32) IP space; falls back to an unsalted hash in dev.
  *
  * Email is lower-cased + trimmed first so `Alice@x.com` and `alice@x.com ` count
- * as the same actor (matching the prior `.toLowerCase()` call sites).
+ * as the same actor (matching the prior `.toLowerCase()` call sites). The
+ * `'user'` dimension (a signed-in user id, e.g. for the chat-attachment upload
+ * cap) is trimmed only — a UUID is already opaque — but still hashed+salted so a
+ * leaked `rate_limits` dump doesn't enumerate which accounts were active.
  *
  * Kept in its own module — no `server-only` / `next` imports — so it stays a
  * pure, unit-testable function.
  */
-export function rateLimitKey(scope: string, dimension: 'ip' | 'email', value: string): string {
+export function rateLimitKey(
+  scope: string,
+  dimension: 'ip' | 'email' | 'user',
+  value: string,
+): string {
   const normalized = dimension === 'email' ? value.trim().toLowerCase() : value.trim();
   const salt = process.env['RATE_LIMIT_SALT'] ?? '';
   const hash = createHash('sha256').update(`${salt}:${normalized}`).digest('hex').slice(0, 16);

@@ -20,6 +20,20 @@ import {
 import { SupabaseUserBlockRepository } from '@pickupvb/infrastructure';
 import { getChatHandlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { consumeRateLimit, rateLimitKey } from '@/lib/rate-limit';
+
+/**
+ * Universal cost-control cap on chat **image uploads** (monetization R-2, Path A
+ * — _not_ a Pro paywall; chat is a community surface). A user may send at most
+ * this many attachment-bearing messages per rolling 24h. Text-only messages are
+ * never throttled. Each message already caps at 10 images × 10 MB (bucket-
+ * enforced), so this bounds per-user upload volume against a runaway / abuse
+ * loop without touching legitimate chatting. Counting messages (not images)
+ * keeps it on the existing 1-per-call fixed-window limiter — no migration. The
+ * limiter fails open, so a DB blip never blocks a real send.
+ */
+const CHAT_ATTACHMENT_MESSAGES_PER_DAY = 40;
+const CHAT_ATTACHMENT_WINDOW_SECONDS = 24 * 60 * 60;
 
 /**
  * Chat server actions (ADR 0028). Shared across the team-room panel (Phase 1)
@@ -36,7 +50,7 @@ import { getServerSupabase } from '@/lib/supabase';
 
 const PAGE_SIZE = 30;
 
-export type ChatError = 'anon' | 'forbidden' | 'not_found' | 'invalid' | 'unknown';
+export type ChatError = 'anon' | 'forbidden' | 'not_found' | 'invalid' | 'rate_limited' | 'unknown';
 export type ChatResult<T> = { ok: true; value: T } | { ok: false; error: ChatError };
 
 function toChatError(e: unknown): ChatError {
@@ -115,6 +129,16 @@ export async function sendChatMessage(
   const v = await viewer();
   if (!v || v.isAnon) return { ok: false, error: 'anon' };
   if (!body.trim() && attachments.length === 0) return { ok: false, error: 'invalid' };
+  // Cost-control: throttle image uploads per user/day (R-2 Path A). Only counts
+  // attachment-bearing sends; text chat is never limited. Fails open.
+  if (attachments.length > 0) {
+    const { allowed } = await consumeRateLimit({
+      key: rateLimitKey('chat-attach', 'user', v.id),
+      limit: CHAT_ATTACHMENT_MESSAGES_PER_DAY,
+      windowSeconds: CHAT_ATTACHMENT_WINDOW_SECONDS,
+    });
+    if (!allowed) return { ok: false, error: 'rate_limited' };
+  }
   try {
     const h = await getChatHandlers();
     const out = await h.sendMessage.execute(

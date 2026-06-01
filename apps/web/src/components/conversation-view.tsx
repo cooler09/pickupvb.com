@@ -321,9 +321,11 @@ export function ConversationView({
       setError(
         res.error === 'forbidden'
           ? 'You can no longer post in this conversation.'
-          : res.error === 'invalid'
-            ? 'Message could not be sent.'
-            : 'Something went wrong. Try again.',
+          : res.error === 'rate_limited'
+            ? 'You’ve shared a lot of photos today. Please try again later.'
+            : res.error === 'invalid'
+              ? 'Message could not be sent.'
+              : 'Something went wrong. Try again.',
       );
       return;
     }

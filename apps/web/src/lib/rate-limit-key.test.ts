@@ -34,4 +34,15 @@ describe('rateLimitKey', () => {
     expect(rateLimitKey('x', 'ip', 'a@b.com')).not.toBe(rateLimitKey('x', 'email', 'a@b.com'));
     expect(rateLimitKey('x', 'email', 'a@b.com')).not.toBe(rateLimitKey('y', 'email', 'a@b.com'));
   });
+
+  it('hashes the user dimension too (chat-attachment cap) — id never stored raw, still deterministic', () => {
+    const uid = '11111111-2222-3333-4444-555555555555';
+    const key = rateLimitKey('chat-attach', 'user', uid);
+    expect(key).not.toContain(uid);
+    expect(key.startsWith('chat-attach:user:')).toBe(true);
+    expect(rateLimitKey('chat-attach', 'user', uid)).toBe(key);
+    expect(rateLimitKey('chat-attach', 'user', uid)).not.toBe(
+      rateLimitKey('chat-attach', 'user', '99999999-2222-3333-4444-555555555555'),
+    );
+  });
 });
