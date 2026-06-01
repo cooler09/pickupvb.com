@@ -26,6 +26,7 @@ import {
 } from '@pickupvb/domain';
 import { getMatchResultHandlers, handlers } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
+import { validateActiveBracketCap } from '@/lib/standalone-bracket-cap';
 
 /**
  * Server actions for standalone (event-free) brackets — ADR 0025. Owner-gated
@@ -108,6 +109,14 @@ function parseConfig(formData: FormData): {
 
 export async function createStandaloneBracketFromForm(formData: FormData): Promise<void> {
   const { user } = await requireRealUser();
+  // Free-tier cap: 1 active (non-completed) standalone bracket; Pro unlimited
+  // (ADR 0025 addendum / monetization R-3). The /brackets/new page renders a
+  // proactive upsell when capped; this is the server-side gate for a crafted or
+  // raced submit. `redirect` throws, so it must sit outside the try below.
+  const cap = await validateActiveBracketCap(user.id);
+  if (!cap.ok) {
+    redirect(`/brackets/new?notice=cap&msg=${encodeURIComponent(cap.reason)}` as Route);
+  }
   const { format, config } = parseConfig(formData);
   let bracketId: string;
   try {

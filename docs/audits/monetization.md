@@ -106,14 +106,19 @@ posting.** Recovers storage / egress from the heaviest users without paywalling
 a core community surface. **Estimate: 1 bundle** once the free-tier numbers are
 chosen.
 
-#### R-3 (P2) — Standalone brackets as a Pro / à-la-carte surface
+#### R-3 (P2) — Standalone brackets as a Pro / à-la-carte surface — ✅ Shipped 2026-06-01
 
-**File:** [ADR 0025](../adr/0025-standalone-brackets.md).
+**File:** [ADR 0025 addendum](../adr/0025-standalone-brackets.md#addendum-2026-06-01-free-tier-active-bracket-cap-monetization-r-3).
 
-The in-event bracket generator stays free (no clawback per ADR 0014). But
-**standalone** brackets are a net-new surface — a free cap (e.g. 1 active
-standalone bracket) with Pro unlimited is a clean, no-takeaway lever that
-monetizes the tournament-organizer power user. **Estimate: half a bundle.**
+The in-event bracket generator stays free (no clawback per ADR 0014). Shipped the
+free cap on the **net-new standalone surface**: Free hosts run **1 active
+(non-completed) standalone bracket at a time**; Pro unlimited. Completed brackets
+don't count, so a Free host keeps their history and only an in-progress bracket
+occupies the slot. `validateActiveBracketCap`
+([standalone-bracket-cap.ts](../../apps/web/src/lib/standalone-bracket-cap.ts),
+unit-tested) mirrors the paid-event cap (Pro/admin short-circuit, else count
+`listByOwner` non-completed rows); enforced in the create action and surfaced as
+a proactive upgrade card on `/brackets/new`. Pricing / features copy updated.
 
 #### R-4 (P3 → promote on Twilio) — Reaffirm SMS-as-Pro when Twilio lands
 
@@ -762,6 +767,16 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-01 — R-3 shipped — standalone-bracket free cap.** Free hosts run 1
+  active (non-completed) standalone bracket at a time; Pro unlimited. Completed
+  brackets don't count (history preserved). `validateActiveBracketCap`
+  ([standalone-bracket-cap.ts](../../apps/web/src/lib/standalone-bracket-cap.ts),
+  unit-tested) mirrors the paid-event cap; enforced in
+  `createStandaloneBracketFromForm` + a proactive upgrade card on `/brackets/new`.
+  Net-new gate on a net-new surface — the in-event bracket generator stays free
+  and uncapped. [ADR 0025 addendum](../adr/0025-standalone-brackets.md) + pricing/
+  features copy. Verify quad green.
 
 - **2026-06-01 — R-5 shipped — tip fee dropped to 0%.** PickupVB now takes no
   platform fee on tips, any tier (`tipPlatformFeeCents()` → 0, unit-tested);

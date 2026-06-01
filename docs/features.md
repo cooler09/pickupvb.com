@@ -196,6 +196,7 @@ runs checkout.
 | Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                        |
 | Platform fee on tickets | 5%                                             | **2.5%**                         |
 | Platform fee on tips    | None                                           | None                             |
+| Standalone brackets     | 1 active at a time                             | Unlimited                        |
 | CSV attendee export     | —                                              | ✓                                |
 | Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`) |
 
