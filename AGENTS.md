@@ -820,3 +820,17 @@ before the referencing row lands. When adding a fourth, clone the shape — but 
 Before cloning, open the upload component and confirm whether it persists a URL
 or a path. Pair a content-scrub job (e.g. the soft-deleted-message scrub) ahead
 of the sweep so de-referenced objects are reclaimed the same night.
+
+**One bucket can serve several parent tables — `union` the liveness branches in
+the single owning walker rather than adding a second walker over the same
+bucket.** Two independent walkers over one bucket fight (each reaps what the
+other considers live — the hero-vs-avatar conflict that forced separate buckets
+in 20260830000000). But when avatars added a **group**-scoped path
+(`{uid}/groups/{gid}/avatar.webp`) to the existing `avatars` bucket, the right
+fix was a second liveness branch inside `purge_avatar_orphans` — a `union` of
+the `profiles.avatar_url` join and a `groups.avatar_url` join (the latter keyed
+on the group id in the 3rd path segment, guarded by `[2] = 'groups'`), not a new
+bucket/cron. The walker still owns the whole bucket, so the columns can't fight.
+Match each branch's liveness check to that parent's path shape (per the rule
+above). Reference:
+[20260831000000_group_avatars_orphan_liveness.sql](supabase/migrations/20260831000000_group_avatars_orphan_liveness.sql).

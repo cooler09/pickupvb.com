@@ -38,6 +38,14 @@ This file is complementary to — not a duplicate of:
 > followable** — `group_followers` + `followGroup`/`unfollowGroup`
 > ([groups/follow-actions.ts](../../apps/web/src/app/groups/follow-actions.ts))
 > already exist, so G-2 can reuse the players follow-island pattern.
+>
+> **Adjacent note (2026-06-01, detail/edit-page scope — not a directory
+> finding):** the group avatar (the card's leading image, G-5) became
+> **uploadable** — the paste-a-URL field was replaced with the crop-upload
+> widget, and the group hero banner was dropped. More groups will now carry a
+> real avatar instead of the 2-char fallback, strengthening the G-1 "is this
+> group real/active?" signal. Write-up:
+> [journal 2026-06-01-group-avatars-drop-hero](../journal/2026-06-01-group-avatars-drop-hero.md).
 
 ---
 
