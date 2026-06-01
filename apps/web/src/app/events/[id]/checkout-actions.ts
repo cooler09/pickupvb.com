@@ -15,7 +15,7 @@ import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
-import { consumeRateLimit, getClientIp } from '@/lib/rate-limit';
+import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
 import { analytics } from '@/lib/handlers';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
@@ -245,12 +245,12 @@ export async function startGuestTicketCheckout(eventId: string, formData: FormDa
   const ip = await getClientIp();
   const [ipGate, emailGate] = await Promise.all([
     consumeRateLimit({
-      key: `guest-checkout:ip:${ip}`,
+      key: rateLimitKey('guest-checkout', 'ip', ip),
       limit: 20,
       windowSeconds: 3600,
     }),
     consumeRateLimit({
-      key: `guest-checkout:email:${email}`,
+      key: rateLimitKey('guest-checkout', 'email', email),
       limit: 5,
       windowSeconds: 3600,
     }),

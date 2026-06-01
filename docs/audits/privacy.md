@@ -77,9 +77,14 @@ this bundle as **#13** (P1, correctness regression — not a data-leak).
   30-day grace, `/profile/account/delete` UI, the `execute-deletions` cron, and
   the `executeAccountDeletion` purge — resolves the deletion half of #15. See
   [ADR 0029](../adr/0029-account-deletion.md), P1 #2, and the remediation log.
-- **Still open from 2026-05-24:** `rate_limits.key` plaintext (P3 #10) — the only
-  remaining backlog item. P3 #11 (deleted-profile indexing) is **resolved by
-  side-effect** (see its entry); #14 (chat retention) remains the open P2.
+- **`rate_limits.key` plaintext (P3 #10) — now resolved (2026-05-31):** a shared
+  `rateLimitKey()` helper hashes the email/IP portion (salted via
+  `RATE_LIMIT_SALT`) at all call sites. See P3 #10 + remediation log.
+- **Remaining backlog:** only **#14 (chat `messages` / `chat-attachments`
+  retention, P2)** is open — and it primarily lives in
+  [data-lifecycle.md](data-lifecycle.md). Every other privacy finding (P1–P3) is
+  resolved. P3 #11 (deleted-profile indexing) is **resolved by side-effect** (see
+  its entry).
 
 ## P1 — fix before adding any "Delete account" feature
 
@@ -483,17 +488,24 @@ predated chat; both now cover the chat surface:
 
 ### 10. `rate_limits.key` may store raw emails / IPs
 
-**File:** [supabase/migrations/20260610000000_rate_limits.sql#L19](../../supabase/migrations/20260610000000_rate_limits.sql#L19)
+**File:** [apps/web/src/lib/rate-limit-key.ts](../../apps/web/src/lib/rate-limit-key.ts)
 **Category:** quasi-identifier persistence
+**Status:** ✅ resolved (2026-05-31)
 
-If `key` is constructed as `email:user@example.com` or `ip:1.2.3.4`,
-those raw identifiers live in the DB for the duration of the window.
-Low risk — table is service-role only and rows expire — but easy to
-harden.
+`key` was built as `guest-signup:email:user@example.com` / `claim:ip:1.2.3.4`,
+so raw identifiers lived in `rate_limits.key` for the window duration. Low risk
+(service-role-only table, rows expire) but easy to harden.
 
-**Recommended fix:** hash the per-actor portion at the call site
-(`'email:' + sha256(email).slice(0,16)` or `'ip:' + sha256(ip+SECRET).slice(0,16)`)
-before writing. Lookups still work because the hash is deterministic.
+**Fix applied:** a shared `rateLimitKey(scope, dimension, value)` helper
+([rate-limit-key.ts](../../apps/web/src/lib/rate-limit-key.ts)) now SHA-256-hashes
+the per-actor portion (salted with `RATE_LIMIT_SALT` when set — recommended for
+the 2^32 IP space — falling back to unsalted in dev), lower-casing/trimming email
+first. Deterministic, so the fixed-window lookup still resolves. Adopted at all
+three call sites (6 keys): `guest-actions.ts`, `checkout-actions.ts`,
+`claim/actions.ts`. Pure helper unit-tested
+([rate-limit-key.test.ts](../../apps/web/src/lib/rate-limit-key.test.ts)) — pins
+"raw email/IP never in the key" + determinism. `RATE_LIMIT_SALT` documented in
+`.env.example`.
 
 ### 11. Public profile pages are fully indexable
 
@@ -629,6 +641,19 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-05-31 — P3 #10: hash email/IP in `rate_limits.key`
+
+Added [`rateLimitKey(scope, dimension, value)`](../../apps/web/src/lib/rate-limit-key.ts)
+— SHA-256 of the per-actor portion (salted with `RATE_LIMIT_SALT` when set,
+unsalted fallback in dev), email lower-cased/trimmed first; deterministic so the
+fixed-window lookup still resolves. Re-exported from `lib/rate-limit.ts` and
+adopted at all three call sites / 6 keys (`guest-actions.ts`,
+`checkout-actions.ts`, `claim/actions.ts`); raw emails/IPs no longer persist.
+Pure helper in its own (dependency-free) module + a unit test
+([rate-limit-key.test.ts](../../apps/web/src/lib/rate-limit-key.test.ts)) pinning
+"raw actor never in the key" + determinism + email normalization.
+`RATE_LIMIT_SALT` documented in `.env.example`. Verify quad green.
 
 ### 2026-05-31 — P1 #2 + #15 (deletion half): account-deletion flow (GDPR Art. 17)
 
