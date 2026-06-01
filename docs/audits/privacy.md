@@ -72,11 +72,14 @@ this bundle as **#13** (P1, correctness regression — not a data-leak).
   `GET /api/account/export` + a profile "Download my data" link, covering the
   full table inventory incl. chat (resolves the export half of #15). See P3 #12
   - remediation log.
-- **Still open from 2026-05-24:** the account-deletion application path (P1 #2
-  follow-up — `DeletionRequestAggregate`, cron, scrub UI: still unbuilt; #15's
-  deletion half rides on it), and `rate_limits.key` plaintext (P3 #10). P3 #11
-  (deleted-profile indexing) is now **resolved by side-effect** — see its
-  updated entry.
+- **Account-deletion application path (P1 #2 follow-up) — now shipped
+  (2026-05-31):** `DeletionRequest` aggregate + `deletion_requests` ledger,
+  30-day grace, `/profile/account/delete` UI, the `execute-deletions` cron, and
+  the `executeAccountDeletion` purge — resolves the deletion half of #15. See
+  [ADR 0029](../adr/0029-account-deletion.md), P1 #2, and the remediation log.
+- **Still open from 2026-05-24:** `rate_limits.key` plaintext (P3 #10) — the only
+  remaining backlog item. P3 #11 (deleted-profile indexing) is **resolved by
+  side-effect** (see its entry); #14 (chat retention) remains the open P2.
 
 ## P1 — fix before adding any "Delete account" feature
 
@@ -118,6 +121,14 @@ already CASCADEs and is fine.
 
 **File:** [supabase/migrations/20260512000000_init.sql#L27-L48](../../supabase/migrations/20260512000000_init.sql#L27-L48)
 **Category:** account deletion blocker
+**Status:** ✅ resolved (2026-05-31) — soft-delete column shipped Bundle 89; the
+full application deletion path shipped 2026-05-31 (ADR 0029). The user-facing
+"delete my account" flow now exists end to end: a `deletion_requests` ledger +
+`DeletionRequest` aggregate, a 30-day grace window, `/profile/account/delete`
+UI, a `CRON_SECRET`-gated `/api/account/execute-deletions` daily cron, and the
+`executeAccountDeletion` purge (scrub → Stripe cancel → notif cleanup → mark
+executed → `auth.admin.deleteUser`). See [ADR 0029](../adr/0029-account-deletion.md)
+and the remediation log below.
 
 `profiles` has no soft-delete column. Until one exists there is no
 "hard-delete the auth row, leave a scrubbed tombstone in profiles"
@@ -451,19 +462,19 @@ data-lifecycle retention tier.
 **Files:** [docs/audits/privacy.md account-deletion sketch](#account-deletion-design-sketch)
 (below) and P3 #12.
 **Category:** legal feature gap (forward-looking)
-**Status:** export half ✅ resolved (2026-05-31); deletion half open
+**Status:** ✅ both halves resolved (2026-05-31)
 
 The account-deletion design sketch and the data-export inventory (P3 #12)
-predate chat. When those features are built they must cover the chat surface:
+predated chat; both now cover the chat surface:
 
-- **Deletion:** `conversation_participants` / `messages` / `message_reports` /
-  `user_blocks` all FK `profiles(id) ON DELETE CASCADE`, and
-  `conversations.created_by` / `messages.deleted_by` are `SET NULL` — so an
-  `auth.users` delete already cascades cleanly (a user's messages vanish; rooms
-  survive with a null author). That's the right posture, but note the
-  side-effect: in a DM, deleting one party removes the messages **the other
-  party received** too. Flag this in the deletion ADR; it may warrant a tombstone
-  ("Former member left the conversation") rather than silent message removal.
+- **Deletion:** ✅ shipped (ADR 0029). `conversation_participants` / `messages` /
+  `message_reports` / `user_blocks` all FK `profiles(id) ON DELETE CASCADE`, and
+  `conversations.created_by` / `messages.deleted_by` are `SET NULL` — so the
+  `auth.users` delete in the purge cascades cleanly (a user's messages vanish;
+  rooms survive with a null author). The DM side-effect (deleting one party
+  removes the copy the **other** party received) is documented in
+  [ADR 0029](../adr/0029-account-deletion.md) as an accepted-for-now behaviour to
+  revisit with a tombstone if it proves jarring.
 - **Export (GDPR Art. 20):** ✅ done — `GET /api/account/export` (P3 #12) now
   includes `chat_messages_sent` (`messages` as sender), `chat_conversations`
   (participated in), and `user_blocks`.
@@ -538,6 +549,14 @@ This also does the data-inventory groundwork the account-deletion feature (P1
 
 ## Account-deletion design sketch
 
+> ✅ **Implemented 2026-05-31 — see [ADR 0029](../adr/0029-account-deletion.md).**
+> The shipped flow deviates from this sketch in two deliberate ways: (1) it drops
+> the email-confirm gate (`pending → confirmed`) in favour of a streamlined
+> `scheduled → executed | cancelled` machine (the requester is already
+> authenticated; the 30-day grace + cancel + notice email are the safety net),
+> and (2) anonymous users are excluded rather than special-cased. The sketch
+> below is retained as the original design record.
+
 If/when we build "Delete my account", the recommended shape:
 
 - **Two-stage flow with a 30-day grace period.** User clicks "Delete
@@ -600,11 +619,9 @@ RLS than UI.
 - **CCPA "Limit the Use of My Sensitive Personal Information" toggle.**
   We're not consumer-targeted enough to need this yet but worth tracking
   as we add California traffic.
-- **Anonymous-auth users.** They have `auth.users` rows and `profiles`
-  rows but no email. The deletion flow needs to special-case them
-  (no confirmation email to send → can we skip the grace period?). Per
-  AGENTS.md, anonymous users have `is_anonymous=true` in the JWT, so
-  the check is easy.
+- **Anonymous-auth users.** ✅ Resolved (ADR 0029): the deletion flow is gated
+  to real users (`requireRealUser`) — anonymous users have no email and minimal
+  data, so the product path is abandon-or-`/claim`, not deletion.
 - **CUI.** No data we hold today qualifies as CUI under NIST SP 800-171
   (that's a federal-contractor category — controlled unclassified info
   like ITAR/EAR-adjacent data). Mentioned in the request title; flagging
@@ -612,6 +629,45 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-05-31 — P1 #2 + #15 (deletion half): account-deletion flow (GDPR Art. 17)
+
+Shipped the full "delete my account" path on top of the Bundle-89 FK/soft-delete
+groundwork (ADR 0029). Streamlined model (no email-confirm gate — the requester
+is authenticated), 30-day grace window, state machine `scheduled → executed |
+cancelled`. Vertical slice:
+
+- **Migration** [20260828000000_account_deletion_requests.sql](../../supabase/migrations/20260828000000_account_deletion_requests.sql)
+  — `deletion_requests` ledger; partial unique index (one live request per user);
+  `auth.uid() = user_id` RLS (no DELETE policy); `user_id ON DELETE SET NULL` so
+  the `executed` row survives the auth-user cascade as an anonymized
+  proof-of-erasure record.
+- **Domain** `DeletionRequest` aggregate + `DeletionRequestRepository` port
+  ([deletion-request.ts](../../packages/domain/src/users/deletion-request.ts)) —
+  state-machine guards, 6 unit tests.
+- **Application** `RequestAccountDeletionHandler` / `CancelAccountDeletionHandler`
+  ([account-deletion.handler.ts](../../packages/application/src/commands/account-deletion.handler.ts))
+  — one-live-request `ConflictError`, 4 handler tests.
+- **Infra** [SupabaseDeletionRequestRepository](../../packages/infrastructure/src/supabase-deletion-request-repository.ts)
+  (user-scoped for arm/cancel; admin for the cron).
+- **Purge** [lib/account-purge.ts](../../apps/web/src/lib/account-purge.ts)
+  `executeAccountDeletion` — closure email → Stripe subscription cancel (Connect
+  kept) → profile scrub → notification cleanup → mark executed →
+  `auth.admin.deleteUser`; ordered defense-in-depth + retry-safe.
+- **Cron** [api/account/execute-deletions](../../apps/web/src/app/api/account/execute-deletions/route.ts)
+  (`CRON_SECRET`, daily 04:30 UTC in vercel.json) + a unit-tested sweep core
+  (cap + per-account failure isolation, 3 tests).
+- **UI** [/profile/account/delete](../../apps/web/src/app/profile/account/delete/page.tsx)
+  (`requireRealUser` — anon excluded) + flash-param actions; a "Delete account"
+  link in the profile "Privacy & your data" section.
+- **Notifications** `account.deletion.requested` + `account.deletion.cancelled`
+  kinds (transactional; email + in-app).
+
+Verify quad green (typecheck 15/15; lint 0 errors; test — +13 new across
+domain/application/web; build 8/8, routes `ƒ /api/account/execute-deletions` +
+`ƒ /profile/account/delete`). Migration applied locally + `gen:types`. **Live
+two-user / Stripe round-trip e2e against dev is a follow-up** (not in the default
+chain).
 
 ### 2026-05-31 — P3 #12: data-export endpoint (GDPR Art. 20 / CCPA)
 

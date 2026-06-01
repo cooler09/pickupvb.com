@@ -23,6 +23,7 @@ import {
   SupabaseMessageRepository,
   SupabaseMessageQueries,
   SupabaseConversationQueries,
+  SupabaseDeletionRequestRepository,
 } from '@pickupvb/infrastructure';
 import {
   AcceptTeamInviteHandler,
@@ -127,6 +128,8 @@ import {
   ListMessagesHandler,
   ListInboxHandler,
   CountUnreadConversationsHandler,
+  RequestAccountDeletionHandler,
+  CancelAccountDeletionHandler,
 } from '@pickupvb/application';
 import { getServerSupabase } from './supabase';
 import { getAdminSupabase } from './supabase-admin';
@@ -413,6 +416,25 @@ export async function getChatHandlers(): Promise<{
     listMessages: new ListMessagesHandler(messageQueries),
     listInbox: new ListInboxHandler(conversationQueries),
     countUnreadConversations: new CountUnreadConversationsHandler(conversationQueries),
+  };
+}
+
+/**
+ * Per-request handlers for account deletion (ADR 0029). User-scoped client so
+ * the `deletion_requests` RLS (`auth.uid() = user_id`) is the real gate on the
+ * arm / cancel writes — a user can only schedule or cancel their own deletion.
+ * The cron's execute path builds its own admin-scoped repo (see the
+ * execute-deletions route), not this factory.
+ */
+export async function getAccountDeletionHandlers(): Promise<{
+  requestAccountDeletion: RequestAccountDeletionHandler;
+  cancelAccountDeletion: CancelAccountDeletionHandler;
+}> {
+  const client = await getServerSupabase();
+  const repo = new SupabaseDeletionRequestRepository(client);
+  return {
+    requestAccountDeletion: new RequestAccountDeletionHandler(repo),
+    cancelAccountDeletion: new CancelAccountDeletionHandler(repo),
   };
 }
 

@@ -524,6 +524,51 @@ export type Database = {
           },
         ];
       };
+      deletion_requests: {
+        Row: {
+          id: string;
+          reason: string | null;
+          requested_at: string;
+          resolved_at: string | null;
+          scheduled_for: string;
+          status: string;
+          user_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          reason?: string | null;
+          requested_at?: string;
+          resolved_at?: string | null;
+          scheduled_for: string;
+          status?: string;
+          user_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          reason?: string | null;
+          requested_at?: string;
+          resolved_at?: string | null;
+          scheduled_for?: string;
+          status?: string;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'deletion_requests_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'deletion_requests_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_brackets: {
         Row: {
           config: Json;

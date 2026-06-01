@@ -350,13 +350,21 @@ export default async function ProfilePage(props: {
         </p>
         {/* Plain anchor: the route streams a file download (content-disposition:
             attachment), so a server-rendered link is all that's needed. */}
-        <a
-          href="/api/account/export"
-          download
-          className="border-border-base hover:bg-fg/5 mt-3 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium"
-        >
-          Download my data
-        </a>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <a
+            href="/api/account/export"
+            download
+            className="border-border-base hover:bg-fg/5 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium"
+          >
+            Download my data
+          </a>
+          <Link
+            href={'/profile/account/delete' as Route}
+            className="text-sm font-medium text-red-600 hover:underline"
+          >
+            Delete account
+          </Link>
+        </div>
       </section>
     </div>
   );
