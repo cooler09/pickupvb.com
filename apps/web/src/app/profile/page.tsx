@@ -7,7 +7,6 @@ import { POSITION_LABEL } from '@/lib/enum-labels';
 import { relativeEventDay } from '@/lib/date-formats';
 import { EventCard, type EventCardData } from '../events/_components/event-card';
 import { ProfileForm } from './profile-form';
-import { HeroImagePanel } from '@/components/hero-image-panel';
 import { AvatarPanel } from '@/components/avatar-panel';
 import { Pagination } from '@/components/pagination';
 import {
@@ -38,7 +37,6 @@ type ProfileRow = {
   last_name: string | null;
   display_name: string;
   home_city: string | null;
-  hero_image_url: string | null;
   avatar_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
@@ -89,7 +87,7 @@ export default async function ProfilePage(props: {
   const { data } = await supabase
     .from('profiles')
     .select(
-      'handle, first_name, last_name, display_name, home_city, hero_image_url, avatar_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'handle, first_name, last_name, display_name, home_city, avatar_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -484,13 +482,6 @@ export default async function ProfilePage(props: {
             userId={user.id}
             currentUrl={profile.avatar_url}
             initials={initials(profile.display_name)}
-            returnPath={`/players/${profile.handle}`}
-          />
-          <HeroImagePanel
-            entityType="profiles"
-            entityId={user.id}
-            userId={user.id}
-            currentUrl={row?.hero_image_url ?? null}
             returnPath={`/players/${profile.handle}`}
           />
         </div>

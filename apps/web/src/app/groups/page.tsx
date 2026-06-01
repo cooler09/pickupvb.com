@@ -1,10 +1,11 @@
-import Image from 'next/image';
-import Link from 'next/link';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
+import { fieldInputClass } from '@/components/field-styles';
 import { NewGroupButton } from './_components/new-group-button';
+import { GroupCard } from './_components/group-card';
+import { GroupsFollowProvider, GroupFollowButton } from './_components/groups-follow';
 
 // Public listing rendered with the sessionless anon client so the route
 // stays ISR-cacheable. Viewer-only chrome (the "+ New group" CTA) lives
@@ -49,18 +50,21 @@ export default async function GroupsIndexPage(props: {
     <div className="mx-auto max-w-3xl space-y-6 py-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Groups & organizations</h1>
+          <h1 className="text-2xl font-bold">
+            Groups & organizations{' '}
+            <span className="text-muted text-base font-normal">· {total}</span>
+          </h1>
           <p className="text-muted text-sm">Clubs, leagues, and crews that host events.</p>
         </div>
         <NewGroupButton />
       </header>
-      <form className="flex gap-2">
+      <form className="flex items-center gap-2">
         <input
           type="search"
           name="q"
           placeholder="Search by name, slug, or city…"
           defaultValue={q}
-          className="border-border-base bg-surface flex-1 rounded-md border px-3 py-2 text-sm"
+          className={`${fieldInputClass} flex-1`}
         />
         <button type="submit" className={primaryButtonClass()}>
           Search
@@ -82,45 +86,13 @@ export default async function GroupsIndexPage(props: {
           <NewGroupButton />
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {groups.map((g) => (
-            <li key={g.id}>
-              <Link
-                href={`/groups/${g.slug}`}
-                className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-start gap-3 border p-3"
-              >
-                {g.avatarUrl ? (
-                  <Image
-                    src={g.avatarUrl}
-                    alt=""
-                    width={48}
-                    height={48}
-                    className="h-12 w-12 rounded-md object-cover"
-                  />
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    className="bg-primary/15 text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-sm font-semibold"
-                  >
-                    {g.name.slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{g.name}</p>
-                  {g.homeCity && (
-                    <p className="text-muted truncate text-xs">
-                      {g.homeCity}
-                      {g.region ? `, ${g.region}` : ''}
-                    </p>
-                  )}
-                  {g.description && (
-                    <p className="text-fg/80 mt-1 line-clamp-2 text-xs">{g.description}</p>
-                  )}
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <GroupsFollowProvider groupIds={groups.map((g) => g.id)}>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {groups.map((g) => (
+              <GroupCard key={g.id} group={g} action={<GroupFollowButton groupId={g.id} />} />
+            ))}
+          </ul>
+        </GroupsFollowProvider>
       )}
       <Pagination
         basePath="/groups"

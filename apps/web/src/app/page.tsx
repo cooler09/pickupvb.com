@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import type { Route } from 'next';
 import { redirect } from 'next/navigation';
 import { SearchEventsQuery } from '@pickupvb/application';
@@ -9,6 +8,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/server-auth';
 import { relativeEventDay } from '@/lib/date-formats';
 import { EventCard } from './events/_components/event-card';
+import { GroupCard } from './groups/_components/group-card';
 import { Icon } from '@/components/icon';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 
@@ -187,34 +187,7 @@ export default async function HomePage(props: {
           </div>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {groupRows.map((g) => (
-              <li key={g.id}>
-                <Link
-                  href={`/groups/${g.slug}` as Route}
-                  className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-start gap-3 border p-3"
-                >
-                  {g.avatarUrl ? (
-                    <Image
-                      src={g.avatarUrl}
-                      alt=""
-                      width={48}
-                      height={48}
-                      className="h-12 w-12 shrink-0 rounded-md object-cover"
-                    />
-                  ) : (
-                    <div className="bg-primary/10 text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-lg font-semibold">
-                      {g.name.slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{g.name}</p>
-                    {(g.homeCity || g.region) && (
-                      <p className="text-muted truncate text-xs">
-                        {[g.homeCity, g.region].filter(Boolean).join(', ')}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              </li>
+              <GroupCard key={g.id} group={g} />
             ))}
           </ul>
         </section>
