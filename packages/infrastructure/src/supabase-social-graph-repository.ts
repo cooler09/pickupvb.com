@@ -131,7 +131,7 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
       // are unchanged.
       .from('events_view')
       .select(
-        'id, title, surface, type, starts_at, time_zone, city, region, host_id, attendee_count',
+        'id, title, surface, type, starts_at, time_zone, city, region, host_id, attendee_count, hero_image_url',
       )
       .eq('visibility', 'public')
       .gte('starts_at', filters.startsAfter.toISOString())
@@ -180,6 +180,7 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
       region: string;
       host_id: string;
       attendee_count: number | null;
+      hero_image_url: string | null;
     };
     const evRows = (rows ?? []) as unknown as EvRow[];
 
@@ -242,6 +243,7 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
         hostFriendId,
         attendingFriendIds,
         spotsRemaining,
+        heroImageUrl: r.hero_image_url,
       };
     });
   }

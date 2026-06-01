@@ -743,6 +743,7 @@ export class SupabaseEventRepository implements EventRepository {
     if (error) throw new Error(`search failed: ${error.message}`);
 
     const rows = (data ?? []) as unknown as SearchRow[];
+    const heroByEvent = await this.loadHeroImageUrls(rows.map((r) => r.id));
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -762,6 +763,7 @@ export class SupabaseEventRepository implements EventRepository {
       seriesSize: r.series_size,
       isFundraiser: r.is_fundraiser,
       registrationMode: r.registration_mode ?? RegistrationMode.Platform,
+      heroImageUrl: heroByEvent.get(r.id) ?? null,
       divisions: (r.divisions ?? []).map((d) => ({
         id: d.id,
         label: d.label,
@@ -776,6 +778,27 @@ export class SupabaseEventRepository implements EventRepository {
         priceUnit: d.priceUnit,
       })),
     }));
+  }
+
+  /**
+   * Hero image URLs for a set of event ids, read from `events_view` (the
+   * `search_events` RPC doesn't project the column, and altering it would mean
+   * a migration — a batched id lookup is cheaper and migration-free). Cosmetic:
+   * on error we return an empty map so the cards fall back to their
+   * surface-tinted placeholder rather than failing the whole search.
+   */
+  private async loadHeroImageUrls(ids: string[]): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    if (ids.length === 0) return map;
+    const { data, error } = await this.client
+      .from('events_view')
+      .select('id, hero_image_url')
+      .in('id', ids);
+    if (error) return map;
+    for (const row of (data ?? []) as { id: string; hero_image_url: string | null }[]) {
+      if (row.hero_image_url) map.set(row.id, row.hero_image_url);
+    }
+    return map;
   }
 
   // ----- Read-side: detail page -----------------------------------------

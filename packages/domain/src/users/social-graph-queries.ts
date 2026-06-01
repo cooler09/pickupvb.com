@@ -77,4 +77,6 @@ export interface FollowingFeedItem {
    * the same capacity badge here as on the Upcoming/Past tabs.
    */
   spotsRemaining: number | null;
+  /** Public hero image URL for the discovery-card thumbnail; null when unset. */
+  heroImageUrl: string | null;
 }

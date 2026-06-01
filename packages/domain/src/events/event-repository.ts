@@ -395,6 +395,8 @@ export interface VolleyballEventSummary {
   seriesSize: number | null;
   isFundraiser: boolean;
   registrationMode: RegistrationMode;
+  /** Public hero image URL for the discovery-card thumbnail; null when unset. */
+  heroImageUrl: string | null;
   /** Divisions on this event, sorted by `sort_order`. */
   divisions: ReadonlyArray<EventSearchDivision>;
 }

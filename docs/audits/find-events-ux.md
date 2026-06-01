@@ -35,10 +35,10 @@ This file is complementary to — not a duplicate of:
 > and [2026-06-01-following-feed-capacity.md](../journal/2026-06-01-following-feed-capacity.md).
 > A further follow-up closed **F-6** (Free/Paid filter, in-memory, migration-free).
 > **F-7** (manual city/ZIP location + primary radius) also shipped 2026-06-01.
-> All P2s are now resolved. P3 polish bundles closed **F-9** (sort), **F-12**
-> (design-system tidy), and **F-10** (relative date labels) on 2026-06-01.
-> Standing backlog: **F-11** (filter-chrome consolidation) and **F-13** (card
-> thumbnails) — both P3.
+> All P2s are now resolved. P3 bundles on 2026-06-01 closed **F-9** (sort),
+> **F-12** (design-system tidy), **F-10** (relative date labels), and **F-13**
+> (card thumbnails). **Only standing item: F-11** (filter-chrome consolidation,
+> P3) — held pending a layout/IA decision.
 >
 > Grounding fact that shaped grading: the `search_events` RPC **already projects
 > `priceCents`/`priceUnit` per division, `spotsRemaining`, `distanceKm`, and
@@ -141,16 +141,23 @@ so the card stays a pure server component (no `Date.now()` in render).
 [page.tsx](../../apps/web/src/app/events/page.tsx). Chose per-card labels over
 day-group section headers (the latter fights the pagination slice).
 
-#### F-13 — Cards are text-only, no visual anchor · **P3** · open
+#### F-13 — Cards are text-only, no visual anchor · **P3** · ✅ resolved 2026-06-01
 
-A discovery grid scans far faster with a thumbnail; the detail page has hero
-images but the search RPC doesn't project one
-([SearchRow at supabase-event-repository.ts#L700-L730](../../packages/infrastructure/src/supabase-event-repository.ts#L700-L730)),
-and [event-card.tsx](../../apps/web/src/app/events/_components/event-card.tsx)
-renders no `<img>`. **Unlike F-2/F-4 this is not free** — needs `image_url` (or
-`hero_image_path`) added to `search_events` + the projection.
-**Fix:** add the column to the RPC select, thread it onto `EventCardData`, render
-a 16:9 thumbnail with a surface-colored fallback.
+A discovery grid scans far faster with a thumbnail; the detail page had hero
+images but the cards rendered none.
+**Fix (done):** cards now lead with a 16:9 (`aspect-video`) thumbnail — the
+event's `hero_image_url` via `next/image`, or a surface-tinted placeholder
+(sand/grass/indoor) with a faint volleyball glyph when unset.
+[event-card.tsx](../../apps/web/src/app/events/_components/event-card.tsx). The
+thumbnail sits under the title's stretched link, so the whole card stays one
+click target. **Migration-free:** rather than alter the big `search_events` RPC,
+the repo fetches `hero_image_url` from `events_view` (which already exposes it)
+by result id and merges in JS — cosmetic, so it degrades to the placeholder on a
+lookup error
+([supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts) `loadHeroImageUrls`).
+The Following feed gets it for free off its existing `events_view` read
+([supabase-social-graph-repository.ts](../../packages/infrastructure/src/supabase-social-graph-repository.ts)).
+`heroImageUrl` added to `VolleyballEventSummary` + `FollowingFeedItem`.
 
 ### B. Filtering UX (all personas)
 
@@ -314,3 +321,16 @@ Journal: [2026-06-01-relative-event-dates.md](../journal/2026-06-01-relative-eve
   `date-formats.ts` (+ unit test) anchors "today" to the event timezone and
   takes `now` from the server boundary (pure server component). Per-card labels,
   not day-group headers (which would fight pagination).
+
+### 2026-06-01 — Card thumbnails (F-13)
+
+Journal: [2026-06-01-card-thumbnails.md](../journal/2026-06-01-card-thumbnails.md).
+
+- **F-13 ✅** — 16:9 thumbnail atop each card: the event `hero_image_url` via
+  `next/image`, else a surface-tinted placeholder + faint volleyball glyph.
+  Migration-free — `SupabaseEventRepository.search` merges `hero_image_url` from
+  `events_view` by result id (`loadHeroImageUrls`, degrades to placeholder on
+  error) rather than altering the `search_events` RPC; the Following feed reads
+  it off its existing `events_view` query. `heroImageUrl` added to
+  `VolleyballEventSummary` + `FollowingFeedItem`. Thumbnail sits under the
+  stretched link, so the whole card stays one click target.
