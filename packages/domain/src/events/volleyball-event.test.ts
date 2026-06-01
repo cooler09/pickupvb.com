@@ -777,3 +777,103 @@ describe('VolleyballEvent open-play invariants (P1 #3 + P2 #5)', () => {
     ).toThrow(InvariantViolation);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Denormalized event-level `surface` mirrors the primary division.
+// Regression: an open-play event created Indoor whose sole division was later
+// switched to Grass left `events.surface` stale at Indoor, so cards/search
+// showed the wrong surface. addDivision/updateDivision must keep them in sync.
+// ---------------------------------------------------------------------------
+describe('VolleyballEvent surface mirrors the primary division', () => {
+  function openPlayDivisionOn(surface: Surface, sortOrder = 0): Division {
+    return Division.create({
+      id: 'div-op-1' as DivisionId,
+      sortOrder,
+      label: 'Open',
+      surface,
+      format: Format.Sixes,
+      gender: Gender.Coed,
+      skillTier: SkillTier.B,
+      teamComposition: TeamComposition.Solo,
+      priceCents: 0,
+      priceUnit: PriceUnit.PerPlayer,
+      teamRegistrationMode: null,
+      allowFreeAgents: false,
+    });
+  }
+
+  it('updateDivision on the primary (sortOrder 0) re-syncs event.surface', () => {
+    const evt = makeOpenPlayWith([openPlayDivisionOn(Surface.Indoor)]);
+    expect(evt.surface).toBe(Surface.Indoor);
+
+    evt.updateDivision(openPlayDivisionOn(Surface.Grass));
+
+    expect(evt.surface).toBe(Surface.Grass);
+    expect(evt.divisions[0]?.surface).toBe(Surface.Grass);
+  });
+
+  it('addDivision of a primary division stamps event.surface', () => {
+    const t = makeTournament();
+    expect(t.surface).toBe(Surface.Sand);
+
+    t.addDivision(
+      Division.create({
+        id: 'div-t-1' as DivisionId,
+        sortOrder: 0,
+        label: 'Open',
+        surface: Surface.Grass,
+        format: Format.Sixes,
+        gender: Gender.Coed,
+        skillTier: SkillTier.B,
+        teamComposition: TeamComposition.Team,
+        priceCents: 0,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.AdHoc,
+        allowFreeAgents: false,
+      }),
+    );
+
+    expect(t.surface).toBe(Surface.Grass);
+  });
+
+  it('editing a non-primary division leaves event.surface untouched', () => {
+    const t = makeTournament();
+    t.addDivision(
+      Division.create({
+        id: 'div-a' as DivisionId,
+        sortOrder: 0,
+        label: 'A',
+        surface: Surface.Sand,
+        format: Format.Quads,
+        gender: Gender.Coed,
+        skillTier: SkillTier.B,
+        teamComposition: TeamComposition.Team,
+        priceCents: 0,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.AdHoc,
+        allowFreeAgents: false,
+      }),
+    );
+    expect(t.surface).toBe(Surface.Sand);
+
+    t.addDivision(
+      Division.create({
+        id: 'div-b' as DivisionId,
+        sortOrder: 1,
+        label: 'B',
+        surface: Surface.Grass,
+        format: Format.Sixes,
+        gender: Gender.Coed,
+        skillTier: SkillTier.B,
+        teamComposition: TeamComposition.Team,
+        priceCents: 0,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.AdHoc,
+        allowFreeAgents: false,
+      }),
+    );
+
+    // The sortOrder-1 division is Grass, but the primary (Sand) governs the mirror.
+    expect(t.surface).toBe(Surface.Sand);
+  });
+});
