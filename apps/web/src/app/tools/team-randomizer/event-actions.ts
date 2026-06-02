@@ -3,11 +3,14 @@
 /**
  * Team randomizer → event write-back (tournament-tools-workflow audit TT-2).
  *
- * Takes the teams the randomizer just generated and registers each as an ad-hoc
- * team on the event, reusing the unchanged `RegisterAdHocTeamCommand` (ADR 0007)
- * — the same pipeline the bracket's walk-in form uses. `actingAsHost` is set so
- * the handler bypasses the "one team per captain per division" check (and still
- * re-verifies the caller is the host before honoring it); RLS is the second gate.
+ * Takes the teams the randomizer just generated and registers each as a
+ * walk-in team on the event (ADR 0017) — the same pipeline the bracket's
+ * walk-in form uses. Walk-ins carry `captain_id = null`: the host is the
+ * creator, not a player, so recording them as captain would falsely credit
+ * them downstream (badge stats, "your upcoming events", "my teams"). The
+ * handler re-verifies the caller is the event host before writing; RLS is the
+ * second gate. There is no "one team per captain" check to bypass — walk-ins
+ * have no captain account.
  *
  * Client-invoked (from the randomizer island under `useTransition`), so it
  * returns a typed result rather than `redirect()`-ing (AGENTS.md server-action
@@ -16,7 +19,7 @@
  */
 
 import { revalidatePath, updateTag } from 'next/cache';
-import { RegisterAdHocTeamCommand } from '@pickupvb/application';
+import { RegisterWalkInTeamCommand } from '@pickupvb/application';
 import {
   ConflictError,
   InvariantViolation,
@@ -65,19 +68,23 @@ export async function saveRandomTeamsToEvent(input: {
   let created = 0;
   try {
     for (const [i, team] of valid.entries()) {
+      const teamName = team.name || `Team ${i + 1}`;
       const members = team.players.map((displayName) => ({
         displayName,
         email: null,
         userId: null,
       }));
-      await handlers.registerAdHocTeam.execute(
-        new RegisterAdHocTeamCommand(
+      // Walk-in (captain_id null): the host is the creator, not a player. The
+      // team name stands in for the required freeform captain display name.
+      await handlers.registerWalkInTeam.execute(
+        new RegisterWalkInTeamCommand(
           eventId,
           divisionId,
           user.id,
-          team.name || `Team ${i + 1}`,
+          teamName,
+          teamName,
+          null,
           members,
-          true,
         ),
       );
       created += 1;

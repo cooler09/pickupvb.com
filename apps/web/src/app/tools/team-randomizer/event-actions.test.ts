@@ -1,15 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RegisterAdHocTeamCommand } from '@pickupvb/application';
+import { RegisterWalkInTeamCommand } from '@pickupvb/application';
 import { ConflictError, UnauthorizedError } from '@pickupvb/domain';
 
 // Isolate the write-back from auth, the handlers, and Next's cache so we can pin
-// the contract: one RegisterAdHocTeamCommand per team, acting-as-host, with the
-// roster mapped to members — and partial-progress reporting on a mid-loop fail.
+// the contract: one RegisterWalkInTeamCommand per team (captain_id null — the
+// host is the creator, not a player), with the roster mapped to members — and
+// partial-progress reporting on a mid-loop fail.
 // `vi.hoisted` so the fn exists before the hoisted `vi.mock` factory reads it
 // eagerly (the mocked `handlers` is a plain object, not a lazy getter).
 const { registerExecute } = vi.hoisted(() => ({ registerExecute: vi.fn() }));
 vi.mock('@/lib/handlers', () => ({
-  handlers: { registerAdHocTeam: { execute: registerExecute } },
+  handlers: { registerWalkInTeam: { execute: registerExecute } },
 }));
 vi.mock('@/lib/server-auth', () => ({
   requireRealUser: async () => ({ user: { id: 'host-1' } }),
@@ -37,7 +38,7 @@ describe('saveRandomTeamsToEvent', () => {
     registerExecute.mockResolvedValue({ id: 'reg' });
   });
 
-  it('registers one ad-hoc team per generated team, acting as host', async () => {
+  it('registers one walk-in team per generated team with no captain account', async () => {
     const res = await saveRandomTeamsToEvent({
       ...base,
       teams: [
@@ -49,13 +50,17 @@ describe('saveRandomTeamsToEvent', () => {
     expect(res).toEqual({ ok: true, created: 2 });
     expect(registerExecute).toHaveBeenCalledTimes(2);
 
-    const cmd = registerExecute.mock.calls[0]![0] as RegisterAdHocTeamCommand;
-    expect(cmd).toBeInstanceOf(RegisterAdHocTeamCommand);
+    const cmd = registerExecute.mock.calls[0]![0] as RegisterWalkInTeamCommand;
+    expect(cmd).toBeInstanceOf(RegisterWalkInTeamCommand);
     expect(cmd.eventId).toBe('e1');
     expect(cmd.divisionId).toBe('d1');
-    expect(cmd.captainId).toBe('host-1');
+    // The acting user is the host (creator), not the team's captain — the
+    // walk-in carries no captain_id so badges / upcoming-events don't credit
+    // the host as a player.
+    expect(cmd.hostId).toBe('host-1');
     expect(cmd.name).toBe('Team 1');
-    expect(cmd.actingAsHost).toBe(true);
+    expect(cmd.captainDisplayName).toBe('Team 1');
+    expect(cmd.captainPhone).toBeNull();
     expect(cmd.members).toEqual([
       { displayName: 'Alex', email: null, userId: null },
       { displayName: 'Bo', email: null, userId: null },
@@ -76,8 +81,9 @@ describe('saveRandomTeamsToEvent', () => {
 
     expect(res).toEqual({ ok: true, created: 1 });
     expect(registerExecute).toHaveBeenCalledTimes(1);
-    const cmd = registerExecute.mock.calls[0]![0] as RegisterAdHocTeamCommand;
+    const cmd = registerExecute.mock.calls[0]![0] as RegisterWalkInTeamCommand;
     expect(cmd.name).toBe('Team 1'); // blank name → positional default
+    expect(cmd.captainDisplayName).toBe('Team 1');
     expect(cmd.members).toEqual([{ displayName: 'Alex', email: null, userId: null }]);
   });
 

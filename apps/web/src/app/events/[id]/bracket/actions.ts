@@ -11,7 +11,7 @@ import {
   GeneratePlayoffCommand,
   PublishBracketCommand,
   RecordMatchResultCommand,
-  RegisterAdHocTeamCommand,
+  RegisterWalkInTeamCommand,
   RemoveMatchCommand,
   ReopenBracketCommand,
   ReorderPoolMatchesCommand,
@@ -541,11 +541,14 @@ export async function resetMatch(
 
 /**
  * Host-only escape hatch for adding walk-in / unregistered teams directly
- * to a division's bracket. Reuses the ad-hoc registration pipeline
- * (ADR 0007) so each new row participates in seeding, capacity accounting,
- * and audit history the same as any other team. The acting host becomes the
- * nominal captain — they can rename or reassign the roster later from the
- * event's team management UI.
+ * to a division's bracket. Registers each as a walk-in (ADR 0017) so the row
+ * participates in seeding, capacity accounting, and audit history the same as
+ * any other team — but with `captain_id = null`. The host is the *creator*,
+ * not a player: recording them as the captain falsely credits them downstream
+ * (badge stats, "your upcoming events", "my teams"), so the entry carries no
+ * captain account. The team name doubles as the freeform `captainDisplayName`
+ * the walk-in model requires; the host can rename later from the event's team
+ * management UI.
  *
  * Unlike the other actions in this file this one is invoked **from the
  * client**: the walk-in modal calls it inside `useTransition` so the host
@@ -577,8 +580,10 @@ export async function addWalkInTeam(
     );
 
   try {
-    const { id } = await handlers.registerAdHocTeam.execute(
-      new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, members, true),
+    // Walk-in (captain_id null): the host is the creator, not a player. The
+    // team name stands in for the required freeform captain display name.
+    const { id } = await handlers.registerWalkInTeam.execute(
+      new RegisterWalkInTeamCommand(eventId, divisionId, user.id, name, name, null, members),
     );
     revalidate(eventId);
     return { ok: true, id, name };
