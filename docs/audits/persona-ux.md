@@ -269,15 +269,21 @@ names (`display_name`/`email`) unchanged, so the server actions are untouched.
 _The "login fallback" the original finding listed is the "Already have an account?
 Sign in" link, not a third form — out of scope._
 
-#### P-2 — "You're in" status pills use four ad-hoc color treatments · **P3**
+#### P-2 — "You're in" status pills use four ad-hoc color treatments · **P3** · ✅ resolved 2026-06-01h
 
-The signup-confirmation pill is re-declared per panel:
-primary-tinted in [rsvp-panel.tsx#L42-L44](../../apps/web/src/app/events/[id]/_components/rsvp-panel.tsx#L42-L44),
-and emerald/amber/primary variants in
-[paid-ticket-panel.tsx#L30-L46](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx#L30-L46).
-The color semantics (paid=green, pending=amber) are intentional and worth
-keeping, but the markup is copy-pasted. **Fix:** extract a `StatusPill`
-primitive with a `tone` prop so the treatment is defined once.
+The signup-confirmation pill was re-declared per panel (primary-tinted in
+`rsvp-panel.tsx`; emerald/amber/primary variants in `paid-ticket-panel.tsx`) —
+identical chassis, copy-pasted color. **Fixed (done):** extracted
+[StatusPill](../../apps/web/src/components/status-pill.tsx) with a `tone` prop
+(`primary` / `success` / `pending` / `neutral`), keeping the intentional
+semantics (paid = green, pending = amber) in one place. `paid-ticket-panel.tsx`'s
+`PAYMENT_PILL` map now carries a `tone` instead of a full `className`, and the
+fallback "You're signed up" pill + the `rsvp-panel.tsx` pill both render
+`<StatusPill>`. No `'use client'` on the component (pure `<span>`), so both
+server panels render it directly. _The host-facing `PAYMENT_PILL` in
+`host-ad-hoc-teams-panel.tsx` (extra `refunded` state + dynamic amount suffixes)
+is a richer, separate pill — left as an optional follow-up; the new `neutral`
+tone is there for it when wanted._
 
 #### P-3 (positive) — `/profile` is the model to copy
 
@@ -631,6 +637,30 @@ primitive earned its place.
   token appears legitimately on alert **containers** (`bg-red-50` etc.), so a
   naive ratchet would false-positive; revisit if filled-destructive drift recurs.
 
+### 2026-06-01h — P-2 StatusPill + secondary-convergence re-scope
+
+- **P-2 (P3) — fixed.** Extracted
+  [StatusPill](../../apps/web/src/components/status-pill.tsx) (`tone`:
+  `primary`/`success`/`pending`/`neutral`); the four ad-hoc pills in
+  `rsvp-panel.tsx` + `paid-ticket-panel.tsx` now render it (`PAYMENT_PILL` maps
+  to a `tone`, not a `className`). Verify chain green (typecheck / lint / 625
+  tests / build).
+- **Secondary/outlined-button convergence — re-scoped, NOT swept.** Re-measured
+  `grep -rn "hover:bg-fg/5" … | grep border` → **84** occurrences, not the ~30
+  estimated, and the set is **heterogeneous**: it mixes genuine secondary
+  buttons (Sign out, "Go home", Cancel) with **non-buttons that must stay
+  neutral** — card-style clickable rows (`flex … border p-3`: `members-section`,
+  `event-media-link`, `brackets/page`, `video-embed`), radio-card `<label>`s
+  (`profile-form.tsx`), the Google sign-in button (deliberate neutral branding),
+  and dashed toggle/add chips (`templates-section`, `setup-view`). A blanket
+  `→ secondaryButtonClass` (which is **primary-tinted**: `border-primary
+text-primary`) would wrongly recolor all of those. **Decision:** this is not a
+  mechanical sweep — it needs a curated pass that first separates "secondary
+  action button" from "neutral surface/affordance," and likely a _neutral_
+  outlined recipe for the latter rather than forcing everything to the
+  primary-tinted Outlined. Re-graded with that scope below; `/pricing`
+  (2026-06-01b) remains the one done slice where the primary-tint was correct.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
@@ -639,14 +669,16 @@ primitive earned its place.
   primitives) 2026-06-01c; CC-1 + CC-2 + CC-4 2026-05-31b–d — both the field and
   primary-button vocabularies are now ratchet-locked._
 - **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
-  `primaryButtonClass` emits `text-primary-fg`; re-measure), P-2
-  (StatusPill primitive), H-3 (row-action tap targets — **divisions done
-  2026-06-01f**; group/team member rows remain), secondary/outlined-button
-  convergence (the `border-border-base hover:bg-fg/5` pattern → `secondaryButtonClass`,
-  a separate fuzzier set not covered by the CC-1 ratchet — **`/pricing` done
-  2026-06-01b**; the ~30 remaining neutral-outlined call sites from
-  `grep -rln "hover:bg-fg/5" apps/web/src` are the rest of this item). _CC-5
-  (FormModal conversion) resolved 2026-06-01f._
+  `primaryButtonClass` emits `text-primary-fg`; re-measure), H-3 (row-action tap
+  targets — **divisions done 2026-06-01f**; group/team member rows remain),
+  secondary/outlined-button convergence (**re-scoped 2026-06-01h** — 84
+  `hover:bg-fg/5`+border sites, heterogeneous; needs a curated "secondary button
+  vs. neutral surface/affordance" split + likely a _neutral_ outlined recipe, not
+  a blanket `→ secondaryButtonClass` which is primary-tinted; **`/pricing` done
+  2026-06-01b**), a text/outlined **error** button variant (Filled `errorButtonClass`
+  done 2026-06-01g; the borderless-red Remove links + outlined-red report buttons
+  remain). _P-2 (StatusPill) resolved 2026-06-01h; CC-5 (FormModal conversion)
+  resolved 2026-06-01f._
 - **New primitive — `errorButtonClass`** ✅ **added 2026-06-01g.**
   [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) now
   exports `errorButtonClass(size)` — a Filled destructive button on the M3
