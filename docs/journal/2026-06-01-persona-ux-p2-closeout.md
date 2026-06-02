@@ -102,8 +102,10 @@ audit's remediation log (2026-06-01b–f); this entry is the narrative thread.
 - **`errorButtonClass` primitive** — ✅ **done 2026-06-01g** (persona-ux.md log):
   added a Filled destructive variant on the M3 `error` role tokens and adopted it
   in the 5 filled-destructive call sites (`ConfirmSubmitButton` + 4 danger-zone
-  panels). A text/outlined error variant (Remove links, member rows) is the
-  remaining slice. [persona-ux.md backlog](../audits/persona-ux.md).
+  panels). **2026-06-01i:** completed the family — `errorOutlinedButtonClass`
+  (danger-zone "Delete…" triggers) + `errorTextButtonClass` (divisions Remove).
+  Remaining: an `errorTonalButtonClass` for the tinted community report buttons.
+  [persona-ux.md backlog](../audits/persona-ux.md).
 - **`StatusPill` primitive (P-2)** — ✅ **done 2026-06-01h** (persona-ux.md log):
   extracted with a `tone` prop; the four ad-hoc RSVP/payment pills now render it.
 - **CC-3 `text-white` re-measure** — remaining cosmetic P3. [persona-ux.md](../audits/persona-ux.md).

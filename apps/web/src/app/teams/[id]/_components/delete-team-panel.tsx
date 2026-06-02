@@ -2,7 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
-import { errorButtonClass } from '@/components/primary-button';
+import { errorButtonClass, errorOutlinedButtonClass } from '@/components/primary-button';
 import { deleteTeamAction } from '../delete-actions';
 
 type State = { error?: string; ok?: boolean };
@@ -30,7 +30,7 @@ export function DeleteTeamPanel({ teamId, teamName }: { teamId: string; teamName
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-900/40"
+          className={`${errorOutlinedButtonClass('sm')} mt-3`}
         >
           Delete team…
         </button>

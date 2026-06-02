@@ -709,10 +709,12 @@ audit CC-1/CC-2):
   (`primaryButtonClass` / `secondaryButtonClass` / `tonalButtonClass` /
   `textButtonClass`) instead of writing `bg-primary hover:bg-primary/90
 text-white …`. The four M3 variants take a `'sm' | 'md'` size. For destructive
-  confirms use `errorButtonClass(size)` (Filled, M3 `error` role tokens) rather
-  than hand-rolling `bg-red-600 text-white` — see
-  [confirm-submit-button.tsx](apps/web/src/components/confirm-submit-button.tsx)
-  and the delete/cancel danger-zone panels.
+  actions use the **error family** — `errorButtonClass` (Filled, e.g. a delete
+  confirm), `errorOutlinedButtonClass` (a "Delete…" trigger), `errorTextButtonClass`
+  (a borderless row "Remove", pair with `tap-target`) — all on the M3 `error`
+  role tokens, rather than hand-rolling `bg-red-600` / `text-red-600 dark:…`. See
+  [confirm-submit-button.tsx](apps/web/src/components/confirm-submit-button.tsx),
+  the delete/cancel danger-zone panels, and the divisions Remove.
 - **Fields:** import from
   [field-styles.ts](apps/web/src/components/field-styles.ts) (`fieldInputClass`
   / `fieldLabelClass` / `fieldSubLabelClass` / `fieldHintClass` /

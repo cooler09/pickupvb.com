@@ -101,6 +101,28 @@ export function errorButtonClass(size: PrimaryButtonSize = 'sm'): string {
 }
 
 /**
+ * Outlined error — medium-emphasis destructive action that should recede
+ * relative to a Filled `errorButtonClass` (e.g. the "Delete group…" trigger
+ * that opens a two-step confirm). Mirrors {@link secondaryButtonClass} but on
+ * the M3 `error` role token (`border-md-error` / `text-md-error`), so it tracks
+ * the theme in both light and dark instead of hand-rolled `border-red-300
+ * text-red-700 dark:…` recipes.
+ */
+export function errorOutlinedButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `border border-md-error text-md-error bg-transparent ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
+ * Text error — low-emphasis destructive action: a borderless "Remove" in a
+ * dense list row where a Filled/Outlined button would shout. Mirrors
+ * {@link textButtonClass} but on the M3 `error` role token (`text-md-error`).
+ * Pair with the `tap-target` utility for row actions so it still clears 44px.
+ */
+export function errorTextButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `text-md-error bg-transparent ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
  * Thin `<button>` wrapper for the most common case. For `Link` / `a` /
  * `SubmitButton`, spread `primaryButtonClass()` onto `className` instead
  * — wrapping each would force every call site through a discriminated

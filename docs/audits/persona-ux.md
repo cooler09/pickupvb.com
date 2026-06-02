@@ -661,6 +661,37 @@ text-primary`) would wrongly recolor all of those. **Decision:** this is not a
   primary-tinted Outlined. Re-graded with that scope below; `/pricing`
   (2026-06-01b) remains the one done slice where the primary-tint was correct.
 
+### 2026-06-01i — text + outlined error button variants
+
+Completes the destructive-button family started by `errorButtonClass` (Filled,
+2026-06-01g). Both new variants mirror an existing one but on the M3 `error` role
+token, so destructive actions now have a canonical home at every emphasis level:
+
+- **`errorOutlinedButtonClass(size)`** (mirrors `secondaryButtonClass`) and
+  **`errorTextButtonClass(size)`** (mirrors `textButtonClass`) added to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx)
+  (`border-md-error`/`text-md-error`).
+- **Adopted (clean fits):**
+  - **Text:** the divisions **Remove**
+    ([host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx))
+    — was the hand-rolled `text-red-600` left behind in 2026-06-01f → now
+    `errorTextButtonClass('sm') + tap-target`.
+  - **Outlined:** the danger-zone **"Delete group…" / "Delete team…"** triggers
+    ([delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx),
+    [delete-team-panel.tsx](../../apps/web/src/app/teams/[id]/_components/delete-team-panel.tsx))
+    — were hand-rolled `border-red-300 bg-white … dark:…` recipes → now
+    `errorOutlinedButtonClass('sm')`, replacing the bespoke dark-mode variants
+    with token theming. (The Filled "Yes, delete" confirm they reveal is
+    `errorButtonClass` from 2026-06-01g — clean Outlined→Filled escalation.)
+  - Verify chain green (typecheck / lint / 625 tests / build).
+- **Deliberately not migrated (documented):** the host-ad-hoc "Remove team"
+  button (dense `text-xs` row — would mismatch its neutral `text-xs` siblings;
+  needs an `xs` size we don't have), the community **report** buttons (tinted
+  `bg-red-50` + bespoke dark variants — a _tonal_-error look, not outlined), and
+  the group/team **member-row** removes (neutral border, red **on hover** only —
+  a softer treatment that belongs to the H-3 curated pass). A `errorTonalButtonClass`
+  is the remaining gap if the tinted report buttons ever want converging.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
@@ -675,22 +706,22 @@ text-primary`) would wrongly recolor all of those. **Decision:** this is not a
   `hover:bg-fg/5`+border sites, heterogeneous; needs a curated "secondary button
   vs. neutral surface/affordance" split + likely a _neutral_ outlined recipe, not
   a blanket `→ secondaryButtonClass` which is primary-tinted; **`/pricing` done
-  2026-06-01b**), a text/outlined **error** button variant (Filled `errorButtonClass`
-  done 2026-06-01g; the borderless-red Remove links + outlined-red report buttons
-  remain). _P-2 (StatusPill) resolved 2026-06-01h; CC-5 (FormModal conversion)
-  resolved 2026-06-01f._
-- **New primitive — `errorButtonClass`** ✅ **added 2026-06-01g.**
+  2026-06-01b**). _Error-button family complete 2026-06-01g/i (`errorButtonClass`
+  Filled + `errorOutlinedButtonClass` + `errorTextButtonClass`); the only
+  remaining destructive gap is an `errorTonalButtonClass` for the tinted community
+  report buttons. P-2 (StatusPill) resolved 2026-06-01h; CC-5 (FormModal
+  conversion) resolved 2026-06-01f._
+- **Error-button family** ✅ **complete 2026-06-01g/i.**
   [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) now
-  exports `errorButtonClass(size)` — a Filled destructive button on the M3
-  `error` role tokens (`bg-md-error` / `text-md-on-error`), mirroring
-  `primaryButtonClass`. Adopted in the 5 filled-destructive call sites that
-  hand-rolled `bg-red-600 … text-white`: `ConfirmSubmitButton`'s destructive
-  confirm, and the delete-group / delete-team / cancel-event / account-deletion
-  panels. _Remaining destructive variants are a different shape and left for a
-  follow-up text/outlined error variant: the borderless **text**-red (divisions
-  Remove, group/team member rows) and **outlined**-red (host-ad-hoc "Remove
-  team", community report buttons), plus the compact `bg-red-600` in
-  `board-view.tsx`._
+  exports `errorButtonClass` (Filled, 2026-06-01g — 5 adopters),
+  `errorOutlinedButtonClass` (2026-06-01i — the two danger-zone delete triggers),
+  and `errorTextButtonClass` (2026-06-01i — the divisions Remove), all on the M3
+  `error` role token, mirroring `primaryButtonClass` / `secondaryButtonClass` /
+  `textButtonClass`. _Remaining destructive shapes left as documented
+  non-migrations: an `errorTonalButtonClass` for the tinted community **report**
+  buttons (`bg-red-50` + dark variants); the host-ad-hoc "Remove team" (dense
+  `text-xs` row, needs an `xs` size); the member-row red-**on-hover** removes
+  (H-3); and the compact `bg-red-600` in `board-view.tsx`._
 - **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim
   email-confirmation flow ([claim/actions.ts#L88-L90](../../apps/web/src/app/claim/actions.ts#L88-L90))
   hardcodes the post-confirmation redirect to `/reset-password?from=claim` and

@@ -21,7 +21,11 @@ import type { DivisionLite } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { CloseOnSettled, FormModal, ModalActions } from '@/components/form-modal';
-import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+import {
+  errorTextButtonClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/primary-button';
 import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
@@ -281,9 +285,9 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
                   />
                 )}
               </FormModal>
-              {/* Demoted relative to Edit (no border/fill); kept red for the
-                  destructive intent. No canonical error-button class yet —
-                  tracked in persona-ux.md backlog (`errorButtonClass`). */}
+              {/* Demoted relative to Edit (no border/fill); the canonical
+                  text-error variant keeps the destructive red on the M3 token.
+                  `tap-target` keeps it ≥44px in the dense row. */}
               <form
                 action={removeDivision.bind(null, eventId, d.id, returnPath)}
                 className="contents"
@@ -295,7 +299,7 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
                   confirmMessage="Remove this division? Sign-ups in this division will be unrouted."
                   confirmLabel="Remove division"
                   destructive
-                  className="state-layer tap-target inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium text-red-600 disabled:opacity-50"
+                  className={`${errorTextButtonClass('sm')} tap-target`}
                 />
               </form>
             </div>
