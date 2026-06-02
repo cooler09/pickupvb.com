@@ -132,6 +132,19 @@ export default async function EventDetailPage(props: {
     cta,
   } = vm;
 
+  // Registered count per division (roster teams + ad-hoc / walk-in entries),
+  // mirroring the public roster grouping, so the divisions comparison list can
+  // show "registered / cap" for team divisions.
+  const teamCountByDivision = new Map<string, number>();
+  for (const t of event.teams) {
+    if (t.divisionId) {
+      teamCountByDivision.set(t.divisionId, (teamCountByDivision.get(t.divisionId) ?? 0) + 1);
+    }
+  }
+  for (const r of adHocAllRegistrations) {
+    teamCountByDivision.set(r.divisionId, (teamCountByDivision.get(r.divisionId) ?? 0) + 1);
+  }
+
   return (
     <article className="mx-auto max-w-3xl space-y-8">
       <EventStructuredData event={event} ticketCents={breakdown?.ticketCents ?? null} />
@@ -235,7 +248,7 @@ export default async function EventDetailPage(props: {
         timeZone={event.timeZone}
       />
 
-      <DivisionsSection divisions={event.divisions} />
+      <DivisionsSection divisions={event.divisions} teamCounts={teamCountByDivision} />
 
       <EventSignupArea
         event={event}

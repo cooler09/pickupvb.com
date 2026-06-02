@@ -11,6 +11,12 @@ import {
 
 type Props = {
   divisions: ReadonlyArray<DivisionLite>;
+  /**
+   * Registered count per division id (roster teams + ad-hoc / walk-in
+   * registrations), computed at the page boundary from the same data the
+   * public roster uses. Divisions absent from the map render as 0.
+   */
+  teamCounts?: ReadonlyMap<string, number>;
 };
 
 function formatPrice(cents: number | null, unit: string): string | null {
@@ -20,9 +26,21 @@ function formatPrice(cents: number | null, unit: string): string | null {
   return `$${usd} ${PRICE_UNIT_LABEL[unit] ?? ''}`.trim();
 }
 
-function formatCapacity(kind: 'fixed' | 'unlimited' | null, maxSpots: number | null): string {
-  if (kind === 'fixed' && maxSpots !== null) return `${maxSpots} spots`;
-  if (kind === 'unlimited') return 'Unlimited';
+/**
+ * Capacity label for one division. Team divisions (ADR 0016 —
+ * `teamRegistrationMode` set) are measured in teams, so we show
+ * `registered / cap teams` (or `N teams` when uncapped). Individual-signup
+ * divisions keep the spots wording.
+ */
+function formatCapacity(d: DivisionLite, registeredTeams: number): string {
+  if (d.teamRegistrationMode !== null) {
+    if (d.capacityKind === 'fixed' && d.maxSpots !== null) {
+      return `${registeredTeams} / ${d.maxSpots} teams`;
+    }
+    return `${registeredTeams} ${registeredTeams === 1 ? 'team' : 'teams'}`;
+  }
+  if (d.capacityKind === 'fixed' && d.maxSpots !== null) return `${d.maxSpots} spots`;
+  if (d.capacityKind === 'unlimited') return 'Unlimited';
   return '—';
 }
 
@@ -36,7 +54,7 @@ function formatCapacity(kind: 'fixed' | 'unlimited' | null, maxSpots: number | n
  * separately on the page (always visible so a host can split a
  * single-division event).
  */
-export function DivisionsSection({ divisions }: Props) {
+export function DivisionsSection({ divisions, teamCounts }: Props) {
   if (divisions.length <= 1) return null;
   return (
     <section className="space-y-3">
@@ -55,7 +73,7 @@ export function DivisionsSection({ divisions }: Props) {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-fg text-base font-semibold">{d.label}</h3>
                 <span className="text-muted text-xs">
-                  {formatCapacity(d.capacityKind, d.maxSpots)}
+                  {formatCapacity(d, teamCounts?.get(d.id) ?? 0)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5 text-xs">
