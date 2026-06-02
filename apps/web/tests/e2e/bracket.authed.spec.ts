@@ -8,6 +8,7 @@ import {
   addWalkInTeam,
   createAdHocTournament,
   createAndGenerateBracket,
+  createBracketToDraft,
   recordFirstPendingMatch,
   resetFirstCompletedMatch,
   type CreatedTournament,
@@ -89,6 +90,50 @@ test.describe('bracket — result advances the winner (C3)', () => {
       // And one of the two round-1 matches is now resolved.
       await expect(page.locator('summary', { hasText: /^Enter result$/ })).toHaveCount(1);
       await expect(page.locator('summary', { hasText: /^Edit result$/ })).toHaveCount(1);
+    } finally {
+      if (created) {
+        await cancelEvent(page, created.url);
+        await deleteEventById(created.id);
+      }
+    }
+  });
+});
+
+test.describe('bracket — draft stage hides from spectators until published (ADR 0032)', () => {
+  test('generate lands in an editable draft; publishing makes scoring live', async ({ page }) => {
+    test.setTimeout(180_000);
+
+    const tag = Date.now().toString(36);
+    const teams = [`E2E ${tag} Uno`, `E2E ${tag} Dos`, `E2E ${tag} Tres`, `E2E ${tag} Quatro`];
+    let created: CreatedTournament | null = null;
+
+    try {
+      created = await createAdHocTournament(page, { title: `E2E Bracket Draft ${tag}` });
+      for (let i = 0; i < teams.length; i++) {
+        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
+      }
+
+      await createBracketToDraft(page, created.id);
+
+      // Draft: the workspace is up (Publish CTA) but scoring isn't live yet —
+      // no "Enter result" forms exist until the host publishes. The generated
+      // matchups are visible in the draft for editing.
+      await expect(page.getByRole('button', { name: /publish bracket/i })).toBeVisible();
+      await expect(page.locator('summary', { hasText: /^Enter result$/ })).toHaveCount(0);
+      await expect(page.getByText(teams[0]!, { exact: true }).first()).toBeVisible();
+
+      // Spectators must not see a half-built draft — the public watch view says
+      // it's being finalized and renders no scoring board.
+      await page.goto(`/events/${created.id}/bracket/watch`);
+      await expect(page.getByText(/finalizing the bracket/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('summary', { hasText: /^Enter result$/ })).toHaveCount(0);
+
+      // Back on the host workspace → Publish → scoring goes live.
+      await page.goto(`/events/${created.id}/bracket`);
+      await page.getByRole('button', { name: /publish bracket/i }).click();
+      await expect(page.locator('summary', { hasText: /^Enter result$/ }).first()).toBeVisible({
+        timeout: 15_000,
+      });
     } finally {
       if (created) {
         await cancelEvent(page, created.url);

@@ -139,6 +139,24 @@ generalization (TT-2) should mirror it shape-for-shape.
 
 ## Remediation log
 
+### 2026-06-02 — bracket workflow redesign (ADR 0032, cross-reference)
+
+The host bracket surface in this audit's scope (`/events/[id]/bracket`) was rebuilt
+under [ADR 0032](../adr/0032-bracket-workflow-redesign.md): a `draft → live`
+lifecycle, manual override of seeding / pools / schedule / matchups / results,
+uneven pools with target-games (repeats), per-stage + per-match length, and
+auto cross-seeded playoffs. This sits adjacent to the tools↔event tie-back work
+below (it changes the canonical bracket surface the standalone seeding/scheduler
+tools feed into — TT-4/TT-5). Full narrative across the five bundles:
+[domain](../journal/2026-06-02-bundle-bracket-workflow-redesign-domain.md),
+[commands](../journal/2026-06-02-bundle-bracket-workflow-redesign-commands.md),
+[create-ui](../journal/2026-06-02-bundle-bracket-workflow-redesign-create-ui.md),
+[draft-workspace](../journal/2026-06-02-bundle-bracket-workflow-redesign-draft-workspace.md),
+[live-board](../journal/2026-06-02-bundle-bracket-workflow-redesign-live-board.md),
+[polish/e2e](../journal/2026-06-02-bundle-bracket-workflow-redesign-polish-e2e.md).
+Static quad green; **e2e authored to the new flow but not yet run against dev**
+(deploy-gated).
+
 ### 2026-06-02 — quick links + event tie-back (TT-1/TT-2 shipped; TT-3/4/5 addressed)
 
 Bundle narrative: [journal 2026-06-02](../journal/2026-06-02-tools-event-tie-back.md).

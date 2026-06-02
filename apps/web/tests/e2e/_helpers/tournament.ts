@@ -133,15 +133,15 @@ export async function addWalkInTeam(
 /**
  * From the bracket page (with ≥ 2 teams registered, no bracket yet): pick
  * best-of-1 (one set decides each match — fast + deterministic), create a
- * single-elimination bracket, **save the seeding**, then generate it.
+ * single-elimination bracket, **save the seeding**, then generate it. Stops on
+ * the **draft workspace** (ADR 0032): `generate()` lands in `draft`, so the
+ * page shows "Publish bracket" rather than the live scoring board.
  *
  * The save-seeding step is mandatory: `CreateBracketHandler` creates the
  * bracket in `setup` with **zero** seeds, and `bracket.generate()` throws
  * "Need at least 2 seeded teams" until the host persists the seeding order.
- * The SetupView's "Save seeding" form submits the registration order as-is,
- * which is all we need. Leaves the page on the active board.
  */
-export async function createAndGenerateBracket(page: Page, eventId: string): Promise<void> {
+export async function createBracketToDraft(page: Page, eventId: string): Promise<void> {
   await page.goto(`/events/${eventId}/bracket`);
 
   // Best of 1 — label wraps an sr-only radio; target by the radio it contains
@@ -162,6 +162,22 @@ export async function createAndGenerateBracket(page: Page, eventId: string): Pro
   const generateBtn = page.getByRole('button', { name: /generate bracket/i });
   await expect(generateBtn).toBeVisible({ timeout: 15_000 });
   await generateBtn.click();
+
+  // draft → DraftWorkspace renders the Publish CTA.
+  await expect(page.getByRole('button', { name: /publish bracket/i })).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
+/**
+ * Create + seed + generate, then **publish** so the bracket goes live. Leaves
+ * the page on the active board (≥ 1 pending "Enter result" form). The seam
+ * between this and {@link createBracketToDraft} is the ADR 0032 draft→live
+ * boundary; most scoring specs just want a live board, so they call this.
+ */
+export async function createAndGenerateBracket(page: Page, eventId: string): Promise<void> {
+  await createBracketToDraft(page, eventId);
+  await page.getByRole('button', { name: /publish bracket/i }).click();
 
   // active → BoardView renders at least one pending "Enter result" form.
   await expect(page.locator('summary', { hasText: /^Enter result$/ }).first()).toBeVisible({
