@@ -145,16 +145,18 @@ unstyled, non-themeable dialog for one of the more consequential host actions.
 **Fix:** replace with `ConfirmSubmitButton` (wrap `removeDivision` in a small
 `<form action={...}>`), matching every other delete in the app.
 
-#### CC-5 — Inline-expand edit pattern shoves content around · **P3**
+#### CC-5 — Inline-expand edit pattern shoves content around · **P3** · ✅ resolved 2026-06-01f
 
-`host-divisions-manager` expands a **16-field** edit form inline per row
-([host-divisions-manager.tsx#L255-L288](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx#L255-L288)),
-the exact "inline disclosure leaks context for a focused subtask" problem the
+`host-divisions-manager` expanded a **16-field** edit form inline per row — the
+exact "inline disclosure leaks context for a focused subtask" problem the
 events-page-ux audit already solved for the walk-in team form by moving it into
-`FormModal`. This is **already tracked as a P2 carry-over** in
-[events-page-ux.md](events-page-ux.md) (2026-05-28 status block). Reaffirmed here
-from the host-persona angle. **Fix:** convert per-row Edit + "+ Add division" to
-[form-modal.tsx](../../apps/web/src/components/form-modal.tsx), per that plan.
+`FormModal`. **Fixed (done):** both per-row **Edit** and the section-level
+**"+ Add division"** now open the same `DivisionForm` inside
+[form-modal.tsx](../../apps/web/src/components/form-modal.tsx) (`size="lg"`), with
+`CloseOnSettled` dismissing the modal when the server action settles and
+`ModalActions` owning the Cancel/Submit row. The `editingId`/`adding` state
+machine is gone — Radix owns each modal's open state. See H-2 for the rest of the
+bundle (row-action tap targets + button convergence).
 
 ---
 
@@ -292,36 +294,56 @@ template when restyling the host and team hubs.
 
 ### Host / organizer
 
-#### H-1 — The primary host edit form diverges from the design system · **P2**
+#### H-1 — The primary host edit form diverges from the design system · **P2** · ✅ resolved 2026-06-01f
 
-The create/edit event form (the most important, most-used host surface) runs
+The create/edit event form (the most important, most-used host surface) ran
 entirely on the **local** [form-primitives.tsx](../../apps/web/src/app/events/new/_components/form-primitives.tsx)
-— its own `inputClass`/`labelClass`/`SubmitButton`/`SegmentedControl` — rather
-than the shared primitives. It's well-decomposed internally (per the
-architecture audit), but it's a parallel design system. **Fix:** as CC-1/CC-2 —
-swap its `SubmitButton` to `primaryButtonClass('md')` (done 2026-05-31) and
-converge its `inputClass`/`labelClass` onto the shared field recipe so edit forms
-match the rest of the app.
+— its own `inputClass`/`labelClass`/`SubmitButton` — a parallel design system.
+**Resolved:** verified the convergence already landed across the earlier bundles
+and confirmed it end-to-end — `form-primitives.tsx` now **re-exports**
+`fieldInputClass`/`fieldLabelClass` from the shared
+[field-styles.ts](../../apps/web/src/components/field-styles.ts) (CC-2,
+2026-05-31b), so every create/edit-event section that imports `inputClass`/
+`labelClass` from it is on the one canonical vocabulary; its `SubmitButton` uses
+`primaryButtonClass('md')` (CC-1, 2026-05-31). The remaining local controls
+(`SegmentedControl`, `TypeCard`) are genuine custom widgets, not field/button
+vocabulary drift, so they're correctly left local. No code change needed this
+pass — status flipped after verification.
 
 #### H-2 — Divisions manager is the densest action-item offender · **P2**
 
 [host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx)
-stacks four of the issues above in one component: a 5th local `inputClass`
+stacked four of the issues above in one component: a 5th local `inputClass`
 (CC-2), inline 16-field expand (CC-5), `window.confirm` (CC-4), and Edit/Remove
-rendered as bare `text-primary`/`text-red-600` text links
-([host-divisions-manager.tsx#L268-L283](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx#L268-L283))
-that fall below the 44px M3/AA tap target and give the destructive Remove the
-same visual weight as Edit. **Fix:** FormModal conversion (CC-5) + ConfirmSubmit
-(CC-4) + `textButtonClass`/`secondaryButtonClass` with `tap-target` for the
-row actions; demote Remove to a less prominent slot.
+rendered as bare `text-primary`/`text-red-600` text links that fell below the
+44px M3/AA tap target and gave the destructive Remove the same visual weight as
+Edit. **Resolved (done):** all four are now closed —
 
-#### H-3 — Row-level action items sit below tap-target across host lists · **P3**
+- **CC-2 (5th `inputClass`)** ✅ 2026-05-31b (re-exports `field-styles.ts`).
+- **CC-4 (`window.confirm`)** ✅ 2026-05-31b (`ConfirmSubmitButton`).
+- **CC-5 (inline expand)** ✅ 2026-06-01f — Edit + "+ Add division" now open the
+  `DivisionForm` in a `FormModal` (see CC-5 above).
+- **Row actions** ✅ 2026-06-01f — **Edit** is now `secondaryButtonClass('sm')` +
+  `tap-target` (a 48px outlined affordance, the prominent row action); **Remove**
+  is a borderless red `state-layer` + `tap-target` button — demoted (no
+  border/fill) so it no longer carries Edit's weight, but still ≥44px. The
+  modal's own Cancel/Submit went to `secondaryButtonClass('md')` /
+  `primaryButtonClass('md')` via `ModalActions`.
+
+#### H-3 — Row-level action items sit below tap-target across host lists · **P3** · ◑ partial 2026-06-01f
 
 The `text-link` action pattern (`text-primary hover:underline`, ~16-20px tall)
 recurs in host management lists (divisions, and similar patterns in group/team
 member rows). It reads as a hyperlink, not an action, and misses the 44px target.
 Cross-ref [accessibility.md](accessibility.md). **Fix:** standardize row actions
-on `textButtonClass()` + the `tap-target` utility (Bundle 130).
+on `textButtonClass()`/`secondaryButtonClass()` + the `tap-target` utility
+(Bundle 130). **Progress:** the **divisions** rows are done (2026-06-01f, via
+H-2). **Remaining:** the same `text-primary hover:underline` row-action pattern in
+the group/team **member rows** (e.g.
+[members-section.tsx](../../apps/web/src/app/groups/[id]/_components/members-section.tsx),
+[member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx),
+[player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx))
+still needs the same treatment.
 
 ---
 
@@ -537,21 +559,59 @@ comparison-table and FAQ have no buttons._
     signup-funnel button drift (V-1 dead link, V-2 entry-point divergence) is fully
     closed; the only remaining P2s are the **host-form** items (H-1/H-2).
 
+### 2026-06-01f — H-1 verified done + H-2/CC-5 divisions-manager FormModal
+
+The host-form P2s. Together with V-2 (2026-06-01e) this clears the **last
+remaining P2s** in the audit.
+
+- **H-1 (P2) — verified done, status flipped.** The create/edit-event form's
+  field + submit convergence had already landed across earlier bundles
+  ([form-primitives.tsx](../../apps/web/src/app/events/new/_components/form-primitives.tsx)
+  re-exports `field-styles.ts` per CC-2; `SubmitButton` uses `primaryButtonClass`
+  per CC-1). Confirmed end-to-end; the only local controls left
+  (`SegmentedControl`, `TypeCard`) are genuine custom widgets, not vocabulary
+  drift. No code change — flipped after verification.
+- **H-2 + CC-5 (P2 + P3) — fixed.** Rewrote
+  [host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx):
+  - **CC-5 / FormModal:** the inline 16-field `DivisionForm` (per-row Edit **and**
+    "+ Add division") now opens inside `FormModal` (`size="lg"`), with
+    `CloseOnSettled` closing it when the server action settles and `ModalActions`
+    owning the Cancel/Submit row. The `editingId`/`adding` `useState` machine is
+    gone — Radix owns each modal's open state. This kills the "inline disclosure
+    shoves the page around" problem, matching the walk-in team form pattern.
+  - **Row-action tap targets (H-2/H-3):** **Edit** → `secondaryButtonClass('sm')`
+    - `tap-target` (48px outlined, the prominent action); **Remove** → a
+      borderless red `state-layer` + `tap-target` button — demoted (no border/fill)
+      but still ≥44px, keeping its destructive red. "+ Add division" →
+      `secondaryButtonClass('md')`.
+  - **Form buttons:** the modal's Cancel/Submit moved from hand-rolled recipes to
+    `secondaryButtonClass('md')` / `primaryButtonClass('md')`.
+  - The action bindings are unchanged (`addDivisionFromForm` /
+    `updateDivisionFromForm` / `removeDivision`, all already `revalidatePath`), so
+    `division-actions.ts` is untouched.
+    Verify chain green (typecheck / lint / 625 tests / build).
+- **H-3 (P3) — partial.** Divisions rows done above; the same row-action pattern
+  in the group/team member rows remains (see H-3).
+
+With H-1/H-2 closed, **all P2s in this audit are resolved.** What's left is the
+P3 backlog below.
+
 ### Standing backlog (graded above, not yet done)
 
-- **P2:** H-1/H-2 (host form depth + divisions-manager FormModal) — the last
-  remaining P2. _V-2 (header/mobile auth cluster) resolved 2026-06-01e; P-1
-  (shared `GuestSignupFields`) resolved 2026-06-01d; V-3 (login field primitives)
-  resolved 2026-06-01c; CC-1 + CC-2 + CC-4 resolved 2026-05-31b–d — both the
-  field and primary-button vocabularies are now ratchet-locked._
+- **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
+  divisions-manager FormModal) 2026-06-01f; V-2 (header/mobile auth cluster)
+  2026-06-01e; P-1 (shared `GuestSignupFields`) 2026-06-01d; V-3 (login field
+  primitives) 2026-06-01c; CC-1 + CC-2 + CC-4 2026-05-31b–d — both the field and
+  primary-button vocabularies are now ratchet-locked._
 - **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
-  `primaryButtonClass` emits `text-primary-fg`; re-measure), CC-5/H-2 (FormModal
-  conversion — also in events-page-ux.md), P-2
-  (StatusPill primitive), H-3 (row-action tap targets), secondary/outlined-button
+  `primaryButtonClass` emits `text-primary-fg`; re-measure), P-2
+  (StatusPill primitive), H-3 (row-action tap targets — **divisions done
+  2026-06-01f**; group/team member rows remain), secondary/outlined-button
   convergence (the `border-border-base hover:bg-fg/5` pattern → `secondaryButtonClass`,
   a separate fuzzier set not covered by the CC-1 ratchet — **`/pricing` done
   2026-06-01b**; the ~30 remaining neutral-outlined call sites from
-  `grep -rln "hover:bg-fg/5" apps/web/src` are the rest of this item).
+  `grep -rln "hover:bg-fg/5" apps/web/src` are the rest of this item). _CC-5
+  (FormModal conversion) resolved 2026-06-01f._
 - **New primitive worth adding:** an `errorButtonClass`/`destructiveButtonClass`
   in `primary-button.tsx` so destructive confirms stop hand-rolling `bg-red-600`.
 - **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim

@@ -50,9 +50,12 @@ from a share link, while keeping the page useful for hosts and attendees.
 >
 > Carry-overs (next UX bundles per the modal-conversion plan):
 >
-> - **P2** — [host-divisions-manager.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/host-divisions-manager.tsx)
->   per-row Edit + "+ Add division" → `FormModal`. Same isolation
->   argument but bigger refactor (multiple action shapes).
+> - **P2** — ✅ **done 2026-06-01f** (via persona-ux.md H-2/CC-5).
+>   [host-divisions-manager.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/host-divisions-manager.tsx)
+>   per-row Edit + "+ Add division" now open the `DivisionForm` in a
+>   `FormModal` (`CloseOnSettled` + `ModalActions`); the `editingId`/`adding`
+>   inline state machine is gone. Row actions also moved to
+>   `secondaryButtonClass` + `tap-target` with Remove demoted.
 > - **P2** — [sponsor-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx)
 >   editor → `FormModal`. Lets us collapse the awkward "Additional
 >   settings" wrapper added in Bundle 127.5 since hero image would be
