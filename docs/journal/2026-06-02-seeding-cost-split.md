@@ -1,5 +1,10 @@
 # Seeding + cost-split shipped; shared roster lib extracted (2026-06-02)
 
+> **Update (2026-06-02):** cost-split was **removed** later the same day — a
+> per-cent bill splitter is low value when everyone has a calculator. See
+> [court-rotation](2026-06-02-court-rotation.md). Seeding and the shared
+> `roster.ts` extraction below stand.
+
 ## Context
 
 Closing out the pure-client half of the [host-tools

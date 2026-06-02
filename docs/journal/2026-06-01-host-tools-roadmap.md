@@ -74,9 +74,10 @@ signup, ships behind a small client island like the scoreboard setup form.
 - **`seeding`** — ✅ **shipped 2026-06-02**
   ([entry](2026-06-02-seeding-cost-split.md)): ranked / random seed order +
   snake-into-pools. **Pure-client**; draws on a button, re-pools live.
-- **`cost-split`** — ✅ **shipped 2026-06-02**
-  ([entry](2026-06-02-seeding-cost-split.md)): split gym/court rental evenly or
-  by shares, exact-cent. **Pure-client**, derived live.
+- **`cost-split`** — ⛔ **removed 2026-06-02**
+  ([entry](2026-06-02-court-rotation.md)): shipped, then pulled — a per-cent bill
+  splitter is low value when everyone has a calculator. (Was
+  [built here](2026-06-02-seeding-cost-split.md).)
 - **`standings` (win/loss)** — round-robin standings with automatic tiebreakers.
   Was the other original placeholder. **Wants shared state** if it's to update
   live across a venue → reuse the scoreboard room primitive (above); a
@@ -87,9 +88,10 @@ signup, ships behind a small client island like the scoreboard setup form.
   countdown. Drove the room-primitive extraction (below); broadcasts transitions
   only and derives the clock locally. Realtime still needs a two-device
   dev-verify.
-- **`rotation` (court queue)** — king-of-the-court next-up queue for open gyms.
-  **Wants shared multi-device state** (reuse the room primitive). The most
-  interaction-heavy of the set; do it after the primitive is extracted.
+- **`rotation` (court queue)** — ✅ **shipped 2026-06-02**
+  ([entry](2026-06-02-court-rotation.md)): king-of-the-court next-up queue on
+  `useRoomSync`. In-chrome manager (not a takeover), roster entered in-room.
+  Realtime needs a two-device dev-verify. **Only `standings` remains.**
 
 Build trigger for the room primitive: the second multi-device tool (timer or
 rotation) is the signal to extract scoreboard's `_lib/` room/sync into a shared

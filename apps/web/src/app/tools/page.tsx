@@ -75,20 +75,14 @@ const TOOLS: Tool[] = [
     slug: 'rotation',
     title: 'Court rotation queue',
     desc: 'King-of-the-court style next-up queue for busy open gyms.',
-    status: 'soon',
+    href: '/tools/rotation' as Route,
+    status: 'live',
   },
   {
     slug: 'timer',
     title: 'Match timer',
     desc: 'Full-screen countdown for timed pool play, shared to every court.',
     href: '/tools/timer' as Route,
-    status: 'live',
-  },
-  {
-    slug: 'cost-split',
-    title: 'Cost split calculator',
-    desc: 'Split gym or court rental evenly across everyone who showed up.',
-    href: '/tools/cost-split' as Route,
     status: 'live',
   },
 ];
