@@ -715,12 +715,15 @@ text-white …`. The four M3 variants take a `'sm' | 'md'` size. A neutral
   border. Don't hand-roll a filled primary button via either `hover:bg-primary/90`
   **or** `bg-primary … hover:opacity-90` — both are `no-restricted-syntax` errors
   now (CC-1 + CC-6); use `primaryButtonClass`. For destructive
-  actions use the **error family** — `errorButtonClass` (Filled, e.g. a delete
-  confirm), `errorOutlinedButtonClass` (a "Delete…" trigger), `errorTextButtonClass`
-  (a borderless row "Remove", pair with `tap-target`) — all on the M3 `error`
-  role tokens, rather than hand-rolling `bg-red-600` / `text-red-600 dark:…`. See
+  actions use the **error family** (mirrors the base four on the M3 `error`
+  role token) — `errorButtonClass` (Filled, e.g. a delete confirm),
+  `errorTonalButtonClass` (tinted, e.g. "Report"), `errorOutlinedButtonClass`
+  (a "Delete…" trigger), `errorTextButtonClass` (a borderless row "Remove", pair
+  with `tap-target`) — rather than hand-rolling `bg-red-600` /
+  `border-red-300 bg-red-50 dark:…` / `text-red-600`. See
   [confirm-submit-button.tsx](apps/web/src/components/confirm-submit-button.tsx),
-  the delete/cancel danger-zone panels, and the divisions Remove.
+  the delete/cancel danger-zone panels, the divisions Remove, and the community
+  Report/Delete buttons.
 - **Fields:** import from
   [field-styles.ts](apps/web/src/components/field-styles.ts) (`fieldInputClass`
   / `fieldLabelClass` / `fieldSubLabelClass` / `fieldHintClass` /

@@ -139,6 +139,18 @@ export function errorTextButtonClass(size: PrimaryButtonSize = 'sm'): string {
 }
 
 /**
+ * Tonal error — medium-emphasis destructive/cautioning action that wants a
+ * tinted container rather than a shout: "Report", "Flag". Mirrors
+ * {@link tonalButtonClass} but on the M3 `error` role token
+ * (`bg-md-error/10` container, `text-md-error` label) — theme-aware in both
+ * modes, replacing hand-rolled `border-red-300 bg-red-50 … dark:bg-red-950/30`
+ * recipes. Completes the error family (Filled / Outlined / Text / Tonal).
+ */
+export function errorTonalButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `bg-md-error/10 text-md-error ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
  * Thin `<button>` wrapper for the most common case. For `Link` / `a` /
  * `SubmitButton`, spread `primaryButtonClass()` onto `className` instead
  * — wrapping each would force every call site through a discriminated

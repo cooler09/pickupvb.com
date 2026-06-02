@@ -1,5 +1,9 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import {
+  primaryButtonClass,
+  neutralButtonClass,
+  errorTonalButtonClass,
+} from '@/components/primary-button';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next/types';
@@ -491,9 +495,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
                 <option value="wrong_location">Wrong location or region</option>
                 <option value="other">Other</option>
               </select>
-              <SubmitButton className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-200">
-                Report listing
-              </SubmitButton>
+              <SubmitButton className={errorTonalButtonClass('sm')}>Report listing</SubmitButton>
             </form>
           )}
         </section>
@@ -511,22 +513,18 @@ export default async function CommunityListingDetailPage(props: PageProps) {
               detail.status !== 'claim_pending' && (
                 <Link
                   href={`/community/${detail.slug}/edit` as Route}
-                  className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold"
+                  className={neutralButtonClass('sm')}
                 >
                   Edit
                 </Link>
               )}
             {detail.status === 'active' ? (
               <form action={hideListingFromForm.bind(null, detail.id, detail.slug)}>
-                <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
-                  Hide
-                </SubmitButton>
+                <SubmitButton className={neutralButtonClass('sm')}>Hide</SubmitButton>
               </form>
             ) : detail.status === 'hidden' ? (
               <form action={unhideListingFromForm.bind(null, detail.id, detail.slug)}>
-                <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
-                  Unhide
-                </SubmitButton>
+                <SubmitButton className={neutralButtonClass('sm')}>Unhide</SubmitButton>
               </form>
             ) : null}
             <form
@@ -537,9 +535,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
                 <input type="checkbox" name="confirm" />
                 Confirm
               </label>
-              <SubmitButton className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-200">
-                Delete
-              </SubmitButton>
+              <SubmitButton className={errorTonalButtonClass('sm')}>Delete</SubmitButton>
             </form>
           </div>
           {detail.reportCount > 0 && (

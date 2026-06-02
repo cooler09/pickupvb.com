@@ -96,6 +96,13 @@ audit's remediation log (2026-06-01b–f); this entry is the narrative thread.
   canonicalized the player/group viewer-action clusters. Other lists
   (`attendee-list`, `friends-list`, …) remain — now a safe `neutralButtonClass`
   pass. [persona-ux.md H-3](../audits/persona-ux.md).
+- **Error-button family** — ✅ **complete 2026-06-01g/i/m**: `errorButtonClass`
+  (Filled), `errorOutlinedButtonClass`, `errorTextButtonClass`, and
+  `errorTonalButtonClass` (2026-06-01m — community Report/Delete) all mirror the
+  base four on the M3 `error` token. Remaining hand-rolled destructive shapes
+  (host-ad-hoc "Remove team" dense row, member-row red-on-hover, board-view
+  compact, approve/reject pair needing a `success*` counterpart) documented as
+  non-migrations. [persona-ux.md](../audits/persona-ux.md).
 - **CC-6** — ✅ **done 2026-06-01l**: the CC-1 ratchet only forbade
   `hover:bg-primary/90`, so a parallel `bg-primary … hover:opacity-90` recipe
   slipped past it (17 sites). Converted all 17 → `primaryButtonClass` and extended

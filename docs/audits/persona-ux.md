@@ -805,6 +805,27 @@ member rows.
   clean on the converted tree. Verify chain green (typecheck / lint / 625 tests /
   build). Both filled-primary recipes are now ratchet-locked.
 
+### 2026-06-01m — `errorTonalButtonClass` (error family complete) + community section convergence
+
+- **`errorTonalButtonClass(size)` added** to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) — Tonal
+  destructive (`bg-md-error/10` container + `text-md-error`), mirroring
+  `tonalButtonClass`. This **completes the error family** symmetrically with the
+  base family: Filled / Outlined / Text / **Tonal** all now have an `error*`
+  counterpart on the M3 `error` role token.
+- **Community listing manage/report section converged**
+  ([community/[slug]/page.tsx](../../apps/web/src/app/community/[slug]/page.tsx)):
+  the two tonal-error buttons (**Report listing**, **Delete**) → `errorTonalButtonClass`
+  (replacing hand-rolled `border-red-* bg-red-50 … dark:bg-red-950/30` recipes
+  with token theming), and their neutral row-siblings (**Edit / Hide / Unhide**)
+  → `neutralButtonClass` so the manage row stays one consistent size (the
+  conversion lifts that section from `text-xs` to the canonical `text-sm`).
+- **Left as-is (documented):** the **Approve claim / Reject claim** pair — a
+  matched green/red set, and there's no `success*` tonal primitive for the green
+  half, so converting only the red half would break the pair's symmetry. (A
+  `successTonalButtonClass` is the trigger to revisit if a second green/red pair
+  appears.) Verify chain green (typecheck / lint / 625 tests / build).
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
@@ -822,21 +843,21 @@ member rows.
   `secondaryButtonClass`; **`/pricing` done 2026-06-01b**, H-3 surfaces done
   2026-06-01k, ~75 sites remain). _CC-6 (the `hover:opacity-90` ratchet gap)
   resolved 2026-06-01l — both filled-primary recipes now ratchet-locked.
-  Error-button family complete 2026-06-01g/i; the only remaining destructive gap
-  is an `errorTonalButtonClass` for the tinted community report buttons. P-2
+  Error-button family **complete 2026-06-01g/i/m** (all four variants). P-2
   (StatusPill) resolved 2026-06-01h; CC-5 (FormModal conversion) resolved
   2026-06-01f._
-- **Error-button family** ✅ **complete 2026-06-01g/i.**
+- **Error-button family** ✅ **complete 2026-06-01g/i/m.**
   [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) now
   exports `errorButtonClass` (Filled, 2026-06-01g — 5 adopters),
-  `errorOutlinedButtonClass` (2026-06-01i — the two danger-zone delete triggers),
-  and `errorTextButtonClass` (2026-06-01i — the divisions Remove), all on the M3
-  `error` role token, mirroring `primaryButtonClass` / `secondaryButtonClass` /
-  `textButtonClass`. _Remaining destructive shapes left as documented
-  non-migrations: an `errorTonalButtonClass` for the tinted community **report**
-  buttons (`bg-red-50` + dark variants); the host-ad-hoc "Remove team" (dense
+  `errorOutlinedButtonClass` (2026-06-01i — danger-zone delete triggers),
+  `errorTextButtonClass` (2026-06-01i — divisions Remove), and
+  `errorTonalButtonClass` (2026-06-01m — community Report/Delete), all on the M3
+  `error` role token, mirroring `primaryButtonClass` / `tonalButtonClass` /
+  `secondaryButtonClass` / `textButtonClass`. _Remaining hand-rolled destructive
+  shapes left as documented non-migrations: the host-ad-hoc "Remove team" (dense
   `text-xs` row, needs an `xs` size); the member-row red-**on-hover** removes
-  (H-3); and the compact `bg-red-600` in `board-view.tsx`._
+  (H-3); the approve/reject claim pair (needs a `success*` counterpart for the
+  green half); and the compact `bg-red-600` in `board-view.tsx`._
 - **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim
   email-confirmation flow ([claim/actions.ts#L88-L90](../../apps/web/src/app/claim/actions.ts#L88-L90))
   hardcodes the post-confirmation redirect to `/reset-password?from=claim` and
