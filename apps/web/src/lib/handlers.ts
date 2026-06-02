@@ -85,6 +85,14 @@ import {
   ResetBracketHandler,
   ResetMatchHandler,
   ReorderPoolMatchesHandler,
+  PublishBracketHandler,
+  ReopenBracketHandler,
+  SetPoolsHandler,
+  EditMatchHandler,
+  AddMatchHandler,
+  RemoveMatchHandler,
+  SeedPlayoffHandler,
+  ReplaceEntryHandler,
   SearchCommunityListingsHandler,
   SearchEventsHandler,
   GetAttendingEventsHandler,
@@ -244,6 +252,17 @@ export const handlers = {
   generatePlayoff: new GeneratePlayoffHandler(eventRepo, bracketRepo, analytics),
   resetBracket: new ResetBracketHandler(eventRepo, bracketRepo, analytics),
   reorderPoolMatches: new ReorderPoolMatchesHandler(eventRepo, bracketRepo, analytics),
+  // ADR 0032 — host-gated structural edits to the draft / live bracket. All
+  // run on the admin-client bracketRepo (host already authorized in the
+  // handler via assertHost), like the other host-gated mutations above.
+  publishBracket: new PublishBracketHandler(eventRepo, bracketRepo, analytics),
+  reopenBracket: new ReopenBracketHandler(eventRepo, bracketRepo, analytics),
+  setBracketPools: new SetPoolsHandler(eventRepo, bracketRepo, analytics),
+  editBracketMatch: new EditMatchHandler(eventRepo, bracketRepo, analytics),
+  addBracketMatch: new AddMatchHandler(eventRepo, bracketRepo, analytics),
+  removeBracketMatch: new RemoveMatchHandler(eventRepo, bracketRepo, analytics),
+  seedBracketPlayoff: new SeedPlayoffHandler(eventRepo, bracketRepo, analytics),
+  replaceBracketEntry: new ReplaceEntryHandler(eventRepo, bracketRepo, analytics),
   // ADR 0025 standalone (event-free) brackets — owner-gated full-replace runs
   // on the admin-client bracketRepo (the app authorizes via `bracket.ownerUserId`).
   createStandaloneBracket: new CreateStandaloneBracketHandler(bracketRepo, analytics),
