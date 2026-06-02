@@ -81,7 +81,8 @@ const TOOLS: Tool[] = [
     slug: 'timer',
     title: 'Match timer',
     desc: 'Full-screen countdown for timed pool play, shared to every court.',
-    status: 'soon',
+    href: '/tools/timer' as Route,
+    status: 'live',
   },
   {
     slug: 'cost-split',

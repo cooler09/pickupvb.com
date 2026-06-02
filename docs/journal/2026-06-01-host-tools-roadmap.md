@@ -82,10 +82,11 @@ signup, ships behind a small client island like the scoreboard setup form.
   live across a venue → reuse the scoreboard room primitive (above); a
   single-device localStorage version is a simpler v1. Tiebreaker rules are the
   real work.
-- **`timer` (match)** — full-screen countdown for timed pool play, shareable to
-  every court. **Reuse the scoreboard room/Realtime + full-screen display
-  pattern** almost wholesale (timer state instead of score). Low-medium once the
-  room primitive is generalized.
+- **`timer` (match)** — ✅ **shipped 2026-06-02**
+  ([entry](2026-06-02-match-timer-room-primitive.md)): full-screen synced
+  countdown. Drove the room-primitive extraction (below); broadcasts transitions
+  only and derives the clock locally. Realtime still needs a two-device
+  dev-verify.
 - **`rotation` (court queue)** — king-of-the-court next-up queue for open gyms.
   **Wants shared multi-device state** (reuse the room primitive). The most
   interaction-heavy of the set; do it after the primitive is extracted.
@@ -93,3 +94,7 @@ signup, ships behind a small client island like the scoreboard setup form.
 Build trigger for the room primitive: the second multi-device tool (timer or
 rotation) is the signal to extract scoreboard's `_lib/` room/sync into a shared
 `app/tools/_lib/` so the three shared-state tools don't fork it three ways.
+✅ **Done 2026-06-02** — `room-code.ts`, `room-storage.ts`, and a generic
+`useRoomSync` now live in `app/tools/_lib/`; the scoreboard was migrated onto
+them via faithful shims and the timer is the second consumer. The remaining
+`rotation` / `standings` tools build straight on `useRoomSync`.
