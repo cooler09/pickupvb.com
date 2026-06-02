@@ -39,11 +39,12 @@ export default function robots(): MetadataRoute.Robots {
           '/claim/',
           // Ephemeral tool rooms (random 4-char codes, no useful content to
           // index) — but the tool index (/tools) and the tool landing pages
-          // (/tools/scoreboard, /tools/timer, /tools/rotation) are allowed so
-          // search engines surface the free utilities.
+          // (/tools/scoreboard, /tools/timer, /tools/rotation, /tools/standings)
+          // are allowed so search engines surface the free utilities.
           '/tools/scoreboard/*',
           '/tools/timer/*',
           '/tools/rotation/*',
+          '/tools/standings/*',
           '/s/',
           '/sentry-test',
           '/events/new',

@@ -69,7 +69,8 @@ const TOOLS: Tool[] = [
     slug: 'standings',
     title: 'Win/loss standings',
     desc: 'Round-robin standings with automatic tiebreakers.',
-    status: 'soon',
+    href: '/tools/standings' as Route,
+    status: 'live',
   },
   {
     slug: 'rotation',
@@ -137,22 +138,24 @@ export default function ToolsPage() {
         </ul>
       </div>
 
-      <div className="space-y-3">
-        <SectionLabel>On the roadmap</SectionLabel>
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {soon.map((t) => (
-            <li key={t.slug}>
-              <div className="border-border-base rounded-shape-sm flex h-full flex-col border border-dashed p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-fg font-semibold">{t.title}</h3>
-                  <Badge>Soon</Badge>
+      {soon.length > 0 ? (
+        <div className="space-y-3">
+          <SectionLabel>On the roadmap</SectionLabel>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {soon.map((t) => (
+              <li key={t.slug}>
+                <div className="border-border-base rounded-shape-sm flex h-full flex-col border border-dashed p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-fg font-semibold">{t.title}</h3>
+                    <Badge>Soon</Badge>
+                  </div>
+                  <p className="text-muted mt-1 text-sm">{t.desc}</p>
                 </div>
-                <p className="text-muted mt-1 text-sm">{t.desc}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="border-border-base bg-fg/5 rounded-shape-sm flex flex-col gap-3 border p-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-0.5">

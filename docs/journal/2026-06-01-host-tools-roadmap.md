@@ -78,11 +78,11 @@ signup, ships behind a small client island like the scoreboard setup form.
   ([entry](2026-06-02-court-rotation.md)): shipped, then pulled — a per-cent bill
   splitter is low value when everyone has a calculator. (Was
   [built here](2026-06-02-seeding-cost-split.md).)
-- **`standings` (win/loss)** — round-robin standings with automatic tiebreakers.
-  Was the other original placeholder. **Wants shared state** if it's to update
-  live across a venue → reuse the scoreboard room primitive (above); a
-  single-device localStorage version is a simpler v1. Tiebreaker rules are the
-  real work.
+- **`standings` (win/loss)** — ✅ **shipped 2026-06-02**
+  ([entry](2026-06-02-standings.md)): live win/loss table on `useRoomSync`, with
+  wins → head-to-head → differential → points-for tiebreakers. **Roadmap
+  complete** — all tools resolved; only the shared-state realtime dev-verify
+  remains.
 - **`timer` (match)** — ✅ **shipped 2026-06-02**
   ([entry](2026-06-02-match-timer-room-primitive.md)): full-screen synced
   countdown. Drove the room-primitive extraction (below); broadcasts transitions
