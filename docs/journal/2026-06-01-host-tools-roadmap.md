@@ -62,10 +62,11 @@ The 7 roadmap tools, ordered roughly by value-for-effort. Each is a standalone
 follow-up; the slug matches its tile in `TOOLS`. "Pure-client" = no backend, no
 signup, ships behind a small client island like the scoreboard setup form.
 
-- **`team-randomizer`** ⭐ — paste a roster → split into N teams, random or
-  balanced by skill tier. **Pure-client**, no persistence needed (localStorage
-  optional). The single highest value-for-effort start: classic pickup-night
-  need, no infra. Recommended first build.
+- **`team-randomizer`** ⭐ — ✅ **shipped 2026-06-02**
+  ([entry](2026-06-02-team-randomizer.md)): paste a roster → split into N teams,
+  random or skill-balanced (snake draft). **Pure-client**, nothing persisted.
+  Established the reusable "SEO landing + island + pure `_lib` + test" template
+  for the other pure-client tools.
 - **`scheduler` (round-robin)** — N teams + M courts → full matchup schedule per
   round (circle method). **Pure-client.** Output pairs directly with the
   standings tool. Low effort.

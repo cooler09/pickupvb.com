@@ -85,9 +85,14 @@ upload + moderation + orphan-sweep machinery all existed.
   awards), and the **reconcile cron** (`20260905000000`, pg_cron + pg_net →
   `/api/badges/reconcile`, inert until the `badge_reconcile_url` Vault secret is
   seeded — same activation pattern as the notification worker).
-- **Still open:** free-tier à-la-carte unlock for host badges. on_attend host
-  grants are SQL-only, so they don't fire the `badge.earned` notification (the
-  system + manual + easter-egg paths do).
+- **Free-tier à-la-carte unlock landed** (`20260907000000`): a free host can pay
+  a one-time $5 to unlock badge authoring for one event. New `event_badge_access`
+  table (per-event), a `badge_slot` Stripe checkout (`startBadgeSlotCheckoutFromForm`)
+  whose webhook writes the access row via `EventPaymentRepository.unlockBadgeSlot`,
+  and the panel gate `canUseBadges = hasProBenefits(host) OR paid`. Mirrors the
+  sponsor-slot à-la-carte path.
+- **Still open:** on_attend host grants are SQL-only, so they don't fire the
+  `badge.earned` notification (the system + manual + easter-egg paths do).
 
 ## Consequences
 

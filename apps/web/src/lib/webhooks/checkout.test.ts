@@ -18,6 +18,7 @@ vi.mock('@/lib/handlers', () => ({
       recordPaymentAudit: vi.fn(async () => {}),
       markTipPaid: vi.fn(async () => {}),
       upsertSponsorSlot: vi.fn(async () => {}),
+      unlockBadgeSlot: vi.fn(async () => {}),
       findEventHostId: vi.fn(async () => 'host_from_db'),
       deletePendingAttendeeByCheckoutSession: vi.fn(async () => {}),
       deletePendingTip: vi.fn(async () => {}),
@@ -252,6 +253,30 @@ describe('handleCheckoutCompleted — sponsor slot', () => {
       sessionOf({ event_id: 'e1', kind: 'sponsor_slot', user_id: 'u1', sponsor_name: '   ' }),
     );
     expect(repo.upsertSponsorSlot).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleCheckoutCompleted — badge slot', () => {
+  it('unlocks the à-la-carte badge slot and captures the sale', async () => {
+    await handleCheckoutCompleted(
+      sessionOf({ event_id: 'e1', kind: 'badge_slot', user_id: 'u1', host_id: 'h1' }),
+    );
+    expect(repo.unlockBadgeSlot).toHaveBeenCalledWith({
+      eventId: 'e1',
+      purchasedByUserId: 'u1',
+      checkoutSessionId: 'cs_1',
+      paymentIntentId: 'pi_1',
+      paidAt: expect.any(String),
+    });
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({ props: expect.objectContaining({ kind: 'badge_slot' }) }),
+      'u1',
+    );
+  });
+
+  it('no-ops when the buyer user_id is missing', async () => {
+    await handleCheckoutCompleted(sessionOf({ event_id: 'e1', kind: 'badge_slot' }));
+    expect(repo.unlockBadgeSlot).not.toHaveBeenCalled();
   });
 });
 

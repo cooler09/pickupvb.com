@@ -48,7 +48,8 @@ const TOOLS: Tool[] = [
     slug: 'team-randomizer',
     title: 'Team randomizer',
     desc: 'Paste a roster and split it into balanced or random teams in one tap.',
-    status: 'soon',
+    href: '/tools/team-randomizer' as Route,
+    status: 'live',
   },
   {
     slug: 'scheduler',
