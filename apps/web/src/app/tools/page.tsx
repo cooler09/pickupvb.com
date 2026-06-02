@@ -55,7 +55,8 @@ const TOOLS: Tool[] = [
     slug: 'scheduler',
     title: 'Round-robin scheduler',
     desc: 'Enter your teams and courts; get a full matchup schedule for every round.',
-    status: 'soon',
+    href: '/tools/scheduler' as Route,
+    status: 'live',
   },
   {
     slug: 'seeding',

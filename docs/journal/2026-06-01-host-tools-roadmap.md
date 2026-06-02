@@ -67,9 +67,10 @@ signup, ships behind a small client island like the scoreboard setup form.
   random or skill-balanced (snake draft). **Pure-client**, nothing persisted.
   Established the reusable "SEO landing + island + pure `_lib` + test" template
   for the other pure-client tools.
-- **`scheduler` (round-robin)** — N teams + M courts → full matchup schedule per
-  round (circle method). **Pure-client.** Output pairs directly with the
-  standings tool. Low effort.
+- **`scheduler` (round-robin)** — ✅ **shipped 2026-06-02**
+  ([entry](2026-06-02-round-robin-scheduler.md)): N teams + M courts → full
+  matchup schedule per round (circle method, bye rotation, court dealing).
+  **Pure-client**, derived live in render (deterministic, so no button).
 - **`seeding`** — snake / random / ranked ordering of a team list. **Pure-client**,
   trivial. Was one of the original placeholders; now has a concrete spec.
 - **`cost-split`** — split gym/court rental evenly (or by shares) across
