@@ -76,9 +76,17 @@ upload + moderation + orphan-sweep machinery all existed.
   division), so it is set equal to championships — a champion is correctly on the
   podium, never a false award. True runner-up / 3rd needs a placement-recording
   surface (a follow-up feature, not just a query).
-- **Host "earn here" teaser on the event page**, **manual `host_grant` awards**,
-  and **free-tier à-la-carte unlock** — follow-ups; the collectible still
-  surprises-and-delights on earn and shows in trophy cases.
+- **Landed 2026-06-02:** the event-page "Badges you can earn here" teaser
+  (on_attend badges), the **manual `host_grant` award flow** (host panel on the
+  manage dashboard → `award-badge-actions.ts`), a **`badge.earned` in-app
+  notification** (fired from the system reconcile, the easter egg, and manual
+  awards), and the **reconcile cron** (`20260905000000`, pg_cron + pg_net →
+  `/api/badges/reconcile`, inert until the `badge_reconcile_url` Vault secret is
+  seeded — same activation pattern as the notification worker).
+- **Still open:** free-tier à-la-carte unlock for host badges, and a true Podium
+  (2nd/3rd) recording surface. on_attend host grants are SQL-only, so they don't
+  fire the `badge.earned` notification (the system + manual + easter-egg paths
+  do).
 
 ## Consequences
 

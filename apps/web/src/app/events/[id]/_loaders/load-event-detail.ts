@@ -32,6 +32,7 @@ import {
   loadEventPricingCached,
   loadEventReadModelPublic,
   loadEventSponsorCached,
+  loadEventBadgesCached,
   loadEventTipTotalCached,
   loadHeroImageCached,
   loadHostStripeReadyCached,
@@ -39,6 +40,7 @@ import {
   type AdHocMemberRow,
   type AdHocRegRow,
   type EventSponsorView,
+  type EventBadgeView,
 } from './event-detail-cache';
 import type { EventHeroCta } from '../_components/event-hero';
 import type {
@@ -50,7 +52,7 @@ import type { HostAdHocTeamRow } from '../_components/host-ad-hoc-teams-panel';
 // Re-exported so `page.tsx` (generateMetadata) keeps its import path; the
 // implementation now lives in the consolidated cache module (P2-6).
 export { loadEventReadModelPublic };
-export type { EventSponsorView };
+export type { EventSponsorView, EventBadgeView };
 
 export type EligibleTeamOption = {
   kind: 'team' | 'registration';
@@ -182,6 +184,9 @@ export type EventDetailViewModel = {
   // Optional host-owned sponsor block (Bundle 84).
   sponsor: EventSponsorView | null;
 
+  // Host-authored collectible badges attendees can earn (gamification Phase 2).
+  eventBadges: EventBadgeView[];
+
   // Wide banner image uploaded by the host (nullable — fallback gradient shown).
   heroImageUrl: string | null;
 
@@ -252,6 +257,7 @@ export async function loadEventDetail(
     heroImageUrl,
     leagueTeamsByDivision,
     mediaSummary,
+    eventBadges,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -273,6 +279,7 @@ export async function loadEventDetail(
     loadHeroImageCached(event.id),
     loadLeagueTeamsByDivision(event),
     loadEventMediaSummaryCached(event.id),
+    loadEventBadgesCached(event.id),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -355,6 +362,7 @@ export async function loadEventDetail(
     filledByPosition,
     viewerPosition,
     sponsor,
+    eventBadges,
     heroImageUrl,
     mediaSummary,
     cta,

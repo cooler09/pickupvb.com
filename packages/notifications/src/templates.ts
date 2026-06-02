@@ -204,6 +204,18 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View profile',
     ),
   }),
+  // Default channel is in_app only (see KIND_DEFAULT_CHANNELS); the email/sms
+  // renderers exist to satisfy the exhaustive Record and never dispatch.
+  'badge.earned': (p) => ({
+    subject: `You earned the ${p.badgeTitle} badge`,
+    text: `You earned the ${p.badgeTitle} badge on PickupVB.`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Badge unlocked</h2>
+             <p>You earned the <strong>${escapeHtml(p.badgeTitle)}</strong> badge.</p>`,
+      `${APP_URL}/profile`,
+      'View your badges',
+    ),
+  }),
   'team.invite': (p) => ({
     subject: `${p.inviterName} invited you to ${p.groupName}`,
     text: `${p.inviterName} invited you to join ${p.groupName} on PickupVB.`,
@@ -289,6 +301,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'social.follow.new': (p) => ({
     body: `PickupVB: ${p.followerName} started following you.`,
   }),
+  'badge.earned': (p) => ({
+    body: `PickupVB: you earned the ${p.badgeTitle} badge.`,
+  }),
   'team.invite': (p) => ({
     body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/teams/${p.teamSlug}`,
   }),
@@ -357,6 +372,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     title: `${p.followerName} started following you`,
     body: null,
     href: `/players/${p.followerId}`,
+  }),
+  'badge.earned': (p) => ({
+    title: `Badge unlocked: ${p.badgeTitle}`,
+    body: null,
+    href: `/profile`,
   }),
   'team.invite': (p) => ({
     title: `Invited to ${p.groupName}`,

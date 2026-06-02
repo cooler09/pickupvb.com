@@ -1,9 +1,15 @@
 import 'server-only';
-import { isEasterEggBadgeKey, type GrantedBadge, type SystemBadgeKey } from '@pickupvb/domain';
+import {
+  getBadgeDefinition,
+  isEasterEggBadgeKey,
+  type GrantedBadge,
+  type SystemBadgeKey,
+} from '@pickupvb/domain';
 import { ReconcileUserBadgesHandler } from '@pickupvb/application';
 import { SupabaseBadgeRepository } from '@pickupvb/infrastructure';
 import type { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { getAdminSupabase } from './supabase-admin';
+import { notify } from './notify';
 
 type ReadClient = ReturnType<typeof createSupabaseAnonClient>;
 
@@ -36,7 +42,17 @@ export async function reconcileUserBadges(userId: string): Promise<SystemBadgeKe
         () => undefined,
         () => undefined,
       );
-    return await new ReconcileUserBadgesHandler(badgeRepo()).execute(userId);
+    const newly = await new ReconcileUserBadgesHandler(badgeRepo()).execute(userId);
+    // Bell notification (in_app only) for each newly-granted system badge. Only
+    // fires the first time a badge is granted (reconcile is idempotent), so no
+    // spam. Best-effort — a notify failure must not break the reconcile.
+    await Promise.allSettled(
+      newly.map((key) => {
+        const def = getBadgeDefinition(key);
+        return def ? notify('badge.earned', userId, { badgeTitle: def.title }) : Promise.resolve();
+      }),
+    );
+    return newly;
   } catch {
     return [];
   }

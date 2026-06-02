@@ -22,6 +22,7 @@ import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
+import { EventBadgesEarnSection } from './_components/event-badges-earn-section';
 import { EventMediaLink } from './_components/event-media-link';
 import { OffPlatformUpsell } from './_components/off-platform-upsell';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
@@ -125,6 +126,7 @@ export default async function EventDetailPage(props: {
     filledByPosition,
     viewerPosition,
     sponsor,
+    eventBadges,
     heroImageUrl,
     mediaSummary,
     cta,
@@ -355,6 +357,8 @@ export default async function EventDetailPage(props: {
         totalCount={mediaSummary.totalCount}
         liveCount={mediaSummary.liveCount}
       />
+
+      <EventBadgesEarnSection badges={eventBadges.filter((b) => b.grantRule === 'on_attend')} />
 
       <EventSponsorSection sponsor={sponsor} />
 

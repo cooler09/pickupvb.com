@@ -24,6 +24,7 @@ export type NotificationKind =
   | 'host.payout.paid'
   | 'host.stripe.action_required'
   | 'social.follow.new'
+  | 'badge.earned'
   | 'team.invite'
   | 'broadcast.host_message'
   | 'account.deletion.requested'
@@ -52,6 +53,7 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'host.payout.paid': 'host_payouts',
   'host.stripe.action_required': 'transactional',
   'social.follow.new': 'social',
+  'badge.earned': 'social',
   'team.invite': 'group_activity',
   'broadcast.host_message': 'broadcasts',
   'account.deletion.requested': 'transactional',
@@ -70,6 +72,7 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   'host.payout.paid': ['email', 'in_app'],
   'host.stripe.action_required': ['email', 'in_app'],
   'social.follow.new': ['in_app'],
+  'badge.earned': ['in_app'],
   'team.invite': ['email', 'push', 'in_app'],
   'broadcast.host_message': ['email', 'push', 'in_app'],
   'account.deletion.requested': ['email', 'in_app'],
@@ -135,6 +138,10 @@ export type NotificationPayloadMap = {
   'social.follow.new': {
     followerId: string;
     followerName: string;
+  };
+  'badge.earned': {
+    /** Display title of the badge earned (e.g. "Champion", "Summer Slam 2026"). */
+    badgeTitle: string;
   };
   'team.invite': {
     teamSlug: string;

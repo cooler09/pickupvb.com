@@ -1,9 +1,11 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
+import { getBadgeDefinition } from '@pickupvb/domain';
 import { profileCacheTag } from '@/lib/cache-tags';
 import { getCurrentUser } from '@/lib/server-auth';
 import { grantEasterEggBadge } from '@/lib/badges';
+import { notify } from '@/lib/notify';
 
 /**
  * Claim the hidden "Secret Set" badge (Phase 3 easter egg) — invoked by the
@@ -17,6 +19,8 @@ export async function claimKonamiBadge(): Promise<{ newlyGranted: boolean }> {
   if (!user) return { newlyGranted: false };
   const newlyGranted = await grantEasterEggBadge(user.id, 'konami');
   if (newlyGranted) {
+    const title = getBadgeDefinition('konami')?.title ?? 'Secret';
+    await notify('badge.earned', user.id, { badgeTitle: title }).catch(() => undefined);
     revalidatePath('/profile');
     updateTag(profileCacheTag(user.id));
   }
