@@ -2,7 +2,11 @@
 
 import { useFormStatus } from 'react-dom';
 import { useId, useRef, useState } from 'react';
-import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+import {
+  errorButtonClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/primary-button';
 
 /**
  * Submit button that asks for confirmation before posting its parent form.
@@ -60,12 +64,10 @@ export function ConfirmSubmitButton({
     });
   }
 
-  // Non-destructive confirm uses the canonical filled CTA. Destructive keeps a
-  // red treatment (no canonical error-button class yet — tracked in
-  // docs/audits/persona-ux.md backlog), aligned to the same md shape.
-  const confirmBtnClass = destructive
-    ? 'state-layer inline-flex items-center justify-center rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm'
-    : primaryButtonClass('md');
+  // Non-destructive confirm uses the canonical filled CTA; destructive uses
+  // the canonical filled error button (M3 `error` role tokens). Both share the
+  // same `md` shape so the modal action row lines up.
+  const confirmBtnClass = destructive ? errorButtonClass('md') : primaryButtonClass('md');
 
   return (
     <>

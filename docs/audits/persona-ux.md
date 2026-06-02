@@ -596,6 +596,41 @@ remaining P2s** in the audit.
 With H-1/H-2 closed, **all P2s in this audit are resolved.** What's left is the
 P3 backlog below.
 
+### 2026-06-01g — `errorButtonClass` primitive + filled-destructive adoption
+
+First P3 after the P2 closeout. The "rule of three" had fired — the destructive
+filled recipe `bg-red-600 … text-white hover:bg-red-700` was hand-rolled in 6+
+places (`ConfirmSubmitButton`'s confirm + four danger-zone panels), so the
+primitive earned its place.
+
+- **`errorButtonClass(size)` added** to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) —
+  mirrors `primaryButtonClass` (same `SIZING`/`BASE`/state-layer/lift) but uses
+  the M3 **`error` role tokens** `bg-md-error` / `text-md-on-error` instead of a
+  hardcoded `bg-red-600 text-white`. **Why tokens, not literals:** the role
+  tokens are already defined for both themes
+  ([globals.css](../../apps/web/src/app/globals.css)), so the button now tracks
+  dark mode — where M3 flips error to a light container with a dark label —
+  rather than staying a fixed dark-red/white that ignored the theme. (Worth an
+  eyeball in dark mode: the filled error button is intentionally lighter there,
+  per M3.)
+- **Adopted in the 5 filled-destructive call sites:**
+  [confirm-submit-button.tsx](../../apps/web/src/components/confirm-submit-button.tsx)
+  (destructive confirm — the audit's named target),
+  [delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx),
+  [delete-team-panel.tsx](../../apps/web/src/app/teams/[id]/_components/delete-team-panel.tsx),
+  [cancel-event-panel.tsx](../../apps/web/src/app/events/[id]/edit/cancel-event-panel.tsx),
+  [account/delete/page.tsx](../../apps/web/src/app/profile/account/delete/page.tsx).
+  Verify chain green (typecheck / lint / 625 tests / build).
+- **Deliberately not migrated (different shape, follow-up):** text-red
+  (divisions Remove, group/team member rows), outlined-red (host-ad-hoc "Remove
+  team", community report buttons), and the compact `board-view.tsx` reset. Those
+  want a `textButtonClass`/`secondaryButtonClass`-style **error** variant, not the
+  Filled one — a small follow-up once a second destructive shape is actually
+  needed twice. No `no-restricted-syntax` ratchet on `bg-red-600` this pass: the
+  token appears legitimately on alert **containers** (`bg-red-50` etc.), so a
+  naive ratchet would false-positive; revisit if filled-destructive drift recurs.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
@@ -612,8 +647,18 @@ P3 backlog below.
   2026-06-01b**; the ~30 remaining neutral-outlined call sites from
   `grep -rln "hover:bg-fg/5" apps/web/src` are the rest of this item). _CC-5
   (FormModal conversion) resolved 2026-06-01f._
-- **New primitive worth adding:** an `errorButtonClass`/`destructiveButtonClass`
-  in `primary-button.tsx` so destructive confirms stop hand-rolling `bg-red-600`.
+- **New primitive — `errorButtonClass`** ✅ **added 2026-06-01g.**
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) now
+  exports `errorButtonClass(size)` — a Filled destructive button on the M3
+  `error` role tokens (`bg-md-error` / `text-md-on-error`), mirroring
+  `primaryButtonClass`. Adopted in the 5 filled-destructive call sites that
+  hand-rolled `bg-red-600 … text-white`: `ConfirmSubmitButton`'s destructive
+  confirm, and the delete-group / delete-team / cancel-event / account-deletion
+  panels. _Remaining destructive variants are a different shape and left for a
+  follow-up text/outlined error variant: the borderless **text**-red (divisions
+  Remove, group/team member rows) and **outlined**-red (host-ad-hoc "Remove
+  team", community report buttons), plus the compact `bg-red-600` in
+  `board-view.tsx`._
 - **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim
   email-confirmation flow ([claim/actions.ts#L88-L90](../../apps/web/src/app/claim/actions.ts#L88-L90))
   hardcodes the post-confirmation redirect to `/reset-password?from=claim` and

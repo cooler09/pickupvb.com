@@ -86,6 +86,21 @@ export function textButtonClass(size: PrimaryButtonSize = 'sm'): string {
 }
 
 /**
+ * Filled error — destructive, high-emphasis action: "Delete group", "Yes,
+ * cancel event", the confirm step of a destructive `ConfirmSubmitButton`.
+ * Same filled shape as {@link primaryButtonClass} but painted with the M3
+ * `error` role tokens (`bg-md-error` / `text-md-on-error`) so it tracks the
+ * theme — including the inverted light-container / dark-label treatment M3
+ * uses for errors in dark mode — instead of a hardcoded `bg-red-600
+ * text-white` that ignores dark mode. Reserve for genuinely destructive
+ * confirms; pair a quieter `secondaryButtonClass` / `textButtonClass`
+ * "Cancel" beside it.
+ */
+export function errorButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `bg-md-error text-md-on-error ${SIZING[size]} ${BASE} shadow-sm hover:-translate-y-0.5 disabled:opacity-60`;
+}
+
+/**
  * Thin `<button>` wrapper for the most common case. For `Link` / `a` /
  * `SubmitButton`, spread `primaryButtonClass()` onto `className` instead
  * — wrapping each would force every call site through a discriminated

@@ -95,7 +95,10 @@ audit's remediation log (2026-06-01b–f); this entry is the narrative thread.
   - `tap-target` (divisions done this pass). [persona-ux.md H-3](../audits/persona-ux.md).
 - **Secondary-button convergence** — ~30 neutral `hover:bg-fg/5` outlined call
   sites remain (`/pricing` done). [persona-ux.md P3 backlog](../audits/persona-ux.md).
-- **`errorButtonClass` primitive** — add to `primary-button.tsx` so destructive
-  confirms stop hand-rolling red. [persona-ux.md backlog](../audits/persona-ux.md).
+- **`errorButtonClass` primitive** — ✅ **done 2026-06-01g** (persona-ux.md log):
+  added a Filled destructive variant on the M3 `error` role tokens and adopted it
+  in the 5 filled-destructive call sites (`ConfirmSubmitButton` + 4 danger-zone
+  panels). A text/outlined error variant (Remove links, member rows) is the
+  remaining slice. [persona-ux.md backlog](../audits/persona-ux.md).
 - **`StatusPill` primitive (P-2)** and **CC-3 `text-white` re-measure** — the
   last two cosmetic P3s. [persona-ux.md](../audits/persona-ux.md).

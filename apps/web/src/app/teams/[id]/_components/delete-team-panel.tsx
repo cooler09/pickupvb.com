@@ -2,6 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
+import { errorButtonClass } from '@/components/primary-button';
 import { deleteTeamAction } from '../delete-actions';
 
 type State = { error?: string; ok?: boolean };
@@ -59,11 +60,7 @@ export function DeleteTeamPanel({ teamId, teamName }: { teamId: string; teamName
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={errorButtonClass('md')}>
       {pending ? 'Deleting…' : 'Yes, delete team'}
     </button>
   );
