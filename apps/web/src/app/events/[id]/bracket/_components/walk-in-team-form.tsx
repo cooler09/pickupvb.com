@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import { bindBracketActions } from './bracket-action-binding';
 import type { BracketScope } from './labels';
 
@@ -189,11 +190,7 @@ export function WalkInTeamForm(props: {
             {added.length > 0 ? 'Done' : 'Cancel'}
           </button>
         )}
-        <button
-          type="submit"
-          disabled={pending}
-          className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
-        >
+        <button type="submit" disabled={pending} className={primaryButtonClass('sm')}>
           {pending ? 'Adding…' : added.length > 0 ? 'Add another' : 'Add team'}
         </button>
       </div>

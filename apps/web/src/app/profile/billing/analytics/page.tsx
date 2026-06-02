@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
@@ -78,10 +79,7 @@ export default async function HostAnalyticsPage() {
             insights for your events.
           </p>
           <div>
-            <Link
-              href={'/profile/billing/pro' as Route}
-              className="bg-primary text-primary-fg inline-flex rounded-md px-4 py-2 text-sm font-semibold hover:opacity-90"
-            >
+            <Link href={'/profile/billing/pro' as Route} className={primaryButtonClass('md')}>
               Upgrade to Pro →
             </Link>
           </div>

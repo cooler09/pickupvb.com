@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { repositories } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
@@ -31,10 +32,7 @@ export default async function MyBracketsPage() {
             results.
           </p>
         </div>
-        <Link
-          href="/brackets/new"
-          className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90"
-        >
+        <Link href="/brackets/new" className={primaryButtonClass('md')}>
           New bracket
         </Link>
       </header>

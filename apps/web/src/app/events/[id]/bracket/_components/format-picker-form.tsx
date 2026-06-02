@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import type { BracketFormat } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { createBracketFromForm } from '../actions';
@@ -549,7 +550,7 @@ export function FormatPickerForm(props: {
             enforceMin &&
             (props.teamCount < 2 || belowMin || poolPlayUnderfilled || fixedGamesInvalid)
           }
-          className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
+          className={primaryButtonClass('md')}
         >
           Create bracket
         </SubmitButton>

@@ -96,10 +96,12 @@ audit's remediation log (2026-06-01b–f); this entry is the narrative thread.
   canonicalized the player/group viewer-action clusters. Other lists
   (`attendee-list`, `friends-list`, …) remain — now a safe `neutralButtonClass`
   pass. [persona-ux.md H-3](../audits/persona-ux.md).
-- **CC-6 (new, P3)** — the CC-1 ratchet only forbids `hover:bg-primary/90`, so a
-  parallel `bg-primary … hover:opacity-90` hand-rolled-primary recipe slipped past
-  it: **17** still live (4 fixed across 2026-06-01j/k). Codemod → `primaryButtonClass`
-  - extend the ratchet. [persona-ux.md CC-6](../audits/persona-ux.md).
+- **CC-6** — ✅ **done 2026-06-01l**: the CC-1 ratchet only forbade
+  `hover:bg-primary/90`, so a parallel `bg-primary … hover:opacity-90` recipe
+  slipped past it (17 sites). Converted all 17 → `primaryButtonClass` and extended
+  the ratchet to flag the `bg-primary`+`hover:opacity-90` co-occurrence (not bare
+  `hover:opacity-90` — legit on row-link fades). Both filled-primary recipes now
+  ratchet-locked. [persona-ux.md CC-6](../audits/persona-ux.md).
 - **Secondary-button convergence** — **re-scoped 2026-06-01h, unblocked
   2026-06-01k:** re-measure found 84 `hover:bg-fg/5`+border sites (not ~30),
   heterogeneous; a blanket `→ secondaryButtonClass` (primary-tinted) is wrong.

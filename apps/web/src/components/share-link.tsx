@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import { useIsMounted } from '@/lib/use-is-mounted';
 
 type Props = {
@@ -112,11 +113,7 @@ export function ShareLink({ path, title, code, label = 'Share' }: Props) {
               onFocus={(e) => e.currentTarget.select()}
               className="border-border-base bg-bg text-fg focus:border-primary min-w-0 flex-1 rounded-md border px-2 py-1.5 font-mono text-xs outline-none"
             />
-            <button
-              type="button"
-              onClick={copy}
-              className="bg-primary text-primary-fg shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold hover:opacity-90"
-            >
+            <button type="button" onClick={copy} className={`${primaryButtonClass('sm')} shrink-0`}>
               {status === 'copied' ? 'Copied ✓' : 'Copy'}
             </button>
           </div>

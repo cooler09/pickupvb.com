@@ -1,6 +1,7 @@
 'use client';
 
 import { FormModal } from '@/components/form-modal';
+import { primaryButtonClass } from '@/components/primary-button';
 import { eventScope } from './bracket-action-binding';
 import { FormatPickerForm } from './format-picker-form';
 import { WalkInTeamForm } from './walk-in-team-form';
@@ -61,7 +62,7 @@ export function NoBracketView(props: {
               className={
                 ready
                   ? 'border-border-base text-fg/80 hover:bg-fg/5 rounded-md border border-dashed px-3 py-1.5 text-sm font-medium'
-                  : 'bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90'
+                  : primaryButtonClass('sm')
               }
             >
               + Add walk-in teams

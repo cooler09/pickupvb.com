@@ -1,6 +1,7 @@
 'use client';
 
 import { CloseOnSettled, FormModal, ModalFooter } from '@/components/form-modal';
+import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
 import {
   hostForceWithdrawTeamRegistration,
@@ -99,11 +100,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
       {adHocDivisions.length > 0 && (
         <FormModal
           trigger={(open) => (
-            <button
-              type="button"
-              onClick={open}
-              className="bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90"
-            >
+            <button type="button" onClick={open} className={primaryButtonClass('sm')}>
               + Add walk-in team
             </button>
           )}
@@ -178,10 +175,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                 >
                   Cancel
                 </button>
-                <SubmitButton
-                  pendingChildren="Adding…"
-                  className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
-                >
+                <SubmitButton pendingChildren="Adding…" className={primaryButtonClass('sm')}>
                   Add walk-in team
                 </SubmitButton>
               </ModalFooter>

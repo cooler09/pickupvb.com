@@ -63,12 +63,12 @@ The repo has a **canonical CTA + field vocabulary** —
 same action reads differently depending on which screen a persona is on. Measured
 2026-05-31 (`apps/web/src`):
 
-| Drift                                                          | Count                                                                       | Canonical                                      |
-| -------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------- |
-| Old primary-button recipe (`hover:bg-primary/90`)              | ~~68 / 51 files~~ → **0** (CC-1 ✅ 2026-05-31d; ratchet-locked)             | `primaryButtonClass` — **61 files**            |
-| Local `inputClass =` field vocabularies                        | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions)    | `field-styles.ts` + `TextField`                |
-| `text-white` hardcoded on buttons (vs `text-primary-fg` token) | ~~64~~ → **0** (CC-1 absorbed most; CC-3 ✅ 2026-06-01j cleared the last 5) | `text-primary-fg` token                        |
-| Native `window.confirm` for destructive actions                | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                         | in-app `ConfirmSubmitButton` dialog everywhere |
+| Drift                                                                   | Count                                                                                                | Canonical                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Old primary-button recipes (`hover:bg-primary/90` + `hover:opacity-90`) | ~~68~~ → **0** (CC-1 ✅ 2026-05-31d) **+** ~~17~~ → **0** (CC-6 ✅ 2026-06-01l); both ratchet-locked | `primaryButtonClass`                           |
+| Local `inputClass =` field vocabularies                                 | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions)                             | `field-styles.ts` + `TextField`                |
+| `text-white` hardcoded on buttons (vs `text-primary-fg` token)          | ~~64~~ → **0** (CC-1 absorbed most; CC-3 ✅ 2026-06-01j cleared the last 5)                          | `text-primary-fg` token                        |
+| Native `window.confirm` for destructive actions                         | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                                                  | in-app `ConfirmSubmitButton` dialog everywhere |
 
 That ratio (≈5:1 hand-rolled:canonical on buttons; 17 forked field styles) is the
 mechanical reason the UI "doesn't feel clean for action items and edit forms." It
@@ -166,31 +166,32 @@ events-page-ux audit already solved for the walk-in team form by moving it into
 machine is gone — Radix owns each modal's open state. See H-2 for the rest of the
 bundle (row-action tap targets + button convergence).
 
-#### CC-6 — CC-1 ratchet has a `hover:opacity-90` blind spot · **P3** · ⚠ open (surfaced 2026-06-01k)
+#### CC-6 — CC-1 ratchet had a `hover:opacity-90` blind spot · **P3** · ✅ resolved 2026-06-01l
 
 The CC-1 button ratchet (2026-05-31d) forbids the **old** recipe's tell —
-`hover:bg-primary/90` — but a second hand-rolled filled-primary recipe uses
-`bg-primary text-primary-fg … hover:opacity-90` instead, which the ratchet
-doesn't catch. Found incrementally: 1 in `free-agent-signup-panel` (fixed in
-CC-3, 2026-06-01j), 3 in `player-viewer-actions` (fixed 2026-06-01k), and a
-re-measure (`grep "bg-primary" | grep "hover:opacity-90"`) shows **17 more**
-still live — e.g.
-[setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx),
-[no-bracket-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx),
-[host-ad-hoc-teams-panel.tsx](../../apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx),
-[format-picker-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx),
-[walk-in-team-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/walk-in-team-form.tsx),
-[brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx),
-[share-link.tsx](../../apps/web/src/components/share-link.tsx),
-[consent-banner.tsx](../../apps/web/src/components/consent-banner.tsx),
-[profile/billing/page.tsx](../../apps/web/src/app/profile/billing/page.tsx) (+
-`business-info-form`, `billing/analytics`, `sentry-test`). These are genuine
-hand-rolled primary buttons that should be `primaryButtonClass`. **Fix:** an
-exact-string codemod `bg-primary … hover:opacity-90` → `primaryButtonClass(size)`
-(same shape as the CC-1 sweep), then **extend the ratchet** to also flag a
-`hover:opacity-90` literal co-located with `bg-primary` (or just flag
-`hover:opacity-90` on a filled button — confirm no legitimate non-button use
-first). Until then "CC-1 ratchet-locked" is only true for the `/90` recipe.
+`hover:bg-primary/90` — but a second hand-rolled filled-primary recipe used
+`bg-primary text-primary-fg … hover:opacity-90` instead, which the ratchet didn't
+catch. Found incrementally (1 in `free-agent-signup-panel`, 3 in
+`player-viewer-actions`) then re-measured to **17 more** across bracket views,
+host-ad-hoc, billing, `share-link`, `consent-banner`, `sentry-test`, etc.
+**Resolved (done):**
+
+- **Codemod** — all 17 converted to `primaryButtonClass('sm'|'md')` (size by
+  padding; preserved layout extras like `shrink-0` / `text-center`; the two
+  ternary "+ Add teams" branches in `setup-view` / `no-bracket-view` → the
+  filled branch is now `primaryButtonClass('sm')`). `bg-primary`+`hover:opacity-90`
+  is now **0**.
+- **Ratchet extended** — two `no-restricted-syntax` selectors in
+  [eslint.config.mjs](../../apps/web/eslint.config.mjs) flag the **co-occurrence**
+  of `bg-primary` + `hover:opacity-90` in one class string (Literal +
+  TemplateElement, dual look-ahead so it's order-independent). A blanket
+  `hover:opacity-90` rule was rejected — it's legitimate on non-button row-link
+  fades ([attendee-list.tsx](../../apps/web/src/components/attendee-list.tsx),
+  [friends-list.tsx](../../apps/web/src/components/friends-list.tsx)) — so the
+  rule keys on the pairing only. Verified: fires on a probe, clean on the tree.
+  Both filled-primary recipes are now ratchet-locked. _Not covered: the lone
+  `bg-secondary … hover:opacity-90` filled-secondary test button in `sentry-test`
+  — there's no filled-secondary primitive and it's a dev-only page; left as-is._
 
 #### V-1 — Landing "Create account" CTA 404s · **P1**
 
@@ -785,6 +786,25 @@ member rows.
   `neutralButtonClass` to the H-3 surfaces only this pass — the full ~80-site
   convergence is now a safe mechanical follow-up.
 
+### 2026-06-01l — CC-6 `hover:opacity-90` sweep + ratchet extension
+
+- **CC-6 (P3) — fixed.** Converted the **17** hand-rolled
+  `bg-primary … hover:opacity-90` primary buttons (the recipe the CC-1 `/90`
+  ratchet missed) to `primaryButtonClass` across 12 files — bracket views
+  (`setup-view`, `no-bracket-view`, `format-picker-form`, `walk-in-team-form`),
+  `host-ad-hoc-teams-panel`, `brackets/page`, the billing pages
+  (`billing/page`, `billing/analytics`, `receipts/business-info-form`),
+  `share-link`, `consent-banner`, `sentry-test`. Size mapped by padding
+  (`px-4 py-2`→`md`, `px-3 py-1.5`→`sm`); layout extras preserved; the two
+  `setup-view`/`no-bracket-view` ternary "+ Add teams" branches keep the
+  active-vs-dashed conditional with the filled branch now `primaryButtonClass('sm')`.
+- **Ratchet extended** ([eslint.config.mjs](../../apps/web/eslint.config.mjs)):
+  two selectors flag `bg-primary` + `hover:opacity-90` **co-occurrence** (dual
+  look-ahead, Literal + TemplateElement). Keyed on the pairing — not bare
+  `hover:opacity-90`, which is legit on row-link fades. Probe-verified it fires;
+  clean on the converted tree. Verify chain green (typecheck / lint / 625 tests /
+  build). Both filled-primary recipes are now ratchet-locked.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
@@ -796,16 +816,16 @@ member rows.
   viewer-action clusters done 2026-06-01f/k**; other lists — `attendee-list`,
   `friends-list`, `my-teams-panel`, `invite-response`, `extra-members-form` —
   remain, now a safe `neutralButtonClass + tap-target` pass);
-  **CC-6** (CC-1 `hover:opacity-90` ratchet blind spot — **17 hand-rolled primary
-  buttons** still live; codemod + extend ratchet);
   secondary/outlined-button convergence (**re-scoped 2026-06-01h; unblocked
   2026-06-01k** — `neutralButtonClass` now exists, so the curated sweep is
   neutral→`neutralButtonClass` (no-visual-change) + genuine secondary actions →
   `secondaryButtonClass`; **`/pricing` done 2026-06-01b**, H-3 surfaces done
-  2026-06-01k, ~75 sites remain). _Error-button family complete 2026-06-01g/i;
-  the only remaining destructive gap is an `errorTonalButtonClass` for the tinted
-  community report buttons. P-2 (StatusPill) resolved 2026-06-01h; CC-5 (FormModal
-  conversion) resolved 2026-06-01f._
+  2026-06-01k, ~75 sites remain). _CC-6 (the `hover:opacity-90` ratchet gap)
+  resolved 2026-06-01l — both filled-primary recipes now ratchet-locked.
+  Error-button family complete 2026-06-01g/i; the only remaining destructive gap
+  is an `errorTonalButtonClass` for the tinted community report buttons. P-2
+  (StatusPill) resolved 2026-06-01h; CC-5 (FormModal conversion) resolved
+  2026-06-01f._
 - **Error-button family** ✅ **complete 2026-06-01g/i.**
   [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) now
   exports `errorButtonClass` (Filled, 2026-06-01g — 5 adopters),

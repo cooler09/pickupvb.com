@@ -712,9 +712,9 @@ text-white …`. The four M3 variants take a `'sm' | 'md'` size. A neutral
   bordered button (the `border-border-base hover:bg-fg/5` look — "Message",
   "✓ Following", row toggles, "Sign out") uses `neutralButtonClass(size)` — do
   **not** reach for the primary-tinted `secondaryButtonClass` just to get a
-  border. Note the CC-1 ratchet only catches `hover:bg-primary/90`, not the
-  `bg-primary … hover:opacity-90` variant — don't hand-roll either; use
-  `primaryButtonClass`. For destructive
+  border. Don't hand-roll a filled primary button via either `hover:bg-primary/90`
+  **or** `bg-primary … hover:opacity-90` — both are `no-restricted-syntax` errors
+  now (CC-1 + CC-6); use `primaryButtonClass`. For destructive
   actions use the **error family** — `errorButtonClass` (Filled, e.g. a delete
   confirm), `errorOutlinedButtonClass` (a "Delete…" trigger), `errorTextButtonClass`
   (a borderless row "Remove", pair with `tap-target`) — all on the M3 `error`

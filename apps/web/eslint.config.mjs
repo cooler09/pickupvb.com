@@ -102,6 +102,25 @@ const config = [
           message:
             "Don't hand-roll the primary-button recipe in a template literal. Use primaryButtonClass / secondaryButtonClass from '@/components/primary-button'. See docs/audits/persona-ux.md CC-1.",
         },
+        // CC-6 (docs/audits/persona-ux.md, Bundle 2026-06-01l): the `/90`
+        // ratchet above missed a *second* hand-rolled filled-primary recipe —
+        // `bg-primary … text-primary-fg … hover:opacity-90` — which slipped past
+        // it 17 times. `hover:opacity-90` alone is legitimate (a subtle fade on
+        // non-button row links, e.g. attendee-list / friends-list), so we forbid
+        // only the *co-occurrence* of `bg-primary` + `hover:opacity-90` in one
+        // class string (dual look-ahead, order-independent). A genuinely new
+        // filled button must import primaryButtonClass.
+        {
+          selector: 'Literal[value=/^(?=[\\s\\S]*bg-primary)(?=[\\s\\S]*hover:opacity-90)/]',
+          message:
+            "Don't hand-roll a filled primary button with `bg-primary … hover:opacity-90` (it dodges the `/90` ratchet). Use primaryButtonClass(size) from '@/components/primary-button'. See docs/audits/persona-ux.md CC-6.",
+        },
+        {
+          selector:
+            'TemplateElement[value.cooked=/^(?=[\\s\\S]*bg-primary)(?=[\\s\\S]*hover:opacity-90)/]',
+          message:
+            "Don't hand-roll a filled primary button with `bg-primary … hover:opacity-90` in a template literal. Use primaryButtonClass(size) from '@/components/primary-button'. See docs/audits/persona-ux.md CC-6.",
+        },
       ],
     },
   },
