@@ -14,6 +14,8 @@ import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
 import { ProfileVideoGrid } from '@/components/profile-video-grid';
+import { BadgeShelf } from '@/components/badge-shelf';
+import { loadPublicBadges } from '@/lib/badges';
 
 /**
  * ISR cache for anonymous traffic. The public player profile (identity
@@ -73,7 +75,7 @@ export default async function PlayerProfilePage(props: {
 
   // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.
   const now = new Date();
-  const [upcoming, past, isProHost, isAdmin, videos] = await Promise.all([
+  const [upcoming, past, isProHost, isAdmin, videos, publicBadges] = await Promise.all([
     // RLS handles visibility — anon viewers only see public events.
     loadVisibleHostedEvents(supabase, profile.id, { startsAfter: now }),
     loadVisibleHostedEvents(supabase, profile.id, { startsBefore: now }),
@@ -82,6 +84,9 @@ export default async function PlayerProfilePage(props: {
     // Viewer-independent (anon client, active-only via RLS) so the page stays
     // ISR-cacheable.
     new SupabaseMediaPostRepository(supabase).listForProfile(profile.id, null),
+    // Public trophy case — read from the user_badges_public view (anon-granted,
+    // hidden badges already filtered), so it stays ISR-cacheable too.
+    loadPublicBadges(supabase, profile.id),
   ]);
 
   const returnPath = `/players/${profile.handle}`;
@@ -154,6 +159,18 @@ export default async function PlayerProfilePage(props: {
           />
         </div>
       </header>
+
+      {/* Public trophy case — earned badges only (renders nothing when empty). */}
+      <BadgeShelf
+        earned={publicBadges.map((b) => ({
+          badgeKey: b.badgeKey,
+          awardedAt: new Date(b.awardedAt),
+          source: b.source,
+          label: typeof b.context?.label === 'string' ? b.context.label : null,
+          iconUrl: typeof b.context?.iconUrl === 'string' ? b.context.iconUrl : null,
+        }))}
+        heading={`${name}'s badges`}
+      />
 
       <section className="space-y-3">
         <h2 className="text-fg text-lg font-semibold">

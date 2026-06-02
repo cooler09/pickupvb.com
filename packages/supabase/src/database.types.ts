@@ -624,6 +624,50 @@ export type Database = {
           },
         ];
       };
+      event_badges: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          event_id: string;
+          grant_rule: string;
+          icon_url: string | null;
+          id: string;
+          label: string;
+          sort_order: number;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          event_id: string;
+          grant_rule?: string;
+          icon_url?: string | null;
+          id?: string;
+          label: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          event_id?: string;
+          grant_rule?: string;
+          icon_url?: string | null;
+          id?: string;
+          label?: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_badges_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_co_hosts: {
         Row: {
           added_at: string;
@@ -2725,6 +2769,44 @@ export type Database = {
           },
         ];
       };
+      user_badges: {
+        Row: {
+          awarded_at: string;
+          badge_key: string;
+          context: Json | null;
+          hidden: boolean;
+          id: string;
+          source: string;
+          user_id: string;
+        };
+        Insert: {
+          awarded_at?: string;
+          badge_key: string;
+          context?: Json | null;
+          hidden?: boolean;
+          id?: string;
+          source?: string;
+          user_id: string;
+        };
+        Update: {
+          awarded_at?: string;
+          badge_key?: string;
+          context?: Json | null;
+          hidden?: boolean;
+          id?: string;
+          source?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_badges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       user_blocks: {
         Row: {
           blocked_id: string;
@@ -2774,6 +2856,38 @@ export type Database = {
       };
     };
     Views: {
+      user_badges_public: {
+        Row: {
+          awarded_at: string | null;
+          badge_key: string | null;
+          context: Json | null;
+          source: string | null;
+          user_id: string | null;
+        };
+        Insert: {
+          awarded_at?: string | null;
+          badge_key?: string | null;
+          context?: Json | null;
+          source?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          awarded_at?: string | null;
+          badge_key?: string | null;
+          context?: Json | null;
+          source?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_badges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_team_entry_members_public: {
         Row: {
           display_name: string | null;
@@ -3287,6 +3401,26 @@ export type Database = {
       };
       clear_match_live_score: {
         Args: { p_match_id: string };
+        Returns: undefined;
+      };
+      compute_player_badge_stats: {
+        Args: { p_user_id: string };
+        Returns: {
+          attended_event_count: number;
+          distinct_positions_played: number;
+          leagues_completed: number;
+          max_events_with_single_host: number;
+          published_event_count: number;
+          tournament_championships: number;
+          tournament_podiums: number;
+        }[];
+      };
+      set_user_badge_hidden: {
+        Args: { p_badge_key: string; p_hidden: boolean };
+        Returns: undefined;
+      };
+      grant_attended_event_badges: {
+        Args: { p_user_id: string };
         Returns: undefined;
       };
       consume_rate_limit: {

@@ -25,6 +25,10 @@ import { AdminBadge } from '@/components/admin-badge';
 import { isPlatformAdmin } from '@/lib/admin';
 import { isPro } from '@/lib/pro';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { BadgeShelf, type ShelfBadge } from '@/components/badge-shelf';
+import { BadgeUnlockToast } from '@/components/badge-unlock-toast';
+import { KonamiListener } from '@/components/konami-listener';
+import { reconcileUserBadges, getOwnBadges } from '@/lib/badges';
 
 export const metadata = {
   title: 'Your profile — PickupVB',
@@ -83,6 +87,19 @@ export default async function ProfilePage(props: {
 
   const { supabase, user } = await getCurrentUser();
   if (!user) redirect('/login?next=/profile');
+
+  // Gamification Phase 1: reconcile this player's achievement badges on their
+  // own profile view (idempotent), then read the full set for the trophy case.
+  // `newlyGrantedBadges` drives the one-time unlock toast.
+  const newlyGrantedBadges = await reconcileUserBadges(user.id);
+  const ownBadges = await getOwnBadges(user.id);
+  const shelfBadges: ShelfBadge[] = ownBadges.map((b) => ({
+    badgeKey: b.badgeKey,
+    awardedAt: b.awardedAt,
+    source: b.source,
+    label: typeof b.context?.label === 'string' ? b.context.label : null,
+    iconUrl: typeof b.context?.iconUrl === 'string' ? b.context.iconUrl : null,
+  }));
 
   const { data } = await supabase
     .from('profiles')
@@ -259,6 +276,11 @@ export default async function ProfilePage(props: {
           <HandleEditor currentHandle={profile.handle} />
         </div>
       </section>
+
+      {/* Achievement badges (gamification Phase 1) — owner sees locked teasers. */}
+      <BadgeUnlockToast newlyGranted={newlyGrantedBadges} />
+      <KonamiListener />
+      <BadgeShelf earned={shelfBadges} showLocked heading="Your badges" />
 
       {/* First-run "Get started" card (sparse profile + zero activity). */}
       {showOnboarding && (

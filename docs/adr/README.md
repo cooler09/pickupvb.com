@@ -35,6 +35,7 @@ status to `Superseded by NNNN`.
 | [0028](0028-chat-messaging.md)                      | Chat / messaging — a unified conversation engine                                     | Accepted                                                             |
 | [0029](0029-account-deletion.md)                    | Account deletion — soft-delete tombstone + grace-windowed hard purge                 | Accepted                                                             |
 | [0030](0030-content-moderation-profanity.md)        | Content moderation — profanity filtering across community surfaces                   | Accepted                                                             |
+| [0031](0031-gamification-badges.md)                 | Gamification — collector badges, achievements & Pro host event badges                | Accepted                                                             |
 
 ## Template
 

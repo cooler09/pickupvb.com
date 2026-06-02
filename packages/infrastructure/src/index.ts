@@ -22,5 +22,6 @@ export * from './supabase-broadcast-repository';
 export * from './supabase-notification-preferences-repository';
 export * from './supabase-messaging-repository';
 export * from './supabase-deletion-request-repository';
+export * from './supabase-badge-repository';
 export * from './noop-analytics';
 export * from './posthog-analytics';
