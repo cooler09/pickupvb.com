@@ -62,7 +62,8 @@ const TOOLS: Tool[] = [
     slug: 'seeding',
     title: 'Seeding generator',
     desc: 'Snake, random, or ranked seeding for any bracket or pool.',
-    status: 'soon',
+    href: '/tools/seeding' as Route,
+    status: 'live',
   },
   {
     slug: 'standings',
@@ -86,7 +87,8 @@ const TOOLS: Tool[] = [
     slug: 'cost-split',
     title: 'Cost split calculator',
     desc: 'Split gym or court rental evenly across everyone who showed up.',
-    status: 'soon',
+    href: '/tools/cost-split' as Route,
+    status: 'live',
   },
 ];
 

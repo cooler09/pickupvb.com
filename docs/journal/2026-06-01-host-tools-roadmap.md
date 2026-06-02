@@ -71,10 +71,12 @@ signup, ships behind a small client island like the scoreboard setup form.
   ([entry](2026-06-02-round-robin-scheduler.md)): N teams + M courts → full
   matchup schedule per round (circle method, bye rotation, court dealing).
   **Pure-client**, derived live in render (deterministic, so no button).
-- **`seeding`** — snake / random / ranked ordering of a team list. **Pure-client**,
-  trivial. Was one of the original placeholders; now has a concrete spec.
-- **`cost-split`** — split gym/court rental evenly (or by shares) across
-  attendees. **Pure-client** arithmetic, trivial. Smallest scope.
+- **`seeding`** — ✅ **shipped 2026-06-02**
+  ([entry](2026-06-02-seeding-cost-split.md)): ranked / random seed order +
+  snake-into-pools. **Pure-client**; draws on a button, re-pools live.
+- **`cost-split`** — ✅ **shipped 2026-06-02**
+  ([entry](2026-06-02-seeding-cost-split.md)): split gym/court rental evenly or
+  by shares, exact-cent. **Pure-client**, derived live.
 - **`standings` (win/loss)** — round-robin standings with automatic tiebreakers.
   Was the other original placeholder. **Wants shared state** if it's to update
   live across a venue → reuse the scoreboard room primitive (above); a
