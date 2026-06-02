@@ -35,6 +35,16 @@ export interface PaymentAuditEntry {
   paymentIntentId: string | null;
 }
 
+/** The a-la-carte badge-authoring unlock mirrored from a completed checkout. */
+export interface PaidBadgeSlot {
+  eventId: string;
+  purchasedByUserId: string;
+  checkoutSessionId: string;
+  paymentIntentId: string | null;
+  /** ISO-8601 timestamp; the caller owns the clock so the write stays pure. */
+  paidAt: string;
+}
+
 /** The a-la-carte sponsor slot purchase mirrored from a completed checkout. */
 export interface PaidSponsorSlot {
   eventId: string;
@@ -70,6 +80,8 @@ export interface EventPaymentRepository {
   ): Promise<void>;
   /** Upsert the a-la-carte sponsor slot (one per event). Throws on a DB error. */
   upsertSponsorSlot(slot: PaidSponsorSlot): Promise<void>;
+  /** Unlock à-la-carte badge authoring for an event (one per event). Throws on a DB error. */
+  unlockBadgeSlot(slot: PaidBadgeSlot): Promise<void>;
   /** Resolve an event's payout host. Null if the event was deleted mid-flight. */
   findEventHostId(eventId: string): Promise<string | null>;
 

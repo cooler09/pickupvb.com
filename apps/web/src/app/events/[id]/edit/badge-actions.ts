@@ -3,6 +3,8 @@
 import { randomUUID } from 'node:crypto';
 import { revalidatePath, updateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
+import type { Route } from 'next';
+import type Stripe from 'stripe';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import {
   NotFoundError,
@@ -11,12 +13,37 @@ import {
   assertCleanName,
   maskPublicText,
 } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { handlers, analytics } from '@/lib/handlers';
 import { field, fieldOrNull } from '@/lib/form-data';
 import { hasProBenefits } from '@/lib/admin';
 import { getServerSupabase } from '@/lib/supabase';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 import { requireSession } from '@/lib/server-auth';
+import { buildOrigin } from '@/lib/server-redirects';
+import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { eventCacheTag } from '@/lib/cache-tags';
+
+/** One-time price to unlock collectible badges for a single event (free tier). */
+const BADGE_SLOT_UNLOCK_CENTS = 500;
+
+/** Has this event's à-la-carte badge unlock been paid? Reads the access row on
+ * the admin client (the table has no client RLS policies — webhook-written).
+ * Internal (not exported): a `'use server'` module exposes every export as a
+ * callable action, and this is just a gate helper. */
+async function badgeSlotPaid(eventId: string): Promise<boolean> {
+  const { data } = await getAdminSupabase()
+    .from('event_badge_access')
+    .select('paid_at')
+    .eq('event_id', eventId)
+    .maybeSingle();
+  return (data as { paid_at: string | null } | null)?.paid_at != null;
+}
+
+async function loadEventHostId(eventId: string): Promise<string | null> {
+  const sb = await getServerSupabase();
+  const { data } = await sb.from('events').select('host_id').eq('id', eventId).maybeSingle();
+  return (data as { host_id: string | null } | null)?.host_id ?? null;
+}
 
 /**
  * Host-authored event badges (gamification Phase 2). Authoring is a Pro
@@ -65,7 +92,8 @@ export async function addEventBadgeFromForm(
     flashTo(eventId, 'unauthorized');
   }
 
-  if (!(await hasProBenefits(user.id))) flashTo(eventId, 'pro');
+  const [pro, paid] = await Promise.all([hasProBenefits(user.id), badgeSlotPaid(eventId)]);
+  if (!pro && !paid) flashTo(eventId, 'pro');
 
   const rawLabel = field(formData, 'label');
   if (!rawLabel) flashTo(eventId, 'invalid', 'A badge label is required.');
@@ -129,4 +157,85 @@ export async function removeEventBadge(
   revalidatePath(returnPath);
   updateTag(eventCacheTag(eventId));
   flashTo(eventId, 'removed');
+}
+
+/**
+ * Free-tier à-la-carte unlock: charge a one-time fee, then let the Stripe
+ * webhook (`badge_slot`) write the `event_badge_access` row that flips
+ * `canUseBadges` on. Mirrors `startSponsorSlotCheckoutFromForm`. Entitled hosts
+ * (Pro or already-paid) bounce straight back — they have nothing to buy.
+ */
+export async function startBadgeSlotCheckoutFromForm(
+  eventId: string,
+  returnPath: string,
+  _formData: FormData,
+): Promise<void> {
+  const { user } = await requireSession(`/events/${eventId}/edit`);
+
+  try {
+    await assertCanManage(eventId, user.id);
+  } catch (err) {
+    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
+    flashTo(eventId, 'unauthorized');
+  }
+
+  const [pro, paid] = await Promise.all([hasProBenefits(user.id), badgeSlotPaid(eventId)]);
+  if (pro || paid) {
+    revalidatePath(returnPath);
+    redirect(returnPath as Route);
+  }
+
+  if (!isStripeConfigured()) flashTo(eventId, 'error', 'Payments are not configured.');
+
+  const origin = await buildOrigin();
+  const hostId = await loadEventHostId(eventId);
+
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await getStripe().checkout.sessions.create({
+      mode: 'payment',
+      ...(user.email ? { customer_email: user.email } : {}),
+      allow_promotion_codes: true,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: BADGE_SLOT_UNLOCK_CENTS,
+            product_data: {
+              name: 'Collectible badges unlock',
+              description: 'One-time unlock of collectible badges for this event',
+            },
+          },
+        },
+      ],
+      metadata: {
+        kind: 'badge_slot',
+        event_id: eventId,
+        user_id: user.id,
+        ...(hostId ? { host_id: hostId } : {}),
+      },
+      success_url: `${origin}/events/${eventId}/edit?badge=checkout_success`,
+      cancel_url: `${origin}/events/${eventId}/edit?badge=checkout_cancel`,
+    });
+  } catch (err) {
+    flashTo(eventId, 'error', err instanceof Error ? err.message : 'Could not start checkout.');
+  }
+
+  if (!session.url) flashTo(eventId, 'error', 'Stripe did not return a checkout URL.');
+
+  analytics.capture(
+    {
+      name: 'checkout_started',
+      props: {
+        eventId,
+        hostId: hostId ?? user.id,
+        amountCents: BADGE_SLOT_UNLOCK_CENTS,
+        kind: 'badge_slot',
+      },
+    },
+    user.id,
+  );
+
+  redirect(session.url as Route);
 }

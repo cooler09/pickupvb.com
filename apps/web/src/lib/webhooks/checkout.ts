@@ -28,7 +28,13 @@ export type CheckoutMetadata = {
   sponsor_link_url?: string;
   sponsor_logo_url?: string;
   sponsor_discount_code?: string;
-  kind?: 'attendee' | 'tip' | 'team_registration' | 'roster_team_payment' | 'sponsor_slot';
+  kind?:
+    | 'attendee'
+    | 'tip'
+    | 'team_registration'
+    | 'roster_team_payment'
+    | 'sponsor_slot'
+    | 'badge_slot';
 };
 
 /**
@@ -220,6 +226,33 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
             hostId,
             amountCents: amountTotal,
             kind: 'sponsor_slot',
+            paymentIntentId: piId ?? '',
+          },
+        },
+        meta.user_id,
+      );
+    }
+  }
+
+  if (meta.kind === 'badge_slot' && meta.user_id) {
+    await repositories.eventPaymentRepo.unlockBadgeSlot({
+      eventId: meta.event_id,
+      purchasedByUserId: meta.user_id,
+      checkoutSessionId: session.id,
+      paymentIntentId: piId,
+      paidAt,
+    });
+
+    const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
+    if (hostId) {
+      analytics.capture(
+        {
+          name: 'checkout_completed',
+          props: {
+            eventId: meta.event_id,
+            hostId,
+            amountCents: amountTotal,
+            kind: 'badge_slot',
             paymentIntentId: piId ?? '',
           },
         },

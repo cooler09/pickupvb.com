@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Alert } from '@/components/alert';
-import { neutralButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 import { AddEventBadgeForm } from './add-event-badge-form';
-import { removeEventBadge } from './badge-actions';
+import { removeEventBadge, startBadgeSlotCheckoutFromForm } from './badge-actions';
 
 export type HostBadge = {
   id: string;
@@ -80,6 +80,17 @@ export function EventBadgesPanel({
           {badgeMsg ?? 'Please try again.'}
         </Alert>
       )}
+      {badgeFlash === 'checkout_success' && (
+        <Alert variant="info" title="Payment received">
+          Unlocking collectible badges for this event — refresh in a moment if the form is still
+          locked.
+        </Alert>
+      )}
+      {badgeFlash === 'checkout_cancel' && (
+        <Alert variant="warning" title="Checkout canceled">
+          Badge unlock checkout was canceled.
+        </Alert>
+      )}
 
       {badges.length > 0 && (
         <ul className="space-y-2">
@@ -125,9 +136,20 @@ export function EventBadgesPanel({
       {canUseBadges ? (
         <AddEventBadgeForm eventId={eventId} userId={userId} returnPath={returnPath} />
       ) : (
-        <Alert variant="info" title="Unlock collectible badges">
-          Upgrade to Pro to add collectible badges to your events.
-        </Alert>
+        <div className="border-border-base space-y-3 rounded-md border border-dashed p-4">
+          <Alert variant="info" title="Unlock collectible badges">
+            Included with Pro, or unlock them for this one event with a one-time $5 purchase.{' '}
+            <Link href="/pricing" className="underline">
+              See Pro
+            </Link>
+            .
+          </Alert>
+          <form action={startBadgeSlotCheckoutFromForm.bind(null, eventId, returnPath)}>
+            <button type="submit" className={primaryButtonClass('md')}>
+              Unlock badges for this event ($5)
+            </button>
+          </form>
+        </div>
       )}
     </section>
   );

@@ -624,6 +624,47 @@ export type Database = {
           },
         ];
       };
+      event_badge_access: {
+        Row: {
+          access_kind: string;
+          created_at: string;
+          event_id: string;
+          paid_at: string | null;
+          purchased_by_user_id: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          access_kind?: string;
+          created_at?: string;
+          event_id: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          access_kind?: string;
+          created_at?: string;
+          event_id?: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_badge_access_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_badges: {
         Row: {
           created_at: string;

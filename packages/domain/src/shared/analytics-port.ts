@@ -65,8 +65,8 @@ export interface CheckoutProps {
   eventId: string;
   hostId: AnalyticsActorId;
   amountCents: number;
-  /** `ticket` | `team` | `tip` | `sponsor_slot` — the payment surface. */
-  kind: 'ticket' | 'team' | 'tip' | 'sponsor_slot';
+  /** `ticket` | `team` | `tip` | `sponsor_slot` | `badge_slot` — the payment surface. */
+  kind: 'ticket' | 'team' | 'tip' | 'sponsor_slot' | 'badge_slot';
 }
 
 export interface CheckoutCompletedProps extends CheckoutProps {

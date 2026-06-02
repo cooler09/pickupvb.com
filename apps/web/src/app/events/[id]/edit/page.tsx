@@ -61,19 +61,22 @@ export default async function EditEventPage(props: {
   const pricingLocked = await isPricingLocked(id);
   const viewerHasProBenefits = await hasProBenefits(user.id);
 
-  const [{ data: sponsorRow }, { data: heroRow }, { data: badgeRows }] = await Promise.all([
-    admin
-      .from('event_sponsors')
-      .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
-      .eq('event_id', id)
-      .maybeSingle(),
-    admin.from('events').select('hero_image_url').eq('id', id).maybeSingle(),
-    admin
-      .from('event_badges')
-      .select('id, label, description, icon_url, grant_rule')
-      .eq('event_id', id)
-      .order('sort_order', { ascending: true }),
-  ]);
+  const [{ data: sponsorRow }, { data: heroRow }, { data: badgeRows }, { data: badgeAccessRow }] =
+    await Promise.all([
+      admin
+        .from('event_sponsors')
+        .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
+        .eq('event_id', id)
+        .maybeSingle(),
+      admin.from('events').select('hero_image_url').eq('id', id).maybeSingle(),
+      admin
+        .from('event_badges')
+        .select('id, label, description, icon_url, grant_rule')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
+      admin.from('event_badge_access').select('paid_at').eq('event_id', id).maybeSingle(),
+    ]);
+  const badgeAccessPaid = (badgeAccessRow as { paid_at: string | null } | null)?.paid_at != null;
 
   const sponsor = sponsorRow
     ? {
@@ -195,7 +198,7 @@ export default async function EditEventPage(props: {
           userId={user.id}
           returnPath={`/events/${id}/edit`}
           badges={hostBadges}
-          canUseBadges={viewerHasProBenefits}
+          canUseBadges={viewerHasProBenefits || badgeAccessPaid}
           {...(badgeFlash ? { badgeFlash } : {})}
           {...(badgeMsg ? { badgeMsg } : {})}
         />
