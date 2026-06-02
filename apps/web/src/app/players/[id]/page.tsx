@@ -26,6 +26,7 @@ import { loadPublicBadges } from '@/lib/badges';
  */
 export const revalidate = 60;
 
+const UPCOMING_EVENTS_PER_PAGE = 10;
 const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
@@ -67,6 +68,7 @@ export default async function PlayerProfilePage(props: {
   const searchParams: Record<string, string | undefined> = Object.fromEntries(
     Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
   );
+  const upage = Math.max(1, Number.parseInt(searchParams.upage ?? '1', 10) || 1);
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
 
@@ -172,14 +174,26 @@ export default async function PlayerProfilePage(props: {
         heading={`${name}'s badges`}
       />
 
-      <section className="space-y-3">
+      <section id="upcoming-events" className="space-y-3">
         <h2 className="text-fg text-lg font-semibold">
           Upcoming events{' '}
           <span className="text-muted text-sm font-normal">({upcoming.length})</span>
         </h2>
         <HostedEventsList
-          events={upcoming}
+          events={upcoming.slice(
+            (upage - 1) * UPCOMING_EVENTS_PER_PAGE,
+            upage * UPCOMING_EVENTS_PER_PAGE,
+          )}
           emptyState={`${name} isn't hosting any upcoming events you can see.`}
+        />
+        <Pagination
+          basePath={`/players/${profile.handle}`}
+          page={upage}
+          pageSize={UPCOMING_EVENTS_PER_PAGE}
+          total={upcoming.length}
+          searchParams={searchParams}
+          pageParam="upage"
+          scrollToId="upcoming-events"
         />
       </section>
       {videos.length > 0 && (
