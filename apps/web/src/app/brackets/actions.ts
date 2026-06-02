@@ -72,6 +72,8 @@ function parseConfig(formData: FormData): {
   const config: Partial<BracketConfig> = {};
   const bestOf = Number(formData.get('best_of') ?? '');
   if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
+  const targetScore = Number(formData.get('target_score') ?? '');
+  if (Number.isInteger(targetScore) && targetScore >= 1) config.targetScore = targetScore;
   if (format === 'pool_play_playoff') {
     const poolCount = Number(formData.get('pool_count') ?? '');
     const advance = Number(formData.get('advance_per_pool') ?? '');
@@ -86,6 +88,14 @@ function parseConfig(formData: FormData): {
       }
     }
     if (formData.get('require_work_team') != null) config.requireWorkTeam = true;
+    const playoffBestOf = Number(formData.get('playoff_best_of') ?? '');
+    if (playoffBestOf === 1 || playoffBestOf === 3 || playoffBestOf === 5) {
+      config.playoffBestOf = playoffBestOf;
+    }
+    const playoffTarget = Number(formData.get('playoff_target_score') ?? '');
+    if (Number.isInteger(playoffTarget) && playoffTarget >= 1) {
+      config.playoffTargetScore = playoffTarget;
+    }
     const rawCourts = String(formData.get('court_labels') ?? '');
     const courts = rawCourts
       .split(',')
