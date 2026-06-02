@@ -186,6 +186,12 @@ export class GenerateBracketHandler {
     const evt = await loadEventForBracket(this.events, bracket);
     assertHost(evt.hostId, cmd.requesterId);
     bracket.generate(() => this.brackets.nextMatchId());
+    // ADR 0032: generate() now lands in `draft`. Until the draft-editing
+    // workspace ships (Phase 4), auto-publish so the existing one-click
+    // "Generate bracket" flow still goes live — preserving today's behavior.
+    // When the draft UI lands, drop this publish() and add a separate
+    // PublishBracketCommand wired to a "Publish" button.
+    bracket.publish();
     await this.brackets.save(bracket);
     if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }

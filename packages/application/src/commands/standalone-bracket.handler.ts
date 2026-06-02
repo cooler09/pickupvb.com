@@ -152,6 +152,10 @@ export class GenerateStandaloneBracketHandler {
   async execute(cmd: GenerateStandaloneBracketCommand): Promise<void> {
     const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
     bracket.generate(() => this.brackets.nextMatchId());
+    // ADR 0032: generate() lands in `draft`; auto-publish to preserve the
+    // current one-click standalone flow until the draft workspace ships
+    // (Phase 4). See GenerateBracketHandler for the same bridge.
+    bracket.publish();
     await this.brackets.save(bracket);
     if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }

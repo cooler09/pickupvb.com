@@ -81,6 +81,10 @@ type MatchRow = {
   work_entry_id: string | null;
   court: string | null;
   slot: number | null;
+  /** Per-match best-of / target-score overrides (ADR 0032; migration
+   *  20260908000000). Null ⇒ stage / bracket default. */
+  best_of: number | null;
+  target_score: number | null;
   status: MatchStatus;
   advances_to_match_id: string | null;
   advances_to_slot: 'a' | 'b' | null;
@@ -210,6 +214,8 @@ export class SupabaseBracketRepository implements BracketRepository {
       workTeamId: m.work_entry_id as EntryId | null,
       court: m.court,
       slot: m.slot,
+      bestOf: m.best_of ?? null,
+      targetScore: m.target_score ?? null,
       status: m.status,
       sets: setsByMatch.get(m.id) ?? [],
       advancesToMatchId: m.advances_to_match_id ? (m.advances_to_match_id as MatchId) : null,
@@ -329,6 +335,8 @@ export class SupabaseBracketRepository implements BracketRepository {
       work_entry_id: m.workTeamId,
       court: m.court,
       slot: m.slot,
+      best_of: m.bestOf,
+      target_score: m.targetScore,
       status: m.status,
       scheduled_at: m.scheduledAt?.toISOString() ?? null,
       advances_to_match_id: m.advancesToMatchId,

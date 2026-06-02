@@ -4,17 +4,20 @@ import {
   Bracket,
   DEFAULT_BRACKET_CONFIG,
   assignCourtsAndSlots,
+  generatePlayoffFromRanked,
   generatePoolPlay,
   generateRoundRobin,
+  rankAcrossPools,
   type BracketId,
   type EntryId,
   type Match,
   type MatchId,
+  type PoolStanding,
   type Seed,
 } from './index.js';
 import type { DivisionId } from '../events/division.js';
 import type { EventId, UserId } from '../events/volleyball-event.js';
-import { ValidationError } from '../shared/result.js';
+import { InvariantViolation, ValidationError } from '../shared/result.js';
 
 // ---- Helpers ----------------------------------------------------------
 
@@ -122,6 +125,9 @@ describe('Bracket.createStandalone', () => {
     const std = Bracket.createStandalone(bracketId, ownerUserId, 'single_elimination');
     std.seedTeams(seeds);
     std.generate(mkIdFactory());
+    // ADR 0032: generate lands in `draft`; publish to go live before scoring.
+    expect(std.status).toBe('draft');
+    std.publish();
 
     const evt = Bracket.create(
       'bracket-evt-1' as BracketId,
@@ -248,16 +254,32 @@ describe('generatePoolPlay', () => {
     for (const c of counts.values()) expect(c).toBe(2);
   });
 
-  it('fixed_games: rejects gamesPerTeam >= smallest pool size', () => {
-    // 6 teams in 2 pools (3 each). gamesPerTeam=3 means full RR; reject.
-    expect(() =>
-      generatePoolPlay(
-        seedTeams(6),
-        2,
-        { schedule: 'fixed_games', gamesPerTeam: 3 },
-        mkIdFactory(),
-      ),
-    ).toThrow(ValidationError);
+  it('fixed_games: repeats opponents to reach the target in small pools (ADR 0032)', () => {
+    // 6 teams in 2 pools (3 each). A target of 3 games/team exceeds a 3-team
+    // full round-robin (2 games), so opponents repeat to top up — this used to
+    // throw; ADR 0032 makes it the rec "everyone plays ~N games" behavior.
+    const matches = generatePoolPlay(
+      seedTeams(6),
+      2,
+      { schedule: 'fixed_games', gamesPerTeam: 3 },
+      mkIdFactory(),
+    );
+    const counts = new Map<string, number>();
+    for (const m of matches) {
+      for (const t of [m.entryAId, m.entryBId]) {
+        if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
+      }
+    }
+    expect(counts.size).toBe(6);
+    // Everyone gets at least the target number of games.
+    for (const c of counts.values()) expect(c).toBeGreaterThanOrEqual(3);
+    // A repeat must exist — some pairing appears more than once within a pool.
+    const pairCounts = new Map<string, number>();
+    for (const m of matches) {
+      const key = `${m.pool}|${[m.entryAId, m.entryBId].sort().join('-')}`;
+      pairCounts.set(key, (pairCounts.get(key) ?? 0) + 1);
+    }
+    expect([...pairCounts.values()].some((n) => n > 1)).toBe(true);
   });
 
   it('fixed_games: rejects gamesPerTeam < 1', () => {
@@ -759,6 +781,7 @@ describe('Bracket.reorderPoolMatches', () => {
 
   it('rejects reorder when a pool match has progressed past pending', () => {
     const b = setupPoolPlay();
+    b.publish(); // scoring requires an active bracket (ADR 0032)
     const poolA = b.matches.filter((m) => m.pool === 'A');
     // Record a result on the first non-bye match in pool A.
     const target = poolA.find((m) => m.status === 'pending' && m.entryAId && m.entryBId)!;
@@ -772,5 +795,283 @@ describe('Bracket.reorderPoolMatches', () => {
       .reverse()
       .map((m) => m.id);
     expect(() => b.reorderPoolMatches('A', reversed)).toThrow(/progress|completed/i);
+  });
+});
+
+// ---- ADR 0032: draft lifecycle --------------------------------------
+
+describe('Bracket lifecycle (ADR 0032)', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  it('generate lands in draft; publish goes active', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    expect(b.status).toBe('draft');
+    b.publish();
+    expect(b.status).toBe('active');
+  });
+
+  it('publish requires a draft with matches', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    expect(() => b.publish()).toThrow(InvariantViolation); // setup, no matches
+  });
+
+  it('can re-generate from draft (e.g. after a pool change)', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    expect(() => b.generate(mkIdFactory())).not.toThrow();
+    expect(b.status).toBe('draft');
+  });
+
+  it('reopen returns a completed bracket to active', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    b.seedTeams([tid(1), tid(2)]);
+    b.generate(mkIdFactory());
+    b.publish();
+    const final = b.matches.find((m) => m.entryAId && m.entryBId)!;
+    b.recordResult({ matchId: final.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    expect(b.status).toBe('completed');
+    b.reopen();
+    expect(b.status).toBe('active');
+  });
+
+  it('reset from draft returns to setup, preserving seeds', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    b.reset();
+    expect(b.status).toBe('setup');
+    expect(b.seeds).toHaveLength(4);
+    expect(b.matches).toHaveLength(0);
+  });
+
+  it('scoring is rejected before publish (draft is structure-only)', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    b.seedTeams([tid(1), tid(2)]);
+    b.generate(mkIdFactory());
+    const m = b.matches.find((x) => x.entryAId && x.entryBId)!;
+    expect(() =>
+      b.recordResult({ matchId: m.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] }),
+    ).toThrow(InvariantViolation);
+  });
+});
+
+// ---- ADR 0032: per-stage config + per-match best-of -----------------
+
+describe('Bracket per-stage / per-match best-of (ADR 0032)', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  it('validates playoffBestOf and target scores at create-time', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', { playoffBestOf: 2 }),
+    ).toThrow(ValidationError);
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', { targetScore: 0 }),
+    ).toThrow(ValidationError);
+    const ok = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      bestOf: 1,
+      targetScore: 21,
+      playoffBestOf: 3,
+      playoffTargetScore: 25,
+    });
+    expect(ok.config.targetScore).toBe(21);
+    expect(ok.config.playoffBestOf).toBe(3);
+  });
+
+  it('a per-match bestOf override drives recordResult', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'round_robin', { bestOf: 1 });
+    b.seedTeams(seedTeams(3).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    b.publish();
+    const m = b.matches[0]!;
+    b.editMatch(m.id, { bestOf: 3 });
+    // One set can't clinch best-of-3 → still in progress (bestOf:1 would complete).
+    b.recordResult({ matchId: m.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    expect(b.matches.find((x) => x.id === m.id)!.status).toBe('in_progress');
+  });
+});
+
+// ---- ADR 0032: manual edits -----------------------------------------
+
+describe('Bracket manual edits (ADR 0032)', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  function elim4(): Bracket {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    b.seedTeams([tid(1), tid(2), tid(3), tid(4)]);
+    b.generate(mkIdFactory());
+    return b;
+  }
+
+  it('editMatch changes a matchup in draft', () => {
+    const b = elim4();
+    const m = b.matches.find((x) => x.entryAId && x.entryBId)!;
+    b.editMatch(m.id, { entryAId: tid(99) });
+    expect(b.matches.find((x) => x.id === m.id)!.entryAId).toBe(tid(99));
+  });
+
+  it('editMatch changing a scored matchup in active clears the result', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'round_robin', { bestOf: 1 });
+    b.seedTeams(seedTeams(3).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    b.publish();
+    const m = b.matches[0]!;
+    b.recordResult({ matchId: m.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    expect(b.matches.find((x) => x.id === m.id)!.status).toBe('completed');
+    b.editMatch(m.id, { entryBId: tid(99) });
+    const after = b.matches.find((x) => x.id === m.id)!;
+    expect(after.status).toBe('pending');
+    expect(after.winnerEntryId).toBeNull();
+    expect(after.sets).toHaveLength(0);
+    expect(after.entryBId).toBe(tid(99));
+  });
+
+  it('editMatch rejects a completed bracket (reopen first)', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'single_elimination', { bestOf: 1 });
+    b.seedTeams([tid(1), tid(2)]);
+    b.generate(mkIdFactory());
+    b.publish();
+    const m = b.matches.find((x) => x.entryAId && x.entryBId)!;
+    b.recordResult({ matchId: m.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    expect(b.status).toBe('completed');
+    expect(() => b.editMatch(m.id, { court: 'C1' })).toThrow(InvariantViolation);
+  });
+
+  it('addMatch then removeMatch on a draft pool', () => {
+    // One shared id factory so the added match's id can't collide with a
+    // generated one (real ids are UUIDs; the test factory is sequential).
+    const ids = mkIdFactory();
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      bestOf: 1,
+      poolCount: 2,
+      advancePerPool: 1,
+    });
+    b.seedTeams(seedTeams(6).map((s) => s.entryId));
+    b.generate(ids);
+    const before = b.matches.filter((m) => m.pool === 'A').length;
+    const id = b.addMatch(ids, { pool: 'A', entryAId: tid(1), entryBId: tid(3) });
+    expect(b.matches.filter((m) => m.pool === 'A')).toHaveLength(before + 1);
+    const added = b.matches.find((m) => m.id === id)!;
+    expect(added.pool).toBe('A');
+    expect(added.entryAId).toBe(tid(1));
+    expect(added.matchNumber).toBeGreaterThan(0);
+    b.removeMatch(id);
+    expect(b.matches.find((m) => m.id === id)).toBeUndefined();
+    expect(b.matches.filter((m) => m.pool === 'A')).toHaveLength(before);
+  });
+
+  it('replaceEntry swaps a team across seeds and matches', () => {
+    const b = elim4();
+    b.publish();
+    b.replaceEntry(tid(1), tid(50));
+    expect(b.seeds.some((s) => s.entryId === tid(50))).toBe(true);
+    expect(b.seeds.some((s) => s.entryId === tid(1))).toBe(false);
+    expect(b.matches.some((m) => m.entryAId === tid(50) || m.entryBId === tid(50))).toBe(true);
+  });
+});
+
+// ---- ADR 0032: uneven pools via setPools ----------------------------
+
+describe('Bracket.setPools + uneven pools (ADR 0032)', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  it('honors host-assigned uneven pools and equalizes games via repeats', () => {
+    // 7 teams → pool A (3), pool B (4); target 3 games per team.
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      bestOf: 1,
+      poolSchedule: 'fixed_games',
+      poolGamesPerTeam: 3,
+      poolCount: 2,
+      advancePerPool: 1,
+    });
+    const ids = seedTeams(7).map((s) => s.entryId);
+    b.seedTeams(ids);
+    b.setPools([
+      { entryId: ids[0]!, pool: 'A' },
+      { entryId: ids[1]!, pool: 'A' },
+      { entryId: ids[2]!, pool: 'A' },
+      { entryId: ids[3]!, pool: 'B' },
+      { entryId: ids[4]!, pool: 'B' },
+      { entryId: ids[5]!, pool: 'B' },
+      { entryId: ids[6]!, pool: 'B' },
+    ]);
+    b.generate(mkIdFactory());
+
+    const poolA = new Set(
+      b.matches
+        .filter((m) => m.pool === 'A')
+        .flatMap((m) => [m.entryAId, m.entryBId].filter((t): t is EntryId => !!t)),
+    );
+    const poolB = new Set(
+      b.matches
+        .filter((m) => m.pool === 'B')
+        .flatMap((m) => [m.entryAId, m.entryBId].filter((t): t is EntryId => !!t)),
+    );
+    expect(poolA.size).toBe(3);
+    expect(poolB.size).toBe(4);
+
+    // Everyone gets at least the 3-game target despite uneven pools.
+    const counts = new Map<string, number>();
+    for (const m of b.matches) {
+      for (const t of [m.entryAId, m.entryBId]) {
+        if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
+      }
+    }
+    expect(counts.size).toBe(7);
+    for (const c of counts.values()) expect(c).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ---- ADR 0032: cross-seed playoff -----------------------------------
+
+describe('rankAcrossPools + generatePlayoffFromRanked (ADR 0032)', () => {
+  const ps = (
+    entryId: EntryId,
+    wins: number,
+    losses: number,
+    setDiff: number,
+    pointDiff = 0,
+  ): PoolStanding => ({
+    entryId,
+    matchesPlayed: wins + losses,
+    wins,
+    losses,
+    setsWon: 0,
+    setsLost: 0,
+    setDiff,
+    pointsFor: 0,
+    pointsAgainst: 0,
+    pointDiff,
+  });
+
+  it('ranks pool winners above runners-up, by record within a tier', () => {
+    const poolA = [ps(tid(1), 3, 0, 6), ps(tid(2), 2, 1, 2), ps(tid(3), 0, 3, -8)];
+    const poolB = [ps(tid(4), 3, 0, 5), ps(tid(5), 1, 2, -1)];
+    const order = rankAcrossPools([poolA, poolB], 2);
+    expect(order).toEqual([tid(1), tid(4), tid(2), tid(5)]);
+  });
+
+  it('throws when a pool is short of advancePerPool', () => {
+    expect(() => rankAcrossPools([[ps(tid(1), 1, 0, 1)]], 2)).toThrow(ValidationError);
+  });
+
+  it('generatePlayoffFromRanked cross-seeds 1-vs-N onto the final side', () => {
+    const matches = generatePlayoffFromRanked([tid(1), tid(2), tid(3), tid(4)], mkIdFactory(), 5);
+    expect(matches.every((m) => m.bracketSide === 'final')).toBe(true);
+    const r1 = matches.filter((m) => m.round === 6); // roundOffset 5 → first round 6
+    expect(r1).toHaveLength(2);
+    const pairings = r1.map((m) => new Set([m.entryAId, m.entryBId]));
+    expect(pairings.some((p) => p.has(tid(1)) && p.has(tid(4)))).toBe(true);
+    expect(pairings.some((p) => p.has(tid(2)) && p.has(tid(3)))).toBe(true);
   });
 });

@@ -75,6 +75,21 @@ export interface Match {
    * other match in slot N. Null when courts are not configured.
    */
   slot: number | null;
+  /**
+   * Per-match best-of override (ADR 0032). `null` ⇒ fall back to the
+   * stage default (pool vs playoff) and then `BracketConfig.bestOf`. The
+   * aggregate resolves the effective value before calling
+   * {@link determineWinner}. Persisted as `bracket_matches.best_of`.
+   */
+  bestOf: number | null;
+  /**
+   * Per-match target score override (ADR 0032) — the number a game is
+   * played to (e.g. 25 / 21 / 15). Informational: shown in the UI and
+   * stored, but NOT enforced by {@link determineWinner} (scoring stays
+   * free-form). `null` ⇒ stage default then `BracketConfig.targetScore`.
+   * Persisted as `bracket_matches.target_score`.
+   */
+  targetScore: number | null;
   /** Wiring: when this match completes, place the winner here. */
   readonly advancesToMatchId: MatchId | null;
   readonly advancesToSlot: AdvanceSlot | null;

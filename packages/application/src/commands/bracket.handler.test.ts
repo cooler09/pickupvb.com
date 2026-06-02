@@ -34,6 +34,8 @@ function activeBracketWithOneMatch(): Bracket {
     sets: [],
     court: null,
     slot: null,
+    bestOf: null,
+    targetScore: null,
     advancesToMatchId: null,
     advancesToSlot: null,
     loserAdvancesToMatchId: null,

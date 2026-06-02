@@ -12,15 +12,17 @@ import {
   BracketCompleted,
   BracketCreated,
   BracketGenerated,
+  BracketPublished,
+  BracketReopened,
   BracketReset,
   MatchReset,
   MatchResultRecorded,
 } from './bracket-events.js';
-import type { BracketFormat, BracketStatus, ByeStrategy } from './enums.js';
+import type { BracketFormat, BracketSide, BracketStatus, ByeStrategy } from './enums.js';
 import {
   generateDoubleElimination,
   generateNotImplemented,
-  generatePlayoffFromStandings,
+  generatePlayoffFromRanked,
   generatePoolPlay,
   generateRoundRobin,
   generateSingleElimination,
@@ -28,11 +30,26 @@ import {
 } from './generators.js';
 import type { BracketId, Match, MatchId, MatchSet, Seed } from './match.js';
 import { determineWinner } from './match.js';
-import { computePoolStandings, distinctPools } from './standings.js';
+import { computePoolStandings, distinctPools, rankAcrossPools } from './standings.js';
 
 export interface BracketConfig {
   bestOf: number;
   byeStrategy: ByeStrategy;
+  /**
+   * Points a game is played to (e.g. 25 / 21 / 15). Informational (shown +
+   * stored, NOT enforced by scoring). `null` ⇒ not set. Pool-stage / global
+   * default; the playoff stage can override via {@link playoffTargetScore}.
+   * See ADR 0032.
+   */
+  targetScore: number | null;
+  /**
+   * `pool_play_playoff` only: best-of for the playoff stage. `null` ⇒ fall
+   * back to {@link bestOf}. Lets pool play be best-of-1 while the playoff is
+   * best-of-3. See ADR 0032.
+   */
+  playoffBestOf: number | null;
+  /** `pool_play_playoff` only: target score for the playoff stage. `null` ⇒ {@link targetScore}. */
+  playoffTargetScore: number | null;
   /** Pool play only: number of pools (default 2). */
   poolCount: number;
   /** Pool play only: how many top teams from each pool advance (default 2). */
@@ -75,6 +92,9 @@ export interface BracketConfig {
 export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   bestOf: 3,
   byeStrategy: 'top_seeds',
+  targetScore: null,
+  playoffBestOf: null,
+  playoffTargetScore: null,
   poolCount: 2,
   advancePerPool: 2,
   poolSchedule: 'round_robin',
@@ -90,6 +110,38 @@ export const ALLOWED_BEST_OF: ReadonlyArray<number> = [1, 3, 5];
 export interface RecordResultInput {
   readonly matchId: MatchId;
   readonly sets: ReadonlyArray<MatchSet>;
+}
+
+/**
+ * Fields a host may patch on a single match via {@link Bracket.editMatch}
+ * (ADR 0032). Every key is optional — omitted ⇒ unchanged; `null` clears a
+ * nullable field. `entryAId`/`entryBId` change the matchup; `bestOf` /
+ * `targetScore` override match length / point total.
+ */
+export interface MatchPatch {
+  entryAId?: EntryId | null;
+  entryBId?: EntryId | null;
+  workTeamId?: EntryId | null;
+  court?: string | null;
+  slot?: number | null;
+  scheduledAt?: Date | null;
+  bestOf?: number | null;
+  targetScore?: number | null;
+}
+
+/** Shape for {@link Bracket.addMatch} — all optional; sensible defaults applied. */
+export interface AddMatchInput {
+  pool?: string | null;
+  bracketSide?: BracketSide | null;
+  entryAId?: EntryId | null;
+  entryBId?: EntryId | null;
+  workTeamId?: EntryId | null;
+  court?: string | null;
+  slot?: number | null;
+  bestOf?: number | null;
+  targetScore?: number | null;
+  scheduledAt?: Date | null;
+  round?: number;
 }
 
 /**
@@ -174,6 +226,22 @@ export class Bracket extends AggregateRoot<BracketId> {
         );
       }
     }
+    if (merged.playoffBestOf !== null && !ALLOWED_BEST_OF.includes(merged.playoffBestOf)) {
+      throw new ValidationError(
+        `playoffBestOf must be one of ${ALLOWED_BEST_OF.join(', ')}; got ${merged.playoffBestOf}.`,
+        { playoffBestOf: merged.playoffBestOf, allowed: ALLOWED_BEST_OF },
+      );
+    }
+    for (const [k, v] of [
+      ['targetScore', merged.targetScore],
+      ['playoffTargetScore', merged.playoffTargetScore],
+    ] as const) {
+      if (v !== null && (!Number.isInteger(v) || v < 1)) {
+        throw new ValidationError(`${k} must be a positive integer when set; got ${v}.`, {
+          [k]: v,
+        });
+      }
+    }
     return merged;
   }
 
@@ -245,10 +313,15 @@ export class Bracket extends AggregateRoot<BracketId> {
     }));
   }
 
-  /** Generate the match graph. Transitions setup → active. */
+  /**
+   * Generate (or re-generate) the match graph from the current seeds + config.
+   * Transitions `setup → draft`, or rebuilds the draft when called again from
+   * `draft` (e.g. after the host changes pool assignments). The draft is fully
+   * editable; `publish()` takes it live. See ADR 0032.
+   */
   generate(idFactory: () => MatchId): void {
-    if (this._status !== 'setup') {
-      throw new InvariantViolation('Bracket has already been generated.');
+    if (this._status !== 'setup' && this._status !== 'draft') {
+      throw new InvariantViolation('Can only generate from setup or draft. Reset to re-seed.');
     }
     if (this._seeds.length < 2) {
       throw new InvariantViolation('Need at least 2 seeded teams to generate.');
@@ -305,8 +378,35 @@ export class Bracket extends AggregateRoot<BracketId> {
         generateNotImplemented(this._format);
     }
     this._matches = matches;
-    this._status = 'active';
+    this._status = 'draft';
     this.raise(new BracketGenerated(this.id, matches.length));
+  }
+
+  /**
+   * Publish a draft: `draft → active`. Scoring goes live; structural editing
+   * narrows to targeted live edits. See ADR 0032.
+   */
+  publish(): void {
+    if (this._status !== 'draft') {
+      throw new InvariantViolation('Only a draft bracket can be published.');
+    }
+    if (this._matches.length === 0) {
+      throw new InvariantViolation('Generate the bracket before publishing.');
+    }
+    this._status = 'active';
+    this.raise(new BracketPublished(this.id));
+  }
+
+  /**
+   * Re-open a completed bracket: `completed → active`, so the host can fix a
+   * mistaken result. See ADR 0032.
+   */
+  reopen(): void {
+    if (this._status !== 'completed') {
+      throw new InvariantViolation('Only a completed bracket can be re-opened.');
+    }
+    this._status = 'active';
+    this.raise(new BracketReopened(this.id));
   }
 
   /**
@@ -337,17 +437,44 @@ export class Bracket extends AggregateRoot<BracketId> {
       );
     }
     const pools = distinctPools(poolMatches);
-    const standingsByPool = pools.map((p) =>
-      computePoolStandings(this._matches, p).map((s) => s.entryId),
-    );
+    const standingsByPool = pools.map((p) => computePoolStandings(this._matches, p));
+    // Auto cross-seed: overall finish across pools (pool winners ranked above
+    // runners-up, by record within a tier) → standard 1-vs-N bracket. The host
+    // can override the result with `seedPlayoff`. See ADR 0032.
+    const ranked = rankAcrossPools(standingsByPool, this._config.advancePerPool);
     const maxPoolRound = poolMatches.reduce((acc, m) => Math.max(acc, m.round), 0);
-    const playoff = generatePlayoffFromStandings(
-      standingsByPool,
-      this._config.advancePerPool,
-      idFactory,
-      maxPoolRound,
-    );
+    const playoff = generatePlayoffFromRanked(ranked, idFactory, maxPoolRound);
     this._matches = [...this._matches, ...playoff];
+    this.raise(new BracketGenerated(this.id, playoff.length));
+  }
+
+  /**
+   * Replace the playoff bracket with one seeded from a host-specified overall
+   * order (`orderedEntryIds[0]` = #1 seed). Lets the host override the auto
+   * cross-seed. `pool_play_playoff` only; allowed while `active` as long as no
+   * playoff match has started. See ADR 0032.
+   *
+   * @throws {InvariantViolation} wrong format or status.
+   * @throws {ConflictError} a playoff match already has a result.
+   * @throws {ValidationError} fewer than 2 entries (from the generator).
+   */
+  seedPlayoff(idFactory: () => MatchId, orderedEntryIds: ReadonlyArray<EntryId>): void {
+    if (this._format !== 'pool_play_playoff') {
+      throw new InvariantViolation('Playoff seeding is only supported for pool play → playoff.');
+    }
+    if (this._status !== 'active') {
+      throw new InvariantViolation('Bracket is not active.');
+    }
+    const final = this._matches.filter((m) => m.bracketSide === 'final');
+    if (final.some((m) => m.status !== 'pending' && m.status !== 'bye')) {
+      throw new ConflictError(
+        'Cannot re-seed a playoff that has matches in progress or completed.',
+      );
+    }
+    const poolMatches = this._matches.filter((m) => m.pool !== null);
+    const maxPoolRound = poolMatches.reduce((acc, m) => Math.max(acc, m.round), 0);
+    const playoff = generatePlayoffFromRanked(orderedEntryIds, idFactory, maxPoolRound);
+    this._matches = [...this._matches.filter((m) => m.bracketSide !== 'final'), ...playoff];
     this.raise(new BracketGenerated(this.id, playoff.length));
   }
 
@@ -358,7 +485,7 @@ export class Bracket extends AggregateRoot<BracketId> {
    * conflict-free. See ADR 0018 Phase 1b.
    *
    * Constraints:
-   * - Bracket must be `active` and use `pool_play_playoff` format.
+   * - Bracket must be `draft` or `active` and use `pool_play_playoff` format.
    * - `newOrder` must list every match currently in `pool`, no extras.
    * - No match in the pool may have started (status must be `pending`
    *   or `bye`) — once results are recorded, the schedule is frozen.
@@ -370,8 +497,8 @@ export class Bracket extends AggregateRoot<BracketId> {
    * @throws {ConflictError} pool has matches in progress or completed.
    */
   reorderPoolMatches(pool: string, newOrder: ReadonlyArray<MatchId>): void {
-    if (this._status !== 'active') {
-      throw new InvariantViolation('Can only reorder matches on an active bracket.');
+    if (this._status !== 'active' && this._status !== 'draft') {
+      throw new InvariantViolation('Can only reorder matches on a draft or active bracket.');
     }
     if (this._format !== 'pool_play_playoff') {
       throw new InvariantViolation('Reorder is only supported for pool play.');
@@ -461,7 +588,12 @@ export class Bracket extends AggregateRoot<BracketId> {
         throw new ValidationError('Sets cannot be tied.');
       }
     }
-    const winner = determineWinner(input.sets, match.entryAId, match.entryBId, this._config.bestOf);
+    const winner = determineWinner(
+      input.sets,
+      match.entryAId,
+      match.entryBId,
+      this.effectiveBestOf(match),
+    );
 
     // Reverting an existing wired-forward result first.
     if (match.winnerEntryId && match.winnerEntryId !== winner) {
@@ -495,7 +627,191 @@ export class Bracket extends AggregateRoot<BracketId> {
     this.raise(new MatchReset(this.id, match.id));
   }
 
+  // ---- Manual edits (ADR 0032) ----------------------------------------
+
+  /**
+   * Assign / override the pool each seeded team belongs to. Allowed in `setup`
+   * and `draft`; labels-only — in `draft` follow with `generate()` to rebuild
+   * the schedule from the new composition. Enables **uneven** pools (the
+   * generator honors host-assigned labels). Seeds not listed keep their pool.
+   */
+  setPools(assignments: ReadonlyArray<{ entryId: EntryId; pool: string | null }>): void {
+    if (this._status !== 'setup' && this._status !== 'draft') {
+      throw new InvariantViolation('Pools can only be assigned before publishing.');
+    }
+    const byEntry = new Map(assignments.map((a) => [String(a.entryId), a.pool]));
+    this._seeds = this._seeds.map((s) =>
+      byEntry.has(String(s.entryId)) ? { ...s, pool: byEntry.get(String(s.entryId)) ?? null } : s,
+    );
+  }
+
+  /**
+   * Patch a single match's structural / scheduling fields. Omitted keys are
+   * left unchanged; `null` clears a nullable field.
+   *
+   * - `draft`: every field editable (teams A/B/work, court, slot, scheduledAt,
+   *   bestOf, targetScore).
+   * - `active`: scheduling + length edits always allowed; changing a team slot
+   *   on a match that already has a result first clears that result and unwires
+   *   its advancement so downstream matches stay consistent.
+   * - `completed`: rejected — `reopen()` first.
+   *
+   * @throws {InvariantViolation} bracket completed or still in setup.
+   * @throws {NotFoundError} unknown match.
+   * @throws {ValidationError} bestOf not in the allowed set.
+   */
+  editMatch(matchId: MatchId, patch: MatchPatch): void {
+    if (this._status === 'completed') {
+      throw new InvariantViolation('Re-open the bracket before editing a match.');
+    }
+    if (this._status === 'setup') {
+      throw new InvariantViolation('Generate the bracket before editing matches.');
+    }
+    const m = this.matchOrThrow(matchId);
+    if (patch.bestOf != null && !ALLOWED_BEST_OF.includes(patch.bestOf)) {
+      throw new ValidationError(`bestOf must be one of ${ALLOWED_BEST_OF.join(', ')}.`, {
+        bestOf: patch.bestOf,
+      });
+    }
+    const changesTeam =
+      (patch.entryAId !== undefined && patch.entryAId !== m.entryAId) ||
+      (patch.entryBId !== undefined && patch.entryBId !== m.entryBId);
+    if (changesTeam && (m.winnerEntryId || m.sets.length > 0)) {
+      // A scored match whose participants change loses its now-meaningless
+      // result; cascade the unwire so downstream placements clear too.
+      if (m.winnerEntryId) this.unwireAdvancement(m);
+      m.winnerEntryId = null;
+      m.sets = [];
+      m.status = 'pending';
+    }
+    if (patch.entryAId !== undefined) m.entryAId = patch.entryAId;
+    if (patch.entryBId !== undefined) m.entryBId = patch.entryBId;
+    if (patch.workTeamId !== undefined) m.workTeamId = patch.workTeamId;
+    if (patch.court !== undefined) m.court = patch.court;
+    if (patch.slot !== undefined) m.slot = patch.slot;
+    if (patch.scheduledAt !== undefined) m.scheduledAt = patch.scheduledAt;
+    if (patch.bestOf !== undefined) m.bestOf = patch.bestOf;
+    if (patch.targetScore !== undefined) m.targetScore = patch.targetScore;
+  }
+
+  /**
+   * Append a new, empty (pending) match — e.g. add a game to a pool for more
+   * play time, or a consolation match. No advancement wiring. Returns the new
+   * match id. Allowed in `draft` and `active`. `round` / `matchNumber` default
+   * to slotting after the last match in the same pool / bracket-side.
+   *
+   * @throws {InvariantViolation} bracket in setup / completed.
+   * @throws {ValidationError} bestOf not in the allowed set.
+   */
+  addMatch(idFactory: () => MatchId, input: AddMatchInput): MatchId {
+    if (this._status !== 'draft' && this._status !== 'active') {
+      throw new InvariantViolation('Can only add matches to a draft or active bracket.');
+    }
+    if (input.bestOf != null && !ALLOWED_BEST_OF.includes(input.bestOf)) {
+      throw new ValidationError(`bestOf must be one of ${ALLOWED_BEST_OF.join(', ')}.`, {
+        bestOf: input.bestOf,
+      });
+    }
+    const pool = input.pool ?? null;
+    const bracketSide = input.bracketSide ?? null;
+    const sameGroup = this._matches.filter((m) => m.pool === pool && m.bracketSide === bracketSide);
+    const round = input.round ?? (sameGroup.reduce((acc, m) => Math.max(acc, m.round), 0) || 1);
+    const matchNumber = sameGroup.reduce((acc, m) => Math.max(acc, m.matchNumber), 0) + 1;
+    const id = idFactory();
+    this._matches.push({
+      id,
+      round,
+      matchNumber,
+      pool,
+      bracketSide,
+      entryAId: input.entryAId ?? null,
+      entryBId: input.entryBId ?? null,
+      winnerEntryId: null,
+      workTeamId: input.workTeamId ?? null,
+      court: input.court ?? null,
+      slot: input.slot ?? null,
+      bestOf: input.bestOf ?? null,
+      targetScore: input.targetScore ?? null,
+      status: 'pending',
+      sets: [],
+      advancesToMatchId: null,
+      advancesToSlot: null,
+      loserAdvancesToMatchId: null,
+      loserAdvancesToSlot: null,
+      scheduledAt: input.scheduledAt ?? null,
+    });
+    return id;
+  }
+
+  /**
+   * Remove a match. In `draft` any match may be removed; in `active` only a
+   * match with no result. Clears forward-advancement references other matches
+   * hold to it and unwires its own placed winner.
+   *
+   * @throws {InvariantViolation} bracket in setup / completed.
+   * @throws {NotFoundError} unknown match.
+   * @throws {ConflictError} active bracket and the match is already scored.
+   */
+  removeMatch(matchId: MatchId): void {
+    if (this._status !== 'draft' && this._status !== 'active') {
+      throw new InvariantViolation('Can only remove matches from a draft or active bracket.');
+    }
+    const m = this.matchOrThrow(matchId);
+    if (this._status === 'active' && (m.status === 'completed' || m.sets.length > 0)) {
+      throw new ConflictError('Clear the match result before removing it.');
+    }
+    if (m.winnerEntryId) this.unwireAdvancement(m);
+    // Sever inbound wiring from any feeder pointing at this match.
+    for (const other of this._matches) {
+      const mut = other as {
+        advancesToMatchId: MatchId | null;
+        advancesToSlot: 'a' | 'b' | null;
+        loserAdvancesToMatchId: MatchId | null;
+        loserAdvancesToSlot: 'a' | 'b' | null;
+      };
+      if (other.advancesToMatchId === matchId) {
+        mut.advancesToMatchId = null;
+        mut.advancesToSlot = null;
+      }
+      if (other.loserAdvancesToMatchId === matchId) {
+        mut.loserAdvancesToMatchId = null;
+        mut.loserAdvancesToSlot = null;
+      }
+    }
+    this._matches = this._matches.filter((x) => x.id !== matchId);
+  }
+
+  /**
+   * Swap one entry for another everywhere it appears — seeds and every match
+   * slot (A / B / work / winner) — for a dropped team or substitution. Allowed
+   * in `draft` and `active`.
+   */
+  replaceEntry(oldEntryId: EntryId, newEntryId: EntryId): void {
+    if (this._status !== 'draft' && this._status !== 'active') {
+      throw new InvariantViolation('Can only replace entries on a draft or active bracket.');
+    }
+    if (oldEntryId === newEntryId) return;
+    this._seeds = this._seeds.map((s) =>
+      s.entryId === oldEntryId ? { ...s, entryId: newEntryId } : s,
+    );
+    for (const m of this._matches) {
+      if (m.entryAId === oldEntryId) m.entryAId = newEntryId;
+      if (m.entryBId === oldEntryId) m.entryBId = newEntryId;
+      if (m.workTeamId === oldEntryId) m.workTeamId = newEntryId;
+      if (m.winnerEntryId === oldEntryId) m.winnerEntryId = newEntryId;
+    }
+  }
+
   // ---- Internals -------------------------------------------------------
+
+  /** Effective best-of for a match: per-match override → stage default → global. */
+  private effectiveBestOf(m: Match): number {
+    if (m.bestOf !== null) return m.bestOf;
+    if (m.bracketSide === 'final' && this._config.playoffBestOf !== null) {
+      return this._config.playoffBestOf;
+    }
+    return this._config.bestOf;
+  }
   private matchOrThrow(matchId: MatchId): Match {
     const m = this._matches.find((x) => x.id === matchId);
     if (!m) throw new NotFoundError('match', matchId);

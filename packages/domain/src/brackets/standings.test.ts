@@ -24,6 +24,8 @@ function match(over: Partial<Match> & { id: string }): Match {
     sets: [],
     court: null,
     slot: null,
+    bestOf: null,
+    targetScore: null,
     advancesToMatchId: null,
     advancesToSlot: null,
     loserAdvancesToMatchId: null,
