@@ -96,10 +96,27 @@ export function DivisionsSection({ divisions }: Props) {
                   )}
                 </dl>
               )}
-              {d.winner && (
-                <p className="text-primary text-sm font-medium">
-                  Winner: <span className="text-fg">{d.winner.label}</span>
-                </p>
+              {(d.winner || d.runnerUp || d.thirdPlace) && (
+                <ul className="space-y-0.5 text-sm">
+                  {d.winner && (
+                    <li>
+                      <span aria-hidden>🥇</span>{' '}
+                      <span className="text-fg font-medium">{d.winner.label}</span>
+                    </li>
+                  )}
+                  {d.runnerUp && (
+                    <li className="text-muted">
+                      <span aria-hidden>🥈</span>{' '}
+                      <span className="text-fg">{d.runnerUp.label}</span>
+                    </li>
+                  )}
+                  {d.thirdPlace && (
+                    <li className="text-muted">
+                      <span aria-hidden>🥉</span>{' '}
+                      <span className="text-fg">{d.thirdPlace.label}</span>
+                    </li>
+                  )}
+                </ul>
               )}
             </li>
           );

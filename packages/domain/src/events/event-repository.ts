@@ -227,6 +227,10 @@ export interface DivisionLite {
    * `event_team_registrations.name`).
    */
   winner: { label: string; recordedAt: Date } | null;
+  /** Runner-up (2nd place), set by the host. Null when not recorded. */
+  runnerUp: { label: string } | null;
+  /** Third place, set by the host. Null when not recorded. */
+  thirdPlace: { label: string } | null;
 }
 
 export interface EventDetailReadModel {

@@ -72,10 +72,12 @@ upload + moderation + orphan-sweep machinery all existed.
   `team_members`), and league participation × finished league for Seasoned —
   rather than fragile bracket-match topology. **Still needs a live-DB run to
   confirm the joins** (no Docker in the authoring session).
-- **Podium has no authoritative 2nd/3rd source** (only one `winner_entry_id` per
-  division), so it is set equal to championships — a champion is correctly on the
-  podium, never a false award. True runner-up / 3rd needs a placement-recording
-  surface (a follow-up feature, not just a query).
+- **True Podium landed** (`20260906000000`): `event_divisions` gained
+  `runner_up_entry_id` + `third_place_entry_id`, the host division-podium panel
+  records all three places, `DivisionLite` exposes `runnerUp` / `thirdPlace` (and
+  the public divisions section renders 🥇🥈🥉), and `tournament_podiums` now counts
+  divisions where the player placed 1st **or** 2nd **or** 3rd (Champion stays
+  winner-only). Replaces the earlier "Podium = Champion" placeholder.
 - **Landed 2026-06-02:** the event-page "Badges you can earn here" teaser
   (on_attend badges), the **manual `host_grant` award flow** (host panel on the
   manage dashboard → `award-badge-actions.ts`), a **`badge.earned` in-app
@@ -83,10 +85,9 @@ upload + moderation + orphan-sweep machinery all existed.
   awards), and the **reconcile cron** (`20260905000000`, pg_cron + pg_net →
   `/api/badges/reconcile`, inert until the `badge_reconcile_url` Vault secret is
   seeded — same activation pattern as the notification worker).
-- **Still open:** free-tier à-la-carte unlock for host badges, and a true Podium
-  (2nd/3rd) recording surface. on_attend host grants are SQL-only, so they don't
-  fire the `badge.earned` notification (the system + manual + easter-egg paths
-  do).
+- **Still open:** free-tier à-la-carte unlock for host badges. on_attend host
+  grants are SQL-only, so they don't fire the `badge.earned` notification (the
+  system + manual + easter-egg paths do).
 
 ## Consequences
 

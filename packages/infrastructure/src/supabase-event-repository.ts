@@ -41,7 +41,6 @@ import {
   mapRegisteredTeams,
   mapViewerCaptainedTeams,
   mapViewerHostableGroups,
-  mapWinnerLabels,
   tallyTeamMembers,
   toGroupLite,
   toProfileLite,
@@ -127,6 +126,8 @@ type DivisionRow = {
   ends_at: string | null;
   winner_entry_id: string | null;
   winner_recorded_at: string | null;
+  runner_up_entry_id: string | null;
+  third_place_entry_id: string | null;
   allow_free_agents: boolean;
   team_registration_mode: TeamRegistrationMode | null;
   position_roster: Record<string, number> | null;
@@ -211,11 +212,16 @@ function divisionRowToDomain(row: DivisionRow): Division {
   });
 }
 
-function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): DivisionLite {
+function divisionRowToLite(
+  row: DivisionRow,
+  labels: { winner: string | null; runnerUp: string | null; third: string | null },
+): DivisionLite {
   const winner =
-    winnerLabel !== null && row.winner_recorded_at !== null
-      ? { label: winnerLabel, recordedAt: new Date(row.winner_recorded_at) }
+    labels.winner !== null && row.winner_recorded_at !== null
+      ? { label: labels.winner, recordedAt: new Date(row.winner_recorded_at) }
       : null;
+  const runnerUp = labels.runnerUp !== null ? { label: labels.runnerUp } : null;
+  const thirdPlace = labels.third !== null ? { label: labels.third } : null;
   return {
     id: row.id,
     sortOrder: row.sort_order,
@@ -239,6 +245,8 @@ function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): Divisi
     allowFreeAgents: row.allow_free_agents ?? true,
     teamRegistrationMode: row.team_registration_mode ?? null,
     winner,
+    runnerUp,
+    thirdPlace,
   };
 }
 
@@ -1018,8 +1026,10 @@ export class SupabaseEventRepository implements EventRepository {
       hostUserId: row.host_id ?? null,
       hostGroupId: row.host_group_id ?? null,
       // The bracket / schedule / watch pages never read division winners, so we
-      // skip the per-division winner-label lookups `getDetail` performs.
-      divisions: divisionRows.map((d) => divisionRowToLite(d, null)),
+      // skip the per-division placement-label lookups `getDetail` performs.
+      divisions: divisionRows.map((d) =>
+        divisionRowToLite(d, { winner: null, runnerUp: null, third: null }),
+      ),
     };
   }
 
@@ -1113,23 +1123,37 @@ export class SupabaseEventRepository implements EventRepository {
     const divisionRowsForDetail = (divisionRowsRes.data as DivisionRow[] | null) ?? [];
     const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
 
-    // Resolve division winner labels (one extra read when any division has a
-    // recorded winner). The mapper prefers the live `teams.name` over the
-    // entry `display_name` (ad-hoc / walk-in rows). See `mapWinnerLabels`.
-    let winnerLabelsByDivision = new Map<string, string>();
-    const entryWinnerIds = divisionRowsForDetail
-      .map((d) => d.winner_entry_id)
-      .filter((v): v is string => !!v);
-    if (entryWinnerIds.length > 0) {
+    // Resolve podium labels (one extra read when any division has a recorded
+    // placement). Collect every placement entry id across all three places,
+    // fetch once, and build an entry-id → label map (preferring the live
+    // `teams.name` over the entry `display_name` for ad-hoc / walk-in rows).
+    let entryLabelById = new Map<string, string>();
+    const placementEntryIds = [
+      ...new Set(
+        divisionRowsForDetail.flatMap((d) =>
+          [d.winner_entry_id, d.runner_up_entry_id, d.third_place_entry_id].filter(
+            (v): v is string => !!v,
+          ),
+        ),
+      ),
+    ];
+    if (placementEntryIds.length > 0) {
       const { data: entryRows } = await this.client
         .from('event_team_entries')
         .select('id, display_name, team_id, teams:teams(name)')
-        .in('id', entryWinnerIds);
-      winnerLabelsByDivision = mapWinnerLabels(
-        divisionRowsForDetail,
-        (entryRows as WinnerEntryRow[] | null) ?? [],
+        .in('id', placementEntryIds);
+      entryLabelById = new Map(
+        ((entryRows as WinnerEntryRow[] | null) ?? []).map((r) => [
+          r.id,
+          r.teams?.name ?? r.display_name,
+        ]),
       );
     }
+    const placementLabels = (d: DivisionRow) => ({
+      winner: d.winner_entry_id ? (entryLabelById.get(d.winner_entry_id) ?? null) : null,
+      runnerUp: d.runner_up_entry_id ? (entryLabelById.get(d.runner_up_entry_id) ?? null) : null,
+      third: d.third_place_entry_id ? (entryLabelById.get(d.third_place_entry_id) ?? null) : null,
+    });
 
     const positionRoster = divisionRowToPositionRoster(divisionRowsForDetail[0]);
     const { attendees, filledByPosition } = mapAttendees(
@@ -1308,9 +1332,7 @@ export class SupabaseEventRepository implements EventRepository {
       viewerHostableGroups,
       viewerCaptainedTeams,
       ...rowToExtensions(row),
-      divisions: divisionRowsForDetail.map((d) =>
-        divisionRowToLite(d, winnerLabelsByDivision.get(d.id) ?? null),
-      ),
+      divisions: divisionRowsForDetail.map((d) => divisionRowToLite(d, placementLabels(d))),
     };
   }
 

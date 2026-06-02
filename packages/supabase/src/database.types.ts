@@ -770,6 +770,8 @@ export type Database = {
           team_composition: Database['public']['Enums']['team_composition'];
           team_registration_mode: Database['public']['Enums']['team_registration_mode'] | null;
           team_size: number | null;
+          runner_up_entry_id: string | null;
+          third_place_entry_id: string | null;
           tier_label: string | null;
           updated_at: string;
           winner_entry_id: string | null;
@@ -799,6 +801,8 @@ export type Database = {
           team_composition?: Database['public']['Enums']['team_composition'];
           team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
+          runner_up_entry_id?: string | null;
+          third_place_entry_id?: string | null;
           tier_label?: string | null;
           updated_at?: string;
           winner_entry_id?: string | null;
@@ -828,6 +832,8 @@ export type Database = {
           team_composition?: Database['public']['Enums']['team_composition'];
           team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
+          runner_up_entry_id?: string | null;
+          third_place_entry_id?: string | null;
           tier_label?: string | null;
           updated_at?: string;
           winner_entry_id?: string | null;
