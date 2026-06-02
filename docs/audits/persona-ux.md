@@ -63,12 +63,12 @@ The repo has a **canonical CTA + field vocabulary** —
 same action reads differently depending on which screen a persona is on. Measured
 2026-05-31 (`apps/web/src`):
 
-| Drift                                                          | Count                                                                    | Canonical                                      |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
-| Old primary-button recipe (`hover:bg-primary/90`)              | ~~68 / 51 files~~ → **0** (CC-1 ✅ 2026-05-31d; ratchet-locked)          | `primaryButtonClass` — **61 files**            |
-| Local `inputClass =` field vocabularies                        | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions) | `field-styles.ts` + `TextField`                |
-| `text-white` hardcoded on buttons (vs `text-primary-fg` token) | **64**                                                                   | token                                          |
-| Native `window.confirm` for destructive actions                | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                      | in-app `ConfirmSubmitButton` dialog everywhere |
+| Drift                                                          | Count                                                                       | Canonical                                      |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------- |
+| Old primary-button recipe (`hover:bg-primary/90`)              | ~~68 / 51 files~~ → **0** (CC-1 ✅ 2026-05-31d; ratchet-locked)             | `primaryButtonClass` — **61 files**            |
+| Local `inputClass =` field vocabularies                        | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions)    | `field-styles.ts` + `TextField`                |
+| `text-white` hardcoded on buttons (vs `text-primary-fg` token) | ~~64~~ → **0** (CC-1 absorbed most; CC-3 ✅ 2026-06-01j cleared the last 5) | `text-primary-fg` token                        |
+| Native `window.confirm` for destructive actions                | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                         | in-app `ConfirmSubmitButton` dialog everywhere |
 
 That ratio (≈5:1 hand-rolled:canonical on buttons; 17 forked field styles) is the
 mechanical reason the UI "doesn't feel clean for action items and edit forms." It
@@ -127,13 +127,21 @@ extract a single shared `fieldInputClass`/`fieldLabelClass` from
 `form-primitives.tsx` and import it everywhere. Pick one and ratchet; the cost
 today is that every persona's edit form looks subtly hand-made.
 
-#### CC-3 — `text-white` hardcoded on 64 primary buttons · **P3**
+#### CC-3 — `text-white` hardcoded on primary buttons · **P3** · ✅ resolved 2026-06-01j
 
-Primary CTAs use literal `text-white` instead of the `text-primary-fg` token
-that `primaryButtonClass` uses. Cosmetically fine on the current palette but
-breaks if the primary color ever shifts to a light hue (the fg would need to go
-dark). **Fix:** fold into the CC-1 migration — `primaryButtonClass` already
-emits the token, so converting call sites removes these for free.
+Primary CTAs used literal `text-white` instead of the `text-primary-fg` token
+`primaryButtonClass` emits — cosmetically fine on the current palette but breaks
+if the primary hue ever shifts light (the fg would need to go dark). **Resolved:**
+the CC-1 sweep absorbed most (64→ a handful as call sites adopted
+`primaryButtonClass`); a 2026-06-01j re-measure found `text-white` down to **26
+total**, of which only **5** were the real violation (`text-white` on
+`bg-primary`). Fixed all 5 — `free-agent-signup-panel.tsx`'s SubmitButton (a
+hand-rolled `bg-primary … text-white hover:opacity-90`, a CC-1 ratchet miss
+because it used `hover:opacity-90` not `hover:bg-primary/90`) → `primaryButtonClass('md')`;
+the `auth-mode-tabs` active tab + the notification/messages count badges →
+`text-primary-fg`. `bg-primary`+`text-white` is now **0**. The remaining ~21
+`text-white` are correct foregrounds on amber/emerald/red/violet badges (no
+`text-primary-fg` applies there).
 
 #### CC-4 — Destructive-confirm UX is inconsistent · **P2** · ✅ resolved 2026-05-31b
 
@@ -692,6 +700,27 @@ token, so destructive actions now have a canonical home at every emphasis level:
   a softer treatment that belongs to the H-3 curated pass). A `errorTonalButtonClass`
   is the remaining gap if the tinted report buttons ever want converging.
 
+### 2026-06-01j — CC-3 `text-white`→token (re-measure + clear the last 5)
+
+- **CC-3 (P3) — fixed.** Re-measured (the drift table still said 64): `text-white`
+  is down to **26 total**, only **5** on `bg-primary` (the real
+  `text-primary-fg`-token violation). Fixed all 5:
+  - [free-agent-signup-panel.tsx](../../apps/web/src/app/events/[id]/_components/free-agent-signup-panel.tsx)
+    SubmitButton — a hand-rolled `bg-primary … text-white hover:opacity-90`
+    primary button the CC-1 ratchet missed (it forbids `hover:bg-primary/90`, not
+    `hover:opacity-90`) → `primaryButtonClass('md')`.
+  - [auth-mode-tabs.tsx](../../apps/web/src/app/login/_components/auth-mode-tabs.tsx)
+    active tab + [messages-nav-link.tsx](../../apps/web/src/components/messages-nav-link.tsx)
+    / [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx)
+    count badges → `text-primary-fg` (pure token swap, no visual change on the
+    current palette, dark-mode-safe).
+    `bg-primary`+`text-white` is now **0**; drift table updated. The remaining ~21
+    `text-white` are correct on amber/emerald/red/violet badges. _Ratchet note: a
+    `no-restricted-syntax` rule can't cleanly catch `bg-primary`+`text-white` (they
+    arrive as separate tokens / template literals), so no ratchet added; the
+    free-agent miss shows the `hover:opacity-90` escape hatch is the more likely
+    future regression vector than `text-white` itself._
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
@@ -699,9 +728,8 @@ token, so destructive actions now have a canonical home at every emphasis level:
   2026-06-01e; P-1 (shared `GuestSignupFields`) 2026-06-01d; V-3 (login field
   primitives) 2026-06-01c; CC-1 + CC-2 + CC-4 2026-05-31b–d — both the field and
   primary-button vocabularies are now ratchet-locked._
-- **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
-  `primaryButtonClass` emits `text-primary-fg`; re-measure), H-3 (row-action tap
-  targets — **divisions done 2026-06-01f**; group/team member rows remain),
+- **P3:** H-3 (row-action tap targets — **divisions done 2026-06-01f**; group/team
+  member rows remain),
   secondary/outlined-button convergence (**re-scoped 2026-06-01h** — 84
   `hover:bg-fg/5`+border sites, heterogeneous; needs a curated "secondary button
   vs. neutral surface/affordance" split + likely a _neutral_ outlined recipe, not

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SubmitButton } from '@/components/submit-button';
+import { primaryButtonClass } from '@/components/primary-button';
 import { joinAsFreeAgentFromForm, leaveAsFreeAgent } from '../free-agent-actions';
 
 export type FreeAgentEntry = {
@@ -202,9 +203,7 @@ export function FreeAgentSignupPanel({
               className="border-border-base bg-surface mt-1 block w-full rounded-md border px-3 py-2 text-sm"
             />
           </label>
-          <SubmitButton className="bg-primary rounded-md px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
-            Sign up as free agent
-          </SubmitButton>
+          <SubmitButton className={primaryButtonClass('md')}>Sign up as free agent</SubmitButton>
         </form>
       )}
     </section>

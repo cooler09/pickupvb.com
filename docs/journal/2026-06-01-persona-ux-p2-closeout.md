@@ -108,4 +108,7 @@ audit's remediation log (2026-06-01b–f); this entry is the narrative thread.
   [persona-ux.md backlog](../audits/persona-ux.md).
 - **`StatusPill` primitive (P-2)** — ✅ **done 2026-06-01h** (persona-ux.md log):
   extracted with a `tone` prop; the four ad-hoc RSVP/payment pills now render it.
-- **CC-3 `text-white` re-measure** — remaining cosmetic P3. [persona-ux.md](../audits/persona-ux.md).
+- **CC-3 `text-white` re-measure** — ✅ **done 2026-06-01j** (persona-ux.md log):
+  drift table said 64; reality was 26 total / 5 on `bg-primary`. Cleared all 5
+  (one was a `hover:opacity-90` ratchet miss → `primaryButtonClass`; rest →
+  `text-primary-fg`). `bg-primary`+`text-white` now 0.
