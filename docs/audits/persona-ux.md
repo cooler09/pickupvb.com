@@ -166,9 +166,31 @@ events-page-ux audit already solved for the walk-in team form by moving it into
 machine is gone — Radix owns each modal's open state. See H-2 for the rest of the
 bundle (row-action tap targets + button convergence).
 
----
+#### CC-6 — CC-1 ratchet has a `hover:opacity-90` blind spot · **P3** · ⚠ open (surfaced 2026-06-01k)
 
-### Visitor → signup
+The CC-1 button ratchet (2026-05-31d) forbids the **old** recipe's tell —
+`hover:bg-primary/90` — but a second hand-rolled filled-primary recipe uses
+`bg-primary text-primary-fg … hover:opacity-90` instead, which the ratchet
+doesn't catch. Found incrementally: 1 in `free-agent-signup-panel` (fixed in
+CC-3, 2026-06-01j), 3 in `player-viewer-actions` (fixed 2026-06-01k), and a
+re-measure (`grep "bg-primary" | grep "hover:opacity-90"`) shows **17 more**
+still live — e.g.
+[setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx),
+[no-bracket-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/no-bracket-view.tsx),
+[host-ad-hoc-teams-panel.tsx](../../apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx),
+[format-picker-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx),
+[walk-in-team-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/walk-in-team-form.tsx),
+[brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx),
+[share-link.tsx](../../apps/web/src/components/share-link.tsx),
+[consent-banner.tsx](../../apps/web/src/components/consent-banner.tsx),
+[profile/billing/page.tsx](../../apps/web/src/app/profile/billing/page.tsx) (+
+`business-info-form`, `billing/analytics`, `sentry-test`). These are genuine
+hand-rolled primary buttons that should be `primaryButtonClass`. **Fix:** an
+exact-string codemod `bg-primary … hover:opacity-90` → `primaryButtonClass(size)`
+(same shape as the CC-1 sweep), then **extend the ratchet** to also flag a
+`hover:opacity-90` literal co-located with `bg-primary` (or just flag
+`hover:opacity-90` on a filled button — confirm no legitimate non-button use
+first). Until then "CC-1 ratchet-locked" is only true for the `/90` recipe.
 
 #### V-1 — Landing "Create account" CTA 404s · **P1**
 
@@ -344,20 +366,35 @@ Edit. **Resolved (done):** all four are now closed —
   modal's own Cancel/Submit went to `secondaryButtonClass('md')` /
   `primaryButtonClass('md')` via `ModalActions`.
 
-#### H-3 — Row-level action items sit below tap-target across host lists · **P3** · ◑ partial 2026-06-01f
+#### H-3 — Row-level action items sit below tap-target across host lists · **P3** · ◑ mostly 2026-06-01k
 
-The `text-link` action pattern (`text-primary hover:underline`, ~16-20px tall)
-recurs in host management lists (divisions, and similar patterns in group/team
-member rows). It reads as a hyperlink, not an action, and misses the 44px target.
-Cross-ref [accessibility.md](accessibility.md). **Fix:** standardize row actions
-on `textButtonClass()`/`secondaryButtonClass()` + the `tap-target` utility
-(Bundle 130). **Progress:** the **divisions** rows are done (2026-06-01f, via
-H-2). **Remaining:** the same `text-primary hover:underline` row-action pattern in
-the group/team **member rows** (e.g.
-[members-section.tsx](../../apps/web/src/app/groups/[id]/_components/members-section.tsx),
-[member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx),
-[player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx))
-still needs the same treatment.
+The `text-link` / tiny-bordered action pattern (`text-primary hover:underline` or
+`px-2 py-1 text-xs` ≈ 24px) recurs in host management lists and misses the 44px
+target. Cross-ref [accessibility.md](accessibility.md). **Fix:** standardize row
+actions on the button vocabulary + the `tap-target` utility (Bundle 130).
+**Progress:**
+
+- **Divisions** rows ✅ 2026-06-01f (via H-2).
+- **Group manage-members** rows ✅ 2026-06-01k —
+  [member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx)
+  role toggles → `neutralButtonClass('sm') + tap-target`, Remove →
+  `errorOutlinedButtonClass('sm') + tap-target` (was `px-2 py-1 text-xs` ≈ 24px).
+- **Profile/group viewer-action clusters** ✅ canonicalized 2026-06-01k —
+  [player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx)
+  - [group-viewer-actions.tsx](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx)
+    routed to `primaryButtonClass` / `neutralButtonClass` / `secondaryButtonClass`
+    (this also fixed 3 CC-1 `hover:opacity-90` misses — see new finding below).
+    _tap-target intentionally **not** added to these — they're profile-header CTA
+    clusters sharing a row with `ShareLink`, and the 32px `sm` height is the
+    app-wide sm-button question tracked in accessibility.md, not a tiny-row offender._
+- **`members-section.tsx`**: its only row affordance is the member **card link**
+  (a full-row `flex … p-2` link, already > 44px tall), not a sub-tap-target
+  button — nothing to change.
+
+**Remaining:** the same neutral row-action pattern in other lists
+(`attendee-list`, `friends-list`, `my-teams-panel`, `invite-response`,
+`extra-members-form`) — now a safe mechanical pass with `neutralButtonClass`
+available (folds into the secondary-convergence item).
 
 ---
 
@@ -721,6 +758,33 @@ token, so destructive actions now have a canonical home at every emphasis level:
     free-agent miss shows the `hover:opacity-90` escape hatch is the more likely
     future regression vector than `text-white` itself._
 
+### 2026-06-01k — H-3 member rows + `neutralButtonClass` (the missing variant)
+
+The secondary-convergence re-scope (2026-06-01h) concluded the ~84 neutral
+`border-border-base hover:bg-fg/5` buttons need a **neutral** canonical home, not
+the primary-tinted `secondaryButtonClass`. Built it and used it to clear H-3's
+member rows.
+
+- **`neutralButtonClass(size)` added** to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) — M3
+  outlined-neutral (`border-border-base text-fg bg-transparent` + state-layer),
+  deliberately matching the existing look so converging onto it is a
+  no-visual-change dedup. This unblocks the broader secondary-convergence sweep.
+- **H-3 group manage-members rows** ([member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx)):
+  role toggles → `neutralButtonClass('sm') + tap-target`; Remove →
+  `errorOutlinedButtonClass('sm') + tap-target` (was `px-2 py-1 text-xs` ≈ 24px,
+  now ≥44px).
+- **Profile/group viewer-action clusters** canonicalized
+  ([player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx),
+  [group-viewer-actions.tsx](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx)):
+  neutral buttons → `neutralButtonClass`, "Host an event" → `secondaryButtonClass`,
+  and **3 CC-1 `hover:opacity-90` misses** → `primaryButtonClass` (see CC-6).
+- **Discovered CC-6** — 17 more `hover:opacity-90` hand-rolled primary buttons the
+  CC-1 ratchet doesn't catch (logged as a new finding; sweep deferred).
+- Verify chain green (typecheck / lint / 625 tests / build). Scoped adoption of
+  `neutralButtonClass` to the H-3 surfaces only this pass — the full ~80-site
+  convergence is now a safe mechanical follow-up.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
@@ -728,16 +792,19 @@ token, so destructive actions now have a canonical home at every emphasis level:
   2026-06-01e; P-1 (shared `GuestSignupFields`) 2026-06-01d; V-3 (login field
   primitives) 2026-06-01c; CC-1 + CC-2 + CC-4 2026-05-31b–d — both the field and
   primary-button vocabularies are now ratchet-locked._
-- **P3:** H-3 (row-action tap targets — **divisions done 2026-06-01f**; group/team
-  member rows remain),
-  secondary/outlined-button convergence (**re-scoped 2026-06-01h** — 84
-  `hover:bg-fg/5`+border sites, heterogeneous; needs a curated "secondary button
-  vs. neutral surface/affordance" split + likely a _neutral_ outlined recipe, not
-  a blanket `→ secondaryButtonClass` which is primary-tinted; **`/pricing` done
-  2026-06-01b**). _Error-button family complete 2026-06-01g/i (`errorButtonClass`
-  Filled + `errorOutlinedButtonClass` + `errorTextButtonClass`); the only
-  remaining destructive gap is an `errorTonalButtonClass` for the tinted community
-  report buttons. P-2 (StatusPill) resolved 2026-06-01h; CC-5 (FormModal
+- **P3:** H-3 (row-action tap targets — **divisions + group manage-members +
+  viewer-action clusters done 2026-06-01f/k**; other lists — `attendee-list`,
+  `friends-list`, `my-teams-panel`, `invite-response`, `extra-members-form` —
+  remain, now a safe `neutralButtonClass + tap-target` pass);
+  **CC-6** (CC-1 `hover:opacity-90` ratchet blind spot — **17 hand-rolled primary
+  buttons** still live; codemod + extend ratchet);
+  secondary/outlined-button convergence (**re-scoped 2026-06-01h; unblocked
+  2026-06-01k** — `neutralButtonClass` now exists, so the curated sweep is
+  neutral→`neutralButtonClass` (no-visual-change) + genuine secondary actions →
+  `secondaryButtonClass`; **`/pricing` done 2026-06-01b**, H-3 surfaces done
+  2026-06-01k, ~75 sites remain). _Error-button family complete 2026-06-01g/i;
+  the only remaining destructive gap is an `errorTonalButtonClass` for the tinted
+  community report buttons. P-2 (StatusPill) resolved 2026-06-01h; CC-5 (FormModal
   conversion) resolved 2026-06-01f._
 - **Error-button family** ✅ **complete 2026-06-01g/i.**
   [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) now

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { changeGroupMemberRole, removeGroupMember } from '@/app/groups/member-actions';
 import { SubmitButton } from '@/components/submit-button';
+import { errorOutlinedButtonClass, neutralButtonClass } from '@/components/primary-button';
 
 export type MemberListItem = {
   userId: string;
@@ -58,7 +59,7 @@ export function MemberRowItem({ groupId, member, isSelf, viewerIsOwner, returnPa
                 returnPath,
               )}
             >
-              <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-2 py-1 text-xs disabled:opacity-50">
+              <SubmitButton className={`${neutralButtonClass('sm')} tap-target`}>
                 → Member
               </SubmitButton>
             </form>
@@ -67,7 +68,7 @@ export function MemberRowItem({ groupId, member, isSelf, viewerIsOwner, returnPa
             <form
               action={changeGroupMemberRole.bind(null, groupId, member.userId, 'admin', returnPath)}
             >
-              <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-2 py-1 text-xs disabled:opacity-50">
+              <SubmitButton className={`${neutralButtonClass('sm')} tap-target`}>
                 → Admin
               </SubmitButton>
             </form>
@@ -76,13 +77,13 @@ export function MemberRowItem({ groupId, member, isSelf, viewerIsOwner, returnPa
             <form
               action={changeGroupMemberRole.bind(null, groupId, member.userId, 'owner', returnPath)}
             >
-              <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-2 py-1 text-xs disabled:opacity-50">
+              <SubmitButton className={`${neutralButtonClass('sm')} tap-target`}>
                 → Owner
               </SubmitButton>
             </form>
           )}
           <form action={removeGroupMember.bind(null, groupId, member.userId, returnPath)}>
-            <SubmitButton className="border-border-base rounded-md border px-2 py-1 text-xs hover:bg-red-50 hover:text-red-700 disabled:opacity-50">
+            <SubmitButton className={`${errorOutlinedButtonClass('sm')} tap-target`}>
               Remove
             </SubmitButton>
           </form>

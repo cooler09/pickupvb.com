@@ -86,6 +86,22 @@ export function textButtonClass(size: PrimaryButtonSize = 'sm'): string {
 }
 
 /**
+ * Outlined **neutral** — medium-emphasis action that should read as a button
+ * but *not* pull primary color: "Message", "✓ Following", row role toggles,
+ * "Sign out", "Cancel" next to a non-primary flow. This is the canonical home
+ * for the ~80 hand-rolled `border-border-base … hover:bg-fg/5` buttons (the
+ * persona-ux secondary-convergence set) that should stay neutral rather than
+ * become the primary-tinted {@link secondaryButtonClass}. It deliberately
+ * codifies that existing look — neutral border + `fg` label + the M3
+ * state-layer standing in for `hover:bg-fg/5` — so converging onto it is a
+ * no-visual-change dedup, not a recolor. Pair with `tap-target` for dense
+ * list-row actions.
+ */
+export function neutralButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `border border-border-base text-fg bg-transparent ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
  * Filled error — destructive, high-emphasis action: "Delete group", "Yes,
  * cancel event", the confirm step of a destructive `ConfirmSubmitButton`.
  * Same filled shape as {@link primaryButtonClass} but painted with the M3

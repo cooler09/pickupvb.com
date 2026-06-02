@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { primaryButtonClass } from '@/components/primary-button';
+import {
+  neutralButtonClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/primary-button';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
@@ -87,7 +91,7 @@ export function GroupViewerActions({
       <>
         <Link
           href={`/login?next=${encodeURIComponent(returnPath)}`}
-          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
+          className={neutralButtonClass('sm')}
         >
           Sign in to follow
         </Link>
@@ -100,9 +104,7 @@ export function GroupViewerActions({
     <>
       {state.isFollowing ? (
         <form action={unfollowGroup.bind(null, groupId, returnPath)}>
-          <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm font-medium disabled:opacity-50">
-            ✓ Following
-          </SubmitButton>
+          <SubmitButton className={neutralButtonClass('sm')}>✓ Following</SubmitButton>
         </form>
       ) : (
         <form action={followGroup.bind(null, groupId, returnPath)}>
@@ -112,16 +114,10 @@ export function GroupViewerActions({
       <ShareLink path={`/groups/${groupSlug}`} title={groupName} />
       {state.canManage && (
         <>
-          <Link
-            href={'/events/new' as Route}
-            className="border-primary/40 text-primary hover:bg-primary/5 ml-auto rounded-md border px-3 py-1.5 text-sm font-medium"
-          >
+          <Link href={'/events/new' as Route} className={`${secondaryButtonClass('sm')} ml-auto`}>
             Host an event
           </Link>
-          <Link
-            href={`/groups/${groupSlug}/edit` as Route}
-            className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
-          >
+          <Link href={`/groups/${groupSlug}/edit` as Route} className={neutralButtonClass('sm')}>
             Edit
           </Link>
         </>

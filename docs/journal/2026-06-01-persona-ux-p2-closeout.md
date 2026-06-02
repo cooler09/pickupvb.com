@@ -90,15 +90,23 @@ audit's remediation log (2026-06-01b–f); this entry is the narrative thread.
 
 ## Follow-ups
 
-- **H-3 remainder** — the `text-primary hover:underline` row-action pattern in
-  the group/team **member rows** still needs `secondaryButtonClass`/`textButtonClass`
-  - `tap-target` (divisions done this pass). [persona-ux.md H-3](../audits/persona-ux.md).
-- **Secondary-button convergence** — **re-scoped 2026-06-01h:** re-measure found
-  84 `hover:bg-fg/5`+border sites (not ~30), heterogeneous — card rows, radio-card
-  `<label>`s, the Google button, and toggle chips are _not_ secondary buttons and
-  must stay neutral, so a blanket `→ secondaryButtonClass` (primary-tinted) is
-  wrong. Needs a curated "button vs. neutral surface" split, likely a _neutral_
-  outlined recipe. [persona-ux.md P3 backlog](../audits/persona-ux.md).
+- **H-3** — ✅ **mostly done 2026-06-01k**: added `neutralButtonClass` (the missing
+  M3 outlined-neutral variant) and used it for the group manage-members rows
+  (`neutralButtonClass`+`tap-target`; Remove → `errorOutlinedButtonClass`) +
+  canonicalized the player/group viewer-action clusters. Other lists
+  (`attendee-list`, `friends-list`, …) remain — now a safe `neutralButtonClass`
+  pass. [persona-ux.md H-3](../audits/persona-ux.md).
+- **CC-6 (new, P3)** — the CC-1 ratchet only forbids `hover:bg-primary/90`, so a
+  parallel `bg-primary … hover:opacity-90` hand-rolled-primary recipe slipped past
+  it: **17** still live (4 fixed across 2026-06-01j/k). Codemod → `primaryButtonClass`
+  - extend the ratchet. [persona-ux.md CC-6](../audits/persona-ux.md).
+- **Secondary-button convergence** — **re-scoped 2026-06-01h, unblocked
+  2026-06-01k:** re-measure found 84 `hover:bg-fg/5`+border sites (not ~30),
+  heterogeneous; a blanket `→ secondaryButtonClass` (primary-tinted) is wrong.
+  Built the missing **`neutralButtonClass`** (2026-06-01k) that codifies the
+  existing neutral look, so the curated sweep is now neutral→`neutralButtonClass`
+  (no-visual-change) + genuine secondary actions →`secondaryButtonClass`. ~75
+  sites remain. [persona-ux.md P3 backlog](../audits/persona-ux.md).
 - **`errorButtonClass` primitive** — ✅ **done 2026-06-01g** (persona-ux.md log):
   added a Filled destructive variant on the M3 `error` role tokens and adopted it
   in the 5 filled-destructive call sites (`ConfirmSubmitButton` + 4 danger-zone
