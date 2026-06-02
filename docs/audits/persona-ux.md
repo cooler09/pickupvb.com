@@ -232,17 +232,28 @@ after claiming — see Follow-ups._
 
 ### Player / attendee
 
-#### P-1 — "Sign up as a guest" looks like three different features · **P2**
+#### P-1 — "Sign up as a guest" looks like three different features · **P2** · ✅ resolved 2026-06-01d
 
-The everyday guest-RSVP action item is built three ways depending on the event's
-price model: the free-event form
-([guest-signup-form.tsx](../../apps/web/src/app/events/[id]/guest-signup-form.tsx),
-`text-xs` labels, focus-ring inputs, Turnstile), the paid-event inline form
-([paid-ticket-panel.tsx#L180-L212](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx#L180-L212),
-different inputs, `bg-background`, no Turnstile shown), and the login fallback.
-Same persona, same intent, three field treatments and label sizes.
-**Fix:** extract one `GuestSignupFields` (name + optional/required email)
-consumed by both panels; standardize on the shared field recipe from CC-2.
+The everyday guest-RSVP action item was built two different ways depending on the
+event's price model: the free-event form
+([guest-signup-form.tsx](../../apps/web/src/app/events/[id]/guest-signup-form.tsx))
+already used the CC-2 `field-styles.ts` recipe, but the paid-event checkout form
+([paid-ticket-panel.tsx](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx))
+hand-rolled its own `border-border-base bg-background … px-3 py-2 text-sm` inputs
+with `text-xs` labels and dropped the `autoComplete`/`maxLength` attributes —
+same persona, same intent, two field treatments.
+**Fixed (done):** extracted one
+[GuestSignupFields](../../apps/web/src/app/events/[id]/_components/guest-signup-fields.tsx)
+(name + email, `emailRequired` prop, optional per-field `errors`) consumed by both
+panels, on the shared `field-styles.ts` recipe. The paid form picked up the
+`autoComplete="name"`/`maxLength` it was missing for free; the free form's
+`emailRequired={false}` keeps the "(optional — lets you claim this signup later)"
+hint, the paid form's `emailRequired` keeps email required for the receipt. No
+`'use client'` on the shared component (bare inputs + class strings), so the
+client `GuestSignupForm` and the server `PaidTicketPanel` both render it; field
+names (`display_name`/`email`) unchanged, so the server actions are untouched.
+_The "login fallback" the original finding listed is the "Already have an account?
+Sign in" link, not a third form — out of scope._
 
 #### P-2 — "You're in" status pills use four ad-hoc color treatments · **P3**
 
@@ -474,13 +485,35 @@ comparison-table and FAQ have no buttons._
   625 tests / build). This leaves **P-1** (`GuestSignupFields`) as the last
   field-vocabulary P2 — login was the higher-intent surface, so it went first.
 
+### 2026-06-01d — P-1 shared `GuestSignupFields`
+
+- **P-1 (P2) — fixed.** Extracted
+  [GuestSignupFields](../../apps/web/src/app/events/[id]/_components/guest-signup-fields.tsx)
+  — the name + email pair shared by the free guest-RSVP form
+  ([guest-signup-form.tsx](../../apps/web/src/app/events/[id]/guest-signup-form.tsx))
+  and the paid guest-checkout form inside
+  [paid-ticket-panel.tsx](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx).
+  The paid form was the offender (its own `bg-background … text-sm` inputs,
+  `text-xs` labels, missing `autoComplete`/`maxLength`); both now share the CC-2
+  `field-styles.ts` recipe. The component takes `emailRequired` (paid = required
+  for the receipt; free = optional + claim-later hint) and an optional per-field
+  `errors` map (the free panel's `useFormState`; the paid redirect-to-Stripe flow
+  passes none). Deliberately no `'use client'` so it drops into both the client
+  form and the server panel; the posted field names are unchanged so
+  `guest-actions.ts` / `checkout-actions.ts` are untouched. Net: removed ~30 lines
+  of forked markup and a local `<Err>` helper. Verify chain green (typecheck /
+  lint / 625 tests / build). Closes the last field-vocabulary P2 — the remaining
+  P2s (V-2 header pills, H-1/H-2 host-form depth) are button- or layout-shaped,
+  not field-vocabulary.
+
 ### Standing backlog (graded above, not yet done)
 
 - **P2:** V-2 (header sign-up/sign-in pills → canonical classes — the landing
-  CTAs are done, the header pills remain), P-1 (shared `GuestSignupFields`),
-  H-1/H-2 (host form depth + divisions-manager FormModal). _V-3 (login field
-  primitives) resolved 2026-06-01c; CC-1 + CC-2 + CC-4 resolved 2026-05-31b–d —
-  both the field and primary-button vocabularies are now ratchet-locked._
+  CTAs are done, the header pills remain), H-1/H-2 (host form depth +
+  divisions-manager FormModal). _P-1 (shared `GuestSignupFields`) resolved
+  2026-06-01d; V-3 (login field primitives) resolved 2026-06-01c; CC-1 + CC-2 +
+  CC-4 resolved 2026-05-31b–d — both the field and primary-button vocabularies
+  are now ratchet-locked._
 - **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
   `primaryButtonClass` emits `text-primary-fg`; re-measure), CC-5/H-2 (FormModal
   conversion — also in events-page-ux.md), P-2

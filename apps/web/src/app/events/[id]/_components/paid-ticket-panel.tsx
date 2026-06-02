@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
 import GuestSignupForm from '../guest-signup-form';
+import { GuestSignupFields } from './guest-signup-fields';
 import { joinEvent, leaveEvent } from '../rsvp-actions';
 
 type Props = {
@@ -178,30 +179,7 @@ export function PaidTicketPanel({
                   : 'We need an email to send your receipt + cancellation link.'}
               </p>
               <form action={startGuestTicketCheckout.bind(null, eventId)} className="space-y-3">
-                <div>
-                  <label htmlFor="guest-name" className="text-fg block text-xs font-medium">
-                    Your name
-                  </label>
-                  <input
-                    id="guest-name"
-                    name="display_name"
-                    required
-                    maxLength={80}
-                    className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="guest-email" className="text-fg block text-xs font-medium">
-                    Email
-                  </label>
-                  <input
-                    id="guest-email"
-                    name="email"
-                    type="email"
-                    required
-                    className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </div>
+                <GuestSignupFields emailRequired />
                 <div className="flex justify-end">
                   <ConfirmSubmitButton
                     label={`Pay online — ${formatUsd(total)}`}
