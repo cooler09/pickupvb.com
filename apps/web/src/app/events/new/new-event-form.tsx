@@ -16,6 +16,9 @@ import VisibilitySection from './_components/visibility-section';
 
 const initialState: CreateEventState = {};
 
+/** Default event length when auto-filling the end time from a picked start. */
+const DEFAULT_EVENT_DURATION_MS = 2 * 60 * 60 * 1000;
+
 /** Sensible defaults for indoor 6's: 1 setter, 2 outsides, 1 opposite, 2 middles, 1 libero. */
 const DEFAULT_POSITION_ROSTER: Record<EventPosition, number> = {
   [EventPosition.Setter]: 1,
@@ -111,6 +114,20 @@ export default function NewEventForm({
     return Number.isNaN(d.getTime()) ? null : d;
   });
 
+  // Default the end time to start + 2h when a start is picked. Only fills when
+  // the end is unset or no longer after the new start, so an explicitly-set
+  // later end time is preserved (and an invalid end is auto-corrected).
+  function handleStartsAtChange(next: Date | null) {
+    setStartsAt(next);
+    if (next) {
+      setEndsAt((prev) =>
+        prev && prev.getTime() > next.getTime()
+          ? prev
+          : new Date(next.getTime() + DEFAULT_EVENT_DURATION_MS),
+      );
+    }
+  }
+
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
     setCity(s.city);
@@ -154,7 +171,7 @@ export default function NewEventForm({
 
       <WhenWhereSection
         startsAt={startsAt}
-        setStartsAt={setStartsAt}
+        setStartsAt={handleStartsAtChange}
         endsAt={endsAt}
         setEndsAt={setEndsAt}
         addressLine={addressLine}
