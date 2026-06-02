@@ -44,6 +44,8 @@ export const NOTICE_LABEL: Record<string, { tone: 'success' | 'error'; text: str
   match_added: { tone: 'success', text: 'Match added.' },
   match_removed: { tone: 'success', text: 'Match removed.' },
   pools_updated: { tone: 'success', text: 'Pools updated and schedule rebuilt.' },
+  reopened: { tone: 'success', text: 'Bracket re-opened for editing.' },
+  entry_replaced: { tone: 'success', text: 'Team substituted across the bracket.' },
   result_saved: { tone: 'success', text: 'Result recorded.' },
   match_reset: { tone: 'success', text: 'Match cleared.' },
   team_added: {

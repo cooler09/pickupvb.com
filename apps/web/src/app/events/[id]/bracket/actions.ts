@@ -13,7 +13,9 @@ import {
   RecordMatchResultCommand,
   RegisterAdHocTeamCommand,
   RemoveMatchCommand,
+  ReopenBracketCommand,
   ReorderPoolMatchesCommand,
+  ReplaceEntryCommand,
   ResetBracketCommand,
   ResetMatchCommand,
   SeedBracketCommand,
@@ -376,6 +378,51 @@ export async function setBracketPoolsFromForm(
   }
   revalidate(eventId);
   back(eventId, divisionId, 'pools_updated');
+}
+
+// ---- Live-board edits (ADR 0032 / Phase 5) --------------------------------
+
+/** Re-open a completed bracket so the host can fix a result. */
+export async function reopenBracket(eventId: string, divisionId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.reopenBracket.execute(new ReopenBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'reopened');
+}
+
+/**
+ * Substitute one entry for another everywhere it appears in the bracket — a
+ * dropped team replaced by a registered stand-in. See ReplaceEntryCommand.
+ */
+export async function replaceEntryFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const oldEntryId = String(formData.get('old_entry_id') ?? '');
+  const newEntryId = String(formData.get('new_entry_id') ?? '');
+  if (!oldEntryId || !newEntryId || oldEntryId === newEntryId) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'Pick two different teams to substitute.');
+  }
+  try {
+    await handlers.replaceBracketEntry.execute(
+      new ReplaceEntryCommand(divisionId, user.id, oldEntryId, newEntryId),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'entry_replaced');
 }
 
 /**

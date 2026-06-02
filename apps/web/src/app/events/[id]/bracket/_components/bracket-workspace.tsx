@@ -139,7 +139,9 @@ export function BracketWorkspace(props: {
             divisionId={divisionId}
             matches={[...bracket.matches]}
             teamById={teamById}
+            teams={registeredTeams}
             bestOf={bracket.bestOf}
+            targetScore={bracket.targetScore}
             isHost={isHost}
             viewerId={caps.viewerId}
             status={bracket.status}
