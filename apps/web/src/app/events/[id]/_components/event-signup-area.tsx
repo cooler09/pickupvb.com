@@ -103,9 +103,17 @@ export function EventSignupArea({
   }
 
   if (signupsOpen && event.type === 'open_play') {
+    // Smart collapse default: keep the CTA open for prospective registrants;
+    // collapse once the viewer is already in (RSVP'd or holds a position).
+    // Force open when a flash result code is present so the just-acted
+    // confirmation / error inside the panel isn't hidden behind the collapse.
+    const viewerSignedUp = event.isAttending || viewerPosition !== null;
+    const openSignup = !viewerSignedUp || effRsvp !== undefined;
     return (
       <SignupSection
         title="Sign up"
+        collapsible
+        defaultOpen={openSignup}
         badge={
           paid && breakdown ? { tone: 'paid', label: priceLabel } : { tone: 'free', label: 'Free' }
         }
@@ -172,9 +180,21 @@ export function EventSignupArea({
     const adHocDivisions = event.divisions.filter((d) => d.teamRegistrationMode === 'ad_hoc');
     const rosterDivisions = event.divisions.filter((d) => d.teamRegistrationMode === 'roster');
     const teamEnabled = adHocDivisions.length > 0 || rosterDivisions.length > 0;
+    // Smart collapse default: open for prospective registrants; collapse once
+    // the viewer is already in — captaining/joining an ad-hoc or roster team,
+    // or listed as a free agent. Force open when a flash result code is present
+    // (team / free-agent / rsvp) so the just-acted confirmation / error inside
+    // a panel isn't hidden behind the collapse.
+    const viewerRegistered =
+      adHocViewerRegistrations.length > 0 ||
+      event.viewerCaptainedTeams.length > 0 ||
+      event.isFreeAgent;
+    const openRegister = !viewerRegistered || Boolean(effRsvp || team || fa);
     return (
       <SignupSection
         title="Register"
+        collapsible
+        defaultOpen={openRegister}
         badge={{ tone: 'neutral', label: 'Tournament' }}
         subline={`${teamCount} ${teamCount === 1 ? 'team' : 'teams'} · ${freeAgentCount} free ${freeAgentCount === 1 ? 'agent' : 'agents'}`}
       >

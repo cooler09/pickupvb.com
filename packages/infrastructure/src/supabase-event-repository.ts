@@ -636,13 +636,20 @@ export class SupabaseEventRepository implements EventRepository {
     }
     if (faToInsert.length > 0) {
       const rows = faToInsert.map((f) => ({ ...f, role: 'free_agent' as const }));
-      // Upsert on the (division_id, user_id) unique index so a concurrent
-      // double-submit is idempotent (matches the removed
+      // Plain insert (not upsert): the only unique index on
+      // (division_id, user_id) is *partial* — `where user_id is not null`
+      // (migration 20260802000000). PostgREST's `onConflict` can't carry the
+      // index predicate a partial index requires for ON CONFLICT inference, so
+      // an upsert here raised 42P10 ("no unique or exclusion constraint
+      // matching the ON CONFLICT specification") and broke every free-agent
+      // signup. The partial index still enforces uniqueness on the insert, so
+      // a concurrent double-submit raises 23505 (unique_violation) — which we
+      // swallow to keep the operation idempotent (matches the removed
       // attachFreeAgentToDivision behaviour — ADR 0019).
-      const { error: insFErr } = await this.client
-        .from('event_participants')
-        .upsert(rows as never, { onConflict: 'division_id,user_id', ignoreDuplicates: true });
-      if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
+      const { error: insFErr } = await this.client.from('event_participants').insert(rows as never);
+      if (insFErr && insFErr.code !== '23505') {
+        throw new Error(`save free agents insert failed: ${insFErr.message}`);
+      }
     }
     for (const row of faToUpdate) {
       const { error: updErr } = await this.client
