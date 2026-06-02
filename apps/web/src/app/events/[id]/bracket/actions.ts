@@ -4,15 +4,22 @@ import type { Route } from 'next';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
+  AddMatchCommand,
   CreateBracketCommand,
+  EditMatchCommand,
   GenerateBracketCommand,
   GeneratePlayoffCommand,
+  PublishBracketCommand,
   RecordMatchResultCommand,
   RegisterAdHocTeamCommand,
+  RemoveMatchCommand,
   ReorderPoolMatchesCommand,
   ResetBracketCommand,
   ResetMatchCommand,
   SeedBracketCommand,
+  SetPoolsCommand,
+  type EditMatchPatchInput,
+  type AddMatchInputDto,
 } from '@pickupvb/application';
 import {
   ConflictError,
@@ -235,6 +242,140 @@ export async function resetBracket(eventId: string, divisionId: string): Promise
   }
   revalidate(eventId);
   back(eventId, divisionId, 'reset');
+}
+
+// ---- Draft editing (ADR 0032) ---------------------------------------------
+//
+// Host-gated structural edits to a `draft` bracket. All flash-param redirects
+// (the draft workspace renders plain `<form action>` submits), so they mirror
+// the generate/seed/reset actions above.
+
+/** Publish a draft → live. */
+export async function publishBracket(eventId: string, divisionId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.publishBracket.execute(new PublishBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'published');
+}
+
+/**
+ * Patch one match. The form always submits every field, so each is applied
+ * (empty / "tbd" clears the override or the team). See EditMatchCommand.
+ */
+export async function editBracketMatchFromForm(
+  eventId: string,
+  divisionId: string,
+  matchId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const patch: EditMatchPatchInput = {};
+  const a = formData.get('entry_a');
+  if (a !== null) patch.entryAId = a === '' || a === 'tbd' ? null : String(a);
+  const b = formData.get('entry_b');
+  if (b !== null) patch.entryBId = b === '' || b === 'tbd' ? null : String(b);
+  const court = formData.get('court');
+  if (court !== null) patch.court = String(court).trim() || null;
+  const bo = Number(formData.get('best_of') ?? '');
+  patch.bestOf = bo === 1 || bo === 3 || bo === 5 ? bo : null;
+  const ts = Number(formData.get('target_score') ?? '');
+  patch.targetScore = Number.isInteger(ts) && ts >= 1 ? ts : null;
+  try {
+    await handlers.editBracketMatch.execute(
+      new EditMatchCommand(divisionId, user.id, matchId, patch),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'match_updated');
+}
+
+/** Append a match to a pool (or the open stage). */
+export async function addBracketMatchFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const input: AddMatchInputDto = {};
+  const pool = String(formData.get('pool') ?? '').trim();
+  if (pool) input.pool = pool;
+  const a = formData.get('entry_a');
+  if (a !== null && a !== '' && a !== 'tbd') input.entryAId = String(a);
+  const b = formData.get('entry_b');
+  if (b !== null && b !== '' && b !== 'tbd') input.entryBId = String(b);
+  try {
+    await handlers.addBracketMatch.execute(new AddMatchCommand(divisionId, user.id, input));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'match_added');
+}
+
+/** Remove a match. */
+export async function removeBracketMatch(
+  eventId: string,
+  divisionId: string,
+  matchId: string,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.removeBracketMatch.execute(new RemoveMatchCommand(divisionId, user.id, matchId));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'match_removed');
+}
+
+/**
+ * Reassign teams to pools in bulk (one `team_pool_<entryId>` field per team),
+ * then rebuild the pool schedule from the new composition (setPools is
+ * labels-only; generate re-derives the matches — ADR 0032). Stays in draft.
+ * Rebuilding discards any manual schedule edits, which is expected when the
+ * pool composition changes.
+ */
+export async function setBracketPoolsFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const assignments: Array<{ entryId: string; pool: string | null }> = [];
+  for (const [key, val] of formData.entries()) {
+    if (!key.startsWith('team_pool_')) continue;
+    const entryId = key.slice('team_pool_'.length);
+    const pool = String(val).trim();
+    assignments.push({ entryId, pool: pool || null });
+  }
+  if (assignments.length === 0) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'No pool assignments submitted.');
+  }
+  try {
+    await handlers.setBracketPools.execute(new SetPoolsCommand(divisionId, user.id, assignments));
+    await handlers.generateBracket.execute(new GenerateBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'pools_updated');
 }
 
 /**

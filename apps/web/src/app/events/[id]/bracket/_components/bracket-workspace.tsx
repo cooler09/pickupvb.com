@@ -5,6 +5,7 @@ import type { BracketFormat, BracketStatus, Match } from '@pickupvb/domain';
 import { useEventManageCaps } from '../../_components/use-event-manage-caps';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from './board-view';
+import { DraftWorkspace } from './draft-workspace';
 import { LatestMatchTracker } from './latest-match-tracker';
 import { NoBracketView } from './no-bracket-view';
 import { SetupView } from './setup-view';
@@ -19,7 +20,8 @@ type BracketVm = {
   status: BracketStatus;
   format: BracketFormat;
   bestOf: number;
-  seeds: ReadonlyArray<{ entryId: string; seed: number }>;
+  targetScore: number | null;
+  seeds: ReadonlyArray<{ entryId: string; seed: number; pool: string | null }>;
   matches: ReadonlyArray<Match>;
 };
 
@@ -105,6 +107,25 @@ export function BracketWorkspace(props: {
           isHost={isHost}
         />
       )}
+
+      {bracket &&
+        bracket.status === 'draft' &&
+        (isHost ? (
+          <DraftWorkspace
+            eventId={eventId}
+            divisionId={divisionId}
+            format={bracket.format}
+            bestOf={bracket.bestOf}
+            targetScore={bracket.targetScore}
+            matches={bracket.matches}
+            teams={registeredTeams}
+            seeds={bracket.seeds}
+          />
+        ) : (
+          <p className="text-muted text-sm">
+            The host is finalizing the bracket. Check back shortly.
+          </p>
+        ))}
 
       {bracket && (bracket.status === 'active' || bracket.status === 'completed') && (
         <LiveScoresProvider enabled={props.liveScoringEnabled} divisionId={divisionId}>

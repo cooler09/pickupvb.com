@@ -39,6 +39,11 @@ export const NOTICE_LABEL: Record<string, { tone: 'success' | 'error'; text: str
   generated: { tone: 'success', text: 'Bracket generated.' },
   playoff_generated: { tone: 'success', text: 'Playoff bracket generated.' },
   reset: { tone: 'success', text: 'Bracket reset to setup.' },
+  published: { tone: 'success', text: 'Bracket published — scoring is now live.' },
+  match_updated: { tone: 'success', text: 'Match updated.' },
+  match_added: { tone: 'success', text: 'Match added.' },
+  match_removed: { tone: 'success', text: 'Match removed.' },
+  pools_updated: { tone: 'success', text: 'Pools updated and schedule rebuilt.' },
   result_saved: { tone: 'success', text: 'Result recorded.' },
   match_reset: { tone: 'success', text: 'Match cleared.' },
   team_added: {
