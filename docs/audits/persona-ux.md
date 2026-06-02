@@ -171,17 +171,29 @@ point uses `/login?mode=sign-up`. This is a dead "Create account" button on the
 marketing page, squarely in the prioritized visitor→signup funnel.
 **Fix (done 2026-05-31):** point it at `/login?mode=sign-up`.
 
-#### V-2 — Signup entry points are visually/behaviorally divergent · **P2**
+#### V-2 — Signup entry points are visually/behaviorally divergent · **P2** · ✅ resolved 2026-06-01e
 
-The same "create an account / host" intent is rendered with different styling and
-sizes across the funnel: header "Sign up" pill
-([site-header.tsx#L179-L184](../../apps/web/src/components/site-header.tsx#L179-L184),
-`px-3 py-1.5`), landing hero/host-pitch/footer CTAs
-([page.tsx#L56-L67](../../apps/web/src/app/page.tsx#L56-L67) `px-5 py-2.5`;
-[page.tsx#L254-L265](../../apps/web/src/app/page.tsx#L254-L265) `px-4 py-2.5`).
-Three paddings, all `text-white`, none using the canonical class.
-**Fix:** migrate to `primaryButtonClass`/`secondaryButtonClass` (landing done
-2026-05-31; header sign-up/sign-in pills remain).
+The same "create an account / host" intent was rendered with different styling and
+sizes across the funnel: header "Sign up" pill, landing hero/host-pitch/footer
+CTAs (`px-5 py-2.5` / `px-4 py-2.5`), all `text-white`, none using the canonical
+class. The landing CTAs (2026-05-31) and the "Sign up" pill (CC-1 sweep) were
+already done; this pass finished the **header + mobile-drawer auth cluster**.
+**Fixed (done):** the **Sign in / Sign up** pair now reads as the canonical M3
+**Outlined + Filled** pair on both surfaces —
+[site-header.tsx](../../apps/web/src/components/site-header.tsx) "Sign in" went
+from a bare `hover:text-primary text-sm` nav text-link to
+`secondaryButtonClass('sm')` (pairing with the Filled `primaryButtonClass('sm')`
+"Sign up"), and [mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx)
+"Sign in" went from a hand-rolled `border-border-base hover:bg-fg/5` button to
+`secondaryButtonClass('md')`. The anon **"Finish creating your account"** claim
+nudge — the last hand-rolled recipe in that cluster
+(`border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 …`) — moved to
+`tonalButtonClass('sm')` (M3 Filled-tonal, the right medium-emphasis weight for a
+nudge sitting beside the Filled "Sign up"). _Pre-existing behavioral note, not
+changed: the desktop header shows anon users the claim nudge, but the mobile
+drawer's anon branch shows only Sign in / Sign up — surfacing the claim nudge in
+the drawer is a separate V-4-family follow-up, left out of this button-vocabulary
+pass._
 
 #### V-3 — The auth front door bypasses the design system · **P2** · ✅ resolved 2026-06-01c
 
@@ -506,14 +518,32 @@ comparison-table and FAQ have no buttons._
   P2s (V-2 header pills, H-1/H-2 host-form depth) are button- or layout-shaped,
   not field-vocabulary.
 
+### 2026-06-01e — V-2 header + mobile-drawer auth cluster
+
+- **V-2 (P2) — fixed.** Converged the signup-funnel auth cluster onto the
+  canonical button vocabulary, closing the last of V-2:
+  - **Sign in / Sign up** is now the M3 **Outlined + Filled** pair on both
+    [site-header.tsx](../../apps/web/src/components/site-header.tsx) (desktop
+    `secondaryButtonClass('sm')` + `primaryButtonClass('sm')`) and
+    [mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx) (drawer
+    `secondaryButtonClass('md')` + `primaryButtonClass('md')`). Desktop "Sign in"
+    was a bare nav text-link; the mobile one was a hand-rolled neutral-outlined
+    button — they now match each other and the rest of the app.
+  - The anon **"Finish creating your account"** claim nudge (the last hand-rolled
+    recipe in the desktop cluster) moved from a bordered tonal recipe to
+    `tonalButtonClass('sm')` (M3 Filled-tonal) — medium emphasis, sits cleanly
+    beside the Filled "Sign up" without competing.
+    Verify chain green (typecheck / lint / 625 tests / build). With V-2 done, the
+    signup-funnel button drift (V-1 dead link, V-2 entry-point divergence) is fully
+    closed; the only remaining P2s are the **host-form** items (H-1/H-2).
+
 ### Standing backlog (graded above, not yet done)
 
-- **P2:** V-2 (header sign-up/sign-in pills → canonical classes — the landing
-  CTAs are done, the header pills remain), H-1/H-2 (host form depth +
-  divisions-manager FormModal). _P-1 (shared `GuestSignupFields`) resolved
-  2026-06-01d; V-3 (login field primitives) resolved 2026-06-01c; CC-1 + CC-2 +
-  CC-4 resolved 2026-05-31b–d — both the field and primary-button vocabularies
-  are now ratchet-locked._
+- **P2:** H-1/H-2 (host form depth + divisions-manager FormModal) — the last
+  remaining P2. _V-2 (header/mobile auth cluster) resolved 2026-06-01e; P-1
+  (shared `GuestSignupFields`) resolved 2026-06-01d; V-3 (login field primitives)
+  resolved 2026-06-01c; CC-1 + CC-2 + CC-4 resolved 2026-05-31b–d — both the
+  field and primary-button vocabularies are now ratchet-locked._
 - **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
   `primaryButtonClass` emits `text-primary-fg`; re-measure), CC-5/H-2 (FormModal
   conversion — also in events-page-ux.md), P-2
