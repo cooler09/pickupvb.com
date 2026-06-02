@@ -12,6 +12,7 @@ import { HostDivisionWinnersPanel } from '../../_components/host-division-winner
 import { LeagueTeamsPanel } from '../../_components/league-teams-panel';
 import { HostsSection } from '../../_components/hosts-section';
 import { CancelEventPanel } from '../../edit/cancel-event-panel';
+import { EventToolsCard, type EventToolSlug } from '@/app/tools/_components/event-tools-card';
 import type {
   EligibleTeamOption,
   LeagueTeamView,
@@ -68,6 +69,17 @@ export function ManageDashboard({
   // so a host of (say) a small open-play event never sees an empty heading.
   const runHasContent = isTournament || isLeague || activeAttendeeCount > 0;
   const wrapHasContent = (isTournament && hasDivisions) || (isLeague && hasDivisions) || isOpenPlay;
+
+  // Which standalone host tools to surface in-context (tournament-tools-workflow
+  // audit TT-1). Division-scoped tools (seeding/scheduler/standings) launch bound
+  // to the event's first division; the host can switch divisions from the bracket
+  // page's tools row.
+  const toolSlugs: ReadonlyArray<EventToolSlug> = isTournament
+    ? ['team-randomizer', 'seeding', 'scheduler', 'standings']
+    : isLeague
+      ? ['standings']
+      : ['team-randomizer', 'standings'];
+  const firstDivisionId = event.divisions[0]?.id;
 
   return (
     <div className="space-y-8">
@@ -133,6 +145,12 @@ export function ManageDashboard({
               label="Open schedule"
             />
           )}
+          <EventToolsCard
+            eventId={event.id}
+            ret={returnPath}
+            tools={toolSlugs}
+            {...(firstDivisionId ? { divisionId: firstDivisionId } : {})}
+          />
         </ManageGroup>
       )}
 

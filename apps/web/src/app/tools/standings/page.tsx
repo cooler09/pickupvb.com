@@ -1,5 +1,11 @@
+import Link from 'next/link';
+import type { Route } from 'next';
 import type { Metadata } from 'next';
+import { secondaryButtonClass } from '@/components/primary-button';
 import { StandingsSetupForm } from './_components/setup-form.js';
+import { EventBindingBanner } from '../_components/event-binding-banner';
+import { parseEventBinding } from '../_lib/event-binding';
+import { loadEventToolContext } from '../_lib/load-event-tool-context';
 
 /**
  * SEO-facing landing page for the free win/loss standings tracker. The start
@@ -79,7 +85,17 @@ const jsonLd = {
   ],
 };
 
-export default function StandingsSetupPage() {
+export default async function StandingsSetupPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Bound to an event division (tournament-tools-workflow audit TT-2/TT-4): the
+  // room opens pre-seeded with the division's teams, and the host is pointed to
+  // the event's podium panel to record the final placements (the canonical
+  // surface — it resolves the correct team entry ids; this tool is a feeder).
+  const binding = parseEventBinding(await props.searchParams);
+  const ctx = binding ? await loadEventToolContext(binding) : null;
+  const teamNames = ctx?.teams.map((t) => t.name) ?? [];
+
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <script
@@ -87,6 +103,21 @@ export default function StandingsSetupPage() {
         // Static, server-rendered JSON — safe to inline.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+
+      {ctx ? (
+        <EventBindingBanner
+          eventTitle={ctx.eventTitle}
+          {...(ctx.divisionLabel ? { divisionLabel: ctx.divisionLabel } : {})}
+          ret={ctx.binding.ret}
+        >
+          <Link
+            href={`/events/${ctx.binding.eventId}/manage` as Route}
+            className={secondaryButtonClass('sm')}
+          >
+            Record podium →
+          </Link>
+        </EventBindingBanner>
+      ) : null}
 
       <header className="space-y-1">
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
@@ -100,7 +131,7 @@ export default function StandingsSetupPage() {
         </p>
       </header>
 
-      <StandingsSetupForm />
+      <StandingsSetupForm initialTeams={teamNames} />
 
       <div className="text-muted border-border-base rounded-md border border-dashed p-4 text-xs">
         <p className="text-fg font-medium">How it works</p>

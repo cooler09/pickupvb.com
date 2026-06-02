@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { SeedingTool } from './_components/seeding.js';
+import { parseEventBinding } from '../_lib/event-binding';
+import { loadEventToolContext } from '../_lib/load-event-tool-context';
 
 /**
  * SEO-facing landing page for the free seeding generator. The interactive tool
@@ -78,7 +80,29 @@ const jsonLd = {
   ],
 };
 
-export default function SeedingPage() {
+export default async function SeedingPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // Bound to an event division (tournament-tools-workflow audit TT-2): pull the
+  // division's registered teams and let the host apply the computed seed order
+  // to the bracket. Unbound, it's the plain free tool and reads no cookies.
+  const binding = parseEventBinding(await props.searchParams);
+  const ctx = binding ? await loadEventToolContext(binding) : null;
+  const islandProps =
+    ctx && ctx.divisionId
+      ? {
+          initialRoster: ctx.teams.map((t) => t.name).join('\n'),
+          boundTeams: ctx.teams,
+          eventBinding: {
+            eventId: ctx.binding.eventId,
+            divisionId: ctx.divisionId,
+            ret: ctx.binding.ret,
+            eventTitle: ctx.eventTitle,
+            ...(ctx.divisionLabel ? { divisionLabel: ctx.divisionLabel } : {}),
+          },
+        }
+      : {};
+
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <script
@@ -98,7 +122,7 @@ export default function SeedingPage() {
         </p>
       </header>
 
-      <SeedingTool />
+      <SeedingTool {...islandProps} />
 
       <div className="text-muted border-border-base rounded-md border border-dashed p-4 text-xs">
         <p className="text-fg font-medium">How it works</p>

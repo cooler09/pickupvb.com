@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import {
   primaryButtonClass,
   neutralButtonClass,
@@ -11,6 +11,9 @@ import {
   fieldLabelClass as labelClass,
   fieldHintClass as hintClass,
 } from '@/components/field-styles';
+import { EventBindingBanner } from '../../_components/event-binding-banner';
+import type { EventBindingView } from '../../_lib/event-binding';
+import { applySeedingToBracket, type ApplySeedResult } from '../event-actions';
 import {
   parseRoster,
   hasRatings,
@@ -27,12 +30,37 @@ const MODES: { value: SeedMode; label: string }[] = [
   { value: 'random', label: 'Random' },
 ];
 
-export function SeedingTool() {
-  const [roster, setRoster] = useState('');
+function applyError(res: Extract<ApplySeedResult, { ok: false }>): string {
+  switch (res.reason) {
+    case 'forbidden':
+      return 'You don’t have permission to seed this bracket.';
+    case 'notfound':
+      return 'No bracket yet — create the bracket on the event’s bracket page first, then apply seeds.';
+    case 'invalid':
+      return res.message ?? 'The seed order isn’t valid for this bracket right now.';
+    case 'conflict':
+      return res.message ?? 'A conflict stopped the seed update.';
+    default:
+      return res.message ?? 'Something went wrong applying the seeds.';
+  }
+}
+
+export function SeedingTool({
+  initialRoster,
+  eventBinding,
+  boundTeams = [],
+}: {
+  initialRoster?: string;
+  eventBinding?: EventBindingView;
+  boundTeams?: ReadonlyArray<{ entryId: string; name: string }>;
+} = {}) {
+  const [roster, setRoster] = useState(initialRoster ?? '');
   const [mode, setMode] = useState<SeedMode>('ranked');
   const [pools, setPools] = useState(1);
   const [seeds, setSeeds] = useState<Seed[] | null>(null);
   const [copied, setCopied] = useState(false);
+  const [applyResult, setApplyResult] = useState<ApplySeedResult | null>(null);
+  const [applying, startApply] = useTransition();
 
   // `parseRoster` is pure, so deriving the roster during render is safe — only
   // the draw (in `generate()`) touches `Math.random`. Pool distribution is
@@ -48,6 +76,7 @@ export function SeedingTool() {
     if (!canMake) return;
     setSeeds(seedOrder(players, mode));
     setCopied(false);
+    setApplyResult(null);
   }
 
   function copy() {
@@ -57,8 +86,52 @@ export function SeedingTool() {
     window.setTimeout(() => setCopied(false), 1500);
   }
 
+  function applyToBracket() {
+    if (!eventBinding?.divisionId || !seeds || boundTeams.length === 0) return;
+    // Map the seeded names back to the registered teams' entry ids, in order.
+    // Adding a rating ("Sharks 9") preserves the name, so ranking still maps;
+    // only a rename/removal breaks it — caught by the coverage check below.
+    const byName = new Map(boundTeams.map((t) => [t.name, t.entryId]));
+    const orderedEntryIds: string[] = [];
+    const seen = new Set<string>();
+    for (const s of seeds) {
+      const id = byName.get(s.name);
+      if (id && !seen.has(id)) {
+        orderedEntryIds.push(id);
+        seen.add(id);
+      }
+    }
+    if (orderedEntryIds.length !== boundTeams.length) {
+      setApplyResult({
+        ok: false,
+        reason: 'invalid',
+        message:
+          'The seed list must include each registered team exactly once — reset and regenerate without renaming or removing teams.',
+      });
+      return;
+    }
+    const divisionId = eventBinding.divisionId;
+    startApply(async () => {
+      const res = await applySeedingToBracket({
+        eventId: eventBinding.eventId,
+        divisionId,
+        ret: eventBinding.ret,
+        orderedEntryIds,
+      });
+      setApplyResult(res);
+    });
+  }
+
   return (
     <div className="space-y-6">
+      {eventBinding ? (
+        <EventBindingBanner
+          eventTitle={eventBinding.eventTitle}
+          divisionLabel={eventBinding.divisionLabel}
+          ret={eventBinding.ret}
+        />
+      ) : null}
+
       <div className="border-border-base rounded-shape-sm space-y-5 border p-5">
         <div>
           <label htmlFor="roster" className={labelClass}>
@@ -180,6 +253,41 @@ export function SeedingTool() {
                   </li>
                 ))}
           </ul>
+
+          {eventBinding ? (
+            <div className="border-border-base rounded-shape-sm space-y-3 border p-4">
+              <p className="text-fg text-sm font-medium">Apply this seed order to the bracket</p>
+              {boundTeams.length === 0 ? (
+                <p className="text-muted text-xs">
+                  No registered teams in this division yet — register teams on the event first.
+                </p>
+              ) : (
+                <>
+                  <p className="text-muted text-xs">
+                    Sets the bracket’s seed order (1→{boundTeams.length}). The bracket must exist
+                    and be in setup; pools are assigned when you generate it.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={applyToBracket}
+                    disabled={applying}
+                    className={`${primaryButtonClass('md')} w-full`}
+                  >
+                    {applying ? 'Applying…' : 'Apply seed order to bracket'}
+                  </button>
+                  {applyResult?.ok ? (
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Seed order applied. Head back to the bracket to generate it.
+                    </p>
+                  ) : applyResult ? (
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {applyError(applyResult)}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

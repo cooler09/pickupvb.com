@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { TeamRandomizer } from './_components/randomizer.js';
+import { parseEventBinding } from '../_lib/event-binding';
+import { loadEventToolContext } from '../_lib/load-event-tool-context';
 
 /**
  * SEO-facing landing page for the free team randomizer. The interactive
@@ -80,7 +82,27 @@ const jsonLd = {
   ],
 };
 
-export default function TeamRandomizerPage() {
+export default async function TeamRandomizerPage(props: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  // When launched from an event (tournament-tools-workflow audit TT-2) the page
+  // pulls the event's attendee roster and lets the host save the split as ad-hoc
+  // teams. Unbound (no/invalid `?event=`), it's the plain free tool — and never
+  // reads cookies, so it stays statically cacheable.
+  const binding = parseEventBinding(await props.searchParams);
+  const ctx = binding ? await loadEventToolContext(binding) : null;
+  const islandProps = ctx
+    ? {
+        initialRoster: ctx.rosterNames.join('\n'),
+        eventBinding: {
+          eventId: ctx.binding.eventId,
+          ret: ctx.binding.ret,
+          eventTitle: ctx.eventTitle,
+        },
+        adHocDivisions: ctx.adHocDivisions,
+      }
+    : {};
+
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <script
@@ -100,7 +122,7 @@ export default function TeamRandomizerPage() {
         </p>
       </header>
 
-      <TeamRandomizer />
+      <TeamRandomizer {...islandProps} />
 
       <div className="text-muted border-border-base rounded-md border border-dashed p-4 text-xs">
         <p className="text-fg font-medium">How it works</p>

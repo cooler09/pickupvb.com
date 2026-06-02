@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import {
   primaryButtonClass,
   neutralButtonClass,
@@ -11,6 +11,9 @@ import {
   fieldLabelClass as labelClass,
   fieldHintClass as hintClass,
 } from '@/components/field-styles';
+import { EventBindingBanner } from '../../_components/event-binding-banner';
+import type { EventBindingView } from '../../_lib/event-binding';
+import { saveRandomTeamsToEvent, type SaveTeamsResult } from '../event-actions';
 import {
   parseRoster,
   hasRatings,
@@ -26,12 +29,38 @@ const MODES: { value: SplitMode; label: string }[] = [
   { value: 'balanced', label: 'Balanced' },
 ];
 
-export function TeamRandomizer() {
-  const [roster, setRoster] = useState('');
+function saveError(res: Extract<SaveTeamsResult, { ok: false }>): string {
+  switch (res.reason) {
+    case 'forbidden':
+      return 'You don’t have permission to add teams to this event.';
+    case 'notfound':
+      return 'That event or division no longer exists.';
+    case 'conflict':
+      return res.message ?? 'A team conflict stopped the save.';
+    case 'invalid':
+      return res.message ?? 'Some teams couldn’t be saved.';
+    default:
+      return res.message ?? 'Something went wrong saving the teams.';
+  }
+}
+
+export function TeamRandomizer({
+  initialRoster,
+  eventBinding,
+  adHocDivisions = [],
+}: {
+  initialRoster?: string;
+  eventBinding?: EventBindingView;
+  adHocDivisions?: ReadonlyArray<{ id: string; label: string }>;
+} = {}) {
+  const [roster, setRoster] = useState(initialRoster ?? '');
   const [teamCount, setTeamCount] = useState(2);
   const [mode, setMode] = useState<SplitMode>('random');
   const [teams, setTeams] = useState<Team[] | null>(null);
   const [copied, setCopied] = useState(false);
+  const [divisionId, setDivisionId] = useState(adHocDivisions[0]?.id ?? '');
+  const [saveResult, setSaveResult] = useState<SaveTeamsResult | null>(null);
+  const [saving, startSave] = useTransition();
 
   // `parseRoster` is pure, so deriving it during render is safe under the
   // React Compiler — only the shuffle (in `make()`) touches `Math.random`.
@@ -45,6 +74,7 @@ export function TeamRandomizer() {
     const n = Math.max(2, Math.min(teamCount, players.length));
     setTeams(splitTeams(players, n, mode));
     setCopied(false);
+    setSaveResult(null);
   }
 
   function copy() {
@@ -54,8 +84,33 @@ export function TeamRandomizer() {
     window.setTimeout(() => setCopied(false), 1500);
   }
 
+  function saveToEvent() {
+    if (!eventBinding || !teams || !divisionId) return;
+    setSaveResult(null);
+    startSave(async () => {
+      const res = await saveRandomTeamsToEvent({
+        eventId: eventBinding.eventId,
+        divisionId,
+        ret: eventBinding.ret,
+        teams: teams.map((t, i) => ({
+          name: `Team ${i + 1}`,
+          players: t.players.map((p) => p.name),
+        })),
+      });
+      setSaveResult(res);
+    });
+  }
+
   return (
     <div className="space-y-6">
+      {eventBinding ? (
+        <EventBindingBanner
+          eventTitle={eventBinding.eventTitle}
+          divisionLabel={eventBinding.divisionLabel}
+          ret={eventBinding.ret}
+        />
+      ) : null}
+
       <div className="border-border-base rounded-shape-sm space-y-5 border p-5">
         <div>
           <label htmlFor="roster" className={labelClass}>
@@ -181,6 +236,60 @@ export function TeamRandomizer() {
               );
             })}
           </ul>
+
+          {eventBinding ? (
+            <div className="border-border-base rounded-shape-sm space-y-3 border p-4">
+              <p className="text-fg text-sm font-medium">Save these teams to your event</p>
+              {adHocDivisions.length === 0 ? (
+                <p className="text-muted text-xs">
+                  Add an <span className="font-medium">ad-hoc</span> division on the event to save
+                  these as teams.
+                </p>
+              ) : (
+                <>
+                  {adHocDivisions.length > 1 ? (
+                    <div>
+                      <label htmlFor="save-division" className={labelClass}>
+                        Division
+                      </label>
+                      <select
+                        id="save-division"
+                        value={divisionId}
+                        onChange={(e) => setDivisionId(e.target.value)}
+                        className={inputClass}
+                      >
+                        {adHocDivisions.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={saveToEvent}
+                    disabled={saving || !divisionId}
+                    className={`${primaryButtonClass('md')} w-full`}
+                  >
+                    {saving
+                      ? 'Saving…'
+                      : `Save ${teams.length} team${teams.length === 1 ? '' : 's'} as ad-hoc teams`}
+                  </button>
+                  {saveResult?.ok ? (
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Created {saveResult.created} team{saveResult.created === 1 ? '' : 's'} on the
+                      event. They’ll appear in the bracket’s registered teams.
+                    </p>
+                  ) : saveResult ? (
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      {saveError(saveResult)}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

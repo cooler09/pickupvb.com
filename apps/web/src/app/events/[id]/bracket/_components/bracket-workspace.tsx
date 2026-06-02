@@ -9,6 +9,7 @@ import { LatestMatchTracker } from './latest-match-tracker';
 import { NoBracketView } from './no-bracket-view';
 import { SetupView } from './setup-view';
 import { BracketRealtimeRefresher } from './realtime-refresher';
+import { EventToolsCard } from '@/app/tools/_components/event-tools-card';
 import type { TeamLite } from './labels';
 
 /** Serializable bracket state passed from the (cacheable) server page. Null
@@ -67,6 +68,22 @@ export function BracketWorkspace(props: {
 
   return (
     <>
+      {/* Host-gated tools row, bound to this division (tournament-tools-workflow
+          audit TT-1). Rendered only after `caps` resolves the viewer as a
+          manager, so it never shows to spectators on the cacheable page. */}
+      {isHost && (
+        <div className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-2 border p-3">
+          <p className="text-muted text-xs font-semibold tracking-wide uppercase">Host tools</p>
+          <EventToolsCard
+            eventId={eventId}
+            divisionId={divisionId}
+            ret={`/events/${eventId}/bracket?division=${divisionId}`}
+            tools={['seeding', 'scheduler', 'team-randomizer']}
+            heading={false}
+          />
+        </div>
+      )}
+
       {!bracket && (
         <NoBracketView
           eventId={eventId}

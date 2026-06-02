@@ -7,10 +7,18 @@ import {
   fieldLabelClass as labelClass,
   fieldHintClass as hintClass,
 } from '@/components/field-styles';
+import { EventBindingBanner } from '../../_components/event-binding-banner';
+import type { EventBindingView } from '../../_lib/event-binding';
 import { parseTeams, roundRobin, gameCount, formatScheduleText } from '../_lib/schedule.js';
 
-export function Scheduler() {
-  const [teamsRaw, setTeamsRaw] = useState('');
+export function Scheduler({
+  initialTeams = [],
+  eventBinding,
+}: {
+  initialTeams?: ReadonlyArray<string>;
+  eventBinding?: EventBindingView;
+} = {}) {
+  const [teamsRaw, setTeamsRaw] = useState(initialTeams.join('\n'));
   const [courts, setCourts] = useState(1);
   const [copied, setCopied] = useState(false);
 
@@ -30,6 +38,22 @@ export function Scheduler() {
 
   return (
     <div className="space-y-6">
+      {eventBinding ? (
+        <EventBindingBanner
+          eventTitle={eventBinding.eventTitle}
+          divisionLabel={eventBinding.divisionLabel}
+          ret={eventBinding.ret}
+        />
+      ) : null}
+
+      {eventBinding ? (
+        <p className="text-muted text-xs">
+          Preview a round-robin from your registered teams. To run it for real, set up{' '}
+          <span className="font-medium">pool play</span> on the bracket — the bracket generates and
+          tracks the official matchups.
+        </p>
+      ) : null}
+
       <div className="border-border-base rounded-shape-sm space-y-5 border p-5">
         <div>
           <label htmlFor="teams" className={labelClass}>
