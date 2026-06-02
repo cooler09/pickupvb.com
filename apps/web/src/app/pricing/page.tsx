@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/stripe';
@@ -94,10 +94,7 @@ export default async function PricingPage() {
             ))}
           </ul>
           <div className="mt-auto pt-2">
-            <Link
-              href={'/events/new' as Route}
-              className="border-border-base bg-surface hover:bg-fg/5 inline-block w-full rounded-md border px-4 py-2 text-center text-sm font-medium"
-            >
+            <Link href={'/events/new' as Route} className={`${secondaryButtonClass('md')} w-full`}>
               Host a free event
             </Link>
           </div>
@@ -160,7 +157,7 @@ export default async function PricingPage() {
               <>
                 <OpenInNewTabButton
                   getUrl={getBillingPortalUrl}
-                  className="border-border-base bg-surface hover:bg-fg/5 w-full rounded-md border px-4 py-2 text-sm font-medium"
+                  className={`${secondaryButtonClass('md')} w-full`}
                 >
                   Manage subscription ↗
                 </OpenInNewTabButton>
@@ -170,12 +167,9 @@ export default async function PricingPage() {
               </>
             ) : (
               <>
-                <form
-                  action={startProCheckout.bind(null, 'monthly')}
-                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-                >
+                <form action={startProCheckout.bind(null, 'monthly')}>
                   <SubmitButton
-                    className="border-primary bg-surface text-primary hover:bg-primary/10 rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                    className={`${secondaryButtonClass('md')} w-full`}
                     pendingChildren="Starting…"
                   >
                     Start trial — ${PRO_MONTHLY_PRICE_USD}/mo

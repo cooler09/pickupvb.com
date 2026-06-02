@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
+import { TextField } from '@/components/text-field';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
@@ -82,31 +83,28 @@ function LoginForm() {
       <AuthModeTabs mode={mode} onChange={switchMode} />
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <label className="block">
-          <span className="text-sm font-medium">Email</span>
-          <input
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="border-border-base mt-1 w-full rounded-md border px-3 py-2"
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm font-medium">Password</span>
-          <input
+        <TextField
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <div>
+          <TextField
+            name="password"
+            label="Password"
             type="password"
             autoComplete={signUp ? 'new-password' : 'current-password'}
             required
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="border-border-base mt-1 w-full rounded-md border px-3 py-2"
+            {...(signUp ? { supportingText: 'At least 8 characters.' } : {})}
           />
-          {signUp ? (
-            <span className="text-fg/60 mt-1 block text-xs">At least 8 characters.</span>
-          ) : (
+          {!signUp && (
             <Link
               href="/forgot-password"
               className="text-primary mt-1 block text-xs hover:underline"
@@ -114,7 +112,7 @@ function LoginForm() {
               Forgot password?
             </Link>
           )}
-        </label>
+        </div>
 
         {error && <Alert variant="error">{error}</Alert>}
         {info && <Alert variant="info">{info}</Alert>}

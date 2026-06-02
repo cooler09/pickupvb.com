@@ -183,15 +183,22 @@ Three paddings, all `text-white`, none using the canonical class.
 **Fix:** migrate to `primaryButtonClass`/`secondaryButtonClass` (landing done
 2026-05-31; header sign-up/sign-in pills remain).
 
-#### V-3 — The auth front door bypasses the design system · **P2**
+#### V-3 — The auth front door bypasses the design system · **P2** · ✅ resolved 2026-06-01c
 
 [login/page.tsx](../../apps/web/src/app/login/page.tsx) — the highest-intent
-page in the funnel hand-rolls its inputs
-([login/page.tsx#L86-L120](../../apps/web/src/app/login/page.tsx#L86-L120)) and
-submit ([login/page.tsx#L125-L131](../../apps/web/src/app/login/page.tsx#L125-L131))
-instead of `TextField` + `primaryButtonClass`, and is one of the 4-space-indent
-outliers. **Fix:** adopt `TextField` (email/password) + `primaryButtonClass('md')`
-for the submit; let the `GoogleButton` stay as-is.
+page in the funnel hand-rolled its inputs
+(`border-border-base mt-1 w-full rounded-md border px-3 py-2`, a bare `<label>` >
+`<span>` > `<input>` with no `htmlFor`/`id` wiring) instead of `TextField`.
+**Fixed (done):** migrated the email + password fields to
+[TextField](../../apps/web/src/components/text-field.tsx) — the M3 outlined
+chassis now owns the label/`id` a11y wiring (was missing), the focus ring, and
+the sign-up "At least 8 characters." helper via `supportingText`. The sign-in
+"Forgot password?" link moved out of the `<label>` (a link nested in a label was
+a minor a11y wart) into a sibling under the field. The submit was already
+canonical (`primaryButtonClass('md')`, migrated in the CC-1 sweep) and the
+`GoogleButton` stays as-is, per the plan. Form-level errors still surface through
+the existing `<Alert>` (the page uses a single `error` state, not per-field
+`fieldErrors`, so `TextField`'s `errors` prop is intentionally left unset).
 
 #### V-4 — Anonymous users are funneled into host depth with no claim nudge · **P3** · ✅ resolved 2026-06-01
 
@@ -416,19 +423,72 @@ Implemented this pass (verify chain green: typecheck / lint / 621 tests / build)
   Journal:
   [2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
 
+### 2026-06-01b — `/pricing` secondary/outlined-button convergence
+
+First bite of the standing **secondary/outlined-button** backlog item (the
+`border-border-base hover:bg-fg/5` / hand-rolled `border-primary … text-primary`
+patterns → `secondaryButtonClass`). Scoped to `/pricing` because it's a
+high-intent visitor→host conversion surface where the Free-vs-Pro CTA hierarchy
+should read as a clean M3 **Filled (recommended) vs. Outlined (alternative)**
+pair, and its CTAs were still three different hand-rolled recipes after the CC-1
+filled-button sweep.
+
+- **Fixed (4 CTAs) in
+  [pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx).** All
+  medium-emphasis / alternative actions now route through
+  `secondaryButtonClass('md')`:
+  - Free-tier **"Host a free event"** — was the neutral
+    `border-border-base bg-surface hover:bg-fg/5 … font-medium` recipe; now the
+    canonical outlined button (`+ w-full`). Reads as the deliberate
+    lower-emphasis alternative to the Pro card's Filled CTA.
+  - Active-subscriber **"Manage subscription ↗"** (`OpenInNewTabButton`) — same
+    neutral recipe → `secondaryButtonClass('md') + w-full`.
+  - Trial **monthly** submit — was a 4th forked outlined recipe
+    (`border-primary bg-surface text-primary hover:bg-primary/10 …`, its own
+    `disabled:opacity-60`) → `secondaryButtonClass('md') + w-full`; the
+    **yearly** submit stays `primaryButtonClass('md')` (Filled), preserving the
+    intentional "save $20/yr" nudge toward the Filled option.
+- **Layout bug fixed alongside.** The monthly `<form>` carried a vestigial
+  `grid grid-cols-1 gap-2 sm:grid-cols-2` with a single child, so the monthly
+  button rendered **half-width on ≥sm** while the yearly button below it was
+  full-width — an asymmetric stack. Dropped the grid; both trial CTAs now stack
+  full-width and aligned. Verify chain green (typecheck / lint / 125 web tests /
+  build).
+
+_Not converted (intentional): the Pro card's signed-out / anon CTAs were already
+`primaryButtonClass('md')` (correct — they're the card's headline action); the
+comparison-table and FAQ have no buttons._
+
+### 2026-06-01c — V-3 login-page field primitives
+
+- **V-3 (P2) — fixed.** [login/page.tsx](../../apps/web/src/app/login/page.tsx)
+  email + password inputs migrated from the hand-rolled
+  `border-border-base mt-1 w-full rounded-md border px-3 py-2` recipe to the
+  [TextField](../../apps/web/src/components/text-field.tsx) primitive. Wins: the
+  chassis now wires `htmlFor`/`id` (the bare `<label><span>` pattern had none),
+  paints the M3 focus ring, and renders the sign-up length hint through
+  `supportingText` (spread conditionally per `exactOptionalPropertyTypes`). The
+  sign-in "Forgot password?" link moved out of the `<label>` into a sibling under
+  the field. The submit button was already `primaryButtonClass('md')` (CC-1
+  sweep), so this pass was inputs-only. Verify chain green (typecheck / lint /
+  625 tests / build). This leaves **P-1** (`GuestSignupFields`) as the last
+  field-vocabulary P2 — login was the higher-intent surface, so it went first.
+
 ### Standing backlog (graded above, not yet done)
 
-- **P2:** V-2/V-3 (login page field primitives — its inputs still bypass
-  `TextField`; the submit is now canonical), P-1 (shared `GuestSignupFields`),
-  H-1/H-2 (host form depth + divisions-manager FormModal). _CC-1 + CC-2 + CC-4
-  resolved 2026-05-31b–d; both the field and primary-button vocabularies are now
-  ratchet-locked._
+- **P2:** V-2 (header sign-up/sign-in pills → canonical classes — the landing
+  CTAs are done, the header pills remain), P-1 (shared `GuestSignupFields`),
+  H-1/H-2 (host form depth + divisions-manager FormModal). _V-3 (login field
+  primitives) resolved 2026-06-01c; CC-1 + CC-2 + CC-4 resolved 2026-05-31b–d —
+  both the field and primary-button vocabularies are now ratchet-locked._
 - **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
   `primaryButtonClass` emits `text-primary-fg`; re-measure), CC-5/H-2 (FormModal
   conversion — also in events-page-ux.md), P-2
   (StatusPill primitive), H-3 (row-action tap targets), secondary/outlined-button
   convergence (the `border-border-base hover:bg-fg/5` pattern → `secondaryButtonClass`,
-  a separate fuzzier set not covered by the CC-1 ratchet).
+  a separate fuzzier set not covered by the CC-1 ratchet — **`/pricing` done
+  2026-06-01b**; the ~30 remaining neutral-outlined call sites from
+  `grep -rln "hover:bg-fg/5" apps/web/src` are the rest of this item).
 - **New primitive worth adding:** an `errorButtonClass`/`destructiveButtonClass`
   in `primary-button.tsx` so destructive confirms stop hand-rolling `bg-red-600`.
 - **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim
