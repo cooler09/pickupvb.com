@@ -68,8 +68,9 @@ athletic, and treat easter eggs as one tasteful one-off — not a framework.
   None of the SQL (stats RPC, on_attend grant, orphan-sweep) has run yet.
 - **Wire the badge reconcile cron** in the deploy's cron config (route exists at
   `/api/badges/reconcile`, `CRON_SECRET`-guarded).
-- **Fill the deferred stats** (tournament_championships / \_podiums /
-  leagues_completed) in a follow-up migration once the bracket/league result
-  schema is confirmed.
+- **Champion + Seasoned stats filled** same day (`20260904000000`) from the
+  host-recorded `event_divisions.winner_entry_id` (not bracket topology) + league
+  participation. Podium set = championships (no authoritative 2nd/3rd source).
+  Still needs the live-DB run above to confirm the joins.
 - Optional: event-page "badges you can earn here" teaser, manual `host_grant`
   awards, free-tier à-la-carte unlock.

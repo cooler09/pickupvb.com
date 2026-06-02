@@ -1,7 +1,8 @@
 # 0031. Gamification — collector badges & achievements
 
-- **Status:** Accepted (Phase 1 + 2 + 3 implemented 2026-06-02; tournament/league
-  stats deferred — see "Deferred")
+- **Status:** Accepted (Phase 1 + 2 + 3 implemented 2026-06-02; Champion +
+  Seasoned stats filled 2026-06-02 via `20260904000000_badge_tournament_stats.sql`
+  — see "Deferred")
 - **Date:** 2026-06-02
 - **Relates to:** [ADR 0030 — Content moderation](0030-content-moderation-profanity.md)
   (host-badge label/description run through the same `assertCleanName` /
@@ -65,9 +66,16 @@ upload + moderation + orphan-sweep machinery all existed.
 
 ## Deferred
 
-- **Champion / Podium / Seasoned stats** return 0 until the bracket/league result
-  schema is verified against a live DB (the catalog shows them as locked teasers).
-  No mis-awards off untested join logic.
+- **Champion + Seasoned stats are now filled** (`20260904000000`) from the
+  authoritative, host-recorded source — `event_divisions.winner_entry_id` for the
+  champion (resolved to players via captain / `event_team_entry_members` / active
+  `team_members`), and league participation × finished league for Seasoned —
+  rather than fragile bracket-match topology. **Still needs a live-DB run to
+  confirm the joins** (no Docker in the authoring session).
+- **Podium has no authoritative 2nd/3rd source** (only one `winner_entry_id` per
+  division), so it is set equal to championships — a champion is correctly on the
+  podium, never a false award. True runner-up / 3rd needs a placement-recording
+  surface (a follow-up feature, not just a query).
 - **Host "earn here" teaser on the event page**, **manual `host_grant` awards**,
   and **free-tier à-la-carte unlock** — follow-ups; the collectible still
   surprises-and-delights on earn and shows in trophy cases.
