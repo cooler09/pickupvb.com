@@ -170,6 +170,54 @@ when we need bounce handling.)
 
 ---
 
+## Email hosting (Zoho Mail)
+
+**What it does.** Hosts the human-facing **inbound** support mailboxes for
+the `@pickupvb.com` addresses published across the app. Distinct from
+**Resend** (above), which only _sends_ transactional mail from `noreply@` —
+Zoho is where real people's replies land and get answered.
+
+**Plan.** **Zoho Mail Lite** (~$1/user/mo, single mailbox). Chosen over the
+Forever Free plan because free blocks IMAP, caps aliases, and hides the
+catch-all. A domain-wide **catch-all** funnels every address into the one
+inbox, so no per-address aliases are consumed.
+
+**Addresses served** (all land in the catch-all inbox):
+
+| Address                | Referenced by                                                                    |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| `support@pickupvb.com` | footer "Contact support" + accessibility / refunds / terms / privacy legal pages |
+| `privacy@pickupvb.com` | [legal/privacy](../apps/web/src/app/legal/privacy/page.tsx)                      |
+| `legal@pickupvb.com`   | [legal/terms](../apps/web/src/app/legal/terms/page.tsx)                          |
+| `hello@pickupvb.com`   | [about/numbers](../apps/web/src/app/about/numbers/page.tsx)                      |
+| `ops@pickupvb.com`     | `VAPID_SUBJECT` web-push contact — send-only, caught here                        |
+| `noreply@pickupvb.com` | Resend sender — outbound-only, replies caught here                               |
+
+**DNS.** Records live in **Google Cloud DNS** (authoritative nameservers are
+`ns-cloud-*.googledomains.com`); the registrar is Squarespace but it does
+**not** serve DNS — add Zoho records in the GCP Cloud DNS zone, _not_ the
+Squarespace DNS editor. Root-domain records:
+
+| Type             | Host          | Value                              | Priority |
+| ---------------- | ------------- | ---------------------------------- | -------- |
+| MX               | `@`           | `mx.zoho.com`                      | 10       |
+| MX               | `@`           | `mx2.zoho.com`                     | 20       |
+| MX               | `@`           | `mx3.zoho.com`                     | 50       |
+| TXT (SPF)        | `@`           | `v=spf1 include:zohomail.com ~all` | —        |
+| TXT/CNAME (DKIM) | Zoho selector | value from Zoho Admin Console      | —        |
+
+No collision with Resend: Resend's MX + SPF live on the **`send.`** subdomain
+and its DKIM uses the `resend` selector, so the root MX / `zohomail.com` SPF /
+Zoho DKIM selector coexist. `_dmarc` is already published at `p=none`.
+
+**Admin & access.** Mailbox, catch-all, and DKIM are managed in the **Zoho
+Mail Admin Console** (admin.zoho.com → Mail → Domains → pickupvb.com). On
+phones use the **Zoho Mail** app, or any IMAP client (IMAP is unlocked by the
+Lite plan: `imap.zoho.com:993` SSL, `smtp.zoho.com:465` SSL, app-specific
+password if 2FA is on).
+
+---
+
 ## Cloudflare Turnstile
 
 **What it does.** Invisible bot challenge on guest (anonymous) signup
