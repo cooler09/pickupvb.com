@@ -17,6 +17,7 @@ export function AuthModeTabs({ mode, onChange }: Props) {
     <div className="border-border-base grid grid-cols-2 rounded-md border p-1 text-sm">
       <button
         type="button"
+        aria-pressed={!signUp}
         onClick={() => onChange('sign-in')}
         className={`rounded px-3 py-1.5 font-medium transition ${
           !signUp ? 'bg-primary text-primary-fg' : 'text-fg/70'
@@ -26,6 +27,7 @@ export function AuthModeTabs({ mode, onChange }: Props) {
       </button>
       <button
         type="button"
+        aria-pressed={signUp}
         onClick={() => onChange('sign-up')}
         className={`rounded px-3 py-1.5 font-medium transition ${
           signUp ? 'bg-primary text-primary-fg' : 'text-fg/70'
