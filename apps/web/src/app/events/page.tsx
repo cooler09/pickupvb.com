@@ -48,12 +48,12 @@ const PAGE_SIZE = 12;
 export const metadata: Metadata = {
   title: 'Volleyball events',
   description:
-    'Browse upcoming pickup volleyball events near you — indoor, grass, and beach. Filter by surface, format, and skill level. Sign up in seconds.',
+    'Browse upcoming pickup volleyball events near you — indoor, grass, and beach. Filter by type (open play, tournament, league), surface, and skill level. Sign up in seconds.',
   alternates: { canonical: '/events' },
   openGraph: {
     title: 'Volleyball events · PickupVB',
     description:
-      'Find pickup volleyball events near you. Indoor, grass, and beach. Open play and tournaments.',
+      'Find pickup volleyball events near you. Indoor, grass, and beach. Open play, tournaments, and leagues.',
     url: '/events',
     type: 'website',
   },

@@ -2373,6 +2373,25 @@ Narrative:
 **Remaining league follow-ups:** discovery filter, external-league
 listings, season → playoff bracket handoff.
 
+### 2026-06-03 — P1 #1 follow-up: league discovery filter ✅
+
+The `/events` **Type** filter vocabulary was `['open_play', 'tournament']`,
+so leagues couldn't be filtered for (they appeared only in the unfiltered
+list). Every layer was already league-ready — the form/chips read
+`TYPE_LABEL` (has `league`), the `search_events` RPC takes `p_type text`
+with a passthrough `e.type::text = p_type` filter, and the query filter
+types are `EventType` — so the fix was adding `'league'` to the shared
+`TYPES` const (`event-filter-options.ts`) plus a metadata copy refresh.
+Everything else cascades.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` green.
+Narrative:
+[2026-06-03-bundle-league-discovery-filter.md](../journal/2026-06-03-bundle-league-discovery-filter.md).
+
+**Remaining league follow-ups:** external-league listings, season → playoff
+bracket handoff, and a league-aware timeframe affordance (Upcoming uses
+`startsAfter: now`, so a mid-season league shows under Past).
+
 ---
 
 ## Cross-references
