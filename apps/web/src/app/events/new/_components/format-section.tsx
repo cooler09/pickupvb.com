@@ -8,7 +8,7 @@
  * trail the body for on-platform open-play / tournament respectively. Owns the
  * derived `show*` flags so the orchestrator doesn't have to.
  */
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { EventPosition, EventType } from '@pickupvb/domain';
 import { cardClass, cardSubClass, cardTitleClass, type CapacityKind } from './form-primitives';
 import DivisionsRepeater from './divisions-repeater';
@@ -49,6 +49,10 @@ export default function FormatSection({
 }) {
   const byPosition = capacityKind === 'by_position';
   const isLeague = type === EventType.League;
+  // Per-division prices live in the divisions repeater; the payment-settings
+  // subsection (a sibling) needs to know if any are non-zero so it can warn
+  // a host without Stripe before they submit. The repeater reports it up.
+  const [hasPaidDivision, setHasPaidDivision] = useState(false);
   const showPricing = !isExternal && type === EventType.OpenPlay;
   // Tournament and league divisions both collect their own per-division price
   // below; keep the event-level payment settings (refund window, fee
@@ -98,6 +102,7 @@ export default function FormatSection({
               defaultSurface="indoor"
               requireAtLeastOne
               requireRoster={isLeague}
+              onPaidChange={setHasPaidDivision}
               {...(fieldErrors ? { fieldErrors } : {})}
             />
           </>
@@ -119,6 +124,7 @@ export default function FormatSection({
             values={values}
             submitted={submitted}
             canCollectPayments={canCollectPayments}
+            hasPaidDivision={hasPaidDivision}
             paymentsOffPlatform={paymentsOffPlatform}
             setPaymentsOffPlatform={setPaymentsOffPlatform}
             viewerHasProBenefits={viewerHasProBenefits}

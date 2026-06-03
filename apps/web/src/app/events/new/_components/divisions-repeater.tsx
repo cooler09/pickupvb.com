@@ -98,11 +98,19 @@ export default function DivisionsRepeater({
   defaultSurface,
   requireAtLeastOne = false,
   requireRoster = false,
+  onPaidChange,
   fieldErrors,
 }: {
   defaultSurface?: string;
   /** When true, always render at least one row and hide its Remove button. */
   requireAtLeastOne?: boolean;
+  /**
+   * Notified whenever the set of divisions changes whether *any* division now
+   * carries a non-zero entry price. Lets the parent surface the "set up Stripe
+   * to charge" warning before submit (per-division pricing lives here, but the
+   * payment-settings subsection that owns the warning is a sibling).
+   */
+  onPaidChange?: (anyPaid: boolean) => void;
   /**
    * League mode (ADR P1 #1): every division must use roster-based team
    * registration. When true each row is pinned to `roster` — the picker is
@@ -128,15 +136,22 @@ export default function DivisionsRepeater({
   const [rows, setRows] = useState<Row[]>(() => (requireAtLeastOne ? [newRow(0)] : []));
   const [nextKey, setNextKey] = useState(requireAtLeastOne ? 1 : 1);
 
+  // Commit a new row set and report whether any division now charges money, so
+  // the sibling payment-settings subsection can warn before submit.
+  function commit(next: Row[]) {
+    setRows(next);
+    onPaidChange?.(next.some((row) => Number(row.priceUsd) > 0));
+  }
   function add() {
-    setRows((r) => [...r, newRow(nextKey)]);
+    commit([...rows, newRow(nextKey)]);
     setNextKey((k) => k + 1);
   }
   function remove(key: number) {
-    setRows((r) => (requireAtLeastOne && r.length <= 1 ? r : r.filter((row) => row.key !== key)));
+    if (requireAtLeastOne && rows.length <= 1) return;
+    commit(rows.filter((row) => row.key !== key));
   }
-  function patch(key: number, patch: Partial<Row>) {
-    setRows((r) => r.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  function patch(key: number, p: Partial<Row>) {
+    commit(rows.map((row) => (row.key === key ? { ...row, ...p } : row)));
   }
 
   return (
