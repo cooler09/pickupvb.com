@@ -10,6 +10,7 @@ const config = [
       '.turbo/**',
       'next-env.d.ts',
       'tests/**',
+      'scripts/**',
       'playwright.config.ts',
       '.playwright/**',
       'playwright-report/**',
