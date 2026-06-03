@@ -106,6 +106,14 @@ export default defineConfig({
       testMatch: /auth\.admin\.setup\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    // Persona accounts (docs/personas.md). One project signs in every persona
+    // that doesn't adopt a pre-existing account; each sign-in skips gracefully
+    // when its TEST_*_EMAIL is unset. See tests/e2e/auth.personas.setup.ts.
+    {
+      name: 'setup-personas',
+      testMatch: /auth\.personas\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
     // Authed flows reuse the cached storageState (attendee-a).
     {
       name: 'authed',
@@ -117,6 +125,7 @@ export default defineConfig({
         'setup-pro-host',
         'setup-stripe-host',
         'setup-admin',
+        'setup-personas',
       ],
       use: { ...devices['Desktop Chrome'], storageState: STORAGE_STATE },
     },
