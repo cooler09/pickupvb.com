@@ -849,3 +849,39 @@ bucket/cron. The walker still owns the whole bucket, so the columns can't fight.
 Match each branch's liveness check to that parent's path shape (per the rule
 above). Reference:
 [20260831000000_group_avatars_orphan_liveness.sql](supabase/migrations/20260831000000_group_avatars_orphan_liveness.sql).
+
+### 15. Form alerts: make them actionable, and make sure the user sees them
+
+Two paired conventions for any client form that surfaces an error/success
+banner. Full write-up:
+[docs/journal/2026-06-03-bundle-actionable-visible-form-alerts.md](docs/journal/2026-06-03-bundle-actionable-visible-form-alerts.md).
+
+- **Never bake a route into an error string.** A message like `"…finish
+  Stripe setup at /profile/billing…"` or `"…upgrade to Pro at
+/profile/billing/pro…"` is a dead end — the path isn't clickable, and it's
+  a recurring anti-pattern (found in the host-charges gate and both free-tier
+  caps). Instead, the result object carries a typed
+  `cta: { href: string; label: string }` next to `reason`, the form-action
+  state gains an optional `errorAction?: { href: string; label: string }`,
+  and the view renders
+  [`ErrorActionLink`](apps/web/src/components/error-action-link.tsx) after the
+  message (it renders `null` when absent, so pass `state.errorAction`
+  unconditionally). **Only attach a CTA the viewer can act on** — host-facing
+  gates get the link; attendee-facing "the host hasn't finished setup" copy
+  does **not** (a guest can't complete the host's onboarding). If the page
+  already renders a real button for the path (e.g. `/brackets/new`'s Upgrade
+  button), just trim the URL from the prose rather than duplicating it.
+- **Reveal the alert so a scrolled-down user sees it.** Long forms render
+  their banner at the top; a user at the submit button never sees a failure.
+  Wire [`useAlertReveal`](apps/web/src/components/use-alert-reveal.ts)`(trigger,
+active)` and attach the returned ref + `tabIndex={-1}` + `outline-none` to
+  the `role="alert"` node (wrap only the `<Alert>` primitive, which doesn't
+  forward a ref, or an error/success pair). Pass the `useFormState` `state`
+  object as `trigger` (fresh identity each submit re-fires even on a repeated
+  error); for `useState`-based forms pass the error value. The hook scrolls
+  **only when the alert is off-screen** (no jarring re-center on a short form)
+  and always moves focus (the WCAG error-summary pattern — `role="alert"`
+  announces, focus brings keyboard/SR users to it). Applied to ~25 forms in
+  the reference bundle. **Skip** server-rendered flash banners (rendered from
+  `searchParams` after a redirect — no client state to key off; scroll already
+  resets to top), per-field errors, and chat composers (own scroll behavior).
