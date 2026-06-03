@@ -115,4 +115,13 @@ export interface BracketRepository {
    * wiring — see ADR 0025 on polymorphic entry ids).
    */
   addBracketTeam(bracketId: BracketId, name: string): Promise<{ entryId: string }>;
+  /**
+   * Bulk variant of {@link addBracketTeam}: insert several typed-in teams in a
+   * single round-trip and return the new entry ids paired with their names
+   * (input order preserved). Backs the standalone setup's "paste a list" flow.
+   */
+  addBracketTeams(
+    bracketId: BracketId,
+    names: ReadonlyArray<string>,
+  ): Promise<Array<{ entryId: string; name: string }>>;
 }

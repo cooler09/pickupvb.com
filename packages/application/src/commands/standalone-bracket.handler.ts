@@ -82,6 +82,14 @@ export class AddBracketTeamCommand {
   ) {}
 }
 
+export class AddBracketTeamsCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+    public readonly names: ReadonlyArray<string>,
+  ) {}
+}
+
 // ---- Helper --------------------------------------------------------------
 
 /**
@@ -219,5 +227,41 @@ export class AddBracketTeamHandler {
     const name = cmd.name.trim();
     if (!name) throw new ValidationError('Team name is required.');
     return this.brackets.addBracketTeam(BracketId(cmd.bracketId), name);
+  }
+}
+
+/** Upper bound on a single paste-a-list batch — generous for a real
+ *  tournament, but a guard against a pathological paste. */
+const MAX_BULK_TEAMS = 128;
+
+export class AddBracketTeamsHandler {
+  constructor(private readonly brackets: BracketRepository) {}
+
+  async execute(cmd: AddBracketTeamsCommand): Promise<Array<{ entryId: string; name: string }>> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    if (bracket.status !== 'setup') {
+      throw new InvariantViolation(
+        'Teams can only be added before the bracket is generated. Reset the bracket first.',
+      );
+    }
+    // Trim, drop blanks, and collapse exact (case-insensitive) duplicates within
+    // the batch so an accidental repeated line doesn't create twin teams. Names
+    // that merely collide with an already-registered team are allowed through —
+    // the single-add path imposes no uniqueness, so we keep parity here.
+    const seen = new Set<string>();
+    const names: string[] = [];
+    for (const raw of cmd.names) {
+      const name = raw.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      names.push(name);
+    }
+    if (names.length === 0) throw new ValidationError('Add at least one team name.');
+    if (names.length > MAX_BULK_TEAMS) {
+      throw new ValidationError(`Add at most ${MAX_BULK_TEAMS} teams at a time.`);
+    }
+    return this.brackets.addBracketTeams(BracketId(cmd.bracketId), names);
   }
 }

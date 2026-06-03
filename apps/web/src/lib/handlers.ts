@@ -104,6 +104,7 @@ import {
   ResetStandaloneBracketHandler,
   ReorderStandalonePoolMatchesHandler,
   AddBracketTeamHandler,
+  AddBracketTeamsHandler,
   SetTeamExtraMembersHandler,
   AddFriendHandler,
   AddGroupMemberHandler,
@@ -272,6 +273,7 @@ export const handlers = {
   resetStandaloneBracket: new ResetStandaloneBracketHandler(bracketRepo, analytics),
   reorderStandalonePoolMatches: new ReorderStandalonePoolMatchesHandler(bracketRepo, analytics),
   addBracketTeam: new AddBracketTeamHandler(bracketRepo),
+  addBracketTeams: new AddBracketTeamsHandler(bracketRepo),
   // NOTE: the captain-reachable match-result writes (bracket record/reset,
   // league score entry) are intentionally NOT here. They must run through a
   // user-scoped client so RLS enforces "host or captain of this match" —

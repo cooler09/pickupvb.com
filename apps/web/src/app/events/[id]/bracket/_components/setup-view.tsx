@@ -131,7 +131,7 @@ export function SetupView(props: {
           title={standalone ? 'Add teams' : 'Add walk-in teams'}
           description={
             standalone
-              ? 'Type in the team names competing in this bracket. Add as many as you need — the modal stays open after each.'
+              ? 'Type in the team names competing in this bracket — one at a time, or switch to “Paste a list” to add a whole roster at once. The modal stays open so you can keep adding.'
               : "For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
           }
         >

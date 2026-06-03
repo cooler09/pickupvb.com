@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   AddBracketTeamCommand,
+  AddBracketTeamsCommand,
   CreateStandaloneBracketCommand,
   GenerateStandaloneBracketCommand,
   GenerateStandalonePlayoffCommand,
@@ -336,6 +337,33 @@ export async function addBracketTeamFromClient(
     );
     revalidate(bracketId);
     return { ok: true, id: entryId, name: trimmed };
+  } catch (err) {
+    const { code, msg } = classify(err);
+    return { ok: false, code, message: msg };
+  }
+}
+
+/**
+ * Client-invoked bulk add (from the "paste a list" tab of the add-team modal,
+ * inside `useTransition`). Adds every non-blank name in one round-trip and
+ * returns the created entries so the modal can fold them into its "added this
+ * session" list. Like {@link addBracketTeamFromClient} it returns a typed
+ * result instead of redirecting so the modal stays open across batches.
+ */
+export async function addBracketTeamsFromClient(
+  bracketId: string,
+  names: ReadonlyArray<string>,
+): Promise<
+  | { ok: true; added: Array<{ id: string; name: string }> }
+  | { ok: false; code: string; message: string }
+> {
+  const { user } = await requireRealUser();
+  try {
+    const added = await handlers.addBracketTeams.execute(
+      new AddBracketTeamsCommand(bracketId, user.id, names),
+    );
+    revalidate(bracketId);
+    return { ok: true, added: added.map((t) => ({ id: t.entryId, name: t.name })) };
   } catch (err) {
     const { code, msg } = classify(err);
     return { ok: false, code, message: msg };

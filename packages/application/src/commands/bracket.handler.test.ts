@@ -115,6 +115,9 @@ class FakeBracketRepo implements BracketRepository {
   async addBracketTeam(): Promise<{ entryId: string }> {
     return { entryId: 'entry-new' };
   }
+  async addBracketTeams(): Promise<Array<{ entryId: string; name: string }>> {
+    return [];
+  }
 }
 
 describe('RecordMatchResultHandler (captain-RLS routing)', () => {
@@ -214,6 +217,9 @@ class HostBracketRepo implements BracketRepository {
   }
   async addBracketTeam(): Promise<{ entryId: string }> {
     return { entryId: 'entry-new' };
+  }
+  async addBracketTeams(): Promise<Array<{ entryId: string; name: string }>> {
+    return [];
   }
 }
 

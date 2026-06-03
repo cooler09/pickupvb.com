@@ -22,6 +22,12 @@ import type { BracketScope } from './labels';
  *
  * Player rows carry a stable id so removing a middle row doesn't reshuffle
  * the inputs the host is still typing into.
+ *
+ * Standalone brackets (ADR 0025) are typed-in names only (no roster), so the
+ * binding exposes a `bulkAddTeams` action. When present, a Single / Paste-a-list
+ * tab appears: the "Paste a list" mode takes one team name per line and adds the
+ * whole batch in one round-trip ({@link addBracketTeamsFromClient}), folding the
+ * results into the same "added this session" list.
  */
 type PlayerRow = { id: number; name: string; email: string };
 
@@ -42,6 +48,11 @@ export function WalkInTeamForm(props: {
 }) {
   const a = bindBracketActions(props.scope);
   const showRoster = props.showRoster ?? true;
+  // Bulk "paste a list" is only wired for standalone brackets (typed-in names,
+  // no roster). When the binding exposes it, offer a Single / Paste-a-list tab.
+  const bulkAddTeams = a.bulkAddTeams;
+  const [mode, setMode] = useState<'single' | 'bulk'>('single');
+  const [bulkText, setBulkText] = useState('');
   const [teamName, setTeamName] = useState('');
   const nextRowId = useRef(2);
   const [players, setPlayers] = useState<PlayerRow[]>([
@@ -87,11 +98,41 @@ export function WalkInTeamForm(props: {
     });
   };
 
+  // Paste-a-list submit: one team per line, blanks dropped. The handler also
+  // collapses duplicate lines, so we keep the raw split simple here.
+  const submitBulk = () => {
+    if (!bulkAddTeams) return;
+    const names = bulkText
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (names.length === 0) {
+      setError('Enter at least one team name, one per line.');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await bulkAddTeams(names);
+      if (res.ok) {
+        setAdded((cur) => [...cur, ...res.added]);
+        setBulkText('');
+      } else {
+        setError(res.message || 'Could not add the teams. Try again.');
+      }
+    });
+  };
+
+  const switchMode = (next: 'single' | 'bulk') => {
+    setMode(next);
+    setError(null);
+  };
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        submit();
+        if (mode === 'bulk') submitBulk();
+        else submit();
       }}
       className="space-y-3"
     >
@@ -120,64 +161,99 @@ export function WalkInTeamForm(props: {
         </p>
       )}
 
-      <label className="block">
-        <span className="text-fg/80 text-xs font-medium">Team name</span>
-        <input
-          ref={nameRef}
-          type="text"
-          value={teamName}
-          onChange={(e) => setTeamName(e.target.value)}
-          required
-          maxLength={80}
-          autoFocus
-          placeholder="e.g. Walk-in Wonders"
-          className="border-border-base bg-bg text-fg focus:border-primary focus:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none"
-        />
-      </label>
-
-      {showRoster && (
-        <fieldset className="space-y-2">
-          <legend className="text-fg/80 text-xs font-medium">
-            Players <span className="text-muted font-normal">(optional)</span>
-          </legend>
-          {players.map((row, idx) => (
-            <div key={row.id} className="flex flex-wrap items-center gap-2">
-              <input
-                type="text"
-                value={row.name}
-                onChange={(e) => updatePlayer(row.id, 'name', e.target.value)}
-                maxLength={80}
-                placeholder={`Player ${idx + 1} name`}
-                className={INPUT_CLASS}
-              />
-              <input
-                type="email"
-                value={row.email}
-                onChange={(e) => updatePlayer(row.id, 'email', e.target.value)}
-                maxLength={120}
-                placeholder="email (optional)"
-                className={INPUT_CLASS}
-              />
-              {players.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeRow(row.id)}
-                  aria-label={`Remove player ${idx + 1}`}
-                  className="border-border-base text-fg/60 hover:bg-fg/5 hover:text-fg tap-target rounded border text-xs"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+      {bulkAddTeams && (
+        <div className="border-border-base inline-flex rounded-md border p-0.5 text-xs">
+          {(['single', 'bulk'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => switchMode(m)}
+              aria-pressed={mode === m}
+              className={`rounded px-3 py-1 font-medium ${
+                mode === m ? 'bg-primary/10 text-primary' : 'text-fg/70 hover:bg-fg/5'
+              }`}
+            >
+              {m === 'single' ? 'One at a time' : 'Paste a list'}
+            </button>
           ))}
-          <button
-            type="button"
-            onClick={addRow}
-            className="border-border-base text-fg/80 hover:bg-fg/5 rounded border border-dashed px-2 py-1 text-xs"
-          >
-            + Add player
-          </button>
-        </fieldset>
+        </div>
+      )}
+
+      {mode === 'bulk' ? (
+        <label className="block">
+          <span className="text-fg/80 text-xs font-medium">Team names</span>
+          <span className="text-muted mt-0.5 block text-xs">One team per line.</span>
+          <textarea
+            value={bulkText}
+            onChange={(e) => setBulkText(e.target.value)}
+            rows={8}
+            autoFocus
+            placeholder={'Spikers\nBlock Party\nNet Gains\n…'}
+            className="border-border-base bg-bg text-fg focus:border-primary focus:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none"
+          />
+        </label>
+      ) : (
+        <>
+          <label className="block">
+            <span className="text-fg/80 text-xs font-medium">Team name</span>
+            <input
+              ref={nameRef}
+              type="text"
+              value={teamName}
+              onChange={(e) => setTeamName(e.target.value)}
+              required
+              maxLength={80}
+              autoFocus
+              placeholder="e.g. Walk-in Wonders"
+              className="border-border-base bg-bg text-fg focus:border-primary focus:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none"
+            />
+          </label>
+
+          {showRoster && (
+            <fieldset className="space-y-2">
+              <legend className="text-fg/80 text-xs font-medium">
+                Players <span className="text-muted font-normal">(optional)</span>
+              </legend>
+              {players.map((row, idx) => (
+                <div key={row.id} className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={row.name}
+                    onChange={(e) => updatePlayer(row.id, 'name', e.target.value)}
+                    maxLength={80}
+                    placeholder={`Player ${idx + 1} name`}
+                    className={INPUT_CLASS}
+                  />
+                  <input
+                    type="email"
+                    value={row.email}
+                    onChange={(e) => updatePlayer(row.id, 'email', e.target.value)}
+                    maxLength={120}
+                    placeholder="email (optional)"
+                    className={INPUT_CLASS}
+                  />
+                  {players.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      aria-label={`Remove player ${idx + 1}`}
+                      className="border-border-base text-fg/60 hover:bg-fg/5 hover:text-fg tap-target rounded border text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addRow}
+                className="border-border-base text-fg/80 hover:bg-fg/5 rounded border border-dashed px-2 py-1 text-xs"
+              >
+                + Add player
+              </button>
+            </fieldset>
+          )}
+        </>
       )}
 
       <div className="flex flex-wrap justify-end gap-2 pt-2">
@@ -190,8 +266,18 @@ export function WalkInTeamForm(props: {
             {added.length > 0 ? 'Done' : 'Cancel'}
           </button>
         )}
-        <button type="submit" disabled={pending} className={primaryButtonClass('sm')}>
-          {pending ? 'Adding…' : added.length > 0 ? 'Add another' : 'Add team'}
+        <button
+          type="submit"
+          disabled={pending || (mode === 'bulk' && bulkText.trim().length === 0)}
+          className={primaryButtonClass('sm')}
+        >
+          {pending
+            ? 'Adding…'
+            : mode === 'bulk'
+              ? 'Add all'
+              : added.length > 0
+                ? 'Add another'
+                : 'Add team'}
         </button>
       </div>
     </form>

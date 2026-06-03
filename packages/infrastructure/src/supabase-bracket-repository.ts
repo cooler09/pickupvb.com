@@ -460,6 +460,20 @@ export class SupabaseBracketRepository implements BracketRepository {
     if (error) throw new Error(`addBracketTeam failed: ${error.message}`);
     return { entryId: (data as { id: string }).id };
   }
+
+  async addBracketTeams(
+    bracketId: BracketId,
+    names: ReadonlyArray<string>,
+  ): Promise<Array<{ entryId: string; name: string }>> {
+    if (names.length === 0) return [];
+    const { data, error } = await this.client
+      .from('bracket_teams')
+      .insert(names.map((name) => ({ bracket_id: bracketId, name })))
+      .select('id, name');
+    if (error) throw new Error(`addBracketTeams failed: ${error.message}`);
+    const rows = (data as Array<{ id: string; name: string }> | null) ?? [];
+    return rows.map((r) => ({ entryId: r.id, name: r.name }));
+  }
 }
 
 function groupSets(rows: SetRow[]): Map<string, MatchSet[]> {
