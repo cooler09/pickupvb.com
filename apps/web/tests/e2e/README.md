@@ -46,6 +46,27 @@ The suite is designed to leave **no residual data** in the target environment:
    intentionally does not pass auth secrets, so any accidental authed test
    would fail the setup step rather than mutate production data.
 
+### Automatic end-of-run sweep (`globalTeardown`)
+
+A per-spec UI cancel leaves a `status='cancelled'` event behind, and a captain
+soft-delete leaves a `deleted_at` team behind — without `E2E_CLEANUP_SUPABASE_*`
+the per-spec admin hard-delete is a no-op and those rows accumulate. So
+[`global-teardown.ts`](global-teardown.ts) runs `sweepLeakedE2EFixtures()` at
+the end of every run:
+
+- **No-op without `E2E_CLEANUP_SUPABASE_*`** — a fork's `pnpm e2e` deletes
+  nothing.
+- **1-hour age guard** — only fixtures older than an hour are reclaimed, so a
+  run executing concurrently against the same environment (fixtures always
+  < 1h old) is never clobbered.
+- **Opt out** with `E2E_NO_TEARDOWN_SWEEP=1` (e.g. to inspect leaked rows).
+
+⚠️ **Never name a persisted seed entity `E2E …` (or a seed team slug `e2e-…`).**
+The sweep matches that prefix and will reclaim it. The persona seed accounts /
+groups / teams (docs/personas.md) use plain names for exactly this reason. The
+trailing-space `E2E ` prefix deliberately does **not** match the `[E2E] …` seed
+tournaments, so those survive.
+
 If you need to add a write test that genuinely can't clean up (e.g. exercises
 an irreversible flow), gate it with a tag and exclude it from the standard
 runs:

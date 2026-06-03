@@ -24,6 +24,10 @@ const VERCEL_BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 export default defineConfig({
   testDir: './tests/e2e',
+  // Reclaim leaked `E2E ` fixtures (cancelled events, soft-deleted teams) at the
+  // end of every run. No-op without `E2E_CLEANUP_SUPABASE_*`; only sweeps rows
+  // > 1h old so a concurrent run isn't clobbered. See tests/e2e/global-teardown.ts.
+  globalTeardown: './tests/e2e/global-teardown.ts',
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,

@@ -55,8 +55,31 @@ already established.
   sofia, diana, nina. Players: amy, adam, bianca, tyler, priya, marcus, hannah,
   olivia. Lifecycle/platform: rachel, zoe. Greg: anon.
 - `apps/web/tests/e2e/README.md` — persona-accounts table (new env vars) +
-  link to the provisioning matrix.
+  link to the provisioning matrix; the `globalTeardown` hygiene note.
 - `docs/e2e-test-plan.md` — pointer to personas.md from § 0.
+
+### Residue-cleanup follow-up (same day)
+
+Reviewed exactly what the suite writes: only 4 runnable tests mutate — Mark /
+Julie / Nina each create one free event (`E2E Persona … <ts>`, cleaned via UI
+cancel + admin `deleteEventById`), Bianca creates one team (UI soft-delete +
+admin `deleteTeamBySlug`). Everything else is read-only; no test creates a
+_succeeding_ paid event, so the rolling-30d free-tier cap is never consumed.
+Without `E2E_CLEANUP_SUPABASE_*` the UI cancel/soft-delete leaves a
+`cancelled` event / `deleted_at` team that accumulates run over run. Two fixes:
+
+- **`global-teardown.ts` + `globalTeardown` config** — runs
+  `sweepLeakedE2EFixtures({ olderThanHours: 1 })` at end of every run. No-op
+  without cleanup creds; the **1h age guard** keeps a concurrent run's < 1h
+  fixtures safe (the reason the sweep was previously manual-only). Opt out with
+  `E2E_NO_TEARDOWN_SWEEP=1`. `sweepLeakedE2EFixtures` gained an optional
+  `{ olderThanHours }` that chains `.lt('created_at', cutoff)` onto each
+  table's select.
+- **Nina misprovision guard** — the paid-block test now checks
+  `/profile/billing` for charges-enabled signals first and skips if Nina is
+  (mis)provisioned with Stripe, because a published paid event consumes a
+  free-tier cap slot that cancellation does **not** refund (abuse guard),
+  which would silently change what the test proves on later runs.
 
 ## Patterns observed
 

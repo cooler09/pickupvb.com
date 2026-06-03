@@ -62,6 +62,24 @@ test.describe(`${nina.name} (${nina.id}) — host without Stripe`, () => {
   }) => {
     test.slow();
     await withPersona(browser, 'nina', async (page) => {
+      // Guard: only attempt the paid-block assertion when Nina is genuinely NOT
+      // Stripe-ready. If she's been (mis)provisioned with charges enabled, a
+      // paid event would actually publish — and cancelling it does NOT refund
+      // the free-tier paid-event cap slot (abuse guard), so later runs would be
+      // blocked by the cap instead of Stripe-readiness, silently changing what
+      // this test proves. Skip rather than create a paid event in that case.
+      await page.goto('/profile/billing');
+      const stripeReady = await isVisibleOrTimeout(
+        page.getByText(/View earnings|Stripe dashboard|charges enabled/i).first(),
+        4_000,
+      );
+      if (stripeReady) {
+        test.skip(
+          true,
+          'Nina appears Stripe-connected here (misprovisioned) — skipping paid-block to avoid consuming a paid-event cap slot',
+        );
+      }
+
       await page.goto('/events/new');
       await page.waitForLoadState('domcontentloaded');
       if (page.url().includes('/login') || page.url().includes('/upgrade')) {
