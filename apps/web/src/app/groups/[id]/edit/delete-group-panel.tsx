@@ -4,6 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import { errorButtonClass, errorOutlinedButtonClass } from '@/components/primary-button';
 import { deleteGroupAction } from './delete-actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 type State = { error?: string; ok?: boolean };
 const initialState: State = {};
@@ -16,6 +17,7 @@ const initialState: State = {};
 export function DeleteGroupPanel({ groupId, groupName }: { groupId: string; groupName: string }) {
   const action = deleteGroupAction.bind(null, groupId);
   const [state, formAction] = useFormState(action, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -38,7 +40,12 @@ export function DeleteGroupPanel({ groupId, groupName }: { groupId: string; grou
       ) : (
         <form action={formAction} className="mt-3 space-y-3">
           {state.error && (
-            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+            <p
+              ref={errorRef}
+              tabIndex={-1}
+              className="text-sm text-red-700 outline-none dark:text-red-300"
+              role="alert"
+            >
               {state.error}
             </p>
           )}

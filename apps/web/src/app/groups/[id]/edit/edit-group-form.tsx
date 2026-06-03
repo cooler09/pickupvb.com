@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { updateGroupAction, type GroupFormState } from '@/app/groups/group-form-actions';
 import {
   fieldInputClass as inputClass,
@@ -31,9 +32,14 @@ type Group = {
 export default function EditGroupForm({ group }: { group: Group }) {
   const action = updateGroupAction.bind(null, group.id);
   const [state, formAction] = useFormState(action, initial);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
     <form action={formAction} className="space-y-4">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
+        </div>
+      )}
       <div>
         <label htmlFor="name" className={labelClass}>
           Name

@@ -28,9 +28,14 @@ export function useAlertReveal<T extends HTMLElement = HTMLDivElement>(
     if (!active) return;
     const el = ref.current;
     if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    // preventScroll: the smooth scroll above owns the motion; focus must not
-    // yank it into an instant jump.
+    // Only scroll when the alert is actually off-screen — on a short form
+    // that's already fully visible, re-centering it would be a jarring jump
+    // for no benefit. Focus moves either way (the WCAG error-summary
+    // pattern), but with preventScroll so it never yanks the smooth scroll
+    // into an instant jump.
+    const rect = el.getBoundingClientRect();
+    const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (!fullyVisible) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.focus({ preventScroll: true });
   }, [trigger, active]);
   return ref;

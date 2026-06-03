@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
 import { bindBracketActions } from './bracket-action-binding';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import type { BracketScope } from './labels';
 
 /**
@@ -63,6 +64,7 @@ export function WalkInTeamForm(props: {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const nameRef = useRef<HTMLInputElement>(null);
+  const errorRef = useAlertReveal(error, Boolean(error));
 
   const newRow = (): PlayerRow => ({ id: nextRowId.current++, name: '', email: '' });
 
@@ -154,8 +156,10 @@ export function WalkInTeamForm(props: {
 
       {error && (
         <p
+          ref={errorRef}
+          tabIndex={-1}
           role="alert"
-          className="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-300"
+          className="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 outline-none dark:text-red-300"
         >
           {error}
         </p>

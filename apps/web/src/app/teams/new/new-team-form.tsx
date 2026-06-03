@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { TextField } from '@/components/text-field';
 import { createTeamAction, type TeamFormState } from '../actions';
@@ -25,9 +26,14 @@ function SubmitBtn() {
 
 export default function NewTeamForm() {
   const [state, formAction] = useFormState(createTeamAction, initial);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
     <form action={formAction} className="space-y-4">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
+        </div>
+      )}
       <TextField name="name" label="Team name" errors={state.fieldErrors} required maxLength={80} />
       <div>
         <label htmlFor="format" className={labelClass}>

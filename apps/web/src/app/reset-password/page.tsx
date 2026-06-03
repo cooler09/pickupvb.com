@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const errorRef = useAlertReveal(error, Boolean(error));
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -110,7 +112,11 @@ export default function ResetPasswordPage() {
             />
           </label>
 
-          {error && <Alert variant="error">{error}</Alert>}
+          {error && (
+            <div ref={errorRef} tabIndex={-1} className="outline-none">
+              <Alert variant="error">{error}</Alert>
+            </div>
+          )}
 
           <button type="submit" disabled={loading} className={`${primaryButtonClass('md')} w-full`}>
             {loading ? 'Updating…' : 'Update password'}

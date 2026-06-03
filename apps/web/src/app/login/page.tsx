@@ -10,6 +10,7 @@ import { AuthModeTabs } from './_components/auth-mode-tabs';
 import { GoogleButton } from './_components/google-button';
 import { friendlyAuthError, type AuthMode } from './_lib/friendly-error';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 function LoginForm() {
   const router = useRouter();
@@ -21,6 +22,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const errorRef = useAlertReveal(error ?? info, Boolean(error || info));
 
   function switchMode(next: AuthMode) {
     setMode(next);
@@ -114,8 +116,12 @@ function LoginForm() {
           )}
         </div>
 
-        {error && <Alert variant="error">{error}</Alert>}
-        {info && <Alert variant="info">{info}</Alert>}
+        {(error || info) && (
+          <div ref={errorRef} tabIndex={-1} className="outline-none">
+            {error && <Alert variant="error">{error}</Alert>}
+            {info && <Alert variant="info">{info}</Alert>}
+          </div>
+        )}
 
         <button type="submit" disabled={loading} className={`${primaryButtonClass('md')} w-full`}>
           {loading ? 'Working…' : signUp ? 'Create account' : 'Sign in'}

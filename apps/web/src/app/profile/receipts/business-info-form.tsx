@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { updateBusinessInfo, type BusinessInfoState } from './business-info-actions';
 
 const initialState: BusinessInfoState = { error: null, success: false };
@@ -24,11 +25,16 @@ type Props = {
 
 export function BusinessInfoForm({ businessName, businessAddress, taxId }: Props) {
   const [state, formAction] = useFormState(updateBusinessInfo, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error || state.success));
 
   return (
     <form action={formAction} className="space-y-3">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
-      {state.success && <Alert variant="success">Saved.</Alert>}
+      {(state.error || state.success) && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          {state.error && <Alert variant="error">{state.error}</Alert>}
+          {state.success && <Alert variant="success">Saved.</Alert>}
+        </div>
+      )}
 
       <label className="block text-sm">
         <span className="font-medium">Business name</span>

@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { signupAsGuest, type GuestSignupState } from './guest-actions';
 import { TurnstileWidget } from '@/components/turnstile-widget';
 import { GuestSignupFields } from './_components/guest-signup-fields';
@@ -21,9 +22,14 @@ function SubmitBtn() {
 export default function GuestSignupForm({ eventId }: { eventId: string }) {
   const action = signupAsGuest.bind(null, eventId);
   const [state, formAction] = useFormState(action, initial);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
     <form action={formAction} className="space-y-3">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
+        </div>
+      )}
       <GuestSignupFields errors={state.fieldErrors} />
 
       <TurnstileWidget />

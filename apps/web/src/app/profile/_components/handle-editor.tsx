@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
 import { useFormState, useFormStatus } from 'react-dom';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { updateHandle, type HandleFormState } from '../actions';
 
 const initial: HandleFormState = { error: null, success: false };
@@ -21,6 +22,7 @@ export function HandleEditor({ currentHandle }: { currentHandle: string }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction] = useFormState(updateHandle, initial);
   const saved = state.success && !state.error;
+  const errorRef = useAlertReveal(state, Boolean(state.error || saved));
 
   if (!editing && !saved) {
     return (
@@ -41,11 +43,15 @@ export function HandleEditor({ currentHandle }: { currentHandle: string }) {
 
   return (
     <form action={formAction} className="space-y-2">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
-      {saved && (
-        <Alert variant="success">
-          Handle updated. Old links to your profile will no longer work.
-        </Alert>
+      {(state.error || saved) && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          {state.error && <Alert variant="error">{state.error}</Alert>}
+          {saved && (
+            <Alert variant="success">
+              Handle updated. Old links to your profile will no longer work.
+            </Alert>
+          )}
+        </div>
       )}
       <label className="text-fg/70 block text-xs font-medium tracking-wide uppercase">Handle</label>
       <div className="flex items-center gap-2">

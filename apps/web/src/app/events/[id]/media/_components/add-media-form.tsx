@@ -4,6 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { useState } from 'react';
 import { addMediaAction, type AddMediaState } from '../actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { fieldInputClass as inputClass } from '@/components/field-styles';
 
 const initialState: AddMediaState = {};
@@ -11,6 +12,7 @@ const initialState: AddMediaState = {};
 export function AddMediaForm({ eventId }: { eventId: string }) {
   const action = addMediaAction.bind(null, eventId);
   const [state, formAction] = useFormState(action, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [open, setOpen] = useState(false);
 
   return (
@@ -74,7 +76,12 @@ export function AddMediaForm({ eventId }: { eventId: string }) {
           />
         </div>
         {state.error && (
-          <p className="text-sm text-red-500" role="alert">
+          <p
+            ref={errorRef}
+            tabIndex={-1}
+            className="text-sm text-red-500 outline-none"
+            role="alert"
+          >
             {state.error}
           </p>
         )}

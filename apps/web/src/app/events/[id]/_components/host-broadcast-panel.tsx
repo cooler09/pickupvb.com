@@ -4,6 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { useState } from 'react';
 import { sendEventBroadcast } from '../broadcast-actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 type State = { ok?: boolean; error?: string };
 const initialState: State = {};
@@ -17,6 +18,7 @@ export function HostBroadcastPanel({
 }) {
   const action = sendEventBroadcast.bind(null, eventId);
   const [state, formAction] = useFormState(action, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [open, setOpen] = useState(false);
 
   if (attendeeCount === 0) return null;
@@ -59,7 +61,12 @@ export function HostBroadcastPanel({
           />
         </div>
         {state.error && (
-          <p className="text-sm text-red-500" role="alert">
+          <p
+            ref={errorRef}
+            tabIndex={-1}
+            className="text-sm text-red-500 outline-none"
+            role="alert"
+          >
             {state.error}
           </p>
         )}
