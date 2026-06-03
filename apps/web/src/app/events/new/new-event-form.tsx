@@ -63,6 +63,14 @@ export default function NewEventForm({
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
   const [isExternal, setIsExternal] = useState(chk(values, submitted, 'isExternal', false));
+  // Leagues are on-platform only (managed schedule / scoring / rosters), so
+  // clear any off-platform selection when switching into League. The
+  // EventTypeSection also hides the toggle and the create action rejects the
+  // combination defensively.
+  function handleSetType(next: EventType) {
+    setType(next);
+    if (next === EventType.League) setIsExternal(false);
+  }
   // The off-platform checkbox is always user-controlled (state lifted to
   // the parent so it survives switching between OpenPlay and Tournament
   // sections). When the host has no Stripe Connect account we still show
@@ -158,7 +166,7 @@ export default function NewEventForm({
 
       <EventTypeSection
         type={type}
-        setType={setType}
+        setType={handleSetType}
         isExternal={isExternal}
         setIsExternal={setIsExternal}
       />

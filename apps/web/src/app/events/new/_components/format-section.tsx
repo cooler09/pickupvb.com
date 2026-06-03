@@ -48,10 +48,12 @@ export default function FormatSection({
   viewerHasProBenefits: boolean;
 }) {
   const byPosition = capacityKind === 'by_position';
+  const isLeague = type === EventType.League;
   const showPricing = !isExternal && type === EventType.OpenPlay;
-  // Tournament divisions collect their own per-division price below; keep the
-  // event-level payment settings (refund window, fee absorption) separate.
-  const showPaymentSettings = !isExternal && type === EventType.Tournament;
+  // Tournament and league divisions both collect their own per-division price
+  // below; keep the event-level payment settings (refund window, fee
+  // absorption) separate.
+  const showPaymentSettings = !isExternal && (type === EventType.Tournament || isLeague);
   const showCapacity = type === EventType.OpenPlay && !isExternal;
 
   return (
@@ -70,7 +72,9 @@ export default function FormatSection({
               ? "Where players go to sign up. We'll link out from your event page."
               : type === EventType.OpenPlay
                 ? 'Surface, skill level, how many spots, and what it costs.'
-                : 'Add one or more divisions — each gets its own skill tier, capacity, and entry price.'}
+                : isLeague
+                  ? 'Add each league division. Every division uses rostered teams — captains register an existing team for the season.'
+                  : 'Add one or more divisions — each gets its own skill tier, capacity, and entry price.'}
           </p>
         </div>
 
@@ -93,6 +97,7 @@ export default function FormatSection({
             <DivisionsRepeater
               defaultSurface="indoor"
               requireAtLeastOne
+              requireRoster={isLeague}
               {...(fieldErrors ? { fieldErrors } : {})}
             />
           </>

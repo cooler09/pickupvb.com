@@ -82,7 +82,17 @@ export async function createEventAction(
   }
 
   // ---- ADR 0006 event-level extensions ------------------------------------
+  const isLeague = type === EventType.League;
   const isExternal = field(formData, 'isExternal') === 'on';
+  // Leagues are managed on-platform (schedule, scoring, rosters); off-platform
+  // listing-only mode doesn't apply. The UI hides the toggle for leagues — this
+  // is the server-side backstop.
+  if (isLeague && isExternal) {
+    return {
+      ...snapshot(formData),
+      error: 'League events are managed on PickupVB and cannot use off-platform registration.',
+    };
+  }
   const isFundraiser = field(formData, 'isFundraiser') === 'on';
   const isSeries = field(formData, 'isSeries') === 'on';
   const themeTagsRaw = fieldOrUndefined(formData, 'themeTags');
@@ -160,11 +170,14 @@ export async function createEventAction(
     const allowFreeAgents = bool(formData, `div_${i}_allowFreeAgents`);
     // ADR 0016: per-division team registration paradigm. For tournaments,
     // default to ad_hoc when the composition is non-solo, else null. The
-    // host can override per row via the picker.
+    // host can override per row via the picker. Leagues (P1 #1) are
+    // roster-only on every division — force it server-side so a tampered
+    // form can't bypass the league invariant.
     const isTournamentRow = type === EventType.Tournament;
     const teamRegModeRaw = fieldOrUndefined(formData, `div_${i}_teamRegistrationMode`);
     let teamRegistrationMode: 'ad_hoc' | 'roster' | null;
-    if (teamRegModeRaw === 'ad_hoc') teamRegistrationMode = 'ad_hoc';
+    if (isLeague) teamRegistrationMode = 'roster';
+    else if (teamRegModeRaw === 'ad_hoc') teamRegistrationMode = 'ad_hoc';
     else if (teamRegModeRaw === 'roster') teamRegistrationMode = 'roster';
     else if (teamRegModeRaw === 'none') teamRegistrationMode = null;
     else teamRegistrationMode = isTournamentRow && teamComposition !== 'solo' ? 'ad_hoc' : null;
@@ -199,10 +212,13 @@ export async function createEventAction(
   }
 
   const isTournament = type === EventType.Tournament;
-  if (isTournament && !isExternal && divisions.length === 0) {
+  // Tournaments and leagues are both division-driven: the per-division grid is
+  // the source of truth for surface/skill/pricing.
+  const usesDivisions = isTournament || isLeague;
+  if (usesDivisions && !isExternal && divisions.length === 0) {
     return {
       ...snapshot(formData),
-      error: 'Add at least one division for your tournament.',
+      error: `Add at least one division for your ${isLeague ? 'league' : 'tournament'}.`,
       fieldErrors: { divisions: 'Add at least one division.' },
     };
   }
@@ -210,9 +226,9 @@ export async function createEventAction(
   // ADR 0012 — canonical registration-config invariants (event type ×
   // per-division team mode × division composition × price unit). ADR 0016
   // moved team-mode to the division level.
-  if (isTournament && !isExternal) {
+  if (usesDivisions && !isExternal) {
     const teamPricing = validateTeamPricing({
-      type: 'tournament',
+      type: isLeague ? 'league' : 'tournament',
       paymentsOffPlatform: field(formData, 'paymentsOffPlatform') === 'on',
       divisions: divisions.map((d) => ({
         label: (d.label as string) ?? '',
@@ -232,11 +248,11 @@ export async function createEventAction(
     }
   }
 
-  // For tournaments the per-division grid is the single source of truth for
-  // surface/format/gender/skill. Fall back to division[0] so the legacy
-  // top-level columns on `events` (still required by the schema) stay
+  // For tournaments and leagues the per-division grid is the single source of
+  // truth for surface/format/gender/skill. Fall back to division[0] so the
+  // legacy top-level columns on `events` (still required by the schema) stay
   // populated. Open-play and external still submit them directly.
-  const primaryDiv = isTournament && divisions.length > 0 ? divisions[0]! : undefined;
+  const primaryDiv = usesDivisions && divisions.length > 0 ? divisions[0]! : undefined;
   const topSurface = (primaryDiv?.surface as string | undefined) ?? field(formData, 'surface');
   const topFormat =
     (primaryDiv?.format as string | undefined) ?? fieldOrUndefined(formData, 'format');
@@ -329,11 +345,11 @@ export async function createEventAction(
     }
   }
 
-  // Pricing: open-play uses the top-level priceUsd input. Tournaments price
-  // per-division (already collected above); for Stripe gating we treat the
-  // highest division price as the event price. Free events (price = 0) skip
-  // Stripe entirely.
-  const priceCents = isTournament
+  // Pricing: open-play uses the top-level priceUsd input. Tournaments and
+  // leagues price per-division (already collected above); for Stripe gating we
+  // treat the highest division price as the event price. Free events
+  // (price = 0) skip Stripe entirely.
+  const priceCents = usesDivisions
     ? divisions.reduce(
         (max, d) => Math.max(max, typeof d.priceCents === 'number' ? (d.priceCents as number) : 0),
         0,
@@ -378,9 +394,10 @@ export async function createEventAction(
       };
     }
     // Pricing now lives on event_divisions (ADR 0006 Phase 9a). For
-    // open-play we update the first (default) division here. Tournaments
-    // already supplied per-division priceCents through the create handler.
-    if (!isTournament) {
+    // open-play we update the first (default) division here. Tournaments and
+    // leagues already supplied per-division priceCents through the create
+    // handler.
+    if (!usesDivisions) {
       const { error: divPriceErr } = await supabase
         .from('event_divisions')
         .update({ price_cents: priceCents } as never)
@@ -425,7 +442,7 @@ export async function createEventAction(
       props: {
         eventId: result.id,
         hostId: user.id,
-        eventType: isTournament ? 'tournament' : 'open_play',
+        eventType: dto.type,
         byPosition,
         priceCents,
         metroId: city ?? null,

@@ -2309,6 +2309,42 @@ deploy.
 **Audit fully drained.** No numbered findings and no carry-forwards
 remain open on this audit.
 
+### 2026-06-03 — P1 #1 follow-up: league create-event flow wired into the UI ✅
+
+P1 #1 landed the **scaffolding** (enum value, domain branch, schedule
+table) but explicitly deferred the create form — the
+[migration preamble](../../supabase/migrations/20260729000100_add_league_to_event_type.sql)
+said so ("UI / create form / filters are NOT wired up in this bundle —
+scaffolding only … League events can be inserted via the API but have no
+first-class create flow yet"). That left leagues fully built but
+**unreachable**: every downstream surface gates on `event.type === 'league'`,
+and nothing could set it. This bundle closes the gap.
+
+**The fix.** `/events/new` now offers a third "League" event type:
+
+- `event-type-section.tsx` gains a League card; the off-platform toggle is
+  hidden for leagues (on-platform only this bundle).
+- `format-section.tsx` routes leagues to the divisions repeater (in a new
+  `requireRoster` mode that locks every division to roster + non-solo) plus
+  event-level payment settings.
+- `new/actions.ts` forces `teamRegistrationMode = 'roster'` on league rows
+  server-side (trust boundary over the UI lock), requires ≥1 division,
+  validates via `validateTeamPricing({ type: 'league' })`, and treats leagues
+  as division-driven for pricing/primary-division (`usesDivisions`). League +
+  external is rejected defensively.
+
+Edit form needs no change — `EditEventForm` already renders the
+non-open-play (division-priced) branch for any non-open-play type.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` green
+(214 web tests; lint at pre-existing warnings only). Narrative:
+[2026-06-03-bundle-league-create-flow.md](../journal/2026-06-03-bundle-league-create-flow.md).
+
+**Still open (new follow-ups, tracked in the journal):** public team
+self-registration into a league (`EventSignupArea` has no league branch),
+a league discovery filter, external-league listings, and the season →
+playoff bracket handoff.
+
 ---
 
 ## Cross-references

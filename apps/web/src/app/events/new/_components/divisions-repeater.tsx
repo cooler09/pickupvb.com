@@ -97,11 +97,20 @@ const blankRow = (key: number, defaults?: Partial<Row>): Row => ({
 export default function DivisionsRepeater({
   defaultSurface,
   requireAtLeastOne = false,
+  requireRoster = false,
   fieldErrors,
 }: {
   defaultSurface?: string;
   /** When true, always render at least one row and hide its Remove button. */
   requireAtLeastOne?: boolean;
+  /**
+   * League mode (ADR P1 #1): every division must use roster-based team
+   * registration. When true each row is pinned to `roster` — the picker is
+   * replaced by a read-only note and a hidden input — so the host can't
+   * submit a combination the league invariant
+   * (`assertRegistrationConfigValid`) would reject.
+   */
+  requireRoster?: boolean;
   /**
    * Server-side validation errors keyed by Zod path. Division errors arrive
    * as `divisions.${idx}.${field}` (e.g. `divisions.0.label`) — those keys
@@ -111,13 +120,16 @@ export default function DivisionsRepeater({
 }) {
   /** Errors arrive keyed by Zod path; build a per-row lookup helper. */
   const rowErrorKey = (idx: number, field: string) => `divisions.${idx}.${field}`;
-  const [rows, setRows] = useState<Row[]>(() =>
-    requireAtLeastOne ? [blankRow(0, { surface: defaultSurface ?? 'indoor' })] : [],
-  );
+  const newRow = (key: number): Row =>
+    blankRow(key, {
+      surface: defaultSurface ?? 'indoor',
+      ...(requireRoster ? { teamRegistrationMode: 'roster' as const } : {}),
+    });
+  const [rows, setRows] = useState<Row[]>(() => (requireAtLeastOne ? [newRow(0)] : []));
   const [nextKey, setNextKey] = useState(requireAtLeastOne ? 1 : 1);
 
   function add() {
-    setRows((r) => [...r, blankRow(nextKey, { surface: defaultSurface ?? 'indoor' })]);
+    setRows((r) => [...r, newRow(nextKey)]);
     setNextKey((k) => k + 1);
   }
   function remove(key: number) {
@@ -256,20 +268,32 @@ export default function DivisionsRepeater({
             </div>
             <div>
               <label className={labelClass}>Team registration</label>
-              <select
-                name={`div_${idx}_teamRegistrationMode`}
-                value={row.teamRegistrationMode}
-                onChange={(e) =>
-                  patch(row.key, {
-                    teamRegistrationMode: e.target.value as TeamRegistrationMode,
-                  })
-                }
-                className={inputClass}
-              >
-                <option value="ad_hoc">Ad-hoc — captain assembles at signup</option>
-                <option value="roster">Roster — captain picks an existing team</option>
-                <option value="none">None — individual signups</option>
-              </select>
+              {requireRoster ? (
+                <>
+                  {/* League divisions are roster-only; submit the locked value
+                      and show a read-only note instead of the picker. */}
+                  <input type="hidden" name={`div_${idx}_teamRegistrationMode`} value="roster" />
+                  <p className="text-muted border-border-base bg-fg/[0.02] rounded-md border px-3 py-2 text-xs">
+                    Roster — captains register an existing team{' '}
+                    <span className="text-fg/50">(required for leagues)</span>
+                  </p>
+                </>
+              ) : (
+                <select
+                  name={`div_${idx}_teamRegistrationMode`}
+                  value={row.teamRegistrationMode}
+                  onChange={(e) =>
+                    patch(row.key, {
+                      teamRegistrationMode: e.target.value as TeamRegistrationMode,
+                    })
+                  }
+                  className={inputClass}
+                >
+                  <option value="ad_hoc">Ad-hoc — captain assembles at signup</option>
+                  <option value="roster">Roster — captain picks an existing team</option>
+                  <option value="none">None — individual signups</option>
+                </select>
+              )}
             </div>
             <div>
               <label className={labelClass}>Team composition</label>

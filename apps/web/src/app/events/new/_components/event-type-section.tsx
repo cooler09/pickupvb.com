@@ -26,7 +26,7 @@ export default function EventTypeSection({
         <h2 className={cardTitleClass}>What are you hosting?</h2>
         <p className={cardSubClass}>Pick how players will sign up.</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <TypeCard
           value={EventType.OpenPlay}
           current={type}
@@ -41,23 +41,36 @@ export default function EventTypeSection({
           description="Bracketed competition, team signups, one or more divisions."
           onChange={setType}
         />
-      </div>
-      <label className="border-border-base bg-highlight/20 flex items-start gap-2 rounded-md border p-3 text-sm">
-        <input
-          type="checkbox"
-          name="isExternal"
-          checked={isExternal}
-          onChange={(e) => setIsExternal(e.target.checked)}
-          className="mt-0.5"
+        <TypeCard
+          value={EventType.League}
+          current={type}
+          title="League"
+          description="Recurring rostered season with a weekly schedule, standings, and playoffs."
+          onChange={setType}
         />
-        <span>
-          <span className="text-fg font-medium">Registration happens off-platform</span>
-          <span className="text-muted block text-xs">
-            For events run via AES, VolleyballLife, Eventbrite, etc. PickupVB will list the event
-            and link to your registration page — no signups or payments collected here.
+      </div>
+      {/* Off-platform registration is a listing-only mode incompatible with
+          leagues, which are managed on-platform (schedule, scoring, rosters).
+          Hide the toggle when League is selected; the parent also clears the
+          flag on switch and the create action rejects league + external. */}
+      {type !== EventType.League && (
+        <label className="border-border-base bg-highlight/20 flex items-start gap-2 rounded-md border p-3 text-sm">
+          <input
+            type="checkbox"
+            name="isExternal"
+            checked={isExternal}
+            onChange={(e) => setIsExternal(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="text-fg font-medium">Registration happens off-platform</span>
+            <span className="text-muted block text-xs">
+              For events run via AES, VolleyballLife, Eventbrite, etc. PickupVB will list the event
+              and link to your registration page — no signups or payments collected here.
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+      )}
     </section>
   );
 }
