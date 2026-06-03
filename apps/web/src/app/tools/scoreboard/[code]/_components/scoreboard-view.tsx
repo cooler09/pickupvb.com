@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type RefObject,
+} from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useScoreboardSync } from '../../_lib/use-scoreboard-sync.js';
@@ -34,6 +42,67 @@ type Props = {
 type LocalTheme = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'pickupvb:scoreboard:theme';
+
+/** Focusable-element selector for the dialog focus trap (mirrors mobile-menu.tsx). */
+const DIALOG_FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Interim modal a11y for the scoreboard overlays (accessibility audit A3):
+ * move focus into `ref` on open, trap Tab/Shift+Tab inside it, restore focus to
+ * the previously-focused element on close, and — when `onEscape` is provided —
+ * close on Escape. Self-contained per mount (deps are stable), so the parent's
+ * frequent re-renders (live score pushes, peer count) never steal focus.
+ * Superseded once the shared Radix Dialog primitive lands (AGENTS.md
+ * "UI primitives — Radix UI", Bundle 6).
+ */
+function useDialogFocusTrap<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+  onEscape?: () => void,
+) {
+  const onEscapeRef = useRef(onEscape);
+  // Keep the latest handler in a ref so the trap effect can stay mount-scoped
+  // (writing the ref in render is disallowed by react-hooks/refs).
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+  }, [onEscape]);
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    function focusables(): HTMLElement[] {
+      const root = ref.current;
+      if (!root) return [];
+      return Array.from(root.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE)).filter(
+        (el) => !el.hasAttribute('aria-hidden') && el.offsetParent !== null,
+      );
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && onEscapeRef.current) {
+        e.preventDefault();
+        onEscapeRef.current();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !ref.current?.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    focusables()[0]?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previouslyFocused?.focus();
+    };
+  }, [ref]);
+}
 
 export function ScoreboardView({ code, initialConfig, binding }: Props) {
   const { state, setState, status, peerCount } = useScoreboardSync(code, initialConfig);
@@ -341,7 +410,7 @@ function TeamPanel({
       <button
         type="button"
         onClick={onPlus}
-        className="group absolute inset-0 flex flex-col items-center justify-center focus:outline-none"
+        className="group absolute inset-0 flex flex-col items-center justify-center outline-none focus-visible:ring-4 focus-visible:ring-current/70 focus-visible:ring-inset"
         aria-label={`Add point to ${name}`}
       >
         <div className={`text-xl font-semibold tracking-wide sm:text-3xl ${subtle}`}>{name}</div>
@@ -528,13 +597,28 @@ function WinnerOverlay({
   onNewGame: () => void;
   onResetMatch: () => void;
 }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  // No `onEscape`: the match is over, so the overlay has no dismiss — the user
+  // chooses Rematch or New game. Focus is moved in and trapped between them.
+  useDialogFocusTrap(panelRef);
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="rounded-shape-md bg-white p-8 text-center text-black shadow-xl">
-        <p className="text-xs font-semibold tracking-widest text-emerald-600 uppercase">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scoreboard-winner-eyebrow scoreboard-winner-name"
+        className="rounded-shape-md bg-white p-8 text-center text-black shadow-xl"
+      >
+        <p
+          id="scoreboard-winner-eyebrow"
+          className="text-xs font-semibold tracking-widest text-emerald-600 uppercase"
+        >
           Match won
         </p>
-        <p className="mt-2 text-4xl font-bold">{name}</p>
+        <p id="scoreboard-winner-name" className="mt-2 text-4xl font-bold">
+          {name}
+        </p>
         <div className="mt-6 flex justify-center gap-3">
           <button
             type="button"
@@ -570,18 +654,24 @@ function ShareModal({
   theme: LocalTheme;
 }) {
   const surface = theme === 'dark' ? 'bg-zinc-900 text-white' : 'bg-white text-black';
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useDialogFocusTrap(panelRef, onClose);
   return (
     <div
       className="absolute inset-0 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="scoreboard-share-title"
         className={`rounded-shape-md w-full max-w-lg ${surface} p-6 shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold">Remote control link</h2>
+        <h2 id="scoreboard-share-title" className="text-lg font-semibold">
+          Remote control link
+        </h2>
         <p className="mt-1 text-sm opacity-70">
           Open this URL on any phone — taps there update this scoreboard live.
         </p>

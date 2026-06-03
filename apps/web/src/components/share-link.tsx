@@ -111,7 +111,7 @@ export function ShareLink({ path, title, code, label = 'Share' }: Props) {
               readOnly
               value={url}
               onFocus={(e) => e.currentTarget.select()}
-              className="border-border-base bg-bg text-fg focus:border-primary min-w-0 flex-1 rounded-md border px-2 py-1.5 font-mono text-xs outline-none"
+              className="border-border-base bg-bg text-fg focus-visible:border-primary focus-visible:ring-primary min-w-0 flex-1 rounded-md border px-2 py-1.5 font-mono text-xs outline-none focus-visible:ring-2"
             />
             <button type="button" onClick={copy} className={`${primaryButtonClass('sm')} shrink-0`}>
               {status === 'copied' ? 'Copied ✓' : 'Copy'}

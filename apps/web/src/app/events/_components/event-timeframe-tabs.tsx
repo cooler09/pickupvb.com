@@ -22,17 +22,21 @@ const TAB_IDLE = 'text-fg/70 hover:bg-fg/5';
  * the events list. Filter state is preserved across tab clicks via the
  * caller-provided `hrefFor` builder.
  */
+/** `aria-current="page"` only when active — spread to satisfy exactOptionalPropertyTypes. */
+const current = (active: boolean) => (active ? ({ 'aria-current': 'page' } as const) : {});
+
 export function EventTimeframeTabs({ when, showFollowing, followingCount, hrefFor }: Props) {
+  // These switch the whole page URL, so they are navigation links, not WAI-ARIA
+  // tabs (no roving focus / tabpanel). `<nav>` + `aria-current="page"` is the
+  // correct affordance; the segmented look is purely visual (B2).
   return (
-    <div
-      role="tablist"
+    <nav
       aria-label="Event timeframe"
       className="border-border-base bg-surface inline-flex rounded-md border p-0.5 text-sm"
     >
       <Link
         href={hrefFor('upcoming')}
-        role="tab"
-        aria-selected={when === 'upcoming'}
+        {...current(when === 'upcoming')}
         className={`${TAB_BASE} ${when === 'upcoming' ? TAB_ACTIVE : TAB_IDLE}`}
       >
         Upcoming
@@ -40,8 +44,7 @@ export function EventTimeframeTabs({ when, showFollowing, followingCount, hrefFo
       {showFollowing && (
         <Link
           href={hrefFor('following')}
-          role="tab"
-          aria-selected={when === 'following'}
+          {...current(when === 'following')}
           className={`${TAB_BASE} ${when === 'following' ? TAB_ACTIVE : TAB_IDLE}`}
         >
           Following
@@ -60,12 +63,11 @@ export function EventTimeframeTabs({ when, showFollowing, followingCount, hrefFo
       )}
       <Link
         href={hrefFor('past')}
-        role="tab"
-        aria-selected={when === 'past'}
+        {...current(when === 'past')}
         className={`${TAB_BASE} ${when === 'past' ? TAB_ACTIVE : TAB_IDLE}`}
       >
         Past
       </Link>
-    </div>
+    </nav>
   );
 }

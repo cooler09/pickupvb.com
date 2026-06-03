@@ -35,6 +35,7 @@ export function SiteFooter() {
               { href: '/legal/terms' as Route, label: 'Terms of Service' },
               { href: '/legal/privacy' as Route, label: 'Privacy Policy' },
               { href: '/legal/refunds' as Route, label: 'Refund Policy' },
+              { href: '/legal/accessibility' as Route, label: 'Accessibility' },
             ]}
             extras={[{ href: 'mailto:support@pickupvb.com', label: 'Contact support' }]}
           />
