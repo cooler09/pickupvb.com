@@ -131,6 +131,9 @@ export function ConversationView({
   const [editDraft, setEditDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  // Text fed to the sr-only polite live region (A5) when a message arrives
+  // from someone else over Realtime.
+  const [announcement, setAnnouncement] = useState('');
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
@@ -194,17 +197,29 @@ export function ConversationView({
       if (session) await supabase.realtime.setAuth(session.access_token);
       if (cancelled) return;
 
-      const onWrite = (msg: { payload: unknown }) => {
+      const onWrite = (msg: { payload: unknown }): MessageView | null => {
         const rec = (msg.payload as { record?: BroadcastRow }).record;
-        if (!rec) return;
+        if (!rec) return null;
         const view = recordToView(rec);
         learnSenders([view]);
         setMessages((prev) => mergeMessages(prev, [view]));
+        return view;
+      };
+
+      // INSERTs additionally feed the sr-only live region — but only for
+      // messages from *other* people (skip the viewer's own broadcast echo)
+      // and never for edits/deletes. Bulk "load earlier" prepends go through
+      // `loadOlder`, not this path, so history loads stay silent (A5).
+      const onInsert = (msg: { payload: unknown }) => {
+        const view = onWrite(msg);
+        if (!view || view.isDeleted || view.senderId === viewerId) return;
+        const who = view.senderName ?? 'New message';
+        setAnnouncement(view.body ? `${who}: ${view.body}` : `${who} sent a photo`);
       };
 
       channel = supabase
         .channel(`chat:${conversationId}`, { config: { private: true } })
-        .on('broadcast', { event: 'INSERT' }, onWrite)
+        .on('broadcast', { event: 'INSERT' }, onInsert)
         .on('broadcast', { event: 'UPDATE' }, onWrite)
         .subscribe();
     })();
@@ -213,7 +228,7 @@ export function ConversationView({
       cancelled = true;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [conversationId, recordToView, learnSenders]);
+  }, [conversationId, recordToView, learnSenders, viewerId]);
 
   // ---- Auto-scroll to newest when already at the bottom -------------------
   useEffect(() => {
@@ -590,7 +605,18 @@ export function ConversationView({
           Send
         </button>
       </form>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-red-600">
+          {error}
+        </p>
+      )}
+      {/* Visually-hidden polite live region: announces messages arriving from
+          others over Realtime so screen-reader users hear new chat without a
+          role="log" container re-reading the viewer's own echoes or the whole
+          history on "load earlier" (A5). */}
+      <div aria-live="polite" role="status" className="sr-only">
+        {announcement}
+      </div>
     </div>
   );
 }
