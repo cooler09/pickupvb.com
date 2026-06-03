@@ -81,6 +81,14 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
     text: 'Your team is registered. You can edit the roster until you pay.',
   },
   team_updated: { tone: 'success', text: 'Team updated.' },
+  captain_assigned: {
+    tone: 'success',
+    text: 'Captain assigned — this team is now linked to their account.',
+  },
+  captain_dup: {
+    tone: 'error',
+    text: 'That player already captains a team in this division.',
+  },
   team_withdrawn: { tone: 'info', text: 'Team withdrawn from this tournament.' },
   team_paid: {
     tone: 'success',

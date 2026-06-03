@@ -3,7 +3,9 @@
 import { CloseOnSettled, FormModal, ModalFooter } from '@/components/form-modal';
 import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
+import { UserPicker } from '@/components/user-picker';
 import {
+  assignTeamCaptainFromForm,
   hostForceWithdrawTeamRegistration,
   hostMarkTeamRegistrationPaid,
   hostRefundTeamRegistration,
@@ -263,6 +265,53 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                         Mark paid (cash)
                       </SubmitButton>
                     </form>
+                  )}
+                  {isWalkIn && (
+                    <FormModal
+                      trigger={(open) => (
+                        <button
+                          type="button"
+                          onClick={open}
+                          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-xs font-medium"
+                        >
+                          Assign captain
+                        </button>
+                      )}
+                      title="Assign captain"
+                      description="Link this team to a registered player's account. They'll be able to manage the roster, pay, and report league scores."
+                      size="lg"
+                    >
+                      {(close) => (
+                        <form
+                          action={assignTeamCaptainFromForm.bind(null, eventId, r.id, returnPath)}
+                          className="space-y-3 text-sm"
+                        >
+                          <CloseOnSettled onSettled={close} />
+                          <UserPicker
+                            name="captain_user_id"
+                            label="Captain"
+                            placeholder="Search players by name…"
+                            required
+                            helperText="The player must already have a PickupVB account."
+                          />
+                          <ModalFooter>
+                            <button
+                              type="button"
+                              onClick={close}
+                              className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
+                            >
+                              Cancel
+                            </button>
+                            <SubmitButton
+                              pendingChildren="Assigning…"
+                              className={primaryButtonClass('sm')}
+                            >
+                              Assign captain
+                            </SubmitButton>
+                          </ModalFooter>
+                        </form>
+                      )}
+                    </FormModal>
                   )}
                   {canRefund && (
                     <form action={hostRefundTeamRegistration.bind(null, eventId, r.id, returnPath)}>
