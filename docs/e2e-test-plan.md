@@ -21,6 +21,12 @@ Before starting, prepare the following accounts in dev:
 
 All accounts share the password in `TEST_USER_PASSWORD`. Add each `TEST_*_EMAIL` var to `.env.local` (see `apps/web/.env.local` for the template).
 
+The six accounts above are the minimum. The richer cast of named personas we
+seed for scenario coverage — and the relationships between them (groups,
+co-hosts, teams, free agents, friend graph) — lives in
+[docs/personas.md](personas.md); its [provisioning matrix](personas.md#provisioning-matrix)
+is the source-of-truth for which dev accounts to create.
+
 **Primary authed test suite** (`TEST_USER_EMAIL`) runs as **Attendee A**. Specs that need a different role either skip gracefully or are marked `test.fixme` with the required role called out.
 
 ---

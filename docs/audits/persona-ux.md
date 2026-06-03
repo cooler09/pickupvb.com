@@ -865,6 +865,22 @@ member rows.
   `/teams/new` gate auto-returns the user to where they were headed. Thread `next`
   through `emailRedirectTo` (and `/auth/callback`) to honor it. Affects both gates.
 
+### 2026-06-03 — PR-2 partial reversal (restore payouts discoverability)
+
+- **PR-2 (adaptive payout tile) — softened, not removed.** PR-2 had hidden the
+  profile "Payouts & Stripe" quick-action tile behind host status
+  (`upcomingHosted.length > 0 || hostStripeAccountId !== null`) to keep payout
+  depth off a pure player's hub. In practice that left **no discoverable path to
+  Stripe onboarding** for a brand-new user who wants to set up payments before
+  creating their first event — the only other entry points are the inline alerts
+  in the new/edit-event forms (and they only appear once you type a price). The
+  tile in [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) now always
+  renders; `isHost` drives the **copy** instead of visibility: active hosts keep
+  "Payouts & Stripe" / "Manage your payouts", everyone else gets the softer "Get
+  set up to sell tickets" / "Connect Stripe to take payments" framing. This keeps
+  PR-2's "don't overwhelm" intent (no dense payout numbers, just a labelled
+  entry) while closing the discoverability gap.
+
 ---
 
 ## How to re-run this audit

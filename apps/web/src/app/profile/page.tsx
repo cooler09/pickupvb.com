@@ -174,9 +174,12 @@ export default async function ProfilePage(props: {
     isPlatformAdmin(user.id),
     getHostStripeAccount(user.id),
   ]);
-  // "Is this person a host?" drives the adaptive payout tile — show it once
-  // they have upcoming events to manage or a connected Stripe account, not to
-  // every player by default (persona-ux PR-2).
+  // "Is this person already a host?" drives the *copy* of the payout tile, not
+  // whether it renders. The tile is always shown so a brand-new user can find
+  // their way to Stripe onboarding before they've created any events — gating
+  // it behind host status (persona-ux PR-2) left no discoverable path to set up
+  // payments. Active hosts get "manage" framing; everyone else gets a softer
+  // "get set up to sell tickets" nudge.
   const isHost = upcomingHosted.length > 0 || hostStripeAccountId !== null;
 
   // Groups the user is a member of (with role).
@@ -331,13 +334,11 @@ export default async function ProfilePage(props: {
           title="Host an event"
           description="Open play or tournament"
         />
-        {isHost && (
-          <ActionTile
-            href={'/profile/billing' as Route}
-            title="Payouts & Stripe"
-            description="Manage your payouts"
-          />
-        )}
+        <ActionTile
+          href={'/profile/billing' as Route}
+          title={isHost ? 'Payouts & Stripe' : 'Get set up to sell tickets'}
+          description={isHost ? 'Manage your payouts' : 'Connect Stripe to take payments'}
+        />
       </nav>
 
       {/* Action required */}
