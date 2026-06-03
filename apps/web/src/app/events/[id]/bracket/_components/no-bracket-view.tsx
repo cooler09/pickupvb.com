@@ -40,7 +40,7 @@ export function NoBracketView(props: {
         <p className="text-muted text-sm">
           {ready
             ? 'Pick a format below, then click Create bracket. You can change format (by resetting) before any matches are played.'
-            : 'You need at least 2 teams. Use “Add a walk-in team” to register an unrostered team, or wait for more registrations.'}
+            : 'You need at least 2 teams. Use “Add teams” to enter a team that registered another way, or wait for more registrations.'}
         </p>
       </div>
       <FormatPickerForm
@@ -65,10 +65,10 @@ export function NoBracketView(props: {
                   : primaryButtonClass('sm')
               }
             >
-              + Add walk-in teams
+              + Add teams
             </button>
           )}
-          title="Add walk-in teams"
+          title="Add teams"
           description="For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
         >
           {(close) => (

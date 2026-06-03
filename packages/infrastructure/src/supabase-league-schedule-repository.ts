@@ -5,11 +5,11 @@ import {
   NotFoundError,
   UnauthorizedError,
   type DivisionId,
+  type EntryId,
   type EventWindow,
   type LeagueScheduleMatchId,
   type LeagueScheduleRepository,
   type RecordLeagueMatchResultInput,
-  type TeamId,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 
@@ -21,8 +21,8 @@ type MatchRow = {
   week_number: number;
   scheduled_at: string;
   court_label: string | null;
-  home_team_id: string | null;
-  away_team_id: string | null;
+  home_entry_id: string | null;
+  away_entry_id: string | null;
   home_score: number | null;
   away_score: number | null;
   status: LeagueMatchStatus;
@@ -35,7 +35,7 @@ type WindowRow = {
 };
 
 const MATCH_COLUMNS =
-  'id, division_id, week_number, scheduled_at, court_label, home_team_id, away_team_id, home_score, away_score, status, notes';
+  'id, division_id, week_number, scheduled_at, court_label, home_entry_id, away_entry_id, home_score, away_score, status, notes';
 
 export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepository {
   private _client: SupabaseClient | null;
@@ -91,8 +91,8 @@ export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepositor
         weekNumber: r.week_number,
         scheduledAt: new Date(r.scheduled_at),
         courtLabel: r.court_label,
-        homeTeamId: r.home_team_id ? (r.home_team_id as TeamId) : null,
-        awayTeamId: r.away_team_id ? (r.away_team_id as TeamId) : null,
+        homeEntryId: r.home_entry_id ? (r.home_entry_id as EntryId) : null,
+        awayEntryId: r.away_entry_id ? (r.away_entry_id as EntryId) : null,
         homeScore: r.home_score,
         awayScore: r.away_score,
         status: r.status,
@@ -115,8 +115,8 @@ export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepositor
       week_number: m.weekNumber,
       scheduled_at: m.scheduledAt.toISOString(),
       court_label: m.courtLabel,
-      home_team_id: m.homeTeamId,
-      away_team_id: m.awayTeamId,
+      home_entry_id: m.homeEntryId,
+      away_entry_id: m.awayEntryId,
       home_score: m.homeScore,
       away_score: m.awayScore,
       status: m.status,

@@ -2,7 +2,7 @@ import { idConstructor, type Brand } from '../shared/brand.js';
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { ConflictError, InvariantViolation, NotFoundError } from '../shared/result.js';
 import type { DivisionId } from '../events/division.js';
-import type { TeamId } from '../events/volleyball-event.js';
+import type { EntryId } from '../brackets/match.js';
 
 export type LeagueScheduleMatchId = Brand<string, 'LeagueScheduleMatchId'>;
 export const LeagueScheduleMatchId = idConstructor<'LeagueScheduleMatchId'>();
@@ -24,8 +24,8 @@ export interface LeagueScheduleMatchProps {
   weekNumber: number;
   scheduledAt: Date;
   courtLabel: string | null;
-  homeTeamId: TeamId | null;
-  awayTeamId: TeamId | null;
+  homeEntryId: EntryId | null;
+  awayEntryId: EntryId | null;
   homeScore: number | null;
   awayScore: number | null;
   status: LeagueMatchStatus;
@@ -42,8 +42,8 @@ export class LeagueScheduleMatch {
     public readonly weekNumber: number,
     public readonly scheduledAt: Date,
     public readonly courtLabel: string | null,
-    public readonly homeTeamId: TeamId | null,
-    public readonly awayTeamId: TeamId | null,
+    public readonly homeEntryId: EntryId | null,
+    public readonly awayEntryId: EntryId | null,
     public readonly homeScore: number | null,
     public readonly awayScore: number | null,
     public readonly status: LeagueMatchStatus,
@@ -58,9 +58,9 @@ export class LeagueScheduleMatch {
       throw new InvariantViolation('Match scheduled_at must be a valid Date.');
     }
     if (
-      props.homeTeamId != null &&
-      props.awayTeamId != null &&
-      props.homeTeamId === props.awayTeamId
+      props.homeEntryId != null &&
+      props.awayEntryId != null &&
+      props.homeEntryId === props.awayEntryId
     ) {
       throw new InvariantViolation('Match home and away teams must be different.');
     }
@@ -86,8 +86,8 @@ export class LeagueScheduleMatch {
       props.weekNumber,
       props.scheduledAt,
       courtLabel,
-      props.homeTeamId,
-      props.awayTeamId,
+      props.homeEntryId,
+      props.awayEntryId,
       props.homeScore,
       props.awayScore,
       props.status,
@@ -125,7 +125,9 @@ export interface CreateLeagueScheduleProps {
  *
  * Invariants enforced here:
  *  - Every match's `weekNumber` ≥ 1.
- *  - Distinct `homeTeamId` / `awayTeamId` (when both set).
+ *  - Distinct `homeEntryId` / `awayEntryId` (when both set). The competitor
+ *    identity is the `event_team_entries.id` (ADR 0034), so team-less
+ *    host-added entries are schedulable.
  *  - `scheduledAt` falls inside the event window.
  *
  * Not enforced here (deferred to follow-ups / application layer):

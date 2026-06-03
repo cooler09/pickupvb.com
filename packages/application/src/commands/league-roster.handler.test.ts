@@ -101,18 +101,18 @@ function makeOpenPlay(): VolleyballEvent {
 }
 
 function makeRepo(evt: VolleyballEvent) {
-  const setRosterTeamForfeited = vi.fn().mockResolvedValue(undefined);
+  const setLeagueEntryForfeited = vi.fn().mockResolvedValue(undefined);
   const repo = {
     findById: vi.fn(async (id: string) => (String(evt.id) === id ? evt : null)),
-    setRosterTeamForfeited,
+    setLeagueEntryForfeited,
   } as unknown as EventRepository;
-  return { repo, setRosterTeamForfeited };
+  return { repo, setLeagueEntryForfeited };
 }
 
 describe('SetLeagueTeamForfeitedHandler', () => {
   it('marks a roster team forfeited with a fresh timestamp', async () => {
     const evt = makeLeagueEvent();
-    const { repo, setRosterTeamForfeited } = makeRepo(evt);
+    const { repo, setLeagueEntryForfeited } = makeRepo(evt);
     const handler = new SetLeagueTeamForfeitedHandler(repo);
 
     await handler.execute(
@@ -125,16 +125,15 @@ describe('SetLeagueTeamForfeitedHandler', () => {
       ),
     );
 
-    expect(setRosterTeamForfeited).toHaveBeenCalledTimes(1);
-    const [divisionId, teamId, forfeitedAt] = setRosterTeamForfeited.mock.calls[0]!;
-    expect(divisionId).toBe(String(DIVISION_ID));
-    expect(teamId).toBe('team-x');
+    expect(setLeagueEntryForfeited).toHaveBeenCalledTimes(1);
+    const [entryId, forfeitedAt] = setLeagueEntryForfeited.mock.calls[0]!;
+    expect(entryId).toBe('team-x');
     expect(forfeitedAt).toBeInstanceOf(Date);
   });
 
   it('clears the flag when forfeited=false', async () => {
     const evt = makeLeagueEvent();
-    const { repo, setRosterTeamForfeited } = makeRepo(evt);
+    const { repo, setLeagueEntryForfeited } = makeRepo(evt);
     const handler = new SetLeagueTeamForfeitedHandler(repo);
 
     await handler.execute(
@@ -147,7 +146,7 @@ describe('SetLeagueTeamForfeitedHandler', () => {
       ),
     );
 
-    expect(setRosterTeamForfeited.mock.calls[0]![2]).toBeNull();
+    expect(setLeagueEntryForfeited.mock.calls[0]![1]).toBeNull();
   });
 
   it('rejects non-host requesters', async () => {

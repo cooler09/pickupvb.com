@@ -91,16 +91,13 @@ export interface EventMembershipStore {
   removeCoHost(eventId: string, party: CoHostParty): Promise<void>;
 
   /**
-   * Mark (or unmark) a rostered team in a league division as forfeited.
-   * Targets `event_team_entries` where `source = 'roster'`. Pass `null`
-   * to clear the flag (reinstate). RLS gates the write to the event
-   * host — the handler doesn't duplicate the check.
+   * Mark (or unmark) a league team as forfeited, keyed on its
+   * `event_team_entries.id` (ADR 0034). Works for both rostered and
+   * host-added (team-less `walk_in`) entries. Pass `null` to clear the
+   * flag (reinstate). RLS gates the write to the event host — the handler
+   * doesn't duplicate the check.
    */
-  setRosterTeamForfeited(
-    divisionId: string,
-    teamId: string,
-    forfeitedAt: Date | null,
-  ): Promise<void>;
+  setLeagueEntryForfeited(entryId: string, forfeitedAt: Date | null): Promise<void>;
 }
 
 /**

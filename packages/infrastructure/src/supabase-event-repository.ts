@@ -1388,22 +1388,15 @@ export class SupabaseEventRepository implements EventRepository {
   // (team inserts still route through the `attach_team_to_division` RPC from
   // inside `save`, preserving the partial-unique ON CONFLICT semantics).
 
-  async setRosterTeamForfeited(
-    divisionId: string,
-    teamId: string,
-    forfeitedAt: Date | null,
-  ): Promise<void> {
-    // Targets the live roster row only — `source='roster'` excludes ad-hoc
-    // and walk-in entries (which don't have a captain to "forfeit") and
-    // `deleted_at IS NULL` skips withdrawn rows. RLS on event_team_entries
-    // gates the write to the event host.
+  async setLeagueEntryForfeited(entryId: string, forfeitedAt: Date | null): Promise<void> {
+    // Keyed on the entry id (ADR 0034), so it works for both rostered teams
+    // and host-added (team-less `walk_in`) entries. `deleted_at IS NULL` skips
+    // withdrawn rows. RLS on event_team_entries gates the write to the host.
     const { error } = await this.client
       .from('event_team_entries')
       .update({ forfeited_at: forfeitedAt ? forfeitedAt.toISOString() : null } as never)
-      .eq('division_id', divisionId)
-      .eq('team_id', teamId)
-      .eq('source', 'roster')
+      .eq('id', entryId)
       .is('deleted_at', null);
-    if (error) throw new Error(`setRosterTeamForfeited failed: ${error.message}`);
+    if (error) throw new Error(`setLeagueEntryForfeited failed: ${error.message}`);
   }
 }

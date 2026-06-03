@@ -61,7 +61,8 @@ export type EligibleTeamOption = {
 };
 
 export type LeagueTeamView = {
-  teamId: string;
+  /** The team's `event_team_entries.id` (ADR 0034 — roster or host-added). */
+  entryId: string;
   name: string;
   forfeitedAt: Date | null;
 };
@@ -430,27 +431,29 @@ async function loadLeagueTeamsByDivision(
     return new Map<string, LeagueTeamView[]>();
   }
   const sb = await getServerSupabase();
+  // ADR 0034: league teams are keyed on the entry id, so this lists every live
+  // entry on the event's league divisions — both rostered (`source='roster'`,
+  // self-registered) and host-added (`source='walk_in'`, team-less). The entry's
+  // `display_name` is the team name for either source, so no `teams` join.
   const { data: rows } = await sb
     .from('event_team_entries')
     .select(
-      'division_id, team_id, forfeited_at, teams!inner(id, name), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+      'id, division_id, display_name, forfeited_at, division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
     )
     .eq('division.event_id', event.id)
-    .eq('source', 'roster')
     .is('deleted_at', null);
   type Row = {
+    id: string;
     division_id: string;
-    team_id: string | null;
+    display_name: string;
     forfeited_at: string | null;
-    teams: { id: string; name: string } | null;
   };
   const map = new Map<string, LeagueTeamView[]>();
   for (const r of (rows as Row[] | null) ?? []) {
-    if (!r.teams || !r.team_id) continue;
     const arr = map.get(r.division_id) ?? [];
     arr.push({
-      teamId: r.team_id,
-      name: r.teams.name,
+      entryId: r.id,
+      name: r.display_name,
       forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
     });
     map.set(r.division_id, arr);
@@ -466,10 +469,17 @@ async function loadAdHocBundle(
   event: EventDetailReadModel,
   user: ViewerSession['user'] | null,
 ): Promise<AdHocBundle> {
-  if (
-    event.type !== 'tournament' ||
-    !event.divisions.some((d) => d.teamRegistrationMode === 'ad_hoc')
-  ) {
+  // Host-added (account-less) `walk_in` entries live on any team-registration
+  // division — ad-hoc on tournaments, roster on leagues (ADR 0033). The cached
+  // loaders filter `.neq('source','roster')`, so they already return only the
+  // walk_in/ad-hoc rows (persistent roster teams come from
+  // `loadLeagueTeamsByDivision`). Gate on "has a team-registration division" so
+  // open-play events skip the queries.
+  const isTeamEvent = event.type === 'tournament' || event.type === 'league';
+  const hasTeamRegDivision = event.divisions.some(
+    (d) => d.teamRegistrationMode === 'ad_hoc' || d.teamRegistrationMode === 'roster',
+  );
+  if (!isTeamEvent || !hasTeamRegDivision) {
     return EMPTY_AD_HOC;
   }
 

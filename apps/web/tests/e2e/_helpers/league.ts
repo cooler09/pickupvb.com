@@ -35,7 +35,11 @@ import { getCleanupClient } from './cleanup';
 const RICHMOND_GEO = 'SRID=4326;POINT(-77.4360 37.5407)';
 
 export interface LeagueTeamRef {
+  /** The persistent `teams.id` (used for fixture cleanup). */
   id: string;
+  /** The `event_team_entries.id` — league play keys on this (ADR 0034), so
+   * it's the value the schedule's home/away pickers and forfeit use. */
+  entryId: string;
   name: string;
 }
 
@@ -209,16 +213,21 @@ export async function createLeagueFixture(
       if (memberErr)
         throw new Error(`league fixture team_member insert failed: ${memberErr.message}`);
 
-      const { error: entryErr } = await admin.from('event_team_entries').insert({
-        division_id: divisionId,
-        team_id: team.id,
-        source: 'roster',
-        display_name: name,
-        captain_id: hostId,
-      });
-      if (entryErr) throw new Error(`league fixture entry insert failed: ${entryErr.message}`);
+      const { data: entry, error: entryErr } = await admin
+        .from('event_team_entries')
+        .insert({
+          division_id: divisionId,
+          team_id: team.id,
+          source: 'roster',
+          display_name: name,
+          captain_id: hostId,
+        })
+        .select('id')
+        .single();
+      if (entryErr || !entry)
+        throw new Error(`league fixture entry insert failed: ${entryErr?.message}`);
 
-      teams.push({ id: team.id, name });
+      teams.push({ id: team.id, entryId: entry.id, name });
     }
 
     return { eventId, divisionId, shortCode, teams };

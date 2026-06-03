@@ -208,7 +208,7 @@ export function WalkInTeamForm(props: {
               required
               maxLength={80}
               autoFocus
-              placeholder="e.g. Walk-in Wonders"
+              placeholder="e.g. Block Party"
               className="border-border-base bg-bg text-fg focus:border-primary focus:ring-primary mt-1 block w-full rounded border px-2 py-1 text-sm shadow-sm focus:ring-1 focus:outline-none"
             />
           </label>

@@ -17,6 +17,7 @@
 import { revalidatePath, updateTag } from 'next/cache';
 import { eventCacheTag } from '@/lib/cache-tags';
 import {
+  GetEventDetailQuery,
   MarkWalkInPaidCashCommand,
   RegisterWalkInTeamCommand,
   type AdHocRegistrationMemberInput,
@@ -31,10 +32,33 @@ import {
 import { handlers } from '@/lib/handlers';
 import { field, fieldOrNull } from '@/lib/form-data';
 import { redirectEventNotice } from '@/lib/server-redirects';
-import { requireRealUser } from '@/lib/server-auth';
+import { getViewer } from '@/lib/server-auth';
 
 function backWithError(eventId: string, code: string, msg?: string): never {
   redirectEventNotice(eventId, 'rsvp', code, msg);
+}
+
+/**
+ * Authorize the viewer to manage this event and resolve the acting host.
+ *
+ * Co-host aware: gates on the read model's `canManage` (which includes
+ * co-hosts and host-group admins) — the same boundary check the sibling host
+ * actions in [host-team-registration-actions.ts](./host-team-registration-actions.ts)
+ * use. Returns the event's primary host id as `actingHostId`: a host-added
+ * (`walk_in`) entry exists on behalf of the event host, so the handler's host
+ * guard is satisfied by it while the *viewer's* permission was verified here
+ * (ADR 0033 follow-up — lifts the prior primary-host-only limitation).
+ */
+async function authorizeManageAsHost(
+  eventId: string,
+): Promise<{ ok: true; actingHostId: string } | { ok: false }> {
+  const viewer = await getViewer();
+  if (!viewer || viewer.isAnonymous) return { ok: false };
+  const detail = await handlers.getEventDetail.execute(
+    new GetEventDetailQuery(eventId, viewer.user.id),
+  );
+  if (!detail.canManage || !detail.hostUserId) return { ok: false };
+  return { ok: true, actingHostId: detail.hostUserId };
 }
 
 function mapDomainErrorToCode(err: unknown): string | null {
@@ -69,7 +93,8 @@ export async function registerWalkInTeamFromForm(
   returnPath: string,
   formData: FormData,
 ): Promise<void> {
-  const { user } = await requireRealUser(returnPath);
+  const auth = await authorizeManageAsHost(eventId);
+  if (!auth.ok) backWithError(eventId, 'team_forbidden');
   const divisionId = field(formData, 'division_id');
   const name = field(formData, 'team_name');
   const captainDisplayName = field(formData, 'captain_display_name');
@@ -85,7 +110,7 @@ export async function registerWalkInTeamFromForm(
       new RegisterWalkInTeamCommand(
         eventId,
         divisionId,
-        user.id,
+        auth.actingHostId,
         name,
         captainDisplayName,
         captainPhone,
@@ -109,12 +134,13 @@ export async function markWalkInPaidCashFromForm(
   returnPath: string,
   formData: FormData,
 ): Promise<void> {
-  const { user } = await requireRealUser(returnPath);
+  const auth = await authorizeManageAsHost(eventId);
+  if (!auth.ok) backWithError(eventId, 'team_forbidden');
   const note = fieldOrNull(formData, 'note');
 
   try {
     await handlers.markWalkInPaidCash.execute(
-      new MarkWalkInPaidCashCommand(registrationId, user.id, note),
+      new MarkWalkInPaidCashCommand(registrationId, auth.actingHostId, note),
     );
   } catch (err) {
     const code = mapDomainErrorToCode(err);

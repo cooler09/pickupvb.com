@@ -6,11 +6,11 @@ import {
   UnauthorizedError,
   ValidationError,
   type DivisionId,
+  type EntryId,
   type EventWriteStore,
   type LeagueSchedule,
   type LeagueScheduleMatchId,
   type LeagueScheduleRepository,
-  type TeamId,
   type VolleyballEvent,
 } from '@pickupvb/domain';
 
@@ -25,8 +25,8 @@ export interface ScheduleMatchInput {
   weekNumber: number;
   scheduledAt: Date;
   courtLabel?: string | null;
-  homeTeamId?: string | null;
-  awayTeamId?: string | null;
+  homeEntryId?: string | null;
+  awayEntryId?: string | null;
   status?: LeagueMatchStatus;
   notes?: string | null;
 }
@@ -132,8 +132,8 @@ function buildMatch(
     weekNumber: input.weekNumber,
     scheduledAt: input.scheduledAt,
     courtLabel: input.courtLabel ?? null,
-    homeTeamId: (input.homeTeamId ?? null) as TeamId | null,
-    awayTeamId: (input.awayTeamId ?? null) as TeamId | null,
+    homeEntryId: (input.homeEntryId ?? null) as EntryId | null,
+    awayEntryId: (input.awayEntryId ?? null) as EntryId | null,
     homeScore: scores?.homeScore ?? null,
     awayScore: scores?.awayScore ?? null,
     status: input.status ?? LeagueMatchStatus.Scheduled,
@@ -231,8 +231,8 @@ export class RecordLeagueMatchResultHandler {
       weekNumber: existing.weekNumber,
       scheduledAt: existing.scheduledAt,
       courtLabel: existing.courtLabel,
-      homeTeamId: existing.homeTeamId,
-      awayTeamId: existing.awayTeamId,
+      homeEntryId: existing.homeEntryId,
+      awayEntryId: existing.awayEntryId,
       homeScore: cmd.homeScore,
       awayScore: cmd.awayScore,
       status,

@@ -298,7 +298,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
    * Timestamp at which a host marked this team as withdrawn mid-season
    * (league context) or null while the registration is active. Mirrors
    * `event_team_entries.forfeited_at` written by
-   * {@link EventRepository.setRosterTeamForfeited} on the host-tools
+   * {@link EventRepository.setLeagueEntryForfeited} on the host-tools
    * panel. Forfeit is orthogonal to payment status — a paid team can
    * forfeit, and a forfeited team retains its payment row for
    * accounting.

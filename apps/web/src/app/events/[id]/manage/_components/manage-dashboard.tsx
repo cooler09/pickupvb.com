@@ -62,8 +62,14 @@ export function ManageDashboard({
     ? [...payments.values()].filter((p) => p.status === 'paid').length
     : 0;
 
-  const hasAdHocTeams =
-    isTournament && event.divisions.some((d) => d.teamRegistrationMode === 'ad_hoc');
+  // Host can add account-less teams + mark them paid off-platform on any
+  // team-registration division — ad-hoc (tournaments) or roster (leagues),
+  // ADR 0033. (Leagues are roster-only; tournaments may have either.)
+  const hasHostManagedTeams =
+    (isTournament || isLeague) &&
+    event.divisions.some(
+      (d) => d.teamRegistrationMode === 'ad_hoc' || d.teamRegistrationMode === 'roster',
+    );
 
   // Only render a phase group when it has at least one visible affordance,
   // so a host of (say) a small open-play event never sees an empty heading.
@@ -117,14 +123,15 @@ export function ManageDashboard({
           description="Day-of operations: keep players informed and registrations moving."
         >
           <HostBroadcastPanel eventId={event.id} attendeeCount={activeAttendeeCount} />
-          {hasAdHocTeams && (
+          {hasHostManagedTeams && (
             <HostAdHocTeamsPanel
               eventId={event.id}
               returnPath={returnPath}
               divisions={event.divisions.map((d) => ({
                 id: d.id,
                 label: d.label,
-                isAdHoc: d.teamRegistrationMode === 'ad_hoc',
+                acceptsHostTeams:
+                  d.teamRegistrationMode === 'ad_hoc' || d.teamRegistrationMode === 'roster',
               }))}
               rows={adHocHostRows}
             />

@@ -24,7 +24,8 @@ export class SetLeagueTeamForfeitedCommand {
   constructor(
     public readonly eventId: string,
     public readonly divisionId: string,
-    public readonly teamId: string,
+    /** The team's `event_team_entries.id` (ADR 0034). */
+    public readonly entryId: string,
     public readonly requesterId: string,
     /** `true` marks forfeited at `new Date()`; `false` clears the flag. */
     public readonly forfeited: boolean,
@@ -49,10 +50,6 @@ export class SetLeagueTeamForfeitedHandler {
     const division = evt.divisions.find((d) => String(d.id) === cmd.divisionId);
     if (!division) throw new NotFoundError('division', cmd.divisionId);
 
-    await this.events.setRosterTeamForfeited(
-      cmd.divisionId,
-      cmd.teamId,
-      cmd.forfeited ? new Date() : null,
-    );
+    await this.events.setLeagueEntryForfeited(cmd.entryId, cmd.forfeited ? new Date() : null);
   }
 }

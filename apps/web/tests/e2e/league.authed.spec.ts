@@ -60,8 +60,8 @@ test.describe('league — host builds the schedule and records a result (C2)', (
       const when = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
       await page.locator('input[name="week"]').fill('1');
       await page.locator('input[name="scheduledAt"]').fill(when);
-      await page.locator('select[name="homeTeamId"]').selectOption(fx.teams[0]!.id);
-      await page.locator('select[name="awayTeamId"]').selectOption(fx.teams[1]!.id);
+      await page.locator('select[name="homeEntryId"]').selectOption(fx.teams[0]!.entryId);
+      await page.locator('select[name="awayEntryId"]').selectOption(fx.teams[1]!.entryId);
       await page.getByRole('button', { name: /^add match$/i }).click();
       await page.waitForURL(/notice=added/, { timeout: 15_000 });
 
@@ -123,8 +123,8 @@ test.describe('league — the schedule is host-only (C2)', () => {
       await page.goto(`/events/${fx.eventId}/schedule`);
       const when = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
       await page.locator('input[name="scheduledAt"]').fill(when);
-      await page.locator('select[name="homeTeamId"]').selectOption(fx.teams[0]!.id);
-      await page.locator('select[name="awayTeamId"]').selectOption(fx.teams[1]!.id);
+      await page.locator('select[name="homeEntryId"]').selectOption(fx.teams[0]!.entryId);
+      await page.locator('select[name="awayEntryId"]').selectOption(fx.teams[1]!.entryId);
       await page.getByRole('button', { name: /^add match$/i }).click();
       await page.waitForURL(/notice=added/, { timeout: 15_000 });
 

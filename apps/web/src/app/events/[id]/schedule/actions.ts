@@ -87,7 +87,7 @@ function parseStatus(raw: string | undefined): LeagueMatchStatus | undefined {
   }
 }
 
-function teamId(formData: FormData, name: string): string | null {
+function entryId(formData: FormData, name: string): string | null {
   const v = fieldOrUndefined(formData, name);
   return v && v !== 'tbd' ? v : null;
 }
@@ -97,8 +97,8 @@ function matchInputFromForm(formData: FormData):
       weekNumber: number;
       scheduledAt: Date;
       courtLabel: string | null;
-      homeTeamId: string | null;
-      awayTeamId: string | null;
+      homeEntryId: string | null;
+      awayEntryId: string | null;
       notes: string | null;
       status?: LeagueMatchStatus;
     }
@@ -112,8 +112,8 @@ function matchInputFromForm(formData: FormData):
     weekNumber: week,
     scheduledAt,
     courtLabel: fieldOrUndefined(formData, 'courtLabel') ?? null,
-    homeTeamId: teamId(formData, 'homeTeamId'),
-    awayTeamId: teamId(formData, 'awayTeamId'),
+    homeEntryId: entryId(formData, 'homeEntryId'),
+    awayEntryId: entryId(formData, 'awayEntryId'),
     notes: fieldOrUndefined(formData, 'notes') ?? null,
     ...(status !== undefined ? { status } : {}),
   };

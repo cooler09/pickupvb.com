@@ -29,7 +29,7 @@ import {
   type LeagueScheduleMatchId,
   type LeagueScheduleRepository,
   type RecordLeagueMatchResultInput,
-  type TeamId,
+  type EntryId,
   type UserId,
 } from '@pickupvb/domain';
 import {
@@ -51,8 +51,8 @@ const LOCATION = Location.create({
 
 const HOST = 'host' as UserId;
 const DIVISION_ID = 'div-league-1' as DivisionId;
-const TEAM_A = 'team-a' as TeamId;
-const TEAM_B = 'team-b' as TeamId;
+const TEAM_A = 'team-a' as EntryId;
+const TEAM_B = 'team-b' as EntryId;
 
 const SEASON_START = new Date('2026-09-01T00:00:00Z');
 const SEASON_END = new Date('2026-12-15T23:59:59Z');
@@ -167,8 +167,8 @@ class InMemoryScheduleRepo implements LeagueScheduleRepository {
         weekNumber: existing.weekNumber,
         scheduledAt: existing.scheduledAt,
         courtLabel: existing.courtLabel,
-        homeTeamId: existing.homeTeamId,
-        awayTeamId: existing.awayTeamId,
+        homeEntryId: existing.homeEntryId,
+        awayEntryId: existing.awayEntryId,
         homeScore: input.homeScore,
         awayScore: input.awayScore,
         status: input.status,
@@ -193,8 +193,8 @@ function scheduleWithMatch(): { schedule: LeagueSchedule; matchId: LeagueSchedul
         weekNumber: 1,
         scheduledAt: MATCH_TIME,
         courtLabel: 'Court 1',
-        homeTeamId: TEAM_A,
-        awayTeamId: TEAM_B,
+        homeEntryId: TEAM_A,
+        awayEntryId: TEAM_B,
         homeScore: null,
         awayScore: null,
         status: LeagueMatchStatus.Scheduled,
@@ -231,8 +231,8 @@ describe('AddLeagueScheduleMatchHandler', () => {
       match: {
         weekNumber: 1,
         scheduledAt: MATCH_TIME,
-        homeTeamId: String(TEAM_A),
-        awayTeamId: String(TEAM_B),
+        homeEntryId: String(TEAM_A),
+        awayEntryId: String(TEAM_B),
         courtLabel: 'Court 1',
       },
     });
@@ -241,7 +241,7 @@ describe('AddLeagueScheduleMatchHandler', () => {
     expect(schedules.saveCount).toBe(1);
     const saved = await schedules.findByDivisionId(DIVISION_ID);
     expect(saved?.matches).toHaveLength(1);
-    expect(saved?.matches[0]?.homeTeamId).toBe(TEAM_A);
+    expect(saved?.matches[0]?.homeEntryId).toBe(TEAM_A);
   });
 
   it('rejects non-host requesters', async () => {
@@ -330,8 +330,8 @@ describe('UpdateLeagueScheduleMatchHandler', () => {
           weekNumber: m.weekNumber,
           scheduledAt: m.scheduledAt,
           courtLabel: m.courtLabel,
-          homeTeamId: m.homeTeamId,
-          awayTeamId: m.awayTeamId,
+          homeEntryId: m.homeEntryId,
+          awayEntryId: m.awayEntryId,
           homeScore: 21,
           awayScore: 18,
           status: LeagueMatchStatus.Completed,
@@ -354,8 +354,8 @@ describe('UpdateLeagueScheduleMatchHandler', () => {
         weekNumber: 2,
         scheduledAt: new Date('2026-09-15T19:00:00Z'),
         courtLabel: 'Court 2',
-        homeTeamId: String(TEAM_A),
-        awayTeamId: String(TEAM_B),
+        homeEntryId: String(TEAM_A),
+        awayEntryId: String(TEAM_B),
         status: LeagueMatchStatus.Completed,
       },
     });
@@ -385,8 +385,8 @@ describe('UpdateLeagueScheduleMatchHandler', () => {
       match: {
         weekNumber: 1,
         scheduledAt: MATCH_TIME,
-        homeTeamId: String(TEAM_A),
-        awayTeamId: String(TEAM_B),
+        homeEntryId: String(TEAM_A),
+        awayEntryId: String(TEAM_B),
         homeScore: 25,
         awayScore: 22,
         status: LeagueMatchStatus.Completed,

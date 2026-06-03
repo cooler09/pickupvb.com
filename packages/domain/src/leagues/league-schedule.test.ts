@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DivisionId } from '../events/division.js';
-import type { TeamId } from '../events/volleyball-event.js';
+import type { EntryId } from '../brackets/match.js';
 import { ConflictError, InvariantViolation, NotFoundError } from '../shared/result.js';
 import {
   LeagueMatchStatus,
@@ -12,8 +12,8 @@ import {
 } from './league-schedule.js';
 
 const DIVISION_ID = 'div-1' as DivisionId;
-const TEAM_A = 'team-a' as TeamId;
-const TEAM_B = 'team-b' as TeamId;
+const TEAM_A = 'team-a' as EntryId;
+const TEAM_B = 'team-b' as EntryId;
 
 const WINDOW: EventWindow = {
   startsAt: new Date('2026-09-01T00:00:00Z'),
@@ -25,8 +25,8 @@ function makeMatch(
   overrides: Partial<{
     weekNumber: number;
     scheduledAt: Date;
-    homeTeamId: TeamId | null;
-    awayTeamId: TeamId | null;
+    homeEntryId: EntryId | null;
+    awayEntryId: EntryId | null;
     homeScore: number | null;
     awayScore: number | null;
     status: LeagueMatchStatus;
@@ -39,8 +39,8 @@ function makeMatch(
     weekNumber: overrides.weekNumber ?? 1,
     scheduledAt: overrides.scheduledAt ?? new Date('2026-09-08T19:00:00Z'),
     courtLabel: overrides.courtLabel ?? null,
-    homeTeamId: overrides.homeTeamId === undefined ? TEAM_A : overrides.homeTeamId,
-    awayTeamId: overrides.awayTeamId === undefined ? TEAM_B : overrides.awayTeamId,
+    homeEntryId: overrides.homeEntryId === undefined ? TEAM_A : overrides.homeEntryId,
+    awayEntryId: overrides.awayEntryId === undefined ? TEAM_B : overrides.awayEntryId,
     homeScore: overrides.homeScore ?? null,
     awayScore: overrides.awayScore ?? null,
     status: overrides.status ?? LeagueMatchStatus.Scheduled,
@@ -64,15 +64,15 @@ describe('LeagueScheduleMatch invariants', () => {
   });
 
   it('rejects same home and away team', () => {
-    expect(() => makeMatch('m-1', { homeTeamId: TEAM_A, awayTeamId: TEAM_A })).toThrow(
+    expect(() => makeMatch('m-1', { homeEntryId: TEAM_A, awayEntryId: TEAM_A })).toThrow(
       InvariantViolation,
     );
   });
 
   it('allows both teams null (placeholder slot)', () => {
-    const m = makeMatch('m-1', { homeTeamId: null, awayTeamId: null });
-    expect(m.homeTeamId).toBeNull();
-    expect(m.awayTeamId).toBeNull();
+    const m = makeMatch('m-1', { homeEntryId: null, awayEntryId: null });
+    expect(m.homeEntryId).toBeNull();
+    expect(m.awayEntryId).toBeNull();
   });
 
   it('rejects negative scores', () => {

@@ -125,10 +125,10 @@ export function SetupView(props: {
                   : primaryButtonClass('sm')
               }
             >
-              {standalone ? '+ Add teams' : '+ Add walk-in teams'}
+              + Add teams
             </button>
           )}
-          title={standalone ? 'Add teams' : 'Add walk-in teams'}
+          title="Add teams"
           description={
             standalone
               ? 'Type in the team names competing in this bracket — one at a time, or switch to “Paste a list” to add a whole roster at once. The modal stays open so you can keep adding.'

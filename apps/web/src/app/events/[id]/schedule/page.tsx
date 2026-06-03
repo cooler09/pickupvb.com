@@ -106,13 +106,11 @@ export default async function SchedulePage(props: {
       selectedDivision.id as DivisionId,
     ),
   ]);
-  // League schedule writes home/away into `league_schedule_matches.home_team_id`
-  // / `away_team_id`, which FK into `teams.id`. Filter out any non-roster
-  // entries (no persistent `teams.id`) before passing to the schedule UI.
-  // For league events the leagues invariant in `assertRegistrationConfigValid`
-  // already forbids ad-hoc / walk-in entries, so this filter is a belt-and-
-  // suspenders guard rather than a regular pruning step.
-  const teams = allEntries.flatMap((t) => (t.teamId ? [{ teamId: t.teamId, name: t.name }] : []));
+  // ADR 0034: league matches key on `event_team_entries.id` (home_entry_id /
+  // away_entry_id), so every live entry is schedulable — both rostered teams
+  // and host-added (team-less `walk_in`) teams. The entry id is the competitor
+  // identity.
+  const teams = allEntries.map((t) => ({ entryId: t.entryId, name: t.name }));
 
   const returnPath = `/events/${event.id}/schedule?division=${selectedDivision.id}`;
   // ADR 0023: live scoreboard scoring is a Pro-host perk (re-checked server-side
@@ -125,8 +123,8 @@ export default async function SchedulePage(props: {
     weekNumber: m.weekNumber,
     scheduledAt: m.scheduledAt.toISOString(),
     courtLabel: m.courtLabel,
-    homeTeamId: m.homeTeamId ? String(m.homeTeamId) : null,
-    awayTeamId: m.awayTeamId ? String(m.awayTeamId) : null,
+    homeEntryId: m.homeEntryId ? String(m.homeEntryId) : null,
+    awayEntryId: m.awayEntryId ? String(m.awayEntryId) : null,
     homeScore: m.homeScore,
     awayScore: m.awayScore,
     status: m.status,
