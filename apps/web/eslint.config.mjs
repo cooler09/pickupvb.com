@@ -121,6 +121,22 @@ const config = [
           message:
             "Don't hand-roll a filled primary button with `bg-primary … hover:opacity-90` in a template literal. Use primaryButtonClass(size) from '@/components/primary-button'. See docs/audits/persona-ux.md CC-6.",
         },
+        // Table-header scope ratchet (docs/audits/accessibility.md 2026-06-02
+        // A1). The original 2026-05-17 P1 added `scope="col"` to the receipts /
+        // earnings / pricing tables, but the fix was per-table and nothing
+        // guarded it — three *new* tables (standings tool, billing/analytics,
+        // about/numbers) shipped headers with no `scope`, re-opening the same
+        // 1.3.1 gap. This forbids a `<th>` with no `scope` attribute so every
+        // header cell must declare `scope="col"` (column header) or
+        // `scope="row"` (row header), and the regression can't silently recur.
+        // A genuinely header-less cell in a header row should be a `<td>`, or
+        // opt out with an `eslint-disable-next-line` + reason. (Spread-only
+        // attributes — `<th {...props}>` — would also trip this; none exist.)
+        {
+          selector: "JSXOpeningElement[name.name='th']:not(:has(JSXAttribute[name.name='scope']))",
+          message:
+            'Every <th> needs an explicit scope ("col" for a column header, "row" for a row header) so screen readers associate data cells with their headers. Regression guard for the original accessibility P1 — see docs/audits/accessibility.md 2026-06-02 A1.',
+        },
       ],
     },
   },

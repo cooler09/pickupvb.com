@@ -1,5 +1,18 @@
 # Accessibility audit — 2026-05-17
 
+> **Status update (2026-06-02, re-audit — new-surface sweep):** The
+> 2026-05-17 audit and its 2026-05-23 remediations (Bundles 41–50) closed
+> every P1/P2/P3 finding, but a large slab of new UI has shipped since
+> (chat / `ConversationView`, live match scoring + the scoreboard &
+> standings tools, the bracket format picker, the auth sign-in/up tabs,
+> the billing-analytics + about/numbers pages). This pass static-reviews
+> that new surface against the same WCAG 2.1 AA bar and opens **5 P2 + 4
+> P3**. Headline: **`scope="col"` regressed** — three new tables ship
+> column headers with no `scope`, exactly the original P1 pattern, because
+> nothing lints it. Full write-up in
+> **[2026-06-02 re-audit findings](#2026-06-02-re-audit--new-surface-findings)**
+> below; the 2026-05-17 findings above remain resolved.
+
 > **Status (2026-05-17):** Quick-win bundle landed. P1 #1 (map aria-label + address fallback), #2 (notification popover Escape — already in place), #3 partial (mobile menu Escape + return-focus; full focus trap deferred), #4 (table `scope="col"`), and P2 #1 (tap targets), #5 (focus rings) are ✅. Rest open. See **Remediation log** and **Still open** below.
 
 > **Status update (2026-05-22):** No new accessibility shipments or
@@ -233,10 +246,226 @@ Static review (no screen reader, AT, or keyboard runtime testing) of the Next.js
 
 ---
 
+## 2026-06-02 re-audit — new-surface findings
+
+Static review (Tailwind-class + JSX inspection; no AT/keyboard runtime
+testing) of the UI shipped **after** the 2026-05-23 close-out: chat
+(`ConversationView`), live match scoring + the `/tools/scoreboard` and
+`/tools/standings` tools, the bracket format picker, the auth sign-in/up
+tabs, and the new `billing/analytics` + `about/numbers` data tables. Same
+WCAG 2.1 AA / Section 508 bar. Grading per the
+[audits rubric](README.md) (P1 ship-blocking, P2 next-sprint, P3
+nice-to-have).
+
+### P2 findings
+
+#### A1. `scope="col"` regressed on three new tables (repeat of the original P1) ✅ (2026-06-03)
+
+- **Where:**
+  [apps/web/src/app/tools/standings/\_components/standings-board.tsx#L99-L108](../../apps/web/src/app/tools/standings/_components/standings-board.tsx#L99-L108)
+  (7 column `<th>`, 0 `scope`);
+  [apps/web/src/app/profile/billing/analytics/page.tsx#L235-L274](../../apps/web/src/app/profile/billing/analytics/page.tsx#L235-L274)
+  (two tables, 8 column `<th>`, 0 `scope`);
+  [apps/web/src/app/about/numbers/page.tsx#L160-L165](../../apps/web/src/app/about/numbers/page.tsx#L160-L165)
+  (4 column `<th>`, 0 `scope`).
+- **Issue:** Every `<th>` in these `<thead>` rows is missing `scope="col"`.
+  Screen readers cannot reliably associate data cells with their headers —
+  the exact pattern the 2026-05-17 P1 fixed in receipts/earnings/pricing.
+  It reappeared because the fix was per-table and **nothing lints it**, so
+  each new table re-introduces the gap.
+- **WCAG:** 1.3.1 Info and Relationships
+- **Fix:** Add `scope="col"` to each column header. The empty action-column
+  `<th aria-label="Remove" />` in `standings-board.tsx#L108` needs no scope
+  (it labels a control column, not a data column) — leave it. **Then close
+  the loop:** add a `no-restricted-syntax` ESLint rule (or a tiny custom
+  rule) flagging a `<th>` inside `<thead>` without a `scope` attribute, same
+  ratchet-behind-fix strategy used for the CTA/field vocabularies
+  (AGENTS.md §11) and the M3 shape lock — otherwise table #N+1 regresses
+  again.
+
+#### A2. Auth sign-in / sign-up segmented toggle exposes no selected state
+
+- **Where:**
+  [apps/web/src/app/login/\_components/auth-mode-tabs.tsx#L16-L37](../../apps/web/src/app/login/_components/auth-mode-tabs.tsx#L16-L37)
+- **Issue:** The two `<button>`s switch between the sign-in and sign-up
+  forms, but the active mode is conveyed **only** by `bg-primary` styling.
+  No `aria-pressed`, no `role="tab"`/`aria-selected` — a screen-reader user
+  cannot tell which mode is selected, and the buttons announce identically.
+  This is the entry control to the whole auth flow.
+- **WCAG:** 4.1.2 Name, Role, Value
+- **Fix:** Minimal — make them toggle buttons: add
+  `aria-pressed={!signUp}` / `aria-pressed={signUp}` to the two buttons.
+  (A fuller `role="tablist"` + `role="tab"` + `aria-selected` +
+  `aria-controls` to a `tabpanel` is also valid but heavier; the existing
+  follow toggles already standardize on the `aria-pressed` shape —
+  [players-follow.tsx](../../apps/web/src/app/players/_components/players-follow.tsx),
+  [groups-follow.tsx](../../apps/web/src/app/groups/_components/groups-follow.tsx)
+  — so match those.)
+
+#### A3. Scoreboard modals have no Escape / focus-trap / return-focus / label
+
+- **Where:**
+  [apps/web/src/app/tools/scoreboard/[code]/\_components/scoreboard-view.tsx#L559-L617](../../apps/web/src/app/tools/scoreboard/[code]/_components/scoreboard-view.tsx#L559-L617)
+  (`ShareModal`) and
+  [#L522-L557](../../apps/web/src/app/tools/scoreboard/[code]/_components/scoreboard-view.tsx#L522-L557)
+  (`WinnerOverlay`).
+- **Issue:** `ShareModal` sets `role="dialog" aria-modal="true"` and closes
+  on backdrop click, but: (1) no Escape-to-close — keyboard-only users
+  can't dismiss it without tabbing to the Close button; (2) no focus trap,
+  so Tab leaks to the scoreboard behind it; (3) focus is neither moved into
+  the dialog on open nor returned to the "Remote link" trigger on close;
+  (4) the `<h2>` "Remote control link" is not wired via `aria-labelledby`,
+  so the dialog has no accessible name. `WinnerOverlay` is a full-screen
+  modal (covers the board, owns the Rematch/New-game actions) with **no**
+  `role="dialog"`/`aria-modal` and no focus move — when a match ends, an AT
+  user gets no announcement and no focus change.
+- **WCAG:** 2.1.1 Keyboard, 2.4.3 Focus Order, 4.1.2 Name/Role/Value
+- **Fix:** This is the Bundle-6 Radix-Dialog target (AGENTS.md "UI
+  primitives — Radix UI"): once `@radix-ui/react-dialog` lands, migrate both
+  overlays to it (free Escape + focus trap + return-focus + labelling).
+  Interim hand-roll: add an Escape `keydown` handler, an
+  `aria-labelledby` on the dialog pointing at the `<h2>` id, focus the
+  dialog (or first button) on open, and `triggerRef.current?.focus()` on
+  close — the same pattern `datetime-picker.tsx` already uses (Bundle 42).
+  Give `WinnerOverlay` `role="dialog" aria-modal="true"` + an
+  `aria-label`/labelled heading and focus it on win.
+
+#### A4. Scoreboard score button strips its focus indicator
+
+- **Where:**
+  [apps/web/src/app/tools/scoreboard/[code]/\_components/scoreboard-view.tsx#L341-L346](../../apps/web/src/app/tools/scoreboard/[code]/_components/scoreboard-view.tsx#L341-L346)
+- **Issue:** The full-panel "Add point to {team}" button — the primary
+  scoring control — sets `focus:outline-none` with **no** `focus-visible`
+  replacement. A keyboard / switch user tabbing through the scoreboard gets
+  zero visible indication of which side is focused before they activate it.
+- **WCAG:** 2.4.7 Focus Visible
+- **Fix:** Add a `focus-visible:` ring that reads against both the black
+  and white scoreboard themes, e.g. `focus-visible:outline-none
+focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-current/40`
+  (the button already inherits the theme `currentColor`). Same gap, lower
+  stakes, on the readonly copy input at
+  [share-link.tsx#L114](../../apps/web/src/components/share-link.tsx#L114)
+  (`outline-none` + only `focus:border-primary`) — see P3 B4.
+
+#### A5. Chat live message log isn't announced; send errors aren't a live region
+
+- **Where:**
+  [apps/web/src/components/conversation-view.tsx#L392-L396](../../apps/web/src/components/conversation-view.tsx#L392-L396)
+  (scrolling message list) and
+  [#L593](../../apps/web/src/components/conversation-view.tsx#L593)
+  (`{error && <p className="text-xs text-red-600">{error}</p>}`).
+- **Issue:** Messages arriving over the `chat:{id}` Broadcast topic are
+  appended to a plain `<div>` with no `role="log"` / `aria-live`, so a
+  screen-reader user in the thread hears nothing when a new message lands.
+  Separately, when a send fails the error `<p>` is injected with no
+  `role="alert"`/`aria-live`, so the failure is silent to AT (the user
+  thinks the message sent).
+- **WCAG:** 4.1.3 Status Messages
+- **Fix:** Put `role="log" aria-live="polite" aria-relevant="additions"`
+  on the message-list container (polite, not assertive — a busy team room
+  shouldn't interrupt). Wrap the send-error `<p>` in `role="alert"` (or
+  give it `aria-live="assertive"`). The toast system already models the
+  foreground/background `aria-live` policy
+  ([toast.tsx](../../apps/web/src/components/toast.tsx)) if a toast is
+  preferred over inline text for the error.
+
+### P3 findings
+
+#### B1. Live in-place score updates are not announced
+
+- **Where:**
+  [apps/web/src/app/events/[id]/\_components/live-score.tsx#L17-L33](../../apps/web/src/app/events/[id]/_components/live-score.tsx#L17-L33)
+- **Issue:** The `LiveScore` badge re-renders the rally score as the
+  scoreboard broadcasts changes, but has no `aria-live`, so AT users on a
+  bracket/standings page don't hear score progress. Lower priority — it's
+  ambient secondary info, and a per-point `aria-live` could be noisy.
+- **WCAG:** 4.1.3 Status Messages
+- **Fix:** If announcing, add `aria-live="polite"` to the score `<span>` and
+  give the row an `aria-label` like `"{teamA} {scoreA}, {teamB} {scoreB},
+live"` so the whole state reads as one utterance rather than digit-by-digit.
+  Acceptable to defer — document as intentional if so.
+
+#### B2. Timeframe "tabs" use `role="tab"` on navigation links
+
+- **Where:**
+  [apps/web/src/app/events/\_components/event-timeframe-tabs.tsx#L26-L69](../../apps/web/src/app/events/_components/event-timeframe-tabs.tsx#L26-L69)
+- **Issue:** `role="tablist"` + `<Link role="tab" aria-selected>` is applied
+  to plain navigation links (each switches the whole page URL). The ARIA tab
+  pattern implies arrow-key roving focus + an `aria-controls`'d `tabpanel`,
+  none of which exist here, so AT users get a tab affordance that doesn't
+  behave like tabs. (Links are still keyboard-reachable, so this is a
+  semantics mismatch, not a hard block.)
+- **WCAG:** 4.1.2 Name, Role, Value
+- **Fix:** Prefer the navigation idiom: drop `role="tablist"`/`role="tab"`,
+  wrap in `<nav aria-label="Event timeframe">`, and mark the active link
+  with `aria-current="page"`. Keeps the look, drops the false tab contract.
+
+#### B3. No accessibility-statement page (promoted from open question)
+
+- **Where:** site-wide — no `/accessibility` route exists; the footer links
+  none.
+- **Issue:** 508 / public-accommodation contexts commonly expect a published
+  accessibility statement (conformance target, known gaps, contact path).
+- **WCAG:** organizational (not a success criterion) but a 508 expectation.
+- **Fix:** Add a static `/accessibility` page (conformance goal = WCAG 2.1
+  AA, last-reviewed date, a feedback email) and link it from the footer
+  alongside the existing legal links.
+
+#### B4. Readonly copy input has a weak (color-only) focus indicator
+
+- **Where:**
+  [apps/web/src/components/share-link.tsx#L114](../../apps/web/src/components/share-link.tsx#L114)
+- **Issue:** `outline-none` with only `focus:border-primary` — a border
+  hue change can fall below 3:1 against the adjacent fill and is easy to
+  miss. Minor (it's a copy field), grouped with A4.
+- **WCAG:** 2.4.7 Focus Visible, 1.4.11 Non-text Contrast
+- **Fix:** Use the standardized `focus-visible:ring-2
+focus-visible:ring-offset-2 focus-visible:ring-primary` (or the shared
+  `fieldInputClass` from
+  [field-styles.ts](../../apps/web/src/components/field-styles.ts)).
+
+### Open questions — status this pass
+
+- **Shared `Combobox` primitive** (user-picker + address-autocomplete): still
+  open. Both work post-Bundle-43 but duplicate the WAI-ARIA combobox wiring;
+  consolidation remains the right long-term move.
+- **End-to-end AT testing** (VoiceOver/NVDA on RSVP + Pro-checkout, and now
+  the chat + live-scoring flows): still not done. Static review cannot judge
+  announcement quality — the chat `role="log"` choice (A5) in particular
+  wants a real VoiceOver pass.
+- **Accessibility statement:** promoted to a tracked P3 (B3 above).
+- **Contrast tokens — spot-checked this pass:** `--tw-color-muted`
+  (`#555F60` light / `#9FBFBE` dark) on the app background computes to
+  ~**6.2:1** (light) and ~**8.9:1** (dark) — passes 4.5:1, so the pervasive
+  `text-muted` is fine. The opacity-derived ramp is the watch item:
+  `text-fg/70`/`/80` stay ≥ ~5:1, but **`text-fg/60` lands at ~4.3:1** on
+  `bg-bg` (just under AA for normal text) — avoid it for body copy; reserve
+  for ≥ 18.66px/bold. A full Stark/axe sweep is still the way to confirm the
+  long tail.
+
+### Verified good (new surface)
+
+- **Bracket format picker** ([format-picker-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx))
+  — exemplary: real `<fieldset>`/`<legend>`, native `<input type="radio">`
+  (sr-only) inside `<label>`, `role="radiogroup"` + `aria-label`, decorative
+  SVGs `aria-hidden`, the under-fill warning in `role="alert"`. Model for
+  other card-pickers.
+- **Chat composer affordances** — the attach-image and remove-attachment
+  icon buttons carry `aria-label`, the textarea has `aria-label="Message"`,
+  and the file input is correctly hidden-but-labelled. (Only the live
+  region / error announce is missing — A5.)
+- **Heading structure** on the new pages (`/tools/*`, `/brackets/*`,
+  `/messages/*`) — 16 `h1` / 16 `h2` / 6 `h3`, no skips observed.
+- **No raw `<img>`** in the new surfaces except the chat composer's local
+  object-URL preview, which is correctly `alt`'d and eslint-annotated.
+
+---
+
 ## Remediation log
 
 | Date       | Finding                                                           | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Files                                                                                                                                                                                                                                                                                                                                                                          |
 | ---------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 2026-06-03 | P2 (A1): `scope="col"` regressed on three new tables              | Re-audit A1 — added `scope="col"` to every column `<th>` in the standings tool (7 data headers + the empty "Remove" action column, which gains `scope="col"` + its existing `aria-label`), both billing-analytics tables (Monthly + Recent events, 4 each), and the about/numbers "By city" table (4). **Closed the regression loop with a lint ratchet:** new `no-restricted-syntax` rule `JSXOpeningElement[name.name='th']:not(:has(JSXAttribute[name.name='scope']))` in [eslint.config.mjs](../../apps/web/eslint.config.mjs) now errors on any `<th>` with no `scope` — verified it fires (temporarily stripped one scope → 1 lint error) so it's not a no-op. All existing tables (receipts, earnings, pricing, board-view) already complied. `pnpm typecheck && lint && test && build` green (214 tests).                                                                                                                                                                                                                                                                                                                                                    | [standings-board.tsx](../../apps/web/src/app/tools/standings/_components/standings-board.tsx), [billing/analytics/page.tsx](../../apps/web/src/app/profile/billing/analytics/page.tsx), [about/numbers/page.tsx](../../apps/web/src/app/about/numbers/page.tsx), [eslint.config.mjs](../../apps/web/eslint.config.mjs)                                                         |
 | 2026-05-23 | P3: Placeholder-as-label + icon-only hit-areas + heading sweep    | Bundle 50 — closes the P3 cluster. **Placeholder-as-label:** the only `DateTimePicker` callsite without a programmatic label was [event-advanced-details-panel.tsx](../../apps/web/src/components/event-advanced-details-panel.tsx#L121) (registration-close field) — added `htmlFor="registrationClosesAt"` on the `<label>` so SR users hear the field name on focus. All other `DateTimePicker` uses (community new/edit, event new/edit, all using `startsAt`/`endsAt`) already had matching `htmlFor`. `AddressAutocomplete` was verified-stale: it already carries `aria-label="Search for an address or venue"` from Bundle 43. **Icon-only hit-areas:** verified-stale — `alert.tsx` has no close button (the L66 `h-4 w-4` SVG is the decorative variant icon, `aria-hidden`); `mobile-menu.tsx` trigger is `h-11 w-11` since Bundle 2. **Heading sweep:** `grep -rn '<h[1-6]'` across `apps/web/src/app/**/page.tsx` returned 74 `h1` / 153 `h2` / 12 `h3` / zero `h4`-`h6` with no skips; the two pages without a local `h1` (`groups/[id]/page.tsx`, `events/[id]/page.tsx`) emit it from a `_components/` child (`group-header.tsx`, `event-hero.tsx`). | [event-advanced-details-panel.tsx](../../apps/web/src/components/event-advanced-details-panel.tsx)                                                                                                                                                                                                                                                                             |
 | 2026-05-23 | P2: Toast close button focus-ring contrast                        | Bundle 44 — replaced the inherited `focus:ring-current focus:ring-offset-transparent` on the toast close button with a per-variant `focus-visible` ring map (`VARIANT_RING_CLASSES`): error→red-700 / dark red-200, success→emerald-700 / dark emerald-200, warning→amber-800 / dark amber-200, info→primary. Each entry also pins `ring-offset-<variant-bg>` so the ring reads as a solid 2 px outline against the toast surface rather than bleeding into the page. Closes the last open P2 in the accessibility audit. See [Bundle 44 journal](../journal/2026-05-23-bundle-44.md).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | [toast.tsx](../../apps/web/src/components/toast.tsx)                                                                                                                                                                                                                                                                                                                           |
 | 2026-05-23 | P2: Combobox ARIA on address + user pickers                       | Bundle 43 — `UserPicker` migrated to the WAI-ARIA combobox pattern: `role="combobox"`, `aria-expanded`, `aria-controls`, `aria-autocomplete="list"`, `aria-activedescendant` keyed on a new `activeIdx`; arrow-key + Enter + Escape navigation; click-outside ref effect replacing the 120 ms blur timeout. Status (Searching… / No matches / N matches) moved into an `aria-live="polite"` sr-only region so the listbox contains only options. `AddressAutocomplete` already had `role="combobox"` + `aria-expanded` + listbox/option roles; added the missing `aria-activedescendant` and parity `aria-live` status region. See [Bundle 43 journal](../journal/2026-05-23-bundle-43.md).                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | [user-picker.tsx](../../apps/web/src/components/user-picker.tsx), [address-autocomplete.tsx](../../apps/web/src/components/address-autocomplete.tsx)                                                                                                                                                                                                                           |

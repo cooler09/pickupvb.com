@@ -98,14 +98,28 @@ export function StandingsBoard({ code }: { code: string }) {
           <table className="w-full text-sm">
             <thead className="bg-fg/5 text-muted text-xs tracking-wide uppercase">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">#</th>
-                <th className="px-3 py-2 text-left font-medium">Team</th>
-                <th className="px-2 py-2 text-right font-medium">W</th>
-                <th className="px-2 py-2 text-right font-medium">L</th>
-                <th className="hidden px-2 py-2 text-right font-medium sm:table-cell">PF</th>
-                <th className="hidden px-2 py-2 text-right font-medium sm:table-cell">PA</th>
-                <th className="px-3 py-2 text-right font-medium">Diff</th>
-                <th className="px-2 py-2" aria-label="Remove" />
+                <th scope="col" className="px-3 py-2 text-left font-medium">
+                  #
+                </th>
+                <th scope="col" className="px-3 py-2 text-left font-medium">
+                  Team
+                </th>
+                <th scope="col" className="px-2 py-2 text-right font-medium">
+                  W
+                </th>
+                <th scope="col" className="px-2 py-2 text-right font-medium">
+                  L
+                </th>
+                <th scope="col" className="hidden px-2 py-2 text-right font-medium sm:table-cell">
+                  PF
+                </th>
+                <th scope="col" className="hidden px-2 py-2 text-right font-medium sm:table-cell">
+                  PA
+                </th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">
+                  Diff
+                </th>
+                <th scope="col" className="px-2 py-2" aria-label="Remove" />
               </tr>
             </thead>
             <tbody className="divide-border-base divide-y">
