@@ -673,6 +673,56 @@ describe('VolleyballEvent league scaffolding (P1 #1)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// P1 #1 follow-up — captains register a team / sign up as a free agent into a
+// league (same roster path as tournaments; both event types share the
+// aggregate's registerTeam / joinAsFreeAgent). See the league create-flow +
+// public-signup bundle.
+// ---------------------------------------------------------------------------
+
+describe('VolleyballEvent league signup (P1 #1 follow-up)', () => {
+  const LEAGUE_DIV = 'league-div' as DivisionId;
+  function leagueDivision(allowFreeAgents = false): Division {
+    return Division.create({
+      id: LEAGUE_DIV,
+      sortOrder: 0,
+      label: 'Coed B',
+      surface: Surface.Indoor,
+      format: Format.Sixes,
+      gender: Gender.Coed,
+      skillTier: SkillTier.B,
+      teamComposition: TeamComposition.Team,
+      priceCents: 0,
+      priceUnit: PriceUnit.PerTeam,
+      teamRegistrationMode: TeamRegistrationMode.Roster,
+      allowFreeAgents,
+    });
+  }
+
+  it('registerTeam succeeds on a published league (captain season signup)', () => {
+    const evt = makeLeagueWith([leagueDivision()]);
+    evt.publish();
+    evt.registerTeam(TEAM_A, LEAGUE_DIV);
+    expect(evt.teams.has(TEAM_A)).toBe(true);
+    // Same aggregate entry the tournament path records, so save() persists the
+    // join into event_team_entries (source='roster') the schedule page reads.
+    expect(evt.teamEntries).toContainEqual([TEAM_A, LEAGUE_DIV]);
+  });
+
+  it('joinAsFreeAgent succeeds on a league division that allows free agents', () => {
+    const evt = makeLeagueWith([leagueDivision(true)]);
+    evt.publish();
+    evt.joinAsFreeAgent(ALICE, LEAGUE_DIV, null);
+    expect(evt.freeAgents.has(ALICE)).toBe(true);
+  });
+
+  it('joinAsFreeAgent rejects a league division that opts out of free agents', () => {
+    const evt = makeLeagueWith([leagueDivision(false)]);
+    evt.publish();
+    expect(() => evt.joinAsFreeAgent(ALICE, LEAGUE_DIV, null)).toThrow(InvariantViolation);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Step 4 — open-play invariant tightening (P1 #3 + P2 #5 + P2 #8).
 // See docs/audits/event-data-model.md.
 // ---------------------------------------------------------------------------

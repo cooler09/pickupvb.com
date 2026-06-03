@@ -54,11 +54,18 @@ type Props = {
   paymentsOffPlatform?: boolean;
   /** Result code from the server action, surfaced via `?team=` query param. */
   resultCode?: string | undefined;
+  /**
+   * Section heading / subheading overrides. Default to the tournament copy;
+   * leagues pass season-oriented wording. The registration mechanics are
+   * identical (roster team → division), so only the framing differs.
+   */
+  heading?: string;
+  subheading?: string;
 };
 
 const RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string }> = {
   registered: { tone: 'success', text: 'Your team is registered.' },
-  withdrawn: { tone: 'success', text: 'Team withdrawn from this tournament.' },
+  withdrawn: { tone: 'success', text: 'Team withdrawn from this event.' },
   already: { tone: 'error', text: 'That team is already registered.' },
   forbidden: { tone: 'error', text: 'Only the team captain can do that.' },
   closed: { tone: 'error', text: "This event isn't open for signups." },
@@ -86,6 +93,8 @@ export function TournamentSignupPanel({
   returnPath,
   paymentsOffPlatform = false,
   resultCode,
+  heading,
+  subheading,
 }: Props) {
   const eligibleTeams = viewerCaptainedTeams.filter((t) => !t.isRegistered);
   const registeredByViewer = viewerCaptainedTeams.filter((t) => t.isRegistered);
@@ -96,11 +105,12 @@ export function TournamentSignupPanel({
     <section className="border-border-base rounded-shape-sm space-y-4 border p-4">
       <header className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="text-fg text-lg font-semibold">Tournament teams</h2>
+          <h2 className="text-fg text-lg font-semibold">{heading ?? 'Tournament teams'}</h2>
           <p className="text-muted text-sm">
-            {eventFormat
-              ? `Sign up your ${FORMAT_LABEL[eventFormat] ?? eventFormat} team to compete.`
-              : 'Sign up your team to compete.'}
+            {subheading ??
+              (eventFormat
+                ? `Sign up your ${FORMAT_LABEL[eventFormat] ?? eventFormat} team to compete.`
+                : 'Sign up your team to compete.')}
           </p>
         </div>
         <Link href="/teams" className="text-primary text-sm hover:underline">

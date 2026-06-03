@@ -2345,6 +2345,34 @@ self-registration into a league (`EventSignupArea` has no league branch),
 a league discovery filter, external-league listings, and the season →
 playoff bracket handoff.
 
+### 2026-06-03 — P1 #1 follow-up: public team self-registration into a league ✅
+
+The create-flow bundle (above) left leagues creatable but with **no way to
+get a team in** — `EventSignupArea` had no league branch, and the host
+`LeagueTeamsPanel` is forfeit-only. So a new league's schedule / manage /
+roster surfaces were all permanently empty.
+
+**The fix.** Leagues are roster-only by invariant, and the aggregate's
+`registerTeam` → `save()` writes the same `event_team_entries`
+(`source='roster'`) rows the `/schedule` page already reads — so the
+existing tournament roster signup path transfers wholesale. Relaxed the
+domain guards on `VolleyballEvent.registerTeam` + `joinAsFreeAgent`
+(`Tournament` → `Tournament || League`), added a `league` branch to
+`EventSignupArea` reusing `TournamentSignupPanel` (with league copy via new
+optional `heading`/`subheading` props) + `FreeAgentSignupPanel`, and pointed
+the started/completed `EventClosedState` at `/schedule`. No new handler,
+port, table, or RLS — the application/infra/read-model stack was already
+type-agnostic. New domain tests cover league `registerTeam` /
+`joinAsFreeAgent`.
+
+**Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` green
+(482 domain incl. 3 new + 214 web tests; lint pre-existing warnings only).
+Narrative:
+[2026-06-03-bundle-league-public-signup.md](../journal/2026-06-03-bundle-league-public-signup.md).
+
+**Remaining league follow-ups:** discovery filter, external-league
+listings, season → playoff bracket handoff.
+
 ---
 
 ## Cross-references

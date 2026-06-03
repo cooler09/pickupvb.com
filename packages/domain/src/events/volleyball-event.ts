@@ -701,19 +701,20 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * Tournament signup. The team is registered into a specific division
-   * (ADR 0019) — the aggregate is the authority for "which team, which
-   * division," so `save()` can persist the join atomically without a
-   * side-channel.
+   * Tournament / league team signup. The team is registered into a specific
+   * division (ADR 0019) — the aggregate is the authority for "which team,
+   * which division," so `save()` can persist the join atomically without a
+   * side-channel. Leagues are roster-only by invariant (every division uses
+   * roster mode); the same registration path serves both event types.
    *
-   * @throws {InvariantViolation} if the event is not a Tournament, is not
-   *   Published, or has already started.
+   * @throws {InvariantViolation} if the event is not a Tournament or League,
+   *   is not Published, or has already started.
    * @throws {NotFoundError} if `divisionId` does not belong to this event.
    * @throws {ConflictError} if the team is already registered.
    */
   registerTeam(teamId: TeamId, divisionId: DivisionId): void {
-    if (this.type !== EventType.Tournament) {
-      throw new InvariantViolation('Open-play events require player signup.');
+    if (this.type !== EventType.Tournament && this.type !== EventType.League) {
+      throw new InvariantViolation('Only tournaments and leagues use team registration.');
     }
     if (this._status !== EventStatus.Published) {
       throw new InvariantViolation('Event is not open for signups.');
@@ -747,19 +748,20 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * Free-agent signup for a tournament. Lets a player advertise that
-   * they want to be picked up by a team that's short. Independent of
-   * team registration — a captain can be both.
+   * Free-agent signup for a tournament or league. Lets a player advertise
+   * that they want to be picked up by a team that's short. Independent of
+   * team registration — a captain can be both. Only divisions with
+   * `allowFreeAgents` accept signups.
    *
-   * @throws {InvariantViolation} if the event is not a Tournament, is not
-   *   Published, has already started, the division does not accept
+   * @throws {InvariantViolation} if the event is not a Tournament or League,
+   *   is not Published, has already started, the division does not accept
    *   free agents, or notes exceed 280 characters.
    * @throws {NotFoundError} if `divisionId` does not belong to this event.
    * @throws {ConflictError} if the user is already signed up as a free agent.
    */
   joinAsFreeAgent(userId: UserId, divisionId: DivisionId, notes: string | null): void {
-    if (this.type !== EventType.Tournament) {
-      throw new InvariantViolation('Free-agent signup is only for tournaments.');
+    if (this.type !== EventType.Tournament && this.type !== EventType.League) {
+      throw new InvariantViolation('Free-agent signup is only for tournaments and leagues.');
     }
     if (this._status !== EventStatus.Published) {
       throw new InvariantViolation('Event is not open for signups.');
