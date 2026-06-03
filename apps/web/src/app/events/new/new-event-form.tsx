@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import type { Suggestion } from '@/components/address-autocomplete';
 import { ErrorActionLink } from '@/components/error-action-link';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { createEventAction, type CreateEventState } from './actions';
 import { chk, SubmitButton, val, type CapacityKind } from './_components/form-primitives';
 import TemplatesSection from './_components/templates-section';
@@ -60,6 +61,7 @@ export default function NewEventForm({
   const values = state.values;
   const submitted = state.submitted;
   const formRef = useRef<HTMLFormElement>(null);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [type, setType] = useState<EventType>(
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
@@ -150,8 +152,10 @@ export default function NewEventForm({
     <form ref={formRef} action={formAction} className="space-y-6 pb-24">
       {state.error && (
         <div
+          ref={errorRef}
+          tabIndex={-1}
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
         >
           {state.error}
           <ErrorActionLink action={state.errorAction} />

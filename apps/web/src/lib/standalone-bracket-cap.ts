@@ -17,10 +17,11 @@ import { hasProBenefits } from './admin';
  */
 export const FREE_ACTIVE_BRACKET_CAP = 1;
 
+// The /brackets/new cap panel already renders an "Upgrade to Pro" button, so
+// this message must not repeat the raw URL — keep it prose-only.
 const CAP_MESSAGE =
   `Free hosts can run ${FREE_ACTIVE_BRACKET_CAP} standalone bracket at a time. ` +
-  `Finish or delete your current bracket, or upgrade to Pro at ` +
-  `/profile/billing/pro for unlimited brackets.`;
+  `Finish or delete your current bracket, or upgrade to Pro for unlimited brackets.`;
 
 /** Result of the cap check. `ok: false` carries a user-facing `reason`. */
 export type BracketCapResult = { ok: true } | { ok: false; reason: string };

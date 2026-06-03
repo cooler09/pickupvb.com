@@ -227,7 +227,7 @@ export async function editEventAction(
         const cap = await validateHostPaidEventCap(hostIdToCheck, {
           includesCurrentEvent: false,
         });
-        if (!cap.ok) return { error: cap.reason };
+        if (!cap.ok) return { error: cap.reason, errorAction: cap.cta };
       }
       const stripe = await requireHostChargesEnabled(hostIdToCheck);
       if (!stripe.ok) return { error: stripe.reason, errorAction: stripe.cta };

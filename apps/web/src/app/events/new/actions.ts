@@ -366,7 +366,7 @@ export async function createEventAction(
     const cap = await validateHostPaidEventCap(user.id, { includesCurrentEvent: true });
     if (!cap.ok) {
       await supabase.from('events').delete().eq('id', result.id);
-      return { ...snapshot(formData), error: cap.reason };
+      return { ...snapshot(formData), error: cap.reason, errorAction: cap.cta };
     }
     const stripe = await requireHostChargesEnabled(user.id);
     if (!stripe.ok) {
