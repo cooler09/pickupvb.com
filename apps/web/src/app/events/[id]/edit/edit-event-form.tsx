@@ -9,6 +9,7 @@ import AdvancedDetailsPanel, {
   type AdvancedDetailsInitial,
 } from '@/components/event-advanced-details-panel';
 import { Alert } from '@/components/alert';
+import { ErrorActionLink } from '@/components/error-action-link';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { primaryButtonClass } from '@/components/primary-button';
 import { inputClass, labelClass } from '../../new/_components/form-primitives';
@@ -136,7 +137,12 @@ export default function EditEventForm({
     <form action={formAction} className="space-y-8">
       <input type="hidden" name="eventId" value={eventId} />
 
-      {state.error && <Alert variant="error">{state.error}</Alert>}
+      {state.error && (
+        <Alert variant="error">
+          {state.error}
+          <ErrorActionLink action={state.errorAction} />
+        </Alert>
+      )}
 
       <fieldset className="space-y-4">
         <legend className="text-fg text-lg font-semibold">Basics</legend>

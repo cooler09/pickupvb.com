@@ -23,6 +23,8 @@ import { notify } from '@/lib/notify';
 
 export type EditEventState = {
   error?: string;
+  /** Optional "fix this" link rendered next to the error (e.g. finish Stripe setup). */
+  errorAction?: { href: string; label: string };
   fieldErrors?: Record<string, string>;
   ok?: boolean;
 };
@@ -228,7 +230,7 @@ export async function editEventAction(
         if (!cap.ok) return { error: cap.reason };
       }
       const stripe = await requireHostChargesEnabled(hostIdToCheck);
-      if (!stripe.ok) return { error: stripe.reason };
+      if (!stripe.ok) return { error: stripe.reason, errorAction: stripe.cta };
     }
   }
 

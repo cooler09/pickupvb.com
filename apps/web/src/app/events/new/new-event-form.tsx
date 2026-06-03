@@ -5,6 +5,7 @@ import { useFormState } from 'react-dom';
 import { useRef, useState } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import type { Suggestion } from '@/components/address-autocomplete';
+import { ErrorActionLink } from '@/components/error-action-link';
 import { createEventAction, type CreateEventState } from './actions';
 import { chk, SubmitButton, val, type CapacityKind } from './_components/form-primitives';
 import TemplatesSection from './_components/templates-section';
@@ -153,6 +154,7 @@ export default function NewEventForm({
           className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
         >
           {state.error}
+          <ErrorActionLink action={state.errorAction} />
         </div>
       )}
 

@@ -45,18 +45,33 @@ export async function mirrorStripeAccountUpdate(
   return repositories.hostStripeAccountRepo.updateStatusByAccountId(accountId, status);
 }
 
+/** Billing page where a host completes Stripe Connect onboarding. */
+export const HOST_BILLING_PATH = '/profile/billing';
+
+/**
+ * A "fix this" link the UI can render next to an error message so the
+ * viewer can resolve the blocker in one click (e.g. finish Stripe setup).
+ * Serialized into form-action state, so it stays a plain `{ href, label }`.
+ */
+export interface ErrorActionLink {
+  href: string;
+  label: string;
+}
+
 /**
  * "Can this host accept charges right now?" — pre-flight check used by
  * event create/edit flows before flipping an event into paid mode. Returns
- * a user-facing message when the host isn't ready.
+ * a user-facing message — plus a `cta` link to the billing page so the form
+ * can offer a one-click path to finish setup — when the host isn't ready.
  */
 export async function requireHostChargesEnabled(
   hostId: string,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+): Promise<{ ok: true } | { ok: false; reason: string; cta: ErrorActionLink }> {
   const accountId = await getHostStripeAccount(hostId);
   if (accountId) return { ok: true };
   return {
     ok: false,
-    reason: 'You need to finish Stripe setup at /profile/billing before charging for events.',
+    reason: 'You need to finish Stripe setup before you can charge for events.',
+    cta: { href: HOST_BILLING_PATH, label: 'Go to billing →' },
   };
 }

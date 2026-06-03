@@ -20,6 +20,8 @@ import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 
 export type CreateEventState = {
   error?: string;
+  /** Optional "fix this" link rendered next to the error (e.g. finish Stripe setup). */
+  errorAction?: { href: string; label: string };
   fieldErrors?: Record<string, string>;
   /** True once any submission has been attempted (success or failure). */
   submitted?: boolean;
@@ -371,7 +373,7 @@ export async function createEventAction(
       // Roll back the event so the host doesn't end up with a free
       // event they thought was paid.
       await supabase.from('events').delete().eq('id', result.id);
-      return { ...snapshot(formData), error: stripe.reason };
+      return { ...snapshot(formData), error: stripe.reason, errorAction: stripe.cta };
     }
     const refundWindowHours = parseRefundWindowHours(
       fieldOrUndefined(formData, 'refundWindowHours'),
