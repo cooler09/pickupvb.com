@@ -1,6 +1,39 @@
 # Tournament-tools workflow audit
 
-_Last updated: 2026-06-02_
+_Last updated: 2026-06-04_
+
+**Status update (2026-06-04) — two P1 bracket bugs surfaced by the persona
+e2e run** (`standalone-bracket`, `persona-sofia-tournament`). Both are real
+correctness bugs in the shipped bracket engine, not test drift. Fixes below;
+full narrative in
+[journal 2026-06-04](../journal/2026-06-04-bundle-persona-e2e-real-bugs.md).
+
+- **P1 TT-7 — every standalone bracket op 500s on a scope-XOR violation.**
+  `save_bracket()`'s header write (the 20260908000000 rewrite) is
+  `insert … on conflict (id) do update`. Postgres evaluates the
+  `event_brackets_scope_xor` CHECK on the **proposed insert tuple** before the
+  arbiter routes to DO UPDATE; for a standalone bracket that tuple is
+  `owner_user_id = NULL` + `division_id = NULL` → violation → the whole
+  create/seed/generate/record aborts. Event-scoped brackets (non-NULL
+  `division_id`) are unaffected. Reproduced against dev. **Fix:** migration
+  [20260912000000](../../supabase/migrations/20260912000000_fix_save_bracket_standalone_scope_xor.sql)
+  — header step rewritten as `update … ; if not found then insert` so no
+  NULL-owner tuple is ever CHECK-evaluated (signature + steps 2–4 unchanged).
+  Deploy-gated.
+- **P1 TT-8 — double elimination silently degenerates into single
+  elimination.** `Bracket.applyAdvancement`
+  ([bracket.ts](../../packages/domain/src/brackets/bracket.ts)) placed only the
+  **winner** into its next match — it ignored `loserAdvancesToMatchId` /
+  `loserAdvancesToSlot`, which the generator _does_ wire
+  ([generators.ts](../../packages/domain/src/brackets/generators.ts):369/:382).
+  So the losers bracket + grand final never received teams and stayed unplayable
+  (a 4-team DE played only the 3 winners-bracket matches). `unwireAdvancement`
+  had the mirror gap (never pulled a dropped loser back out on reset/re-record).
+  **Fix:** `applyAdvancement` drops the loser into its LB slot; `unwireAdvancement`
+  seeds its cascade with both edges (keyed `matchId:slot`). Single-elim /
+  pool-play unaffected (NULL loser edges). 2 domain tests added
+  ([bracket.test.ts](../../packages/domain/src/brackets/bracket.test.ts)).
+  Deploy-gated for the Sofia e2e; unit-verified now.
 
 Feature-scoped audit of the **tournament-running tool suite** — the host's
 divisions/bracket/schedule surfaces under `/events/[id]/*` and the standalone

@@ -645,6 +645,85 @@ it's instantly familiar.
 
 ## Remediation log
 
+### 2026-06-04 — Persona `test.fixme` graduation (rounds 1 & 2)
+
+Converted persona-spec `test.fixme` stubs into runnable specs where the
+underlying feature exists and is reachable by ≤ 2 accounts, and **documented the
+rest below** so the remaining stubs aren't silent. Author + static-verify only
+(playwright `--list` + a throwaway tsconfig including `tests/**`, since e2e is
+excluded from `pnpm typecheck`/`lint`); **not run against dev** this pass — the
+specs mirror already-green patterns to de-risk that.
+
+**Implemented (13 specs across 8 personas):**
+
+- **Diana** — add a Week-1 match + record score; forfeit/reinstate (re-homed the
+  proven `league.authed.spec.ts` flows; `createLeagueFixture` gained an optional
+  `hostEmail`).
+- **Hannah** — capacity-full boundary (capacity-1 event, a contender is blocked
+  with the `?rsvp=full` flash). `createFreeOpenPlayEvent` gained `maxSpots` +
+  `joinAsHost`.
+- **Sofia** — round-robin, double-elim, pool-play→playoff formats
+  (`createBracketToDraft`/`createAndGenerateBracket` gained `{ format }`,
+  `recordAllPlayableMatches`).
+- **Olivia** — follow/unfollow + self-friend invariant; `friends_of_host`
+  visibility scoping (new `_helpers/scoped-event.ts`; **surfaced a real
+  visibility leak**, fixed in the event-detail loader — see the
+  `event-detail-visibility-leak` memo).
+- **Zoe** — hide/unhide a community listing (new `_helpers/community.ts`).
+- **Priya** — RSVP into the libero slot; over-fill → "Waitlist" (the genuine
+  waitlist in this app; new `_helpers/positional-event.ts`).
+- **Steve** — co-host can reach the edit + manage pages; payouts route to the
+  primary host, never the co-host's earnings (new `_helpers/co-hosted-event.ts`).
+- **Tyler** — registers as a free agent in a division pool (reuses the league
+  fixture; `event_divisions.allow_free_agents` defaults true).
+
+Shared `resolveUserIdByEmail` promoted to `cleanup.ts`. New admin-client
+event fixtures (`scoped-event`, `positional-event`, `co-hosted-event`) each
+clone the league fixture's `events` insert — **follow-up: extract a shared
+`insertPublishedEvent(overrides)` to pay down that duplication.** Note the
+`events.position_roster` column is in the DB (migration `20260514000600`) but
+stale in the generated **events** type (carried only on `event_divisions`), so
+the positional fixture casts through a typed base.
+
+**Remaining persona `test.fixme` backlog (29).** Grouped by what's actually
+blocking each — most need a product decision, the Stripe fixture, or a second
+live actor, not just test code:
+
+| Persona | Fixme                                                            | Blocker                             | To graduate                                                                                                                                                                                    |
+| ------- | ---------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hannah  | auto-promote off the waitlist                                    | **Feature absent**                  | No capacity waitlist queue / promotion exists in the domain (only the position over-fill badge — `waitlist-not-implemented` memo). Build a queue + `LeaveEvent`→promote handler first.         |
+| Steve   | co-host can send a host broadcast                                | **RLS decision**                    | `broadcasts_insert_event_host` checks `events.host_id = auth.uid()` only — co-hosts are blocked. Extend the policy (+ the panel render gate) to `event_co_hosts` / host-group, then implement. |
+| Diana   | playoff bracket from final standings                             | **Feature absent**                  | No standings→bracket UI for leagues. Needs a "generate playoff from standings" surface.                                                                                                        |
+| Zoe     | escalate / de-escalate a user role                               | **Feature absent**                  | No admin user-management UI (only `/admin/community-import`). Build the page, then test.                                                                                                       |
+| Diana   | host-adds an account-less rostered team + mark paid off-platform | **Deploy/UI-gated**                 | Host-managed team registration (ADR 0033/0034) shipped but migration `20260910000000` may be unapplied on dev; confirm the league-division host-add surface is live, then drive it.            |
+| Mark    | sponsor logo (Pro add-on)                                        | **Pro-feature**                     | Verify the sponsor-upload add-on gating (no Stripe checkout if it's a Pro toggle); then a Pro host uploads a logo. Likely implementable once the gate is confirmed.                            |
+| Marcus  | buy ticket (4242) → attendee + receipt                           | **Stripe fixture**                  | Needs `_helpers/stripe.ts` + a Stripe-Connect/Pro host on dev. Cross-cutting versions live in `event-attendance.authed.spec.ts` (gated by `shouldSkipStripeTests`); re-home onto Marcus.       |
+| Marcus  | declined card rejected                                           | **Stripe fixture**                  | As above.                                                                                                                                                                                      |
+| Marcus  | leave a tip (0% platform fee)                                    | **Stripe fixture**                  | As above.                                                                                                                                                                                      |
+| Marcus  | refund window (auto vs host-manual)                              | **Stripe fixture**                  | As above; the "outside window" case also needs a `pickNearFutureDateTime` helper (see `event-attendance` § leave/refund).                                                                      |
+| Julie   | 2nd paid event in 30d blocked by the cap                         | **Stripe fixture**                  | Needs a real first paid event (Stripe) to arm the rolling-30d cap.                                                                                                                             |
+| Nina    | paid event publishes after Stripe onboarding                     | **Stripe fixture**                  | Needs completing Stripe Connect onboarding in-test.                                                                                                                                            |
+| Mark    | paid multi-division tournament + CSV export                      | **Stripe fixture**                  | CSV needs paid attendees (Stripe).                                                                                                                                                             |
+| Rachel  | Pro perks disappear after lapse                                  | **Stripe/subscription**             | Needs subscription-lifecycle control (lapse via `set-host-subscription.mjs` exists; pair with Stripe state).                                                                                   |
+| Rachel  | standalone-bracket cap → 1 after downgrade                       | **Stripe/subscription**             | As above.                                                                                                                                                                                      |
+| Rachel  | rolling-30d paid cap re-applies after downgrade                  | **Stripe/subscription**             | As above.                                                                                                                                                                                      |
+| Rachel  | cancelling a paid event doesn't free a slot                      | **Stripe/subscription**             | As above.                                                                                                                                                                                      |
+| Olivia  | `friends_of_attendees` event discovery                           | **Implementable next**              | Extend `_helpers/scoped-event.ts` with an `event_attendees` insert + attendee→viewer `friendships` edge (mirror `createFriendsOfHostEvent`).                                                   |
+| Zoe     | approve a community-listing claim                                | **Implementable next (multi-step)** | A claimant who HOSTS an upcoming event files a claim (`claimListing(listingId,user,eventId)`), Zoe approves. Ground the claim form's event picker.                                             |
+| Adam    | registers his team into a division (`division_id`)               | **Multi-actor / roster fixture**    | Needs Adam captaining a team + a roster-division tournament; drive `TournamentSignupPanel`.                                                                                                    |
+| Bianca  | registers Sand Sharks into a division (`division_id`)            | **Multi-actor / roster fixture**    | Same shape as Adam's.                                                                                                                                                                          |
+| Bianca  | picks up a free agent (Tyler) into the roster                    | **Multi-actor**                     | Captain assigns a free agent from the pool (2nd actor in the pool).                                                                                                                            |
+| Tyler   | picked up by a captain + roster notification                     | **Multi-actor**                     | Mirror of Bianca's pickup from Tyler's side; assert the notification.                                                                                                                          |
+| Adam    | invites a teammate; they accept                                  | **Already covered**                 | `teams.authed.spec.ts` "captain invites attendee-b, attendee-b accepts" — convert to a pointer.                                                                                                |
+| Bianca  | sends a team broadcast to the roster                             | **Already covered**                 | `teams.authed.spec.ts` "captain sends a broadcast after attendee-b joins" — convert to a pointer.                                                                                              |
+| Amy     | RSVPs to an open play and leaves                                 | **Intentional pointer**             | Owned by `events.authed.spec.ts`; deliberate dedup, not a gap.                                                                                                                                 |
+| Greg    | guest RSVP (anon, Turnstile-gated)                               | **Infra-hard (Turnstile)**          | Turnstile site key is domain-bound to dev; the challenge can't be automated from a normal browser context. Needs a Turnstile test-bypass key or a server seam.                                 |
+| Greg    | claim the guest account → real login                             | **Infra-hard (Turnstile)**          | Depends on the guest RSVP above.                                                                                                                                                               |
+| Hannah  | live spot count across 2 viewers (realtime)                      | **Deferred (realtime)**             | Belongs to the deferred Supabase-Realtime suite.                                                                                                                                               |
+
+Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-persona-e2e-suite.md),
+[2026-06-04-bundle-persona-e2e-fixmes](../journal/2026-06-04-bundle-persona-e2e-fixmes.md).
+
 ### 2026-05-31 — Standalone brackets (ADR 0025): create → seed → generate → record → watch
 
 - **New coverage for the post-audit standalone-bracket feature.** ADR 0025

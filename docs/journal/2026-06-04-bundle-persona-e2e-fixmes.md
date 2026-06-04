@@ -97,3 +97,43 @@ opted to run them), so the specs mirror already-green patterns to de-risk the
   claimant with a live event + the claim form's event picker.
 - **Promote Hannah's auto-promote test** if/when a real capacity waitlist +
   promotion lands in `packages/domain`.
+
+## Round 2 (same day) — Priya, Steve, Tyler + the backlog doc
+
+Continued the graduation pass:
+
+- **Priya** — RSVP into the libero slot + over-fill → "Waitlist" (the genuine
+  waitlist in this app). New `_helpers/positional-event.ts` admin-provisions the
+  `events.position_roster` jsonb. Gotcha: that column is in the DB (migration
+  `20260514000600` ALTERs `public.events`) but **stale in the generated events
+  Insert type** — the type carries `position_roster` only on `event_divisions`,
+  so the fixture casts through a typed base (`{ ...base, position_roster } as
+typeof base`). Worth a `gen:types` once a DB is reachable.
+- **Steve** — co-host can reach the edit + manage pages (server `event.canManage`
+  includes co-hosts); payouts route to the primary host so the event never shows
+  in the co-host's earnings (Pattern 7). New `_helpers/co-hosted-event.ts`
+  (`event_co_hosts` insert).
+- **Tyler** — registers as a free agent in a division pool, reusing the league
+  fixture (its roster division has `allow_free_agents` default true). The
+  free-agent panel is reached via the `role="radio"` "Sign up solo" tab.
+
+**Findings recorded as fixme (not test gaps — product changes):**
+
+- **Co-hosts cannot broadcast.** `broadcasts_insert_event_host` RLS checks
+  `events.host_id = auth.uid()` only — no `event_co_hosts` / host-group branch.
+  So Steve's "co-host can send a host broadcast" can't pass until the policy
+  (and the panel render gate) extends to co-hosts. Kept fixme with that note.
+- **Olivia's scoping test paid for itself**: it surfaced a real event-detail
+  visibility leak (scoped events readable by anyone because the detail read runs
+  on the admin client with no gate) — fixed in `load-event-detail.ts` /
+  `generateMetadata`. See the `event-detail-visibility-leak` memo.
+
+**Documented the rest.** All 29 remaining persona `test.fixme`s are tabulated
+with a blocker category + "to graduate" note in
+[docs/audits/e2e-tests.md](../audits/e2e-tests.md) (2026-06-04 remediation-log
+entry): Stripe-fixture (Marcus/Julie/Nina/Mark/Rachel), multi-actor roster
+(Adam/Bianca/Tyler-pickup), feature-absent (Hannah auto-promote, Diana
+playoff-from-standings, Zoe role-escalation), RLS-decision (Steve broadcast),
+infra-hard (Greg/Turnstile, Hannah realtime), already-covered
+(Adam-invite/Bianca-broadcast → `teams.authed.spec.ts`), and two
+implementable-next (Olivia `friends_of_attendees`, Zoe claim-approval).

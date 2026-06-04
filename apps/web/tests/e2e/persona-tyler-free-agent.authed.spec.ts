@@ -1,15 +1,24 @@
 import { test, expect } from './_helpers/fixtures';
-import { PERSONAS, withPersona } from './_helpers/personas';
+import { PERSONAS, withPersona, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
+import {
+  createLeagueFixture,
+  deleteLeagueFixture,
+  leagueFixtureAvailable,
+  type LeagueFixture,
+} from './_helpers/league';
 
 /**
  * Tyler Brooks (P11) — the free agent (no team → captain pickup).
  * docs/personas.md.
  *
- * Tyler signs up to a division's free-agent pool so a captain can scoop him
- * up. The seeded ad-hoc tournament `/e/E2ETFA` is the read-only target for the
- * free-agent affordance; the actual signup + captain pickup loop needs a
- * second actor and per-test fixture teardown, so it stays fixme.
+ * Tyler signs up to a division's free-agent pool so a captain can scoop him up.
+ * The signup half is single-actor: a division accepts free agents by default
+ * (`event_divisions.allow_free_agents` defaults true), so Tyler can join any
+ * roster-division event's pool. The spec reuses the league fixture
+ * (`_helpers/league.ts`) to stand up a division-bearing event hosted by someone
+ * else, then drives the real `FreeAgentSignupPanel` as Tyler. The captain
+ * pickup + notification half needs a second actor (a captain) so it stays fixme.
  */
 
 const tyler = PERSONAS.tyler;
@@ -60,8 +69,52 @@ test.describe(`${tyler.name} (${tyler.id}) — free agent`, () => {
     });
   });
 
-  // The signup → pickup → notification loop needs a captain (Bianca) on the
-  // other side + per-test teardown. features.md §§ 1, 2.
-  test.fixme('registers as a free agent in a division pool', async () => {});
+  test('registers as a free agent in a division pool', async ({ browser }) => {
+    skipIfPersonaMissing('tyler');
+    const hostEmail = process.env['TEST_FREE_HOST_EMAIL'] ?? process.env['TEST_USER_EMAIL'];
+    test.skip(
+      !leagueFixtureAvailable(hostEmail),
+      'free-agent fixture needs E2E_CLEANUP_SUPABASE_* + a host email (the division-bearing event is admin-provisioned)',
+    );
+    test.setTimeout(120_000);
+
+    // A division-bearing event hosted by someone else, with one roster team so
+    // it renders the register/free-agent section. The roster division accepts
+    // free agents by default (allow_free_agents), which is what Tyler joins.
+    const tag = Date.now().toString(36);
+    let fx: LeagueFixture | null = null;
+    try {
+      fx = await createLeagueFixture({
+        title: `E2E Tyler FreeAgent ${tag}`,
+        teamNames: [`E2E ${tag} Anchor`],
+        ...(hostEmail ? { hostEmail } : {}),
+      });
+
+      await withPersona(browser, 'tyler', async (page) => {
+        await page.goto(`/events/${fx!.eventId}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        // Switch the register section to the free-agent ("Sign up solo") tab,
+        // which reveals the FreeAgentSignupPanel.
+        await page.getByRole('radio', { name: /sign up solo/i }).click();
+        const signUp = page.getByRole('button', { name: /sign up as free agent/i });
+        await expect(signUp).toBeVisible({ timeout: 10_000 });
+        await signUp.click();
+
+        // Single division → division_id is a hidden input, so the signup posts
+        // straight through to the `?fa=joined` confirmation.
+        await expect(page.getByText(/you're signed up as a free agent/i)).toBeVisible({
+          timeout: 10_000,
+        });
+      });
+    } finally {
+      await deleteLeagueFixture(fx);
+    }
+  });
+
+  // Still fixme — the pickup half is multi-actor: a captain (Bianca) assigns
+  // Tyler from the free-agent pool onto a roster, and Tyler gets the roster
+  // notification. Needs a seeded captain + team on the same event + a
+  // notification assertion. features.md §§ 1, 2.
   test.fixme('is picked up by a captain and gets the roster notification', async () => {});
 });
