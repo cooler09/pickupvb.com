@@ -58,6 +58,36 @@ export function getCleanupClient(): SupabaseClient<Database> | null {
   return cachedClient;
 }
 
+/**
+ * Resolve a test account's auth user id by email via the GoTrue admin API.
+ * Shared by the admin-client fixtures (league, scoped-event) that need to set a
+ * persona as `events.host_id` / a `friendships` endpoint. The dev project has a
+ * small, stable user set, so paging a couple hundred at a time finds the
+ * address on the first page. Throws (loudly) when the account is missing — the
+ * seed-fixture precondition (sign in once as each test account to provision
+ * `auth.users` + `profiles`) applies here too. Requires the admin client; throws
+ * when cleanup isn't configured.
+ */
+export async function resolveUserIdByEmail(email: string): Promise<string> {
+  const admin = getCleanupClient();
+  if (!admin) {
+    throw new Error(
+      'resolveUserIdByEmail: admin client unavailable — set E2E_CLEANUP_SUPABASE_URL / _SECRET_KEY.',
+    );
+  }
+  const target = email.toLowerCase();
+  for (let page = 1; page <= 10; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) throw new Error(`resolveUserIdByEmail: listUsers failed — ${error.message}`);
+    const match = data.users.find((u) => u.email?.toLowerCase() === target);
+    if (match) return match.id;
+    if (data.users.length < 200) break;
+  }
+  throw new Error(
+    `resolveUserIdByEmail: no auth user for ${email}. Sign in once as that account to provision auth.users + profiles, then retry.`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Targeted deletes — call from per-spec `afterAll` with the id you created.
 // All helpers are safe to call when cleanup is disabled (no-op) and when

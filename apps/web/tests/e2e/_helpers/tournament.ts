@@ -151,17 +151,35 @@ export async function addWalkInTeams(
 }
 
 /**
- * From the bracket page (with ≥ 2 teams registered, no bracket yet): pick
- * best-of-1 (one set decides each match — fast + deterministic), create a
- * single-elimination bracket, **save the seeding**, then generate it. Stops on
- * the **draft workspace** (ADR 0032): `generate()` lands in `draft`, so the
- * page shows "Publish bracket" rather than the live scoring board.
+ * The four bracket formats the host can pick on the FormatPickerForm. Each
+ * carries a `minTeams` the form enforces (single 2, double/round-robin 3, pool
+ * play 4) — register at least that many walk-in teams before generating, or the
+ * "Create bracket" button stays disabled. See `format-picker-form.tsx`.
+ */
+export type WalkInBracketFormat =
+  | 'single_elimination'
+  | 'double_elimination'
+  | 'round_robin'
+  | 'pool_play_playoff';
+
+/**
+ * From the bracket page (with ≥ minTeams registered, no bracket yet): pick
+ * best-of-1 (one set decides each match — fast + deterministic), select the
+ * format (defaults to single elimination), create the bracket, **save the
+ * seeding**, then generate it. Stops on the **draft workspace** (ADR 0032):
+ * `generate()` lands in `draft`, so the page shows "Publish bracket" rather
+ * than the live scoring board.
  *
  * The save-seeding step is mandatory: `CreateBracketHandler` creates the
  * bracket in `setup` with **zero** seeds, and `bracket.generate()` throws
  * "Need at least 2 seeded teams" until the host persists the seeding order.
  */
-export async function createBracketToDraft(page: Page, eventId: string): Promise<void> {
+export async function createBracketToDraft(
+  page: Page,
+  eventId: string,
+  opts?: { format?: WalkInBracketFormat },
+): Promise<void> {
+  const format = opts?.format ?? 'single_elimination';
   await page.goto(`/events/${eventId}/bracket`);
 
   // Best of 1 — label wraps an sr-only radio; target by the radio it contains
@@ -170,7 +188,15 @@ export async function createBracketToDraft(page: Page, eventId: string): Promise
     .locator('label')
     .filter({ has: page.locator('input[name="best_of"][value="1"]') })
     .click();
-  // single_elimination is the default-selected format.
+  // single_elimination is the default-selected format card; only the others
+  // need an explicit click. Each card is a <label> wrapping an sr-only radio,
+  // so target it by the radio it contains (same pattern as best_of).
+  if (format !== 'single_elimination') {
+    await page
+      .locator('label')
+      .filter({ has: page.locator(`input[name="format"][value="${format}"]`) })
+      .click();
+  }
   await page.getByRole('button', { name: /create bracket/i }).click();
 
   // setup → SetupView renders both "Save seeding" and "Generate bracket".
@@ -195,8 +221,12 @@ export async function createBracketToDraft(page: Page, eventId: string): Promise
  * between this and {@link createBracketToDraft} is the ADR 0032 draft→live
  * boundary; most scoring specs just want a live board, so they call this.
  */
-export async function createAndGenerateBracket(page: Page, eventId: string): Promise<void> {
-  await createBracketToDraft(page, eventId);
+export async function createAndGenerateBracket(
+  page: Page,
+  eventId: string,
+  opts?: { format?: WalkInBracketFormat },
+): Promise<void> {
+  await createBracketToDraft(page, eventId, opts);
   await page.getByRole('button', { name: /publish bracket/i }).click();
 
   // active → BoardView renders at least one pending "Enter result" form.
@@ -230,6 +260,25 @@ export async function recordFirstPendingMatch(
   await detail.getByRole('button', { name: /^save$/i }).click();
 
   await expect(completed).toHaveCount(before + 1, { timeout: 15_000 });
+}
+
+/**
+ * Record every currently-playable match, repeatedly, until none remain — each
+ * recorded result can make a downstream match newly playable (winners→losers
+ * drop, grand-final advancement, pool→playoff). Team A (the top row) always
+ * wins, so the walk-through is deterministic. Caps at `maxMatches` iterations so
+ * a generator that never resolves can't spin forever. Returns the number
+ * recorded. Used by the multi-round format specs (double elim, pool playoff)
+ * where the exact match count is generator-defined rather than a fixed tree.
+ */
+export async function recordAllPlayableMatches(page: Page, maxMatches = 24): Promise<number> {
+  let recorded = 0;
+  for (let i = 0; i < maxMatches; i++) {
+    if ((await page.locator('summary', { hasText: /^Enter result$/ }).count()) === 0) break;
+    await recordFirstPendingMatch(page);
+    recorded++;
+  }
+  return recorded;
 }
 
 /**

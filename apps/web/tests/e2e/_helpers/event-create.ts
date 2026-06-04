@@ -78,6 +78,21 @@ export interface CreateFreeOpenPlayEventOptions {
   hostGroupId?: string;
   startTime?: string;
   endTime?: string;
+  /**
+   * When set, switch the capacity selector to "Fixed spots" and cap the event
+   * at this many attendees (the `#maxSpots` field). Used by the capacity /
+   * waitlist personas to provision a small, fillable event. Applied BEFORE the
+   * DateTimePicker is driven, because toggling the capacity SegmentedControl
+   * re-renders and would reset the React-controlled hidden `startsAt` input.
+   */
+  maxSpots?: number;
+  /**
+   * The "Sign me up as a player too" checkbox defaults to CHECKED, so the host
+   * is auto-added as the first attendee. Pass `false` to leave the roster empty
+   * — essential for capacity tests where a *different* account must take the
+   * only spot (otherwise the host silently fills it at create time).
+   */
+  joinAsHost?: boolean;
 }
 
 export interface CreatedEvent {
@@ -109,6 +124,25 @@ export async function createFreeOpenPlayEvent(
   }
 
   await page.locator('#title').fill(opts.title);
+
+  // Capacity must be set BEFORE the dates: the "Fixed spots" SegmentedControl
+  // (a `<button role="radio">`) re-renders OpenPlayBody on click, which resets
+  // the React-controlled hidden `startsAt`/`endsAt` inputs. Drive it first.
+  if (opts.maxSpots !== undefined) {
+    await page.getByRole('radio', { name: /fixed spots/i }).click();
+    const maxSpots = page.locator('#maxSpots');
+    await expect(maxSpots, '#maxSpots input').toBeVisible({ timeout: 5_000 });
+    await maxSpots.fill(String(opts.maxSpots));
+  }
+
+  // The "Sign me up as a player too" checkbox is a plain (uncontrolled,
+  // defaultChecked) input, so unchecking it doesn't re-render or reset the
+  // dates — still, do it before the pickers to keep all roster mutations ahead
+  // of the date inputs.
+  if (opts.joinAsHost === false) {
+    const joinAsHost = page.locator('input[name="joinAsHost"]');
+    if (await joinAsHost.isChecked()) await joinAsHost.uncheck();
+  }
 
   await pickFutureDateTime(page, 'startsAt', start);
   await pickFutureDateTime(page, 'endsAt', end);
