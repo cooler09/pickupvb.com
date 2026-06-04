@@ -124,11 +124,13 @@ test.describe('event host flows', () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
-  test('cancel event panel is present on edit page', async ({ page }) => {
+  test('cancel event panel is present on the manage dashboard', async ({ page }) => {
     if (!eventUrl) {
       test.skip(true, `Test event was not created (${beforeAllError ?? 'unknown'}); skipping`);
     }
-    await page.goto(`${eventUrl}/edit`);
+    // The cancel / danger-zone panel moved from /edit to the host manage
+    // dashboard (/events/[id]/manage → "Danger zone").
+    await page.goto(`${eventUrl}/manage`);
     const cancelEventBtn = page.getByRole('button', { name: /cancel event…/i }).first();
     await expect(cancelEventBtn).toBeVisible({ timeout: 10_000 });
   });

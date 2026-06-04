@@ -289,7 +289,11 @@ test.describe('leave paid event / refund', () => {
       const created = await createPaidEvent(hostPage, {
         title: `E2E Refund Within ${Date.now()}`,
         priceUsd: 5,
-        refundWindowHours: 168, // 1 week — always within for a future event.
+        // Use the default 24h refund window (not the Pro-gated custom field).
+        // Refund is granted while `now <= starts_at - refund_window_hours`, and
+        // the fixture event is weeks out, so a 24h window always refunds here.
+        // A larger custom window (e.g. 168h) both needs Pro AND would *fail* to
+        // refund if the event were < 7 days away — the default is safer.
       });
       eventUrl = created.url;
 

@@ -5,7 +5,7 @@ import { withAuthContext } from './_helpers/browser';
 import { cancelEvent } from './_helpers/event-create';
 import { deleteEventById } from './_helpers/cleanup';
 import {
-  addWalkInTeam,
+  addWalkInTeams,
   createAdHocTournament,
   createAndGenerateBracket,
   createBracketToDraft,
@@ -52,9 +52,7 @@ test.describe('bracket — result advances the winner (C3)', () => {
       created = await createAdHocTournament(page, { title: `E2E Bracket Advance ${tag}` });
 
       // Register four walk-in teams → 2 semifinals + a (TBD) final.
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
 
       await createAndGenerateBracket(page, created.id);
 
@@ -109,9 +107,7 @@ test.describe('bracket — draft stage hides from spectators until published (AD
 
     try {
       created = await createAdHocTournament(page, { title: `E2E Bracket Draft ${tag}` });
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
 
       await createBracketToDraft(page, created.id);
 
@@ -158,9 +154,7 @@ test.describe('bracket — result entry is host/captain only (C3)', () => {
     try {
       // Host (attendee-a) provisions a 2-team bracket → one playable final.
       created = await createAdHocTournament(page, { title: `E2E Bracket Authz ${tag}` });
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
       await createAndGenerateBracket(page, created.id);
 
       // Host sees exactly one result-entry form (they own the walk-in teams).
@@ -199,9 +193,7 @@ test.describe('bracket — record all matches resolves a champion (C3)', () => {
 
     try {
       created = await createAdHocTournament(page, { title: `E2E Bracket Champion ${tag}` });
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
       await createAndGenerateBracket(page, created.id);
 
       // 4-team single-elim = 2 semifinals + 1 final. Record the two semis…
@@ -243,9 +235,7 @@ test.describe('bracket — resetting a match reverts it and clears downstream (C
 
     try {
       created = await createAdHocTournament(page, { title: `E2E Bracket Reset ${tag}` });
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
       await createAndGenerateBracket(page, created.id);
 
       // Record one semifinal → its winner advances into the final.

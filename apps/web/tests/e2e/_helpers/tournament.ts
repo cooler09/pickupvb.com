@@ -102,32 +102,52 @@ export async function createAdHocTournament(
 }
 
 /**
- * Register one walk-in team into the tournament's (only) division via the
- * bracket page's "Add a walk-in team" modal. `expectedCountAfter` is the
- * registered-team count the page header should show once the server action
- * redirects — used as the settle signal so the next add starts from a fresh
- * render. The bracket-page `<header>` always renders "<n> registered team(s)".
+ * Register walk-in teams into the tournament's (only) division via the bracket
+ * page's "+ Add teams" modal (the unified `WalkInTeamForm`, shared with the
+ * standalone path). The modal **stays open across adds** — each "Add team" /
+ * "Add another" submit returns a typed result (no redirect) and revalidates the
+ * bracket page behind the modal — so we add every team in one session and
+ * confirm each via the modal's "✓ Added this session (n)" tally, then close with
+ * "Done". Settles on the format picker reflecting the new team count.
+ *
+ * Note: the event form renders an optional Players (roster) fieldset, so the
+ * team-name field is targeted by its placeholder, not `getByRole('textbox')`.
  */
-export async function addWalkInTeam(
+export async function addWalkInTeams(
   page: Page,
   eventId: string,
-  teamName: string,
-  expectedCountAfter: number,
+  names: readonly string[],
 ): Promise<void> {
   await page.goto(`/events/${eventId}/bracket`);
+
+  // Trigger reads "+ Add teams" (promoted to a primary CTA while the host
+  // can't generate yet). Opens the FormModal holding WalkInTeamForm.
   await page
-    .getByRole('button', { name: /add a walk-in team/i })
+    .getByRole('button', { name: /add teams/i })
     .first()
     .click();
 
-  // The walk-in form's `team_name` input is the only one on the page, so it's
-  // safe to target without scoping to the (portalled) modal container.
-  await page.locator('input[name="team_name"]').fill(teamName);
-  await page.getByRole('button', { name: /^add team$/i }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-  await expect(
-    page.getByText(new RegExp(`\\b${expectedCountAfter} registered team`, 'i')).first(),
-  ).toBeVisible({ timeout: 15_000 });
+  const nameInput = dialog.getByPlaceholder(/e\.g\. Block Party/i);
+  for (let i = 0; i < names.length; i++) {
+    await nameInput.fill(names[i]!);
+    // Submit label is "Add team" on the first add, "Add another" after.
+    await dialog.getByRole('button', { name: /^(add team|add another)$/i }).click();
+    await expect(
+      dialog.getByText(new RegExp(`Added this session \\(${i + 1}\\)`, 'i')),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  // "Done" appears once ≥ 1 team has been added; closes the modal.
+  await dialog.getByRole('button', { name: /^done$/i }).click();
+
+  // The FormatPickerForm re-renders with the new teamCount once the revalidation
+  // lands; its estimate line reads "… with <n> teams." (only for n ≥ 2).
+  await expect(page.getByText(new RegExp(`with ${names.length} team`, 'i')).first()).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 /**

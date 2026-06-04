@@ -151,12 +151,14 @@ export async function createFreeOpenPlayEvent(
 }
 
 /**
- * Cancel an event via its edit page two-step confirm. Best-effort: swallows
+ * Cancel an event via the host manage dashboard's two-step confirm. The
+ * cancel / danger-zone panel moved from `/edit` to `/events/[id]/manage`
+ * ("Danger zone" group), so cleanup drives it there. Best-effort: swallows
  * cleanup failures so a missing button doesn't break `afterAll`.
  */
 export async function cancelEvent(page: Page, eventUrl: string): Promise<void> {
   try {
-    await page.goto(`${eventUrl}/edit`);
+    await page.goto(`${eventUrl}/manage`);
     await page.waitForLoadState('domcontentloaded');
 
     const cancelBtn = page.getByRole('button', { name: /cancel event…/i }).first();
