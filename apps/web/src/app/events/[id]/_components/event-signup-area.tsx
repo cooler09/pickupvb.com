@@ -229,7 +229,6 @@ export function EventSignupArea({
               {rosterDivisions.length > 0 && (
                 <TournamentSignupPanel
                   eventId={event.id}
-                  eventFormat={event.format}
                   teams={event.teams}
                   viewerCaptainedTeams={event.viewerCaptainedTeams}
                   divisions={rosterDivisions.map((d) => ({
@@ -311,7 +310,6 @@ export function EventSignupArea({
           teamPanel={
             <TournamentSignupPanel
               eventId={event.id}
-              eventFormat={event.format}
               teams={event.teams}
               viewerCaptainedTeams={event.viewerCaptainedTeams}
               divisions={rosterDivisions.map((d) => ({

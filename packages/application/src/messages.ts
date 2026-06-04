@@ -118,7 +118,6 @@ export class CreateTeamCommand {
   constructor(
     public readonly captainId: string,
     public readonly name: string,
-    public readonly format: string,
   ) {}
 }
 

@@ -1,19 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { Team, type TeamId, type UserId, type TeamMemberStatus } from './team.js';
-import { Format } from '../events/enums.js';
+import { MAX_TEAM_ROSTER, Team, type TeamId, type UserId, type TeamMemberStatus } from './team.js';
 import { InvariantViolation, ValidationError } from '../shared/result.js';
 
 const CAPTAIN = 'cap-1' as UserId;
 const ALICE = 'alice' as UserId;
 const BOB = 'bob' as UserId;
 const CARL = 'carl' as UserId;
-const DAVE = 'dave' as UserId;
-const EVE = 'eve' as UserId;
 const FRANK = 'frank' as UserId;
 const GINA = 'gina' as UserId;
 
-function makeTeam(format: Format = Format.Quads, name = 'Hitters'): Team {
-  return Team.create({ id: 't-1' as TeamId, captainId: CAPTAIN, name, format });
+function makeTeam(name = 'Hitters'): Team {
+  return Team.create({ id: 't-1' as TeamId, captainId: CAPTAIN, name });
 }
 
 describe('Team.create', () => {
@@ -32,21 +29,20 @@ describe('Team.create', () => {
       id: 't-2' as TeamId,
       captainId: CAPTAIN,
       name: '  Spikers  ',
-      format: Format.Sixes,
     });
     expect(team.name).toBe('Spikers');
   });
 
   it('rejects an empty name', () => {
-    expect(() =>
-      Team.create({ id: 't-x' as TeamId, captainId: CAPTAIN, name: '', format: Format.Quads }),
-    ).toThrow(InvariantViolation);
+    expect(() => Team.create({ id: 't-x' as TeamId, captainId: CAPTAIN, name: '' })).toThrow(
+      InvariantViolation,
+    );
   });
 
   it('rejects a whitespace-only name', () => {
-    expect(() =>
-      Team.create({ id: 't-x' as TeamId, captainId: CAPTAIN, name: '   ', format: Format.Quads }),
-    ).toThrow(InvariantViolation);
+    expect(() => Team.create({ id: 't-x' as TeamId, captainId: CAPTAIN, name: '   ' })).toThrow(
+      InvariantViolation,
+    );
   });
 
   it('hard-blocks a profane name rather than masking it (ADR 0030)', () => {
@@ -55,7 +51,6 @@ describe('Team.create', () => {
         id: 't-x' as TeamId,
         captainId: CAPTAIN,
         name: 'Shit Squad',
-        format: Format.Quads,
       }),
     ).toThrow(ValidationError);
   });
@@ -72,7 +67,6 @@ describe('Team.rehydrate', () => {
       id: 't-1' as TeamId,
       captainId: CAPTAIN,
       name: 'Diggers',
-      format: Format.Quads,
       members,
     });
     expect(team.allMembers.get(ALICE)).toBe('active');
@@ -85,7 +79,6 @@ describe('Team.rehydrate', () => {
       id: 't-1' as TeamId,
       captainId: CAPTAIN,
       name: 'Setters',
-      format: Format.Quads,
       members,
     });
     expect(team.allMembers.get(CAPTAIN)).toBe('active');
@@ -96,7 +89,6 @@ describe('Team.rehydrate', () => {
       id: 't-1' as TeamId,
       captainId: CAPTAIN,
       name: 'Blockers',
-      format: Format.Quads,
       members: new Map([[CAPTAIN, 'active']]),
     });
     expect(team.extraMemberCount).toBe(0);
@@ -107,7 +99,6 @@ describe('Team.rehydrate', () => {
       id: 't-1' as TeamId,
       captainId: CAPTAIN,
       name: 'Blockers',
-      format: Format.Quads,
       members: new Map([[CAPTAIN, 'active']]),
       extraMemberCount: -5,
     });
@@ -116,15 +107,13 @@ describe('Team.rehydrate', () => {
 });
 
 describe('Team roster sizing', () => {
-  it('caps roster at playersPerSide + 2', () => {
-    expect(makeTeam(Format.Sixes).maxRoster).toBe(8);
-    expect(makeTeam(Format.Quads).maxRoster).toBe(6);
-    expect(makeTeam(Format.Triples).maxRoster).toBe(5);
-    expect(makeTeam(Format.Doubles).maxRoster).toBe(4);
+  it('caps roster at a fixed maximum (ADR 0013 — teams carry no format)', () => {
+    // The roster cap is the same for every team; there is no format to vary.
+    expect(makeTeam().maxRoster).toBe(MAX_TEAM_ROSTER);
   });
 
   it('counts active + pending + extras toward rosterSize', () => {
-    const team = makeTeam(Format.Sixes);
+    const team = makeTeam();
     team.inviteMember(ALICE, true);
     team.inviteMember(BOB, false);
     team.setExtraMemberCount(2);
@@ -165,28 +154,26 @@ describe('Team.inviteMember', () => {
   });
 
   it('throws when the roster is at the cap', () => {
-    const team = makeTeam(Format.Quads); // cap = 6
-    team.inviteMember(ALICE, true);
-    team.inviteMember(BOB, true);
-    team.inviteMember(CARL, true);
-    team.inviteMember(DAVE, true);
-    team.inviteMember(EVE, true);
-    expect(team.rosterSize).toBe(6);
+    const team = makeTeam();
+    // Captain takes 1 slot; fill the rest with off-site extras to reach the cap.
+    team.setExtraMemberCount(MAX_TEAM_ROSTER - 1);
+    expect(team.rosterSize).toBe(MAX_TEAM_ROSTER);
     expect(() => team.inviteMember(FRANK, true)).toThrow(InvariantViolation);
   });
 
   it('counts extras against the roster cap', () => {
-    const team = makeTeam(Format.Quads); // cap = 6, captain already takes 1
-    team.setExtraMemberCount(5);
+    const team = makeTeam(); // captain already takes 1
+    team.setExtraMemberCount(MAX_TEAM_ROSTER - 1);
     expect(() => team.inviteMember(ALICE, true)).toThrow(InvariantViolation);
   });
 
   it('allows pending members to fill the cap alongside active', () => {
-    const team = makeTeam(Format.Doubles); // cap = 4
-    team.inviteMember(ALICE, true);
-    team.inviteMember(BOB, false);
-    team.inviteMember(CARL, false);
-    expect(() => team.inviteMember(DAVE, false)).toThrow(InvariantViolation);
+    const team = makeTeam();
+    // Captain + extras leaves exactly two open slots.
+    team.setExtraMemberCount(MAX_TEAM_ROSTER - 3);
+    team.inviteMember(ALICE, true); // active fills one
+    team.inviteMember(BOB, false); // pending fills the last
+    expect(() => team.inviteMember(CARL, false)).toThrow(InvariantViolation);
   });
 });
 
@@ -233,19 +220,19 @@ describe('Team.removeMember', () => {
   });
 
   it('frees a slot so the captain can re-invite up to the cap', () => {
-    const team = makeTeam(Format.Doubles); // cap = 4
-    team.inviteMember(ALICE, true);
-    team.inviteMember(BOB, true);
-    team.inviteMember(CARL, true);
-    expect(team.rosterSize).toBe(4);
-    team.removeMember(CARL);
-    expect(() => team.inviteMember(DAVE, true)).not.toThrow();
+    const team = makeTeam();
+    team.setExtraMemberCount(MAX_TEAM_ROSTER - 2); // captain + extras = cap - 1
+    team.inviteMember(ALICE, true); // now exactly at the cap
+    expect(team.rosterSize).toBe(MAX_TEAM_ROSTER);
+    expect(() => team.inviteMember(BOB, true)).toThrow(InvariantViolation);
+    team.removeMember(ALICE);
+    expect(() => team.inviteMember(BOB, true)).not.toThrow();
   });
 });
 
 describe('Team.setExtraMemberCount', () => {
   it('accepts a valid non-negative integer', () => {
-    const team = makeTeam(Format.Sixes); // cap = 8
+    const team = makeTeam();
     team.setExtraMemberCount(3);
     expect(team.extraMemberCount).toBe(3);
   });
@@ -272,13 +259,13 @@ describe('Team.setExtraMemberCount', () => {
   });
 
   it('rejects a count that would exceed the roster cap', () => {
-    const team = makeTeam(Format.Quads); // cap = 6, captain takes 1
-    expect(() => team.setExtraMemberCount(6)).toThrow(InvariantViolation);
+    const team = makeTeam(); // captain takes 1
+    expect(() => team.setExtraMemberCount(MAX_TEAM_ROSTER)).toThrow(InvariantViolation);
   });
 
   it('allows setting extras up to the remaining cap', () => {
-    const team = makeTeam(Format.Quads); // cap = 6, captain takes 1
-    team.setExtraMemberCount(5);
-    expect(team.rosterSize).toBe(6);
+    const team = makeTeam(); // captain takes 1
+    team.setExtraMemberCount(MAX_TEAM_ROSTER - 1);
+    expect(team.rosterSize).toBe(MAX_TEAM_ROSTER);
   });
 });

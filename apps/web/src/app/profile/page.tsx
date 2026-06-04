@@ -202,11 +202,11 @@ export default async function ProfilePage(props: {
   // Outstanding team invites.
   const { data: pendingRows } = await supabase
     .from('team_members')
-    .select('teams:teams!inner(id, slug, name, format)')
+    .select('teams:teams!inner(id, slug, name)')
     .eq('user_id', user.id)
     .eq('status', 'pending');
   type PendingRow = {
-    teams: { id: string; slug: string; name: string; format: string } | null;
+    teams: { id: string; slug: string; name: string } | null;
   };
   const pendingInvites = ((pendingRows as PendingRow[] | null) ?? [])
     .map((r) => r.teams)

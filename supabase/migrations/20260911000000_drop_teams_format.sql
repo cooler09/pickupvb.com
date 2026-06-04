@@ -1,0 +1,22 @@
+-- ============================================================================
+-- Teams are just a roster of people — drop teams.format.
+--
+-- Context: a persistent team used to be bound to a single volleyball format
+-- (added in 20260512000000_init). Bundle "teams-not-format-locked" already
+-- made that binding non-enforcing (any roster can enter a division of any
+-- format, and the roster cap is format-independent). The format column is now
+-- a pure descriptor with no behaviour attached. Per product direction a team
+-- is simply a named group of people, not format-specific, so the column comes
+-- off entirely.
+--
+-- Impact: drops `public.teams.format` (was `format not null`). The `format`
+-- enum type itself is unchanged — events, event_divisions, and bracket rows
+-- still use it. Nothing in the DB depends on teams.format: no view, RPC, RLS
+-- policy, or index references it (the only historical writer was the one-time
+-- ad-hoc-promotion backfill in 20260705000000, already applied). App-layer
+-- reads/writes of teams.format are removed in the same PR, so no code path
+-- expects the column after this lands. The `/teams` directory loses its
+-- format filter and teams lose their format label.
+-- ============================================================================
+
+alter table public.teams drop column format;

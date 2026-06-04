@@ -14,7 +14,6 @@ import {
   TeamRegistrationMode,
   Team,
   UnauthorizedError,
-  ValidationError,
   NotFoundError,
   Visibility,
   VolleyballEvent,
@@ -113,12 +112,11 @@ class InMemoryEventRepo implements Pick<EventRepository, 'findById' | 'save'> {
   }
 }
 
-function makeTeam(opts: { id?: string; captainId?: string; format?: Format } = {}): Team {
+function makeTeam(opts: { id?: string; captainId?: string } = {}): Team {
   return Team.create({
     id: (opts.id ?? 'team-1') as TeamId,
     captainId: (opts.captainId ?? 'captain') as UserId,
     name: 'Bumpsetters',
-    format: opts.format ?? Format.Sixes,
   });
 }
 
@@ -197,12 +195,6 @@ describe('RegisterTeamHandler', () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  // Bundle 52 reclassification: cross-event format mismatch is a caller
-  // input problem (wrong team picked), not an authorization failure.
-  // Step 8 / P3 #9: the check now lives at the division boundary
-  // (the aggregate no longer mirrors a top-level format) — see the
-  // "team format differs from division format" test below.
-
   it('throws NotFoundError when the chosen divisionId is not on the event', async () => {
     const team = makeTeam();
     const division = makeDivision(Format.Sixes);
@@ -225,12 +217,12 @@ describe('RegisterTeamHandler', () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  // Bundle 52 reclassification: cross-division format mismatch is also a
-  // caller input problem, not an authorization failure. The aggregate no
-  // longer mirrors a top-level format (Step 8 / P3 #9), so this exercises
-  // the division-level branch.
-  it('throws ValidationError when team format differs from division format', async () => {
-    const team = makeTeam({ format: Format.Sixes });
+  // ADR 0013: a team is just a roster of people and carries no format, so it
+  // can register for a division of any format regardless of its size. This
+  // path previously threw ValidationError on a format mismatch; with format
+  // gone from the team there is nothing to mismatch — it must register cleanly.
+  it('registers a team into a division of any format (teams carry no format)', async () => {
+    const team = makeTeam();
     const division = makeDivision(Format.Quads);
     const event = makeTournament({
       divisions: [division, makeDivision(Format.Sixes, 'div-2')],
@@ -243,13 +235,14 @@ describe('RegisterTeamHandler', () => {
 
     const handler = new RegisterTeamHandler(events as unknown as EventRepository, teams);
 
-    await expect(
-      handler.execute({
-        eventId: 'event-1',
-        teamId: 'team-1',
-        requesterId: 'captain',
-        divisionId: 'div-1',
-      }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    await handler.execute({
+      eventId: 'event-1',
+      teamId: 'team-1',
+      requesterId: 'captain',
+      divisionId: 'div-1', // the Quads division
+    });
+
+    expect(events.saved).toHaveLength(1);
+    expect(events.saved[0]!.teamEntries).toContainEqual(['team-1', 'div-1']);
   });
 });

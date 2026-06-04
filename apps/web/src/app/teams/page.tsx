@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { SupabaseTeamQueryRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
-import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
@@ -29,22 +28,15 @@ export const metadata = {
 };
 
 const PAGE_SIZE = 24;
-const FORMAT_OPTIONS = ['doubles', 'triples', 'quads', 'sixes'] as const;
-type FormatOption = (typeof FORMAT_OPTIONS)[number];
 
 export default async function TeamsIndexPage(props: {
-  searchParams: Promise<{ q?: string; format?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const searchParams = await props.searchParams;
   const supabase = createSupabaseAnonClient();
 
   // Parse discover filters (apply to public browse below).
   const q = (searchParams.q ?? '').trim();
-  const format: FormatOption | undefined = FORMAT_OPTIONS.includes(
-    searchParams.format as FormatOption,
-  )
-    ? (searchParams.format as FormatOption)
-    : undefined;
   const pageNum = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
   const from = (pageNum - 1) * PAGE_SIZE;
 
@@ -55,11 +47,10 @@ export default async function TeamsIndexPage(props: {
     supabase,
   ).searchDirectory({
     ...(q ? { nameLike: q } : {}),
-    ...(format ? { format } : {}),
     limit: PAGE_SIZE,
     offset: from,
   });
-  const hasFilter = q.length > 0 || !!format;
+  const hasFilter = q.length > 0;
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 py-4">
@@ -81,7 +72,7 @@ export default async function TeamsIndexPage(props: {
           </h2>
           <p className="text-muted text-xs">Browse public tournament rosters across PickupVB.</p>
         </div>
-        <form className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+        <form className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
           <input
             type="search"
             name="q"
@@ -89,19 +80,6 @@ export default async function TeamsIndexPage(props: {
             defaultValue={q}
             className={fieldInputClass}
           />
-          <select
-            name="format"
-            defaultValue={format ?? ''}
-            className={fieldInputClass}
-            aria-label="Filter by format"
-          >
-            <option value="">Any format</option>
-            {FORMAT_OPTIONS.map((f) => (
-              <option key={f} value={f}>
-                {FORMAT_LABEL[f] ?? f}
-              </option>
-            ))}
-          </select>
           <button type="submit" className={primaryButtonClass()}>
             Search
           </button>
@@ -113,7 +91,7 @@ export default async function TeamsIndexPage(props: {
             </p>
             <p className="text-muted text-xs">
               {hasFilter
-                ? 'Try a different name or format, or clear the filters.'
+                ? 'Try a different name, or clear the search.'
                 : 'Be the first — teams sign up for tournaments together with a saved roster.'}
             </p>
             {!hasFilter && (
@@ -131,13 +109,11 @@ export default async function TeamsIndexPage(props: {
                   id: t.id,
                   slug: t.slug,
                   name: t.name,
-                  format: t.format,
                   captain_id: t.captainId,
                 }}
                 role="public"
                 captainName={t.captainName}
                 rosterCount={t.rosterCount}
-                teamSize={t.teamSize}
               />
             ))}
           </ul>

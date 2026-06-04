@@ -42,12 +42,12 @@ export function MyTeamsPanel() {
       const [captainedRes, memberRes] = await Promise.all([
         supabase
           .from('teams')
-          .select('id, slug, name, format, captain_id')
+          .select('id, slug, name, captain_id')
           .eq('captain_id', user.id)
           .order('name', { ascending: true }),
         supabase
           .from('team_members')
-          .select('status, teams:teams!inner(id, slug, name, format, captain_id)')
+          .select('status, teams:teams!inner(id, slug, name, captain_id)')
           .eq('user_id', user.id),
       ]);
 

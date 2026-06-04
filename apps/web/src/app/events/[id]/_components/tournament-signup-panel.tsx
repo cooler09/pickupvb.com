@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
-import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { SubmitButton } from '@/components/submit-button';
 import { registerTeamFromForm, withdrawTeamFromForm } from '../team-signup-actions';
 import { startRosterTeamCheckout } from '../roster-team-checkout-actions';
@@ -9,7 +8,6 @@ export type RegisteredTeam = {
   teamId: string;
   slug: string;
   name: string;
-  format: string;
   captainId: string;
   captain: { displayName: string } | null;
   memberCount: number;
@@ -25,7 +23,6 @@ export type RegisteredTeam = {
 export type EligibleTeam = {
   id: string;
   name: string;
-  format: string;
   memberCount: number;
   isRegistered: boolean;
 };
@@ -42,7 +39,6 @@ export type SignupDivision = {
 
 type Props = {
   eventId: string;
-  eventFormat: string | null;
   teams: ReadonlyArray<RegisteredTeam>;
   viewerCaptainedTeams: ReadonlyArray<EligibleTeam>;
   /** Divisions on this event — required so the captain can pick where to register. */
@@ -70,7 +66,6 @@ const RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string 
   forbidden: { tone: 'error', text: 'Only the team captain can do that.' },
   closed: { tone: 'error', text: "This event isn't open for signups." },
   missing: { tone: 'error', text: 'Team not found.' },
-  invalid: { tone: 'error', text: "Team format doesn't match the event." },
   division_required: { tone: 'error', text: 'Pick a division to continue.' },
   division_missing: { tone: 'error', text: 'Division not found on this event.' },
   team_paid: { tone: 'success', text: 'Team entry paid — you’re all set.' },
@@ -84,7 +79,6 @@ function formatUsd(cents: number): string {
 
 export function TournamentSignupPanel({
   eventId,
-  eventFormat,
   teams,
   viewerCaptainedTeams,
   divisions,
@@ -107,10 +101,7 @@ export function TournamentSignupPanel({
         <div>
           <h2 className="text-fg text-lg font-semibold">{heading ?? 'Tournament teams'}</h2>
           <p className="text-muted text-sm">
-            {subheading ??
-              (eventFormat
-                ? `Sign up your ${FORMAT_LABEL[eventFormat] ?? eventFormat} team to compete.`
-                : 'Sign up your team to compete.')}
+            {subheading ?? 'Sign up any team you captain — any format works.'}
           </p>
         </div>
         <Link href="/teams" className="text-primary text-sm hover:underline">
@@ -237,8 +228,7 @@ export function TournamentSignupPanel({
           )}
           {eligibleTeams.length === 0 ? (
             <p className="border-border-base text-muted rounded-md border border-dashed p-3 text-sm">
-              You don&apos;t captain a{' '}
-              {eventFormat ? (FORMAT_LABEL[eventFormat] ?? eventFormat) : 'matching'} team.{' '}
+              You don&apos;t captain any teams yet.{' '}
               <Link href="/teams/new" className="text-primary underline">
                 Create one
               </Link>

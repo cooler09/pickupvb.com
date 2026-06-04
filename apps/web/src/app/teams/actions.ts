@@ -28,18 +28,15 @@ export async function createTeamAction(
   const { user, supabase } = await requireRealUser('/teams/new');
 
   const name = field(formData, 'name');
-  const format = field(formData, 'format');
 
   const fieldErrors: Record<string, string> = {};
   if (name.length < 1 || name.length > 80) fieldErrors.name = 'Name is required (1–80 chars).';
-  if (!['sixes', 'quads', 'triples', 'doubles'].includes(format))
-    fieldErrors.format = 'Pick a format.';
   if (Object.keys(fieldErrors).length > 0)
     return { error: 'Please fix the highlighted fields.', fieldErrors };
 
   let id: string;
   try {
-    const out = await handlers.createTeam.execute(new CreateTeamCommand(user.id, name, format));
+    const out = await handlers.createTeam.execute(new CreateTeamCommand(user.id, name));
     id = out.id;
   } catch (err) {
     if (err instanceof ValidationError) {

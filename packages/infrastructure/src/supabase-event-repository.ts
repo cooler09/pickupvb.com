@@ -1097,7 +1097,7 @@ export class SupabaseEventRepository implements EventRepository {
       this.client
         .from('event_team_entries')
         .select(
-          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
         )
         .eq('division.event_id', id)
         .eq('source', 'roster')
@@ -1216,15 +1216,14 @@ export class SupabaseEventRepository implements EventRepository {
             .eq('division.event_id', id)
             .in('team_id', registeredTeamIds)
         : Promise.resolve({ data: [], error: null }),
-      // Teams the viewer captains in this event's format. Only meaningful
-      // for tournaments; we still issue it for any logged-in viewer to
-      // keep the response shape uniform — the cost is one tiny query.
-      viewerId && legacyDetail.format
-        ? this.client
-            .from('teams')
-            .select('id, name, format')
-            .eq('captain_id', viewerId)
-            .eq('format', legacyDetail.format)
+      // Every team the viewer captains. Teams are not format-locked (ADR
+      // 0013) — a roster can enter a division of any format — so we no longer
+      // filter by the event's format; the picker shows all of them. Only
+      // consumed by the tournament/league signup panels (harmless elsewhere).
+      // One tiny query, issued for any logged-in viewer to keep the response
+      // shape uniform.
+      viewerId
+        ? this.client.from('teams').select('id, name').eq('captain_id', viewerId)
         : Promise.resolve({ data: [], error: null }),
     ]);
 

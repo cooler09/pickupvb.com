@@ -1,8 +1,6 @@
 import { AggregateRoot } from '../shared/aggregate-root.js';
 import { InvariantViolation } from '../shared/result.js';
 import { assertCleanName } from '../moderation/content-moderation.js';
-import { Format } from '../events/enums.js';
-import { playersPerSide } from '../events/rules.js';
 import type { TeamId, UserId } from '../events/volleyball-event.js';
 
 export type { TeamId, UserId };
@@ -11,7 +9,23 @@ export type { TeamId, UserId };
 export type TeamMemberStatus = 'active' | 'pending';
 
 /**
- * Team aggregate used for tournament signup.
+ * Maximum roster slots a team may hold.
+ *
+ * A team is just a durable roster of people (ADR 0013), not a format-specific
+ * entry: the same squad can field a doubles pair one weekend and a sixes
+ * lineup the next, so the cap is format-independent. A generous flat cap lets
+ * a club keep a deep enough bench to cover every format it enters while still
+ * guarding against runaway invite spam.
+ */
+export const MAX_TEAM_ROSTER = 12;
+
+/**
+ * Team aggregate — a named group of people who play together.
+ *
+ * A team is **not** format-specific (ADR 0013): it carries no format, can
+ * register for a division of any format regardless of its size, and is reusable
+ * across formats and seasons. The competition's format lives on the division it
+ * enters, not on the roster.
  *
  * Members move through two states: `pending` (the captain has invited them
  * but they haven't accepted yet) and `active` (they're really on the roster).
@@ -26,7 +40,6 @@ export class Team extends AggregateRoot<TeamId> {
     id: TeamId,
     public readonly captainId: UserId,
     private _name: string,
-    public readonly format: Format,
     private _members: Map<UserId, TeamMemberStatus>,
     private _extraMemberCount: number,
   ) {
@@ -38,21 +51,14 @@ export class Team extends AggregateRoot<TeamId> {
    * sole active member and an `extraMemberCount` of 0. Throws
    * {@link InvariantViolation} when the name is empty after trimming.
    */
-  static create(props: { id: TeamId; captainId: UserId; name: string; format: Format }): Team {
+  static create(props: { id: TeamId; captainId: UserId; name: string }): Team {
     const name = props.name.trim();
     if (!name) {
       throw new InvariantViolation('Team name is required.');
     }
     // Identity field — reject any profanity rather than mask it (ADR 0030).
     assertCleanName(name);
-    return new Team(
-      props.id,
-      props.captainId,
-      name,
-      props.format,
-      new Map([[props.captainId, 'active']]),
-      0,
-    );
+    return new Team(props.id, props.captainId, name, new Map([[props.captainId, 'active']]), 0);
   }
 
   /**
@@ -64,7 +70,6 @@ export class Team extends AggregateRoot<TeamId> {
     id: TeamId;
     captainId: UserId;
     name: string;
-    format: Format;
     members: ReadonlyMap<UserId, TeamMemberStatus>;
     extraMemberCount?: number;
   }): Team {
@@ -75,7 +80,6 @@ export class Team extends AggregateRoot<TeamId> {
       props.id,
       props.captainId,
       props.name,
-      props.format,
       map,
       Math.max(0, props.extraMemberCount ?? 0),
     );
@@ -105,8 +109,9 @@ export class Team extends AggregateRoot<TeamId> {
   }
 
   get maxRoster(): number {
-    // allow a couple of subs above the on-court count
-    return playersPerSide(this.format) + 2;
+    // Fixed cap, format-independent — the roster can field any format it
+    // enters. See {@link MAX_TEAM_ROSTER}.
+    return MAX_TEAM_ROSTER;
   }
 
   /**

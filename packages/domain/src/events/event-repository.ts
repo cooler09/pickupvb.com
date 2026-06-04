@@ -155,7 +155,6 @@ export interface TeamLite {
   /** Vanity URL token (unique, slug-shape). */
   slug: string;
   name: string;
-  format: Format;
   captainId: string;
   /** Captain profile (for display). */
   captain: ProfileLite | null;
@@ -179,7 +178,6 @@ export interface TeamLite {
 export interface CaptainedTeamLite {
   id: string;
   name: string;
-  format: Format;
   memberCount: number;
   /** True if this team is already registered for the event being viewed. */
   isRegistered: boolean;

@@ -2774,7 +2774,6 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
           extra_member_count: number;
-          format: Database['public']['Enums']['format'];
           id: string;
           name: string;
           slug: string;
@@ -2784,7 +2783,6 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           extra_member_count?: number;
-          format: Database['public']['Enums']['format'];
           id?: string;
           name: string;
           slug: string;
@@ -2794,7 +2792,6 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           extra_member_count?: number;
-          format?: Database['public']['Enums']['format'];
           id?: string;
           name?: string;
           slug?: string;

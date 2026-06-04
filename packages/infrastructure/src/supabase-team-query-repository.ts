@@ -1,6 +1,4 @@
 import {
-  playersPerSide,
-  type Format,
   type TeamDirectoryCard,
   type TeamDirectoryPage,
   type TeamDirectoryQuery,
@@ -15,7 +13,6 @@ type TeamRow = {
   id: string;
   slug: string;
   name: string;
-  format: string;
   captain_id: string;
   extra_member_count: number | null;
 };
@@ -35,18 +32,16 @@ export class SupabaseTeamQueryRepository implements TeamQueries {
 
   async searchDirectory({
     nameLike,
-    format,
     limit,
     offset,
   }: TeamDirectoryQuery): Promise<TeamDirectoryPage> {
     let query = this.client
       .from('teams')
-      .select('id, slug, name, format, captain_id, extra_member_count', { count: 'exact' })
+      .select('id, slug, name, captain_id, extra_member_count', { count: 'exact' })
       .is('deleted_at', null)
       .order('name', { ascending: true })
       .range(offset, offset + limit - 1);
     if (nameLike) query = query.ilike('name', `%${escapeLike(nameLike)}%`);
-    if (format) query = query.eq('format', format as Format);
     const { data, count, error } = await query;
     if (error) throw new Error(`searchDirectory failed: ${error.message}`);
     const rows = (data as TeamRow[] | null) ?? [];
@@ -61,11 +56,9 @@ export class SupabaseTeamQueryRepository implements TeamQueries {
       id: r.id,
       slug: r.slug,
       name: r.name,
-      format: r.format,
       captainId: r.captain_id,
       captainName: captains.get(r.captain_id)?.displayName ?? null,
       rosterCount: (rosterCounts.get(r.id) ?? 0) + (r.extra_member_count ?? 0),
-      teamSize: playersPerSide(r.format as Format),
     }));
     return { cards, total: count ?? cards.length };
   }

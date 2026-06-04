@@ -17,8 +17,6 @@ export interface TeamQueries {
 export interface TeamDirectoryQuery {
   /** Case-insensitive substring match on team name (raw text; adapter escapes). */
   nameLike?: string;
-  /** Exact format filter (doubles / triples / quads / sixes). */
-  format?: string;
   /** Page size. */
   limit: number;
   /** Zero-based row offset for the page. */
@@ -36,12 +34,9 @@ export interface TeamDirectoryCard {
   id: string;
   slug: string;
   name: string;
-  format: string;
   captainId: string;
   /** Captain's public display name (resolved via `ProfileQueries`), null if unknown. */
   captainName: string | null;
-  /** Active roster size + off-site extras — the "recruiting vs full" signal. */
+  /** Active roster size + off-site extras — how many players are on the roster. */
   rosterCount: number;
-  /** Players per side for the format (doubles=2 … sixes=6) — the target size. */
-  teamSize: number;
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Capacity, EventPosition, Format } from '@pickupvb/domain';
+import { Capacity, EventPosition } from '@pickupvb/domain';
 import {
   computeSpotsRemaining,
   mapAttendees,
@@ -130,7 +130,6 @@ describe('mapRegisteredTeams', () => {
           id: teamId,
           slug: `s_${teamId}`,
           name: `Team ${teamId}`,
-          format: Format.Doubles,
           captain_id: `cap_${teamId}`,
           captain: profile(`cap_${teamId}`),
         }
