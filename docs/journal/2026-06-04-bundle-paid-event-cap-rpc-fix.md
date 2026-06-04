@@ -1,5 +1,14 @@
 # Writing the Rachel subscription e2es surfaced a disabled paid-event cap (2026-06-04)
 
+> **Correction (same day, after running against dev):** the cap is **not**
+> live-disabled on dev — the dev run hit the cap message and the deployed RPC
+> counts cleanly, even though `events.price_cents` is gone. So dev carries an
+> **untracked hotfix**; the breakage below is real only for a **fresh DB built
+> from the repo migrations**. `20260913000000` is therefore a repo-correctness
+> fix that tracks the dev hotfix — **not a live behavioural change**. The "silently
+> disabled" / "re-enables the cap" language below should be read in that light
+> (fresh-DB, not dev). See the e2e-tests.md remediation log (dev-run entry).
+
 ## Context
 
 Continuation of the persona-e2e Stripe push. The last open Stripe cluster was

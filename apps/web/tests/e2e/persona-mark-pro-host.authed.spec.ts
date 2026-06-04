@@ -7,6 +7,7 @@ import {
   createPaidEvent,
   cancelEvent,
   openTemplatesModal,
+  isPaidEventHostBlock,
 } from './_helpers/event-create';
 import { deleteEventById } from './_helpers/cleanup';
 import {
@@ -169,34 +170,30 @@ test.describe(`${mark.name} (${mark.id}) — Pro host surfaces`, () => {
         await page.goto(`${created.url}/edit`);
         await page.waitForLoadState('domcontentloaded');
 
-        // Scope to the sponsor section — the edit page also renders a hero-banner
-        // uploader, so a bare input[type=file] / "Save" would be ambiguous.
-        const sponsor = page
-          .locator('section')
-          .filter({ hasText: /Sponsor slot \(Pro\)/i })
-          .first();
-        await expect(sponsor).toBeVisible({ timeout: 10_000 });
-
-        // Pro gating headline: Mark gets the save flow, NOT the $3 unlock CTA.
-        await expect(sponsor.getByRole('button', { name: /save sponsor/i })).toBeVisible({
-          timeout: 10_000,
-        });
-        await expect(sponsor.getByRole('button', { name: /unlock sponsor slot/i })).toHaveCount(0);
+        // Scope to the sponsor *form* — the edit page wraps the hero-banner
+        // uploader + the sponsor panel in an outer <section>, so a `section`
+        // filter matched that wrapper (two file inputs → strict-mode violation).
+        // The form holds all the sponsor fields and is unambiguous. A Pro host
+        // gets a "Save sponsor" submit; a free host gets "Unlock sponsor slot
+        // ($3)" instead — so the form's presence is itself the Pro gate.
+        const sponsorForm = page.locator('form').filter({ hasText: /save sponsor/i });
+        await expect(sponsorForm).toBeVisible({ timeout: 10_000 });
+        await expect(page.getByRole('button', { name: /unlock sponsor slot/i })).toHaveCount(0);
 
         // Upload a logo → the widget uploads to the `sponsor-logos` bucket and
         // swaps the dropzone for a preview (the hidden logo_url is now set).
-        await sponsor.locator('input[type="file"]').setInputFiles({
+        await sponsorForm.locator('input[type="file"]').setInputFiles({
           name: 'sponsor.png',
           mimeType: 'image/png',
           buffer: PNG_1x1,
         });
-        await expect(sponsor.getByRole('img', { name: /sponsor logo preview/i })).toBeVisible({
+        await expect(sponsorForm.getByRole('img', { name: /sponsor logo preview/i })).toBeVisible({
           timeout: 20_000,
         });
 
         // Name is required; fill it and save.
-        await sponsor.getByLabel(/sponsor name/i).fill(`E2E Sponsor ${Date.now()}`);
-        await sponsor.getByRole('button', { name: /save sponsor/i }).click();
+        await sponsorForm.getByLabel(/sponsor name/i).fill(`E2E Sponsor ${Date.now()}`);
+        await sponsorForm.getByRole('button', { name: /save sponsor/i }).click();
 
         await expect(page.getByText(/sponsor saved/i)).toBeVisible({ timeout: 15_000 });
         expect(page.url()).toContain('sponsor=saved');
@@ -229,10 +226,20 @@ test.describe(`${mark.name} (${mark.id}) — Pro host surfaces`, () => {
     const markPage = await markCtx.newPage();
     let created: { url: string; id: string } | null = null;
     try {
-      created = await createPaidEvent(markPage, {
-        title: `E2E Mark CSV ${Date.now()}`,
-        priceUsd: 5,
-      });
+      try {
+        created = await createPaidEvent(markPage, {
+          title: `E2E Mark CSV ${Date.now()}`,
+          priceUsd: 5,
+        });
+      } catch (err) {
+        if (isPaidEventHostBlock(err)) {
+          test.skip(
+            true,
+            'host cannot create a paid event on this env (Stripe not onboarded or 30d cap) — needs an uncapped Stripe-onboarded host',
+          );
+        }
+        throw err;
+      }
 
       // Marcus buys a ticket so the export has a paid attendee row.
       await withPersona(browser, 'marcus', async (page) => {

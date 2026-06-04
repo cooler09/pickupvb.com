@@ -3,7 +3,7 @@ import type { Browser } from '@playwright/test';
 import { PERSONAS, withPersona, personaEmail, skipIfPersonaMissing } from './_helpers/personas';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
-import { createPaidEvent, cancelEvent } from './_helpers/event-create';
+import { createPaidEvent, cancelEvent, isPaidEventHostBlock } from './_helpers/event-create';
 import {
   STRIPE_TEST_CARDS,
   clickConfirmedSubmit,
@@ -53,7 +53,18 @@ async function withStripeHostPaidEvent(
   const hostPage = await hostCtx.newPage();
   let eventUrl: string | null = null;
   try {
-    const created = await createPaidEvent(hostPage, opts);
+    let created: { url: string; id: string };
+    try {
+      created = await createPaidEvent(hostPage, opts);
+    } catch (err) {
+      if (isPaidEventHostBlock(err)) {
+        test.skip(
+          true,
+          'stripe-host cannot create a paid event on this env (free-tier 30d cap or Stripe not onboarded) — needs an uncapped Stripe-onboarded host',
+        );
+      }
+      throw err;
+    }
     eventUrl = created.url;
     await fn(eventUrl, appOrigin);
   } finally {

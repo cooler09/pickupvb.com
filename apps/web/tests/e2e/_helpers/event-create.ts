@@ -332,6 +332,22 @@ export async function createPaidEvent(
  * executable regression for the `host_paid_event_count_30d` fix, migration
  * 20260913000000).
  */
+/**
+ * True when a `createPaidEvent` failure is the host being unable to create a
+ * paid event ON THIS ENVIRONMENT — the free-tier "1 paid event / 30 days" cap,
+ * or the host hasn't finished Stripe Connect onboarding. Stripe paid-flow specs
+ * use this to `test.skip` (a sanctioned infra gate) instead of hard-failing when
+ * the target env lacks an uncapped, Stripe-onboarded host. (On dev the only
+ * Stripe-onboarded host is free-tier, so it caps after one paid event; the Pro
+ * host isn't Stripe-onboarded.)
+ */
+export function isPaidEventHostBlock(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /paid event per 30 days|finish Stripe setup|Set up Stripe|can't accept payments/i.test(
+    msg,
+  );
+}
+
 export async function attemptPaidEventExpectCapBlock(page: Page): Promise<void> {
   let created: { url: string; id: string } | null = null;
   let errMsg = '';
