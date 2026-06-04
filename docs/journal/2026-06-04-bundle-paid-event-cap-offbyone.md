@@ -181,10 +181,19 @@ Deploy-gated: the Marcus buy + refund-inside e2es confirm it post-deploy.
   `refundRosterTeamPaymentIfAny`, lines 79–80) still don't evict — they don't
   surface `event_id` without an extra lookup; low priority (team refunds are
   rarer) but the same class.
-- **Mark CSV statement test** still skips: it needs Mark's **pro-host** account
-  Stripe-Connect-onboarded on dev (his CSV must reflect a paid event _he_ hosts;
-  the stripe-host's events won't appear). One-time manual Stripe test-mode
-  onboarding for `TEST_PRO_HOST_EMAIL`.
+- **Mark persona repointed (resolved).** The `mark` persona pointed at
+  `…+pro-host@gmail.com` (Pro, _no_ Stripe Connect account), but the spec is
+  titled "Mark Delgado" — a real, separate dev account `…+mark@gmail.com` that's
+  **both** Pro **and** Stripe-Connect-onboarded (`acct_…`, `charges_enabled`).
+  Fixed by pointing `TEST_PRO_HOST_EMAIL` → `…+mark@gmail.com` in `.env.local`
+  (verified `+mark` signs in with `TEST_USER_PASSWORD`). Result: **24/25**
+  persona-mark tests pass on dev with no deploy (incl. "connected Stripe status",
+  and `createPaidEvent` as Mark now clears the Stripe gate). The 1 remaining
+  failure is the CSV test's buy→roster step — it now hits the **same
+  deploy-gated webhook-cache bug** as the Marcus buy test (no longer a "no
+  Stripe" skip), so it goes green once the webhook eviction ships. (Aside: the
+  local `.env.local` carried a **live** Stripe key — swapped to the sandbox key;
+  it never touched the e2e, which use deployed dev's test key.)
 - **Leaked-fixture hygiene:** Rachel carried a residual paid event (count 1
   after a clean run) — the cap arms/cleanups mostly work, but the >1h teardown
   sweep is the only backstop for a same-run leak. Not worth a fixture rework
