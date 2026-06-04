@@ -359,10 +359,35 @@ export async function createEventAction(
     : parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
   const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
   if (priceCents > 0 && !paymentsOffPlatform) {
-    // Free hosts are capped at 1 paid event per 30 days. Pro hosts have
-    // no cap. Check BEFORE creating Stripe Checkout, so we can roll back
-    // the event row cleanly. Count already includes the row we just
-    // inserted.
+    // Pricing lives on event_divisions (ADR 0006 Phase 9a). Persist the
+    // open-play price on the default (sort_order 0) division BEFORE the cap
+    // check below — order matters. The rolling-30d cap counts paid events via
+    // `host_paid_event_count_30d`, which joins `event_divisions` where
+    // `price_cents > 0`, so the just-inserted event is invisible to the count
+    // until its division is priced. `validateHostPaidEventCap(includesCurrentEvent:
+    // true)` assumes the current event IS counted; pricing the division
+    // afterward (as this block used to) let a free host with one prior paid
+    // event slip a SECOND past the cap — an off-by-one the Julie persona e2e
+    // caught. Tournaments/leagues already priced their divisions through the
+    // create handler, so only open-play needs the update here.
+    if (!usesDivisions) {
+      const { error: divPriceErr } = await supabase
+        .from('event_divisions')
+        .update({ price_cents: priceCents } as never)
+        .eq('event_id', result.id)
+        .eq('sort_order', 0);
+      if (divPriceErr) {
+        await supabase.from('events').delete().eq('id', result.id);
+        return {
+          ...snapshot(formData),
+          error: `Event created, but pricing failed: ${divPriceErr.message}`,
+        };
+      }
+    }
+    // Free hosts are capped at 1 paid event per 30 days. Pro hosts have no
+    // cap. Check BEFORE creating Stripe Checkout, so we can roll back the
+    // event row cleanly. The division price set above means the count now
+    // includes the row we just inserted (includesCurrentEvent: true).
     const cap = await validateHostPaidEventCap(user.id, { includesCurrentEvent: true });
     if (!cap.ok) {
       await supabase.from('events').delete().eq('id', result.id);
@@ -394,23 +419,6 @@ export async function createEventAction(
         ...snapshot(formData),
         error: `Event created, but pricing failed: ${priceErr.message}`,
       };
-    }
-    // Pricing now lives on event_divisions (ADR 0006 Phase 9a). For
-    // open-play we update the first (default) division here. Tournaments and
-    // leagues already supplied per-division priceCents through the create
-    // handler.
-    if (!usesDivisions) {
-      const { error: divPriceErr } = await supabase
-        .from('event_divisions')
-        .update({ price_cents: priceCents } as never)
-        .eq('event_id', result.id)
-        .eq('sort_order', 0);
-      if (divPriceErr) {
-        return {
-          ...snapshot(formData),
-          error: `Event created, but pricing failed: ${divPriceErr.message}`,
-        };
-      }
     }
   }
 
