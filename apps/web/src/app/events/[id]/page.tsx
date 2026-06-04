@@ -39,6 +39,19 @@ export async function generateMetadata(props: {
     if (err instanceof NotFoundError) return { title: 'Event — PickupVB' };
     return { title: 'Event — PickupVB' };
   }
+  // `loadEventReadModelPublic` reads on the admin client (RLS-bypassed), so it
+  // returns scoped events too. Metadata is viewer-agnostic (crawlers, link
+  // unfurls), so only an anon-visible event — published `public` / `invite_only`
+  // (the latter is link-shareable) — may expose its title/description here.
+  // Otherwise emit a generic, noindex title so a `friends_of_host` /
+  // `friends_of_attendees` (or unpublished) event's name doesn't leak in
+  // `<head>` / og tags. The page body enforces the same gate in loadEventDetail.
+  const anonVisible =
+    event.status === 'published' &&
+    (event.visibility === 'public' || event.visibility === 'invite_only');
+  if (!anonVisible) {
+    return { title: 'Event — PickupVB', robots: { index: false, follow: true } };
+  }
   // Don't expose non-public events to crawlers — and keep cancelled/draft
   // events out of the index even when public. Sitemap removal alone won't
   // deindex a URL Google already has, so a previously-indexed cancelled event

@@ -157,6 +157,86 @@ describe('Bracket.createStandalone', () => {
   });
 });
 
+// ---- Double elimination — loser advancement -------------------------
+
+describe('double elimination — losers bracket advancement', () => {
+  it('drops losers into the losers bracket so the whole graph plays out', () => {
+    // Regression: applyAdvancement used to place only the winner, never the
+    // loser, so a double-elim degenerated into a single-elim — the losers
+    // bracket + grand final never received teams and stayed unplayable.
+    const seeds = seedTeams(4).map((s) => s.entryId);
+    const b = Bracket.create(
+      'bracket-de' as BracketId,
+      'event-de' as EventId,
+      'division-de' as DivisionId,
+      'double_elimination',
+      { bestOf: 1 }, // one set decides → entryA (top row) always wins
+    );
+    b.seedTeams(seeds);
+    b.generate(mkIdFactory());
+    b.publish();
+    expect(b.status).toBe('active');
+
+    // Record every currently-playable match (entryA always wins) until none
+    // remain. With loser advancement working, recording the winners-bracket
+    // matches drops teams into the losers bracket, which then becomes playable.
+    let recorded = 0;
+    for (let i = 0; i < 24; i++) {
+      const next = b.matches.find(
+        (m) => m.status !== 'completed' && m.status !== 'bye' && m.entryAId && m.entryBId,
+      );
+      if (!next) break;
+      b.recordResult({
+        matchId: next.id,
+        sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }],
+      });
+      recorded += 1;
+    }
+
+    // A 4-team single-elim plays exactly 3 matches; double-elim must play more
+    // (2 WB semis + WB final + ≥1 LB match + grand final). Pre-fix this stopped
+    // at 3 because the losers bracket never filled.
+    expect(recorded).toBeGreaterThan(3);
+    // At least one losers-bracket match actually played.
+    expect(b.matches.some((m) => m.bracketSide === 'losers' && m.status === 'completed')).toBe(
+      true,
+    );
+    // Every non-bye match resolved → the bracket completes.
+    expect(b.status).toBe('completed');
+  });
+
+  it('reverting a winners-bracket result also pulls the loser back out of the losers bracket', () => {
+    const seeds = seedTeams(4).map((s) => s.entryId);
+    const b = Bracket.create(
+      'bracket-de2' as BracketId,
+      'event-de2' as EventId,
+      'division-de2' as DivisionId,
+      'double_elimination',
+      { bestOf: 1 },
+    );
+    b.seedTeams(seeds);
+    b.generate(mkIdFactory());
+    b.publish();
+
+    // Record both winners-bracket semifinals → both losers drop into the LB.
+    const semis = b.matches.filter(
+      (m) => m.bracketSide === 'winners' && m.entryAId && m.entryBId && m.status !== 'bye',
+    );
+    for (const sf of semis.slice(0, 2)) {
+      b.recordResult({ matchId: sf.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    }
+    const lbMatch = b.matches.find((m) => m.bracketSide === 'losers' && m.entryAId && m.entryBId);
+    expect(lbMatch, 'an LB match should be playable after both semis').toBeTruthy();
+
+    // Reset one semifinal → its loser must be pulled back out of the LB match.
+    const droppedLoser =
+      semis[0]!.winnerEntryId === semis[0]!.entryAId ? semis[0]!.entryBId : semis[0]!.entryAId;
+    b.resetMatch(semis[0]!.id);
+    const lbAfter = b.matches.find((m) => m.id === lbMatch!.id)!;
+    expect(lbAfter.entryAId === droppedLoser || lbAfter.entryBId === droppedLoser).toBe(false);
+  });
+});
+
 // ---- DEFAULT_BRACKET_CONFIG -----------------------------------------
 
 describe('DEFAULT_BRACKET_CONFIG', () => {

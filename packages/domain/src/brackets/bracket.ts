@@ -819,40 +819,65 @@ export class Bracket extends AggregateRoot<BracketId> {
   }
 
   private applyAdvancement(match: Match): void {
-    if (!match.advancesToMatchId || !match.advancesToSlot || !match.winnerEntryId) return;
-    const next = this._matches.find((m) => m.id === match.advancesToMatchId);
-    if (!next) return;
-    if (match.advancesToSlot === 'a') next.entryAId = match.winnerEntryId;
-    else next.entryBId = match.winnerEntryId;
+    if (!match.winnerEntryId) return;
+    // Winner advances to its next match.
+    if (match.advancesToMatchId && match.advancesToSlot) {
+      const next = this._matches.find((m) => m.id === match.advancesToMatchId);
+      if (next) {
+        if (match.advancesToSlot === 'a') next.entryAId = match.winnerEntryId;
+        else next.entryBId = match.winnerEntryId;
+      }
+    }
+    // Loser drops to its losers-bracket match (double elimination). Without
+    // this, the losers bracket + grand final never receive teams and stay
+    // unplayable — a double-elim degenerates into a single-elim. The generator
+    // wires `loserAdvancesTo*` on every winners-bracket match (generators.ts).
+    if (match.loserAdvancesToMatchId && match.loserAdvancesToSlot) {
+      const loser = match.winnerEntryId === match.entryAId ? match.entryBId : match.entryAId;
+      const dest = this._matches.find((m) => m.id === match.loserAdvancesToMatchId);
+      if (dest && loser) {
+        if (match.loserAdvancesToSlot === 'a') dest.entryAId = loser;
+        else dest.entryBId = loser;
+      }
+    }
   }
 
   private unwireAdvancement(match: Match): void {
-    // Walk forward and clear the slot we previously placed our winner in,
-    // then cascade through any downstream matches that consumed that team.
-    if (!match.advancesToMatchId || !match.advancesToSlot) return;
+    // Walk forward and clear every slot this match's result fed — the winner's
+    // advancement AND (double elim) the loser's drop — cascading through any
+    // downstream match whose own result consumed a now-removed team. Slots are
+    // keyed `matchId:slot` so a match fed on both sides (e.g. a grand final) has
+    // each side cleared independently.
     const visited = new Set<string>();
-    const queue: { matchId: MatchId; slot: 'a' | 'b' }[] = [
-      { matchId: match.advancesToMatchId, slot: match.advancesToSlot },
-    ];
+    const queue: { matchId: MatchId; slot: 'a' | 'b' }[] = [];
+    if (match.advancesToMatchId && match.advancesToSlot) {
+      queue.push({ matchId: match.advancesToMatchId, slot: match.advancesToSlot });
+    }
+    if (match.loserAdvancesToMatchId && match.loserAdvancesToSlot) {
+      queue.push({ matchId: match.loserAdvancesToMatchId, slot: match.loserAdvancesToSlot });
+    }
     while (queue.length > 0) {
       const { matchId, slot } = queue.shift()!;
-      if (visited.has(matchId)) continue;
-      visited.add(matchId);
+      const key = `${matchId}:${slot}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
       const m = this._matches.find((x) => x.id === matchId);
       if (!m) continue;
       const removed = slot === 'a' ? m.entryAId : m.entryBId;
       if (slot === 'a') m.entryAId = null;
       else m.entryBId = null;
-      // If this downstream match had a result, that result is now stale.
-      if (m.winnerEntryId === removed) {
+      // If this downstream match had a result built on the removed team, that
+      // result is now stale — clear it and cascade through BOTH its forward
+      // edges (winner advance + loser drop).
+      if (removed && m.winnerEntryId === removed) {
         m.winnerEntryId = null;
         m.sets = [];
         m.status = 'pending';
         if (m.advancesToMatchId && m.advancesToSlot) {
-          queue.push({
-            matchId: m.advancesToMatchId,
-            slot: m.advancesToSlot,
-          });
+          queue.push({ matchId: m.advancesToMatchId, slot: m.advancesToSlot });
+        }
+        if (m.loserAdvancesToMatchId && m.loserAdvancesToSlot) {
+          queue.push({ matchId: m.loserAdvancesToMatchId, slot: m.loserAdvancesToSlot });
         }
       }
     }

@@ -221,6 +221,26 @@ export async function loadEventDetail(
   const user = viewer?.user ?? null;
   const isRealUser = !!user && !isAnonymousUser(user);
 
+  // ── Scoped-event visibility gate ──────────────────────────────────────────
+  // The detail read below runs on the service-role admin client (RLS-bypassed)
+  // so its heavy, viewer-independent parts can be cached + shared. As a result
+  // `getDetail` would otherwise hand a `friends_of_host` / `friends_of_attendees`
+  // (or unpublished private) event to a viewer outside its scope — the
+  // `viewerId` it carries drives the friend graph + RSVP bits, it is NOT an
+  // access gate. Re-assert visibility here, before returning anything.
+  //
+  // Logged-in (incl. anonymous-auth) viewers → a cheap user-scoped existence
+  // check against the RLS-protected base `events` table. That policy is the
+  // single source of truth for who may see an event (host / co-host / friend /
+  // group / public / invite_only-by-link), so we delegate to it rather than
+  // re-deriving the rules. A signed-in detail view is already dynamic, so the
+  // cookie-scoped client adds no caching cost.
+  if (user) {
+    const sb = await getServerSupabase();
+    const { data: visibleRow } = await sb.from('events').select('id').eq('id', id).maybeSingle();
+    if (!visibleRow) notFound();
+  }
+
   let event: EventDetailReadModel;
   try {
     event = user
@@ -229,6 +249,19 @@ export async function loadEventDetail(
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
+  }
+
+  // Anonymous (logged-out) viewers have no friend edges, so their visibility is
+  // static and the cacheable public read can be gated by the event's own
+  // fields: only a published `public` / `invite_only` event is anon-visible
+  // (mirrors the anon branch of the `events` RLS). This keeps scoped events from
+  // leaking to crawlers / logged-out links while leaving the page cacheable.
+  if (
+    !user &&
+    (event.status !== 'published' ||
+      (event.visibility !== 'public' && event.visibility !== 'invite_only'))
+  ) {
+    notFound();
   }
 
   const friendIds = new Set(event.viewerFriendIds);
