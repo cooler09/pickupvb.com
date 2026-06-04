@@ -112,6 +112,38 @@ Without `E2E_CLEANUP_SUPABASE_*` the UI cancel/soft-delete leaves a
   accounts + relationships exist (Node 22; export the `TEST_*` vars; see the
   e2e README gotchas).
 
+## First live dev run (2026-06-03)
+
+Ran the persona suite against dev once all 18 persona accounts + their groups/
+teams were provisioned (via the new `apps/web/scripts/run-e2e.mjs`, which loads
+`.env.local` robustly — `source` choked on a multi-line key — and maps the
+cleanup creds). Result: **54 passed / 8 failed / 45 skipped**, then **0 failed**
+on the relevant specs after fixes. Highlights:
+
+- **All 17 account sign-ins passed** — provisioning + the appended persona
+  `TEST_*_EMAIL` vars are correct.
+- **`globalTeardown` reclaimed 488 historical leaked fixtures** (>1h old: 448
+  events, 21 groups, 19 teams) and left the persona seed (plain-named) intact —
+  the age guard + naming rule both held in practice.
+- **Real product finding:** the **league create flow has shipped** —
+  `/events/new` now offers a League type (`new-event-form.tsx` EventType.League;
+  `actions.ts` `isLeague` create path with per-division pricing). Diana's test
+  caught that the "leagues have no UI create path" assumption (this journal's
+  earlier note, the league-spec comment, `_helpers/league.ts`'s admin-fixture
+  rationale, and the e2e memory) is now **stale**. Updated Diana's test to assert
+  all three types are offered; the league fixmes can now be graduated to drive
+  the real create flow.
+- **Three test-quality bugs fixed** (mine): Amy asserted `res.ok()` on
+  `/notifications`, which isn't a routed page (the bell is a header popover) →
+  assert the header bell instead; Zoe targeted `/admin/claims` (404; only
+  `/admin/community-import` exists) and `locator('main')` tripped strict mode on
+  the 404's `<main>` → real route + `.first()`; Diana (above).
+- **Pre-existing shared-helper issue (not persona-specific):** 4 event-creation
+  tests (Mark/Julie/Nina) fail in `pickFutureDateTime` —
+  "DateTimePicker for endsAt did not populate hidden input." Same helper
+  `event-host.authed.spec.ts` uses, so it's suite-wide; recent date/timezone
+  commits are the likely cause. Needs a trace to fix — left as a follow-up.
+
 ## Follow-ups
 
 - Provision the 11 new dev accounts + the seed state each persona assumes

@@ -26,17 +26,16 @@ test.describe(`${zoe.name} (${zoe.id}) — platform admin`, () => {
     });
   });
 
-  test('an admin-only surface is reachable (not bounced to /login or /)', async ({ browser }) => {
+  test('an admin-only surface is reachable (not bounced to /login)', async ({ browser }) => {
     await withPersona(browser, 'zoe', async (page) => {
-      const res = await page.goto('/admin/claims');
-      // The route may 200 (claims list) or redirect within /admin; what matters
-      // is the admin isn't denied. Accept any admin-scoped landing.
+      // The community-import tool is the one first-class /admin page.
+      await page.goto('/admin/community-import');
       await page.waitForLoadState('domcontentloaded');
-      const denied = page.url().includes('/login') || /\/$/.test(new URL(page.url()).pathname);
-      if (denied && !(res?.ok() ?? false)) {
-        test.skip(true, '/admin/claims not present on this build — admin surface route drift');
-      }
-      await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
+      expect(page.url()).not.toContain('/login');
+      // .first() — a 404 page would also render a <main>, tripping strict mode.
+      await expect(page.locator('main').first()).toBeVisible({ timeout: 10_000 });
+      // …and it must be the admin tool, not the 404 page.
+      await expect(page.locator('body')).not.toContainText(/page not found/i);
     });
   });
 

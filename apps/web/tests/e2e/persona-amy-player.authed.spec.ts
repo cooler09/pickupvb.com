@@ -64,19 +64,17 @@ test.describe(`${amy.name} (${amy.id}) — discovery & account home`, () => {
     await expect(page.locator('body')).not.toContainText(/500|internal server error/i);
   });
 
-  test('/notifications loads and the bell is reachable', async ({ page }) => {
-    const res = await page.goto('/notifications');
-    expect(res?.ok()).toBeTruthy();
-    await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
-    // The header notification bell is present on authed pages.
-    const hasBell = await isVisibleOrTimeout(
-      page
-        .getByRole('button', { name: /notification/i })
-        .or(page.getByRole('link', { name: /notification/i }))
-        .first(),
-      5_000,
-    );
-    expect(hasBell || page.url().includes('/notifications')).toBe(true);
+  test('the notification bell is reachable in the header', async ({ page }) => {
+    // /notifications is NOT a routed page — the bell opens a header popover.
+    // Mirror the tolerant locator in notifications.authed.spec.ts.
+    await page.goto('/events');
+    await page.waitForLoadState('domcontentloaded');
+    const bell = page
+      .getByRole('button', { name: /notifications?|bell/i })
+      .or(page.locator('[data-testid="notification-bell"]'))
+      .or(page.locator('[aria-label*="notification"]'))
+      .first();
+    await expect(bell).toBeVisible({ timeout: 10_000 });
   });
 
   // The join/leave/waitlist cycle is owned by events.authed.spec.ts; Hannah
