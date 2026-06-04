@@ -1,9 +1,7 @@
 import { test, expect } from './_helpers/fixtures';
-import type { Page } from '@playwright/test';
 import { PERSONAS, withPersona, personaEmail, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
-import { createPaidEvent, openTemplatesModal } from './_helpers/event-create';
-import { deleteEventById } from './_helpers/cleanup';
+import { attemptPaidEventExpectCapBlock, openTemplatesModal } from './_helpers/event-create';
 import {
   hostSubscriptionControlAvailable,
   setHostSubscriptionStatus,
@@ -32,27 +30,6 @@ import {
 const rachel = PERSONAS.rachel;
 const NEEDS =
   'needs E2E_CLEANUP_SUPABASE_* + TEST_LAPSED_PRO_EMAIL (subscription state is admin-controlled)';
-
-/**
- * Attempt to create a paid event as the current persona, expecting the free-tier
- * rolling-30d cap to block it. Asserts the block + the cap message, and cleans
- * up if the cap unexpectedly let the event through (so a regression doesn't leak
- * a paid event).
- */
-async function expectPaidEventCapBlock(page: Page): Promise<void> {
-  let created: { url: string; id: string } | null = null;
-  let errMsg = '';
-  try {
-    created = await createPaidEvent(page, { title: `E2E Rachel Cap ${Date.now()}`, priceUsd: 5 });
-  } catch (err) {
-    errMsg = err instanceof Error ? err.message : String(err);
-  }
-  if (created) await deleteEventById(created.id); // cap didn't fire — don't leak
-  expect(created, 'a 2nd paid event must be blocked by the rolling-30d cap').toBeNull();
-  expect(errMsg, 'the block must be the paid-event cap').toMatch(
-    /paid event per 30 days|upgrade to pro/i,
-  );
-}
 
 test.describe(`${rachel.name} (${rachel.id}) — Pro lifecycle`, () => {
   test('/profile/billing/pro loads with a subscribe/manage CTA', async ({ browser }) => {
@@ -158,7 +135,7 @@ test.describe(`${rachel.name} (${rachel.id}) — Pro lifecycle`, () => {
       saved = await setHostSubscriptionStatus(email!, 'canceled'); // Free
       armEventId = await armPaidEvent(email!); // one paid event in the rolling 30d
       await withPersona(browser, 'rachel', async (page) => {
-        await expectPaidEventCapBlock(page);
+        await attemptPaidEventExpectCapBlock(page);
       });
     } finally {
       await deleteArmedPaidEvent(armEventId);
@@ -183,7 +160,7 @@ test.describe(`${rachel.name} (${rachel.id}) — Pro lifecycle`, () => {
       // window), so a cancelled paid event must still occupy the slot.
       armEventId = await armPaidEvent(email!, { status: 'cancelled' });
       await withPersona(browser, 'rachel', async (page) => {
-        await expectPaidEventCapBlock(page);
+        await attemptPaidEventExpectCapBlock(page);
       });
     } finally {
       await deleteArmedPaidEvent(armEventId);

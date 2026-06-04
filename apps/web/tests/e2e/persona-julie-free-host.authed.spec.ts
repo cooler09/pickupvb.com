@@ -1,8 +1,17 @@
 import { test, expect } from './_helpers/fixtures';
-import { PERSONAS, withPersona } from './_helpers/personas';
+import { PERSONAS, withPersona, personaEmail, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
-import { createFreeOpenPlayEvent, cancelEvent } from './_helpers/event-create';
+import {
+  createFreeOpenPlayEvent,
+  cancelEvent,
+  attemptPaidEventExpectCapBlock,
+} from './_helpers/event-create';
 import { deleteEventById } from './_helpers/cleanup';
+import {
+  armPaidEvent,
+  deleteArmedPaidEvent,
+  hostSubscriptionControlAvailable,
+} from './_helpers/host-subscription';
 
 /**
  * Julie Tran (P2) — the free host who runs events as herself (no group, no
@@ -65,8 +74,31 @@ test.describe(`${julie.name} (${julie.id}) — free host surfaces`, () => {
     });
   });
 
-  // The cap is a rolling-30d window keyed on a Stripe-onboarded free host with
-  // one paid event already in the window; needs the Stripe fixture suite to
-  // create the first paid event. Documented intent (features.md § 5):
-  test.fixme('second paid event in 30 days is blocked by the free-tier cap with an upgrade CTA', async () => {});
+  test('second paid event in 30 days is blocked by the free-tier cap with an upgrade CTA', async ({
+    browser,
+  }) => {
+    const email = personaEmail('julie');
+    test.skip(
+      !hostSubscriptionControlAvailable(email),
+      'needs E2E_CLEANUP_SUPABASE_* + TEST_FREE_HOST_EMAIL (the arming paid event is admin-provisioned)',
+    );
+    skipIfPersonaMissing('julie');
+    test.setTimeout(150_000);
+
+    // Julie is natively free — no subscription flip needed. Arm the rolling-30d
+    // cap with one admin-provisioned paid event, then a 2nd create is blocked.
+    // The cap fires BEFORE the Stripe-charges check (events/new/actions.ts), so
+    // no Stripe onboarding is required to exercise it. This is also the second
+    // executable regression for the `host_paid_event_count_30d` fix (migration
+    // 20260913000000) alongside the Rachel paid-cap specs.
+    let armEventId: string | null = null;
+    try {
+      armEventId = await armPaidEvent(email!);
+      await withPersona(browser, 'julie', async (page) => {
+        await attemptPaidEventExpectCapBlock(page);
+      });
+    } finally {
+      await deleteArmedPaidEvent(armEventId);
+    }
+  });
 });

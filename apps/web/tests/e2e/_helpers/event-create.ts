@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { isVisibleOrTimeout } from './predicates';
+import { deleteEventById } from './cleanup';
 
 /**
  * Shared helpers for tests that need to create a real event on the target
@@ -319,4 +320,29 @@ export async function createPaidEvent(
   const match = /\/events\/([0-9a-f-]{36})/.exec(url);
   if (!match) throw new Error(`could not extract event id from ${url}`);
   return { url, id: match[1]! };
+}
+
+/**
+ * Attempt to create a paid event as the current `page`, expecting the free-tier
+ * "1 paid event / 30 days" cap to block it. The caller must have already armed
+ * the cap (a paid event in the window — see `armPaidEvent` in
+ * `_helpers/host-subscription.ts`). Asserts the block + the cap message, and
+ * deletes the event if the cap unexpectedly let it through so a regression
+ * doesn't leak a paid event. Shared by the Julie + Rachel cap specs (and the
+ * executable regression for the `host_paid_event_count_30d` fix, migration
+ * 20260913000000).
+ */
+export async function attemptPaidEventExpectCapBlock(page: Page): Promise<void> {
+  let created: { url: string; id: string } | null = null;
+  let errMsg = '';
+  try {
+    created = await createPaidEvent(page, { title: `E2E Cap Block ${Date.now()}`, priceUsd: 5 });
+  } catch (err) {
+    errMsg = err instanceof Error ? err.message : String(err);
+  }
+  if (created) await deleteEventById(created.id); // cap didn't fire — don't leak
+  expect(created, 'a 2nd paid event must be blocked by the rolling-30d cap').toBeNull();
+  expect(errMsg, 'the block must be the paid-event cap').toMatch(
+    /paid event per 30 days|upgrade to pro/i,
+  );
 }

@@ -6,6 +6,7 @@ import {
   createCoHostedEvent,
   deleteCoHostedEvent,
   coHostedEventFixtureAvailable,
+  eventBroadcastBySenderExists,
   type CoHostedEventFixture,
 } from './_helpers/co-hosted-event';
 
@@ -143,12 +144,62 @@ test.describe(`${steve.name} (${steve.id}) — co-host / group-admin boundary`, 
     }
   });
 
-  // Still fixme — a co-host CANNOT send a host broadcast today: the
-  // `broadcasts_insert_event_host` RLS policy checks `events.host_id = auth.uid()`
-  // only (no `event_co_hosts` / host-group branch), so `sendEventBroadcast`
-  // returns an error for a co-host. This is a **feature/RLS decision**, not a
-  // test gap — extend the broadcasts insert policy (and the panel's render gate)
-  // to co-hosts before un-fixme-ing. See docs/audits/e2e-tests.md (persona fixme
-  // backlog).
-  test.fixme('co-host can send a host broadcast on a co-hosted event', async () => {});
+  test('co-host can send a host broadcast on a co-hosted event', async ({ browser }) => {
+    test.skip(!coHostedEventFixtureAvailable(), 'co-host fixture needs E2E_CLEANUP_SUPABASE_*');
+    skipIfPersonaMissing('steve');
+    const hostEmail = process.env['TEST_PRO_HOST_EMAIL'];
+    const coHostEmail = personaEmail('steve');
+    const attendeeEmail = process.env['TEST_USER_EMAIL'];
+    if (!hostEmail) test.skip(true, 'needs TEST_PRO_HOST_EMAIL (the primary host, Mark)');
+    if (!coHostEmail) test.skip(true, 'needs TEST_CO_HOST_EMAIL (Steve)');
+    if (!attendeeEmail) {
+      test.skip(true, 'needs TEST_USER_EMAIL (an attendee so the broadcast panel renders)');
+    }
+    test.setTimeout(120_000);
+
+    // Regression for migration 20260914000000: the broadcasts insert policy now
+    // uses `is_event_host` (host + co-hosts), so a co-host's send is allowed.
+    // Pre-fix the host-only RLS rejected it and an error alert surfaced.
+    let fx: CoHostedEventFixture | null = null;
+    try {
+      fx = await createCoHostedEvent({
+        title: `E2E Steve Broadcast ${Date.now()}`,
+        hostEmail: hostEmail!,
+        coHostEmail: coHostEmail!,
+        attendeeEmail: attendeeEmail!,
+      });
+
+      await withPersona(browser, 'steve', async (page) => {
+        await page.goto(`/events/${fx!.eventId}/manage`);
+        await page.waitForLoadState('domcontentloaded');
+
+        // The HostBroadcastPanel renders because the event has an attendee.
+        const panel = page
+          .locator('details')
+          .filter({ hasText: /message attendees/i })
+          .first();
+        await expect(panel, 'the broadcast panel renders for a co-host').toBeVisible({
+          timeout: 10_000,
+        });
+        await panel.locator('summary').click();
+        await panel
+          .locator('textarea[name="body"]')
+          .fill('E2E co-host broadcast — court moved to 3.');
+        await panel.getByRole('button', { name: /send message/i }).click();
+
+        // Definitive: the broadcast row lands under Steve (the co-host) — it only
+        // commits if the RLS insert check passed.
+        await expect
+          .poll(() => eventBroadcastBySenderExists(fx!.eventId, fx!.coHostId), {
+            timeout: 15_000,
+            message: 'a co-host broadcast should be inserted (RLS must allow it)',
+          })
+          .toBe(true);
+        // …and no RLS-rejection error alert surfaced.
+        await expect(panel.getByRole('alert')).toHaveCount(0);
+      });
+    } finally {
+      await deleteCoHostedEvent(fx);
+    }
+  });
 });
