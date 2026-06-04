@@ -188,11 +188,9 @@ test.describe('team invites', () => {
           )} mainSnippet=${JSON.stringify(mainText)}\nOriginal: ${(err as Error).message}`,
         );
       }
+      // The UserPicker uses `submitOnSelect` — picking the option submits the
+      // add-teammate form directly; there is no separate "Add" button.
       await option.click();
-
-      const addTeammateBtn = page.getByRole('button', { name: /add teammate|add member/i }).first();
-      await expect(addTeammateBtn).toBeVisible({ timeout: 5_000 });
-      await addTeammateBtn.click();
       await page.waitForLoadState('domcontentloaded');
 
       // Attendee-b should appear as "Pending invite" in the roster.
@@ -267,10 +265,8 @@ test.describe('team invites', () => {
 
       const listbox = page.getByRole('listbox').first();
       await expect(listbox).toBeVisible({ timeout: 10_000 });
+      // submitOnSelect — picking the option submits the form; no separate button.
       await listbox.getByRole('option').first().click();
-
-      const addTeammateBtn = page.getByRole('button', { name: /add teammate|add member/i }).first();
-      await addTeammateBtn.click();
       await page.waitForLoadState('domcontentloaded');
 
       await expect(page.locator('main')).toContainText(/pending invite/i, { timeout: 10_000 });
@@ -377,11 +373,8 @@ test.describe('team broadcast', () => {
       await page.waitForLoadState('domcontentloaded');
       const listbox = page.getByRole('listbox').first();
       await expect(listbox).toBeVisible({ timeout: 10_000 });
+      // submitOnSelect — picking the option submits the form; no separate button.
       await listbox.getByRole('option').first().click();
-      await page
-        .getByRole('button', { name: /add teammate|add member/i })
-        .first()
-        .click();
       await page.waitForLoadState('domcontentloaded');
 
       // Attendee-b accepts.

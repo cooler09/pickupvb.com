@@ -202,11 +202,9 @@ test.describe(`${bianca.name} (${bianca.id}) — team captain`, () => {
       await combobox.fill(tylerName);
       const option = biancaPage.getByRole('listbox').first().getByRole('option').first();
       await expect(option).toBeVisible({ timeout: 10_000 });
+      // The UserPicker uses `submitOnSelect` — picking the option submits the
+      // add-teammate form directly; there is no separate "Add" button.
       await option.click();
-      await biancaPage
-        .getByRole('button', { name: /add teammate|add member/i })
-        .first()
-        .click();
       await biancaPage.waitForLoadState('domcontentloaded');
       await expect(biancaPage.locator('main')).toContainText(/pending invite/i, {
         timeout: 10_000,
@@ -241,11 +239,13 @@ test.describe(`${bianca.name} (${bianca.id}) — team captain`, () => {
       await expect(memberRow).not.toContainText(/pending invite/i);
 
       // 6. The seam: joining a team does NOT remove Tyler from the free-agent
-      // pool — his name still appears in the event's "Available" list.
+      // pool — his name still appears in the event's "Available" list. He's
+      // already a free agent, so the panel opens straight to the pool view
+      // (no "Sign up solo" toggle to click — that control is gone once you're
+      // in, and clicking it would hang); just expand and assert he's listed.
       await tylerPage.goto(`/events/${fx.eventId}`);
       await tylerPage.waitForLoadState('domcontentloaded');
-      await expandSignupSection(tylerPage); // "Register" section can default collapsed
-      await tylerPage.getByRole('radio', { name: /sign up solo/i }).click();
+      await expandSignupSection(tylerPage); // section auto-collapses once you're in
       await expect(tylerPage.getByText(tylerName).first()).toBeVisible({ timeout: 10_000 });
     } finally {
       await tylerCtx.close();

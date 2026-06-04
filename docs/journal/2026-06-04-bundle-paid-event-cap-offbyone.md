@@ -162,6 +162,28 @@ Two fixture bugs hid behind it (`_helpers/league.ts`):
 
 All three persona-captain/free-agent registration tests pass on dev.
 
+### The free-agent pickup flow surfaced three more drifts
+
+Bianca's multi-actor pickup test (P10 invites Tyler, he's notified, accepts,
+pool entry persists) stacked yet more stale-UI drift on top of the collapse:
+
+1. **`ensureSearchableDisplayName` couldn't see the field.** The profile edit
+   form moved inside a collapsed `<details>` "Edit profile"; the helper now
+   navigates to `/profile?edit=1` (the server-side deep-link that opens it).
+   Benefits every spec that sets a display name (`groups`, `teams`, `bianca`).
+2. **A phantom "Add teammate" button.** `AddTeamMemberForm`'s `UserPicker` uses
+   `submitOnSelect` — picking the option submits the form, there is no separate
+   "Add" button. Tests that clicked one hung (no timeout) or failed the 5s
+   visibility pre-check. Removed across `persona-bianca-captain` and the three
+   sites in `teams.authed`. **Caveat:** the `teams.authed` "team invites"
+   tests (`:106`, `:229`) now get past the phantom button but still time out
+   later in their own multi-actor setup — left unchased here (Bianca's pool
+   test covers the same invite→accept→remove path and is green). A follow-up.
+3. **A "Sign up solo" click for an already-signed-up free agent.** Step 6
+   re-verifies Tyler is still in the pool; he's already a free agent, so the
+   panel opens straight to the pool view (no mode toggle) — dropped the click,
+   kept the expand + assertion.
+
 ## Also in this bundle
 
 - **Marcus Stripe fixture is self-provisioning now.** The stripe-host is
