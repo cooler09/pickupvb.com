@@ -41,12 +41,13 @@ export default defineConfig({
   // Supabase refresh-token race that used to force a low cap is gone (e2e
   // audit P2 #3): independent sessions don't share a refresh-token family,
   // so one worker's rotation can't invalidate another's. Let Playwright pick
-  // the count locally. CI stays serial *by choice* now — not for the race,
-  // but to keep load on the shared dev env + dev Supabase auth rate limits
-  // predictable; raise it once a parallel CI run is validated. Caveat: these
-  // specs still read/write shared dev data, so very high worker counts can
-  // surface data contention unrelated to auth.
-  workers: process.env.CI ? 1 : undefined,
+  // Serial by default. The suite ALWAYS runs against the shared dev env
+  // (PLAYWRIGHT_BASE_URL=dev; localhost is Turnstile-blocked), so parallel
+  // workers overload dev's serverless + Supabase auth rate limits — a 4-worker
+  // run showed ~16 spurious failures (geocoder-on-create rate-limits, Stripe
+  // Checkout timeouts, flaky logins) that all passed when re-run serially
+  // (2026-06-04). Override with `--workers=N` for a deliberate parallel run.
+  workers: 1,
   // The skip-budget reporter (e2e audit C1) is appended in every mode. It is
   // warn-only until `E2E_SKIP_BUDGET=<N>` is exported, at which point it fails
   // the run when the skipped-test count exceeds N — a ratchet against silent

@@ -19,6 +19,12 @@ import {
   refundWindowFixtureAvailable,
   type NearFuturePaidAttendeeFixture,
 } from './_helpers/refund-window-event';
+import {
+  setHostSubscriptionStatus,
+  restoreHostSubscription,
+  hostSubscriptionControlAvailable,
+  type SavedSubscription,
+} from './_helpers/host-subscription';
 
 /**
  * Marcus Lee (P14) — the paid-ticket buyer / tipper / refunder.
@@ -52,7 +58,19 @@ async function withStripeHostPaidEvent(
   const hostCtx = await browser.newContext({ storageState: STORAGE_PATHS.stripeHost });
   const hostPage = await hostCtx.newPage();
   let eventUrl: string | null = null;
+  // The stripe-host is Stripe-Connect-onboarded but free-tier, so the rolling
+  // 30d paid-event cap blocks it after the first paid event — and the cap is
+  // status-agnostic (a cancelled event still occupies the slot), so every prior
+  // Stripe run leaves it permanently capped. Flip it to Pro just-in-time
+  // (uncapped) for the duration of the buyer flow, then restore in `finally` so
+  // the shared dev account isn't left in a surprising state. Needs the admin
+  // client (E2E_CLEANUP_*); without it we fall back to the cap-block skip below.
+  const stripeHostEmail = process.env['TEST_STRIPE_HOST_EMAIL'];
+  let savedSub: SavedSubscription | null = null;
   try {
+    if (hostSubscriptionControlAvailable(stripeHostEmail)) {
+      savedSub = await setHostSubscriptionStatus(stripeHostEmail!, 'active');
+    }
     let created: { url: string; id: string };
     try {
       created = await createPaidEvent(hostPage, opts);
@@ -69,6 +87,7 @@ async function withStripeHostPaidEvent(
     await fn(eventUrl, appOrigin);
   } finally {
     if (eventUrl) await cancelEvent(hostPage, eventUrl);
+    await restoreHostSubscription(savedSub);
     await hostCtx.close();
   }
 }
