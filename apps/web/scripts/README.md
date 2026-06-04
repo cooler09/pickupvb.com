@@ -14,6 +14,20 @@ They use the service-role key (bypass RLS), so:
 
 Run from the repo root.
 
+## `run-e2e.mjs`
+
+Run the Playwright suite against dev with `.env.local` properly loaded.
+Playwright doesn't auto-load `.env.local`, and `source`-ing it is fragile
+(multi-line keys break the shell), so this loads it with the same parser the
+admin scripts use, maps `E2E_CLEANUP_SUPABASE_*` from `SUPABASE_*`, defaults the
+target to dev, and execs `playwright test`. Extra args pass through.
+
+```bash
+node apps/web/scripts/run-e2e.mjs persona-            # just the persona specs
+node apps/web/scripts/run-e2e.mjs                     # whole suite
+node apps/web/scripts/run-e2e.mjs --grep-invert @destructive
+```
+
 ## `delete-test-user.mjs`
 
 Delete a persona/test account (profile row, then auth user). Refuses non-`+`
