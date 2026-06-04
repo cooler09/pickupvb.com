@@ -32,6 +32,14 @@ import {
  * owner branch), the owner-only workspace, and the public watch view.
  */
 
+// Both tests provision a standalone bracket as the same free-tier owner
+// (attendee-a), and free hosts may run only ONE active standalone bracket at a
+// time (FREE_ACTIVE_BRACKET_CAP). Under the suite's `fullyParallel: true`, the
+// two would otherwise create concurrently and the second would hit the cap wall.
+// Serial mode keeps them sequential, so each test's `finally` teardown frees the
+// slot before the next one creates.
+test.describe.configure({ mode: 'serial' });
+
 test.describe('standalone bracket — create → add → seed → generate → record → watch (ADR 0025)', () => {
   test('an owner builds a bracket end-to-end and the spectator watch link shows it live and read-only', async ({
     page,

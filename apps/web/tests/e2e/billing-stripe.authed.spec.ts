@@ -2,6 +2,7 @@ import { test, expect } from './_helpers/fixtures';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { isVisibleOrTimeout } from './_helpers/predicates';
+import { openTemplatesModal } from './_helpers/event-create';
 
 /**
  * Billing and Stripe flows (Sections 11–12 of the test plan).
@@ -40,12 +41,14 @@ test.describe('Pro subscription pages', () => {
 
   test('Pro features visible for Pro user (template card on /events/new)', async ({ page }) => {
     await page.goto('/events/new');
-    const templateNameInput = page.getByPlaceholder(/template name/i);
-    const isProUser = (await templateNameInput.count()) > 0;
+    // The "save as template" affordance is Pro-only and lives behind a
+    // "Templates" button opening a FormModal. Non-Pro accounts (the default
+    // attendee-a session) see an upsell link instead, so the trigger is absent.
+    const isProUser = await page.getByRole('button', { name: /^templates$/i }).isVisible();
     if (!isProUser) {
       test.skip(true, 'Test user does not have Pro; skipping Pro features visibility check');
     }
-    await expect(templateNameInput.first()).toBeVisible({ timeout: 10_000 });
+    expect(await openTemplatesModal(page)).toBe(true);
   });
 
   test('pro-host sees template card on /events/new', async ({ browser }) => {
@@ -55,9 +58,9 @@ test.describe('Pro subscription pages', () => {
     try {
       await page.goto('/events/new');
       await page.waitForLoadState('domcontentloaded');
-      // Pro users see a "Template name" input to save event templates.
-      const templateInput = page.getByPlaceholder(/template name/i).first();
-      await expect(templateInput).toBeVisible({ timeout: 10_000 });
+      // Pro users get the "Templates" button → modal with a "Template name"
+      // input to save event templates.
+      expect(await openTemplatesModal(page)).toBe(true);
     } finally {
       await ctx.close();
     }
@@ -112,8 +115,7 @@ test.describe('Stripe Connect (host payouts)', () => {
     expect(hasEither).toBe(true);
   });
 
-  test.fixme('complete Stripe Connect onboarding with test identity → charges_enabled = true → checklist shows complete', // already-onboarded state instead of driving the onboarding itself. // affordance (which is unreliable), or shifting to assert the // throwaway account per run + Stripe Connect's "skip phone" test // onboarded so paid-flow tests pass; this test would need either a // Playwright. The dev TEST_STRIPE_HOST_EMAIL account is already // code from a Stripe test number), which cannot be driven by // Stripe Connect onboarding requires phone-number verification (SMS
-  async () => {});
+  test.fixme('complete Stripe Connect onboarding with test identity → charges_enabled = true → checklist shows complete', async () => {}); // already-onboarded state instead of driving the onboarding itself. // affordance (which is unreliable), or shifting to assert the // throwaway account per run + Stripe Connect's "skip phone" test // onboarded so paid-flow tests pass; this test would need either a // Playwright. The dev TEST_STRIPE_HOST_EMAIL account is already // code from a Stripe test number), which cannot be driven by // Stripe Connect onboarding requires phone-number verification (SMS
 
   test('stripe-host: billing page shows connected status and dashboard / earnings navigation', async ({
     browser,

@@ -2,7 +2,7 @@ import { test, expect } from './_helpers/fixtures';
 import { PERSONAS, withPersona } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { findOwnedGroupUrl } from './_helpers/navigation';
-import { createFreeOpenPlayEvent, cancelEvent } from './_helpers/event-create';
+import { createFreeOpenPlayEvent, cancelEvent, openTemplatesModal } from './_helpers/event-create';
 import { deleteEventById } from './_helpers/cleanup';
 
 /**
@@ -25,10 +25,10 @@ test.describe(`${mark.name} (${mark.id}) — Pro host surfaces`, () => {
       await page.waitForLoadState('domcontentloaded');
       // A Pro host is not bounced to /login or an /upgrade wall.
       expect(page.url()).toContain('/events/new');
-      // Pro-only: the "save as template" affordance.
-      await expect(page.getByPlaceholder(/template name/i).first()).toBeVisible({
-        timeout: 10_000,
-      });
+      // Pro-only: the "save as template" affordance. It lives behind the
+      // "Templates" button that opens a FormModal — openTemplatesModal returns
+      // true (and asserts the template-name input) when the Pro trigger shows.
+      expect(await openTemplatesModal(page)).toBe(true);
     });
   });
 

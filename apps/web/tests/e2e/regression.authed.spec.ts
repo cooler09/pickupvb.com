@@ -2,6 +2,7 @@ import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
+import { openTemplatesModal } from './_helpers/event-create';
 
 /**
  * Regression checklist (Section 19) — a targeted smoke pass that should
@@ -96,17 +97,13 @@ test.describe('regression', () => {
     await expect(page.locator('main')).toContainText(/attendance|attendees|rsvp|going/i);
   });
 
-  test('hero image upload widget is present on profile', async ({ page }) => {
-    await page.goto('/profile');
-
-    const addBannerBtn = page.getByRole('button', { name: /add banner image/i }).first();
-    const changeBtn = page.getByRole('button', { name: /change image/i }).first();
-
-    const hasAdd = await isVisibleOrTimeout(addBannerBtn, 10_000);
-    const hasChange = await isVisibleOrTimeout(changeBtn, 10_000);
-
-    expect(hasAdd || hasChange, 'Hero image upload widget must be visible on /profile').toBe(true);
-  });
+  // NOTE: the profile banner/hero-image upload was intentionally removed from
+  // /profile in "group clean up" (f24d2723) — the import, the hero_image_url
+  // read, and the HeroImagePanel JSX were all dropped, leaving the avatar
+  // (profile photo) as the only image affordance there. The former
+  // "hero image upload widget is present on profile" regression test asserted
+  // that removed widget and has been deleted. (hero_image_url still backs
+  // EVENT hero images via /events/[id]/edit, which has its own coverage.)
 
   test('template save validation shows error for empty name', async ({ browser }) => {
     // Pro-only feature — run against the pro-host storage state.
@@ -116,8 +113,8 @@ test.describe('regression', () => {
     try {
       await page.goto('/events/new');
 
-      const templateNameInput = page.getByPlaceholder(/template name/i);
-      await expect(templateNameInput).toBeVisible({ timeout: 10_000 });
+      // The template-name input lives behind the Pro "Templates" modal.
+      expect(await openTemplatesModal(page)).toBe(true);
 
       const saveTemplateBtn = page.getByRole('button', { name: /save template/i });
       await expect(saveTemplateBtn).toBeVisible({ timeout: 10_000 });

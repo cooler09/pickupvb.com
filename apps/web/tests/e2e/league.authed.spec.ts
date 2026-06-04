@@ -170,45 +170,34 @@ test.describe('league — host forfeits and reinstates a team (C2)', () => {
     const teams = [`E2E ${tag} Spikers`, `E2E ${tag} Diggers`];
     let fx: LeagueFixture | null = null;
 
-    // The "League teams" panel lives inside the collapsed "Host tools"
-    // disclosure on the event detail page, which re-renders closed after every
-    // forfeit-action redirect — so reopen it before each assertion.
-    // Idempotent: the forfeit success path revalidates in place (no redirect,
-    // unlike the schedule actions), so the disclosure may already be open after
-    // an action. Only toggle it when it's currently closed.
-    const openHostTools = async () => {
-      const heading = page.getByRole('heading', { name: /league teams/i });
-      if (!(await heading.isVisible().catch(() => false))) {
-        await page.locator('summary', { hasText: /^Host tools$/ }).click();
-      }
-      await expect(heading).toBeVisible({ timeout: 15_000 });
-    };
+    // The "League teams" forfeit panel now lives in the host manage dashboard
+    // (/events/[id]/manage → "Wrap up" group), rendered directly — not behind
+    // the old "Host tools" disclosure on the event detail page. The forfeit /
+    // reinstate actions revalidate that path in place (no redirect; the
+    // `?forfeit=` flash only fires on error), so the panel re-renders with the
+    // updated buttons and the auto-waiting count assertions just work.
+    const leagueTeamsHeading = page.getByRole('heading', { name: /league teams/i });
     const markForfeited = page.getByRole('button', { name: /mark forfeited/i });
     const reinstate = page.getByRole('button', { name: /^reinstate$/i });
 
     try {
       fx = await createLeagueFixture({ title: `E2E League Forfeit ${tag}`, teamNames: teams });
 
-      await page.goto(`/events/${fx.eventId}`);
-      await openHostTools();
+      await page.goto(`/events/${fx.eventId}/manage`);
+      await expect(leagueTeamsHeading).toBeVisible({ timeout: 15_000 });
 
       // Both teams start active → two "Mark forfeited" buttons, no "Reinstate".
       await expect(markForfeited).toHaveCount(2);
       await expect(reinstate).toHaveCount(0);
 
-      // Forfeit one team. The action revalidates in place (the `?forfeit=`
-      // flash only fires on error), so wait for the new button state, not a
-      // navigation. `openHostTools` is idempotent in case the re-render reset
-      // the disclosure.
+      // Forfeit one team — the action revalidates the manage path in place.
       await markForfeited.first().click();
-      await openHostTools();
       // Exactly one team is now forfeited (one Reinstate, one Mark forfeited).
       await expect(reinstate).toHaveCount(1, { timeout: 15_000 });
       await expect(markForfeited).toHaveCount(1);
 
       // Reinstate it → back to two active teams.
       await reinstate.first().click();
-      await openHostTools();
       await expect(markForfeited).toHaveCount(2, { timeout: 15_000 });
       await expect(reinstate).toHaveCount(0);
     } finally {

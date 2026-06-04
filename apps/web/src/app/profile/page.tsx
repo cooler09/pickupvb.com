@@ -485,8 +485,8 @@ export default async function ProfilePage(props: {
         </div>
       </section>
 
-      {/* Edit profile — fields + profile photo + hero image co-located under
-          one disclosure so the identity-edit affordances live together (PR-4). */}
+      {/* Edit profile — fields + profile photo co-located under one disclosure
+          so the identity-edit affordances live together (PR-4). */}
       <details
         id="edit-profile"
         open={editOpen}

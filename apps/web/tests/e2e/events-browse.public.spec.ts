@@ -16,7 +16,14 @@ test.describe('events browse — public filters', () => {
     const response = await page.goto('/events');
     expect(response?.ok(), `/events returned ${response?.status()}`).toBeTruthy();
 
-    // The page should render the filter form (server-rendered).
+    // Filters now collapse behind a "Filters" <details> trigger so results sit
+    // higher on the page (see apps/web/src/app/events/page.tsx). Expand it
+    // before asserting the filter form is visible.
+    const filtersTrigger = page.locator('summary').filter({ hasText: /^Filters/ });
+    await expect(filtersTrigger).toBeVisible({ timeout: 10_000 });
+    await filtersTrigger.click();
+
+    // The page should render the filter form (server-rendered) once expanded.
     const filterForm = page
       .locator('form')
       .filter({ has: page.locator('select, [role="combobox"]') })

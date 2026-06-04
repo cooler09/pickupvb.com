@@ -19,9 +19,21 @@ import { isVisibleOrTimeout } from './predicates';
  * targets the trigger and `input[type=hidden][name="startsAt"]` carries the
  * ISO string the server reads.
  *
- * Opens the picker for `name`, picks the LAST visible non-disabled day in
- * the calendar grid (deep in the month → safely in the future even on early-
- * month runs and after `minDate` clamps), fills the time, and closes.
+ * Opens the picker for `name`, advances the calendar to the NEXT month, and
+ * clicks a fixed in-month day (start → the 10th, end → the 20th). Two reasons
+ * this beats "click the last non-disabled day in the visible month":
+ *
+ *  - **Next month is unambiguously in the future**, so `minDate={new Date()}`
+ *    never disables the target and there's no month-boundary flakiness on
+ *    early- vs. late-month runs.
+ *  - **Start and end land on different days (10th < 20th).** The form
+ *    auto-fills `endsAt = startsAt + 2h` the moment a start is picked
+ *    (`handleStartsAtChange`), so by the time we open the end picker it already
+ *    has a selection. react-day-picker renders in single mode, where clicking
+ *    the *already-selected* day toggles it back off — which is exactly what the
+ *    old "last non-disabled day" logic did (the only enabled cell in the
+ *    displayed month collided with the auto-filled day), leaving `endsAt`
+ *    empty. Picking a distinct, clearly-later day sidesteps the toggle.
  */
 export async function pickFutureDateTime(
   page: Page,
@@ -34,10 +46,16 @@ export async function pickFutureDateTime(
   const dialog = page.locator('[role="dialog"]').last();
   await dialog.waitFor({ state: 'visible', timeout: 5_000 });
 
-  // LAST non-disabled day in the visible month — pushes the date several
-  // days ahead so server-side "starts in the past" validation can't reject.
-  const day = dialog.locator('[role="gridcell"] button:not([disabled])').last();
-  await day.click();
+  // Advance to next month (aria-label defaults to "Go to the Next Month").
+  await dialog.getByRole('button', { name: /next month/i }).click();
+
+  // Distinct days so the end never lands on the start's auto-filled selection.
+  const targetDay = name === 'startsAt' ? '10' : '20';
+  await dialog
+    .locator('[role="gridcell"] button:not([disabled])')
+    .filter({ hasText: new RegExp(`^${targetDay}$`) })
+    .first()
+    .click();
 
   const timeInput = dialog.locator('input[type="time"]').first();
   await timeInput.fill(timeHhmm);
@@ -151,6 +169,25 @@ export async function cancelEvent(page: Page, eventUrl: string): Promise<void> {
   } catch {
     // Cleanup failed — caller will need to delete manually.
   }
+}
+
+/**
+ * The saved-templates affordance on `/events/new` is Pro-only and now lives
+ * behind a "Templates" button that opens a `FormModal`
+ * (see `_components/templates-section.tsx`). Non-Pro hosts instead see a
+ * "Save & reuse event setups with Pro" upsell link — no trigger.
+ *
+ * Clicks the trigger (if present) and waits for the modal body. Returns `true`
+ * when the Pro affordance was present and the modal opened, `false` otherwise —
+ * so callers can detect Pro vs. free without relying on the inner input being
+ * in the DOM up-front (Radix only portals the modal body once open).
+ */
+export async function openTemplatesModal(page: Page): Promise<boolean> {
+  const trigger = page.getByRole('button', { name: /^templates$/i });
+  if (!(await isVisibleOrTimeout(trigger, 10_000))) return false;
+  await trigger.click();
+  await expect(page.getByPlaceholder(/template name/i)).toBeVisible({ timeout: 10_000 });
+  return true;
 }
 
 /** Convenience: assert the new-event page is reachable for this storage state. */

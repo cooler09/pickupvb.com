@@ -198,7 +198,8 @@ export async function createLeagueFixture(
         .insert({
           captain_id: hostId,
           name,
-          format: 'sixes',
+          // `teams.format` was dropped (format now lives on event_divisions /
+          // event_team_entries); inserting it 400s with a schema-cache miss.
           slug: `e2e-league-${token(8).toLowerCase()}`,
         })
         .select('id')

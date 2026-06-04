@@ -22,9 +22,12 @@ test.describe(`${julie.name} (${julie.id}) — free host surfaces`, () => {
       await page.goto('/events/new');
       await page.waitForLoadState('domcontentloaded');
       expect(page.url()).toContain('/events/new');
-      // Free tier: the "save as template" input is Pro-gated and must be absent.
-      const templateInput = page.getByPlaceholder(/template name/i);
-      expect(await templateInput.count()).toBe(0);
+      // Free tier: the Pro-gated "Templates" affordance must be absent. The
+      // trigger button is the real Pro signal — the template-name input only
+      // mounts inside the modal once opened, so its absence alone wouldn't
+      // distinguish free from Pro.
+      await expect(page.getByRole('button', { name: /^templates$/i })).toHaveCount(0);
+      expect(await page.getByPlaceholder(/template name/i).count()).toBe(0);
     });
   });
 
