@@ -1,9 +1,22 @@
 import { test, expect } from './_helpers/fixtures';
-import { PERSONAS, withPersona, skipIfPersonaMissing } from './_helpers/personas';
+import { PERSONAS, withPersona, personaStorage, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { findOwnedGroupUrl } from './_helpers/navigation';
-import { createFreeOpenPlayEvent, cancelEvent, openTemplatesModal } from './_helpers/event-create';
+import {
+  createFreeOpenPlayEvent,
+  createPaidEvent,
+  cancelEvent,
+  openTemplatesModal,
+} from './_helpers/event-create';
 import { deleteEventById } from './_helpers/cleanup';
+import {
+  STRIPE_TEST_CARDS,
+  clickConfirmedSubmit,
+  fillStripeCheckout,
+  pollUiFor,
+  shouldSkipStripeTests,
+  waitForStripeRedirect,
+} from './_helpers/stripe';
 
 // 1×1 transparent PNG — enough bytes to exercise the real storage upload +
 // preview without shipping a fixture image file.
@@ -196,7 +209,61 @@ test.describe(`${mark.name} (${mark.id}) — Pro host surfaces`, () => {
     });
   });
 
-  // The paid + CSV-export depth needs the Stripe test-mode fixture suite
-  // (e2e README § "Stripe Checkout / Connect"). Documented intent:
-  test.fixme('creates a paid multi-division tournament and exports the attendee CSV (Pro)', async () => {});
+  test('exports the Pro attendee CSV with a paid buyer on the roster', async ({ browser }) => {
+    // Simplified from the persona headline ("paid multi-division tournament"):
+    // the Pro feature under test is the attendee-CSV export, and that lists
+    // individual paid attendees — so a paid open-play event with one real Stripe
+    // buyer (Marcus) exercises it directly. The multi-division registration depth
+    // is owned by the divisions phase (C4).
+    const skipReason = shouldSkipStripeTests();
+    if (skipReason) test.skip(true, skipReason);
+    skipIfPersonaMissing('mark');
+    skipIfPersonaMissing('marcus');
+    test.setTimeout(180_000);
+
+    const baseUrl = process.env['PLAYWRIGHT_BASE_URL'] ?? 'https://dev.pickupvb.com';
+    const appOrigin = new URL(baseUrl).origin;
+
+    // Mark (Pro + Stripe) hosts a paid event.
+    const markCtx = await browser.newContext({ storageState: personaStorage('mark') });
+    const markPage = await markCtx.newPage();
+    let created: { url: string; id: string } | null = null;
+    try {
+      created = await createPaidEvent(markPage, {
+        title: `E2E Mark CSV ${Date.now()}`,
+        priceUsd: 5,
+      });
+
+      // Marcus buys a ticket so the export has a paid attendee row.
+      await withPersona(browser, 'marcus', async (page) => {
+        await page.goto(created!.url);
+        await page.waitForLoadState('domcontentloaded');
+        await clickConfirmedSubmit(page, /pay online/i);
+        await fillStripeCheckout(page, { card: STRIPE_TEST_CARDS.success });
+        await waitForStripeRedirect(page, appOrigin);
+        await pollUiFor(page, async () => {
+          await page.goto(created!.url);
+          return (await page.getByRole('button', { name: /cancel sign-up/i }).count()) > 0;
+        });
+      });
+
+      // Mark exports the Pro attendee CSV (the endpoint the manage-page "Export"
+      // link hits). Poll until the webhook-written paid attendee shows up.
+      await pollUiFor(markPage, async () => {
+        const res = await markPage.request.get(`/api/events/${created!.id}/attendees.csv`);
+        if (!res.ok()) return false;
+        const contentType = res.headers()['content-type'] ?? '';
+        const body = await res.text();
+        const rows = body.split('\n').filter((l) => l.trim().length > 0);
+        // CSV content-type, the payment column header, and ≥1 attendee data row.
+        return /csv/i.test(contentType) && /amount_paid_cents/i.test(body) && rows.length >= 2;
+      });
+    } finally {
+      if (created) {
+        await cancelEvent(markPage, created.url);
+        await deleteEventById(created.id);
+      }
+      await markCtx.close();
+    }
+  });
 });
