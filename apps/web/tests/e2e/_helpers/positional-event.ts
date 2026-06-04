@@ -85,17 +85,31 @@ export async function createPositionalEvent(opts: {
     short_code: `E2P${token(3)}`,
     time_zone: 'America/New_York',
   };
-  // `events.position_roster` exists in the DB (migration 20260514000600 ALTERs
-  // public.events) but is absent from the generated events Insert type — the
-  // type carries `position_roster` only on event_divisions, so the events type
-  // is stale for this column. Cast through the typed base so the admin insert
-  // still sends it (the repo reads/writes events.position_roster at runtime).
-  const { data: ev, error } = await admin
-    .from('events')
-    .insert({ ...base, position_roster: opts.positionRoster } as typeof base)
-    .select('id')
-    .single();
+  const { data: ev, error } = await admin.from('events').insert(base).select('id').single();
   if (error || !ev) throw new Error(`positional fixture event insert failed: ${error?.message}`);
+
+  // `position_roster` was MOVED off `events` onto `event_divisions`
+  // (20260806000000_event_divisions_position_roster.sql) — `events.position_roster`
+  // no longer exists. The runtime reads it from the division
+  // (`divisionRowToPositionRoster(DivisionRow)`), so the by-position roster goes
+  // on the event's (solo open-play) division, which flips the detail page to the
+  // `PositionRsvpPanel`.
+  const { error: divErr } = await admin.from('event_divisions').insert({
+    event_id: ev.id,
+    sort_order: 0,
+    label: 'Open',
+    surface: 'indoor',
+    format: 'sixes',
+    gender: 'coed',
+    skill_tier: 'bb',
+    team_composition: 'solo',
+    capacity_kind: 'unlimited',
+    position_roster: opts.positionRoster,
+  });
+  if (divErr) {
+    await admin.from('events').delete().eq('id', ev.id);
+    throw new Error(`positional fixture division insert failed: ${divErr.message}`);
+  }
   return { eventId: ev.id };
 }
 

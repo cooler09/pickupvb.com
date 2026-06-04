@@ -28,7 +28,10 @@ export default defineConfig({
   // end of every run. No-op without `E2E_CLEANUP_SUPABASE_*`; only sweeps rows
   // > 1h old so a concurrent run isn't clobbered. See tests/e2e/global-teardown.ts.
   globalTeardown: './tests/e2e/global-teardown.ts',
-  timeout: 30_000,
+  // 60s (was 30s): the suite runs against a deployed env (dev) where a cold
+  // serverless start + the post-login redirect can blow past 30s, which showed
+  // up as flaky `auth.*.setup.ts` login timeouts that cascade into skips.
+  timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
