@@ -1244,10 +1244,25 @@ export class SupabaseEventRepository implements EventRepository {
 
     let canManage = false;
     if (viewerId) {
-      if (viewerId === row.host_id) canManage = true;
-      else {
+      if (viewerId === row.host_id) {
+        canManage = true;
+      } else {
         const role = (viewerRoleRes.data as { role: string } | null)?.role;
-        canManage = role === 'owner' || role === 'admin';
+        const isHostGroupAdmin = role === 'owner' || role === 'admin';
+        // Event co-hosts manage the event too — matches `is_event_host` (the SQL
+        // gate the bracket / league / broadcast writes already use) + the
+        // events_select RLS. canManage previously covered only host + host-group
+        // admin, so an individual event co-host (`event_co_hosts.host_user_id`)
+        // or a co-host group's admin was redirected away from /edit + /manage
+        // despite being able to act everywhere else.
+        const isEventCoHostUser = coHostUsers.some((u) => String(u.id) === viewerId);
+        const viewerAdminGroupIds = new Set(
+          ((viewerHostableGroupsRes.data as HostableGroupRow[] | null) ?? [])
+            .map((r) => r.groups?.id)
+            .filter((id): id is string => !!id),
+        );
+        const isCoHostGroupAdmin = coGroupIds.some((gid) => viewerAdminGroupIds.has(gid));
+        canManage = isHostGroupAdmin || isEventCoHostUser || isCoHostGroupAdmin;
       }
     }
 
