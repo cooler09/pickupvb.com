@@ -6,6 +6,7 @@ import { cancelEvent, createPaidEvent } from './_helpers/event-create';
 import {
   STRIPE_TEST_CARDS,
   clickConfirmedSubmit,
+  expandSignupSection,
   expectStripeDeclineError,
   fillStripeCheckout,
   pollUiFor,
@@ -159,6 +160,7 @@ test.describe('paid event attendance', () => {
         // button appears in the paid panel).
         await pollUiFor(aPage, async () => {
           await aPage.goto(eventUrl!);
+          await expandSignupSection(aPage); // section auto-collapses once signed up
           const leaveBtn = aPage.getByRole('button', { name: /cancel sign-up/i });
           return (await leaveBtn.count()) > 0;
         });
@@ -208,6 +210,9 @@ test.describe('paid event attendance', () => {
         // the refund variant is absent.
         await aPage.goto(eventUrl);
         await aPage.waitForLoadState('domcontentloaded');
+        // The pending row signs the viewer up → section auto-collapses; expand
+        // so the (absent) paid-refund button is genuinely asserted, not just hidden.
+        await expandSignupSection(aPage);
         const paidRefundBtn = aPage.getByRole('button', { name: /cancel sign-up & refund/i });
         expect(await paidRefundBtn.count()).toBe(0);
       } finally {
@@ -249,7 +254,9 @@ test.describe('paid event attendance', () => {
 
         // A pending row exists (server creates it at checkout-start time)
         // but webhook never fires — the user is not paid. Assert the paid
-        // refund button is absent.
+        // refund button is absent (expand first: the pending row collapses the
+        // section, so a bare count would pass on a hidden button).
+        await expandSignupSection(aPage);
         const paidRefundBtn = aPage.getByRole('button', { name: /cancel sign-up & refund/i });
         expect(await paidRefundBtn.count()).toBe(0);
       } finally {
@@ -309,6 +316,7 @@ test.describe('leave paid event / refund', () => {
         // Wait for paid status to show up on the roster.
         await pollUiFor(aPage, async () => {
           await aPage.goto(eventUrl!);
+          await expandSignupSection(aPage); // section auto-collapses once signed up
           return (await aPage.getByRole('button', { name: /cancel sign-up/i }).count()) > 0;
         });
 

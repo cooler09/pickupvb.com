@@ -93,57 +93,49 @@ against dev, which still runs the old code until this ships. This is a web-layer
 ordering bug in a server action (no domain/application surface to unit-test);
 `validateHostPaidEventCap` itself is correct, so the e2e is the right surface.
 
-## Second real bug: paid buyers see a stale roster (webhook cache gap)
+## The Stripe buy/roster failures: a collapsed `<details>` + a consent overlay
 
-Making the Marcus fixture self-provisioning (below) let the buy flow actually
-run — and it failed, but **not** at the payment. A DB watcher running alongside
-the test captured the truth:
+> **Correction (2026-06-04, post-deploy).** An earlier draft of this entry
+> blamed a _webhook cache gap_ (no Stripe webhook evicts `eventCacheTag`) and
+> shipped a fix that adds `updateTag`/`revalidatePath` to the checkout / refund /
+> expired handlers. **That diagnosis was wrong** and the fix changed nothing for
+> these tests. Deploying it left all four Stripe roster tests (Marcus buy +
+> refund-inside + refund-outside, Mark CSV) still red on the **same** poll. The
+> section below is the real cause; the webhook-eviction code is kept only as
+> incidental cache hygiene for sponsor/badge purchases (see Follow-ups).
 
-```
-[13s] event created                       participants=[]                      audit=[]
-[22s] "Pay online" clicked                 participants=[{attendee, pending}]   audit=[]
-[35s] checkout.session.completed webhook   participants=[{attendee, paid}]      audit=[paid]
-```
+The DB was always correct — a watcher proved the participant goes `pending →
+paid` within ~20s, and `getDetail` (the **uncached**, admin-client read that
+computes `isAttending`) returns the attendee fine (verified by replaying its
+exact query). The roster button simply wasn't _findable_ in the UI, for two
+stacked reasons:
 
-Marcus is a **paid attendee in the DB within ~20s**. Yet the test's 90s UI poll
-for the "Cancel sign-up" roster button never passed. Root cause: the event-detail
-page side-loads (roster included) are wrapped in `unstable_cache` with a 60s TTL,
-tagged `eventCacheTag(id)`
-([event-detail-cache.ts](../../apps/web/src/app/events/[id]/_loaders/event-detail-cache.ts)).
-**No Stripe webhook anywhere evicts that tag** — `grep` across
-`lib/webhooks/` + `app/api/` for `updateTag`/`revalidatePath`/`revalidateTag`
-came back empty. So `handleCheckoutCompleted` flips the payment to `paid` in the
-DB but the cached page keeps serving the pre-purchase roster until the TTL lapses.
+1. **The "Sign up" panel is a native `<details>` that auto-collapses once you're
+   signed up.** [event-signup-area.tsx](../../apps/web/src/app/events/[id]/_components/event-signup-area.tsx)
+   computes `defaultOpen = !viewerSignedUp` — correct UX (collapse the CTA after
+   you're in), but it puts the "Cancel sign-up" button inside a collapsed
+   disclosure, so Playwright's visible-only `getByRole(...).count()` returns 0.
 
-This is a real production UX bug, not just an e2e artefact: **a buyer returning
-from Stripe Checkout doesn't see themselves on the roster for up to a minute.**
-It's the webhook-shaped twin of AGENTS.md pattern #1 ("every mutation must
-`updateTag(eventCacheTag(id))`") — the pattern was only ever applied to server
-actions; the webhooks, which are the _other_ place event state mutates, were
-missed. (It also explains why raising the poll to 90s wasn't enough — the stale
-window isn't bounded by the 60s `unstable_cache` TTL alone once the CDN/page
-render cache is layered on; the only fix is to actively evict.)
+2. **The diagnostic that should have caught this hung.** A first fix expanded the
+   section by **clicking the `<summary>`** — but the analytics **consent banner**
+   ("Accept"/"Decline") overlays the page, so the click waited on actionability
+   and hung to the 240s test timeout. The failure screenshot, frozen mid-hang on
+   an early iteration, showed "Pay online" and sent the investigation chasing a
+   phantom `isAttending: false`.
 
 ### Fix
 
-All three event-mutating Stripe webhook handlers now evict after their writes —
-`updateTag(eventCacheTag(eventId))` + `revalidatePath(\`/events/${eventId}\`)`:
-
-- [checkout.ts](../../apps/web/src/lib/webhooks/checkout.ts)
-  `handleCheckoutCompleted` (buy / team / sponsor / badge) — one eviction at the
-  single fall-through exit, since every kind mutates page-cached state.
-- `handleCheckoutExpired` (abandon → freed spot).
-- [charge.ts](../../apps/web/src/lib/webhooks/charge.ts) `handleChargeRefunded`
-  (refund → roster row deleted) — inside the `if (att)` block where `eventId` is
-  known.
-
-Done as one pattern rather than only the buy path (a partial pattern costs more
-than none — AGENTS.md). `updateTag` is a valid Route-Handler primitive in Next 16
-(already imported repo-wide), and every eviction is **wrapped in try/catch +
-`log.warn`** so a revalidation hiccup can never fail the webhook → trigger a
-Stripe retry / duplicate processing. Both unit suites mock `next/cache` inert
-(the eviction is plumbing the e2e validates, not unit behaviour — AGENTS.md).
-Deploy-gated: the Marcus buy + refund-inside e2es confirm it post-deploy.
+A shared [`expandSignupSection(page)`](../../apps/web/tests/e2e/_helpers/stripe.ts)
+helper force-opens the disclosure via the DOM —
+`details.evaluate((el) => (el.open = true))` — rather than clicking, so the
+consent overlay can't intercept it. It's a no-op when the section is already
+open or absent (free events, signed-out views). Applied to every spot that looks
+for the post-signup "Cancel sign-up" / "Cancel sign-up & refund" control across
+`persona-marcus-buyer`, `persona-mark-pro-host`, and `event-attendance` (the two
+negative `count == 0` asserts get it too, so they assert an _absent_ button
+rather than a merely _hidden_ one). With it, all four roster tests pass on dev —
+**no deploy needed** (it's a test-only change). The product behaviour was correct
+the whole time.
 
 ## Also in this bundle
 
@@ -157,43 +149,37 @@ Deploy-gated: the Marcus buy + refund-inside e2es confirm it post-deploy.
   ([persona-marcus-buyer.authed.spec.ts](../../apps/web/tests/e2e/persona-marcus-buyer.authed.spec.ts))
   Running it confirmed the flip works **and** the stripe-host's Connect account
   has `charges_enabled`: the test cleared `createPaidEvent` (uncapped) →
-  Checkout (`4242`) → redirect, failing only at the first webhook `pollUiFor`.
+  Checkout (`4242`) → redirect, failing only at the (collapsed-`<details>`)
+  roster poll.
 
 - **Stripe webhook poll default raised 45s → 90s.** A correct robustness
   improvement (the bundle-96 tip-jar test documented dev cold-start webhook
-  latency >45s), though _not_ what fixed the buy test — that was the cache
-  eviction above. Since [`pollUiFor`](../../apps/web/tests/e2e/_helpers/stripe.ts)
+  latency >45s), though _not_ what fixed the roster tests — that was
+  `expandSignupSection`. Since [`pollUiFor`](../../apps/web/tests/e2e/_helpers/stripe.ts)
   exists **only** to wait on webhook-driven UI mutations, 90s is now its default
   (a satisfied condition still returns on the first check, so passing polls don't
-  slow down). The buy + refund-inside Marcus tests bumped to a 240s case timeout
-  to fit two to three sequential 90s polls on a cold env.
+  slow down).
 
 ## Follow-ups
 
-- **Deploy the cap fix + the webhook cache eviction**, then the Julie cap e2e
-  and the Marcus buy e2e go green on dev. Both are deploy-gated (assert against
-  dev).
-- **Promote the webhook-eviction rule.** All three handlers are fixed, but the
-  rule — _webhook-driven mutations must evict the event cache, exactly like
-  mutating server actions_ — deserves a sibling line to AGENTS.md pattern #1 so
-  the next webhook author doesn't re-introduce the gap. The **team-refund**
-  branches in `handleChargeRefunded` (`refundTeamRegistrationIfAny` /
-  `refundRosterTeamPaymentIfAny`, lines 79–80) still don't evict — they don't
-  surface `event_id` without an extra lookup; low priority (team refunds are
-  rarer) but the same class.
+- **Deploy the cap fix** → the Julie cap e2e goes green on dev (the roster fix is
+  test-only and already green).
+- **Decide on the webhook cache-eviction code.** It was shipped on the wrong
+  diagnosis and does **nothing** for the roster tests (`getDetail`/`isAttending`
+  is an uncached fresh read). It _is_ still correct, if minor, hygiene for the
+  **sponsor_slot / badge_slot** checkout kinds — those mutate genuinely-cached
+  side-loads (`loadEventSponsorCached`, `loadEventBadgesCached`). Keep it for
+  that, or revert it to keep the payment path lean — either is defensible; it's
+  not load-bearing.
 - **Mark persona repointed (resolved).** The `mark` persona pointed at
   `…+pro-host@gmail.com` (Pro, _no_ Stripe Connect account), but the spec is
   titled "Mark Delgado" — a real, separate dev account `…+mark@gmail.com` that's
   **both** Pro **and** Stripe-Connect-onboarded (`acct_…`, `charges_enabled`).
   Fixed by pointing `TEST_PRO_HOST_EMAIL` → `…+mark@gmail.com` in `.env.local`
-  (verified `+mark` signs in with `TEST_USER_PASSWORD`). Result: **24/25**
-  persona-mark tests pass on dev with no deploy (incl. "connected Stripe status",
-  and `createPaidEvent` as Mark now clears the Stripe gate). The 1 remaining
-  failure is the CSV test's buy→roster step — it now hits the **same
-  deploy-gated webhook-cache bug** as the Marcus buy test (no longer a "no
-  Stripe" skip), so it goes green once the webhook eviction ships. (Aside: the
-  local `.env.local` carried a **live** Stripe key — swapped to the sandbox key;
-  it never touched the e2e, which use deployed dev's test key.)
+  (verified `+mark` signs in with `TEST_USER_PASSWORD`). Result: persona-mark is
+  green except a flaky 5s `waitFor` in the sponsor-logo upload (unrelated).
+  (Aside: the local `.env.local` carried a **live** Stripe key — swapped to the
+  sandbox key; it never touched the e2e, which use deployed dev's test key.)
 - **Leaked-fixture hygiene:** Rachel carried a residual paid event (count 1
   after a clean run) — the cap arms/cleanups mostly work, but the >1h teardown
   sweep is the only backstop for a same-run leak. Not worth a fixture rework

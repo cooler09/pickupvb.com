@@ -7,6 +7,7 @@ import { createPaidEvent, cancelEvent, isPaidEventHostBlock } from './_helpers/e
 import {
   STRIPE_TEST_CARDS,
   clickConfirmedSubmit,
+  expandSignupSection,
   expectStripeDeclineError,
   fillStripeCheckout,
   pollUiFor,
@@ -130,10 +131,12 @@ test.describe(`${marcus.name} (${marcus.id}) — paid-ticket buyer`, () => {
         await fillStripeCheckout(page, { card: STRIPE_TEST_CARDS.success });
         await waitForStripeRedirect(page, appOrigin);
 
-        // Webhook lands → Marcus is on the roster (the paid panel now offers
-        // "Cancel sign-up").
+        // Webhook lands → Marcus is on the roster. The "Sign up" section
+        // auto-collapses once you're signed up, so expand it before looking
+        // for the cancel button (it lives inside the collapsed <details>).
         await pollUiFor(page, async () => {
           await page.goto(eventUrl);
+          await expandSignupSection(page);
           return (await page.getByRole('button', { name: /cancel sign-up/i }).count()) > 0;
         });
 
@@ -229,6 +232,7 @@ test.describe(`${marcus.name} (${marcus.id}) — paid-ticket buyer`, () => {
         await waitForStripeRedirect(page, appOrigin);
         await pollUiFor(page, async () => {
           await page.goto(eventUrl);
+          await expandSignupSection(page); // section auto-collapses once signed up
           return (await page.getByRole('button', { name: /cancel sign-up & refund/i }).count()) > 0;
         });
 
@@ -288,6 +292,8 @@ test.describe(`${marcus.name} (${marcus.id}) — paid-ticket buyer`, () => {
       await withPersona(browser, 'marcus', async (page) => {
         await page.goto(`/events/${fx!.eventId}`);
         await page.waitForLoadState('domcontentloaded');
+        // The signup section auto-collapses for an already-signed-up attendee.
+        await expandSignupSection(page);
 
         // As a paid attendee, the panel offers "Cancel sign-up & refund".
         await expect(page.getByRole('button', { name: /cancel sign-up & refund/i })).toBeVisible({

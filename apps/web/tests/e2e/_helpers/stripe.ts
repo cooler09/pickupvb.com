@@ -226,6 +226,27 @@ export async function pollUiFor(
 }
 
 /**
+ * The open-play "Sign up" panel ([event-signup-area.tsx]) is a native
+ * `<details>` that **auto-collapses for a viewer who's already signed up**
+ * (`defaultOpen = !viewerSignedUp`). After a paid checkout the buyer IS signed
+ * up, so a fresh `page.goto(eventUrl)` renders the section collapsed and the
+ * "Cancel sign-up" button sits hidden inside it — invisible to `getByRole`.
+ * Call this after navigating (and inside any `pollUiFor` that reloads) to
+ * reveal the post-signup controls. No-op when the section is already open or
+ * absent (free events, tournaments, signed-out views).
+ */
+export async function expandSignupSection(page: Page): Promise<void> {
+  const details = page
+    .locator('details')
+    .filter({ has: page.locator('summary').filter({ hasText: /sign up/i }) })
+    .first();
+  if ((await details.count()) === 0) return;
+  // Force the disclosure open via the DOM rather than clicking the <summary> —
+  // a click can be intercepted by the consent banner overlay and hang.
+  await details.evaluate((el) => ((el as HTMLDetailsElement).open = true)).catch(() => {});
+}
+
+/**
  * Skip the calling test when Stripe payment flows aren't wired up on the
  * target environment. We probe by visiting /pricing — it renders even
  * without Stripe but logs a console error when the publishable key is

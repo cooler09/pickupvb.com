@@ -13,6 +13,7 @@ import { deleteEventById } from './_helpers/cleanup';
 import {
   STRIPE_TEST_CARDS,
   clickConfirmedSubmit,
+  expandSignupSection,
   fillStripeCheckout,
   pollUiFor,
   shouldSkipStripeTests,
@@ -250,6 +251,7 @@ test.describe(`${mark.name} (${mark.id}) — Pro host surfaces`, () => {
         await waitForStripeRedirect(page, appOrigin);
         await pollUiFor(page, async () => {
           await page.goto(created!.url);
+          await expandSignupSection(page); // section auto-collapses once signed up
           return (await page.getByRole('button', { name: /cancel sign-up/i }).count()) > 0;
         });
       });
