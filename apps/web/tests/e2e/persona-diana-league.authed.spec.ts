@@ -186,15 +186,67 @@ test.describe(`${diana.name} (${diana.id}) — league organizer`, () => {
     }
   });
 
-  // Still fixme — these two need surfaces the league fixture + schedule/manage
-  // pages don't expose yet:
-  //  - host-add of an account-less rostered team + "mark paid off-platform"
-  //    lives in the host-managed team-registration flow (ADR 0033/0034,
-  //    host-team-registration-actions.ts), whose migration may not be on every
-  //    target env; provisioning it here would need that surface wired for a
-  //    league division.
-  //  - season-end playoff generation from final standings has no
-  //    standings→bracket UI on the schedule page today.
-  test.fixme('host-adds an account-less rostered team and marks it paid off-platform', async () => {});
+  test('host-adds an account-less rostered team and marks it paid off-platform', async ({
+    browser,
+  }) => {
+    skipIfPersonaMissing('diana');
+    const hostEmail = personaEmail('diana');
+    test.skip(
+      !leagueFixtureAvailable(hostEmail),
+      'league fixture needs E2E_CLEANUP_SUPABASE_* + TEST_LEAGUE_HOST_EMAIL (leagues self-provision via the admin client)',
+    );
+    test.setTimeout(120_000);
+
+    const tag = Date.now().toString(36);
+    let fx: LeagueFixture | null = null;
+    try {
+      fx = await createLeagueFixture({
+        title: `E2E Diana HostAdd ${tag}`,
+        teamNames: [`E2E ${tag} Anchor`],
+        ...(hostEmail ? { hostEmail } : {}),
+      });
+
+      await withPersona(browser, 'diana', async (page) => {
+        await page.goto(`/events/${fx!.eventId}/manage`);
+        await page.waitForLoadState('domcontentloaded');
+
+        // The host-managed "Team registrations" panel renders for a league's
+        // roster division (ADR 0033 — hasHostManagedTeams includes roster).
+        const panel = page
+          .locator('section')
+          .filter({ hasText: /Team registrations/i })
+          .first();
+        await expect(panel).toBeVisible({ timeout: 15_000 });
+
+        // Add an account-less (walk-in) team via the modal.
+        await panel.getByRole('button', { name: /add a team/i }).click();
+        const dialog = page.getByRole('dialog');
+        await expect(dialog).toBeVisible({ timeout: 10_000 });
+        const teamName = `E2E Walk-in ${tag}`;
+        await dialog.locator('select[name="division_id"]').selectOption(fx!.divisionId);
+        await dialog.locator('input[name="team_name"]').fill(teamName);
+        await dialog.locator('input[name="captain_display_name"]').fill(`E2E Captain ${tag}`);
+        await dialog.getByRole('button', { name: /^add team$/i }).click();
+
+        // Modal closes on settle; the team appears as host-added + unpaid.
+        const row = page.locator('li').filter({ hasText: teamName }).first();
+        await expect(row).toBeVisible({ timeout: 15_000 });
+        await expect(row).toContainText(/added by host/i);
+        await expect(row).toContainText(/unpaid/i);
+
+        // Mark it paid off-platform (cash) — the pill flips to Paid.
+        await row.getByRole('button', { name: /mark paid \(cash\)/i }).click();
+        const paidRow = page.locator('li').filter({ hasText: teamName }).first();
+        await expect(paidRow).toContainText(/\bpaid\b/i, { timeout: 15_000 });
+        await expect(paidRow).not.toContainText(/unpaid/i);
+      });
+    } finally {
+      await deleteLeagueFixture(fx);
+    }
+  });
+
+  // Still fixme — season-end playoff generation from final standings has no
+  // standings→bracket UI on the schedule page today. Feature-absent, not a test
+  // gap (see docs/audits/e2e-tests.md).
   test.fixme('season-end playoff bracket generates from final standings', async () => {});
 });

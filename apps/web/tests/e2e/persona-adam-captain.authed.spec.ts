@@ -1,7 +1,13 @@
 import { test, expect } from './_helpers/fixtures';
-import { PERSONAS, withPersona } from './_helpers/personas';
+import { PERSONAS, withPersona, personaEmail, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { findCaptainedTeamUrl } from './_helpers/navigation';
+import {
+  createRosterTournamentFixture,
+  deleteRosterTournamentFixture,
+  rosterTournamentFixtureAvailable,
+  type RosterTournamentFixture,
+} from './_helpers/roster-tournament';
 
 /**
  * Adam Russo (P9) — the competitive captain. docs/personas.md.
@@ -55,9 +61,52 @@ test.describe(`${adam.name} (${adam.id}) — competitive captain`, () => {
     });
   });
 
-  // Need a second account on the other side (a teammate to invite, a host's
-  // tournament to register into). Owned by teams.authed.spec.ts (invite) and
-  // documented here as Adam's competitive arc (features.md §§ 8, 9).
-  test.fixme('registers his team into a tournament division (division_id)', async () => {});
-  test.fixme('invites a teammate; they accept and appear on the roster', async () => {});
+  test('registers his team into a tournament division (division_id)', async ({ browser }) => {
+    skipIfPersonaMissing('adam');
+    const hostEmail = process.env['TEST_FREE_HOST_EMAIL'] ?? process.env['TEST_USER_EMAIL'];
+    const captainEmail = personaEmail('adam');
+    test.skip(
+      !rosterTournamentFixtureAvailable(hostEmail, captainEmail),
+      'roster-tournament fixture needs E2E_CLEANUP_SUPABASE_* + a host email + TEST_ATTENDEE_B_EMAIL (the tournament + Adam’s team are admin-provisioned)',
+    );
+    test.setTimeout(120_000);
+
+    const tag = Date.now().toString(36);
+    let fx: RosterTournamentFixture | null = null;
+    try {
+      fx = await createRosterTournamentFixture({
+        title: `E2E Adam Register ${tag}`,
+        hostEmail: hostEmail!,
+        captainEmail: captainEmail!,
+        teamName: `E2E Net Ninjas ${tag}`,
+      });
+
+      await withPersona(browser, 'adam', async (page) => {
+        await page.goto(`/events/${fx!.eventId}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        // The Register section defaults open (Adam isn't registered yet). Make
+        // the "Register a team" segment active (it's the default for a
+        // non-free-agent — clicked for determinism), then pick his seeded team.
+        // Single roster division → division_id is a hidden input, so submitting
+        // posts straight through to the ?team=registered confirmation.
+        await page.getByRole('radio', { name: /register a team/i }).click();
+        const teamSelect = page.locator('select[name="team_id"]');
+        await expect(teamSelect).toBeVisible({ timeout: 10_000 });
+        await teamSelect.selectOption(fx!.teamId);
+        await page.getByRole('button', { name: /register team/i }).click();
+
+        await expect(page.getByText(/your team is registered/i)).toBeVisible({ timeout: 10_000 });
+        // The team now appears under the division's "Registered" list.
+        await expect(page.getByText(fx!.teamName).first()).toBeVisible({ timeout: 10_000 });
+      });
+    } finally {
+      await deleteRosterTournamentFixture(fx);
+    }
+  });
+
+  // Pointer, not a gap — the invite→accept→roster flow is owned by
+  // teams.authed.spec.ts › "captain invites attendee-b, attendee-b accepts,
+  // roster shows member, captain removes". Kept as Adam's competitive-arc signpost.
+  test.fixme('invites a teammate; they accept — see teams.authed.spec.ts', async () => {});
 });

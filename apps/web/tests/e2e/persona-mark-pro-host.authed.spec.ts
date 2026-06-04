@@ -1,9 +1,16 @@
 import { test, expect } from './_helpers/fixtures';
-import { PERSONAS, withPersona } from './_helpers/personas';
+import { PERSONAS, withPersona, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { findOwnedGroupUrl } from './_helpers/navigation';
 import { createFreeOpenPlayEvent, cancelEvent, openTemplatesModal } from './_helpers/event-create';
 import { deleteEventById } from './_helpers/cleanup';
+
+// 1×1 transparent PNG — enough bytes to exercise the real storage upload +
+// preview without shipping a fixture image file.
+const PNG_1x1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 /**
  * Mark Delgado (P1) — the flagship Pro host (Pro subscription + Stripe Connect,
@@ -137,8 +144,59 @@ test.describe(`${mark.name} (${mark.id}) — Pro host surfaces`, () => {
     });
   });
 
-  // The paid + sponsor + CSV-export depth needs the Stripe test-mode fixture
-  // suite (e2e README § "Stripe Checkout / Connect"). Documented intent:
+  test('adds a sponsor logo to a hosted event (Pro)', async ({ browser }) => {
+    test.slow();
+    skipIfPersonaMissing('mark');
+    await withPersona(browser, 'mark', async (page) => {
+      let created: { url: string; id: string } | null = null;
+      try {
+        created = await createFreeOpenPlayEvent(page, {
+          title: `E2E Persona Mark Sponsor ${Date.now()}`,
+        });
+        await page.goto(`${created.url}/edit`);
+        await page.waitForLoadState('domcontentloaded');
+
+        // Scope to the sponsor section — the edit page also renders a hero-banner
+        // uploader, so a bare input[type=file] / "Save" would be ambiguous.
+        const sponsor = page
+          .locator('section')
+          .filter({ hasText: /Sponsor slot \(Pro\)/i })
+          .first();
+        await expect(sponsor).toBeVisible({ timeout: 10_000 });
+
+        // Pro gating headline: Mark gets the save flow, NOT the $3 unlock CTA.
+        await expect(sponsor.getByRole('button', { name: /save sponsor/i })).toBeVisible({
+          timeout: 10_000,
+        });
+        await expect(sponsor.getByRole('button', { name: /unlock sponsor slot/i })).toHaveCount(0);
+
+        // Upload a logo → the widget uploads to the `sponsor-logos` bucket and
+        // swaps the dropzone for a preview (the hidden logo_url is now set).
+        await sponsor.locator('input[type="file"]').setInputFiles({
+          name: 'sponsor.png',
+          mimeType: 'image/png',
+          buffer: PNG_1x1,
+        });
+        await expect(sponsor.getByRole('img', { name: /sponsor logo preview/i })).toBeVisible({
+          timeout: 20_000,
+        });
+
+        // Name is required; fill it and save.
+        await sponsor.getByLabel(/sponsor name/i).fill(`E2E Sponsor ${Date.now()}`);
+        await sponsor.getByRole('button', { name: /save sponsor/i }).click();
+
+        await expect(page.getByText(/sponsor saved/i)).toBeVisible({ timeout: 15_000 });
+        expect(page.url()).toContain('sponsor=saved');
+      } finally {
+        if (created) {
+          await cancelEvent(page, created.url);
+          await deleteEventById(created.id);
+        }
+      }
+    });
+  });
+
+  // The paid + CSV-export depth needs the Stripe test-mode fixture suite
+  // (e2e README § "Stripe Checkout / Connect"). Documented intent:
   test.fixme('creates a paid multi-division tournament and exports the attendee CSV (Pro)', async () => {});
-  test.fixme('adds a sponsor logo to a hosted event (Pro / sponsor add-on)', async () => {});
 });

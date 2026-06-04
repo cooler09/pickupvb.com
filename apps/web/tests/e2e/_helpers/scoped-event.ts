@@ -154,3 +154,178 @@ export async function deleteScopedEventFixture(fx: ScopedEventFixture | null): P
     await admin.from('friendships').delete().eq('user_id', fx.hostId).eq('friend_id', fx.friendId);
   }
 }
+
+// ── friends_of_attendees ──────────────────────────────────────────────────
+//
+// The sibling visibility branch: a `friends_of_attendees` event is discoverable
+// by a viewer who is friends with one of its *attendees* (not the host). The
+// `events` SELECT RLS delegates this branch to the SECURITY DEFINER helper
+// `event_has_attendee_friend(event_id)` (20260816000000_fix_events_select_
+// recursion.sql), which is true iff:
+//
+//   exists (select 1
+//             from event_participants p
+//             join event_divisions d on d.id = p.division_id
+//             join friendships f on f.user_id = p.user_id and f.friend_id = auth.uid()
+//            where d.event_id = <event> and p.role = 'attendee')
+//
+// So the fixture needs THREE distinct accounts — host, attendee, viewer — plus
+// one division (the helper joins through `event_divisions`), one
+// `event_participants` row (role `attendee`), and the directed `attendee →
+// viewer` friendship the gate keys on. Unlike the host branch, the friendship is
+// rooted at the *attendee*, so the negative viewer just needs no such edge from
+// the attendee. Composition of the division is irrelevant to the gate, so it's a
+// plain solo open-play division.
+
+export interface AttendeeScopedEventFixture {
+  eventId: string;
+  hostId: string;
+  attendeeId: string;
+  friendId: string;
+  /**
+   * True when this fixture inserted the `attendee → friend` edge (teardown
+   * deletes it). False when the edge already existed — teardown leaves it.
+   */
+  createdFriendship: boolean;
+}
+
+/**
+ * Provision a published `friends_of_attendees` open-play event hosted by
+ * `hostEmail`, with `attendeeEmail` rostered as an attendee and a single
+ * `attendee → friendEmail` `friendships` edge so that account (and only accounts
+ * friended by an attendee) can discover it. Host, attendee, and friend must be
+ * three different accounts. Caller owns cleanup — always pair with
+ * {@link deleteFriendsOfAttendeesFixture} in `finally`.
+ */
+export async function createFriendsOfAttendeesEvent(opts: {
+  title: string;
+  hostEmail: string;
+  attendeeEmail: string;
+  friendEmail: string;
+}): Promise<AttendeeScopedEventFixture> {
+  const admin = getCleanupClient();
+  if (!admin) {
+    throw new Error(
+      'createFriendsOfAttendeesEvent: admin client unavailable — set E2E_CLEANUP_SUPABASE_URL / _SECRET_KEY.',
+    );
+  }
+  const hostId = await resolveUserIdByEmail(opts.hostEmail);
+  const attendeeId = await resolveUserIdByEmail(opts.attendeeEmail);
+  const friendId = await resolveUserIdByEmail(opts.friendEmail);
+  if (new Set([hostId, attendeeId, friendId]).size !== 3) {
+    throw new Error(
+      'createFriendsOfAttendeesEvent: host, attendee, and friend must be three different accounts.',
+    );
+  }
+
+  // Attendee → friend edge — the edge the RLS gate keys on. Insert only if
+  // absent so teardown never deletes a pre-existing real friendship.
+  const { data: existing } = await admin
+    .from('friendships')
+    .select('user_id')
+    .eq('user_id', attendeeId)
+    .eq('friend_id', friendId)
+    .maybeSingle();
+  const createdFriendship = !existing;
+  if (createdFriendship) {
+    const { error } = await admin
+      .from('friendships')
+      .insert({ user_id: attendeeId, friend_id: friendId });
+    if (error)
+      throw new Error(`friends-of-attendees fixture: friendship insert failed — ${error.message}`);
+  }
+
+  const now = Date.now();
+  let eventId: string | null = null;
+  try {
+    const { data: ev, error: evErr } = await admin
+      .from('events')
+      .insert({
+        host_id: hostId,
+        title: opts.title,
+        description:
+          'E2E friends-of-attendees visibility fixture — provisioned by tests/e2e/_helpers/scoped-event.ts. Safe to delete.',
+        surface: 'indoor',
+        type: 'open_play',
+        visibility: 'friends_of_attendees',
+        status: 'published',
+        address_line: '500 E Marshall St',
+        city: 'Richmond',
+        region: 'VA',
+        postal_code: '23219',
+        country: 'US',
+        geo: RICHMOND_GEO,
+        starts_at: new Date(now + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        ends_at: new Date(now + 3 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString(),
+        short_code: `E2A${token(3)}`,
+        time_zone: 'America/New_York',
+      })
+      .select('id')
+      .single();
+    if (evErr || !ev)
+      throw new Error(`friends-of-attendees fixture: event insert failed — ${evErr?.message}`);
+    eventId = ev.id;
+
+    // One solo open-play division so the participant has a `division_id` to
+    // attach to (the gate joins event_participants → event_divisions).
+    const { data: div, error: divErr } = await admin
+      .from('event_divisions')
+      .insert({
+        event_id: eventId,
+        sort_order: 0,
+        label: 'Open',
+        surface: 'indoor',
+        format: 'sixes',
+        gender: 'coed',
+        skill_tier: 'bb',
+        team_composition: 'solo',
+        capacity_kind: 'unlimited',
+      })
+      .select('id')
+      .single();
+    if (divErr || !div)
+      throw new Error(`friends-of-attendees fixture: division insert failed — ${divErr?.message}`);
+
+    // The attendee the viewer is friends with — role must be 'attendee' (the
+    // gate filters on it).
+    const { error: partErr } = await admin
+      .from('event_participants')
+      .insert({ division_id: div.id, user_id: attendeeId, role: 'attendee' });
+    if (partErr)
+      throw new Error(
+        `friends-of-attendees fixture: participant insert failed — ${partErr.message}`,
+      );
+
+    return { eventId, hostId, attendeeId, friendId, createdFriendship };
+  } catch (err) {
+    // Roll back whatever landed: deleting the event CASCADEs the division +
+    // participant; the friendship is independent.
+    if (eventId) await admin.from('events').delete().eq('id', eventId);
+    if (createdFriendship) {
+      await admin.from('friendships').delete().eq('user_id', attendeeId).eq('friend_id', friendId);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Tear down a fixture from {@link createFriendsOfAttendeesEvent}: delete the
+ * event (CASCADEs the division + attendee participant), and delete the
+ * friendship edge only if this fixture created it. Safe with `null` / cleanup
+ * disabled (both no-op).
+ */
+export async function deleteFriendsOfAttendeesFixture(
+  fx: AttendeeScopedEventFixture | null,
+): Promise<void> {
+  if (!fx) return;
+  const admin = getCleanupClient();
+  if (!admin) return;
+  await admin.from('events').delete().eq('id', fx.eventId);
+  if (fx.createdFriendship) {
+    await admin
+      .from('friendships')
+      .delete()
+      .eq('user_id', fx.attendeeId)
+      .eq('friend_id', fx.friendId);
+  }
+}

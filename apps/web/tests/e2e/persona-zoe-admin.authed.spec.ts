@@ -10,6 +10,12 @@ import {
   deleteThrowawayListing,
   type ThrowawayListing,
 } from './_helpers/community';
+import {
+  createClaimableListingFixture,
+  deleteClaimableListingFixture,
+  claimableListingFixtureAvailable,
+  type ClaimableListingFixture,
+} from './_helpers/community-claim';
 
 /**
  * Zoe Carter (P18) — the platform admin. docs/personas.md.
@@ -104,16 +110,58 @@ test.describe(`${zoe.name} (${zoe.id}) — platform admin`, () => {
     }
   });
 
-  // Still fixme:
-  //  - Claim approval is a multi-actor flow: a claimant who HOSTS an upcoming
-  //    PickupVB event files a claim linking this external listing to that event
-  //    (claimListing(listingId, userId, eventId)), then Zoe approves. It needs a
-  //    second actor with a live event + the claim form's event picker, so it
-  //    lives with the other deep moderation in admin.authed.spec.ts.
-  //  - Role escalation has no admin UI surface today (the only first-class
-  //    /admin page is /admin/community-import). Promoting/demoting a platform
-  //    admin is a DB/SQL operation, so there is nothing to drive through the UI
-  //    until an admin user-management page exists.
-  test.fixme('approves a community-listing claim', async () => {});
+  test('approves a community-listing claim filed by an event host', async ({ browser }) => {
+    skipIfPersonaMissing('zoe');
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
+    // Nominal submitter (so the claim form shows for the claimant) + claimant who
+    // hosts the matching event. The claim is gated by host + same-day/same-city,
+    // so both listing and event are admin-provisioned to align (see the fixture).
+    const submitterEmail = process.env['TEST_USER_EMAIL'];
+    const claimantEmail = process.env['TEST_ATTENDEE_B_EMAIL'];
+    test.skip(
+      !claimableListingFixtureAvailable(claimantEmail, submitterEmail),
+      'claim fixture needs E2E_CLEANUP_SUPABASE_* + TEST_USER_EMAIL (submitter) + TEST_ATTENDEE_B_EMAIL (claimant)',
+    );
+    test.setTimeout(150_000);
+
+    const tag = Date.now().toString(36);
+    let fx: ClaimableListingFixture | null = null;
+    const claimantCtx = await browser.newContext({ storageState: STORAGE_PATHS.attendeeB });
+    const claimantPage = await claimantCtx.newPage();
+    try {
+      fx = await createClaimableListingFixture({
+        title: `E2E Claim ${tag}`,
+        submitterEmail: submitterEmail!,
+        claimantEmail: claimantEmail!,
+      });
+
+      // 1. Claimant (attendee-b) files the claim, linking their matching event.
+      await claimantPage.goto(fx.listingUrl);
+      await claimantPage.waitForLoadState('domcontentloaded');
+      const eventSelect = claimantPage.locator('select[name="event_id"]');
+      await expect(eventSelect).toBeVisible({ timeout: 10_000 });
+      await eventSelect.selectOption(fx.eventId);
+      await claimantPage.getByRole('button', { name: /claim listing/i }).click();
+      await expect(claimantPage.getByText(/claim submitted/i)).toBeVisible({ timeout: 10_000 });
+
+      // 2. Zoe (admin) sees the pending claim and approves it.
+      await withPersona(browser, 'zoe', async (zPage) => {
+        await zPage.goto(fx!.listingUrl);
+        await zPage.waitForLoadState('domcontentloaded');
+        await expect(zPage.getByText(/pending claim/i)).toBeVisible({ timeout: 10_000 });
+        await zPage.getByRole('button', { name: /approve claim/i }).click();
+        await expect(zPage.getByText(/claim approved/i)).toBeVisible({ timeout: 10_000 });
+      });
+    } finally {
+      await claimantCtx.close();
+      await deleteClaimableListingFixture(fx);
+    }
+  });
+
+  // Still fixme — role escalation has no admin UI surface today (the only
+  // first-class /admin page is /admin/community-import). Promoting/demoting a
+  // platform admin is a DB/SQL operation, so there is nothing to drive through
+  // the UI until an admin user-management page exists. Feature-absent, not a
+  // test gap (see docs/audits/e2e-tests.md).
   test.fixme('escalates / de-escalates a user role', async () => {});
 });

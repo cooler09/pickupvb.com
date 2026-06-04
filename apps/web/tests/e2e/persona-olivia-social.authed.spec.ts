@@ -5,9 +5,12 @@ import { STORAGE_PATHS } from './_helpers/paths';
 import { withAuthContext } from './_helpers/browser';
 import {
   createFriendsOfHostEvent,
+  createFriendsOfAttendeesEvent,
   deleteScopedEventFixture,
+  deleteFriendsOfAttendeesFixture,
   scopedEventFixtureAvailable,
   type ScopedEventFixture,
+  type AttendeeScopedEventFixture,
 } from './_helpers/scoped-event';
 
 /**
@@ -159,10 +162,63 @@ test.describe(`${olivia.name} (${olivia.id}) — social connector`, () => {
     }
   });
 
-  // Still fixme — friends_of_attendees scoping keys the RLS gate on a friendship
-  // to an *attendee* (not the host), so it needs a second seeded actor attending
-  // the event plus that attendee→viewer friendship edge. Extend
-  // _helpers/scoped-event.ts with an `event_attendees` insert + attendee→friend
-  // edge to graduate this (mirror createFriendsOfHostEvent).
-  test.fixme('finds a friends_of_attendees event when a friend is attending', async () => {});
+  test('a friends_of_attendees event is visible to a friend of an attendee, not to an unrelated viewer', async ({
+    browser,
+  }) => {
+    test.skip(
+      !scopedEventFixtureAvailable(),
+      'scoped-event fixture needs E2E_CLEANUP_SUPABASE_* (friends_of_attendees events + the participant/friendship edges are admin-provisioned)',
+    );
+    skipIfPersonaMissing('olivia');
+    skipIfMissingAuth(STORAGE_PATHS.attendeeB, 'attendee-b');
+    // Host (Julie), attendee (Amy / attendee-a), friend-viewer (Olivia) — three
+    // distinct accounts. The negative viewer is Adam (attendee-b); per
+    // docs/personas.md the friend graph is Olivia↔{Amy,Adam,Mark} with no
+    // Amy↔Adam edge, so Adam is not friends with the attendee and is correctly
+    // denied. The fixture roots the friendship at the attendee (Amy→Olivia).
+    const hostEmail = process.env['TEST_FREE_HOST_EMAIL'];
+    const attendeeEmail = process.env['TEST_USER_EMAIL'];
+    const friendEmail = personaEmail('olivia');
+    if (!hostEmail) test.skip(true, 'needs TEST_FREE_HOST_EMAIL (the event host)');
+    if (!attendeeEmail) test.skip(true, 'needs TEST_USER_EMAIL (Amy, the seeded attendee)');
+    if (!friendEmail) test.skip(true, 'needs TEST_SOCIAL_EMAIL (Olivia, the attendee’s friend)');
+    test.setTimeout(120_000);
+
+    const stamp = Date.now().toString(36);
+    const title = `E2E FriendsOfAttendees ${stamp}`;
+    let fx: AttendeeScopedEventFixture | null = null;
+
+    try {
+      fx = await createFriendsOfAttendeesEvent({
+        title,
+        hostEmail: hostEmail!,
+        attendeeEmail: attendeeEmail!,
+        friendEmail: friendEmail!,
+      });
+      const stampRe = new RegExp(stamp, 'i');
+
+      // Positive — Olivia is friends with the attendee (Amy), so RLS lets her in.
+      await withPersona(browser, 'olivia', async (page) => {
+        const res = await page.goto(`/events/${fx!.eventId}`);
+        expect(
+          res?.ok(),
+          'a friend of an attendee should be able to load the scoped event',
+        ).toBeTruthy();
+        await expect(page.getByText(stampRe).first()).toBeVisible({ timeout: 10_000 });
+      });
+
+      // Negative — attendee-b (Adam) is not friended by the attendee, so RLS
+      // hides the row and the event detail page notFound()s.
+      await withAuthContext(browser, STORAGE_PATHS.attendeeB, async (bPage) => {
+        await bPage.goto(`/events/${fx!.eventId}`);
+        await bPage.waitForLoadState('domcontentloaded');
+        await expect(bPage.getByText(stampRe)).toHaveCount(0);
+        await expect(
+          bPage.getByText(/not found|page not found|doesn’t exist|no longer available/i).first(),
+        ).toBeVisible({ timeout: 10_000 });
+      });
+    } finally {
+      await deleteFriendsOfAttendeesFixture(fx);
+    }
+  });
 });

@@ -112,9 +112,10 @@ test.describe(`${tyler.name} (${tyler.id}) — free agent`, () => {
     }
   });
 
-  // Still fixme — the pickup half is multi-actor: a captain (Bianca) assigns
-  // Tyler from the free-agent pool onto a roster, and Tyler gets the roster
-  // notification. Needs a seeded captain + team on the same event + a
-  // notification assertion. features.md §§ 1, 2.
-  test.fixme('is picked up by a captain and gets the roster notification', async () => {});
+  // Pointer — the pickup + notification flow is one multi-actor end-to-end test
+  // on the captain's side (it drives both Bianca and Tyler). There is no
+  // first-class pool→roster pickup, so a captain rosters a free agent via the
+  // generic team invite, which carries the `team.invite` notification. Owned by
+  // persona-bianca-captain.authed.spec.ts "picks up free-agent Tyler …".
+  test.fixme('is picked up by a captain and gets the roster notification — see persona-bianca-captain.authed.spec.ts', async () => {});
 });
