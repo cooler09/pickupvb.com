@@ -9,9 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test",
-    "e2e:public": "playwright test --project=public",
-    "e2e:ui": "playwright test --ui",
+    "e2e": "./scripts/e2e.sh",
+    "e2e:public": "./scripts/e2e.sh --project=public",
+    "e2e:ui": "./scripts/e2e.sh --ui",
     "e2e:report": "playwright show-report",
     "clean": "rm -rf .next .turbo"
   },
