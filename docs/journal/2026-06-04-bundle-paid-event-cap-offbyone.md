@@ -137,6 +137,31 @@ rather than a merely _hidden_ one). With it, all four roster tests pass on dev �
 **no deploy needed** (it's a test-only change). The product behaviour was correct
 the whole time.
 
+### The same collapse hit tournament/league registration (+ two fixture bugs)
+
+The disclosure isn't just open-play. The tournament/league "Register" panel uses
+`defaultOpen = !viewerRegistered`, and `viewerRegistered` counts **captaining a
+team** (`event.viewerCaptainedTeams`) — so it defaults collapsed for any captain
+(Adam P9, Bianca P10) and for a free agent already in the pool (Tyler P11),
+hiding the "Register a team" / "Sign up solo" radios and the team picker. Same
+120s hang. Broadened `expandSignupSection` to match the "Register" summary
+(`/sign up|register/i`) and applied it across `persona-adam-captain`,
+`persona-bianca-captain`, and `persona-tyler-free-agent`.
+
+Two fixture bugs hid behind it (`_helpers/league.ts`):
+
+1. **No free-agent tab.** The league fixture's division never set
+   `allow_free_agents`, so `freeAgentEnabled` was false and the "Sign up solo"
+   radio never rendered — added `allow_free_agents: true` (the roster-tournament
+   fixture already had it).
+2. **Signups closed.** The fixture starts the event **1h in the past** (in-season,
+   for the schedule UI), so `signupsOpen` (`!hasStarted`) was false and the whole
+   register section was absent — the page showed a "Schedule" section instead.
+   Added an `upcoming` option (future start) so the registration flows get an
+   open signup section while the schedule specs keep the in-season default.
+
+All three persona-captain/free-agent registration tests pass on dev.
+
 ## Also in this bundle
 
 - **Marcus Stripe fixture is self-provisioning now.** The stripe-host is

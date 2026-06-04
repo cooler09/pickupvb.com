@@ -65,7 +65,9 @@ export async function findCaptainedTeamUrl(page: Page): Promise<string | null> {
  * helper returns it as-is without re-saving.
  */
 export async function ensureSearchableDisplayName(page: Page, prefix: string): Promise<string> {
-  await page.goto('/profile');
+  // The edit form lives in a collapsed "Edit profile" <details>; `?edit=1`
+  // deep-links it open server-side (profile/page.tsx) so the fields are visible.
+  await page.goto('/profile?edit=1');
   await page.waitForLoadState('domcontentloaded');
   const dnInput = page.locator('input[name="display_name"]').first();
   await expect(dnInput).toBeVisible({ timeout: 10_000 });

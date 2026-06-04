@@ -2,6 +2,7 @@ import { test, expect } from './_helpers/fixtures';
 import { PERSONAS, withPersona, personaEmail, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { findCaptainedTeamUrl } from './_helpers/navigation';
+import { expandSignupSection } from './_helpers/stripe';
 import {
   createRosterTournamentFixture,
   deleteRosterTournamentFixture,
@@ -85,8 +86,13 @@ test.describe(`${adam.name} (${adam.id}) — competitive captain`, () => {
         await page.goto(`/events/${fx!.eventId}`);
         await page.waitForLoadState('domcontentloaded');
 
-        // The Register section defaults open (Adam isn't registered yet). Make
-        // the "Register a team" segment active (it's the default for a
+        // The "Register" section is a collapsible <details> that defaults
+        // *collapsed* here: `viewerRegistered` counts captaining a team, and
+        // Adam captains his seeded team, so the panel treats him as already in.
+        // Force it open (clicking the summary can hang on the consent overlay).
+        await expandSignupSection(page);
+
+        // Make the "Register a team" segment active (it's the default for a
         // non-free-agent — clicked for determinism), then pick his seeded team.
         // Single roster division → division_id is a hidden input, so submitting
         // posts straight through to the ?team=registered confirmation.

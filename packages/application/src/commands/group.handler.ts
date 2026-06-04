@@ -23,6 +23,13 @@ import {
  * Create a group (ADR 0021). The aggregate validates the name + slug; the
  * repository surfaces a slug-uniqueness collision as `ConflictError`, and the
  * DB trigger adds the founding-owner membership row.
+ *
+ * The founder is also auto-followed onto their new group: ownership lives in
+ * `group_members`, but the follow set (`group_followers`) drives the `/groups`
+ * "Following" state and host-scoped event visibility, so without this the owner
+ * would see a "+ Follow" button on the group they just made. The edge is
+ * idempotent and best-effort — a follow-write hiccup must never fail an
+ * otherwise-successful creation, mirroring the swallow in follow-actions.ts.
  */
 export class CreateGroupHandler {
   constructor(private readonly repo: GroupRepository) {}
@@ -38,6 +45,11 @@ export class CreateGroupHandler {
       region: input.region,
     });
     await this.repo.add(group);
+    try {
+      await this.repo.addFollowEdge(group.id, group.createdBy);
+    } catch {
+      // best-effort — group already exists and the founder is its owner.
+    }
     return { id: group.id, slug: group.slug };
   }
 }

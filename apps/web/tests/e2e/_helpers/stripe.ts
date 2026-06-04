@@ -226,19 +226,21 @@ export async function pollUiFor(
 }
 
 /**
- * The open-play "Sign up" panel ([event-signup-area.tsx]) is a native
- * `<details>` that **auto-collapses for a viewer who's already signed up**
- * (`defaultOpen = !viewerSignedUp`). After a paid checkout the buyer IS signed
- * up, so a fresh `page.goto(eventUrl)` renders the section collapsed and the
- * "Cancel sign-up" button sits hidden inside it — invisible to `getByRole`.
- * Call this after navigating (and inside any `pollUiFor` that reloads) to
- * reveal the post-signup controls. No-op when the section is already open or
- * absent (free events, tournaments, signed-out views).
+ * The event signup panel ([event-signup-area.tsx]) is a native `<details>` that
+ * **auto-collapses for a viewer who's already "in"** (`defaultOpen =
+ * !viewerSignedUp` for open-play "Sign up"; `!viewerRegistered` for the
+ * tournament "Register" panel — which counts *captaining a team*, not just
+ * registering it). So a fresh `page.goto` can render the section collapsed with
+ * its controls ("Cancel sign-up", the "Register a team" radio, the team picker,
+ * the submit) hidden inside — invisible to `getByRole`. Call this after
+ * navigating (and inside any `pollUiFor` that reloads) to reveal them. No-op
+ * when the section is already open or absent (free RSVP that's open, signed-out
+ * views).
  */
 export async function expandSignupSection(page: Page): Promise<void> {
   const details = page
     .locator('details')
-    .filter({ has: page.locator('summary').filter({ hasText: /sign up/i }) })
+    .filter({ has: page.locator('summary').filter({ hasText: /sign up|register/i }) })
     .first();
   if ((await details.count()) === 0) return;
   // Force the disclosure open via the DOM rather than clicking the <summary> —

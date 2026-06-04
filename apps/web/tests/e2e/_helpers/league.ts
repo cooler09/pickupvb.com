@@ -67,6 +67,13 @@ export interface CreateLeagueFixtureOptions {
    * persona and drive it via `withPersona`.
    */
   hostEmail?: string;
+  /**
+   * Default `false` → the event started 1h ago + ends in 21 days, the
+   * "in-season" window the schedule UI needs. Set `true` for the registration
+   * flows (Tyler's free-agent pool, captain sign-up): the signup section only
+   * renders while `signupsOpen` (`!hasStarted`), so those need a *future* start.
+   */
+  upcoming?: boolean;
 }
 
 /**
@@ -124,7 +131,12 @@ export async function createLeagueFixture(
   const hostId = await resolveUserIdByEmail(hostEmail);
 
   const now = Date.now();
-  const startsAt = new Date(now - 60 * 60 * 1000).toISOString();
+  // Default: started 1h ago (in-season, for the schedule UI). `upcoming` flips
+  // it to a future start so `signupsOpen` is true and the register/free-agent
+  // section renders.
+  const startsAt = new Date(
+    opts.upcoming ? now + 2 * 24 * 60 * 60 * 1000 : now - 60 * 60 * 1000,
+  ).toISOString();
   const endsAt = new Date(now + 21 * 24 * 60 * 60 * 1000).toISOString();
   const shortCode = `E2L${token(3)}`;
 
@@ -171,6 +183,9 @@ export async function createLeagueFixture(
         team_composition: 'team',
         team_size: 6,
         team_registration_mode: 'roster',
+        // Tyler's free-agent spec joins this division's pool, which only renders
+        // the "Sign up solo" tab when a division accepts free agents.
+        allow_free_agents: true,
         capacity_kind: 'unlimited',
       })
       .select('id')

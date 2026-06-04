@@ -9,6 +9,7 @@ import {
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { ensureSearchableDisplayName } from './_helpers/navigation';
 import { deleteTeamBySlug } from './_helpers/cleanup';
+import { expandSignupSection } from './_helpers/stripe';
 import {
   createRosterTournamentFixture,
   deleteRosterTournamentFixture,
@@ -123,6 +124,11 @@ test.describe(`${bianca.name} (${bianca.id}) — team captain`, () => {
         await page.goto(`/events/${fx!.eventId}`);
         await page.waitForLoadState('domcontentloaded');
 
+        // The "Register" section is a collapsible <details> that defaults
+        // collapsed for a captain (Bianca captains Sand Sharks → `viewerRegistered`),
+        // hiding the controls. Force it open before driving the panel.
+        await expandSignupSection(page);
+
         // The form posts `division_id` (AGENTS.md Pattern 6). This fixture has a
         // single division, so it rides a hidden input; the multi-division
         // "lands in the chosen division" assertion is owned by the divisions
@@ -181,6 +187,7 @@ test.describe(`${bianca.name} (${bianca.id}) — team captain`, () => {
       const tylerName = await ensureSearchableDisplayName(tylerPage, 'E2E Tyler');
       await tylerPage.goto(`/events/${fx.eventId}`);
       await tylerPage.waitForLoadState('domcontentloaded');
+      await expandSignupSection(tylerPage); // "Register" section can default collapsed
       await tylerPage.getByRole('radio', { name: /sign up solo/i }).click();
       await tylerPage.getByRole('button', { name: /sign up as free agent/i }).click();
       await expect(tylerPage.getByText(/you're signed up as a free agent/i)).toBeVisible({
@@ -237,6 +244,7 @@ test.describe(`${bianca.name} (${bianca.id}) — team captain`, () => {
       // pool — his name still appears in the event's "Available" list.
       await tylerPage.goto(`/events/${fx.eventId}`);
       await tylerPage.waitForLoadState('domcontentloaded');
+      await expandSignupSection(tylerPage); // "Register" section can default collapsed
       await tylerPage.getByRole('radio', { name: /sign up solo/i }).click();
       await expect(tylerPage.getByText(tylerName).first()).toBeVisible({ timeout: 10_000 });
     } finally {

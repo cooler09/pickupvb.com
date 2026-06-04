@@ -1,6 +1,7 @@
 import { test, expect } from './_helpers/fixtures';
 import { PERSONAS, withPersona, skipIfPersonaMissing } from './_helpers/personas';
 import { isVisibleOrTimeout } from './_helpers/predicates';
+import { expandSignupSection } from './_helpers/stripe';
 import {
   createLeagueFixture,
   deleteLeagueFixture,
@@ -87,12 +88,15 @@ test.describe(`${tyler.name} (${tyler.id}) — free agent`, () => {
       fx = await createLeagueFixture({
         title: `E2E Tyler FreeAgent ${tag}`,
         teamNames: [`E2E ${tag} Anchor`],
+        // Future start → signups open, so the free-agent register section renders.
+        upcoming: true,
         ...(hostEmail ? { hostEmail } : {}),
       });
 
       await withPersona(browser, 'tyler', async (page) => {
         await page.goto(`/events/${fx!.eventId}`);
         await page.waitForLoadState('domcontentloaded');
+        await expandSignupSection(page); // "Register" <details> can default collapsed
 
         // Switch the register section to the free-agent ("Sign up solo") tab,
         // which reveals the FreeAgentSignupPanel.
