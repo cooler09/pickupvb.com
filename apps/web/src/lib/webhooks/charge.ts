@@ -5,8 +5,11 @@
  * drop pending reservations. Both are idempotent.
  */
 import type Stripe from 'stripe';
+import { revalidatePath, updateTag } from 'next/cache';
 import { notify } from '@/lib/notify';
 import { repositories } from '@/lib/handlers';
+import { log } from '@/lib/log';
+import { eventCacheTag } from '@/lib/cache-tags';
 import {
   refundRosterTeamPaymentIfAny,
   refundTeamRegistrationIfAny,
@@ -71,6 +74,19 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
       );
     } catch {
       // best-effort
+    }
+
+    // The roster row was just deleted — evict the event-detail cache so the
+    // page reflects the refund (same webhook-side gap as the buy path; see
+    // `handleCheckoutCompleted`). Guarded so it can't fail the webhook.
+    try {
+      updateTag(eventCacheTag(eventId));
+      revalidatePath(`/events/${eventId}`);
+    } catch (err) {
+      log.warn('[stripe-webhook] event cache revalidate failed (refund)', {
+        eventId,
+        err: String(err),
+      });
     }
   }
 

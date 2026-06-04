@@ -5,8 +5,10 @@
  * reservation so the spot re-opens. Both key off `session.metadata.kind`.
  */
 import type Stripe from 'stripe';
+import { revalidatePath, updateTag } from 'next/cache';
 import { analytics, repositories } from '@/lib/handlers';
 import { log } from '@/lib/log';
+import { eventCacheTag } from '@/lib/cache-tags';
 import {
   expireRosterTeamPaymentCheckout,
   expireTeamRegistrationCheckout,
@@ -260,6 +262,25 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
       );
     }
   }
+
+  // Every kind above mutates state the event-detail page caches under
+  // `eventCacheTag` (paid roster row, team registration, sponsor, badge). A
+  // webhook runs outside the request that renders that page, so — exactly like
+  // every mutating server action (AGENTS.md pattern #1) — it must evict the tag
+  // and the page render cache, or a buyer returning from Checkout sees a stale
+  // roster until the 60s `unstable_cache` TTL lapses (the Marcus buy e2e caught
+  // this — the participant was `paid` in the DB within ~20s but never surfaced
+  // in the UI). Guarded so a revalidation hiccup can never fail the webhook and
+  // trigger a Stripe retry / duplicate processing.
+  try {
+    updateTag(eventCacheTag(meta.event_id));
+    revalidatePath(`/events/${meta.event_id}`);
+  } catch (err) {
+    log.warn('[stripe-webhook] event cache revalidate failed', {
+      eventId: meta.event_id,
+      err: String(err),
+    });
+  }
 }
 
 /**
@@ -297,5 +318,18 @@ export async function handleCheckoutExpired(session: Stripe.Checkout.Session): P
 
   if (meta.kind === 'roster_team_payment' && meta.payment_id) {
     await expireRosterTeamPaymentCheckout(meta.payment_id);
+  }
+
+  // The pending reservation just dropped — evict the event-detail cache so the
+  // freed spot is reflected (same webhook-side gap as the completed path).
+  // Guarded so it can't fail the webhook.
+  try {
+    updateTag(eventCacheTag(meta.event_id));
+    revalidatePath(`/events/${meta.event_id}`);
+  } catch (err) {
+    log.warn('[stripe-webhook] event cache revalidate failed (expired)', {
+      eventId: meta.event_id,
+      err: String(err),
+    });
   }
 }

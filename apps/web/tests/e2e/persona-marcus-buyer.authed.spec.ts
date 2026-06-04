@@ -115,7 +115,9 @@ test.describe(`${marcus.name} (${marcus.id}) — paid-ticket buyer`, () => {
     if (skipReason) test.skip(true, skipReason);
     skipIfPersonaMissing('marcus');
     skipIfMissingAuth(STORAGE_PATHS.stripeHost, 'stripe-host');
-    test.setTimeout(180_000);
+    // 240s: two sequential webhook polls (roster + receipt) at the 90s
+    // pollUiFor default, plus Checkout + redirect overhead on a cold dev env.
+    test.setTimeout(240_000);
 
     const title = `E2E Marcus Buy ${Date.now()}`;
     await withStripeHostPaidEvent(browser, { title, priceUsd: 5 }, async (eventUrl, appOrigin) => {
@@ -208,7 +210,9 @@ test.describe(`${marcus.name} (${marcus.id}) — paid-ticket buyer`, () => {
     if (skipReason) test.skip(true, skipReason);
     skipIfPersonaMissing('marcus');
     skipIfMissingAuth(STORAGE_PATHS.stripeHost, 'stripe-host');
-    test.setTimeout(180_000);
+    // 240s: three sequential webhook polls (buy-roster + refund-revert +
+    // refunded-receipt) at the 90s pollUiFor default, on a cold dev env.
+    test.setTimeout(240_000);
 
     const title = `E2E Marcus Refund ${Date.now()}`;
     // createPaidEvent picks a date ~next month; the stripe-host is free tier so

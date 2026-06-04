@@ -199,7 +199,13 @@ export async function pollUiFor(
   check: () => Promise<boolean>,
   opts: { timeoutMs?: number; intervalMs?: number; reloadEvery?: number } = {},
 ): Promise<void> {
-  const timeoutMs = opts.timeoutMs ?? 45_000;
+  // 90s default (was 45s): the dev environment's Stripe webhook can take >45s
+  // on a cold serverless start, so the webhook-driven roster/receipt mutation
+  // lands late. The bundle-96 tip-jar test hit exactly this and was raised to
+  // 90s for reliability; making it the default fixes the buy + refund polls too.
+  // A satisfied condition still returns on the first check — only a genuinely
+  // late (or absent) webhook waits the full window.
+  const timeoutMs = opts.timeoutMs ?? 90_000;
   const intervalMs = opts.intervalMs ?? 2_000;
   const reloadEvery = opts.reloadEvery ?? 3;
 

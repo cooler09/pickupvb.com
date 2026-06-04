@@ -37,6 +37,16 @@ vi.mock('@/lib/log', () => ({
   log: { warn: vi.fn(), error: vi.fn(async () => {}), info: vi.fn() },
 }));
 
+// The handler evicts the event-detail cache after its writes (so a buyer
+// returning from Checkout sees a fresh roster). That's framework plumbing the
+// e2e validates, not unit-level behaviour — mock it inert so it doesn't throw
+// outside a Next request scope (which would otherwise be swallowed into a
+// spurious log.warn and pollute the assertions below).
+vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
+
 import { handleCheckoutCompleted, handleCheckoutExpired } from './checkout';
 import { analytics, repositories } from '@/lib/handlers';
 import {
