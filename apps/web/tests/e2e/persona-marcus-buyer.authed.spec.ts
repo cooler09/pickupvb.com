@@ -1,6 +1,6 @@
 import { test, expect } from './_helpers/fixtures';
 import type { Browser } from '@playwright/test';
-import { PERSONAS, withPersona, skipIfPersonaMissing } from './_helpers/personas';
+import { PERSONAS, withPersona, personaEmail, skipIfPersonaMissing } from './_helpers/personas';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
 import { createPaidEvent, cancelEvent } from './_helpers/event-create';
@@ -13,6 +13,12 @@ import {
   shouldSkipStripeTests,
   waitForStripeRedirect,
 } from './_helpers/stripe';
+import {
+  createNearFuturePaidAttendee,
+  deleteNearFuturePaidAttendee,
+  refundWindowFixtureAvailable,
+  type NearFuturePaidAttendeeFixture,
+} from './_helpers/refund-window-event';
 
 /**
  * Marcus Lee (P14) — the paid-ticket buyer / tipper / refunder.
@@ -216,9 +222,57 @@ test.describe(`${marcus.name} (${marcus.id}) — paid-ticket buyer`, () => {
     });
   });
 
-  // Still fixme — the OUTSIDE-window case (cancelling within `refundWindowHours`
-  // of start leaves you on the roster, no auto-refund → host-manual) needs a
-  // near-future paid event, i.e. a `pickNearFutureDateTime` timing helper the
-  // UI date picker doesn't make easy. Pairs with refund-window-gating.authed.spec.ts.
-  test.fixme('cancelling outside the refund window does not auto-refund (host-manual)', async () => {});
+  test('cancelling outside the refund window does not auto-refund (host-manual)', async ({
+    browser,
+  }) => {
+    // The window check (`assertWithinRefundWindow`) runs before any Stripe call,
+    // so no Checkout is needed — but `refundAttendeeTicket` requires
+    // `isStripeConfigured()` on the target, so keep the Stripe gate.
+    const skipReason = shouldSkipStripeTests();
+    if (skipReason) test.skip(true, skipReason);
+    skipIfPersonaMissing('marcus');
+    const hostEmail = process.env['TEST_STRIPE_HOST_EMAIL'];
+    const attendeeEmail = personaEmail('marcus');
+    test.skip(
+      !refundWindowFixtureAvailable(hostEmail, attendeeEmail),
+      'refund-window fixture needs E2E_CLEANUP_SUPABASE_* + TEST_STRIPE_HOST_EMAIL + TEST_BUYER_EMAIL',
+    );
+    test.setTimeout(120_000);
+
+    // A paid event that starts in 6h with a 24h refund window → the window is
+    // already closed; Marcus is admin-provisioned as a paid attendee.
+    let fx: NearFuturePaidAttendeeFixture | null = null;
+    try {
+      fx = await createNearFuturePaidAttendee({
+        title: `E2E Marcus OutsideWindow ${Date.now()}`,
+        hostEmail: hostEmail!,
+        attendeeEmail: attendeeEmail!,
+        hoursUntilStart: 6,
+        refundWindowHours: 24,
+      });
+
+      await withPersona(browser, 'marcus', async (page) => {
+        await page.goto(`/events/${fx!.eventId}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        // As a paid attendee, the panel offers "Cancel sign-up & refund".
+        await expect(page.getByRole('button', { name: /cancel sign-up & refund/i })).toBeVisible({
+          timeout: 10_000,
+        });
+
+        // Cancelling within the window → leaveEvent returns window_closed →
+        // ?rsvp=error, and the attendee row is NOT deleted (no auto-refund).
+        await clickConfirmedSubmit(page, /cancel sign-up & refund/i);
+        await page.waitForURL(/[?&]rsvp=error/, { timeout: 15_000 });
+
+        // Marcus is still a paid attendee — the refund affordance persists
+        // (an auto-refund would have reverted the panel to the "Pay online" CTA).
+        await expect(page.getByRole('button', { name: /cancel sign-up & refund/i })).toBeVisible({
+          timeout: 10_000,
+        });
+      });
+    } finally {
+      await deleteNearFuturePaidAttendee(fx);
+    }
+  });
 });
