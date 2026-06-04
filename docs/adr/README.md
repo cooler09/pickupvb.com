@@ -38,6 +38,7 @@ status to `Superseded by NNNN`.
 | [0031](0031-gamification-badges.md)                    | Gamification — collector badges, achievements & Pro host event badges                | Accepted                                                             |
 | [0033](0033-host-managed-account-less-team-entries.md) | Host-managed, account-less team entries across roster/league divisions               | Accepted                                                             |
 | [0034](0034-league-play-on-entry-id.md)                | League play keys on `event_team_entries.id` (completes ADR 0033)                     | Accepted                                                             |
+| [0035](0035-onboarding-checklists.md)                  | Onboarding checklists (player + host) — computed, no per-step badge                  | Accepted                                                             |
 
 ## Template
 

@@ -4,6 +4,12 @@ Ideas for helping **new players and new hosts** discover and learn the
 product. This is a brainstorm / idea backlog, not a committed spec — entries
 graduate into ADRs and journal entries as they get built.
 
+> **Shipped:** **B1 + B2 (gamified checklists)** — Phase 1, 2026-06-04.
+> Computed player + host checklists on the profile hub (no per-step badge, no
+> migration). See [ADR 0035](adr/0035-onboarding-checklists.md) +
+> [journal 2026-06-04](journal/2026-06-04-bundle-onboarding-checklists.md). The
+> instrumentation half (**M1**) is the deferred Phase 2.
+
 > **Not to be confused with** [docs/onboarding.md](onboarding.md), which is the
 > _contributor_ day-1 guide (`git clone` → first PR). This file is about
 > **end-user** onboarding inside the app.
@@ -69,14 +75,18 @@ These live in pages users already hit — no tour engine required.
 The badges/achievements aggregate (ADR 0031) already exists — onboarding
 checklists piggyback on it instead of adding a new system. **Highest leverage.**
 
-- **B1 — "Getting Started" checklist (player track).** _Complete your profile ·
-  Join your first event · Join a group · Send your first message._ Drips out
-  collector badges as steps complete. Proven onboarding pattern, near-free given
-  existing infra. Doubles as funnel instrumentation (see M1).
-- **B2 — "Host Setup" checklist (host track).** _Connect Stripe · Create your
-  first event · Add divisions · Publish · Invite players._ Doubles as a live
-  status board for the cliffs (Stripe-not-finished is the big one) — both
-  teaching _and_ unblocking.
+- **B1 — "Getting Started" checklist (player track).** ✅ **Phase 1 shipped
+  2026-06-04** (ADR 0035). _Complete your profile · Join your first event · Join a
+  group · Send your first message._ Built as a **computed** checklist (pure rules
+  over a snapshot, the badge pattern) rather than dripping out a collector badge
+  per step — the trophy case stays athletic (ADR 0031 tone). Required steps gate
+  visibility; group/message are optional nudges. Funnel instrumentation is the
+  deferred M1.
+- **B2 — "Host Setup" checklist (host track).** ✅ **Phase 1 shipped 2026-06-04**
+  (ADR 0035). Shipped steps: _Create your first event · Publish it · [optional]
+  Connect Stripe._ Intent-gated (only shows for would-be hosts). The "Add
+  divisions / Invite players / first registration" payoff steps fold into Phase 2
+  (they need the cross-join count an RPC gives cheaply).
 
 ### Host-specific scaffolding (the hard track)
 

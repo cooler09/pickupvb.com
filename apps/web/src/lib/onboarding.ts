@@ -1,0 +1,120 @@
+import 'server-only';
+import {
+  HOST_ONBOARDING_STEPS,
+  PLAYER_ONBOARDING_STEPS,
+  progressFor,
+  type ChecklistProgress,
+  type HostOnboardingSnapshot,
+  type PlayerOnboardingSnapshot,
+} from '@pickupvb/domain';
+import { getAdminSupabase } from './supabase-admin';
+
+/**
+ * Onboarding-checklist facade (ADR 0035, Phase 1). Builds the two track
+ * snapshots and runs the pure domain `progressFor` rules, so the profile hub
+ * stays a thin orchestrator. Mirrors the `badges.ts` facade-over-port shape
+ * (AGENTS.md pattern #10): there is no aggregate invariant — the only logic is
+ * the pure `progressFor`, reused directly here.
+ *
+ * Why the admin client: this aggregates a user's *own* derived stats across
+ * several tables (events / participants / messages) by their `userId`. It is the
+ * same sanctioned system-read case as `SupabaseBadgeRepository.loadStats` — there
+ * is no per-user authorization to delegate to RLS, and scoping every count to the
+ * owner's id keeps it safe (AGENTS.md pitfall #8). Reads only; never writes.
+ *
+ * Every loader is **fail-quiet**: a thrown count degrades to a zeroed snapshot
+ * (the card simply shows more open steps) so onboarding can never break the hub
+ * render — same posture as `reconcileUserBadges`.
+ */
+
+/** Facts the caller already has on hand, so the facade only does the extra counts. */
+export interface PlayerOnboardingInputs {
+  hasHomeCity: boolean;
+  positionCount: number;
+  /** Group memberships the page already loaded. */
+  groupCount: number;
+}
+
+/**
+ * Build the player track snapshot + progress. Extra counts (events joined,
+ * messages sent) run on the admin client, scoped to `userId`.
+ */
+export async function loadPlayerOnboarding(
+  userId: string,
+  inputs: PlayerOnboardingInputs,
+): Promise<ChecklistProgress> {
+  const snapshot: PlayerOnboardingSnapshot = {
+    hasHomeCity: inputs.hasHomeCity,
+    positionCount: inputs.positionCount,
+    groupCount: inputs.groupCount,
+    joinedEventCount: 0,
+    messagesSent: 0,
+  };
+  try {
+    const admin = getAdminSupabase();
+    const [joined, messages] = await Promise.all([
+      admin
+        .from('event_participants')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('role', 'attendee'),
+      admin
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('sender_id', userId)
+        .is('deleted_at', null),
+    ]);
+    snapshot.joinedEventCount = joined.count ?? 0;
+    snapshot.messagesSent = messages.count ?? 0;
+  } catch {
+    // Fail-quiet: keep the zeroed extra counts (card shows the steps as open).
+  }
+  return progressFor(PLAYER_ONBOARDING_STEPS, snapshot);
+}
+
+/** Facts the caller already has on hand for the host track. */
+export interface HostOnboardingInputs {
+  /** The host's Stripe Connect account exists and can take charges. */
+  stripeChargesEnabled: boolean;
+}
+
+/** The host track progress plus whether the viewer shows any host intent. */
+export interface HostOnboardingResult {
+  progress: ChecklistProgress;
+  /** Created an event or is charges-enabled — gates whether the host card renders. */
+  hasHostIntent: boolean;
+}
+
+/**
+ * Build the host track snapshot + progress. Counts created / published events on
+ * the admin client, scoped to `host_id = userId`.
+ */
+export async function loadHostOnboarding(
+  userId: string,
+  inputs: HostOnboardingInputs,
+): Promise<HostOnboardingResult> {
+  const snapshot: HostOnboardingSnapshot = {
+    eventsCreated: 0,
+    publishedEventCount: 0,
+    stripeChargesEnabled: inputs.stripeChargesEnabled,
+  };
+  try {
+    const admin = getAdminSupabase();
+    const [created, published] = await Promise.all([
+      admin.from('events').select('id', { count: 'exact', head: true }).eq('host_id', userId),
+      admin
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('host_id', userId)
+        .eq('status', 'published'),
+    ]);
+    snapshot.eventsCreated = created.count ?? 0;
+    snapshot.publishedEventCount = published.count ?? 0;
+  } catch {
+    // Fail-quiet: keep the zeroed counts.
+  }
+  return {
+    progress: progressFor(HOST_ONBOARDING_STEPS, snapshot),
+    hasHostIntent: snapshot.eventsCreated > 0 || snapshot.stripeChargesEnabled,
+  };
+}

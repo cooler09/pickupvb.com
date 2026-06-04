@@ -29,6 +29,8 @@ import { BadgeShelf, type ShelfBadge } from '@/components/badge-shelf';
 import { BadgeUnlockToast } from '@/components/badge-unlock-toast';
 import { KonamiListener } from '@/components/konami-listener';
 import { reconcileUserBadges, getOwnBadges } from '@/lib/badges';
+import { loadPlayerOnboarding, loadHostOnboarding } from '@/lib/onboarding';
+import { OnboardingChecklist } from './_components/onboarding-checklist';
 
 export const metadata = {
   title: 'Your profile — PickupVB',
@@ -220,18 +222,23 @@ export default async function ProfilePage(props: {
     .filter((p): p is string => Boolean(p))
     .map((p) => POSITION_LABEL[p] ?? p);
 
-  // First-run nudge: a brand-new user (sparse profile + zero activity anywhere)
-  // gets a single "Get started" card instead of a wall of empty sections. It
-  // disappears the moment they fill in a profile field or take any first action
-  // (PR-3) — it's a welcome, not a persistent checklist.
-  const profileIncomplete = !profile.home_city && positions.length === 0 && !profile.avatar_url;
-  const hasNoActivity =
-    attendingEvents.length === 0 &&
-    upcomingHosted.length === 0 &&
-    friends.length === 0 &&
-    memberships.length === 0 &&
-    myVideos.length === 0;
-  const showOnboarding = profileIncomplete && hasNoActivity;
+  // Onboarding checklists (ADR 0035, B1/B2). The player track replaces the PR-3
+  // "Get started" card with a progress-tracked version; the host track appears
+  // only for a viewer showing host intent. Each card hides once its *required*
+  // steps are done (optional steps never keep it alive), so neither nags an
+  // established user. Both loaders are fail-quiet — a thrown count just shows
+  // more open steps; it can't break the hub render.
+  const [playerOnboarding, hostOnboarding] = await Promise.all([
+    loadPlayerOnboarding(user.id, {
+      hasHomeCity: Boolean(profile.home_city),
+      positionCount: positions.length,
+      groupCount: memberships.length,
+    }),
+    loadHostOnboarding(user.id, { stripeChargesEnabled: hostStripeAccountId !== null }),
+  ]);
+  const showPlayerOnboarding = !playerOnboarding.requiredComplete;
+  const showHostOnboarding =
+    hostOnboarding.hasHostIntent && !hostOnboarding.progress.requiredComplete;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
@@ -285,34 +292,22 @@ export default async function ProfilePage(props: {
       <KonamiListener />
       <BadgeShelf earned={shelfBadges} showLocked heading="Your badges" />
 
-      {/* First-run "Get started" card (sparse profile + zero activity). */}
-      {showOnboarding && (
-        <section className="border-primary/30 bg-primary/5 rounded-shape-sm border p-5 sm:p-6">
-          <h2 className="text-lg font-bold">Welcome to PickupVB</h2>
-          <p className="text-muted mt-1 text-sm">
-            A few quick steps to get the most out of your account.
-          </p>
-          <ol className="mt-4 space-y-2">
-            <GetStartedStep
-              n={1}
-              href={'/profile?edit=1#edit-profile' as Route}
-              title="Complete your profile"
-              description="Add a photo, your home city, and positions"
-            />
-            <GetStartedStep
-              n={2}
-              href={'/events' as Route}
-              title="Find your first event"
-              description="Pickup, leagues, and tournaments near you"
-            />
-            <GetStartedStep
-              n={3}
-              href={'/players' as Route}
-              title="Follow some players"
-              description="See what your crew is signed up for next"
-            />
-          </ol>
-        </section>
+      {/* Onboarding checklists (ADR 0035). Player track first (everyone), then the
+          host track for viewers showing host intent. Each hides once its required
+          steps are done. */}
+      {showPlayerOnboarding && (
+        <OnboardingChecklist
+          heading="Get started"
+          intro="A few quick steps to get the most out of your account."
+          progress={playerOnboarding}
+        />
+      )}
+      {showHostOnboarding && (
+        <OnboardingChecklist
+          heading="Host setup"
+          intro="Finish setting up so players can find and pay for your events."
+          progress={hostOnboarding.progress}
+        />
       )}
 
       {/* Quick actions — player intents lead; host/payout depth is adaptive. */}
@@ -570,39 +565,6 @@ function SectionHeader({
         </Link>
       )}
     </div>
-  );
-}
-
-function GetStartedStep({
-  n,
-  href,
-  title,
-  description,
-}: {
-  n: number;
-  href: Route;
-  title: string;
-  description: string;
-}) {
-  return (
-    <li>
-      <Link
-        href={href}
-        className="border-border-base bg-surface hover:border-primary/40 flex items-center gap-3 rounded-md border p-3"
-      >
-        <span
-          aria-hidden
-          className="bg-primary/15 text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-        >
-          {n}
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-medium">{title}</span>
-          <span className="text-muted block text-xs">{description}</span>
-        </span>
-        <span className="text-primary ml-auto shrink-0 text-sm">→</span>
-      </Link>
-    </li>
   );
 }
 
