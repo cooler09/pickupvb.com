@@ -64,8 +64,10 @@ This file is complementary to — not a duplicate of:
 > fully dynamic, yet both anon peek reads are viewer-independent and trivially
 > cacheable). Verified the **"Real-time spot updates"** hero claim is _honest_ —
 > [use-event-attendees.ts#L32](../../apps/web/src/hooks/use-event-attendees.ts#L32)
-> subscribes to per-event `postgres_changes`, so it is **not** flagged. H-2 / H-3
-> / H-6 from the prior pass remain open and unchanged.
+> subscribes to per-event `postgres_changes`, so it is **not** flagged. **Update
+> (same day):** H-7 / H-8 / H-9 then shipped, followed by the prior pass's
+> **H-2 / H-3 / H-6** — so the audit is now **fully cleared** (every finding
+> H-1…H-9 resolved; H-5 via persona-ux V-4). See the **Remediation log**.
 >
 > Grounding facts that shaped grading:
 >
@@ -167,7 +169,7 @@ and lights up four shipped features on the busiest screen at once.
 
 ### B. Location honesty (visitor)
 
-#### H-2 — Hero "Find events near me" promises proximity the page never delivers · **P3**
+#### H-2 — Hero "Find events near me" promises proximity the page never delivers · **P3** · ✅ resolved 2026-06-05
 
 The hero's primary CTA reads **"Find events near me"**
 ([page.tsx#L57-L59](../../apps/web/src/app/page.tsx#L57-L59)) but links to bare
@@ -189,7 +191,13 @@ lands on an unscoped list, and has to tap "Near me" _again_ on the listing page.
 Recommend (a) for the button now; (b) only if we want the homepage to be a true
 near-me entry point. P3.
 
-#### H-3 — The peek section vanishes entirely in an empty/sparse market · **P3**
+**Resolved 2026-06-05 (option a):** the hero CTA now reads **"Find events"** (was
+"Find events near me"), dropping the proximity promise the unscoped `/events`
+link never kept. The peek heading ("Upcoming events" / "A peek at what's on the
+schedule") was already proximity-neutral, so it was left as-is.
+[page.tsx](../../apps/web/src/app/page.tsx).
+
+#### H-3 — The peek section vanishes entirely in an empty/sparse market · **P3** · ✅ resolved 2026-06-05
 
 The whole "Upcoming events" block is gated on `upcomingEvents.length > 0`
 ([page.tsx#L103](../../apps/web/src/app/page.tsx#L103)). In a brand-new metro —
@@ -203,6 +211,13 @@ renders a helpful `EmptyState` (host nudge / clear-filters)
 its place — _"No events scheduled near you yet — be the first to host one"_ with
 the existing host CTA — rather than dropping the section, so the page never
 looks dead. P3.
+
+**Resolved 2026-06-05:** the "Upcoming events" section is now always rendered;
+when the peek is empty it falls back to the shared
+[`EmptyState`](../../apps/web/src/components/empty-state.tsx) — _"No upcoming
+events yet — be the first to host one…"_ with the host CTA (routes anon users to
+`/login?next=/events/new`) — instead of the section vanishing.
+[page.tsx](../../apps/web/src/app/page.tsx).
 
 ### C. Consistency / DRY
 
@@ -247,7 +262,7 @@ CTAs funnel there, an anon user who taps them lands on the claim flow instead of
 the bare form — no home-local change was needed. See persona-ux V-4 + journal
 [2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
 
-#### H-6 — A returning signed-in player sees the visitor's marketing page · **P3** (optional / product call)
+#### H-6 — A returning signed-in player sees the visitor's marketing page · **P3** (optional / product call) · ✅ resolved 2026-06-05
 
 For an authed user the page differs from a visitor's only in that the guest
 sign-in nudge ([page.tsx#L67-L74](../../apps/web/src/app/page.tsx#L67-L74)) and
@@ -263,6 +278,17 @@ Following peek for the player who already has a session.
 marketing footer for a player-relevant block. Flagged **P3** and called out as a
 **product decision**, not a defect — the header + bottom-nav already give players
 their primary surfaces, so this is upside, not a gap.
+
+**Resolved 2026-06-05 (product call: "Your upcoming events" peek):** for
+signed-in users the page now leads with a compact **"Your upcoming events"**
+section above the hero — their RSVP'd upcoming events (≤3) via
+`handlers.getAttendingEvents` (`GetAttendingEventsQuery(user.id, now, 3)`),
+rendered with the shared `EventCard` and a "See all →" link to `/profile`. It's a
+viewer-scoped read (kept out of the cached `loadHomePeek` from H-9) that degrades
+to `[]` on failure, and the section is hidden when the player has none — so they
+fall back to the generic marketing page rather than seeing an empty rail. The
+shared `toEventCardData` helper now feeds both this peek and the public one.
+[page.tsx](../../apps/web/src/app/page.tsx).
 
 ### E. Marketing-copy honesty (stale claims)
 
@@ -439,3 +465,23 @@ files).
   `use-event-attendees.ts` realtime — left as-is.
 
 _Open after this pass: H-2, H-3, H-6 (prior). H-7 ✅ / H-8 ✅ / H-9 ✅._
+
+### 2026-06-05 — H-2 / H-3 / H-6 shipped (audit fully cleared)
+
+The three remaining open findings shipped in one bundle. Verified `pnpm
+typecheck && lint && test && build` (all green; only the pre-existing
+`set-state-in-effect` warnings in unrelated files). Journal:
+[2026-06-05-home-personalize-and-empty-state.md](../journal/2026-06-05-home-personalize-and-empty-state.md).
+
+- **H-2 ✅ (P3)** — hero CTA "Find events near me" → **"Find events"** (option a);
+  dropped the proximity promise the unscoped `/events` link never kept.
+- **H-3 ✅ (P3)** — the "Upcoming events" section is now always rendered; an empty
+  peek falls back to a shared `EmptyState` host nudge instead of vanishing.
+- **H-6 ✅ (P3, product call)** — signed-in players now lead with a compact "Your
+  upcoming events" peek (their RSVP'd events via `getAttendingEvents`, ≤3,
+  `EventCard`, "See all" → `/profile`); hidden when they have none. Viewer-scoped
+  read (outside the H-9 cache). A shared `toEventCardData` helper now feeds both
+  the public and personalized peeks.
+
+**The home-page-ux audit is now fully cleared** — every finding H-1…H-9 resolved
+(H-5 via persona-ux V-4). No open backlog.
