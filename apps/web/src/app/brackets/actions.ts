@@ -89,7 +89,7 @@ function parseConfig(formData: FormData): {
   if (format === 'pool_play_playoff') {
     const poolCount = Number(formData.get('pool_count') ?? '');
     const advance = Number(formData.get('advance_per_pool') ?? '');
-    if (Number.isFinite(poolCount) && poolCount >= 2) config.poolCount = poolCount;
+    if (Number.isFinite(poolCount) && poolCount >= 1) config.poolCount = poolCount;
     if (Number.isFinite(advance) && advance >= 1) config.advancePerPool = advance;
     const schedule = String(formData.get('pool_schedule') ?? '');
     if (schedule === 'round_robin' || schedule === 'fixed_games') {

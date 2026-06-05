@@ -184,8 +184,8 @@ const FORMATS: ReadonlyArray<FormatMeta> = [
   {
     value: 'pool_play_playoff',
     title: 'Pool play → playoff',
-    blurb: 'Round-robin inside pools, then a single-elim playoff of the top finishers.',
-    bestFor: 'Large fields that want guaranteed matches + a real bracket finish.',
+    blurb: 'Round-robin inside one or more pools, then a single-elim playoff of the top finishers.',
+    bestFor: 'A single pool or several — guaranteed pool matches plus a real bracket finish.',
     tradeoff: 'Most complex schedule; needs at least 2 teams per pool.',
     minTeams: 4,
   },
@@ -399,25 +399,33 @@ export function FormatPickerForm(props: {
             <select
               name="pool_count"
               value={poolCount}
-              onChange={(e) => setPoolCount(Number(e.target.value))}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setPoolCount(n);
+                // A single pool feeds the playoff directly, so advancing only
+                // 1 team would leave a 1-team (no) playoff — floor it at 2.
+                if (n === 1 && advancePerPool < 2) setAdvancePerPool(2);
+              }}
               className="border-border-base bg-bg rounded border px-2 py-1"
             >
-              {[2, 3, 4].map((n) => (
+              {[1, 2, 3, 4].map((n) => (
                 <option key={n} value={n}>
-                  {n}
+                  {n === 1 ? '1 (single pool)' : n}
                 </option>
               ))}
             </select>
           </label>
           <label className="flex flex-col text-sm">
-            <span className="text-fg/80">Advance per pool</span>
+            <span className="text-fg/80">
+              {poolCount === 1 ? 'Teams in playoff' : 'Advance per pool'}
+            </span>
             <select
               name="advance_per_pool"
               value={advancePerPool}
               onChange={(e) => setAdvancePerPool(Number(e.target.value))}
               className="border-border-base bg-bg rounded border px-2 py-1"
             >
-              {[1, 2, 3, 4].map((n) => (
+              {(poolCount === 1 ? [2, 3, 4] : [1, 2, 3, 4]).map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -587,14 +595,15 @@ export function FormatPickerForm(props: {
             </p>
           </div>
           <p className="text-muted basis-full text-xs">
-            With {props.teamCount} teams in {poolCount} pools, that’s ~{teamsPerPool} per pool. The
-            top {advancePerPool} from each pool advance to a single-elim playoff.
+            {poolCount === 1
+              ? `All ${props.teamCount} teams play one pool; the top ${advancePerPool} advance to a single-elim playoff.`
+              : `With ${props.teamCount} teams in ${poolCount} pools, that’s ~${teamsPerPool} per pool. The top ${advancePerPool} from each pool advance to a single-elim playoff.`}
           </p>
           {poolPlayUnderfilled && (
             <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
-              {poolCount} pools advancing {advancePerPool} per pool needs at least{' '}
-              {poolCount * advancePerPool} teams; you have {props.teamCount}. Reduce pools or
-              advance-per-pool, or wait for more teams to register.
+              {poolCount === 1
+                ? `A single-pool playoff of ${advancePerPool} needs at least ${advancePerPool} teams; you have ${props.teamCount}. Lower the playoff size or wait for more teams to register.`
+                : `${poolCount} pools advancing ${advancePerPool} per pool needs at least ${poolCount * advancePerPool} teams; you have ${props.teamCount}. Reduce pools or advance-per-pool, or wait for more teams to register.`}
             </p>
           )}
         </fieldset>

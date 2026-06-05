@@ -459,6 +459,42 @@ describe('Bracket.seedPlayoff (host re-seed override)', () => {
   });
 });
 
+describe('Bracket.generate (single pool → playoff)', () => {
+  it('runs one round-robin pool, then a playoff of the top finishers', () => {
+    // The host can configure a single pool (poolCount: 1): everyone plays one
+    // round-robin, then the top `advancePerPool` advance to a single-elim
+    // playoff. Regression guard for the create path that enables poolCount: 1.
+    const ids = mkIdFactory();
+    const b = Bracket.create(
+      'b-single-pool' as BracketId,
+      'event-sp1' as EventId,
+      'division-sp1' as DivisionId,
+      'pool_play_playoff',
+      { bestOf: 1, poolCount: 1, advancePerPool: 2 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(ids);
+    // Single pool ⇒ every generated pool match shares one pool label.
+    const poolMatches = b.matches.filter((m) => m.pool !== null);
+    expect(poolMatches.length).toBeGreaterThan(0);
+    expect(new Set(poolMatches.map((m) => m.pool)).size).toBe(1);
+    expect(b.matches.some((m) => m.bracketSide === 'final')).toBe(false);
+
+    b.publish();
+    for (let i = 0; i < 20; i++) {
+      const pm = b.matches.find(
+        (m) => m.pool !== null && m.status === 'pending' && m.entryAId && m.entryBId,
+      );
+      if (!pm) break;
+      b.recordResult({ matchId: pm.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    }
+    b.generatePlayoff(ids);
+    // Top 2 of the single pool → a 1-match final.
+    const finals = b.matches.filter((m) => m.bracketSide === 'final');
+    expect(finals.length).toBe(1);
+  });
+});
+
 // ---- DEFAULT_BRACKET_CONFIG -----------------------------------------
 
 describe('DEFAULT_BRACKET_CONFIG', () => {
