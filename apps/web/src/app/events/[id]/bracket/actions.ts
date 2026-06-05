@@ -19,6 +19,7 @@ import {
   ResetBracketCommand,
   ResetMatchCommand,
   SeedBracketCommand,
+  SeedPlayoffCommand,
   SetPoolsCommand,
   type EditMatchPatchInput,
   type AddMatchInputDto,
@@ -231,6 +232,34 @@ export async function generatePlayoff(eventId: string, divisionId: string): Prom
   }
   revalidate(eventId);
   back(eventId, divisionId, 'playoff_generated');
+}
+
+/**
+ * Re-seed the playoff from a host-chosen overall order, overriding the auto
+ * cross-seed (ADR 0032). The form posts hidden `entry_id` inputs in the desired
+ * seed order (#1 first). Allowed while no playoff match has started.
+ */
+export async function seedBracketPlayoffFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const entryIds = formData
+    .getAll('entry_id')
+    .map((v) => String(v))
+    .filter((v) => v.length > 0);
+  try {
+    await handlers.seedBracketPlayoff.execute(
+      new SeedPlayoffCommand(divisionId, user.id, entryIds),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'playoff_reseeded');
 }
 
 export async function resetBracket(eventId: string, divisionId: string): Promise<void> {

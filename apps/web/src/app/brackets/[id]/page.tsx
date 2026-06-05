@@ -146,6 +146,7 @@ export default async function StandaloneBracketPage(props: {
             teams={registeredTeams}
             bestOf={bracket.config.bestOf}
             targetScore={bracket.config.targetScore}
+            advancePerPool={bracket.config.advancePerPool}
             isHost
             viewerId={user!.id}
             status={bracket.status}

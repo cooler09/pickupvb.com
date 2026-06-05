@@ -10,8 +10,8 @@ export const MatchId = idConstructor<'MatchId'>();
  * participant identity (covers both roster `event_teams` and ad-hoc
  * `event_team_registrations`). Bracket matches store this for the
  * A/B/winner/work slots; persistence writes the `entry_*_id` columns on
- * `bracket_matches`. Legacy `team_*_id` columns stay nullable for
- * backwards compatibility but are no longer written.
+ * `bracket_matches`. (The legacy `team_*_id` columns were dropped in migration
+ * `20260813000000_drop_legacy_team_id_columns`.)
  */
 export type EntryId = Brand<string, 'EntryId'>;
 export const EntryId = idConstructor<'EntryId'>();
@@ -55,9 +55,9 @@ export interface Match {
    * round) when `BracketConfig.requireWorkTeam` is true; null otherwise
    * and for formats that don't have a natural idle slot. Hosts may
    * override per-match in the UI. See ADR 0018. Persisted as
-   * `bracket_matches.work_entry_id` (parallel to A/B/winner); the legacy
-   * `work_team_id` column stays nullable for backwards compatibility but
-   * is no longer written.
+   * `bracket_matches.work_entry_id` (parallel to A/B/winner). (The legacy
+   * `work_team_id` column was dropped in migration
+   * `20260813000000_drop_legacy_team_id_columns`.)
    */
   workTeamId: EntryId | null;
   status: MatchStatus;

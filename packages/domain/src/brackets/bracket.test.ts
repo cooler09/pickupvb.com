@@ -18,7 +18,7 @@ import {
 } from './index.js';
 import type { DivisionId } from '../events/division.js';
 import type { EventId, UserId } from '../events/volleyball-event.js';
-import { InvariantViolation, ValidationError } from '../shared/result.js';
+import { ConflictError, InvariantViolation, ValidationError } from '../shared/result.js';
 
 // ---- Helpers ----------------------------------------------------------
 
@@ -387,6 +387,75 @@ describe('double elimination — reset grand final', () => {
     recordWinner(b, resetLive, 'a');
     expect(b.status).toBe('completed');
     expect(resetLive.winnerEntryId).toBeTruthy();
+  });
+});
+
+// ---- Playoff re-seed (host override of the auto cross-seed) ---------
+
+describe('Bracket.seedPlayoff (host re-seed override)', () => {
+  it('rebuilds the playoff from a host-chosen order, placing the new #1 seed on top', () => {
+    // One shared id factory across the whole lifecycle so match ids stay unique
+    // (the real repo uses UUIDs).
+    const ids = mkIdFactory();
+    const b = Bracket.create(
+      'b-seed-playoff' as BracketId,
+      'event-sp' as EventId,
+      'division-sp' as DivisionId,
+      'pool_play_playoff',
+      { bestOf: 1, poolCount: 2, advancePerPool: 2 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(ids);
+    b.publish();
+    // Complete pool play so the playoff can be generated.
+    for (let i = 0; i < 20; i++) {
+      const pm = b.matches.find(
+        (m) => m.pool !== null && m.status === 'pending' && m.entryAId && m.entryBId,
+      );
+      if (!pm) break;
+      b.recordResult({ matchId: pm.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    }
+    b.generatePlayoff(ids);
+    const before = b.matches.filter((m) => m.bracketSide === 'final').length;
+    expect(before).toBeGreaterThan(0);
+
+    // Re-seed with an explicit overall order (all four advance from 2×2).
+    b.seedPlayoff(ids, [tid(4), tid(3), tid(2), tid(1)]);
+    const finals = b.matches.filter((m) => m.bracketSide === 'final');
+    expect(finals.length).toBe(before); // same shape, rebuilt
+    const minRound = Math.min(...finals.map((m) => m.round));
+    const topMatch = finals
+      .filter((m) => m.round === minRound)
+      .sort((x, y) => x.matchNumber - y.matchNumber)[0]!;
+    expect(topMatch.entryAId).toBe(tid(4)); // chosen #1 seed lands in the top slot
+  });
+
+  it('rejects a re-seed once a playoff match has started', () => {
+    const ids = mkIdFactory();
+    const b = Bracket.create(
+      'b-seed-playoff-2' as BracketId,
+      'event-sp2' as EventId,
+      'division-sp2' as DivisionId,
+      'pool_play_playoff',
+      { bestOf: 1, poolCount: 2, advancePerPool: 2 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(ids);
+    b.publish();
+    for (let i = 0; i < 20; i++) {
+      const pm = b.matches.find(
+        (m) => m.pool !== null && m.status === 'pending' && m.entryAId && m.entryBId,
+      );
+      if (!pm) break;
+      b.recordResult({ matchId: pm.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    }
+    b.generatePlayoff(ids);
+    // Start a playoff match.
+    const pf = b.matches.find(
+      (m) => m.bracketSide === 'final' && m.status === 'pending' && m.entryAId && m.entryBId,
+    )!;
+    b.recordResult({ matchId: pf.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    expect(() => b.seedPlayoff(ids, [tid(1), tid(2), tid(3), tid(4)])).toThrow(ConflictError);
   });
 });
 

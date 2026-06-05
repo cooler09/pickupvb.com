@@ -14,6 +14,7 @@ import {
   resetBracket,
   resetMatch,
   seedBracketFromForm,
+  seedBracketPlayoffFromForm,
   setBracketPoolsFromForm,
 } from '../actions';
 import {
@@ -33,6 +34,7 @@ import {
   resetStandaloneBracket,
   resetStandaloneMatch,
   seedStandaloneFromForm,
+  seedStandalonePlayoffFromForm,
   setStandalonePoolsFromForm,
 } from '@/app/brackets/actions';
 import type { BracketScope } from './labels';
@@ -55,6 +57,8 @@ type BulkAddTeamsResult =
 export type BoundBracketActions = {
   generate: () => void | Promise<void>;
   generatePlayoff: () => void | Promise<void>;
+  /** Re-seed the playoff from a host-chosen order (overrides the auto cross-seed). */
+  seedPlayoffFromForm: (formData: FormData) => void | Promise<void>;
   reset: () => void | Promise<void>;
   /** Re-open a completed bracket so the host/owner can fix a result (TT-10). */
   reopen: () => void | Promise<void>;
@@ -91,6 +95,7 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
     return {
       generate: generateStandaloneBracket.bind(null, b),
       generatePlayoff: generateStandalonePlayoff.bind(null, b),
+      seedPlayoffFromForm: seedStandalonePlayoffFromForm.bind(null, b),
       reset: resetStandaloneBracket.bind(null, b),
       reopen: reopenStandaloneBracket.bind(null, b),
       seedFromForm: seedStandaloneFromForm.bind(null, b),
@@ -113,6 +118,7 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
   return {
     generate: generateBracket.bind(null, e, d),
     generatePlayoff: generatePlayoff.bind(null, e, d),
+    seedPlayoffFromForm: seedBracketPlayoffFromForm.bind(null, e, d),
     reset: resetBracket.bind(null, e, d),
     reopen: reopenBracket.bind(null, e, d),
     seedFromForm: seedBracketFromForm.bind(null, e, d),

@@ -64,6 +64,16 @@ export class GenerateStandalonePlayoffCommand {
   ) {}
 }
 
+/** Host-override of the auto cross-seed: rebuild the playoff from a chosen
+ *  overall order (`orderedEntryIds[0]` = #1 seed). See {@link Bracket.seedPlayoff}. */
+export class SeedStandalonePlayoffCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+    public readonly orderedEntryIds: ReadonlyArray<string>,
+  ) {}
+}
+
 export class ResetStandaloneBracketCommand {
   constructor(
     public readonly bracketId: string,
@@ -254,6 +264,23 @@ export class GenerateStandalonePlayoffHandler {
   async execute(cmd: GenerateStandalonePlayoffCommand): Promise<void> {
     const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
     bracket.generatePlayoff(() => this.brackets.nextMatchId());
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class SeedStandalonePlayoffHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: SeedStandalonePlayoffCommand): Promise<void> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    bracket.seedPlayoff(
+      () => this.brackets.nextMatchId(),
+      cmd.orderedEntryIds.map((id) => EntryId(id)),
+    );
     await this.brackets.save(bracket);
     if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }

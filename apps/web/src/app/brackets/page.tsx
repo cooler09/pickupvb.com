@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import { errorButtonClass, primaryButtonClass } from '@/components/primary-button';
+import { SubmitButton } from '@/components/submit-button';
 import type { Route } from 'next';
 import { repositories } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 import { FORMAT_LABEL } from '@/app/events/[id]/bracket/_components/labels';
+import { deleteStandaloneBracket } from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,10 +47,10 @@ export default async function MyBracketsPage() {
       ) : (
         <ul className="space-y-2">
           {brackets.map((b) => (
-            <li key={b.id}>
+            <li key={b.id} className="border-border-base rounded-shape-sm border">
               <Link
                 href={`/brackets/${b.id}` as Route}
-                className="border-border-base hover:bg-fg/5 rounded-shape-sm flex items-center justify-between gap-3 border p-3"
+                className="hover:bg-fg/5 rounded-shape-sm flex items-center justify-between gap-3 p-3"
               >
                 <span className="space-y-0.5">
                   <span className="text-fg block text-sm font-medium">
@@ -61,6 +63,20 @@ export default async function MyBracketsPage() {
                 </span>
                 <span className="text-muted text-xs">{b.createdAt.toLocaleDateString()}</span>
               </Link>
+              <details className="border-border-base/60 border-t">
+                <summary className="text-muted hover:text-fg cursor-pointer px-3 py-1.5 text-xs select-none">
+                  Delete bracket
+                </summary>
+                <div className="space-y-2 px-3 pb-3">
+                  <p className="text-muted text-xs">
+                    Permanently removes this bracket and all its teams, matches, and results. This
+                    can{'’'}t be undone.
+                  </p>
+                  <form action={deleteStandaloneBracket.bind(null, b.id)}>
+                    <SubmitButton className={errorButtonClass('sm')}>Delete bracket</SubmitButton>
+                  </form>
+                </div>
+              </details>
             </li>
           ))}
         </ul>

@@ -397,6 +397,38 @@ disclosure — the format card now describes the reset behavior instead.
 
 ## Remediation log
 
+### 2026-06-05 — Bracket polish bundle (deferred follow-ups)
+
+Cleared the small bracket follow-ups noted across the prior entries. Verify chain
+green (typecheck / lint / unit tests — domain 512 — / build). Narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-bracket-polish.md).
+
+- **Add-a-game on the live board.** The domain allowed `addMatch` while `active`
+  but the UI only exposed it in the draft workspace. Extracted the shared
+  [`AddMatchButton`](../../apps/web/src/app/events/[id]/bracket/_components/add-match-button.tsx)
+  and surfaced "+ Add game" per pool (pool play) and once (round robin) on the
+  active board for the host
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+- **Playoff re-seed UI (wired a dead handler).** `SeedPlayoffHandler` existed but
+  was unreachable — no action, no UI, no standalone twin. Added the event action,
+  a standalone `SeedStandalonePlayoff` command/handler, the binding, and a
+  [`ReseedPlayoffButton`](../../apps/web/src/app/events/[id]/bracket/_components/reseed-playoff-button.tsx)
+  (drag-reorder via the existing `SeedingList`) shown before any playoff match
+  starts. The current cross-seed order is recomputed (`rankAcrossPools`) to
+  pre-fill the picker. 2 domain tests added for `Bracket.seedPlayoff`.
+- **Spectator focus.** `pickLatestMatchId` now prefers a pending _deciding_ final
+  (the double-elim reset, or a championship awaiting both semifinalists) over the
+  last completed final.
+- **List delete.** A 2-step "Delete bracket" disclosure on each `/brackets` row
+  ([brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx)) — the detail-page
+  delete (TT-12) is no longer the only path.
+- **Stale-data note resolved.** The legacy `team_*_id` / `work_team_id` columns were
+  already dropped in
+  [20260813000000](../../supabase/migrations/20260813000000_drop_legacy_team_id_columns.sql);
+  the "drop candidate" follow-up was itself stale. Fixed the lingering "kept
+  nullable" comments in
+  [match.ts](../../packages/domain/src/brackets/match.ts) — no migration needed.
+
 ### 2026-06-05 — Double-elim parity: non-power-of-two byes + reset grand final (roadmap items; supersedes the TT-9 pow2 guard + TT-17 disclosure)
 
 Implemented the two genuine generator limitations that TT-9 and TT-17 had been

@@ -21,6 +21,7 @@ import {
   ResetStandaloneBracketCommand,
   ResetMatchCommand,
   SeedStandaloneBracketCommand,
+  SeedStandalonePlayoffCommand,
   SetStandalonePoolsCommand,
   type AddMatchInputDto,
   type EditMatchPatchInput,
@@ -218,6 +219,30 @@ export async function generateStandalonePlayoff(bracketId: string): Promise<void
   }
   revalidate(bracketId);
   back(bracketId, 'playoff_generated');
+}
+
+/** Re-seed the playoff from a host-chosen overall order (overrides the auto
+ *  cross-seed). Hidden `entry_id` inputs posted in seed order (#1 first). */
+export async function seedStandalonePlayoffFromForm(
+  bracketId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const entryIds = formData
+    .getAll('entry_id')
+    .map((v) => String(v))
+    .filter((v) => v.length > 0);
+  try {
+    await handlers.seedStandalonePlayoff.execute(
+      new SeedStandalonePlayoffCommand(bracketId, user.id, entryIds),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'playoff_reseeded');
 }
 
 export async function resetStandaloneBracket(bracketId: string): Promise<void> {

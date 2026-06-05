@@ -22,6 +22,7 @@ type BracketVm = {
   format: BracketFormat;
   bestOf: number;
   targetScore: number | null;
+  advancePerPool: number;
   seeds: ReadonlyArray<{ entryId: string; seed: number; pool: string | null }>;
   matches: ReadonlyArray<Match>;
 };
@@ -142,6 +143,7 @@ export function BracketWorkspace(props: {
             teams={registeredTeams}
             bestOf={bracket.bestOf}
             targetScore={bracket.targetScore}
+            advancePerPool={bracket.advancePerPool}
             isHost={isHost}
             viewerId={caps.viewerId}
             status={bracket.status}
