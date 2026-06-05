@@ -28,7 +28,7 @@
     "@sentry/nextjs": "^10.53.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
-    "date-fns": "^4.1.0",
+    "date-fns": "^4.4.0",
     "leaflet": "^1.9.4",
     "next": "^16.2.6",
     "posthog-js": "^1.376.2",
