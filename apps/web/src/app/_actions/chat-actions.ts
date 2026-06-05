@@ -17,9 +17,11 @@ import {
   ReportMessageCommand,
   SendMessageCommand,
 } from '@pickupvb/application';
+import { after } from 'next/server';
 import { SupabaseUserBlockRepository } from '@pickupvb/infrastructure';
 import { getChatHandlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
+import { notifyChatMessage } from '@/lib/notify-chat';
 import { consumeRateLimit, rateLimitKey } from '@/lib/rate-limit';
 
 /**
@@ -144,6 +146,21 @@ export async function sendChatMessage(
     const out = await h.sendMessage.execute(
       new SendMessageCommand(conversationId, v.id, body, v.isAnon, attachments, kind),
     );
+    // Ping the recipient (DM bell + push) after the response is sent, so the
+    // notify fan-out never adds latency to the send. Best-effort inside.
+    const ping = notifyChatMessage({
+      conversationId,
+      senderId: v.id,
+      body,
+      attachmentsCount: attachments.length,
+      kind,
+    });
+    try {
+      after(ping);
+    } catch {
+      // No request scope (e.g. unit tests) — let it run as a floating promise.
+      void ping;
+    }
     return { ok: true, value: out };
   } catch (e) {
     return { ok: false, error: toChatError(e) };

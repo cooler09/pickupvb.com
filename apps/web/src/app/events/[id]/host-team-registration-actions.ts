@@ -19,8 +19,10 @@ import {
   InvariantViolation,
   RegistrationPaymentStatus,
   type EventTeamRegistrationId,
+  type UserId,
 } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
+import { field } from '@/lib/form-data';
 import { getViewer } from '@/lib/server-auth';
 import { redirectEventNotice } from '@/lib/server-redirects';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
@@ -211,4 +213,57 @@ export async function hostForceWithdrawTeamRegistration(
   revalidatePath(returnPath);
   updateTag(eventCacheTag(eventId));
   redirectEventNotice(eventId, 'rsvp', 'team_force_withdrawn');
+}
+
+/**
+ * Link a host-added (`walk_in`) team to a real captain's account (ADR 0033
+ * Phase 3 / ADR 0017 §7). The host picks a registered user via the
+ * `UserPicker`; the entry stops being a placeholder (`captain_id` set, source
+ * → `ad_hoc`, freeform walk-in identity cleared) so the captain can manage the
+ * roster, pay, and self-report league scores. Co-host aware — gated on
+ * `canManage`, then run on the aggregate via the admin-client repo.
+ */
+export async function assignTeamCaptainFromForm(
+  eventId: string,
+  registrationId: string,
+  returnPath: string,
+  formData: FormData,
+): Promise<void> {
+  const auth = await authorizeHost(eventId);
+  if (!auth.ok) {
+    redirectEventNotice(eventId, 'rsvp', 'team_forbidden');
+  }
+  const captainUserId = field(formData, 'captain_user_id');
+  if (!captainUserId) {
+    redirectEventNotice(eventId, 'rsvp', 'error', 'Pick a player to assign as captain.');
+  }
+
+  const { eventTeamRegistrationRepo } = repositories;
+  const reg = await eventTeamRegistrationRepo.findById(
+    registrationId as never as EventTeamRegistrationId,
+  );
+  if (!reg) redirectEventNotice(eventId, 'rsvp', 'event_not_found');
+
+  // One team per captain per division — don't let the assignee end up
+  // captaining two teams in the same division.
+  const dup = await eventTeamRegistrationRepo.existsForCaptainInDivision(
+    reg.eventId,
+    captainUserId,
+    String(reg.divisionId),
+  );
+  if (dup) redirectEventNotice(eventId, 'rsvp', 'captain_dup');
+
+  try {
+    reg.assignCaptain(captainUserId as never as UserId);
+    await eventTeamRegistrationRepo.save(reg);
+  } catch (err) {
+    if (err instanceof InvariantViolation) {
+      redirectEventNotice(eventId, 'rsvp', 'error', err.message);
+    }
+    throw err;
+  }
+
+  revalidatePath(returnPath);
+  updateTag(eventCacheTag(eventId));
+  redirectEventNotice(eventId, 'rsvp', 'captain_assigned');
 }

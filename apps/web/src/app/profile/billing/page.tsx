@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
@@ -179,10 +180,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
           {!ready && (
             <div className="border-border-base flex flex-wrap items-center gap-3 border-t pt-4">
               <form action={startStripeOnboarding}>
-                <SubmitButton
-                  className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:opacity-60"
-                  pendingChildren="Connecting…"
-                >
+                <SubmitButton className={primaryButtonClass('md')} pendingChildren="Connecting…">
                   {inProgress ? 'Continue onboarding →' : 'Connect with Stripe →'}
                 </SubmitButton>
               </form>
@@ -211,7 +209,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
             <div className="grid gap-2 sm:grid-cols-4">
               <Link
                 href={'/profile/billing/earnings' as Route}
-                className="bg-primary text-primary-fg rounded-md px-3 py-2 text-center text-sm font-medium hover:opacity-90"
+                className={`${primaryButtonClass('md')} text-center`}
               >
                 View earnings →
               </Link>

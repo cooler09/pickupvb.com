@@ -152,7 +152,7 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
           <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
         {unread > 0 && (
-          <span className="bg-primary ring-surface absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold text-white ring-2">
+          <span className="bg-primary ring-surface text-primary-fg absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2">
             {badge}
           </span>
         )}

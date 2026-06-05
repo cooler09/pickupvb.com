@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/stripe';
@@ -16,7 +16,7 @@ import { SubmitButton } from '@/components/submit-button';
 export const metadata = {
   title: 'Pricing',
   description:
-    'PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events, half the platform fee, saved templates, analytics, sponsor slots, and more.',
+    'PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events, half the platform fee, saved templates, analytics, sponsor slots, collectible badges, and more.',
   alternates: { canonical: '/pricing' },
   openGraph: {
     title: 'Pricing · PickupVB',
@@ -32,6 +32,7 @@ const FREE_TIER_FEATURES = [
   `${FREE_PAID_EVENT_CAP_30D} paid event per 30 days (rolling)`,
   '5% platform fee on tickets — never any fee on tips',
   'Sponsor slot — $3/event à-la-carte',
+  'Collectible event badges — $5/event à-la-carte',
   'Standalone tournament bracket — 1 active at a time',
   'Group pages, co-hosts, free-agent signups',
   'Event check-in & roster management',
@@ -44,6 +45,7 @@ const PRO_TIER_FEATURES = [
   'Saved event templates — publish new dates in one click',
   'Host analytics — fill rate, GMV trend, repeat-attendee rate',
   'Sponsor slot included on every event',
+  'Collectible event badges included on every event',
   'Custom refund policy (1 hour to 30 days)',
   'Invite-only / private events',
   'CSV attendee export with payment status',
@@ -94,10 +96,7 @@ export default async function PricingPage() {
             ))}
           </ul>
           <div className="mt-auto pt-2">
-            <Link
-              href={'/events/new' as Route}
-              className="border-border-base bg-surface hover:bg-fg/5 inline-block w-full rounded-md border px-4 py-2 text-center text-sm font-medium"
-            >
+            <Link href={'/events/new' as Route} className={`${secondaryButtonClass('md')} w-full`}>
               Host a free event
             </Link>
           </div>
@@ -160,7 +159,7 @@ export default async function PricingPage() {
               <>
                 <OpenInNewTabButton
                   getUrl={getBillingPortalUrl}
-                  className="border-border-base bg-surface hover:bg-fg/5 w-full rounded-md border px-4 py-2 text-sm font-medium"
+                  className={`${secondaryButtonClass('md')} w-full`}
                 >
                   Manage subscription ↗
                 </OpenInNewTabButton>
@@ -170,12 +169,9 @@ export default async function PricingPage() {
               </>
             ) : (
               <>
-                <form
-                  action={startProCheckout.bind(null, 'monthly')}
-                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-                >
+                <form action={startProCheckout.bind(null, 'monthly')}>
                   <SubmitButton
-                    className="border-primary bg-surface text-primary hover:bg-primary/10 rounded-md border px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                    className={`${secondaryButtonClass('md')} w-full`}
                     pendingChildren="Starting…"
                   >
                     Start trial — ${PRO_MONTHLY_PRICE_USD}/mo
@@ -227,6 +223,7 @@ export default async function PricingPage() {
               <Row label="Saved event templates" free="—" pro="✓" />
               <Row label="Host analytics dashboard" free="—" pro="✓" />
               <Row label="Sponsor slot" free="$3 / event" pro="Included" />
+              <Row label="Collectible event badges" free="$5 / event" pro="Included" />
               <Row label="Standalone tournament brackets" free="1 at a time" pro="Unlimited" />
               <Row label="Custom refund policy" free="—" pro="✓" />
               <Row label="Private / invite-only events" free="—" pro="✓" />
@@ -264,6 +261,10 @@ export default async function PricingPage() {
         <Faq
           q="What does the sponsor slot do?"
           a="You can add one sponsor block per event — your local sporting-goods store, gym, or brewery. It shows a logo, a one-line message, and an optional discount code below the event details. Pro hosts get it included; free hosts can unlock it for $3 per event."
+        />
+        <Faq
+          q="What are collectible event badges?"
+          a="Give attendees a badge to collect for your event — auto-awarded when they play, or hand-picked for a standout like an MVP. Earned badges show on a player's profile and public player page alongside their achievement badges. Pro hosts get it included; free hosts can unlock it for $5 per event."
         />
         <Faq
           q="How many tournament brackets can I run?"

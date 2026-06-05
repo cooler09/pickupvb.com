@@ -118,7 +118,6 @@ export class CreateTeamCommand {
   constructor(
     public readonly captainId: string,
     public readonly name: string,
-    public readonly format: string,
   ) {}
 }
 
@@ -247,17 +246,21 @@ export class WithdrawAdHocTeamRegistrationCommand {
 
 // ---- Walk-in team registration (ADR 0017) -------------------------------
 /**
- * Host registers a same-day team at the table for someone without a
- * captain account. Allowed only on `team_registration_mode = 'ad_hoc'`
- * divisions. The acting host is validated against `events.host_id`; no
- * `captain_id` is recorded \u2014 the captain's identity lives in the
- * freeform `captainDisplayName` / `captainPhone` fields.
+ * Host adds an account-less team for someone without a captain account.
+ * Allowed on ad-hoc (tournament) or roster (league) divisions \u2014 ADR 0033.
+ * No `captain_id` is recorded; the captain's identity lives in the freeform
+ * `captainDisplayName` / `captainPhone` fields.
  */
 export class RegisterWalkInTeamCommand {
   constructor(
     public readonly eventId: string,
     public readonly divisionId: string,
-    /** Caller; must be the event host. */
+    /**
+     * The event's host (validated against `events.host_id`). The viewer's
+     * permission to act is authorized at the action boundary via `canManage`,
+     * so a co-host passes this as the event's host id rather than their own
+     * (ADR 0033).
+     */
     public readonly hostId: string,
     public readonly name: string,
     public readonly captainDisplayName: string,

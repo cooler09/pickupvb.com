@@ -9,6 +9,8 @@ import AdvancedDetailsPanel, {
   type AdvancedDetailsInitial,
 } from '@/components/event-advanced-details-panel';
 import { Alert } from '@/components/alert';
+import { ErrorActionLink } from '@/components/error-action-link';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { primaryButtonClass } from '@/components/primary-button';
 import { inputClass, labelClass } from '../../new/_components/form-primitives';
@@ -108,6 +110,7 @@ export default function EditEventForm({
   initial,
 }: EditEventFormProps) {
   const [state, formAction] = useFormState(editEventAction, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [capacityKind, setCapacityKind] = useState<'unlimited' | 'fixed'>(
     initial.capacityKind === 'fixed' ? 'fixed' : 'unlimited',
   );
@@ -136,7 +139,14 @@ export default function EditEventForm({
     <form action={formAction} className="space-y-8">
       <input type="hidden" name="eventId" value={eventId} />
 
-      {state.error && <Alert variant="error">{state.error}</Alert>}
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">
+            {state.error}
+            <ErrorActionLink action={state.errorAction} />
+          </Alert>
+        </div>
+      )}
 
       <fieldset className="space-y-4">
         <legend className="text-fg text-lg font-semibold">Basics</legend>

@@ -5,6 +5,8 @@ import { useFormState } from 'react-dom';
 import { useRef, useState } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import type { Suggestion } from '@/components/address-autocomplete';
+import { ErrorActionLink } from '@/components/error-action-link';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { createEventAction, type CreateEventState } from './actions';
 import { chk, SubmitButton, val, type CapacityKind } from './_components/form-primitives';
 import TemplatesSection from './_components/templates-section';
@@ -15,6 +17,9 @@ import FormatSection from './_components/format-section';
 import VisibilitySection from './_components/visibility-section';
 
 const initialState: CreateEventState = {};
+
+/** Default event length when auto-filling the end time from a picked start. */
+const DEFAULT_EVENT_DURATION_MS = 2 * 60 * 60 * 1000;
 
 /** Sensible defaults for indoor 6's: 1 setter, 2 outsides, 1 opposite, 2 middles, 1 libero. */
 const DEFAULT_POSITION_ROSTER: Record<EventPosition, number> = {
@@ -56,10 +61,19 @@ export default function NewEventForm({
   const values = state.values;
   const submitted = state.submitted;
   const formRef = useRef<HTMLFormElement>(null);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [type, setType] = useState<EventType>(
     (val(values, 'type', EventType.OpenPlay) as EventType) || EventType.OpenPlay,
   );
   const [isExternal, setIsExternal] = useState(chk(values, submitted, 'isExternal', false));
+  // Leagues are on-platform only (managed schedule / scoring / rosters), so
+  // clear any off-platform selection when switching into League. The
+  // EventTypeSection also hides the toggle and the create action rejects the
+  // combination defensively.
+  function handleSetType(next: EventType) {
+    setType(next);
+    if (next === EventType.League) setIsExternal(false);
+  }
   // The off-platform checkbox is always user-controlled (state lifted to
   // the parent so it survives switching between OpenPlay and Tournament
   // sections). When the host has no Stripe Connect account we still show
@@ -111,6 +125,20 @@ export default function NewEventForm({
     return Number.isNaN(d.getTime()) ? null : d;
   });
 
+  // Default the end time to start + 2h when a start is picked. Only fills when
+  // the end is unset or no longer after the new start, so an explicitly-set
+  // later end time is preserved (and an invalid end is auto-corrected).
+  function handleStartsAtChange(next: Date | null) {
+    setStartsAt(next);
+    if (next) {
+      setEndsAt((prev) =>
+        prev && prev.getTime() > next.getTime()
+          ? prev
+          : new Date(next.getTime() + DEFAULT_EVENT_DURATION_MS),
+      );
+    }
+  }
+
   function applySuggestion(s: Suggestion) {
     setAddressLine(s.addressLine);
     setCity(s.city);
@@ -124,10 +152,13 @@ export default function NewEventForm({
     <form ref={formRef} action={formAction} className="space-y-6 pb-24">
       {state.error && (
         <div
+          ref={errorRef}
+          tabIndex={-1}
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
         >
           {state.error}
+          <ErrorActionLink action={state.errorAction} />
         </div>
       )}
 
@@ -141,7 +172,7 @@ export default function NewEventForm({
 
       <EventTypeSection
         type={type}
-        setType={setType}
+        setType={handleSetType}
         isExternal={isExternal}
         setIsExternal={setIsExternal}
       />
@@ -154,7 +185,7 @@ export default function NewEventForm({
 
       <WhenWhereSection
         startsAt={startsAt}
-        setStartsAt={setStartsAt}
+        setStartsAt={handleStartsAtChange}
         endsAt={endsAt}
         setEndsAt={setEndsAt}
         addressLine={addressLine}

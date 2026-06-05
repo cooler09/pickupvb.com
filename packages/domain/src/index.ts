@@ -4,6 +4,8 @@ export * from './users/index.js';
 export * from './groups/index.js';
 export * from './teams/index.js';
 export * from './brackets/index.js';
+export * from './badges/index.js';
+export * from './onboarding/index.js';
 export * from './leagues/index.js';
 export * from './payments/index.js';
 export * from './community-listings/index.js';

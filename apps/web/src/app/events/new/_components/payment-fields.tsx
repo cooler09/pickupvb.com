@@ -7,27 +7,65 @@
  * `PaymentSettingsSubsection` (tournament, per-division prices set elsewhere).
  */
 import Link from 'next/link';
+import { useState } from 'react';
+import { Alert } from '@/components/alert';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { chk, inputClass, labelClass, val } from './form-primitives';
 
 /**
  * Inline banner shown when the host has no Stripe Connect account with
- * charges enabled. Tells them payments are off-platform-only until they
- * finish onboarding and links to the billing page.
+ * charges enabled.
+ *
+ * It has two states so the host learns whether they can charge *before*
+ * hitting submit (instead of getting the event rolled back server-side):
+ *
+ * - **Heads-up** (`blocking` false): a calm info note that on-platform
+ *   payments aren't set up, with the path to finish Stripe onboarding.
+ * - **Blocking** (`blocking` true): once a price has been entered without
+ *   the off-platform option, escalate to an actionable warning — finish
+ *   Stripe setup, or switch to off-platform collection in one click.
  */
-export function StripeOnboardingBanner() {
+export function StripeOnboardingBanner({
+  blocking = false,
+  onCollectOffPlatform,
+}: {
+  /**
+   * True once the host has entered a price but hasn't opted into
+   * off-platform collection — i.e. the event can't actually be created on
+   * the current (Stripe-less) account.
+   */
+  blocking?: boolean;
+  /** Switch the form into off-platform mode (ticks the box for them). */
+  onCollectOffPlatform?: (() => void) | undefined;
+}) {
+  if (blocking) {
+    return (
+      <Alert variant="warning" title="Set up Stripe to charge for this event">
+        You&apos;ve entered a price, but you can&apos;t accept payments through PickupVB yet.{' '}
+        <Link href="/profile/billing" className="font-medium underline underline-offset-2">
+          Finish Stripe setup
+        </Link>{' '}
+        to take cards online — or{' '}
+        <button
+          type="button"
+          onClick={onCollectOffPlatform}
+          className="font-medium underline underline-offset-2"
+        >
+          collect payment yourself
+        </button>{' '}
+        (cash, Venmo, etc.).
+      </Alert>
+    );
+  }
   return (
-    <div role="status" className="border-border-base bg-highlight/30 rounded-md border p-3 text-sm">
-      <p className="text-fg font-medium">On-platform payments aren&apos;t set up yet.</p>
-      <p className="text-muted mt-1 text-xs">
-        To accept online payments through PickupVB, finish Stripe onboarding at{' '}
-        <Link href="/profile/billing" className="text-primary hover:underline">
-          Payouts &amp; Stripe
-        </Link>
-        . Otherwise, check the off-platform option below to collect payment yourself (cash, Venmo,
-        etc.) — paid events without Stripe will be rejected at submit.
-      </p>
-    </div>
+    <Alert variant="info" title="On-platform payments aren't set up yet">
+      To accept card payments through PickupVB,{' '}
+      <Link href="/profile/billing" className="font-medium underline underline-offset-2">
+        finish Stripe onboarding
+      </Link>
+      . Otherwise you can still list a price and collect it yourself (cash, Venmo, etc.) with the
+      off-platform option below.
+    </Alert>
   );
 }
 
@@ -96,6 +134,11 @@ export function PricingSubsection({
   setPaymentsOffPlatform: (v: boolean) => void;
   viewerHasProBenefits: boolean;
 }) {
+  // Track the price client-side so we can warn — before submit — when a host
+  // who isn't set up for on-platform payments enters a price without choosing
+  // off-platform collection (otherwise the server rolls the event back).
+  const [priceUsd, setPriceUsd] = useState(val(values, 'priceUsd', '0'));
+  const hasPrice = Number(priceUsd) > 0;
   const showOnPlatformControls = canCollectPayments && !paymentsOffPlatform;
   return (
     <div className="border-border-base space-y-3 border-t pt-4">
@@ -108,7 +151,12 @@ export function PricingSubsection({
             : ''}
         </p>
       </div>
-      {!canCollectPayments && <StripeOnboardingBanner />}
+      {!canCollectPayments && (
+        <StripeOnboardingBanner
+          blocking={hasPrice && !paymentsOffPlatform}
+          onCollectOffPlatform={() => setPaymentsOffPlatform(true)}
+        />
+      )}
       <label className="flex items-start gap-2 text-xs">
         <input
           type="checkbox"
@@ -158,7 +206,8 @@ export function PricingSubsection({
             min="0"
             max="10000"
             step="0.01"
-            defaultValue={val(values, 'priceUsd', '0')}
+            value={priceUsd}
+            onChange={(e) => setPriceUsd(e.target.value)}
             className={inputClass}
             {...fieldA11y('priceCents', fieldErrors)}
           />
@@ -212,6 +261,7 @@ export function PaymentSettingsSubsection({
   values,
   submitted,
   canCollectPayments,
+  hasPaidDivision,
   paymentsOffPlatform,
   setPaymentsOffPlatform,
   viewerHasProBenefits,
@@ -219,6 +269,9 @@ export function PaymentSettingsSubsection({
   values: Record<string, string> | undefined;
   submitted: boolean | undefined;
   canCollectPayments: boolean;
+  /** True when any division has a non-zero entry price (per-division pricing
+   *  lives in the divisions repeater above this subsection). */
+  hasPaidDivision: boolean;
   paymentsOffPlatform: boolean;
   setPaymentsOffPlatform: (v: boolean) => void;
   viewerHasProBenefits: boolean;
@@ -238,7 +291,12 @@ export function PaymentSettingsSubsection({
             : ''}
         </p>
       </div>
-      {!canCollectPayments && <StripeOnboardingBanner />}
+      {!canCollectPayments && (
+        <StripeOnboardingBanner
+          blocking={hasPaidDivision && !paymentsOffPlatform}
+          onCollectOffPlatform={() => setPaymentsOffPlatform(true)}
+        />
+      )}
       <label className="flex items-start gap-2 text-xs">
         <input
           type="checkbox"

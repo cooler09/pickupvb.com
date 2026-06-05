@@ -65,8 +65,8 @@ export interface CheckoutProps {
   eventId: string;
   hostId: AnalyticsActorId;
   amountCents: number;
-  /** `ticket` | `team` | `tip` | `sponsor_slot` — the payment surface. */
-  kind: 'ticket' | 'team' | 'tip' | 'sponsor_slot';
+  /** `ticket` | `team` | `tip` | `sponsor_slot` | `badge_slot` — the payment surface. */
+  kind: 'ticket' | 'team' | 'tip' | 'sponsor_slot' | 'badge_slot';
 }
 
 export interface CheckoutCompletedProps extends CheckoutProps {
@@ -99,6 +99,28 @@ export interface ProTrialStartedProps {
 export interface ProTrialConvertedProps {
   hostId: AnalyticsActorId;
   plan: 'monthly' | 'yearly' | null;
+}
+
+/**
+ * Onboarding checklist step the user just completed (ADR 0035 Phase 2 — the M1
+ * first-win funnel). Coarse enums only, no PII. Fired from the step's mutation
+ * site on the incomplete→complete transition.
+ *
+ * This event only carries the checklist steps that *don't already* have a
+ * dedicated event — most onboarding milestones are covered by existing captures,
+ * and PostHog funnels dedupe per person so "first" is implicit:
+ *   - `join-event`    → `event_joined`
+ *   - `publish-event` → `event_published`
+ *   - `connect-stripe`→ `host_payout_setup_completed`
+ * The two optional steps `join-group` / `send-message` are intentionally **not**
+ * instrumented (low funnel value; `send-message` would mean a count on every chat
+ * send). They still render on the checklist card — they're just not in the funnel.
+ */
+export interface OnboardingStepCompletedProps {
+  /** Which checklist the step belongs to. */
+  track: 'player' | 'host';
+  /** The catalog step key — only the two steps without a dedicated event. */
+  step: 'complete-profile' | 'create-event';
 }
 
 /** Core Web Vitals + a couple of supporting paint/network metrics. The
@@ -140,6 +162,7 @@ export type AnalyticsEvent =
   | { name: 'host_payout_setup_completed'; props: HostPayoutSetupCompletedProps }
   | { name: 'pro_trial_started'; props: ProTrialStartedProps }
   | { name: 'pro_trial_converted'; props: ProTrialConvertedProps }
+  | { name: 'onboarding_step_completed'; props: OnboardingStepCompletedProps }
   | { name: 'web_vitals'; props: WebVitalsProps };
 
 export type AnalyticsEventName = AnalyticsEvent['name'];

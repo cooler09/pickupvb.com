@@ -204,6 +204,18 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View profile',
     ),
   }),
+  // Default channel is in_app only (see KIND_DEFAULT_CHANNELS); the email/sms
+  // renderers exist to satisfy the exhaustive Record and never dispatch.
+  'badge.earned': (p) => ({
+    subject: `You earned the ${p.badgeTitle} badge`,
+    text: `You earned the ${p.badgeTitle} badge on PickupVB.`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Badge unlocked</h2>
+             <p>You earned the <strong>${escapeHtml(p.badgeTitle)}</strong> badge.</p>`,
+      `${APP_URL}/profile`,
+      'View your badges',
+    ),
+  }),
   'team.invite': (p) => ({
     subject: `${p.inviterName} invited you to ${p.groupName}`,
     text: `${p.inviterName} invited you to join ${p.groupName} on PickupVB.`,
@@ -227,6 +239,18 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
           ? `${APP_URL}/groups/${p.groupId}`
           : APP_URL,
       'Open in PickupVB',
+    ),
+  }),
+  // Default channels are push + in_app (see KIND_DEFAULT_CHANNELS); the
+  // email/sms renderers exist to satisfy the exhaustive Record and never dispatch.
+  'chat.message.received': (p) => ({
+    subject: `New message from ${p.senderName}`,
+    text: `${p.senderName}: ${p.preview}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">New message from ${escapeHtml(p.senderName)}</h2>
+             <p>${escapeHtml(p.preview)}</p>`,
+      `${APP_URL}/messages/${p.conversationId}`,
+      'Open conversation',
     ),
   }),
   'account.deletion.requested': (p) => ({
@@ -289,11 +313,17 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'social.follow.new': (p) => ({
     body: `PickupVB: ${p.followerName} started following you.`,
   }),
+  'badge.earned': (p) => ({
+    body: `PickupVB: you earned the ${p.badgeTitle} badge.`,
+  }),
   'team.invite': (p) => ({
     body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/teams/${p.teamSlug}`,
   }),
   'broadcast.host_message': (p) => ({
     body: `PickupVB · ${p.senderName}: ${p.body.slice(0, 240)}`,
+  }),
+  'chat.message.received': (p) => ({
+    body: `PickupVB · ${p.senderName}: ${p.preview.slice(0, 200)}`,
   }),
   'account.deletion.requested': (p) => ({
     body: `PickupVB: Your account is scheduled for deletion on ${formatDate(p.scheduledFor)}. Cancel before then: ${APP_URL}/profile/account/delete`,
@@ -358,6 +388,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     body: null,
     href: `/players/${p.followerId}`,
   }),
+  'badge.earned': (p) => ({
+    title: `Badge unlocked: ${p.badgeTitle}`,
+    body: null,
+    href: `/profile`,
+  }),
   'team.invite': (p) => ({
     title: `Invited to ${p.groupName}`,
     body: `from ${p.inviterName}`,
@@ -367,6 +402,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     title: p.subject,
     body: p.body.slice(0, 200),
     href: p.eventId ? `/events/${p.eventId}` : p.groupId ? `/groups/${p.groupId}` : '/',
+  }),
+  'chat.message.received': (p) => ({
+    title: `New message from ${p.senderName}`,
+    body: p.preview || null,
+    href: `/messages/${p.conversationId}`,
   }),
   'account.deletion.requested': (p) => ({
     title: 'Account deletion scheduled',

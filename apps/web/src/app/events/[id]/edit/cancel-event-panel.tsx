@@ -2,7 +2,9 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
+import { errorButtonClass } from '@/components/primary-button';
 import { cancelEventAction } from './cancel-actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 type State = { error?: string; ok?: boolean };
 const initialState: State = {};
@@ -18,6 +20,7 @@ export function CancelEventPanel({
 }) {
   const action = cancelEventAction.bind(null, eventId);
   const [state, formAction] = useFormState(action, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -55,7 +58,12 @@ export function CancelEventPanel({
             />
           </div>
           {state.error && (
-            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+            <p
+              ref={errorRef}
+              tabIndex={-1}
+              className="text-sm text-red-700 outline-none dark:text-red-300"
+              role="alert"
+            >
               {state.error}
             </p>
           )}
@@ -78,11 +86,7 @@ export function CancelEventPanel({
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={errorButtonClass('md')}>
       {pending ? 'Cancelling…' : 'Yes, cancel event'}
     </button>
   );

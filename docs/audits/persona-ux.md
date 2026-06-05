@@ -63,12 +63,12 @@ The repo has a **canonical CTA + field vocabulary** —
 same action reads differently depending on which screen a persona is on. Measured
 2026-05-31 (`apps/web/src`):
 
-| Drift                                                          | Count                                                                    | Canonical                                      |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
-| Old primary-button recipe (`hover:bg-primary/90`)              | ~~68 / 51 files~~ → **0** (CC-1 ✅ 2026-05-31d; ratchet-locked)          | `primaryButtonClass` — **61 files**            |
-| Local `inputClass =` field vocabularies                        | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions) | `field-styles.ts` + `TextField`                |
-| `text-white` hardcoded on buttons (vs `text-primary-fg` token) | **64**                                                                   | token                                          |
-| Native `window.confirm` for destructive actions                | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                      | in-app `ConfirmSubmitButton` dialog everywhere |
+| Drift                                                                   | Count                                                                                                | Canonical                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Old primary-button recipes (`hover:bg-primary/90` + `hover:opacity-90`) | ~~68~~ → **0** (CC-1 ✅ 2026-05-31d) **+** ~~17~~ → **0** (CC-6 ✅ 2026-06-01l); both ratchet-locked | `primaryButtonClass`                           |
+| Local `inputClass =` field vocabularies                                 | ~~17~~ → **1 shared** (CC-2 ✅ 2026-05-31b; 2 compact-inline exceptions)                             | `field-styles.ts` + `TextField`                |
+| `text-white` hardcoded on buttons (vs `text-primary-fg` token)          | ~~64~~ → **0** (CC-1 absorbed most; CC-3 ✅ 2026-06-01j cleared the last 5)                          | `text-primary-fg` token                        |
+| Native `window.confirm` for destructive actions                         | ~~1~~ → **0** (CC-4 ✅ 2026-05-31b)                                                                  | in-app `ConfirmSubmitButton` dialog everywhere |
 
 That ratio (≈5:1 hand-rolled:canonical on buttons; 17 forked field styles) is the
 mechanical reason the UI "doesn't feel clean for action items and edit forms." It
@@ -127,13 +127,21 @@ extract a single shared `fieldInputClass`/`fieldLabelClass` from
 `form-primitives.tsx` and import it everywhere. Pick one and ratchet; the cost
 today is that every persona's edit form looks subtly hand-made.
 
-#### CC-3 — `text-white` hardcoded on 64 primary buttons · **P3**
+#### CC-3 — `text-white` hardcoded on primary buttons · **P3** · ✅ resolved 2026-06-01j
 
-Primary CTAs use literal `text-white` instead of the `text-primary-fg` token
-that `primaryButtonClass` uses. Cosmetically fine on the current palette but
-breaks if the primary color ever shifts to a light hue (the fg would need to go
-dark). **Fix:** fold into the CC-1 migration — `primaryButtonClass` already
-emits the token, so converting call sites removes these for free.
+Primary CTAs used literal `text-white` instead of the `text-primary-fg` token
+`primaryButtonClass` emits — cosmetically fine on the current palette but breaks
+if the primary hue ever shifts light (the fg would need to go dark). **Resolved:**
+the CC-1 sweep absorbed most (64→ a handful as call sites adopted
+`primaryButtonClass`); a 2026-06-01j re-measure found `text-white` down to **26
+total**, of which only **5** were the real violation (`text-white` on
+`bg-primary`). Fixed all 5 — `free-agent-signup-panel.tsx`'s SubmitButton (a
+hand-rolled `bg-primary … text-white hover:opacity-90`, a CC-1 ratchet miss
+because it used `hover:opacity-90` not `hover:bg-primary/90`) → `primaryButtonClass('md')`;
+the `auth-mode-tabs` active tab + the notification/messages count badges →
+`text-primary-fg`. `bg-primary`+`text-white` is now **0**. The remaining ~21
+`text-white` are correct foregrounds on amber/emerald/red/violet badges (no
+`text-primary-fg` applies there).
 
 #### CC-4 — Destructive-confirm UX is inconsistent · **P2** · ✅ resolved 2026-05-31b
 
@@ -145,20 +153,45 @@ unstyled, non-themeable dialog for one of the more consequential host actions.
 **Fix:** replace with `ConfirmSubmitButton` (wrap `removeDivision` in a small
 `<form action={...}>`), matching every other delete in the app.
 
-#### CC-5 — Inline-expand edit pattern shoves content around · **P3**
+#### CC-5 — Inline-expand edit pattern shoves content around · **P3** · ✅ resolved 2026-06-01f
 
-`host-divisions-manager` expands a **16-field** edit form inline per row
-([host-divisions-manager.tsx#L255-L288](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx#L255-L288)),
-the exact "inline disclosure leaks context for a focused subtask" problem the
+`host-divisions-manager` expanded a **16-field** edit form inline per row — the
+exact "inline disclosure leaks context for a focused subtask" problem the
 events-page-ux audit already solved for the walk-in team form by moving it into
-`FormModal`. This is **already tracked as a P2 carry-over** in
-[events-page-ux.md](events-page-ux.md) (2026-05-28 status block). Reaffirmed here
-from the host-persona angle. **Fix:** convert per-row Edit + "+ Add division" to
-[form-modal.tsx](../../apps/web/src/components/form-modal.tsx), per that plan.
+`FormModal`. **Fixed (done):** both per-row **Edit** and the section-level
+**"+ Add division"** now open the same `DivisionForm` inside
+[form-modal.tsx](../../apps/web/src/components/form-modal.tsx) (`size="lg"`), with
+`CloseOnSettled` dismissing the modal when the server action settles and
+`ModalActions` owning the Cancel/Submit row. The `editingId`/`adding` state
+machine is gone — Radix owns each modal's open state. See H-2 for the rest of the
+bundle (row-action tap targets + button convergence).
 
----
+#### CC-6 — CC-1 ratchet had a `hover:opacity-90` blind spot · **P3** · ✅ resolved 2026-06-01l
 
-### Visitor → signup
+The CC-1 button ratchet (2026-05-31d) forbids the **old** recipe's tell —
+`hover:bg-primary/90` — but a second hand-rolled filled-primary recipe used
+`bg-primary text-primary-fg … hover:opacity-90` instead, which the ratchet didn't
+catch. Found incrementally (1 in `free-agent-signup-panel`, 3 in
+`player-viewer-actions`) then re-measured to **17 more** across bracket views,
+host-ad-hoc, billing, `share-link`, `consent-banner`, `sentry-test`, etc.
+**Resolved (done):**
+
+- **Codemod** — all 17 converted to `primaryButtonClass('sm'|'md')` (size by
+  padding; preserved layout extras like `shrink-0` / `text-center`; the two
+  ternary "+ Add teams" branches in `setup-view` / `no-bracket-view` → the
+  filled branch is now `primaryButtonClass('sm')`). `bg-primary`+`hover:opacity-90`
+  is now **0**.
+- **Ratchet extended** — two `no-restricted-syntax` selectors in
+  [eslint.config.mjs](../../apps/web/eslint.config.mjs) flag the **co-occurrence**
+  of `bg-primary` + `hover:opacity-90` in one class string (Literal +
+  TemplateElement, dual look-ahead so it's order-independent). A blanket
+  `hover:opacity-90` rule was rejected — it's legitimate on non-button row-link
+  fades ([attendee-list.tsx](../../apps/web/src/components/attendee-list.tsx),
+  [friends-list.tsx](../../apps/web/src/components/friends-list.tsx)) — so the
+  rule keys on the pairing only. Verified: fires on a probe, clean on the tree.
+  Both filled-primary recipes are now ratchet-locked. _Not covered: the lone
+  `bg-secondary … hover:opacity-90` filled-secondary test button in `sentry-test`
+  — there's no filled-secondary primitive and it's a dev-only page; left as-is._
 
 #### V-1 — Landing "Create account" CTA 404s · **P1**
 
@@ -171,27 +204,46 @@ point uses `/login?mode=sign-up`. This is a dead "Create account" button on the
 marketing page, squarely in the prioritized visitor→signup funnel.
 **Fix (done 2026-05-31):** point it at `/login?mode=sign-up`.
 
-#### V-2 — Signup entry points are visually/behaviorally divergent · **P2**
+#### V-2 — Signup entry points are visually/behaviorally divergent · **P2** · ✅ resolved 2026-06-01e
 
-The same "create an account / host" intent is rendered with different styling and
-sizes across the funnel: header "Sign up" pill
-([site-header.tsx#L179-L184](../../apps/web/src/components/site-header.tsx#L179-L184),
-`px-3 py-1.5`), landing hero/host-pitch/footer CTAs
-([page.tsx#L56-L67](../../apps/web/src/app/page.tsx#L56-L67) `px-5 py-2.5`;
-[page.tsx#L254-L265](../../apps/web/src/app/page.tsx#L254-L265) `px-4 py-2.5`).
-Three paddings, all `text-white`, none using the canonical class.
-**Fix:** migrate to `primaryButtonClass`/`secondaryButtonClass` (landing done
-2026-05-31; header sign-up/sign-in pills remain).
+The same "create an account / host" intent was rendered with different styling and
+sizes across the funnel: header "Sign up" pill, landing hero/host-pitch/footer
+CTAs (`px-5 py-2.5` / `px-4 py-2.5`), all `text-white`, none using the canonical
+class. The landing CTAs (2026-05-31) and the "Sign up" pill (CC-1 sweep) were
+already done; this pass finished the **header + mobile-drawer auth cluster**.
+**Fixed (done):** the **Sign in / Sign up** pair now reads as the canonical M3
+**Outlined + Filled** pair on both surfaces —
+[site-header.tsx](../../apps/web/src/components/site-header.tsx) "Sign in" went
+from a bare `hover:text-primary text-sm` nav text-link to
+`secondaryButtonClass('sm')` (pairing with the Filled `primaryButtonClass('sm')`
+"Sign up"), and [mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx)
+"Sign in" went from a hand-rolled `border-border-base hover:bg-fg/5` button to
+`secondaryButtonClass('md')`. The anon **"Finish creating your account"** claim
+nudge — the last hand-rolled recipe in that cluster
+(`border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 …`) — moved to
+`tonalButtonClass('sm')` (M3 Filled-tonal, the right medium-emphasis weight for a
+nudge sitting beside the Filled "Sign up"). _Pre-existing behavioral note, not
+changed: the desktop header shows anon users the claim nudge, but the mobile
+drawer's anon branch shows only Sign in / Sign up — surfacing the claim nudge in
+the drawer is a separate V-4-family follow-up, left out of this button-vocabulary
+pass._
 
-#### V-3 — The auth front door bypasses the design system · **P2**
+#### V-3 — The auth front door bypasses the design system · **P2** · ✅ resolved 2026-06-01c
 
 [login/page.tsx](../../apps/web/src/app/login/page.tsx) — the highest-intent
-page in the funnel hand-rolls its inputs
-([login/page.tsx#L86-L120](../../apps/web/src/app/login/page.tsx#L86-L120)) and
-submit ([login/page.tsx#L125-L131](../../apps/web/src/app/login/page.tsx#L125-L131))
-instead of `TextField` + `primaryButtonClass`, and is one of the 4-space-indent
-outliers. **Fix:** adopt `TextField` (email/password) + `primaryButtonClass('md')`
-for the submit; let the `GoogleButton` stay as-is.
+page in the funnel hand-rolled its inputs
+(`border-border-base mt-1 w-full rounded-md border px-3 py-2`, a bare `<label>` >
+`<span>` > `<input>` with no `htmlFor`/`id` wiring) instead of `TextField`.
+**Fixed (done):** migrated the email + password fields to
+[TextField](../../apps/web/src/components/text-field.tsx) — the M3 outlined
+chassis now owns the label/`id` a11y wiring (was missing), the focus ring, and
+the sign-up "At least 8 characters." helper via `supportingText`. The sign-in
+"Forgot password?" link moved out of the `<label>` (a link nested in a label was
+a minor a11y wart) into a sibling under the field. The submit was already
+canonical (`primaryButtonClass('md')`, migrated in the CC-1 sweep) and the
+`GoogleButton` stays as-is, per the plan. Form-level errors still surface through
+the existing `<Alert>` (the page uses a single `error` state, not per-field
+`fieldErrors`, so `TextField`'s `errors` prop is intentionally left unset).
 
 #### V-4 — Anonymous users are funneled into host depth with no claim nudge · **P3** · ✅ resolved 2026-06-01
 
@@ -225,27 +277,44 @@ after claiming — see Follow-ups._
 
 ### Player / attendee
 
-#### P-1 — "Sign up as a guest" looks like three different features · **P2**
+#### P-1 — "Sign up as a guest" looks like three different features · **P2** · ✅ resolved 2026-06-01d
 
-The everyday guest-RSVP action item is built three ways depending on the event's
-price model: the free-event form
-([guest-signup-form.tsx](../../apps/web/src/app/events/[id]/guest-signup-form.tsx),
-`text-xs` labels, focus-ring inputs, Turnstile), the paid-event inline form
-([paid-ticket-panel.tsx#L180-L212](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx#L180-L212),
-different inputs, `bg-background`, no Turnstile shown), and the login fallback.
-Same persona, same intent, three field treatments and label sizes.
-**Fix:** extract one `GuestSignupFields` (name + optional/required email)
-consumed by both panels; standardize on the shared field recipe from CC-2.
+The everyday guest-RSVP action item was built two different ways depending on the
+event's price model: the free-event form
+([guest-signup-form.tsx](../../apps/web/src/app/events/[id]/guest-signup-form.tsx))
+already used the CC-2 `field-styles.ts` recipe, but the paid-event checkout form
+([paid-ticket-panel.tsx](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx))
+hand-rolled its own `border-border-base bg-background … px-3 py-2 text-sm` inputs
+with `text-xs` labels and dropped the `autoComplete`/`maxLength` attributes —
+same persona, same intent, two field treatments.
+**Fixed (done):** extracted one
+[GuestSignupFields](../../apps/web/src/app/events/[id]/_components/guest-signup-fields.tsx)
+(name + email, `emailRequired` prop, optional per-field `errors`) consumed by both
+panels, on the shared `field-styles.ts` recipe. The paid form picked up the
+`autoComplete="name"`/`maxLength` it was missing for free; the free form's
+`emailRequired={false}` keeps the "(optional — lets you claim this signup later)"
+hint, the paid form's `emailRequired` keeps email required for the receipt. No
+`'use client'` on the shared component (bare inputs + class strings), so the
+client `GuestSignupForm` and the server `PaidTicketPanel` both render it; field
+names (`display_name`/`email`) unchanged, so the server actions are untouched.
+_The "login fallback" the original finding listed is the "Already have an account?
+Sign in" link, not a third form — out of scope._
 
-#### P-2 — "You're in" status pills use four ad-hoc color treatments · **P3**
+#### P-2 — "You're in" status pills use four ad-hoc color treatments · **P3** · ✅ resolved 2026-06-01h
 
-The signup-confirmation pill is re-declared per panel:
-primary-tinted in [rsvp-panel.tsx#L42-L44](../../apps/web/src/app/events/[id]/_components/rsvp-panel.tsx#L42-L44),
-and emerald/amber/primary variants in
-[paid-ticket-panel.tsx#L30-L46](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx#L30-L46).
-The color semantics (paid=green, pending=amber) are intentional and worth
-keeping, but the markup is copy-pasted. **Fix:** extract a `StatusPill`
-primitive with a `tone` prop so the treatment is defined once.
+The signup-confirmation pill was re-declared per panel (primary-tinted in
+`rsvp-panel.tsx`; emerald/amber/primary variants in `paid-ticket-panel.tsx`) —
+identical chassis, copy-pasted color. **Fixed (done):** extracted
+[StatusPill](../../apps/web/src/components/status-pill.tsx) with a `tone` prop
+(`primary` / `success` / `pending` / `neutral`), keeping the intentional
+semantics (paid = green, pending = amber) in one place. `paid-ticket-panel.tsx`'s
+`PAYMENT_PILL` map now carries a `tone` instead of a full `className`, and the
+fallback "You're signed up" pill + the `rsvp-panel.tsx` pill both render
+`<StatusPill>`. No `'use client'` on the component (pure `<span>`), so both
+server panels render it directly. _The host-facing `PAYMENT_PILL` in
+`host-ad-hoc-teams-panel.tsx` (extra `refunded` state + dynamic amount suffixes)
+is a richer, separate pill — left as an optional follow-up; the new `neutral`
+tone is there for it when wanted._
 
 #### P-3 (positive) — `/profile` is the model to copy
 
@@ -262,36 +331,71 @@ template when restyling the host and team hubs.
 
 ### Host / organizer
 
-#### H-1 — The primary host edit form diverges from the design system · **P2**
+#### H-1 — The primary host edit form diverges from the design system · **P2** · ✅ resolved 2026-06-01f
 
-The create/edit event form (the most important, most-used host surface) runs
+The create/edit event form (the most important, most-used host surface) ran
 entirely on the **local** [form-primitives.tsx](../../apps/web/src/app/events/new/_components/form-primitives.tsx)
-— its own `inputClass`/`labelClass`/`SubmitButton`/`SegmentedControl` — rather
-than the shared primitives. It's well-decomposed internally (per the
-architecture audit), but it's a parallel design system. **Fix:** as CC-1/CC-2 —
-swap its `SubmitButton` to `primaryButtonClass('md')` (done 2026-05-31) and
-converge its `inputClass`/`labelClass` onto the shared field recipe so edit forms
-match the rest of the app.
+— its own `inputClass`/`labelClass`/`SubmitButton` — a parallel design system.
+**Resolved:** verified the convergence already landed across the earlier bundles
+and confirmed it end-to-end — `form-primitives.tsx` now **re-exports**
+`fieldInputClass`/`fieldLabelClass` from the shared
+[field-styles.ts](../../apps/web/src/components/field-styles.ts) (CC-2,
+2026-05-31b), so every create/edit-event section that imports `inputClass`/
+`labelClass` from it is on the one canonical vocabulary; its `SubmitButton` uses
+`primaryButtonClass('md')` (CC-1, 2026-05-31). The remaining local controls
+(`SegmentedControl`, `TypeCard`) are genuine custom widgets, not field/button
+vocabulary drift, so they're correctly left local. No code change needed this
+pass — status flipped after verification.
 
 #### H-2 — Divisions manager is the densest action-item offender · **P2**
 
 [host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx)
-stacks four of the issues above in one component: a 5th local `inputClass`
+stacked four of the issues above in one component: a 5th local `inputClass`
 (CC-2), inline 16-field expand (CC-5), `window.confirm` (CC-4), and Edit/Remove
-rendered as bare `text-primary`/`text-red-600` text links
-([host-divisions-manager.tsx#L268-L283](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx#L268-L283))
-that fall below the 44px M3/AA tap target and give the destructive Remove the
-same visual weight as Edit. **Fix:** FormModal conversion (CC-5) + ConfirmSubmit
-(CC-4) + `textButtonClass`/`secondaryButtonClass` with `tap-target` for the
-row actions; demote Remove to a less prominent slot.
+rendered as bare `text-primary`/`text-red-600` text links that fell below the
+44px M3/AA tap target and gave the destructive Remove the same visual weight as
+Edit. **Resolved (done):** all four are now closed —
 
-#### H-3 — Row-level action items sit below tap-target across host lists · **P3**
+- **CC-2 (5th `inputClass`)** ✅ 2026-05-31b (re-exports `field-styles.ts`).
+- **CC-4 (`window.confirm`)** ✅ 2026-05-31b (`ConfirmSubmitButton`).
+- **CC-5 (inline expand)** ✅ 2026-06-01f — Edit + "+ Add division" now open the
+  `DivisionForm` in a `FormModal` (see CC-5 above).
+- **Row actions** ✅ 2026-06-01f — **Edit** is now `secondaryButtonClass('sm')` +
+  `tap-target` (a 48px outlined affordance, the prominent row action); **Remove**
+  is a borderless red `state-layer` + `tap-target` button — demoted (no
+  border/fill) so it no longer carries Edit's weight, but still ≥44px. The
+  modal's own Cancel/Submit went to `secondaryButtonClass('md')` /
+  `primaryButtonClass('md')` via `ModalActions`.
 
-The `text-link` action pattern (`text-primary hover:underline`, ~16-20px tall)
-recurs in host management lists (divisions, and similar patterns in group/team
-member rows). It reads as a hyperlink, not an action, and misses the 44px target.
-Cross-ref [accessibility.md](accessibility.md). **Fix:** standardize row actions
-on `textButtonClass()` + the `tap-target` utility (Bundle 130).
+#### H-3 — Row-level action items sit below tap-target across host lists · **P3** · ◑ mostly 2026-06-01k
+
+The `text-link` / tiny-bordered action pattern (`text-primary hover:underline` or
+`px-2 py-1 text-xs` ≈ 24px) recurs in host management lists and misses the 44px
+target. Cross-ref [accessibility.md](accessibility.md). **Fix:** standardize row
+actions on the button vocabulary + the `tap-target` utility (Bundle 130).
+**Progress:**
+
+- **Divisions** rows ✅ 2026-06-01f (via H-2).
+- **Group manage-members** rows ✅ 2026-06-01k —
+  [member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx)
+  role toggles → `neutralButtonClass('sm') + tap-target`, Remove →
+  `errorOutlinedButtonClass('sm') + tap-target` (was `px-2 py-1 text-xs` ≈ 24px).
+- **Profile/group viewer-action clusters** ✅ canonicalized 2026-06-01k —
+  [player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx)
+  - [group-viewer-actions.tsx](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx)
+    routed to `primaryButtonClass` / `neutralButtonClass` / `secondaryButtonClass`
+    (this also fixed 3 CC-1 `hover:opacity-90` misses — see new finding below).
+    _tap-target intentionally **not** added to these — they're profile-header CTA
+    clusters sharing a row with `ShareLink`, and the 32px `sm` height is the
+    app-wide sm-button question tracked in accessibility.md, not a tiny-row offender._
+- **`members-section.tsx`**: its only row affordance is the member **card link**
+  (a full-row `flex … p-2` link, already > 44px tall), not a sub-tap-target
+  button — nothing to change.
+
+**Remaining:** the same neutral row-action pattern in other lists
+(`attendee-list`, `friends-list`, `my-teams-panel`, `invite-response`,
+`extra-members-form`) — now a safe mechanical pass with `neutralButtonClass`
+available (folds into the secondary-convergence item).
 
 ---
 
@@ -416,27 +520,366 @@ Implemented this pass (verify chain green: typecheck / lint / 621 tests / build)
   Journal:
   [2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
 
+### 2026-06-01b — `/pricing` secondary/outlined-button convergence
+
+First bite of the standing **secondary/outlined-button** backlog item (the
+`border-border-base hover:bg-fg/5` / hand-rolled `border-primary … text-primary`
+patterns → `secondaryButtonClass`). Scoped to `/pricing` because it's a
+high-intent visitor→host conversion surface where the Free-vs-Pro CTA hierarchy
+should read as a clean M3 **Filled (recommended) vs. Outlined (alternative)**
+pair, and its CTAs were still three different hand-rolled recipes after the CC-1
+filled-button sweep.
+
+- **Fixed (4 CTAs) in
+  [pricing/page.tsx](../../apps/web/src/app/pricing/page.tsx).** All
+  medium-emphasis / alternative actions now route through
+  `secondaryButtonClass('md')`:
+  - Free-tier **"Host a free event"** — was the neutral
+    `border-border-base bg-surface hover:bg-fg/5 … font-medium` recipe; now the
+    canonical outlined button (`+ w-full`). Reads as the deliberate
+    lower-emphasis alternative to the Pro card's Filled CTA.
+  - Active-subscriber **"Manage subscription ↗"** (`OpenInNewTabButton`) — same
+    neutral recipe → `secondaryButtonClass('md') + w-full`.
+  - Trial **monthly** submit — was a 4th forked outlined recipe
+    (`border-primary bg-surface text-primary hover:bg-primary/10 …`, its own
+    `disabled:opacity-60`) → `secondaryButtonClass('md') + w-full`; the
+    **yearly** submit stays `primaryButtonClass('md')` (Filled), preserving the
+    intentional "save $20/yr" nudge toward the Filled option.
+- **Layout bug fixed alongside.** The monthly `<form>` carried a vestigial
+  `grid grid-cols-1 gap-2 sm:grid-cols-2` with a single child, so the monthly
+  button rendered **half-width on ≥sm** while the yearly button below it was
+  full-width — an asymmetric stack. Dropped the grid; both trial CTAs now stack
+  full-width and aligned. Verify chain green (typecheck / lint / 125 web tests /
+  build).
+
+_Not converted (intentional): the Pro card's signed-out / anon CTAs were already
+`primaryButtonClass('md')` (correct — they're the card's headline action); the
+comparison-table and FAQ have no buttons._
+
+### 2026-06-01c — V-3 login-page field primitives
+
+- **V-3 (P2) — fixed.** [login/page.tsx](../../apps/web/src/app/login/page.tsx)
+  email + password inputs migrated from the hand-rolled
+  `border-border-base mt-1 w-full rounded-md border px-3 py-2` recipe to the
+  [TextField](../../apps/web/src/components/text-field.tsx) primitive. Wins: the
+  chassis now wires `htmlFor`/`id` (the bare `<label><span>` pattern had none),
+  paints the M3 focus ring, and renders the sign-up length hint through
+  `supportingText` (spread conditionally per `exactOptionalPropertyTypes`). The
+  sign-in "Forgot password?" link moved out of the `<label>` into a sibling under
+  the field. The submit button was already `primaryButtonClass('md')` (CC-1
+  sweep), so this pass was inputs-only. Verify chain green (typecheck / lint /
+  625 tests / build). This leaves **P-1** (`GuestSignupFields`) as the last
+  field-vocabulary P2 — login was the higher-intent surface, so it went first.
+
+### 2026-06-01d — P-1 shared `GuestSignupFields`
+
+- **P-1 (P2) — fixed.** Extracted
+  [GuestSignupFields](../../apps/web/src/app/events/[id]/_components/guest-signup-fields.tsx)
+  — the name + email pair shared by the free guest-RSVP form
+  ([guest-signup-form.tsx](../../apps/web/src/app/events/[id]/guest-signup-form.tsx))
+  and the paid guest-checkout form inside
+  [paid-ticket-panel.tsx](../../apps/web/src/app/events/[id]/_components/paid-ticket-panel.tsx).
+  The paid form was the offender (its own `bg-background … text-sm` inputs,
+  `text-xs` labels, missing `autoComplete`/`maxLength`); both now share the CC-2
+  `field-styles.ts` recipe. The component takes `emailRequired` (paid = required
+  for the receipt; free = optional + claim-later hint) and an optional per-field
+  `errors` map (the free panel's `useFormState`; the paid redirect-to-Stripe flow
+  passes none). Deliberately no `'use client'` so it drops into both the client
+  form and the server panel; the posted field names are unchanged so
+  `guest-actions.ts` / `checkout-actions.ts` are untouched. Net: removed ~30 lines
+  of forked markup and a local `<Err>` helper. Verify chain green (typecheck /
+  lint / 625 tests / build). Closes the last field-vocabulary P2 — the remaining
+  P2s (V-2 header pills, H-1/H-2 host-form depth) are button- or layout-shaped,
+  not field-vocabulary.
+
+### 2026-06-01e — V-2 header + mobile-drawer auth cluster
+
+- **V-2 (P2) — fixed.** Converged the signup-funnel auth cluster onto the
+  canonical button vocabulary, closing the last of V-2:
+  - **Sign in / Sign up** is now the M3 **Outlined + Filled** pair on both
+    [site-header.tsx](../../apps/web/src/components/site-header.tsx) (desktop
+    `secondaryButtonClass('sm')` + `primaryButtonClass('sm')`) and
+    [mobile-menu.tsx](../../apps/web/src/components/mobile-menu.tsx) (drawer
+    `secondaryButtonClass('md')` + `primaryButtonClass('md')`). Desktop "Sign in"
+    was a bare nav text-link; the mobile one was a hand-rolled neutral-outlined
+    button — they now match each other and the rest of the app.
+  - The anon **"Finish creating your account"** claim nudge (the last hand-rolled
+    recipe in the desktop cluster) moved from a bordered tonal recipe to
+    `tonalButtonClass('sm')` (M3 Filled-tonal) — medium emphasis, sits cleanly
+    beside the Filled "Sign up" without competing.
+    Verify chain green (typecheck / lint / 625 tests / build). With V-2 done, the
+    signup-funnel button drift (V-1 dead link, V-2 entry-point divergence) is fully
+    closed; the only remaining P2s are the **host-form** items (H-1/H-2).
+
+### 2026-06-01f — H-1 verified done + H-2/CC-5 divisions-manager FormModal
+
+The host-form P2s. Together with V-2 (2026-06-01e) this clears the **last
+remaining P2s** in the audit.
+
+- **H-1 (P2) — verified done, status flipped.** The create/edit-event form's
+  field + submit convergence had already landed across earlier bundles
+  ([form-primitives.tsx](../../apps/web/src/app/events/new/_components/form-primitives.tsx)
+  re-exports `field-styles.ts` per CC-2; `SubmitButton` uses `primaryButtonClass`
+  per CC-1). Confirmed end-to-end; the only local controls left
+  (`SegmentedControl`, `TypeCard`) are genuine custom widgets, not vocabulary
+  drift. No code change — flipped after verification.
+- **H-2 + CC-5 (P2 + P3) — fixed.** Rewrote
+  [host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx):
+  - **CC-5 / FormModal:** the inline 16-field `DivisionForm` (per-row Edit **and**
+    "+ Add division") now opens inside `FormModal` (`size="lg"`), with
+    `CloseOnSettled` closing it when the server action settles and `ModalActions`
+    owning the Cancel/Submit row. The `editingId`/`adding` `useState` machine is
+    gone — Radix owns each modal's open state. This kills the "inline disclosure
+    shoves the page around" problem, matching the walk-in team form pattern.
+  - **Row-action tap targets (H-2/H-3):** **Edit** → `secondaryButtonClass('sm')`
+    - `tap-target` (48px outlined, the prominent action); **Remove** → a
+      borderless red `state-layer` + `tap-target` button — demoted (no border/fill)
+      but still ≥44px, keeping its destructive red. "+ Add division" →
+      `secondaryButtonClass('md')`.
+  - **Form buttons:** the modal's Cancel/Submit moved from hand-rolled recipes to
+    `secondaryButtonClass('md')` / `primaryButtonClass('md')`.
+  - The action bindings are unchanged (`addDivisionFromForm` /
+    `updateDivisionFromForm` / `removeDivision`, all already `revalidatePath`), so
+    `division-actions.ts` is untouched.
+    Verify chain green (typecheck / lint / 625 tests / build).
+- **H-3 (P3) — partial.** Divisions rows done above; the same row-action pattern
+  in the group/team member rows remains (see H-3).
+
+With H-1/H-2 closed, **all P2s in this audit are resolved.** What's left is the
+P3 backlog below.
+
+### 2026-06-01g — `errorButtonClass` primitive + filled-destructive adoption
+
+First P3 after the P2 closeout. The "rule of three" had fired — the destructive
+filled recipe `bg-red-600 … text-white hover:bg-red-700` was hand-rolled in 6+
+places (`ConfirmSubmitButton`'s confirm + four danger-zone panels), so the
+primitive earned its place.
+
+- **`errorButtonClass(size)` added** to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) —
+  mirrors `primaryButtonClass` (same `SIZING`/`BASE`/state-layer/lift) but uses
+  the M3 **`error` role tokens** `bg-md-error` / `text-md-on-error` instead of a
+  hardcoded `bg-red-600 text-white`. **Why tokens, not literals:** the role
+  tokens are already defined for both themes
+  ([globals.css](../../apps/web/src/app/globals.css)), so the button now tracks
+  dark mode — where M3 flips error to a light container with a dark label —
+  rather than staying a fixed dark-red/white that ignored the theme. (Worth an
+  eyeball in dark mode: the filled error button is intentionally lighter there,
+  per M3.)
+- **Adopted in the 5 filled-destructive call sites:**
+  [confirm-submit-button.tsx](../../apps/web/src/components/confirm-submit-button.tsx)
+  (destructive confirm — the audit's named target),
+  [delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx),
+  [delete-team-panel.tsx](../../apps/web/src/app/teams/[id]/_components/delete-team-panel.tsx),
+  [cancel-event-panel.tsx](../../apps/web/src/app/events/[id]/edit/cancel-event-panel.tsx),
+  [account/delete/page.tsx](../../apps/web/src/app/profile/account/delete/page.tsx).
+  Verify chain green (typecheck / lint / 625 tests / build).
+- **Deliberately not migrated (different shape, follow-up):** text-red
+  (divisions Remove, group/team member rows), outlined-red (host-ad-hoc "Remove
+  team", community report buttons), and the compact `board-view.tsx` reset. Those
+  want a `textButtonClass`/`secondaryButtonClass`-style **error** variant, not the
+  Filled one — a small follow-up once a second destructive shape is actually
+  needed twice. No `no-restricted-syntax` ratchet on `bg-red-600` this pass: the
+  token appears legitimately on alert **containers** (`bg-red-50` etc.), so a
+  naive ratchet would false-positive; revisit if filled-destructive drift recurs.
+
+### 2026-06-01h — P-2 StatusPill + secondary-convergence re-scope
+
+- **P-2 (P3) — fixed.** Extracted
+  [StatusPill](../../apps/web/src/components/status-pill.tsx) (`tone`:
+  `primary`/`success`/`pending`/`neutral`); the four ad-hoc pills in
+  `rsvp-panel.tsx` + `paid-ticket-panel.tsx` now render it (`PAYMENT_PILL` maps
+  to a `tone`, not a `className`). Verify chain green (typecheck / lint / 625
+  tests / build).
+- **Secondary/outlined-button convergence — re-scoped, NOT swept.** Re-measured
+  `grep -rn "hover:bg-fg/5" … | grep border` → **84** occurrences, not the ~30
+  estimated, and the set is **heterogeneous**: it mixes genuine secondary
+  buttons (Sign out, "Go home", Cancel) with **non-buttons that must stay
+  neutral** — card-style clickable rows (`flex … border p-3`: `members-section`,
+  `event-media-link`, `brackets/page`, `video-embed`), radio-card `<label>`s
+  (`profile-form.tsx`), the Google sign-in button (deliberate neutral branding),
+  and dashed toggle/add chips (`templates-section`, `setup-view`). A blanket
+  `→ secondaryButtonClass` (which is **primary-tinted**: `border-primary
+text-primary`) would wrongly recolor all of those. **Decision:** this is not a
+  mechanical sweep — it needs a curated pass that first separates "secondary
+  action button" from "neutral surface/affordance," and likely a _neutral_
+  outlined recipe for the latter rather than forcing everything to the
+  primary-tinted Outlined. Re-graded with that scope below; `/pricing`
+  (2026-06-01b) remains the one done slice where the primary-tint was correct.
+
+### 2026-06-01i — text + outlined error button variants
+
+Completes the destructive-button family started by `errorButtonClass` (Filled,
+2026-06-01g). Both new variants mirror an existing one but on the M3 `error` role
+token, so destructive actions now have a canonical home at every emphasis level:
+
+- **`errorOutlinedButtonClass(size)`** (mirrors `secondaryButtonClass`) and
+  **`errorTextButtonClass(size)`** (mirrors `textButtonClass`) added to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx)
+  (`border-md-error`/`text-md-error`).
+- **Adopted (clean fits):**
+  - **Text:** the divisions **Remove**
+    ([host-divisions-manager.tsx](../../apps/web/src/app/events/[id]/_components/host-divisions-manager.tsx))
+    — was the hand-rolled `text-red-600` left behind in 2026-06-01f → now
+    `errorTextButtonClass('sm') + tap-target`.
+  - **Outlined:** the danger-zone **"Delete group…" / "Delete team…"** triggers
+    ([delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx),
+    [delete-team-panel.tsx](../../apps/web/src/app/teams/[id]/_components/delete-team-panel.tsx))
+    — were hand-rolled `border-red-300 bg-white … dark:…` recipes → now
+    `errorOutlinedButtonClass('sm')`, replacing the bespoke dark-mode variants
+    with token theming. (The Filled "Yes, delete" confirm they reveal is
+    `errorButtonClass` from 2026-06-01g — clean Outlined→Filled escalation.)
+  - Verify chain green (typecheck / lint / 625 tests / build).
+- **Deliberately not migrated (documented):** the host-ad-hoc "Remove team"
+  button (dense `text-xs` row — would mismatch its neutral `text-xs` siblings;
+  needs an `xs` size we don't have), the community **report** buttons (tinted
+  `bg-red-50` + bespoke dark variants — a _tonal_-error look, not outlined), and
+  the group/team **member-row** removes (neutral border, red **on hover** only —
+  a softer treatment that belongs to the H-3 curated pass). A `errorTonalButtonClass`
+  is the remaining gap if the tinted report buttons ever want converging.
+
+### 2026-06-01j — CC-3 `text-white`→token (re-measure + clear the last 5)
+
+- **CC-3 (P3) — fixed.** Re-measured (the drift table still said 64): `text-white`
+  is down to **26 total**, only **5** on `bg-primary` (the real
+  `text-primary-fg`-token violation). Fixed all 5:
+  - [free-agent-signup-panel.tsx](../../apps/web/src/app/events/[id]/_components/free-agent-signup-panel.tsx)
+    SubmitButton — a hand-rolled `bg-primary … text-white hover:opacity-90`
+    primary button the CC-1 ratchet missed (it forbids `hover:bg-primary/90`, not
+    `hover:opacity-90`) → `primaryButtonClass('md')`.
+  - [auth-mode-tabs.tsx](../../apps/web/src/app/login/_components/auth-mode-tabs.tsx)
+    active tab + [messages-nav-link.tsx](../../apps/web/src/components/messages-nav-link.tsx)
+    / [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx)
+    count badges → `text-primary-fg` (pure token swap, no visual change on the
+    current palette, dark-mode-safe).
+    `bg-primary`+`text-white` is now **0**; drift table updated. The remaining ~21
+    `text-white` are correct on amber/emerald/red/violet badges. _Ratchet note: a
+    `no-restricted-syntax` rule can't cleanly catch `bg-primary`+`text-white` (they
+    arrive as separate tokens / template literals), so no ratchet added; the
+    free-agent miss shows the `hover:opacity-90` escape hatch is the more likely
+    future regression vector than `text-white` itself._
+
+### 2026-06-01k — H-3 member rows + `neutralButtonClass` (the missing variant)
+
+The secondary-convergence re-scope (2026-06-01h) concluded the ~84 neutral
+`border-border-base hover:bg-fg/5` buttons need a **neutral** canonical home, not
+the primary-tinted `secondaryButtonClass`. Built it and used it to clear H-3's
+member rows.
+
+- **`neutralButtonClass(size)` added** to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) — M3
+  outlined-neutral (`border-border-base text-fg bg-transparent` + state-layer),
+  deliberately matching the existing look so converging onto it is a
+  no-visual-change dedup. This unblocks the broader secondary-convergence sweep.
+- **H-3 group manage-members rows** ([member-row-item.tsx](../../apps/web/src/app/groups/[id]/members/_components/member-row-item.tsx)):
+  role toggles → `neutralButtonClass('sm') + tap-target`; Remove →
+  `errorOutlinedButtonClass('sm') + tap-target` (was `px-2 py-1 text-xs` ≈ 24px,
+  now ≥44px).
+- **Profile/group viewer-action clusters** canonicalized
+  ([player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx),
+  [group-viewer-actions.tsx](../../apps/web/src/app/groups/[id]/_components/group-viewer-actions.tsx)):
+  neutral buttons → `neutralButtonClass`, "Host an event" → `secondaryButtonClass`,
+  and **3 CC-1 `hover:opacity-90` misses** → `primaryButtonClass` (see CC-6).
+- **Discovered CC-6** — 17 more `hover:opacity-90` hand-rolled primary buttons the
+  CC-1 ratchet doesn't catch (logged as a new finding; sweep deferred).
+- Verify chain green (typecheck / lint / 625 tests / build). Scoped adoption of
+  `neutralButtonClass` to the H-3 surfaces only this pass — the full ~80-site
+  convergence is now a safe mechanical follow-up.
+
+### 2026-06-01l — CC-6 `hover:opacity-90` sweep + ratchet extension
+
+- **CC-6 (P3) — fixed.** Converted the **17** hand-rolled
+  `bg-primary … hover:opacity-90` primary buttons (the recipe the CC-1 `/90`
+  ratchet missed) to `primaryButtonClass` across 12 files — bracket views
+  (`setup-view`, `no-bracket-view`, `format-picker-form`, `walk-in-team-form`),
+  `host-ad-hoc-teams-panel`, `brackets/page`, the billing pages
+  (`billing/page`, `billing/analytics`, `receipts/business-info-form`),
+  `share-link`, `consent-banner`, `sentry-test`. Size mapped by padding
+  (`px-4 py-2`→`md`, `px-3 py-1.5`→`sm`); layout extras preserved; the two
+  `setup-view`/`no-bracket-view` ternary "+ Add teams" branches keep the
+  active-vs-dashed conditional with the filled branch now `primaryButtonClass('sm')`.
+- **Ratchet extended** ([eslint.config.mjs](../../apps/web/eslint.config.mjs)):
+  two selectors flag `bg-primary` + `hover:opacity-90` **co-occurrence** (dual
+  look-ahead, Literal + TemplateElement). Keyed on the pairing — not bare
+  `hover:opacity-90`, which is legit on row-link fades. Probe-verified it fires;
+  clean on the converted tree. Verify chain green (typecheck / lint / 625 tests /
+  build). Both filled-primary recipes are now ratchet-locked.
+
+### 2026-06-01m — `errorTonalButtonClass` (error family complete) + community section convergence
+
+- **`errorTonalButtonClass(size)` added** to
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) — Tonal
+  destructive (`bg-md-error/10` container + `text-md-error`), mirroring
+  `tonalButtonClass`. This **completes the error family** symmetrically with the
+  base family: Filled / Outlined / Text / **Tonal** all now have an `error*`
+  counterpart on the M3 `error` role token.
+- **Community listing manage/report section converged**
+  ([community/[slug]/page.tsx](../../apps/web/src/app/community/[slug]/page.tsx)):
+  the two tonal-error buttons (**Report listing**, **Delete**) → `errorTonalButtonClass`
+  (replacing hand-rolled `border-red-* bg-red-50 … dark:bg-red-950/30` recipes
+  with token theming), and their neutral row-siblings (**Edit / Hide / Unhide**)
+  → `neutralButtonClass` so the manage row stays one consistent size (the
+  conversion lifts that section from `text-xs` to the canonical `text-sm`).
+- **Left as-is (documented):** the **Approve claim / Reject claim** pair — a
+  matched green/red set, and there's no `success*` tonal primitive for the green
+  half, so converting only the red half would break the pair's symmetry. (A
+  `successTonalButtonClass` is the trigger to revisit if a second green/red pair
+  appears.) Verify chain green (typecheck / lint / 625 tests / build).
+
 ### Standing backlog (graded above, not yet done)
 
-- **P2:** V-2/V-3 (login page field primitives — its inputs still bypass
-  `TextField`; the submit is now canonical), P-1 (shared `GuestSignupFields`),
-  H-1/H-2 (host form depth + divisions-manager FormModal). _CC-1 + CC-2 + CC-4
-  resolved 2026-05-31b–d; both the field and primary-button vocabularies are now
-  ratchet-locked._
-- **P3:** CC-3 (`text-white` token sweep — largely absorbed by CC-1 since
-  `primaryButtonClass` emits `text-primary-fg`; re-measure), CC-5/H-2 (FormModal
-  conversion — also in events-page-ux.md), P-2
-  (StatusPill primitive), H-3 (row-action tap targets), secondary/outlined-button
-  convergence (the `border-border-base hover:bg-fg/5` pattern → `secondaryButtonClass`,
-  a separate fuzzier set not covered by the CC-1 ratchet).
-- **New primitive worth adding:** an `errorButtonClass`/`destructiveButtonClass`
-  in `primary-button.tsx` so destructive confirms stop hand-rolling `bg-red-600`.
+- **P2: none remaining.** _All resolved: H-1/H-2 (host form depth +
+  divisions-manager FormModal) 2026-06-01f; V-2 (header/mobile auth cluster)
+  2026-06-01e; P-1 (shared `GuestSignupFields`) 2026-06-01d; V-3 (login field
+  primitives) 2026-06-01c; CC-1 + CC-2 + CC-4 2026-05-31b–d — both the field and
+  primary-button vocabularies are now ratchet-locked._
+- **P3:** H-3 (row-action tap targets — **divisions + group manage-members +
+  viewer-action clusters done 2026-06-01f/k**; other lists — `attendee-list`,
+  `friends-list`, `my-teams-panel`, `invite-response`, `extra-members-form` —
+  remain, now a safe `neutralButtonClass + tap-target` pass);
+  secondary/outlined-button convergence (**re-scoped 2026-06-01h; unblocked
+  2026-06-01k** — `neutralButtonClass` now exists, so the curated sweep is
+  neutral→`neutralButtonClass` (no-visual-change) + genuine secondary actions →
+  `secondaryButtonClass`; **`/pricing` done 2026-06-01b**, H-3 surfaces done
+  2026-06-01k, ~75 sites remain). _CC-6 (the `hover:opacity-90` ratchet gap)
+  resolved 2026-06-01l — both filled-primary recipes now ratchet-locked.
+  Error-button family **complete 2026-06-01g/i/m** (all four variants). P-2
+  (StatusPill) resolved 2026-06-01h; CC-5 (FormModal conversion) resolved
+  2026-06-01f._
+- **Error-button family** ✅ **complete 2026-06-01g/i/m.**
+  [primary-button.tsx](../../apps/web/src/components/primary-button.tsx) now
+  exports `errorButtonClass` (Filled, 2026-06-01g — 5 adopters),
+  `errorOutlinedButtonClass` (2026-06-01i — danger-zone delete triggers),
+  `errorTextButtonClass` (2026-06-01i — divisions Remove), and
+  `errorTonalButtonClass` (2026-06-01m — community Report/Delete), all on the M3
+  `error` role token, mirroring `primaryButtonClass` / `tonalButtonClass` /
+  `secondaryButtonClass` / `textButtonClass`. _Remaining hand-rolled destructive
+  shapes left as documented non-migrations: the host-ad-hoc "Remove team" (dense
+  `text-xs` row, needs an `xs` size); the member-row red-**on-hover** removes
+  (H-3); the approve/reject claim pair (needs a `success*` counterpart for the
+  green half); and the compact `bg-red-600` in `board-view.tsx`._
 - **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim
   email-confirmation flow ([claim/actions.ts#L88-L90](../../apps/web/src/app/claim/actions.ts#L88-L90))
   hardcodes the post-confirmation redirect to `/reset-password?from=claim` and
   drops the `?next=` from the `/claim` URL, so neither the V-4 host gate nor the
   `/teams/new` gate auto-returns the user to where they were headed. Thread `next`
   through `emailRedirectTo` (and `/auth/callback`) to honor it. Affects both gates.
+
+### 2026-06-03 — PR-2 partial reversal (restore payouts discoverability)
+
+- **PR-2 (adaptive payout tile) — softened, not removed.** PR-2 had hidden the
+  profile "Payouts & Stripe" quick-action tile behind host status
+  (`upcomingHosted.length > 0 || hostStripeAccountId !== null`) to keep payout
+  depth off a pure player's hub. In practice that left **no discoverable path to
+  Stripe onboarding** for a brand-new user who wants to set up payments before
+  creating their first event — the only other entry points are the inline alerts
+  in the new/edit-event forms (and they only appear once you type a price). The
+  tile in [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) now always
+  renders; `isHost` drives the **copy** instead of visibility: active hosts keep
+  "Payouts & Stripe" / "Manage your payouts", everyone else gets the softer "Get
+  set up to sell tickets" / "Connect Stripe to take payments" framing. This keeps
+  PR-2's "don't overwhelm" intent (no dense payout numbers, just a labelled
+  entry) while closing the discoverability gap.
 
 ---
 

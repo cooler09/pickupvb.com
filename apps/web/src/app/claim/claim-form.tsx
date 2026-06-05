@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { claimAccount, type ClaimState } from './actions';
 import {
   fieldErrorClass as errorClass,
@@ -28,9 +29,14 @@ function SubmitBtn() {
 
 export default function ClaimForm() {
   const [state, formAction] = useFormState(claimAccount, initial);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
     <form action={formAction} className="space-y-3">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label htmlFor="first_name" className={labelClass}>

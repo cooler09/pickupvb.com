@@ -5,10 +5,8 @@ import {
   Team,
   TeamId,
   UnauthorizedError,
-  ValidationError,
   type AnalyticsPort,
   type EventWriteStore,
-  type Format,
   type TeamRepository,
   type UserId,
 } from '@pickupvb/domain';
@@ -26,13 +24,12 @@ import {
 export class CreateTeamHandler {
   constructor(private readonly repo: TeamRepository) {}
 
-  async execute({ captainId, name, format }: CreateTeamCommand): Promise<{ id: string }> {
+  async execute({ captainId, name }: CreateTeamCommand): Promise<{ id: string }> {
     const id = TeamId(randomUUID());
     const team = Team.create({
       id,
       captainId: captainId as UserId,
       name,
-      format: format as Format,
     });
     await this.repo.save(team);
     return { id: String(team.id) };
@@ -110,10 +107,16 @@ export class SetTeamExtraMembersHandler {
 }
 
 /**
- * Tournament team registration. Crosses two aggregates:
+ * Tournament / league team registration. Crosses two aggregates:
  *   - the Team must exist and be captained by the requester
- *   - the Team's format must match the chosen Division's format
- *   - the Event aggregate enforces the rest (must be tournament, published, …)
+ *   - the chosen Division must exist on the event
+ *   - the Event aggregate enforces the rest (must be tournament/league,
+ *     published, not started, no duplicate)
+ *
+ * Teams are just a roster of people (ADR 0013) — they carry no format at all,
+ * so a team can enter a division of any format regardless of its size. There is
+ * deliberately no team-format vs. division-format check; format lives on the
+ * division, not the roster.
  *
  * The aggregate owns the team↔division registration (ADR 0019):
  * `registerTeam(teamId, divisionId)` records which division the team joined
@@ -137,11 +140,8 @@ export class RegisterTeamHandler {
     if (!event) throw new NotFoundError('event', eventId);
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
-    if (division.format && division.format !== team.format) {
-      throw new ValidationError(
-        `Team format (${team.format}) doesn't match division format (${division.format}).`,
-      );
-    }
+    // No team-format vs. division-format check (ADR 0013): any roster may
+    // enter any division regardless of format or size.
     // Aggregate invariants (status / start-time / division-exists / duplicate)
     // run inside registerTeam; save() persists the team↔division join.
     event.registerTeam(team.id, DivisionId(divisionId));

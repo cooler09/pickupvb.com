@@ -4,6 +4,7 @@ import { UserId } from '@pickupvb/domain';
 import { SupabaseDeletionRequestRepository } from '@pickupvb/infrastructure';
 import { requireRealUser } from '@/lib/server-auth';
 import { fieldInputClass, fieldLabelClass, fieldHintClass } from '@/components/field-styles';
+import { errorButtonClass } from '@/components/primary-button';
 import { requestAccountDeletion, cancelAccountDeletion } from './actions';
 
 export const metadata = {
@@ -124,10 +125,7 @@ export default async function DeleteAccountPage(props: {
                 className={fieldInputClass}
               />
             </div>
-            <button
-              type="submit"
-              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-            >
+            <button type="submit" className={errorButtonClass('md')}>
               Schedule account deletion
             </button>
           </form>

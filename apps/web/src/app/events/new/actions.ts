@@ -16,10 +16,13 @@ import { hasProBenefits } from '@/lib/admin';
 import { clampVisibilityForHost } from '@/lib/visibility';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
+import { captureOnboardingStep } from '@/lib/onboarding';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 
 export type CreateEventState = {
   error?: string;
+  /** Optional "fix this" link rendered next to the error (e.g. finish Stripe setup). */
+  errorAction?: { href: string; label: string };
   fieldErrors?: Record<string, string>;
   /** True once any submission has been attempted (success or failure). */
   submitted?: boolean;
@@ -82,7 +85,17 @@ export async function createEventAction(
   }
 
   // ---- ADR 0006 event-level extensions ------------------------------------
+  const isLeague = type === EventType.League;
   const isExternal = field(formData, 'isExternal') === 'on';
+  // Leagues are managed on-platform (schedule, scoring, rosters); off-platform
+  // listing-only mode doesn't apply. The UI hides the toggle for leagues — this
+  // is the server-side backstop.
+  if (isLeague && isExternal) {
+    return {
+      ...snapshot(formData),
+      error: 'League events are managed on PickupVB and cannot use off-platform registration.',
+    };
+  }
   const isFundraiser = field(formData, 'isFundraiser') === 'on';
   const isSeries = field(formData, 'isSeries') === 'on';
   const themeTagsRaw = fieldOrUndefined(formData, 'themeTags');
@@ -160,11 +173,14 @@ export async function createEventAction(
     const allowFreeAgents = bool(formData, `div_${i}_allowFreeAgents`);
     // ADR 0016: per-division team registration paradigm. For tournaments,
     // default to ad_hoc when the composition is non-solo, else null. The
-    // host can override per row via the picker.
+    // host can override per row via the picker. Leagues (P1 #1) are
+    // roster-only on every division — force it server-side so a tampered
+    // form can't bypass the league invariant.
     const isTournamentRow = type === EventType.Tournament;
     const teamRegModeRaw = fieldOrUndefined(formData, `div_${i}_teamRegistrationMode`);
     let teamRegistrationMode: 'ad_hoc' | 'roster' | null;
-    if (teamRegModeRaw === 'ad_hoc') teamRegistrationMode = 'ad_hoc';
+    if (isLeague) teamRegistrationMode = 'roster';
+    else if (teamRegModeRaw === 'ad_hoc') teamRegistrationMode = 'ad_hoc';
     else if (teamRegModeRaw === 'roster') teamRegistrationMode = 'roster';
     else if (teamRegModeRaw === 'none') teamRegistrationMode = null;
     else teamRegistrationMode = isTournamentRow && teamComposition !== 'solo' ? 'ad_hoc' : null;
@@ -199,10 +215,13 @@ export async function createEventAction(
   }
 
   const isTournament = type === EventType.Tournament;
-  if (isTournament && !isExternal && divisions.length === 0) {
+  // Tournaments and leagues are both division-driven: the per-division grid is
+  // the source of truth for surface/skill/pricing.
+  const usesDivisions = isTournament || isLeague;
+  if (usesDivisions && !isExternal && divisions.length === 0) {
     return {
       ...snapshot(formData),
-      error: 'Add at least one division for your tournament.',
+      error: `Add at least one division for your ${isLeague ? 'league' : 'tournament'}.`,
       fieldErrors: { divisions: 'Add at least one division.' },
     };
   }
@@ -210,9 +229,9 @@ export async function createEventAction(
   // ADR 0012 — canonical registration-config invariants (event type ×
   // per-division team mode × division composition × price unit). ADR 0016
   // moved team-mode to the division level.
-  if (isTournament && !isExternal) {
+  if (usesDivisions && !isExternal) {
     const teamPricing = validateTeamPricing({
-      type: 'tournament',
+      type: isLeague ? 'league' : 'tournament',
       paymentsOffPlatform: field(formData, 'paymentsOffPlatform') === 'on',
       divisions: divisions.map((d) => ({
         label: (d.label as string) ?? '',
@@ -232,11 +251,11 @@ export async function createEventAction(
     }
   }
 
-  // For tournaments the per-division grid is the single source of truth for
-  // surface/format/gender/skill. Fall back to division[0] so the legacy
-  // top-level columns on `events` (still required by the schema) stay
+  // For tournaments and leagues the per-division grid is the single source of
+  // truth for surface/format/gender/skill. Fall back to division[0] so the
+  // legacy top-level columns on `events` (still required by the schema) stay
   // populated. Open-play and external still submit them directly.
-  const primaryDiv = isTournament && divisions.length > 0 ? divisions[0]! : undefined;
+  const primaryDiv = usesDivisions && divisions.length > 0 ? divisions[0]! : undefined;
   const topSurface = (primaryDiv?.surface as string | undefined) ?? field(formData, 'surface');
   const topFormat =
     (primaryDiv?.format as string | undefined) ?? fieldOrUndefined(formData, 'format');
@@ -329,11 +348,11 @@ export async function createEventAction(
     }
   }
 
-  // Pricing: open-play uses the top-level priceUsd input. Tournaments price
-  // per-division (already collected above); for Stripe gating we treat the
-  // highest division price as the event price. Free events (price = 0) skip
-  // Stripe entirely.
-  const priceCents = isTournament
+  // Pricing: open-play uses the top-level priceUsd input. Tournaments and
+  // leagues price per-division (already collected above); for Stripe gating we
+  // treat the highest division price as the event price. Free events
+  // (price = 0) skip Stripe entirely.
+  const priceCents = usesDivisions
     ? divisions.reduce(
         (max, d) => Math.max(max, typeof d.priceCents === 'number' ? (d.priceCents as number) : 0),
         0,
@@ -341,21 +360,46 @@ export async function createEventAction(
     : parsePriceCents(fieldOrUndefined(formData, 'priceUsd'));
   const paymentsOffPlatform = field(formData, 'paymentsOffPlatform') === 'on';
   if (priceCents > 0 && !paymentsOffPlatform) {
-    // Free hosts are capped at 1 paid event per 30 days. Pro hosts have
-    // no cap. Check BEFORE creating Stripe Checkout, so we can roll back
-    // the event row cleanly. Count already includes the row we just
-    // inserted.
+    // Pricing lives on event_divisions (ADR 0006 Phase 9a). Persist the
+    // open-play price on the default (sort_order 0) division BEFORE the cap
+    // check below — order matters. The rolling-30d cap counts paid events via
+    // `host_paid_event_count_30d`, which joins `event_divisions` where
+    // `price_cents > 0`, so the just-inserted event is invisible to the count
+    // until its division is priced. `validateHostPaidEventCap(includesCurrentEvent:
+    // true)` assumes the current event IS counted; pricing the division
+    // afterward (as this block used to) let a free host with one prior paid
+    // event slip a SECOND past the cap — an off-by-one the Julie persona e2e
+    // caught. Tournaments/leagues already priced their divisions through the
+    // create handler, so only open-play needs the update here.
+    if (!usesDivisions) {
+      const { error: divPriceErr } = await supabase
+        .from('event_divisions')
+        .update({ price_cents: priceCents } as never)
+        .eq('event_id', result.id)
+        .eq('sort_order', 0);
+      if (divPriceErr) {
+        await supabase.from('events').delete().eq('id', result.id);
+        return {
+          ...snapshot(formData),
+          error: `Event created, but pricing failed: ${divPriceErr.message}`,
+        };
+      }
+    }
+    // Free hosts are capped at 1 paid event per 30 days. Pro hosts have no
+    // cap. Check BEFORE creating Stripe Checkout, so we can roll back the
+    // event row cleanly. The division price set above means the count now
+    // includes the row we just inserted (includesCurrentEvent: true).
     const cap = await validateHostPaidEventCap(user.id, { includesCurrentEvent: true });
     if (!cap.ok) {
       await supabase.from('events').delete().eq('id', result.id);
-      return { ...snapshot(formData), error: cap.reason };
+      return { ...snapshot(formData), error: cap.reason, errorAction: cap.cta };
     }
     const stripe = await requireHostChargesEnabled(user.id);
     if (!stripe.ok) {
       // Roll back the event so the host doesn't end up with a free
       // event they thought was paid.
       await supabase.from('events').delete().eq('id', result.id);
-      return { ...snapshot(formData), error: stripe.reason };
+      return { ...snapshot(formData), error: stripe.reason, errorAction: stripe.cta };
     }
     const refundWindowHours = parseRefundWindowHours(
       fieldOrUndefined(formData, 'refundWindowHours'),
@@ -376,22 +420,6 @@ export async function createEventAction(
         ...snapshot(formData),
         error: `Event created, but pricing failed: ${priceErr.message}`,
       };
-    }
-    // Pricing now lives on event_divisions (ADR 0006 Phase 9a). For
-    // open-play we update the first (default) division here. Tournaments
-    // already supplied per-division priceCents through the create handler.
-    if (!isTournament) {
-      const { error: divPriceErr } = await supabase
-        .from('event_divisions')
-        .update({ price_cents: priceCents } as never)
-        .eq('event_id', result.id)
-        .eq('sort_order', 0);
-      if (divPriceErr) {
-        return {
-          ...snapshot(formData),
-          error: `Event created, but pricing failed: ${divPriceErr.message}`,
-        };
-      }
     }
   }
 
@@ -425,7 +453,7 @@ export async function createEventAction(
       props: {
         eventId: result.id,
         hostId: user.id,
-        eventType: isTournament ? 'tournament' : 'open_play',
+        eventType: dto.type,
         byPosition,
         priceCents,
         metroId: city ?? null,
@@ -434,6 +462,19 @@ export async function createEventAction(
     },
     user.id,
   );
+
+  // Onboarding funnel (ADR 0035 / M1): fire `create-event` only on the host's
+  // *first* event so the per-step funnel isn't re-counted on every create.
+  // Best-effort — a count failure must not block the redirect to the new event.
+  try {
+    const { count } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_id', user.id);
+    if ((count ?? 0) === 1) captureOnboardingStep(user.id, 'host', 'create-event');
+  } catch {
+    // Swallow — analytics can't break the create flow.
+  }
 
   revalidatePath('/events');
   redirect(`/events/${result.id}?created=1`);

@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { isVisibleOrTimeout } from './predicates';
+import { deleteEventById } from './cleanup';
 
 /**
  * Shared helpers for tests that need to create a real event on the target
@@ -19,9 +20,21 @@ import { isVisibleOrTimeout } from './predicates';
  * targets the trigger and `input[type=hidden][name="startsAt"]` carries the
  * ISO string the server reads.
  *
- * Opens the picker for `name`, picks the LAST visible non-disabled day in
- * the calendar grid (deep in the month → safely in the future even on early-
- * month runs and after `minDate` clamps), fills the time, and closes.
+ * Opens the picker for `name`, advances the calendar to the NEXT month, and
+ * clicks a fixed in-month day (start → the 10th, end → the 20th). Two reasons
+ * this beats "click the last non-disabled day in the visible month":
+ *
+ *  - **Next month is unambiguously in the future**, so `minDate={new Date()}`
+ *    never disables the target and there's no month-boundary flakiness on
+ *    early- vs. late-month runs.
+ *  - **Start and end land on different days (10th < 20th).** The form
+ *    auto-fills `endsAt = startsAt + 2h` the moment a start is picked
+ *    (`handleStartsAtChange`), so by the time we open the end picker it already
+ *    has a selection. react-day-picker renders in single mode, where clicking
+ *    the *already-selected* day toggles it back off — which is exactly what the
+ *    old "last non-disabled day" logic did (the only enabled cell in the
+ *    displayed month collided with the auto-filled day), leaving `endsAt`
+ *    empty. Picking a distinct, clearly-later day sidesteps the toggle.
  */
 export async function pickFutureDateTime(
   page: Page,
@@ -34,10 +47,16 @@ export async function pickFutureDateTime(
   const dialog = page.locator('[role="dialog"]').last();
   await dialog.waitFor({ state: 'visible', timeout: 5_000 });
 
-  // LAST non-disabled day in the visible month — pushes the date several
-  // days ahead so server-side "starts in the past" validation can't reject.
-  const day = dialog.locator('[role="gridcell"] button:not([disabled])').last();
-  await day.click();
+  // Advance to next month (aria-label defaults to "Go to the Next Month").
+  await dialog.getByRole('button', { name: /next month/i }).click();
+
+  // Distinct days so the end never lands on the start's auto-filled selection.
+  const targetDay = name === 'startsAt' ? '10' : '20';
+  await dialog
+    .locator('[role="gridcell"] button:not([disabled])')
+    .filter({ hasText: new RegExp(`^${targetDay}$`) })
+    .first()
+    .click();
 
   const timeInput = dialog.locator('input[type="time"]').first();
   await timeInput.fill(timeHhmm);
@@ -60,6 +79,21 @@ export interface CreateFreeOpenPlayEventOptions {
   hostGroupId?: string;
   startTime?: string;
   endTime?: string;
+  /**
+   * When set, switch the capacity selector to "Fixed spots" and cap the event
+   * at this many attendees (the `#maxSpots` field). Used by the capacity /
+   * waitlist personas to provision a small, fillable event. Applied BEFORE the
+   * DateTimePicker is driven, because toggling the capacity SegmentedControl
+   * re-renders and would reset the React-controlled hidden `startsAt` input.
+   */
+  maxSpots?: number;
+  /**
+   * The "Sign me up as a player too" checkbox defaults to CHECKED, so the host
+   * is auto-added as the first attendee. Pass `false` to leave the roster empty
+   * — essential for capacity tests where a *different* account must take the
+   * only spot (otherwise the host silently fills it at create time).
+   */
+  joinAsHost?: boolean;
 }
 
 export interface CreatedEvent {
@@ -91,6 +125,25 @@ export async function createFreeOpenPlayEvent(
   }
 
   await page.locator('#title').fill(opts.title);
+
+  // Capacity must be set BEFORE the dates: the "Fixed spots" SegmentedControl
+  // (a `<button role="radio">`) re-renders OpenPlayBody on click, which resets
+  // the React-controlled hidden `startsAt`/`endsAt` inputs. Drive it first.
+  if (opts.maxSpots !== undefined) {
+    await page.getByRole('radio', { name: /fixed spots/i }).click();
+    const maxSpots = page.locator('#maxSpots');
+    await expect(maxSpots, '#maxSpots input').toBeVisible({ timeout: 5_000 });
+    await maxSpots.fill(String(opts.maxSpots));
+  }
+
+  // The "Sign me up as a player too" checkbox is a plain (uncontrolled,
+  // defaultChecked) input, so unchecking it doesn't re-render or reset the
+  // dates — still, do it before the pickers to keep all roster mutations ahead
+  // of the date inputs.
+  if (opts.joinAsHost === false) {
+    const joinAsHost = page.locator('input[name="joinAsHost"]');
+    if (await joinAsHost.isChecked()) await joinAsHost.uncheck();
+  }
 
   await pickFutureDateTime(page, 'startsAt', start);
   await pickFutureDateTime(page, 'endsAt', end);
@@ -133,12 +186,14 @@ export async function createFreeOpenPlayEvent(
 }
 
 /**
- * Cancel an event via its edit page two-step confirm. Best-effort: swallows
+ * Cancel an event via the host manage dashboard's two-step confirm. The
+ * cancel / danger-zone panel moved from `/edit` to `/events/[id]/manage`
+ * ("Danger zone" group), so cleanup drives it there. Best-effort: swallows
  * cleanup failures so a missing button doesn't break `afterAll`.
  */
 export async function cancelEvent(page: Page, eventUrl: string): Promise<void> {
   try {
-    await page.goto(`${eventUrl}/edit`);
+    await page.goto(`${eventUrl}/manage`);
     await page.waitForLoadState('domcontentloaded');
 
     const cancelBtn = page.getByRole('button', { name: /cancel event…/i }).first();
@@ -151,6 +206,25 @@ export async function cancelEvent(page: Page, eventUrl: string): Promise<void> {
   } catch {
     // Cleanup failed — caller will need to delete manually.
   }
+}
+
+/**
+ * The saved-templates affordance on `/events/new` is Pro-only and now lives
+ * behind a "Templates" button that opens a `FormModal`
+ * (see `_components/templates-section.tsx`). Non-Pro hosts instead see a
+ * "Save & reuse event setups with Pro" upsell link — no trigger.
+ *
+ * Clicks the trigger (if present) and waits for the modal body. Returns `true`
+ * when the Pro affordance was present and the modal opened, `false` otherwise —
+ * so callers can detect Pro vs. free without relying on the inner input being
+ * in the DOM up-front (Radix only portals the modal body once open).
+ */
+export async function openTemplatesModal(page: Page): Promise<boolean> {
+  const trigger = page.getByRole('button', { name: /^templates$/i });
+  if (!(await isVisibleOrTimeout(trigger, 10_000))) return false;
+  await trigger.click();
+  await expect(page.getByPlaceholder(/template name/i)).toBeVisible({ timeout: 10_000 });
+  return true;
 }
 
 /** Convenience: assert the new-event page is reachable for this storage state. */
@@ -246,4 +320,45 @@ export async function createPaidEvent(
   const match = /\/events\/([0-9a-f-]{36})/.exec(url);
   if (!match) throw new Error(`could not extract event id from ${url}`);
   return { url, id: match[1]! };
+}
+
+/**
+ * Attempt to create a paid event as the current `page`, expecting the free-tier
+ * "1 paid event / 30 days" cap to block it. The caller must have already armed
+ * the cap (a paid event in the window — see `armPaidEvent` in
+ * `_helpers/host-subscription.ts`). Asserts the block + the cap message, and
+ * deletes the event if the cap unexpectedly let it through so a regression
+ * doesn't leak a paid event. Shared by the Julie + Rachel cap specs (and the
+ * executable regression for the `host_paid_event_count_30d` fix, migration
+ * 20260913000000).
+ */
+/**
+ * True when a `createPaidEvent` failure is the host being unable to create a
+ * paid event ON THIS ENVIRONMENT — the free-tier "1 paid event / 30 days" cap,
+ * or the host hasn't finished Stripe Connect onboarding. Stripe paid-flow specs
+ * use this to `test.skip` (a sanctioned infra gate) instead of hard-failing when
+ * the target env lacks an uncapped, Stripe-onboarded host. (On dev the only
+ * Stripe-onboarded host is free-tier, so it caps after one paid event; the Pro
+ * host isn't Stripe-onboarded.)
+ */
+export function isPaidEventHostBlock(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /paid event per 30 days|finish Stripe setup|Set up Stripe|can't accept payments/i.test(
+    msg,
+  );
+}
+
+export async function attemptPaidEventExpectCapBlock(page: Page): Promise<void> {
+  let created: { url: string; id: string } | null = null;
+  let errMsg = '';
+  try {
+    created = await createPaidEvent(page, { title: `E2E Cap Block ${Date.now()}`, priceUsd: 5 });
+  } catch (err) {
+    errMsg = err instanceof Error ? err.message : String(err);
+  }
+  if (created) await deleteEventById(created.id); // cap didn't fire — don't leak
+  expect(created, 'a 2nd paid event must be blocked by the rolling-30d cap').toBeNull();
+  expect(errMsg, 'the block must be the paid-event cap').toMatch(
+    /paid event per 30 days|upgrade to pro/i,
+  );
 }

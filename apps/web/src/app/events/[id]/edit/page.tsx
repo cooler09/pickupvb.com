@@ -9,6 +9,7 @@ import { hasProBenefits } from '@/lib/admin';
 import EditEventForm from './edit-event-form';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { SponsorPanel } from './sponsor-panel';
+import { EventBadgesPanel } from './event-badges-panel';
 import { HeroImagePanel } from '@/components/hero-image-panel';
 
 function pickQuery(
@@ -60,14 +61,22 @@ export default async function EditEventPage(props: {
   const pricingLocked = await isPricingLocked(id);
   const viewerHasProBenefits = await hasProBenefits(user.id);
 
-  const [{ data: sponsorRow }, { data: heroRow }] = await Promise.all([
-    admin
-      .from('event_sponsors')
-      .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
-      .eq('event_id', id)
-      .maybeSingle(),
-    admin.from('events').select('hero_image_url').eq('id', id).maybeSingle(),
-  ]);
+  const [{ data: sponsorRow }, { data: heroRow }, { data: badgeRows }, { data: badgeAccessRow }] =
+    await Promise.all([
+      admin
+        .from('event_sponsors')
+        .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
+        .eq('event_id', id)
+        .maybeSingle(),
+      admin.from('events').select('hero_image_url').eq('id', id).maybeSingle(),
+      admin
+        .from('event_badges')
+        .select('id, label, description, icon_url, grant_rule')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
+      admin.from('event_badge_access').select('paid_at').eq('event_id', id).maybeSingle(),
+    ]);
+  const badgeAccessPaid = (badgeAccessRow as { paid_at: string | null } | null)?.paid_at != null;
 
   const sponsor = sponsorRow
     ? {
@@ -82,6 +91,26 @@ export default async function EditEventPage(props: {
     sponsorRow?.access_kind === 'ala_carte' && sponsorRow?.paid_at !== null;
   const sponsorFlash = pickQuery(searchParams, 'sponsor');
   const sponsorMsg = pickQuery(searchParams, 'sponsor_msg');
+
+  const hostBadges = (
+    (badgeRows as
+      | {
+          id: string;
+          label: string;
+          description: string | null;
+          icon_url: string | null;
+          grant_rule: string;
+        }[]
+      | null) ?? []
+  ).map((b) => ({
+    id: b.id,
+    label: b.label,
+    description: b.description,
+    iconUrl: b.icon_url,
+    grantRule: b.grant_rule,
+  }));
+  const badgeFlash = pickQuery(searchParams, 'badge');
+  const badgeMsg = pickQuery(searchParams, 'badge_msg');
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
@@ -162,6 +191,16 @@ export default async function EditEventPage(props: {
           canUseSponsors={viewerHasProBenefits || sponsorEntitledByPayment}
           {...(sponsorFlash ? { sponsorFlash } : {})}
           {...(sponsorMsg ? { sponsorMsg } : {})}
+        />
+
+        <EventBadgesPanel
+          eventId={id}
+          userId={user.id}
+          returnPath={`/events/${id}/edit`}
+          badges={hostBadges}
+          canUseBadges={viewerHasProBenefits || badgeAccessPaid}
+          {...(badgeFlash ? { badgeFlash } : {})}
+          {...(badgeMsg ? { badgeMsg } : {})}
         />
       </div>
     </section>

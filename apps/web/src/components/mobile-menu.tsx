@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { primaryButtonClass } from '@/components/primary-button';
+import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ThemePreference } from '@/lib/theme';
@@ -231,10 +231,7 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  <Link
-                    href="/login"
-                    className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-center text-sm"
-                  >
+                  <Link href="/login" className={secondaryButtonClass('md')}>
                     Sign in
                   </Link>
                   <Link href="/login?mode=sign-up" className={primaryButtonClass('md')}>

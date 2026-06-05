@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 /**
  * Self-contained "Continue with Google" button. Initiates the OAuth flow
@@ -10,28 +11,33 @@ import { Alert } from '@/components/alert';
  * the /auth/callback route after the redirect round-trip.
  */
 export function GoogleButton() {
-    const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const errorRef = useAlertReveal(error, Boolean(error));
 
-    async function signIn() {
-        setError(null);
-        const supabase = createSupabaseBrowserClient();
-        const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: { redirectTo: `${window.location.origin}/auth/callback` },
-        });
-        if (error) setError(error.message);
-    }
+  async function signIn() {
+    setError(null);
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) setError(error.message);
+  }
 
-    return (
-        <div className="space-y-2">
-            <button
-                type="button"
-                onClick={signIn}
-                className="w-full rounded-md border border-border-base px-4 py-2 font-medium hover:bg-fg/5"
-            >
-                Continue with Google
-            </button>
-            {error && <Alert variant="error">{error}</Alert>}
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={signIn}
+        className="border-border-base hover:bg-fg/5 w-full rounded-md border px-4 py-2 font-medium"
+      >
+        Continue with Google
+      </button>
+      {error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{error}</Alert>
         </div>
-    );
+      )}
+    </div>
+  );
 }

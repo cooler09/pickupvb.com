@@ -1,6 +1,4 @@
 import { UserPicker } from '@/components/user-picker';
-import { primaryButtonClass } from '@/components/primary-button';
-import { SubmitButton } from '@/components/submit-button';
 import { addMemberFromForm } from '../../actions';
 
 type Props = {
@@ -14,6 +12,10 @@ type Props = {
  * Captain-only "Add a teammate" form. Uses the UserPicker typeahead so the
  * captain can search by name instead of needing a UUID. The handler enforces
  * the captain check + roster cap.
+ *
+ * Picking a player adds them immediately (`submitOnSelect`) — no separate
+ * confirm button. The `key` on the roster remounts the picker once the add
+ * settles, clearing the search so the captain can add the next teammate.
  */
 export function AddTeamMemberForm({ teamId, returnPath, existingMemberIds }: Props) {
   return (
@@ -21,18 +23,17 @@ export function AddTeamMemberForm({ teamId, returnPath, existingMemberIds }: Pro
       <h2 className="text-muted mb-3 text-sm font-semibold tracking-wide uppercase">
         Add a teammate
       </h2>
-      <form action={addMemberFromForm.bind(null, teamId, returnPath)} className="space-y-3">
+      <form action={addMemberFromForm.bind(null, teamId, returnPath)}>
         <UserPicker
+          key={existingMemberIds.join(',')}
           name="user_id"
           label="Find a player"
           placeholder="Search by name…"
           required
-          helperText="Type at least 2 characters to search."
+          helperText="Type at least 2 characters to search, then pick a name to add them."
           excludeIds={existingMemberIds}
+          submitOnSelect
         />
-        <div className="flex justify-end">
-          <SubmitButton className={primaryButtonClass('sm')}>Add teammate</SubmitButton>
-        </div>
       </form>
     </section>
   );

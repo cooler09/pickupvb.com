@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   AddBracketTeamCommand,
+  AddBracketTeamsCommand,
   CreateStandaloneBracketCommand,
   GenerateStandaloneBracketCommand,
   GenerateStandalonePlayoffCommand,
@@ -72,6 +73,8 @@ function parseConfig(formData: FormData): {
   const config: Partial<BracketConfig> = {};
   const bestOf = Number(formData.get('best_of') ?? '');
   if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
+  const targetScore = Number(formData.get('target_score') ?? '');
+  if (Number.isInteger(targetScore) && targetScore >= 1) config.targetScore = targetScore;
   if (format === 'pool_play_playoff') {
     const poolCount = Number(formData.get('pool_count') ?? '');
     const advance = Number(formData.get('advance_per_pool') ?? '');
@@ -86,6 +89,14 @@ function parseConfig(formData: FormData): {
       }
     }
     if (formData.get('require_work_team') != null) config.requireWorkTeam = true;
+    const playoffBestOf = Number(formData.get('playoff_best_of') ?? '');
+    if (playoffBestOf === 1 || playoffBestOf === 3 || playoffBestOf === 5) {
+      config.playoffBestOf = playoffBestOf;
+    }
+    const playoffTarget = Number(formData.get('playoff_target_score') ?? '');
+    if (Number.isInteger(playoffTarget) && playoffTarget >= 1) {
+      config.playoffTargetScore = playoffTarget;
+    }
     const rawCourts = String(formData.get('court_labels') ?? '');
     const courts = rawCourts
       .split(',')
@@ -326,6 +337,33 @@ export async function addBracketTeamFromClient(
     );
     revalidate(bracketId);
     return { ok: true, id: entryId, name: trimmed };
+  } catch (err) {
+    const { code, msg } = classify(err);
+    return { ok: false, code, message: msg };
+  }
+}
+
+/**
+ * Client-invoked bulk add (from the "paste a list" tab of the add-team modal,
+ * inside `useTransition`). Adds every non-blank name in one round-trip and
+ * returns the created entries so the modal can fold them into its "added this
+ * session" list. Like {@link addBracketTeamFromClient} it returns a typed
+ * result instead of redirecting so the modal stays open across batches.
+ */
+export async function addBracketTeamsFromClient(
+  bracketId: string,
+  names: ReadonlyArray<string>,
+): Promise<
+  | { ok: true; added: Array<{ id: string; name: string }> }
+  | { ok: false; code: string; message: string }
+> {
+  const { user } = await requireRealUser();
+  try {
+    const added = await handlers.addBracketTeams.execute(
+      new AddBracketTeamsCommand(bracketId, user.id, names),
+    );
+    revalidate(bracketId);
+    return { ok: true, added: added.map((t) => ({ id: t.entryId, name: t.name })) };
   } catch (err) {
     const { code, msg } = classify(err);
     return { ok: false, code, message: msg };

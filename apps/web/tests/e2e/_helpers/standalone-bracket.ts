@@ -49,6 +49,27 @@ export async function createStandaloneBracket(
     );
   }
 
+  // Free hosts run one ACTIVE standalone bracket at a time (FREE_ACTIVE_BRACKET_CAP).
+  // When already at the cap, /brackets/new renders an upgrade wall instead of the
+  // format picker, so the best_of radio never mounts. Detect that explicitly and
+  // fail fast with an actionable message rather than hanging the whole test on a
+  // 180s wait for an element that will never appear. The usual cause is a leaked
+  // active bracket from a prior run that didn't tear down — clear it (admin
+  // hard-delete) and re-run. (This is also why the two tests in this spec run
+  // `mode: 'serial'`: two concurrent free-tier creates would trip the same cap.)
+  const capWall = page.getByText(/running a bracket already|run \d+ standalone bracket at a time/i);
+  if (
+    await capWall
+      .first()
+      .isVisible()
+      .catch(() => false)
+  ) {
+    throw new Error(
+      'standalone bracket create blocked by the free-tier active-bracket cap (an active ' +
+        'bracket already exists for this account). Tear down the leaked bracket and re-run.',
+    );
+  }
+
   // Best of N — label wraps an sr-only radio; target by the radio it contains
   // so we never strict-mode-collide with the other "Best of" cards.
   await page

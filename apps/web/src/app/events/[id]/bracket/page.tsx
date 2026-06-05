@@ -83,7 +83,8 @@ export default async function BracketPage(props: {
         status: bracket.status,
         format: bracket.format,
         bestOf: bracket.config.bestOf,
-        seeds: bracket.seeds.map((s) => ({ entryId: s.entryId, seed: s.seed })),
+        targetScore: bracket.config.targetScore,
+        seeds: bracket.seeds.map((s) => ({ entryId: s.entryId, seed: s.seed, pool: s.pool })),
         matches: [...bracket.matches],
       }
     : null;

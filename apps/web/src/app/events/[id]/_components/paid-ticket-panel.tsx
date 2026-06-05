@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { StatusPill, type StatusPillTone } from '@/components/status-pill';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
 import GuestSignupForm from '../guest-signup-form';
+import { GuestSignupFields } from './guest-signup-fields';
 import { joinEvent, leaveEvent } from '../rsvp-actions';
 
 type Props = {
@@ -27,22 +29,10 @@ function formatUsd(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-const PAYMENT_PILL: Record<'paid' | 'pending' | 'none', { label: string; className: string }> = {
-  paid: {
-    label: "You're in — paid",
-    className:
-      'rounded-md border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800',
-  },
-  pending: {
-    label: "You're in — payment pending",
-    className:
-      'rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900',
-  },
-  none: {
-    label: "You're in — pay the host",
-    className:
-      'rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900',
-  },
+const PAYMENT_PILL: Record<'paid' | 'pending' | 'none', { label: string; tone: StatusPillTone }> = {
+  paid: { label: "You're in — paid", tone: 'success' },
+  pending: { label: "You're in — payment pending", tone: 'pending' },
+  none: { label: "You're in — pay the host", tone: 'pending' },
 };
 
 /**
@@ -67,11 +57,7 @@ export function PaidTicketPanel({
   const total = ticketCents + platformFeeCents + processingFeeCents;
   const pill = viewerPaymentStatus
     ? PAYMENT_PILL[viewerPaymentStatus]
-    : {
-        label: "You're signed up",
-        className:
-          'rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary',
-      };
+    : { label: "You're signed up", tone: 'primary' as const };
   return (
     <div className="space-y-4">
       <div className="border-border-base bg-fg/5 rounded-shape-sm overflow-hidden border p-4">
@@ -104,7 +90,7 @@ export function PaidTicketPanel({
 
       {isAttending ? (
         <div className="flex flex-col items-end gap-2">
-          <span className={pill.className}>{pill.label}</span>
+          <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
           {viewerPaymentStatus === 'paid' ? (
             <>
               <form action={leaveEvent.bind(null, eventId)}>
@@ -178,30 +164,7 @@ export function PaidTicketPanel({
                   : 'We need an email to send your receipt + cancellation link.'}
               </p>
               <form action={startGuestTicketCheckout.bind(null, eventId)} className="space-y-3">
-                <div>
-                  <label htmlFor="guest-name" className="text-fg block text-xs font-medium">
-                    Your name
-                  </label>
-                  <input
-                    id="guest-name"
-                    name="display_name"
-                    required
-                    maxLength={80}
-                    className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="guest-email" className="text-fg block text-xs font-medium">
-                    Email
-                  </label>
-                  <input
-                    id="guest-email"
-                    name="email"
-                    type="email"
-                    required
-                    className="border-border-base bg-background mt-1 w-full rounded-md border px-3 py-2 text-sm"
-                  />
-                </div>
+                <GuestSignupFields emailRequired />
                 <div className="flex justify-end">
                   <ConfirmSubmitButton
                     label={`Pay online — ${formatUsd(total)}`}

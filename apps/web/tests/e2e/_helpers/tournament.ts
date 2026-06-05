@@ -102,46 +102,84 @@ export async function createAdHocTournament(
 }
 
 /**
- * Register one walk-in team into the tournament's (only) division via the
- * bracket page's "Add a walk-in team" modal. `expectedCountAfter` is the
- * registered-team count the page header should show once the server action
- * redirects — used as the settle signal so the next add starts from a fresh
- * render. The bracket-page `<header>` always renders "<n> registered team(s)".
+ * Register walk-in teams into the tournament's (only) division via the bracket
+ * page's "+ Add teams" modal (the unified `WalkInTeamForm`, shared with the
+ * standalone path). The modal **stays open across adds** — each "Add team" /
+ * "Add another" submit returns a typed result (no redirect) and revalidates the
+ * bracket page behind the modal — so we add every team in one session and
+ * confirm each via the modal's "✓ Added this session (n)" tally, then close with
+ * "Done". Settles on the format picker reflecting the new team count.
+ *
+ * Note: the event form renders an optional Players (roster) fieldset, so the
+ * team-name field is targeted by its placeholder, not `getByRole('textbox')`.
  */
-export async function addWalkInTeam(
+export async function addWalkInTeams(
   page: Page,
   eventId: string,
-  teamName: string,
-  expectedCountAfter: number,
+  names: readonly string[],
 ): Promise<void> {
   await page.goto(`/events/${eventId}/bracket`);
+
+  // Trigger reads "+ Add teams" (promoted to a primary CTA while the host
+  // can't generate yet). Opens the FormModal holding WalkInTeamForm.
   await page
-    .getByRole('button', { name: /add a walk-in team/i })
+    .getByRole('button', { name: /add teams/i })
     .first()
     .click();
 
-  // The walk-in form's `team_name` input is the only one on the page, so it's
-  // safe to target without scoping to the (portalled) modal container.
-  await page.locator('input[name="team_name"]').fill(teamName);
-  await page.getByRole('button', { name: /^add team$/i }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
 
-  await expect(
-    page.getByText(new RegExp(`\\b${expectedCountAfter} registered team`, 'i')).first(),
-  ).toBeVisible({ timeout: 15_000 });
+  const nameInput = dialog.getByPlaceholder(/e\.g\. Block Party/i);
+  for (let i = 0; i < names.length; i++) {
+    await nameInput.fill(names[i]!);
+    // Submit label is "Add team" on the first add, "Add another" after.
+    await dialog.getByRole('button', { name: /^(add team|add another)$/i }).click();
+    await expect(
+      dialog.getByText(new RegExp(`Added this session \\(${i + 1}\\)`, 'i')),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  // "Done" appears once ≥ 1 team has been added; closes the modal.
+  await dialog.getByRole('button', { name: /^done$/i }).click();
+
+  // The FormatPickerForm re-renders with the new teamCount once the revalidation
+  // lands; its estimate line reads "… with <n> teams." (only for n ≥ 2).
+  await expect(page.getByText(new RegExp(`with ${names.length} team`, 'i')).first()).toBeVisible({
+    timeout: 15_000,
+  });
 }
 
 /**
- * From the bracket page (with ≥ 2 teams registered, no bracket yet): pick
- * best-of-1 (one set decides each match — fast + deterministic), create a
- * single-elimination bracket, **save the seeding**, then generate it.
+ * The four bracket formats the host can pick on the FormatPickerForm. Each
+ * carries a `minTeams` the form enforces (single 2, double/round-robin 3, pool
+ * play 4) — register at least that many walk-in teams before generating, or the
+ * "Create bracket" button stays disabled. See `format-picker-form.tsx`.
+ */
+export type WalkInBracketFormat =
+  | 'single_elimination'
+  | 'double_elimination'
+  | 'round_robin'
+  | 'pool_play_playoff';
+
+/**
+ * From the bracket page (with ≥ minTeams registered, no bracket yet): pick
+ * best-of-1 (one set decides each match — fast + deterministic), select the
+ * format (defaults to single elimination), create the bracket, **save the
+ * seeding**, then generate it. Stops on the **draft workspace** (ADR 0032):
+ * `generate()` lands in `draft`, so the page shows "Publish bracket" rather
+ * than the live scoring board.
  *
  * The save-seeding step is mandatory: `CreateBracketHandler` creates the
  * bracket in `setup` with **zero** seeds, and `bracket.generate()` throws
  * "Need at least 2 seeded teams" until the host persists the seeding order.
- * The SetupView's "Save seeding" form submits the registration order as-is,
- * which is all we need. Leaves the page on the active board.
  */
-export async function createAndGenerateBracket(page: Page, eventId: string): Promise<void> {
+export async function createBracketToDraft(
+  page: Page,
+  eventId: string,
+  opts?: { format?: WalkInBracketFormat },
+): Promise<void> {
+  const format = opts?.format ?? 'single_elimination';
   await page.goto(`/events/${eventId}/bracket`);
 
   // Best of 1 — label wraps an sr-only radio; target by the radio it contains
@@ -150,7 +188,15 @@ export async function createAndGenerateBracket(page: Page, eventId: string): Pro
     .locator('label')
     .filter({ has: page.locator('input[name="best_of"][value="1"]') })
     .click();
-  // single_elimination is the default-selected format.
+  // single_elimination is the default-selected format card; only the others
+  // need an explicit click. Each card is a <label> wrapping an sr-only radio,
+  // so target it by the radio it contains (same pattern as best_of).
+  if (format !== 'single_elimination') {
+    await page
+      .locator('label')
+      .filter({ has: page.locator(`input[name="format"][value="${format}"]`) })
+      .click();
+  }
   await page.getByRole('button', { name: /create bracket/i }).click();
 
   // setup → SetupView renders both "Save seeding" and "Generate bracket".
@@ -162,6 +208,26 @@ export async function createAndGenerateBracket(page: Page, eventId: string): Pro
   const generateBtn = page.getByRole('button', { name: /generate bracket/i });
   await expect(generateBtn).toBeVisible({ timeout: 15_000 });
   await generateBtn.click();
+
+  // draft → DraftWorkspace renders the Publish CTA.
+  await expect(page.getByRole('button', { name: /publish bracket/i })).toBeVisible({
+    timeout: 15_000,
+  });
+}
+
+/**
+ * Create + seed + generate, then **publish** so the bracket goes live. Leaves
+ * the page on the active board (≥ 1 pending "Enter result" form). The seam
+ * between this and {@link createBracketToDraft} is the ADR 0032 draft→live
+ * boundary; most scoring specs just want a live board, so they call this.
+ */
+export async function createAndGenerateBracket(
+  page: Page,
+  eventId: string,
+  opts?: { format?: WalkInBracketFormat },
+): Promise<void> {
+  await createBracketToDraft(page, eventId, opts);
+  await page.getByRole('button', { name: /publish bracket/i }).click();
 
   // active → BoardView renders at least one pending "Enter result" form.
   await expect(page.locator('summary', { hasText: /^Enter result$/ }).first()).toBeVisible({
@@ -194,6 +260,25 @@ export async function recordFirstPendingMatch(
   await detail.getByRole('button', { name: /^save$/i }).click();
 
   await expect(completed).toHaveCount(before + 1, { timeout: 15_000 });
+}
+
+/**
+ * Record every currently-playable match, repeatedly, until none remain — each
+ * recorded result can make a downstream match newly playable (winners→losers
+ * drop, grand-final advancement, pool→playoff). Team A (the top row) always
+ * wins, so the walk-through is deterministic. Caps at `maxMatches` iterations so
+ * a generator that never resolves can't spin forever. Returns the number
+ * recorded. Used by the multi-round format specs (double elim, pool playoff)
+ * where the exact match count is generator-defined rather than a fixed tree.
+ */
+export async function recordAllPlayableMatches(page: Page, maxMatches = 24): Promise<number> {
+  let recorded = 0;
+  for (let i = 0; i < maxMatches; i++) {
+    if ((await page.locator('summary', { hasText: /^Enter result$/ }).count()) === 0) break;
+    await recordFirstPendingMatch(page);
+    recorded++;
+  }
+  return recorded;
 }
 
 /**

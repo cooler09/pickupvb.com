@@ -23,6 +23,8 @@ import { notify } from '@/lib/notify';
 
 export type EditEventState = {
   error?: string;
+  /** Optional "fix this" link rendered next to the error (e.g. finish Stripe setup). */
+  errorAction?: { href: string; label: string };
   fieldErrors?: Record<string, string>;
   ok?: boolean;
 };
@@ -225,10 +227,10 @@ export async function editEventAction(
         const cap = await validateHostPaidEventCap(hostIdToCheck, {
           includesCurrentEvent: false,
         });
-        if (!cap.ok) return { error: cap.reason };
+        if (!cap.ok) return { error: cap.reason, errorAction: cap.cta };
       }
       const stripe = await requireHostChargesEnabled(hostIdToCheck);
-      if (!stripe.ok) return { error: stripe.reason };
+      if (!stripe.ok) return { error: stripe.reason, errorAction: stripe.cta };
     }
   }
 

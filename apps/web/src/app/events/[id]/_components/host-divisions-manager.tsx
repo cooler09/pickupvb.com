@@ -3,20 +3,29 @@
 /**
  * Host-only CRUD for event divisions (ADR 0006).
  *
- * Renders the current divisions in collapsed cards (label + summary) with
- * an "Edit" toggle that expands an inline form. A separate "+ Add division"
- * disclosure at the bottom opens a blank form. Forms post to the server
- * actions in `division-actions.ts`. Delete uses a confirmation prompt.
+ * Renders the current divisions as collapsed rows (label + Edit / Remove).
+ * "Edit" and the section-level "+ Add division" each open the same
+ * `DivisionForm` inside a `FormModal` (persona-ux.md CC-5/H-2 — the inline
+ * 16-field expand used to shove the page around; a focused subtask belongs in
+ * a modal, matching the walk-in team form). Forms post to the server actions
+ * in `division-actions.ts`; the modal closes itself via `CloseOnSettled` when
+ * the action settles. Remove uses the in-app `ConfirmSubmitButton` dialog.
  *
  * This is intentionally a single-row-at-a-time UI rather than a bulk
- * editor — most events have ≤ 4 divisions and the inline form mirrors the
- * field set already used on the create-event repeater for consistency.
+ * editor — most events have ≤ 4 divisions and the form mirrors the field set
+ * already used on the create-event repeater for consistency.
  */
 
 import { useState } from 'react';
 import type { DivisionLite } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { CloseOnSettled, FormModal, ModalActions } from '@/components/form-modal';
+import {
+  errorTextButtonClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/primary-button';
 import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
@@ -32,12 +41,12 @@ type Props = {
 function DivisionForm({
   initial,
   action,
-  onCancel,
+  close,
   submitLabel,
 }: {
   initial?: Partial<DivisionLite>;
   action: (formData: FormData) => void | Promise<void>;
-  onCancel: () => void;
+  close: () => void;
   submitLabel: string;
 }) {
   const [capacityKind, setCapacityKind] = useState<'unlimited' | 'fixed'>(
@@ -51,6 +60,7 @@ function DivisionForm({
   );
   return (
     <form action={action} className="space-y-3">
+      <CloseOnSettled onSettled={close} />
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="sm:col-span-2">
           <label className={labelClass}>Label</label>
@@ -220,26 +230,23 @@ function DivisionForm({
           </p>
         </div>
       </div>
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="border-border-base rounded-md border px-3 py-1.5 text-sm"
-        >
-          Cancel
-        </button>
-        <SubmitButton className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium disabled:opacity-50">
-          {submitLabel}
-        </SubmitButton>
-      </div>
+      <ModalActions
+        dismissive={
+          <button type="button" onClick={close} className={secondaryButtonClass('md')}>
+            Cancel
+          </button>
+        }
+        confirming={
+          <SubmitButton className={primaryButtonClass('md')} pendingChildren="Saving…">
+            {submitLabel}
+          </SubmitButton>
+        }
+      />
     </form>
   );
 }
 
 export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-
   return (
     <section className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
       <header className="flex items-center justify-between">
@@ -249,66 +256,75 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
 
       <ul className="space-y-2">
         {divisions.map((d) => (
-          <li key={d.id} className="border-border-base bg-surface rounded-md border p-3">
-            {editingId === d.id ? (
-              <DivisionForm
-                initial={d}
-                action={updateDivisionFromForm.bind(null, eventId, d.id, returnPath)}
-                onCancel={() => setEditingId(null)}
-                submitLabel="Save changes"
-              />
-            ) : (
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-fg text-sm font-medium">{d.label}</span>
-                <div className="flex gap-2 text-xs">
+          <li
+            key={d.id}
+            className="border-border-base bg-surface flex items-center justify-between gap-2 rounded-md border p-3"
+          >
+            <span className="text-fg min-w-0 truncate text-sm font-medium">{d.label}</span>
+            <div className="flex shrink-0 items-center gap-1">
+              <FormModal
+                trigger={(open) => (
                   <button
                     type="button"
-                    onClick={() => setEditingId(d.id)}
-                    className="text-primary hover:underline"
+                    onClick={open}
+                    className={`${secondaryButtonClass('sm')} tap-target`}
                   >
                     Edit
                   </button>
-                  <form
-                    action={removeDivision.bind(null, eventId, d.id, returnPath)}
-                    className="contents"
-                  >
-                    <ConfirmSubmitButton
-                      label="Remove"
-                      pendingLabel="Removing…"
-                      confirmTitle="Remove division"
-                      confirmMessage="Remove this division? Sign-ups in this division will be unrouted."
-                      confirmLabel="Remove division"
-                      destructive
-                      className="state-layer rounded-md px-1.5 py-1 text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
-                    />
-                  </form>
-                </div>
-              </div>
-            )}
+                )}
+                title={`Edit ${d.label}`}
+                description="Update this division's format, capacity, pricing, and registration mode."
+                size="lg"
+              >
+                {(close) => (
+                  <DivisionForm
+                    initial={d}
+                    action={updateDivisionFromForm.bind(null, eventId, d.id, returnPath)}
+                    close={close}
+                    submitLabel="Save changes"
+                  />
+                )}
+              </FormModal>
+              {/* Demoted relative to Edit (no border/fill); the canonical
+                  text-error variant keeps the destructive red on the M3 token.
+                  `tap-target` keeps it ≥44px in the dense row. */}
+              <form
+                action={removeDivision.bind(null, eventId, d.id, returnPath)}
+                className="contents"
+              >
+                <ConfirmSubmitButton
+                  label="Remove"
+                  pendingLabel="Removing…"
+                  confirmTitle="Remove division"
+                  confirmMessage="Remove this division? Sign-ups in this division will be unrouted."
+                  confirmLabel="Remove division"
+                  destructive
+                  className={`${errorTextButtonClass('sm')} tap-target`}
+                />
+              </form>
+            </div>
           </li>
         ))}
       </ul>
 
-      {adding ? (
-        <div className="border-border-base bg-surface rounded-md border border-dashed p-3">
+      <FormModal
+        trigger={(open) => (
+          <button type="button" onClick={open} className={secondaryButtonClass('md')}>
+            + Add division
+          </button>
+        )}
+        title="Add division"
+        description="Add another division to this event. It mirrors the fields on the create-event form."
+        size="lg"
+      >
+        {(close) => (
           <DivisionForm
-            action={async (fd) => {
-              await addDivisionFromForm(eventId, returnPath, fd);
-              setAdding(false);
-            }}
-            onCancel={() => setAdding(false)}
+            action={addDivisionFromForm.bind(null, eventId, returnPath)}
+            close={close}
             submitLabel="Add division"
           />
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="text-primary text-sm hover:underline"
-        >
-          + Add division
-        </button>
-      )}
+        )}
+      </FormModal>
     </section>
   );
 }

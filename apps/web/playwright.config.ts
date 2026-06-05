@@ -24,7 +24,14 @@ const VERCEL_BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 30_000,
+  // Reclaim leaked `E2E ` fixtures (cancelled events, soft-deleted teams) at the
+  // end of every run. No-op without `E2E_CLEANUP_SUPABASE_*`; only sweeps rows
+  // > 1h old so a concurrent run isn't clobbered. See tests/e2e/global-teardown.ts.
+  globalTeardown: './tests/e2e/global-teardown.ts',
+  // 60s (was 30s): the suite runs against a deployed env (dev) where a cold
+  // serverless start + the post-login redirect can blow past 30s, which showed
+  // up as flaky `auth.*.setup.ts` login timeouts that cascade into skips.
+  timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -34,12 +41,13 @@ export default defineConfig({
   // Supabase refresh-token race that used to force a low cap is gone (e2e
   // audit P2 #3): independent sessions don't share a refresh-token family,
   // so one worker's rotation can't invalidate another's. Let Playwright pick
-  // the count locally. CI stays serial *by choice* now — not for the race,
-  // but to keep load on the shared dev env + dev Supabase auth rate limits
-  // predictable; raise it once a parallel CI run is validated. Caveat: these
-  // specs still read/write shared dev data, so very high worker counts can
-  // surface data contention unrelated to auth.
-  workers: process.env.CI ? 1 : undefined,
+  // Serial by default. The suite ALWAYS runs against the shared dev env
+  // (PLAYWRIGHT_BASE_URL=dev; localhost is Turnstile-blocked), so parallel
+  // workers overload dev's serverless + Supabase auth rate limits — a 4-worker
+  // run showed ~16 spurious failures (geocoder-on-create rate-limits, Stripe
+  // Checkout timeouts, flaky logins) that all passed when re-run serially
+  // (2026-06-04). Override with `--workers=N` for a deliberate parallel run.
+  workers: 1,
   // The skip-budget reporter (e2e audit C1) is appended in every mode. It is
   // warn-only until `E2E_SKIP_BUDGET=<N>` is exported, at which point it fails
   // the run when the skipped-test count exceeds N — a ratchet against silent
@@ -106,6 +114,14 @@ export default defineConfig({
       testMatch: /auth\.admin\.setup\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    // Persona accounts (docs/personas.md). One project signs in every persona
+    // that doesn't adopt a pre-existing account; each sign-in skips gracefully
+    // when its TEST_*_EMAIL is unset. See tests/e2e/auth.personas.setup.ts.
+    {
+      name: 'setup-personas',
+      testMatch: /auth\.personas\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
     // Authed flows reuse the cached storageState (attendee-a).
     {
       name: 'authed',
@@ -117,6 +133,7 @@ export default defineConfig({
         'setup-pro-host',
         'setup-stripe-host',
         'setup-admin',
+        'setup-personas',
       ],
       use: { ...devices['Desktop Chrome'], storageState: STORAGE_STATE },
     },

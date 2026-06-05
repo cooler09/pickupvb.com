@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { StatusPill } from '@/components/status-pill';
 import { ConfettiBurst } from '@/components/confetti-burst';
 import { rsvpBannerFor, RSVP_BANNER_CLASS } from '@/lib/event-rsvp-flash';
 import GuestSignupForm from '../guest-signup-form';
@@ -41,9 +42,7 @@ export function RsvpPanel({ eventId, eventTitle, isAttending, isRealUser, rsvp, 
       <div className="flex justify-end gap-2">
         {isAttending ? (
           <>
-            <span className="border-primary/30 bg-primary/10 text-primary rounded-md border px-4 py-2 text-sm font-medium">
-              You&apos;re signed up
-            </span>
+            <StatusPill tone="primary">You&apos;re signed up</StatusPill>
             <form action={leaveEvent.bind(null, eventId)}>
               <ConfirmSubmitButton
                 label="Leave event"

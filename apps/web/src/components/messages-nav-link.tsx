@@ -30,7 +30,7 @@ export function MessagesNavLink({ unread }: { unread: number }) {
         <path d="m3 7 9 6 9-6" />
       </svg>
       {unread > 0 && (
-        <span className="bg-primary ring-surface absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold text-white ring-2">
+        <span className="bg-primary ring-surface text-primary-fg absolute -top-0.5 -right-0.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2">
           {badge}
         </span>
       )}

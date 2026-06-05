@@ -3,16 +3,27 @@ import {
   Bracket,
   DEFAULT_BRACKET_CONFIG,
   NotFoundError,
+  UnauthorizedError,
   type BracketId,
   type BracketRepository,
   type BracketTeamLite,
   type DivisionId,
   type EntryId,
   type EventId,
+  type EventWriteStore,
   type Match,
   type MatchId,
 } from '@pickupvb/domain';
-import { RecordMatchResultHandler, ResetMatchHandler } from './bracket.handler.js';
+import {
+  EditMatchCommand,
+  EditMatchHandler,
+  PublishBracketCommand,
+  PublishBracketHandler,
+  RecordMatchResultHandler,
+  ResetMatchHandler,
+  SetPoolsCommand,
+  SetPoolsHandler,
+} from './bracket.handler.js';
 
 const BRACKET_ID = 'bracket-1' as BracketId;
 const DIVISION_ID = 'div-1' as DivisionId;
@@ -34,6 +45,8 @@ function activeBracketWithOneMatch(): Bracket {
     sets: [],
     court: null,
     slot: null,
+    bestOf: null,
+    targetScore: null,
     advancesToMatchId: null,
     advancesToSlot: null,
     loserAdvancesToMatchId: null,
@@ -102,6 +115,9 @@ class FakeBracketRepo implements BracketRepository {
   async addBracketTeam(): Promise<{ entryId: string }> {
     return { entryId: 'entry-new' };
   }
+  async addBracketTeams(): Promise<Array<{ entryId: string; name: string }>> {
+    return [];
+  }
 }
 
 describe('RecordMatchResultHandler (captain-RLS routing)', () => {
@@ -142,5 +158,138 @@ describe('ResetMatchHandler (captain-RLS routing)', () => {
     expect(repo.actorCalls).toEqual([
       { bracketId: String(BRACKET_ID), actorMatchId: String(MATCH_ID) },
     ]);
+  });
+});
+
+// ---- ADR 0032 host-gated structural edits ---------------------------
+
+const HOST = 'host-1';
+
+/** Minimal EventWriteStore exposing only the `findById` the bracket handlers
+ *  call; returns an event with the given host so `assertHost` can run. */
+function hostEvents(hostId = HOST): EventWriteStore {
+  return {
+    async findById() {
+      return { id: EVENT_ID, hostId };
+    },
+  } as unknown as EventWriteStore;
+}
+
+/** Host-path repo whose `save` records the persisted aggregate (the host-gated
+ *  structural mutations use `save`, not `saveAsMatchActor`). */
+class HostBracketRepo implements BracketRepository {
+  saveCount = 0;
+  saved: Bracket | null = null;
+  private idN = 0;
+
+  constructor(private readonly bracket: Bracket | null) {}
+
+  nextMatchId(): MatchId {
+    return `mnew-${++this.idN}` as MatchId;
+  }
+  nextBracketId(): BracketId {
+    return 'b-new' as BracketId;
+  }
+  async findByDivisionId(): Promise<Bracket | null> {
+    return this.bracket;
+  }
+  async findByMatchId(): Promise<Bracket | null> {
+    return this.bracket;
+  }
+  async findById(): Promise<Bracket | null> {
+    return this.bracket;
+  }
+  async save(bracket: Bracket): Promise<void> {
+    this.saveCount += 1;
+    this.saved = bracket;
+  }
+  async saveAsMatchActor(): Promise<void> {
+    throw new Error('host-gated structural edits must use save(), not saveAsMatchActor');
+  }
+  async listRegisteredTeams(): Promise<BracketTeamLite[]> {
+    return [];
+  }
+  async listByOwner(): Promise<ReadonlyArray<never>> {
+    return [];
+  }
+  async listStandaloneTeams(): Promise<BracketTeamLite[]> {
+    return [];
+  }
+  async addBracketTeam(): Promise<{ entryId: string }> {
+    return { entryId: 'entry-new' };
+  }
+  async addBracketTeams(): Promise<Array<{ entryId: string; name: string }>> {
+    return [];
+  }
+}
+
+function draftElim4(): Bracket {
+  let n = 0;
+  const b = Bracket.create(BRACKET_ID, EVENT_ID, DIVISION_ID, 'single_elimination', { bestOf: 1 });
+  b.seedTeams(['e1', 'e2', 'e3', 'e4'] as EntryId[]);
+  b.generate(() => `m-${++n}` as MatchId);
+  return b; // status: draft
+}
+
+describe('Host-gated structural handlers (ADR 0032)', () => {
+  it('PublishBracketHandler publishes a draft via the host save', async () => {
+    const repo = new HostBracketRepo(draftElim4());
+    await new PublishBracketHandler(hostEvents(), repo).execute(
+      new PublishBracketCommand(String(DIVISION_ID), HOST),
+    );
+    expect(repo.saveCount).toBe(1);
+    expect(repo.saved!.status).toBe('active');
+  });
+
+  it('rejects a non-host with UnauthorizedError and does not save', async () => {
+    const repo = new HostBracketRepo(draftElim4());
+    await expect(
+      new PublishBracketHandler(hostEvents(), repo).execute(
+        new PublishBracketCommand(String(DIVISION_ID), 'intruder'),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repo.saveCount).toBe(0);
+  });
+
+  it('throws NotFoundError when the division has no bracket', async () => {
+    const repo = new HostBracketRepo(null);
+    await expect(
+      new PublishBracketHandler(hostEvents(), repo).execute(
+        new PublishBracketCommand(String(DIVISION_ID), HOST),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('EditMatchHandler applies a patch (court + per-match bestOf) and persists', async () => {
+    const bracket = draftElim4();
+    const matchId = bracket.matches.find((m) => m.entryAId && m.entryBId)!.id;
+    const repo = new HostBracketRepo(bracket);
+    await new EditMatchHandler(hostEvents(), repo).execute(
+      new EditMatchCommand(String(DIVISION_ID), HOST, String(matchId), {
+        court: 'Court 7',
+        bestOf: 3,
+      }),
+    );
+    expect(repo.saveCount).toBe(1);
+    const m = repo.saved!.matches.find((x) => String(x.id) === String(matchId))!;
+    expect(m.court).toBe('Court 7');
+    expect(m.bestOf).toBe(3);
+  });
+
+  it('SetPoolsHandler brands entry ids and assigns pools', async () => {
+    const bracket = Bracket.create(BRACKET_ID, EVENT_ID, DIVISION_ID, 'pool_play_playoff', {
+      bestOf: 1,
+    });
+    bracket.seedTeams(['e1', 'e2', 'e3', 'e4'] as EntryId[]);
+    const repo = new HostBracketRepo(bracket);
+    await new SetPoolsHandler(hostEvents(), repo).execute(
+      new SetPoolsCommand(String(DIVISION_ID), HOST, [
+        { entryId: 'e1', pool: 'A' },
+        { entryId: 'e2', pool: 'B' },
+      ]),
+    );
+    expect(repo.saveCount).toBe(1);
+    expect(repo.saved!.seeds.find((s) => String(s.entryId) === 'e1')!.pool).toBe('A');
+    expect(repo.saved!.seeds.find((s) => String(s.entryId) === 'e2')!.pool).toBe('B');
   });
 });

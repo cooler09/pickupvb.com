@@ -86,6 +86,71 @@ export function textButtonClass(size: PrimaryButtonSize = 'sm'): string {
 }
 
 /**
+ * Outlined **neutral** — medium-emphasis action that should read as a button
+ * but *not* pull primary color: "Message", "✓ Following", row role toggles,
+ * "Sign out", "Cancel" next to a non-primary flow. This is the canonical home
+ * for the ~80 hand-rolled `border-border-base … hover:bg-fg/5` buttons (the
+ * persona-ux secondary-convergence set) that should stay neutral rather than
+ * become the primary-tinted {@link secondaryButtonClass}. It deliberately
+ * codifies that existing look — neutral border + `fg` label + the M3
+ * state-layer standing in for `hover:bg-fg/5` — so converging onto it is a
+ * no-visual-change dedup, not a recolor. Pair with `tap-target` for dense
+ * list-row actions.
+ */
+export function neutralButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `border border-border-base text-fg bg-transparent ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
+ * Filled error — destructive, high-emphasis action: "Delete group", "Yes,
+ * cancel event", the confirm step of a destructive `ConfirmSubmitButton`.
+ * Same filled shape as {@link primaryButtonClass} but painted with the M3
+ * `error` role tokens (`bg-md-error` / `text-md-on-error`) so it tracks the
+ * theme — including the inverted light-container / dark-label treatment M3
+ * uses for errors in dark mode — instead of a hardcoded `bg-red-600
+ * text-white` that ignores dark mode. Reserve for genuinely destructive
+ * confirms; pair a quieter `secondaryButtonClass` / `textButtonClass`
+ * "Cancel" beside it.
+ */
+export function errorButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `bg-md-error text-md-on-error ${SIZING[size]} ${BASE} shadow-sm hover:-translate-y-0.5 disabled:opacity-60`;
+}
+
+/**
+ * Outlined error — medium-emphasis destructive action that should recede
+ * relative to a Filled `errorButtonClass` (e.g. the "Delete group…" trigger
+ * that opens a two-step confirm). Mirrors {@link secondaryButtonClass} but on
+ * the M3 `error` role token (`border-md-error` / `text-md-error`), so it tracks
+ * the theme in both light and dark instead of hand-rolled `border-red-300
+ * text-red-700 dark:…` recipes.
+ */
+export function errorOutlinedButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `border border-md-error text-md-error bg-transparent ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
+ * Text error — low-emphasis destructive action: a borderless "Remove" in a
+ * dense list row where a Filled/Outlined button would shout. Mirrors
+ * {@link textButtonClass} but on the M3 `error` role token (`text-md-error`).
+ * Pair with the `tap-target` utility for row actions so it still clears 44px.
+ */
+export function errorTextButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `text-md-error bg-transparent ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
+ * Tonal error — medium-emphasis destructive/cautioning action that wants a
+ * tinted container rather than a shout: "Report", "Flag". Mirrors
+ * {@link tonalButtonClass} but on the M3 `error` role token
+ * (`bg-md-error/10` container, `text-md-error` label) — theme-aware in both
+ * modes, replacing hand-rolled `border-red-300 bg-red-50 … dark:bg-red-950/30`
+ * recipes. Completes the error family (Filled / Outlined / Text / Tonal).
+ */
+export function errorTonalButtonClass(size: PrimaryButtonSize = 'sm'): string {
+  return `bg-md-error/10 text-md-error ${SIZING[size]} ${BASE} disabled:opacity-50`;
+}
+
+/**
  * Thin `<button>` wrapper for the most common case. For `Link` / `a` /
  * `SubmitButton`, spread `primaryButtonClass()` onto `className` instead
  * — wrapping each would force every call site through a discriminated

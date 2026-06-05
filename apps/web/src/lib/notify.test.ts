@@ -88,6 +88,33 @@ describe('dispatch — transactional kind (event.signup.confirmed)', () => {
   });
 });
 
+describe('dispatch — chat.message.received (push + in_app, preference-gated)', () => {
+  const CHAT_PAYLOAD = {
+    conversationId: 'c1',
+    senderId: 's1',
+    senderName: 'Pat',
+    preview: 'hey are you coming tonight?',
+  };
+
+  it('fans out to in-app + push when both are enabled', async () => {
+    const prefs: NotificationPreferences = { ...allOff, pushEnabled: true, inAppEnabled: true };
+    const { port, enqueued, inApp } = fakePort(prefs, 'me@example.com');
+    await dispatch(port, 'chat.message.received', 'u1', CHAT_PAYLOAD);
+    expect(inApp).toHaveLength(1);
+    // No email — a DM is not an email-worthy event.
+    expect(enqueued.map((m) => m.channel)).toEqual(['push']);
+    // Push rows carry the recipient user id as the address (lib/notify.ts).
+    expect(enqueued[0]?.toAddress).toBe('u1');
+  });
+
+  it('is non-transactional: suppressed entirely when the user opted out', async () => {
+    const { port, enqueued, inApp } = fakePort(allOff, 'me@example.com');
+    await dispatch(port, 'chat.message.received', 'u1', CHAT_PAYLOAD);
+    expect(inApp).toHaveLength(0);
+    expect(enqueued).toHaveLength(0);
+  });
+});
+
 describe('dispatch — preference gating (social.follow.new, in_app default)', () => {
   it('delivers in-app when no prefs row exists (default-on)', async () => {
     const { port, inApp } = fakePort(null, null);

@@ -2,7 +2,9 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
+import { errorButtonClass, errorOutlinedButtonClass } from '@/components/primary-button';
 import { deleteGroupAction } from './delete-actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 type State = { error?: string; ok?: boolean };
 const initialState: State = {};
@@ -15,6 +17,7 @@ const initialState: State = {};
 export function DeleteGroupPanel({ groupId, groupName }: { groupId: string; groupName: string }) {
   const action = deleteGroupAction.bind(null, groupId);
   const [state, formAction] = useFormState(action, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [confirming, setConfirming] = useState(false);
 
   return (
@@ -30,14 +33,19 @@ export function DeleteGroupPanel({ groupId, groupName }: { groupId: string; grou
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-900/40"
+          className={`${errorOutlinedButtonClass('sm')} mt-3`}
         >
           Delete group…
         </button>
       ) : (
         <form action={formAction} className="mt-3 space-y-3">
           {state.error && (
-            <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+            <p
+              ref={errorRef}
+              tabIndex={-1}
+              className="text-sm text-red-700 outline-none dark:text-red-300"
+              role="alert"
+            >
               {state.error}
             </p>
           )}
@@ -60,11 +68,7 @@ export function DeleteGroupPanel({ groupId, groupName }: { groupId: string; grou
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-md bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-    >
+    <button type="submit" disabled={pending} className={errorButtonClass('md')}>
       {pending ? 'Deleting…' : 'Yes, delete group'}
     </button>
   );

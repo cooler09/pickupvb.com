@@ -17,6 +17,14 @@ type Props = {
   /** Ids that should be filtered out of search results (already-added
    *  members, the viewer themselves, etc.). */
   excludeIds?: ReadonlyArray<string>;
+  /**
+   * Submit the enclosing form as soon as a player is picked, instead of
+   * waiting for a separate confirm button. Use for "add one, then add the
+   * next" flows where the form has no other fields. The caller should remount
+   * the picker after the action settles (e.g. `key` on the changing roster)
+   * so it clears for the next entry.
+   */
+  submitOnSelect?: boolean;
 };
 
 /**
@@ -34,6 +42,7 @@ export function UserPicker({
   required,
   helperText,
   excludeIds,
+  submitOnSelect,
 }: Props) {
   const inputId = useId();
   const listboxId = `${inputId}-listbox`;
@@ -46,6 +55,7 @@ export function UserPicker({
   const [activeIdx, setActiveIdx] = useState(-1);
   const reqIdRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const selectedHiddenRef = useRef<HTMLInputElement>(null);
 
   // Debounced people-search driven by `query`. The setState calls inside
   // are intentional (async fetch result → component state) and there's no
@@ -82,6 +92,16 @@ export function UserPicker({
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
+
+  // In `submitOnSelect` mode, picking a player immediately posts the form.
+  // Runs after the selected-branch render so the hidden field already carries
+  // the chosen id. The caller remounts us (roster `key`) once the action
+  // settles, which clears state for the next entry.
+  useEffect(() => {
+    if (submitOnSelect && selected) {
+      selectedHiddenRef.current?.form?.requestSubmit();
+    }
+  }, [submitOnSelect, selected]);
 
   function optionId(idx: number): string {
     return `${inputId}-option-${idx}`;
@@ -148,19 +168,25 @@ export function UserPicker({
               <span className="text-muted truncate text-xs">· {selected.homeCity}</span>
             )}
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              setSelected(null);
-              setQuery('');
-              setResults([]);
-            }}
-            className="text-muted hover:text-fg text-xs font-medium"
-          >
-            Change
-          </button>
+          {submitOnSelect ? (
+            <span className="text-muted text-xs font-medium" role="status" aria-live="polite">
+              Adding…
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setSelected(null);
+                setQuery('');
+                setResults([]);
+              }}
+              className="text-muted hover:text-fg text-xs font-medium"
+            >
+              Change
+            </button>
+          )}
         </div>
-        <input type="hidden" name={name} value={selected.id} />
+        <input ref={selectedHiddenRef} type="hidden" name={name} value={selected.id} />
       </div>
     );
   }

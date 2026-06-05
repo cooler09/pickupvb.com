@@ -4,6 +4,7 @@ import {
   InvariantViolation,
   NotFoundError,
   UnauthorizedError,
+  ValidationError,
   type BracketId,
   type BracketRepository,
   type BracketSummary,
@@ -15,6 +16,8 @@ import {
 import {
   AddBracketTeamCommand,
   AddBracketTeamHandler,
+  AddBracketTeamsCommand,
+  AddBracketTeamsHandler,
   CreateStandaloneBracketCommand,
   CreateStandaloneBracketHandler,
   GenerateStandaloneBracketHandler,
@@ -67,6 +70,15 @@ class FakeRepo implements BracketRepository {
   async addBracketTeam(bracketId: BracketId, name: string): Promise<{ entryId: string }> {
     this.addedTeams.push({ bracketId: String(bracketId), name });
     return { entryId: `entry-${this.addedTeams.length}` };
+  }
+  async addBracketTeams(
+    bracketId: BracketId,
+    names: ReadonlyArray<string>,
+  ): Promise<Array<{ entryId: string; name: string }>> {
+    return names.map((name) => {
+      this.addedTeams.push({ bracketId: String(bracketId), name });
+      return { entryId: `entry-${this.addedTeams.length}`, name };
+    });
   }
 }
 
@@ -150,6 +162,64 @@ describe('AddBracketTeamHandler', () => {
     await expect(
       handler.execute(new AddBracketTeamCommand('b-1', String(OWNER), 'Late team')),
     ).rejects.toBeInstanceOf(InvariantViolation);
+    expect(repo.addedTeams).toHaveLength(0);
+  });
+});
+
+describe('AddBracketTeamsHandler (paste-a-list bulk add)', () => {
+  it('trims blanks and collapses case-insensitive duplicate lines', async () => {
+    const repo = new FakeRepo(ownedSetupBracket());
+    const handler = new AddBracketTeamsHandler(repo);
+
+    const added = await handler.execute(
+      new AddBracketTeamsCommand('b-1', String(OWNER), [
+        '  Spikers  ',
+        '',
+        'Block Party',
+        'spikers', // duplicate of "Spikers" (case-insensitive)
+        '   ',
+      ]),
+    );
+
+    expect(added.map((t) => t.name)).toEqual(['Spikers', 'Block Party']);
+    expect(repo.addedTeams).toEqual([
+      { bracketId: 'b-1', name: 'Spikers' },
+      { bracketId: 'b-1', name: 'Block Party' },
+    ]);
+  });
+
+  it('rejects a batch with no usable names', async () => {
+    const repo = new FakeRepo(ownedSetupBracket());
+    const handler = new AddBracketTeamsHandler(repo);
+
+    await expect(
+      handler.execute(new AddBracketTeamsCommand('b-1', String(OWNER), ['', '  '])),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.addedTeams).toHaveLength(0);
+  });
+
+  it('rejects adding teams after the bracket is generated', async () => {
+    const bracket = ownedSetupBracket();
+    bracket.seedTeams(['e1', 'e2'] as EntryId[]);
+    const repo = new FakeRepo(bracket);
+    await new GenerateStandaloneBracketHandler(repo).execute(
+      new GenerateStandaloneBracketCommand('b-1', String(OWNER)),
+    );
+
+    const handler = new AddBracketTeamsHandler(repo);
+    await expect(
+      handler.execute(new AddBracketTeamsCommand('b-1', String(OWNER), ['Late team'])),
+    ).rejects.toBeInstanceOf(InvariantViolation);
+    expect(repo.addedTeams).toHaveLength(0);
+  });
+
+  it('rejects a batch from a non-owner', async () => {
+    const repo = new FakeRepo(ownedSetupBracket());
+    const handler = new AddBracketTeamsHandler(repo);
+
+    await expect(
+      handler.execute(new AddBracketTeamsCommand('b-1', OTHER, ['Spikers'])),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
     expect(repo.addedTeams).toHaveLength(0);
   });
 });

@@ -158,10 +158,10 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     id: EventTeamRegistrationId,
     public readonly eventId: string,
     public readonly divisionId: DivisionId,
-    public readonly captainId: UserId | null,
-    public readonly source: RegistrationSource,
-    public readonly captainDisplayName: string | null,
-    public readonly captainPhone: string | null,
+    private _captainId: UserId | null,
+    private _source: RegistrationSource,
+    private _captainDisplayName: string | null,
+    private _captainPhone: string | null,
     private _name: string,
     private _members: RegistrationMember[],
     private _paymentStatus: RegistrationPaymentStatus,
@@ -258,6 +258,22 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
     );
   }
 
+  get captainId(): UserId | null {
+    return this._captainId;
+  }
+
+  get source(): RegistrationSource {
+    return this._source;
+  }
+
+  get captainDisplayName(): string | null {
+    return this._captainDisplayName;
+  }
+
+  get captainPhone(): string | null {
+    return this._captainPhone;
+  }
+
   get name(): string {
     return this._name;
   }
@@ -298,7 +314,7 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
    * Timestamp at which a host marked this team as withdrawn mid-season
    * (league context) or null while the registration is active. Mirrors
    * `event_team_entries.forfeited_at` written by
-   * {@link EventRepository.setRosterTeamForfeited} on the host-tools
+   * {@link EventRepository.setLeagueEntryForfeited} on the host-tools
    * panel. Forfeit is orthogonal to payment status — a paid team can
    * forfeit, and a forfeited team retains its payment row for
    * accounting.
@@ -320,6 +336,27 @@ export class EventTeamRegistration extends AggregateRoot<EventTeamRegistrationId
       throw new InvariantViolation(`Team name must be at most ${MAX_NAME_LEN} characters.`);
     }
     this._name = trimmed;
+    this._updatedAt = new Date();
+  }
+
+  /**
+   * Link a host-added (`walk_in`) team to a real captain account — the host
+   * assigns a registered user (ADR 0033 Phase 3 / ADR 0017 §7). The entry
+   * stops being a placeholder: `captain_id` is set, the source becomes
+   * `Captain` (a real account now stands behind it — DB `source='ad_hoc'`,
+   * still team-less), and the freeform walk-in identity is cleared — the
+   * captain's profile supplies the name from here on. Only legal on a
+   * `walk_in` row; a registration that already has a captain isn't
+   * re-assignable through this path.
+   */
+  assignCaptain(captainId: UserId): void {
+    if (this._source !== RegistrationSource.WalkIn) {
+      throw new InvariantViolation('Only a host-added team can be assigned a captain.');
+    }
+    this._captainId = captainId;
+    this._source = RegistrationSource.Captain;
+    this._captainDisplayName = null;
+    this._captainPhone = null;
     this._updatedAt = new Date();
   }
 

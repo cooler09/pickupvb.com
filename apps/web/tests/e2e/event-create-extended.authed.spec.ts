@@ -2,7 +2,12 @@ import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
-import { cancelEvent, createFreeOpenPlayEvent, createPaidEvent } from './_helpers/event-create';
+import {
+  cancelEvent,
+  createFreeOpenPlayEvent,
+  createPaidEvent,
+  openTemplatesModal,
+} from './_helpers/event-create';
 import { shouldSkipStripeTests } from './_helpers/stripe';
 
 /**
@@ -229,74 +234,51 @@ test.describe('template full flow (Pro)', () => {
     try {
       await page.goto('/events/new');
 
-      const templateNameInput = page.getByPlaceholder(/template name/i);
-      await expect(templateNameInput).toBeVisible({ timeout: 10_000 });
-
       const templateTitle = `E2E Template ${Date.now()}`;
 
-      // Fill title and save a template.
+      // Fill the form title BEFORE opening the modal (the modal overlays the
+      // form; the template snapshots the parent <form>, so the title rides
+      // along into the saved payload).
       await page.locator('#title').fill('Template Test Event');
-      await templateNameInput.fill(templateTitle);
+
+      // The saved-templates affordance is Pro-only and lives behind a
+      // "Templates" button that opens a FormModal.
+      expect(await openTemplatesModal(page)).toBe(true);
+      await page.getByPlaceholder(/template name/i).fill(templateTitle);
 
       const saveTemplateBtn = page.getByRole('button', { name: /save template/i });
       await expect(saveTemplateBtn).toBeVisible();
       await saveTemplateBtn.click();
 
-      // Confirmation banner should appear.
+      // Saving redirects to ?template_status=saved, which remounts the page and
+      // closes the modal; the confirmation renders on the form.
       await expect(page.locator('body')).toContainText(/template saved|saved successfully/i, {
         timeout: 10_000,
       });
 
-      // Template should appear in the dropdown.
-      const templateSelect = page
-        .getByRole('combobox', { name: /template/i })
-        .or(page.locator('select[name*="template"]'))
-        .first();
+      // Reopen the modal — the saved template should be in the dropdown.
+      expect(await openTemplatesModal(page)).toBe(true);
+      const templateSelect = page.getByRole('combobox', { name: /saved template/i });
+      await expect(templateSelect).toBeVisible({ timeout: 10_000 });
+      const options = await templateSelect.locator('option').allTextContents();
+      expect(options.some((o) => o.includes(templateTitle))).toBe(true);
 
-      if ((await templateSelect.count()) > 0) {
-        const options = await templateSelect.locator('option').allTextContents();
-        const found = options.some((o) => o.includes(templateTitle));
-        expect(found).toBe(true);
-      }
+      // Apply the saved template — it pushes ?template=<id> and re-seeds the
+      // form server-side with the snapshot (including the title).
+      await templateSelect.selectOption({ label: templateTitle });
+      await page.getByRole('button', { name: /^apply$/i }).click();
+      await expect(page.locator('#title')).toHaveValue(/Template Test Event/i, {
+        timeout: 10_000,
+      });
 
-      // Navigate to /events/new fresh; apply the saved template.
-      await page.goto('/events/new');
-
-      const applySelect = page
-        .getByRole('combobox', { name: /template/i })
-        .or(page.locator('select[name*="template"]'))
-        .first();
-
-      if ((await applySelect.count()) > 0) {
-        await applySelect.selectOption({ label: templateTitle });
-        const applyBtn = page.getByRole('button', { name: /apply/i }).first();
-        if ((await applyBtn.count()) > 0) {
-          await applyBtn.click();
-          await page.waitForLoadState('domcontentloaded');
-        }
-
-        // Form should be pre-filled with the saved event title.
-        await expect(page.locator('#title')).toHaveValue(/Template Test Event/i, {
-          timeout: 5_000,
-        });
-      }
-
-      // Cleanup — remove the template.
-      const removeBtn = page
-        .getByRole('button', { name: /remove|delete/i })
-        .filter({ hasText: /template/i })
-        .first();
-      if ((await removeBtn.count()) === 0) {
-        // Try inline remove button next to the template in a list.
-        const anyRemoveBtn = page.getByRole('button', { name: /remove/i }).first();
-        if ((await anyRemoveBtn.count()) > 0) {
-          await anyRemoveBtn.click();
-          await page.waitForLoadState('domcontentloaded');
-        }
-      } else {
-        await removeBtn.click();
-        await page.waitForLoadState('domcontentloaded');
-      }
+      // Cleanup — reopen the modal, pick the template, and remove it. The
+      // Remove button only renders once a template is selected in the picker.
+      expect(await openTemplatesModal(page)).toBe(true);
+      await page.getByRole('combobox', { name: /saved template/i }).selectOption({
+        label: templateTitle,
+      });
+      await page.getByRole('button', { name: /^remove$/i }).click();
+      await page.waitForLoadState('domcontentloaded');
     } finally {
       await ctx.close().catch(() => {});
     }

@@ -91,16 +91,13 @@ export interface EventMembershipStore {
   removeCoHost(eventId: string, party: CoHostParty): Promise<void>;
 
   /**
-   * Mark (or unmark) a rostered team in a league division as forfeited.
-   * Targets `event_team_entries` where `source = 'roster'`. Pass `null`
-   * to clear the flag (reinstate). RLS gates the write to the event
-   * host — the handler doesn't duplicate the check.
+   * Mark (or unmark) a league team as forfeited, keyed on its
+   * `event_team_entries.id` (ADR 0034). Works for both rostered and
+   * host-added (team-less `walk_in`) entries. Pass `null` to clear the
+   * flag (reinstate). RLS gates the write to the event host — the handler
+   * doesn't duplicate the check.
    */
-  setRosterTeamForfeited(
-    divisionId: string,
-    teamId: string,
-    forfeitedAt: Date | null,
-  ): Promise<void>;
+  setLeagueEntryForfeited(entryId: string, forfeitedAt: Date | null): Promise<void>;
 }
 
 /**
@@ -158,7 +155,6 @@ export interface TeamLite {
   /** Vanity URL token (unique, slug-shape). */
   slug: string;
   name: string;
-  format: Format;
   captainId: string;
   /** Captain profile (for display). */
   captain: ProfileLite | null;
@@ -182,7 +178,6 @@ export interface TeamLite {
 export interface CaptainedTeamLite {
   id: string;
   name: string;
-  format: Format;
   memberCount: number;
   /** True if this team is already registered for the event being viewed. */
   isRegistered: boolean;
@@ -227,6 +222,10 @@ export interface DivisionLite {
    * `event_team_registrations.name`).
    */
   winner: { label: string; recordedAt: Date } | null;
+  /** Runner-up (2nd place), set by the host. Null when not recorded. */
+  runnerUp: { label: string } | null;
+  /** Third place, set by the host. Null when not recorded. */
+  thirdPlace: { label: string } | null;
 }
 
 export interface EventDetailReadModel {

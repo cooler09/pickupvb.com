@@ -7,7 +7,7 @@
  */
 
 export const SURFACES = ['indoor', 'grass', 'sand'] as const;
-export const TYPES = ['open_play', 'tournament'] as const;
+export const TYPES = ['open_play', 'tournament', 'league'] as const;
 export const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
 export const AGE_GROUPS = ['adult', 'hs', '18u', '16u', '14u', 'jr_high'] as const;
 export const TEAM_COMPOSITIONS = ['solo', 'team', 'pair_draw', 'partners'] as const;

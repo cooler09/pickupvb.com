@@ -287,7 +287,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _title: string,
     private _description: string,
     private _rules: string,
-    public readonly surface: Surface,
+    private _surface: Surface,
     public readonly type: EventType,
     private _visibility: Visibility,
     private _location: Location,
@@ -461,6 +461,15 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
   get rules(): string {
     return this._rules;
+  }
+  /**
+   * Event-level surface. This is a denormalized mirror of the primary
+   * (`sortOrder === 0`) division's surface — the division is the authority
+   * (ADR 0006), but event cards and search read this column. Kept in sync by
+   * {@link addDivision} / {@link updateDivision} when the primary changes.
+   */
+  get surface(): Surface {
+    return this._surface;
   }
   get visibility(): Visibility {
     return this._visibility;
@@ -692,19 +701,20 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * Tournament signup. The team is registered into a specific division
-   * (ADR 0019) — the aggregate is the authority for "which team, which
-   * division," so `save()` can persist the join atomically without a
-   * side-channel.
+   * Tournament / league team signup. The team is registered into a specific
+   * division (ADR 0019) — the aggregate is the authority for "which team,
+   * which division," so `save()` can persist the join atomically without a
+   * side-channel. Leagues are roster-only by invariant (every division uses
+   * roster mode); the same registration path serves both event types.
    *
-   * @throws {InvariantViolation} if the event is not a Tournament, is not
-   *   Published, or has already started.
+   * @throws {InvariantViolation} if the event is not a Tournament or League,
+   *   is not Published, or has already started.
    * @throws {NotFoundError} if `divisionId` does not belong to this event.
    * @throws {ConflictError} if the team is already registered.
    */
   registerTeam(teamId: TeamId, divisionId: DivisionId): void {
-    if (this.type !== EventType.Tournament) {
-      throw new InvariantViolation('Open-play events require player signup.');
+    if (this.type !== EventType.Tournament && this.type !== EventType.League) {
+      throw new InvariantViolation('Only tournaments and leagues use team registration.');
     }
     if (this._status !== EventStatus.Published) {
       throw new InvariantViolation('Event is not open for signups.');
@@ -738,19 +748,20 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * Free-agent signup for a tournament. Lets a player advertise that
-   * they want to be picked up by a team that's short. Independent of
-   * team registration — a captain can be both.
+   * Free-agent signup for a tournament or league. Lets a player advertise
+   * that they want to be picked up by a team that's short. Independent of
+   * team registration — a captain can be both. Only divisions with
+   * `allowFreeAgents` accept signups.
    *
-   * @throws {InvariantViolation} if the event is not a Tournament, is not
-   *   Published, has already started, the division does not accept
+   * @throws {InvariantViolation} if the event is not a Tournament or League,
+   *   is not Published, has already started, the division does not accept
    *   free agents, or notes exceed 280 characters.
    * @throws {NotFoundError} if `divisionId` does not belong to this event.
    * @throws {ConflictError} if the user is already signed up as a free agent.
    */
   joinAsFreeAgent(userId: UserId, divisionId: DivisionId, notes: string | null): void {
-    if (this.type !== EventType.Tournament) {
-      throw new InvariantViolation('Free-agent signup is only for tournaments.');
+    if (this.type !== EventType.Tournament && this.type !== EventType.League) {
+      throw new InvariantViolation('Free-agent signup is only for tournaments and leagues.');
     }
     if (this._status !== EventStatus.Published) {
       throw new InvariantViolation('Event is not open for signups.');
@@ -813,6 +824,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       });
     }
     this._divisions.push(division);
+    this.syncSurfaceFromPrimaryDivision(division);
     this.assertRegistrationConfigValid();
   }
 
@@ -823,7 +835,22 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       throw new NotFoundError('division', String(division.id));
     }
     this._divisions[idx] = division;
+    this.syncSurfaceFromPrimaryDivision(division);
     this.assertRegistrationConfigValid();
+  }
+
+  /**
+   * Keep the denormalized event-level {@link surface} aligned with the
+   * primary (`sortOrder === 0`) division whenever it's added or edited.
+   * The division is the source of truth (ADR 0006); without this the
+   * `events.surface` mirror that event cards / search read goes stale when
+   * a host edits the division surface — e.g. an open-play event created
+   * Indoor whose sole division is later switched to Grass.
+   */
+  private syncSurfaceFromPrimaryDivision(division: Division): void {
+    if (division.sortOrder === 0) {
+      this._surface = division.surface;
+    }
   }
 
   /** Remove a division by id. */

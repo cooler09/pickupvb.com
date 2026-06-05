@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { addFriend, removeFriend } from '@/app/friends/actions';
 import { startDmWithUser } from '@/app/_actions/chat-actions';
 import { ShareLink } from '@/components/share-link';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 
 type Props = {
   profileId: string;
@@ -108,10 +109,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
   if (state.status === 'self') {
     return (
       <>
-        <Link
-          href={'/profile' as Route}
-          className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90"
-        >
+        <Link href={'/profile' as Route} className={primaryButtonClass('sm')}>
           Edit profile →
         </Link>
         <ShareLink path={`/players/${profileHandle}`} title={profileName} />
@@ -124,7 +122,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
       <>
         <Link
           href={`/login?next=${encodeURIComponent(returnPath)}` as Route}
-          className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90"
+          className={primaryButtonClass('sm')}
         >
           Sign in to follow
         </Link>
@@ -136,19 +134,11 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
   return (
     <>
       {state.isFollowing ? (
-        <button
-          onClick={handleUnfollow}
-          disabled={isPending}
-          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-60"
-        >
+        <button onClick={handleUnfollow} disabled={isPending} className={neutralButtonClass('sm')}>
           ✓ Following
         </button>
       ) : (
-        <button
-          onClick={handleFollow}
-          disabled={isPending}
-          className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-medium hover:opacity-90 disabled:opacity-60"
-        >
+        <button onClick={handleFollow} disabled={isPending} className={primaryButtonClass('sm')}>
           + Follow
         </button>
       )}

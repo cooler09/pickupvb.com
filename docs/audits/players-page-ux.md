@@ -31,9 +31,12 @@ This file is complementary to — not a duplicate of:
 > from the directory via a `PlayersFollowProvider` + per-card `FollowButton`
 > islands that layer onto the ISR shell (anon HTML unchanged). PL-3 — inputs →
 > `fieldInputClass`, Search → `primaryButtonClass()`. PL-4 — `Players · {total}`
-> count in the header. **PL-5 deferred** — true geo/near-me needs a profiles
-> location migration + geocoding (the audit flagged it aspirational); it's the
-> one open item. **No P1**: the page works, is `profiles_public`-correct,
+> count in the header. **PL-5 ✅ staged 2026-06-01** — profiles geo (migration +
+> geocode-on-save + bounding-box near-me + distance) is built and passes the
+> verify chain, but the **migration is unapplied** and the generated types were
+> **hand-bridged** (local Supabase/Docker was down); it needs `db:migrate` +
+> `gen:types` + a `profiles_public`-rebuild check before deploy. **All five
+> findings now addressed.** **No P1**: the page works, is `profiles_public`-correct,
 > ISR-cacheable, and paginated.
 >
 > Grounding fact that shaped grading: `profiles_public` **already exposes**
@@ -170,18 +173,40 @@ with "N events" (F-8). Especially useful when a name/city filter is applied.
 returned by `searchDirectory`).
 [players/page.tsx](../../apps/web/src/app/players/page.tsx).
 
-#### PL-5 — "Find people in your area" is a free-text city match, no geo / near-me · **P3**
+#### PL-5 — "Find people in your area" is a free-text city match, no geo / near-me · **P3** · ✅ resolved 2026-06-01 (staged)
 
 The metadata and copy lean on proximity ("people in your area"), but the only
-location control is a **substring** match on the `home_city` string
-([page.tsx#L132-L134](../../packages/infrastructure/src/supabase-profile-repository.ts#L132-L134))
-— so "Virginia Beach" and "VA Beach" miss each other, and there's no radius. The
-events page has Near-me + geocoded city search (F-7); the directory has neither,
-and `profiles_public` carries no lat/lng, so true geo would need a schema change.
-**Recommended fix (deferred / aspirational):** treat as a known limitation for
-now; if player discovery becomes a priority, add a geocoded home location to
-profiles and a radius filter mirroring the events page. Logged so it isn't
-re-discovered. P3.
+location control was a **substring** match on the `home_city` string — so
+"Virginia Beach" and "VA Beach" missed each other, and there was no radius.
+`profiles_public` carried no lat/lng, so true geo needed a schema change.
+
+**Fix (done — staged; migration not yet applied to a real DB):** added a
+profiles geo stack mirroring the events near-me UX:
+
+- **Migration**
+  [20260901000000_profiles_geo.sql](../../supabase/migrations/20260901000000_profiles_geo.sql)
+  — `profiles.latitude/longitude` + a `profiles_public` rebuild exposing them
+  (bounding-box approach, no PostGIS column/RPC — see the migration preamble).
+- **Geocode-on-save** — the `updateProfile` action geocodes `home_city` →
+  lat/lng (reusing the events geocoder) and writes them directly (derived field,
+  like theme/hero), best-effort. [profile/actions.ts](../../apps/web/src/app/profile/actions.ts).
+- **Search** — `ProfileDirectoryQuery.near` + `ProfileCard.distanceKm`;
+  `searchDirectory` bounding-box-filters `profiles_public` and computes a JS
+  haversine distance. Ordering stays alphabetical (true nearest-first would need
+  PostGIS — deferred). [supabase-profile-repository.ts](../../packages/infrastructure/src/supabase-profile-repository.ts).
+- **UI** — the events `NearMeButton`/`LocationSearch` gained a `basePath` prop and
+  are reused on `/players` (basePath `/players`); the old "Home city" text input
+  was replaced by the geo controls + a "within N km · Clear" line; cards show
+  "N km away". [players/page.tsx](../../apps/web/src/app/players/page.tsx).
+
+> ⚠️ **Staged — needs DB apply + type regen.** Local Supabase (Docker) was down,
+> so the migration was **not** applied/tested against a real DB and
+> `database.types.ts` was **hand-bridged** (latitude/longitude added by hand) to
+> pass typecheck. Before/with deploy: run `pnpm db:migrate` (local) +
+> `pnpm --filter @pickupvb/supabase gen:types` and confirm no diff vs. the
+> hand-bridged columns; verify the `profiles_public` rebuild. Existing profiles
+> have NULL coords until their owner re-saves (no SQL backfill — geocoding is
+> HTTP).
 
 ---
 
@@ -214,5 +239,23 @@ added zero lint warnings). Journal:
   filter row `sm:items-center`.
 - **PL-4 ✅** — `Players · {total}` count in the header.
 
-_Open: **PL-5** (geo/near-me) — deferred; needs a profiles location column +
-geocoding + a radius filter. Tracked as the one remaining item._
+### 2026-06-01 — PL-5 (geo / near-me), staged
+
+Built the deferred geo feature end-to-end; verify chain green. **Staged, not
+DB-applied** — local Supabase (Docker) was down, so the migration wasn't applied
+and `database.types.ts` was hand-bridged. Journal:
+[2026-06-01-players-geo-near-me.md](../journal/2026-06-01-players-geo-near-me.md).
+
+- **PL-5 ✅ (staged)** — migration
+  [20260901000000_profiles_geo.sql](../../supabase/migrations/20260901000000_profiles_geo.sql)
+  (`profiles.latitude/longitude` + `profiles_public` rebuild, bbox not PostGIS);
+  geocode-on-save in [profile/actions.ts](../../apps/web/src/app/profile/actions.ts);
+  `ProfileDirectoryQuery.near` + `ProfileCard.distanceKm` + bbox/haversine in
+  [supabase-profile-repository.ts](../../packages/infrastructure/src/supabase-profile-repository.ts);
+  `NearMeButton`/`LocationSearch` generalized with a `basePath` prop and reused on
+  [players/page.tsx](../../apps/web/src/app/players/page.tsx) (distance shown,
+  "Home city" text input replaced).
+
+**Before deploy:** `pnpm db:migrate` + `pnpm --filter @pickupvb/supabase gen:types`,
+confirm the regen matches the hand-bridged latitude/longitude columns, and verify
+the `profiles_public` rebuild. **All PL findings now addressed (PL-5 staged).**

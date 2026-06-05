@@ -9,7 +9,6 @@ import {
   InvariantViolation,
   NotFoundError,
   UnauthorizedError,
-  ValidationError,
 } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
@@ -55,9 +54,6 @@ export async function registerTeamFromForm(
         redirect(`${returnPath}?team=division_missing` as Route);
       }
       redirect(`${returnPath}?team=missing` as Route);
-    }
-    if (err instanceof ValidationError) {
-      redirect(`${returnPath}?team=invalid` as Route);
     }
     throw err;
   }

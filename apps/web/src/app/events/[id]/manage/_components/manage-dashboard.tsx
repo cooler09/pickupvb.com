@@ -12,6 +12,7 @@ import { HostDivisionWinnersPanel } from '../../_components/host-division-winner
 import { LeagueTeamsPanel } from '../../_components/league-teams-panel';
 import { HostsSection } from '../../_components/hosts-section';
 import { CancelEventPanel } from '../../edit/cancel-event-panel';
+import { EventToolsCard, type EventToolSlug } from '@/app/tools/_components/event-tools-card';
 import type {
   EligibleTeamOption,
   LeagueTeamView,
@@ -61,13 +62,30 @@ export function ManageDashboard({
     ? [...payments.values()].filter((p) => p.status === 'paid').length
     : 0;
 
-  const hasAdHocTeams =
-    isTournament && event.divisions.some((d) => d.teamRegistrationMode === 'ad_hoc');
+  // Host can add account-less teams + mark them paid off-platform on any
+  // team-registration division — ad-hoc (tournaments) or roster (leagues),
+  // ADR 0033. (Leagues are roster-only; tournaments may have either.)
+  const hasHostManagedTeams =
+    (isTournament || isLeague) &&
+    event.divisions.some(
+      (d) => d.teamRegistrationMode === 'ad_hoc' || d.teamRegistrationMode === 'roster',
+    );
 
   // Only render a phase group when it has at least one visible affordance,
   // so a host of (say) a small open-play event never sees an empty heading.
   const runHasContent = isTournament || isLeague || activeAttendeeCount > 0;
   const wrapHasContent = (isTournament && hasDivisions) || (isLeague && hasDivisions) || isOpenPlay;
+
+  // Which standalone host tools to surface in-context (tournament-tools-workflow
+  // audit TT-1). Division-scoped tools (seeding/scheduler/standings) launch bound
+  // to the event's first division; the host can switch divisions from the bracket
+  // page's tools row.
+  const toolSlugs: ReadonlyArray<EventToolSlug> = isTournament
+    ? ['team-randomizer', 'seeding', 'scheduler', 'standings']
+    : isLeague
+      ? ['standings']
+      : ['team-randomizer', 'standings'];
+  const firstDivisionId = event.divisions[0]?.id;
 
   return (
     <div className="space-y-8">
@@ -105,14 +123,15 @@ export function ManageDashboard({
           description="Day-of operations: keep players informed and registrations moving."
         >
           <HostBroadcastPanel eventId={event.id} attendeeCount={activeAttendeeCount} />
-          {hasAdHocTeams && (
+          {hasHostManagedTeams && (
             <HostAdHocTeamsPanel
               eventId={event.id}
               returnPath={returnPath}
               divisions={event.divisions.map((d) => ({
                 id: d.id,
                 label: d.label,
-                isAdHoc: d.teamRegistrationMode === 'ad_hoc',
+                acceptsHostTeams:
+                  d.teamRegistrationMode === 'ad_hoc' || d.teamRegistrationMode === 'roster',
               }))}
               rows={adHocHostRows}
             />
@@ -133,6 +152,12 @@ export function ManageDashboard({
               label="Open schedule"
             />
           )}
+          <EventToolsCard
+            eventId={event.id}
+            ret={returnPath}
+            tools={toolSlugs}
+            {...(firstDivisionId ? { divisionId: firstDivisionId } : {})}
+          />
         </ManageGroup>
       )}
 

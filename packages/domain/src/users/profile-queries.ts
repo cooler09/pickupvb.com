@@ -66,6 +66,12 @@ export interface ProfileCard {
    * player hasn't set any. Sourced from `profiles_public`.
    */
   positions: string[];
+  /**
+   * Distance in km from the directory's "near me" center, when a proximity
+   * search is active (PL-5). Absent/undefined for non-geo listings; the
+   * directory sorts by it and the card shows it when present.
+   */
+  distanceKm?: number | null;
 }
 
 export interface ProfileSearchQuery {
@@ -83,6 +89,14 @@ export interface ProfileDirectoryQuery {
   nameLike?: string;
   /** Case-insensitive substring match on home city (raw text; adapter escapes). */
   cityLike?: string;
+  /**
+   * Proximity filter (PL-5): restrict to profiles whose geocoded home location
+   * falls within `radiusKm` of the center (a bounding-box approximation), with
+   * `ProfileCard.distanceKm` populated for display. Profiles with no coords are
+   * excluded. Ordering stays alphabetical (true nearest-first would need PostGIS
+   * like the events stack — deferred).
+   */
+  near?: { latitude: number; longitude: number; radiusKm: number };
   /** Page size. */
   limit: number;
   /** Zero-based row offset for the page. */

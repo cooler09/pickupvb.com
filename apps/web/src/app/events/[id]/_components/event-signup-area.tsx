@@ -103,9 +103,17 @@ export function EventSignupArea({
   }
 
   if (signupsOpen && event.type === 'open_play') {
+    // Smart collapse default: keep the CTA open for prospective registrants;
+    // collapse once the viewer is already in (RSVP'd or holds a position).
+    // Force open when a flash result code is present so the just-acted
+    // confirmation / error inside the panel isn't hidden behind the collapse.
+    const viewerSignedUp = event.isAttending || viewerPosition !== null;
+    const openSignup = !viewerSignedUp || effRsvp !== undefined;
     return (
       <SignupSection
         title="Sign up"
+        collapsible
+        defaultOpen={openSignup}
         badge={
           paid && breakdown ? { tone: 'paid', label: priceLabel } : { tone: 'free', label: 'Free' }
         }
@@ -172,9 +180,21 @@ export function EventSignupArea({
     const adHocDivisions = event.divisions.filter((d) => d.teamRegistrationMode === 'ad_hoc');
     const rosterDivisions = event.divisions.filter((d) => d.teamRegistrationMode === 'roster');
     const teamEnabled = adHocDivisions.length > 0 || rosterDivisions.length > 0;
+    // Smart collapse default: open for prospective registrants; collapse once
+    // the viewer is already in — captaining/joining an ad-hoc or roster team,
+    // or listed as a free agent. Force open when a flash result code is present
+    // (team / free-agent / rsvp) so the just-acted confirmation / error inside
+    // a panel isn't hidden behind the collapse.
+    const viewerRegistered =
+      adHocViewerRegistrations.length > 0 ||
+      event.viewerCaptainedTeams.length > 0 ||
+      event.isFreeAgent;
+    const openRegister = !viewerRegistered || Boolean(effRsvp || team || fa);
     return (
       <SignupSection
         title="Register"
+        collapsible
+        defaultOpen={openRegister}
         badge={{ tone: 'neutral', label: 'Tournament' }}
         subline={`${teamCount} ${teamCount === 1 ? 'team' : 'teams'} · ${freeAgentCount} free ${freeAgentCount === 1 ? 'agent' : 'agents'}`}
       >
@@ -209,7 +229,6 @@ export function EventSignupArea({
               {rosterDivisions.length > 0 && (
                 <TournamentSignupPanel
                   eventId={event.id}
-                  eventFormat={event.format}
                   teams={event.teams}
                   viewerCaptainedTeams={event.viewerCaptainedTeams}
                   divisions={rosterDivisions.map((d) => ({
@@ -227,6 +246,87 @@ export function EventSignupArea({
                 />
               )}
             </div>
+          }
+          freeAgentPanel={
+            <FreeAgentSignupPanel
+              eventId={event.id}
+              freeAgents={event.freeAgents.map((f) => ({
+                userId: f.userId,
+                notes: f.notes,
+                divisionId: f.divisionId,
+                profile: {
+                  displayName: f.profile.displayName,
+                  avatarUrl: f.profile.avatarUrl,
+                },
+              }))}
+              divisions={event.divisions.map((d) => ({
+                id: d.id,
+                label: d.label,
+                allowFreeAgents: d.allowFreeAgents,
+              }))}
+              isFreeAgent={event.isFreeAgent}
+              viewerId={user?.id ?? null}
+              isRealUser={isRealUser}
+              returnPath={returnPath}
+              {...(fa ? { resultCode: fa } : {})}
+            />
+          }
+        />
+      </SignupSection>
+    );
+  }
+
+  if (signupsOpen && event.type === 'league') {
+    // Leagues are roster-only by invariant — every division uses roster team
+    // registration (ADR P1 #1). Captains register a persistent team for the
+    // season; a division may also accept free agents (the `allowFreeAgents`
+    // column is meaningful for leagues). No ad-hoc path here. Registration
+    // writes the same `event_team_entries` (source='roster') rows the
+    // /schedule page reads, so a registered team appears on the slate.
+    const rosterDivisions = event.divisions.filter((d) => d.teamRegistrationMode === 'roster');
+    const teamCount = event.teams.length;
+    const freeAgentCount = event.freeAgents.length;
+    const freeAgentEnabled = event.divisions.some((d) => d.allowFreeAgents);
+    const viewerRegistered = event.viewerCaptainedTeams.length > 0 || event.isFreeAgent;
+    const openRegister = !viewerRegistered || Boolean(effRsvp || team || fa);
+    return (
+      <SignupSection
+        title="Register"
+        collapsible
+        defaultOpen={openRegister}
+        badge={{ tone: 'neutral', label: 'League' }}
+        subline={
+          freeAgentEnabled
+            ? `${teamCount} ${teamCount === 1 ? 'team' : 'teams'} · ${freeAgentCount} free ${freeAgentCount === 1 ? 'agent' : 'agents'}`
+            : `${teamCount} ${teamCount === 1 ? 'team' : 'teams'} registered`
+        }
+      >
+        <TournamentRegisterPanel
+          teamCount={teamCount}
+          freeAgentCount={freeAgentCount}
+          teamEnabled={rosterDivisions.length > 0}
+          freeAgentEnabled={freeAgentEnabled}
+          defaultMode={event.isFreeAgent ? 'free-agent' : 'team'}
+          teamPanel={
+            <TournamentSignupPanel
+              eventId={event.id}
+              teams={event.teams}
+              viewerCaptainedTeams={event.viewerCaptainedTeams}
+              divisions={rosterDivisions.map((d) => ({
+                id: d.id,
+                label: d.label,
+                format: d.format,
+                priceCents: d.priceCents,
+                priceUnit: d.priceUnit,
+              }))}
+              viewerId={user?.id ?? null}
+              isRealUser={isRealUser}
+              returnPath={returnPath}
+              paymentsOffPlatform={effectiveOffPlatform}
+              heading="League teams"
+              subheading="Register your team for the season."
+              {...(team || effRsvp ? { resultCode: team ?? effRsvp } : {})}
+            />
           }
           freeAgentPanel={
             <FreeAgentSignupPanel

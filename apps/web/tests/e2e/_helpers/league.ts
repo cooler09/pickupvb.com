@@ -1,4 +1,4 @@
-import { getCleanupClient } from './cleanup';
+import { getCleanupClient, resolveUserIdByEmail } from './cleanup';
 
 /**
  * Self-provisioning fixture for the league e2e spec (Phase 2, e2e audit C2).
@@ -35,7 +35,11 @@ import { getCleanupClient } from './cleanup';
 const RICHMOND_GEO = 'SRID=4326;POINT(-77.4360 37.5407)';
 
 export interface LeagueTeamRef {
+  /** The persistent `teams.id` (used for fixture cleanup). */
   id: string;
+  /** The `event_team_entries.id` — league play keys on this (ADR 0034), so
+   * it's the value the schedule's home/away pickers and forfeit use. */
+  entryId: string;
   name: string;
 }
 
@@ -51,22 +55,38 @@ export interface CreateLeagueFixtureOptions {
   title: string;
   /**
    * Distinct team names (≥ 1). Each becomes a rostered team captained by the
-   * host (attendee-a) so a single account can drive the whole flow — no
-   * second actor, no captain hand-off.
+   * host so a single account can drive the whole flow — no second actor, no
+   * captain hand-off.
    */
   teamNames: ReadonlyArray<string>;
+  /**
+   * Email of the account that becomes `events.host_id` and captains every
+   * rostered team. Defaults to `TEST_USER_EMAIL` (attendee-a) so the existing
+   * league spec keeps driving as the per-worker default `page`. Pass a persona
+   * email (e.g. `TEST_LEAGUE_HOST_EMAIL` for Diana) to re-home the flow onto a
+   * persona and drive it via `withPersona`.
+   */
+  hostEmail?: string;
+  /**
+   * Default `false` → the event started 1h ago + ends in 21 days, the
+   * "in-season" window the schedule UI needs. Set `true` for the registration
+   * flows (Tyler's free-agent pool, captain sign-up): the signup section only
+   * renders while `signupsOpen` (`!hasStarted`), so those need a *future* start.
+   */
+  upcoming?: boolean;
 }
 
 /**
  * True when the league fixture can be provisioned — i.e. the opt-in admin
- * client is configured (`E2E_CLEANUP_SUPABASE_*`) and the host email
- * (`TEST_USER_EMAIL`, attendee-a) is known. The spec `test.skip`s on false:
- * leagues have no UI provisioning path, so without service-role access there
- * is no honest way to exercise them — a sanctioned infra gate, not a silent
- * coverage hole.
+ * client is configured (`E2E_CLEANUP_SUPABASE_*`) and the host email is known.
+ * Defaults to `TEST_USER_EMAIL` (attendee-a, the league.authed.spec.ts host);
+ * pass a persona's `TEST_*_EMAIL` to gate a re-homed flow (e.g. Diana drives
+ * with `TEST_LEAGUE_HOST_EMAIL`). The spec `test.skip`s on false: leagues have
+ * no UI provisioning path, so without service-role access there is no honest
+ * way to exercise them — a sanctioned infra gate, not a silent coverage hole.
  */
-export function leagueFixtureAvailable(): boolean {
-  return getCleanupClient() !== null && !!process.env['TEST_USER_EMAIL'];
+export function leagueFixtureAvailable(hostEmail = process.env['TEST_USER_EMAIL']): boolean {
+  return getCleanupClient() !== null && !!hostEmail;
 }
 
 const TOKEN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -76,30 +96,6 @@ function token(len: number): string {
     s += TOKEN_ALPHABET[Math.floor(Math.random() * TOKEN_ALPHABET.length)];
   }
   return s;
-}
-
-/**
- * Resolve a test account's auth user id by email via the GoTrue admin API.
- * The dev project has a small, stable user set, so paging a couple of hundred
- * at a time finds the address on the first page. Throws (loudly) when the
- * account is missing — the seed-fixture preconditions (sign in once as each
- * test account) apply here too.
- */
-async function resolveUserIdByEmail(
-  admin: NonNullable<ReturnType<typeof getCleanupClient>>,
-  email: string,
-): Promise<string> {
-  const target = email.toLowerCase();
-  for (let page = 1; page <= 10; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw new Error(`league fixture: listUsers failed — ${error.message}`);
-    const match = data.users.find((u) => u.email?.toLowerCase() === target);
-    if (match) return match.id;
-    if (data.users.length < 200) break;
-  }
-  throw new Error(
-    `league fixture: no auth user for ${email}. Sign in once as that account to provision auth.users + profiles, then retry.`,
-  );
 }
 
 /**
@@ -125,14 +121,22 @@ export async function createLeagueFixture(
       'createLeagueFixture: admin client unavailable — set E2E_CLEANUP_SUPABASE_URL / _SECRET_KEY (see _helpers/cleanup.ts).',
     );
   }
-  const hostEmail = process.env['TEST_USER_EMAIL'];
-  if (!hostEmail) throw new Error('createLeagueFixture: TEST_USER_EMAIL is required (the host).');
+  const hostEmail = opts.hostEmail ?? process.env['TEST_USER_EMAIL'];
+  if (!hostEmail)
+    throw new Error(
+      'createLeagueFixture: a host email is required (opts.hostEmail or TEST_USER_EMAIL).',
+    );
   if (opts.teamNames.length === 0) throw new Error('createLeagueFixture: at least one team name.');
 
-  const hostId = await resolveUserIdByEmail(admin, hostEmail);
+  const hostId = await resolveUserIdByEmail(hostEmail);
 
   const now = Date.now();
-  const startsAt = new Date(now - 60 * 60 * 1000).toISOString();
+  // Default: started 1h ago (in-season, for the schedule UI). `upcoming` flips
+  // it to a future start so `signupsOpen` is true and the register/free-agent
+  // section renders.
+  const startsAt = new Date(
+    opts.upcoming ? now + 2 * 24 * 60 * 60 * 1000 : now - 60 * 60 * 1000,
+  ).toISOString();
   const endsAt = new Date(now + 21 * 24 * 60 * 60 * 1000).toISOString();
   const shortCode = `E2L${token(3)}`;
 
@@ -179,6 +183,9 @@ export async function createLeagueFixture(
         team_composition: 'team',
         team_size: 6,
         team_registration_mode: 'roster',
+        // Tyler's free-agent spec joins this division's pool, which only renders
+        // the "Sign up solo" tab when a division accepts free agents.
+        allow_free_agents: true,
         capacity_kind: 'unlimited',
       })
       .select('id')
@@ -194,7 +201,8 @@ export async function createLeagueFixture(
         .insert({
           captain_id: hostId,
           name,
-          format: 'sixes',
+          // `teams.format` was dropped (format now lives on event_divisions /
+          // event_team_entries); inserting it 400s with a schema-cache miss.
           slug: `e2e-league-${token(8).toLowerCase()}`,
         })
         .select('id')
@@ -209,16 +217,21 @@ export async function createLeagueFixture(
       if (memberErr)
         throw new Error(`league fixture team_member insert failed: ${memberErr.message}`);
 
-      const { error: entryErr } = await admin.from('event_team_entries').insert({
-        division_id: divisionId,
-        team_id: team.id,
-        source: 'roster',
-        display_name: name,
-        captain_id: hostId,
-      });
-      if (entryErr) throw new Error(`league fixture entry insert failed: ${entryErr.message}`);
+      const { data: entry, error: entryErr } = await admin
+        .from('event_team_entries')
+        .insert({
+          division_id: divisionId,
+          team_id: team.id,
+          source: 'roster',
+          display_name: name,
+          captain_id: hostId,
+        })
+        .select('id')
+        .single();
+      if (entryErr || !entry)
+        throw new Error(`league fixture entry insert failed: ${entryErr?.message}`);
 
-      teams.push({ id: team.id, name });
+      teams.push({ id: team.id, entryId: entry.id, name });
     }
 
     return { eventId, divisionId, shortCode, teams };
@@ -226,7 +239,12 @@ export async function createLeagueFixture(
     // Best-effort rollback of whatever landed before the failure.
     await deleteLeagueFixture(
       eventId
-        ? { eventId, divisionId: '', shortCode, teams: teamIds.map((id) => ({ id, name: '' })) }
+        ? {
+            eventId,
+            divisionId: '',
+            shortCode,
+            teams: teamIds.map((id) => ({ id, entryId: '', name: '' })),
+          }
         : null,
     );
     throw err;

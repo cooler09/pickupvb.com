@@ -14,6 +14,8 @@ import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { PlayerViewerActions } from './_components/player-viewer-actions';
 import { ProfileVideoGrid } from '@/components/profile-video-grid';
+import { BadgeShelf } from '@/components/badge-shelf';
+import { loadPublicBadges } from '@/lib/badges';
 
 /**
  * ISR cache for anonymous traffic. The public player profile (identity
@@ -24,6 +26,7 @@ import { ProfileVideoGrid } from '@/components/profile-video-grid';
  */
 export const revalidate = 60;
 
+const UPCOMING_EVENTS_PER_PAGE = 10;
 const PAST_EVENTS_PER_PAGE = 10;
 
 export async function generateMetadata(props: { params: Promise<{ id: string }> }) {
@@ -65,6 +68,7 @@ export default async function PlayerProfilePage(props: {
   const searchParams: Record<string, string | undefined> = Object.fromEntries(
     Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
   );
+  const upage = Math.max(1, Number.parseInt(searchParams.upage ?? '1', 10) || 1);
   const ppage = Math.max(1, Number.parseInt(searchParams.ppage ?? '1', 10) || 1);
   const supabase = createSupabaseAnonClient();
 
@@ -73,7 +77,7 @@ export default async function PlayerProfilePage(props: {
 
   // Hosted events (upcoming + past split at SQL) + pro / admin badges are independent.
   const now = new Date();
-  const [upcoming, past, isProHost, isAdmin, videos] = await Promise.all([
+  const [upcoming, past, isProHost, isAdmin, videos, publicBadges] = await Promise.all([
     // RLS handles visibility — anon viewers only see public events.
     loadVisibleHostedEvents(supabase, profile.id, { startsAfter: now }),
     loadVisibleHostedEvents(supabase, profile.id, { startsBefore: now }),
@@ -82,6 +86,9 @@ export default async function PlayerProfilePage(props: {
     // Viewer-independent (anon client, active-only via RLS) so the page stays
     // ISR-cacheable.
     new SupabaseMediaPostRepository(supabase).listForProfile(profile.id, null),
+    // Public trophy case — read from the user_badges_public view (anon-granted,
+    // hidden badges already filtered), so it stays ISR-cacheable too.
+    loadPublicBadges(supabase, profile.id),
   ]);
 
   const returnPath = `/players/${profile.handle}`;
@@ -155,14 +162,38 @@ export default async function PlayerProfilePage(props: {
         </div>
       </header>
 
-      <section className="space-y-3">
+      {/* Public trophy case — earned badges only (renders nothing when empty). */}
+      <BadgeShelf
+        earned={publicBadges.map((b) => ({
+          badgeKey: b.badgeKey,
+          awardedAt: new Date(b.awardedAt),
+          source: b.source,
+          label: typeof b.context?.label === 'string' ? b.context.label : null,
+          iconUrl: typeof b.context?.iconUrl === 'string' ? b.context.iconUrl : null,
+        }))}
+        heading={`${name}'s badges`}
+      />
+
+      <section id="upcoming-events" className="space-y-3">
         <h2 className="text-fg text-lg font-semibold">
           Upcoming events{' '}
           <span className="text-muted text-sm font-normal">({upcoming.length})</span>
         </h2>
         <HostedEventsList
-          events={upcoming}
+          events={upcoming.slice(
+            (upage - 1) * UPCOMING_EVENTS_PER_PAGE,
+            upage * UPCOMING_EVENTS_PER_PAGE,
+          )}
           emptyState={`${name} isn't hosting any upcoming events you can see.`}
+        />
+        <Pagination
+          basePath={`/players/${profile.handle}`}
+          page={upage}
+          pageSize={UPCOMING_EVENTS_PER_PAGE}
+          total={upcoming.length}
+          searchParams={searchParams}
+          pageParam="upage"
+          scrollToId="upcoming-events"
         />
       </section>
       {videos.length > 0 && (

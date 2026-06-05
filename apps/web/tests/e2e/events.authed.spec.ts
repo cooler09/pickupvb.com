@@ -2,7 +2,7 @@ import { test, expect } from './_helpers/fixtures';
 import { isVisibleOrTimeout } from './_helpers/predicates';
 import { skipIfMissingAuth } from './_helpers/auth';
 import { STORAGE_PATHS } from './_helpers/paths';
-import { cancelEvent, createFreeOpenPlayEvent } from './_helpers/event-create';
+import { cancelEvent, createFreeOpenPlayEvent, openTemplatesModal } from './_helpers/event-create';
 
 /**
  * Authenticated event flows.
@@ -61,9 +61,8 @@ test.describe('saved event templates (Pro feature)', () => {
     try {
       await page.goto('/events/new');
 
-      // Pro user should see the template name input.
-      const templateNameInput = page.getByPlaceholder(/template name/i);
-      await expect(templateNameInput).toBeVisible({ timeout: 10_000 });
+      // Pro user gets the "Templates" button → modal with the template input.
+      expect(await openTemplatesModal(page)).toBe(true);
 
       // Click "Save template" without entering a name.
       const saveBtn = page.getByRole('button', { name: /save template/i });
@@ -82,13 +81,16 @@ test.describe('saved event templates (Pro feature)', () => {
 
   test('non-Pro user sees no template card on /events/new', async ({ page }) => {
     await page.goto('/events/new');
-    const templateNameInput = page.getByPlaceholder(/template name/i);
-    const isProUser = (await templateNameInput.count()) > 0;
+    // The Pro affordance is the "Templates" trigger button; non-Pro hosts see a
+    // "Save & reuse event setups with Pro" upsell link instead.
+    const templatesTrigger = page.getByRole('button', { name: /^templates$/i });
+    const isProUser = await templatesTrigger.isVisible();
     if (isProUser) {
       test.skip(true, 'Test user has Pro — non-Pro check not applicable; skipping');
     }
-    // Non-Pro: template controls should not be visible.
-    await expect(templateNameInput).not.toBeVisible();
+    // Non-Pro: no Templates trigger, and the template-name input never mounts.
+    await expect(templatesTrigger).toHaveCount(0);
+    await expect(page.getByPlaceholder(/template name/i)).toHaveCount(0);
   });
 
   // Covered by event-create-extended.authed.spec.ts: "Pro: save template, verify in dropdown, apply pre-fills form, then remove"

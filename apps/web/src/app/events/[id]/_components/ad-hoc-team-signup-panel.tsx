@@ -52,9 +52,10 @@ export type AdHocTeamPublicEntry = {
   divisionId: string;
   paymentStatus: 'none' | 'pending' | 'paid' | 'refunded';
   /**
-   * Who created this registration (ADR 0017). `'walk_in'` renders a
-   * "Walk-in" pill next to the payment pill on the public roster so
-   * viewers can tell same-day adds from pre-registered teams.
+   * Who created this registration (ADR 0017; reframed in ADR 0033).
+   * `'walk_in'` renders an "Added by host" pill next to the payment pill
+   * on the public roster so viewers can tell host-added teams from
+   * captain self-registrations.
    */
   source: 'ad_hoc' | 'walk_in';
   captainName: string | null;

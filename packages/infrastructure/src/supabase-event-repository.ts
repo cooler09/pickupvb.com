@@ -41,7 +41,6 @@ import {
   mapRegisteredTeams,
   mapViewerCaptainedTeams,
   mapViewerHostableGroups,
-  mapWinnerLabels,
   tallyTeamMembers,
   toGroupLite,
   toProfileLite,
@@ -127,6 +126,8 @@ type DivisionRow = {
   ends_at: string | null;
   winner_entry_id: string | null;
   winner_recorded_at: string | null;
+  runner_up_entry_id: string | null;
+  third_place_entry_id: string | null;
   allow_free_agents: boolean;
   team_registration_mode: TeamRegistrationMode | null;
   position_roster: Record<string, number> | null;
@@ -211,11 +212,16 @@ function divisionRowToDomain(row: DivisionRow): Division {
   });
 }
 
-function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): DivisionLite {
+function divisionRowToLite(
+  row: DivisionRow,
+  labels: { winner: string | null; runnerUp: string | null; third: string | null },
+): DivisionLite {
   const winner =
-    winnerLabel !== null && row.winner_recorded_at !== null
-      ? { label: winnerLabel, recordedAt: new Date(row.winner_recorded_at) }
+    labels.winner !== null && row.winner_recorded_at !== null
+      ? { label: labels.winner, recordedAt: new Date(row.winner_recorded_at) }
       : null;
+  const runnerUp = labels.runnerUp !== null ? { label: labels.runnerUp } : null;
+  const thirdPlace = labels.third !== null ? { label: labels.third } : null;
   return {
     id: row.id,
     sortOrder: row.sort_order,
@@ -239,6 +245,8 @@ function divisionRowToLite(row: DivisionRow, winnerLabel: string | null): Divisi
     allowFreeAgents: row.allow_free_agents ?? true,
     teamRegistrationMode: row.team_registration_mode ?? null,
     winner,
+    runnerUp,
+    thirdPlace,
   };
 }
 
@@ -628,13 +636,20 @@ export class SupabaseEventRepository implements EventRepository {
     }
     if (faToInsert.length > 0) {
       const rows = faToInsert.map((f) => ({ ...f, role: 'free_agent' as const }));
-      // Upsert on the (division_id, user_id) unique index so a concurrent
-      // double-submit is idempotent (matches the removed
+      // Plain insert (not upsert): the only unique index on
+      // (division_id, user_id) is *partial* — `where user_id is not null`
+      // (migration 20260802000000). PostgREST's `onConflict` can't carry the
+      // index predicate a partial index requires for ON CONFLICT inference, so
+      // an upsert here raised 42P10 ("no unique or exclusion constraint
+      // matching the ON CONFLICT specification") and broke every free-agent
+      // signup. The partial index still enforces uniqueness on the insert, so
+      // a concurrent double-submit raises 23505 (unique_violation) — which we
+      // swallow to keep the operation idempotent (matches the removed
       // attachFreeAgentToDivision behaviour — ADR 0019).
-      const { error: insFErr } = await this.client
-        .from('event_participants')
-        .upsert(rows as never, { onConflict: 'division_id,user_id', ignoreDuplicates: true });
-      if (insFErr) throw new Error(`save free agents insert failed: ${insFErr.message}`);
+      const { error: insFErr } = await this.client.from('event_participants').insert(rows as never);
+      if (insFErr && insFErr.code !== '23505') {
+        throw new Error(`save free agents insert failed: ${insFErr.message}`);
+      }
     }
     for (const row of faToUpdate) {
       const { error: updErr } = await this.client
@@ -1018,8 +1033,10 @@ export class SupabaseEventRepository implements EventRepository {
       hostUserId: row.host_id ?? null,
       hostGroupId: row.host_group_id ?? null,
       // The bracket / schedule / watch pages never read division winners, so we
-      // skip the per-division winner-label lookups `getDetail` performs.
-      divisions: divisionRows.map((d) => divisionRowToLite(d, null)),
+      // skip the per-division placement-label lookups `getDetail` performs.
+      divisions: divisionRows.map((d) =>
+        divisionRowToLite(d, { winner: null, runnerUp: null, third: null }),
+      ),
     };
   }
 
@@ -1080,7 +1097,7 @@ export class SupabaseEventRepository implements EventRepository {
       this.client
         .from('event_team_entries')
         .select(
-          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, format, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
         )
         .eq('division.event_id', id)
         .eq('source', 'roster')
@@ -1113,23 +1130,37 @@ export class SupabaseEventRepository implements EventRepository {
     const divisionRowsForDetail = (divisionRowsRes.data as DivisionRow[] | null) ?? [];
     const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
 
-    // Resolve division winner labels (one extra read when any division has a
-    // recorded winner). The mapper prefers the live `teams.name` over the
-    // entry `display_name` (ad-hoc / walk-in rows). See `mapWinnerLabels`.
-    let winnerLabelsByDivision = new Map<string, string>();
-    const entryWinnerIds = divisionRowsForDetail
-      .map((d) => d.winner_entry_id)
-      .filter((v): v is string => !!v);
-    if (entryWinnerIds.length > 0) {
+    // Resolve podium labels (one extra read when any division has a recorded
+    // placement). Collect every placement entry id across all three places,
+    // fetch once, and build an entry-id → label map (preferring the live
+    // `teams.name` over the entry `display_name` for ad-hoc / walk-in rows).
+    let entryLabelById = new Map<string, string>();
+    const placementEntryIds = [
+      ...new Set(
+        divisionRowsForDetail.flatMap((d) =>
+          [d.winner_entry_id, d.runner_up_entry_id, d.third_place_entry_id].filter(
+            (v): v is string => !!v,
+          ),
+        ),
+      ),
+    ];
+    if (placementEntryIds.length > 0) {
       const { data: entryRows } = await this.client
         .from('event_team_entries')
         .select('id, display_name, team_id, teams:teams(name)')
-        .in('id', entryWinnerIds);
-      winnerLabelsByDivision = mapWinnerLabels(
-        divisionRowsForDetail,
-        (entryRows as WinnerEntryRow[] | null) ?? [],
+        .in('id', placementEntryIds);
+      entryLabelById = new Map(
+        ((entryRows as WinnerEntryRow[] | null) ?? []).map((r) => [
+          r.id,
+          r.teams?.name ?? r.display_name,
+        ]),
       );
     }
+    const placementLabels = (d: DivisionRow) => ({
+      winner: d.winner_entry_id ? (entryLabelById.get(d.winner_entry_id) ?? null) : null,
+      runnerUp: d.runner_up_entry_id ? (entryLabelById.get(d.runner_up_entry_id) ?? null) : null,
+      third: d.third_place_entry_id ? (entryLabelById.get(d.third_place_entry_id) ?? null) : null,
+    });
 
     const positionRoster = divisionRowToPositionRoster(divisionRowsForDetail[0]);
     const { attendees, filledByPosition } = mapAttendees(
@@ -1185,15 +1216,14 @@ export class SupabaseEventRepository implements EventRepository {
             .eq('division.event_id', id)
             .in('team_id', registeredTeamIds)
         : Promise.resolve({ data: [], error: null }),
-      // Teams the viewer captains in this event's format. Only meaningful
-      // for tournaments; we still issue it for any logged-in viewer to
-      // keep the response shape uniform — the cost is one tiny query.
-      viewerId && legacyDetail.format
-        ? this.client
-            .from('teams')
-            .select('id, name, format')
-            .eq('captain_id', viewerId)
-            .eq('format', legacyDetail.format)
+      // Every team the viewer captains. Teams are not format-locked (ADR
+      // 0013) — a roster can enter a division of any format — so we no longer
+      // filter by the event's format; the picker shows all of them. Only
+      // consumed by the tournament/league signup panels (harmless elsewhere).
+      // One tiny query, issued for any logged-in viewer to keep the response
+      // shape uniform.
+      viewerId
+        ? this.client.from('teams').select('id, name').eq('captain_id', viewerId)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -1214,10 +1244,25 @@ export class SupabaseEventRepository implements EventRepository {
 
     let canManage = false;
     if (viewerId) {
-      if (viewerId === row.host_id) canManage = true;
-      else {
+      if (viewerId === row.host_id) {
+        canManage = true;
+      } else {
         const role = (viewerRoleRes.data as { role: string } | null)?.role;
-        canManage = role === 'owner' || role === 'admin';
+        const isHostGroupAdmin = role === 'owner' || role === 'admin';
+        // Event co-hosts manage the event too — matches `is_event_host` (the SQL
+        // gate the bracket / league / broadcast writes already use) + the
+        // events_select RLS. canManage previously covered only host + host-group
+        // admin, so an individual event co-host (`event_co_hosts.host_user_id`)
+        // or a co-host group's admin was redirected away from /edit + /manage
+        // despite being able to act everywhere else.
+        const isEventCoHostUser = coHostUsers.some((u) => String(u.id) === viewerId);
+        const viewerAdminGroupIds = new Set(
+          ((viewerHostableGroupsRes.data as HostableGroupRow[] | null) ?? [])
+            .map((r) => r.groups?.id)
+            .filter((id): id is string => !!id),
+        );
+        const isCoHostGroupAdmin = coGroupIds.some((gid) => viewerAdminGroupIds.has(gid));
+        canManage = isHostGroupAdmin || isEventCoHostUser || isCoHostGroupAdmin;
       }
     }
 
@@ -1308,9 +1353,7 @@ export class SupabaseEventRepository implements EventRepository {
       viewerHostableGroups,
       viewerCaptainedTeams,
       ...rowToExtensions(row),
-      divisions: divisionRowsForDetail.map((d) =>
-        divisionRowToLite(d, winnerLabelsByDivision.get(d.id) ?? null),
-      ),
+      divisions: divisionRowsForDetail.map((d) => divisionRowToLite(d, placementLabels(d))),
     };
   }
 
@@ -1359,22 +1402,15 @@ export class SupabaseEventRepository implements EventRepository {
   // (team inserts still route through the `attach_team_to_division` RPC from
   // inside `save`, preserving the partial-unique ON CONFLICT semantics).
 
-  async setRosterTeamForfeited(
-    divisionId: string,
-    teamId: string,
-    forfeitedAt: Date | null,
-  ): Promise<void> {
-    // Targets the live roster row only — `source='roster'` excludes ad-hoc
-    // and walk-in entries (which don't have a captain to "forfeit") and
-    // `deleted_at IS NULL` skips withdrawn rows. RLS on event_team_entries
-    // gates the write to the event host.
+  async setLeagueEntryForfeited(entryId: string, forfeitedAt: Date | null): Promise<void> {
+    // Keyed on the entry id (ADR 0034), so it works for both rostered teams
+    // and host-added (team-less `walk_in`) entries. `deleted_at IS NULL` skips
+    // withdrawn rows. RLS on event_team_entries gates the write to the host.
     const { error } = await this.client
       .from('event_team_entries')
       .update({ forfeited_at: forfeitedAt ? forfeitedAt.toISOString() : null } as never)
-      .eq('division_id', divisionId)
-      .eq('team_id', teamId)
-      .eq('source', 'roster')
+      .eq('id', entryId)
       .is('deleted_at', null);
-    if (error) throw new Error(`setRosterTeamForfeited failed: ${error.message}`);
+    if (error) throw new Error(`setLeagueEntryForfeited failed: ${error.message}`);
   }
 }

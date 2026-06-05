@@ -16,6 +16,18 @@ export function escapeLike(value: string): string {
   return value.replace(/[%_]/g, (m) => `\\${m}`);
 }
 
+/** Great-circle distance in km between two lat/lng points (PL-5 distance chip). */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const R = 6371; // mean Earth radius, km
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
 const CARD_COLUMNS =
   'id, handle, display_name, home_city, avatar_url, primary_position, secondary_position, tertiary_position';
 
@@ -123,12 +135,15 @@ export class SupabaseProfileRepository implements ProfileQueries {
   async searchDirectory({
     nameLike,
     cityLike,
+    near,
     limit,
     offset,
   }: ProfileDirectoryQuery): Promise<ProfileDirectoryPage> {
+    // Only fetch coords when a proximity filter is active (PL-5).
+    const columns = near ? `${CARD_COLUMNS}, latitude, longitude` : CARD_COLUMNS;
     let query = this.client
       .from('profiles_public')
-      .select(CARD_COLUMNS, { count: 'exact' })
+      .select(columns, { count: 'exact' })
       .order('display_name', { ascending: true })
       .range(offset, offset + limit - 1);
     if (nameLike) {
@@ -137,9 +152,32 @@ export class SupabaseProfileRepository implements ProfileQueries {
     if (cityLike) {
       query = query.ilike('home_city', `%${escapeLike(cityLike)}%`);
     }
+    if (near) {
+      // Bounding box from the radius: ~111.32 km per degree of latitude;
+      // longitude degrees shrink by cos(latitude). Profiles with NULL coords
+      // fail the `gte`/`lte` comparisons and are excluded — intended.
+      const dLat = near.radiusKm / 111.32;
+      const dLng =
+        near.radiusKm / (111.32 * Math.max(Math.cos((near.latitude * Math.PI) / 180), 0.01));
+      query = query
+        .gte('latitude', near.latitude - dLat)
+        .lte('latitude', near.latitude + dLat)
+        .gte('longitude', near.longitude - dLng)
+        .lte('longitude', near.longitude + dLng);
+    }
     const { data, count, error } = await query;
     if (error) throw new Error(`searchDirectory failed: ${error.message}`);
-    const cards = ((data as CardRow[] | null) ?? []).map(toCard);
+    type DirectoryRow = CardRow & { latitude: number | null; longitude: number | null };
+    // `data` is loosely typed because the select column list is built
+    // dynamically (CARD_COLUMNS ± coords), so supabase-js can't infer the row.
+    const rows = (data as unknown as DirectoryRow[] | null) ?? [];
+    const cards = rows.map((r) => {
+      const card = toCard(r);
+      if (near && r.latitude != null && r.longitude != null) {
+        card.distanceKm = haversineKm(near.latitude, near.longitude, r.latitude, r.longitude);
+      }
+      return card;
+    });
     return { cards, total: count ?? cards.length };
   }
 

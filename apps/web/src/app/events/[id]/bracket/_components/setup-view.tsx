@@ -1,6 +1,7 @@
 'use client';
 
 import type { BracketFormat } from '@pickupvb/domain';
+import { primaryButtonClass } from '@/components/primary-button';
 import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
 import { bindBracketActions, eventScope } from './bracket-action-binding';
@@ -73,10 +74,7 @@ export function SetupView(props: {
         </div>
         <div className="flex flex-wrap gap-2">
           <form action={a.generate}>
-            <SubmitButton
-              disabled={!canGenerate}
-              className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
-            >
+            <SubmitButton disabled={!canGenerate} className={primaryButtonClass('md')}>
               Generate bracket
             </SubmitButton>
           </form>
@@ -124,16 +122,16 @@ export function SetupView(props: {
               className={
                 canGenerate
                   ? 'border-border-base text-fg/80 hover:bg-fg/5 rounded-md border border-dashed px-3 py-1.5 text-sm font-medium'
-                  : 'bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90'
+                  : primaryButtonClass('sm')
               }
             >
-              {standalone ? '+ Add teams' : '+ Add walk-in teams'}
+              + Add teams
             </button>
           )}
-          title={standalone ? 'Add teams' : 'Add walk-in teams'}
+          title="Add teams"
           description={
             standalone
-              ? 'Type in the team names competing in this bracket. Add as many as you need — the modal stays open after each.'
+              ? 'Type in the team names competing in this bracket — one at a time, or switch to “Paste a list” to add a whole roster at once. The modal stays open so you can keep adding.'
               : "For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
           }
         >
@@ -177,9 +175,7 @@ function SeedingForm(props: {
         orderedTeams={props.orderedTeams}
       />
       <div className="flex flex-wrap gap-2 pt-2">
-        <SubmitButton className="bg-primary text-primary-fg rounded-md px-4 py-2 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60">
-          Save seeding
-        </SubmitButton>
+        <SubmitButton className={primaryButtonClass('md')}>Save seeding</SubmitButton>
         <SubmitButton
           name="randomize"
           value="1"

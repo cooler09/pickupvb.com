@@ -9,6 +9,7 @@ import {
   fieldLabelClass as labelClass,
 } from '@/components/field-styles';
 import { parseAction, importAction, type ImportRowResult } from './actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import type { ListingDraft } from '@/lib/listing-extract';
 
 const SURFACES = [
@@ -38,6 +39,7 @@ export default function ImportClient() {
   const [results, setResults] = useState<ImportRowResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const errorRef = useAlertReveal(error, Boolean(error));
 
   function parse() {
     setError(null);
@@ -77,8 +79,10 @@ export default function ImportClient() {
     <div className="space-y-6">
       {error && (
         <div
+          ref={errorRef}
+          tabIndex={-1}
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
         >
           {error}
         </div>

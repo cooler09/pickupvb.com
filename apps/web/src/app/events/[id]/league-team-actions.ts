@@ -32,15 +32,15 @@ function mapErrorAndFlash(eventId: string, err: unknown): never {
 async function setForfeited(
   eventId: string,
   divisionId: string,
-  teamId: string,
+  entryId: string,
   forfeited: boolean,
   returnPath: string,
 ): Promise<void> {
-  if (!eventId || !divisionId || !teamId) return;
+  if (!eventId || !divisionId || !entryId) return;
   const { user } = await requireSession();
   try {
     await handlers.setLeagueTeamForfeited.execute(
-      new SetLeagueTeamForfeitedCommand(eventId, divisionId, teamId, user.id, forfeited),
+      new SetLeagueTeamForfeitedCommand(eventId, divisionId, entryId, user.id, forfeited),
     );
   } catch (err) {
     mapErrorAndFlash(eventId, err);
@@ -52,19 +52,19 @@ async function setForfeited(
 export async function markLeagueTeamForfeitedFromForm(
   eventId: string,
   divisionId: string,
-  teamId: string,
+  entryId: string,
   returnPath: string,
   _formData: FormData,
 ): Promise<void> {
-  await setForfeited(eventId, divisionId, teamId, true, returnPath);
+  await setForfeited(eventId, divisionId, entryId, true, returnPath);
 }
 
 export async function reinstateLeagueTeamFromForm(
   eventId: string,
   divisionId: string,
-  teamId: string,
+  entryId: string,
   returnPath: string,
   _formData: FormData,
 ): Promise<void> {
-  await setForfeited(eventId, divisionId, teamId, false, returnPath);
+  await setForfeited(eventId, divisionId, entryId, false, returnPath);
 }

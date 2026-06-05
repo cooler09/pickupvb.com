@@ -6,6 +6,7 @@ import { SupabaseNotificationPreferencesRepository } from '@pickupvb/infrastruct
 import { getServerSupabase } from '@/lib/supabase';
 import { updateNotificationPreferences } from './actions';
 import { PushSubscribeButton } from '@/components/push-subscribe-button';
+import { PushTestButton } from '@/components/push-test-button';
 import { SubmitButton } from '@/components/submit-button';
 
 export const metadata = {
@@ -61,10 +62,11 @@ export default async function NotificationsPrefsPage() {
             description="Instant alerts on this device. Enable on each device you want notifications on."
             defaultChecked={pushEnabled}
           />
-          <div className="pl-3">
+          <div className="space-y-2 pl-3">
             <PushSubscribeButton
               vapidPublicKey={process.env['NEXT_PUBLIC_VAPID_PUBLIC_KEY'] ?? null}
             />
+            <PushTestButton />
           </div>
         </section>
 

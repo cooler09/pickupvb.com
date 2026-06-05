@@ -22,6 +22,7 @@ import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
+import { EventBadgesEarnSection } from './_components/event-badges-earn-section';
 import { EventMediaLink } from './_components/event-media-link';
 import { OffPlatformUpsell } from './_components/off-platform-upsell';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
@@ -37,6 +38,19 @@ export async function generateMetadata(props: {
   } catch (err) {
     if (err instanceof NotFoundError) return { title: 'Event — PickupVB' };
     return { title: 'Event — PickupVB' };
+  }
+  // `loadEventReadModelPublic` reads on the admin client (RLS-bypassed), so it
+  // returns scoped events too. Metadata is viewer-agnostic (crawlers, link
+  // unfurls), so only an anon-visible event — published `public` / `invite_only`
+  // (the latter is link-shareable) — may expose its title/description here.
+  // Otherwise emit a generic, noindex title so a `friends_of_host` /
+  // `friends_of_attendees` (or unpublished) event's name doesn't leak in
+  // `<head>` / og tags. The page body enforces the same gate in loadEventDetail.
+  const anonVisible =
+    event.status === 'published' &&
+    (event.visibility === 'public' || event.visibility === 'invite_only');
+  if (!anonVisible) {
+    return { title: 'Event — PickupVB', robots: { index: false, follow: true } };
   }
   // Don't expose non-public events to crawlers — and keep cancelled/draft
   // events out of the index even when public. Sitemap removal alone won't
@@ -125,10 +139,24 @@ export default async function EventDetailPage(props: {
     filledByPosition,
     viewerPosition,
     sponsor,
+    eventBadges,
     heroImageUrl,
     mediaSummary,
     cta,
   } = vm;
+
+  // Registered count per division (roster teams + ad-hoc / walk-in entries),
+  // mirroring the public roster grouping, so the divisions comparison list can
+  // show "registered / cap" for team divisions.
+  const teamCountByDivision = new Map<string, number>();
+  for (const t of event.teams) {
+    if (t.divisionId) {
+      teamCountByDivision.set(t.divisionId, (teamCountByDivision.get(t.divisionId) ?? 0) + 1);
+    }
+  }
+  for (const r of adHocAllRegistrations) {
+    teamCountByDivision.set(r.divisionId, (teamCountByDivision.get(r.divisionId) ?? 0) + 1);
+  }
 
   return (
     <article className="mx-auto max-w-3xl space-y-8">
@@ -233,7 +261,7 @@ export default async function EventDetailPage(props: {
         timeZone={event.timeZone}
       />
 
-      <DivisionsSection divisions={event.divisions} />
+      <DivisionsSection divisions={event.divisions} teamCounts={teamCountByDivision} />
 
       <EventSignupArea
         event={event}
@@ -355,6 +383,8 @@ export default async function EventDetailPage(props: {
         totalCount={mediaSummary.totalCount}
         liveCount={mediaSummary.liveCount}
       />
+
+      <EventBadgesEarnSection badges={eventBadges.filter((b) => b.grantRule === 'on_attend')} />
 
       <EventSponsorSection sponsor={sponsor} />
 

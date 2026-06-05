@@ -15,6 +15,8 @@ export function MatchCard(props: {
   match: Match;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
+  /** Stage / global default target score (ADR 0032); per-match override wins. */
+  targetScore?: number | null;
   isHost: boolean;
   viewerId: string | null;
   /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
@@ -53,6 +55,16 @@ export function MatchCard(props: {
           {m.court ? <span className="text-fg/70 font-medium">{m.court}</span> : null}
           {m.court && m.slot ? ' · ' : null}
           {m.slot ? <span>Slot {m.slot}</span> : null}
+        </p>
+      )}
+      {/* Per-match length / point-total override (ADR 0032) — only when this
+          match differs from the bracket default, so the row stays quiet otherwise. */}
+      {(m.bestOf != null || m.targetScore != null) && (
+        <p className="text-muted -mt-1 mb-2 text-xs">
+          Best of {m.bestOf ?? props.bestOf}
+          {(m.targetScore ?? props.targetScore) != null
+            ? ` · to ${m.targetScore ?? props.targetScore}`
+            : ''}
         </p>
       )}
       <ul className="space-y-1">

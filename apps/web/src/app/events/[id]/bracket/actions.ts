@@ -4,15 +4,24 @@ import type { Route } from 'next';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
+  AddMatchCommand,
   CreateBracketCommand,
+  EditMatchCommand,
   GenerateBracketCommand,
   GeneratePlayoffCommand,
+  PublishBracketCommand,
   RecordMatchResultCommand,
-  RegisterAdHocTeamCommand,
+  RegisterWalkInTeamCommand,
+  RemoveMatchCommand,
+  ReopenBracketCommand,
   ReorderPoolMatchesCommand,
+  ReplaceEntryCommand,
   ResetBracketCommand,
   ResetMatchCommand,
   SeedBracketCommand,
+  SetPoolsCommand,
+  type EditMatchPatchInput,
+  type AddMatchInputDto,
 } from '@pickupvb/application';
 import {
   ConflictError,
@@ -94,6 +103,10 @@ export async function createBracketFromForm(
   const config: Partial<BracketConfig> = {};
   const bestOf = Number(formData.get('best_of') ?? '');
   if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
+  // Target score (ADR 0032) — points a game is played to; informational. Applies
+  // to every format. Empty / non-positive leaves it unset (null default).
+  const targetScore = Number(formData.get('target_score') ?? '');
+  if (Number.isInteger(targetScore) && targetScore >= 1) config.targetScore = targetScore;
   if (format === 'pool_play_playoff') {
     const poolCount = Number(formData.get('pool_count') ?? '');
     const advance = Number(formData.get('advance_per_pool') ?? '');
@@ -108,6 +121,16 @@ export async function createBracketFromForm(
       }
     }
     if (formData.get('require_work_team') != null) config.requireWorkTeam = true;
+    // Playoff-stage length overrides (ADR 0032). Empty ⇒ unset (falls back to
+    // the pool-play bestOf / targetScore at scoring time).
+    const playoffBestOf = Number(formData.get('playoff_best_of') ?? '');
+    if (playoffBestOf === 1 || playoffBestOf === 3 || playoffBestOf === 5) {
+      config.playoffBestOf = playoffBestOf;
+    }
+    const playoffTarget = Number(formData.get('playoff_target_score') ?? '');
+    if (Number.isInteger(playoffTarget) && playoffTarget >= 1) {
+      config.playoffTargetScore = playoffTarget;
+    }
     const rawCourts = String(formData.get('court_labels') ?? '');
     const courts = rawCourts
       .split(',')
@@ -221,6 +244,185 @@ export async function resetBracket(eventId: string, divisionId: string): Promise
   }
   revalidate(eventId);
   back(eventId, divisionId, 'reset');
+}
+
+// ---- Draft editing (ADR 0032) ---------------------------------------------
+//
+// Host-gated structural edits to a `draft` bracket. All flash-param redirects
+// (the draft workspace renders plain `<form action>` submits), so they mirror
+// the generate/seed/reset actions above.
+
+/** Publish a draft → live. */
+export async function publishBracket(eventId: string, divisionId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.publishBracket.execute(new PublishBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'published');
+}
+
+/**
+ * Patch one match. The form always submits every field, so each is applied
+ * (empty / "tbd" clears the override or the team). See EditMatchCommand.
+ */
+export async function editBracketMatchFromForm(
+  eventId: string,
+  divisionId: string,
+  matchId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const patch: EditMatchPatchInput = {};
+  const a = formData.get('entry_a');
+  if (a !== null) patch.entryAId = a === '' || a === 'tbd' ? null : String(a);
+  const b = formData.get('entry_b');
+  if (b !== null) patch.entryBId = b === '' || b === 'tbd' ? null : String(b);
+  const court = formData.get('court');
+  if (court !== null) patch.court = String(court).trim() || null;
+  const bo = Number(formData.get('best_of') ?? '');
+  patch.bestOf = bo === 1 || bo === 3 || bo === 5 ? bo : null;
+  const ts = Number(formData.get('target_score') ?? '');
+  patch.targetScore = Number.isInteger(ts) && ts >= 1 ? ts : null;
+  try {
+    await handlers.editBracketMatch.execute(
+      new EditMatchCommand(divisionId, user.id, matchId, patch),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'match_updated');
+}
+
+/** Append a match to a pool (or the open stage). */
+export async function addBracketMatchFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const input: AddMatchInputDto = {};
+  const pool = String(formData.get('pool') ?? '').trim();
+  if (pool) input.pool = pool;
+  const a = formData.get('entry_a');
+  if (a !== null && a !== '' && a !== 'tbd') input.entryAId = String(a);
+  const b = formData.get('entry_b');
+  if (b !== null && b !== '' && b !== 'tbd') input.entryBId = String(b);
+  try {
+    await handlers.addBracketMatch.execute(new AddMatchCommand(divisionId, user.id, input));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'match_added');
+}
+
+/** Remove a match. */
+export async function removeBracketMatch(
+  eventId: string,
+  divisionId: string,
+  matchId: string,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.removeBracketMatch.execute(new RemoveMatchCommand(divisionId, user.id, matchId));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'match_removed');
+}
+
+/**
+ * Reassign teams to pools in bulk (one `team_pool_<entryId>` field per team),
+ * then rebuild the pool schedule from the new composition (setPools is
+ * labels-only; generate re-derives the matches — ADR 0032). Stays in draft.
+ * Rebuilding discards any manual schedule edits, which is expected when the
+ * pool composition changes.
+ */
+export async function setBracketPoolsFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const assignments: Array<{ entryId: string; pool: string | null }> = [];
+  for (const [key, val] of formData.entries()) {
+    if (!key.startsWith('team_pool_')) continue;
+    const entryId = key.slice('team_pool_'.length);
+    const pool = String(val).trim();
+    assignments.push({ entryId, pool: pool || null });
+  }
+  if (assignments.length === 0) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'No pool assignments submitted.');
+  }
+  try {
+    await handlers.setBracketPools.execute(new SetPoolsCommand(divisionId, user.id, assignments));
+    await handlers.generateBracket.execute(new GenerateBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'pools_updated');
+}
+
+// ---- Live-board edits (ADR 0032 / Phase 5) --------------------------------
+
+/** Re-open a completed bracket so the host can fix a result. */
+export async function reopenBracket(eventId: string, divisionId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.reopenBracket.execute(new ReopenBracketCommand(divisionId, user.id));
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'reopened');
+}
+
+/**
+ * Substitute one entry for another everywhere it appears in the bracket — a
+ * dropped team replaced by a registered stand-in. See ReplaceEntryCommand.
+ */
+export async function replaceEntryFromForm(
+  eventId: string,
+  divisionId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const oldEntryId = String(formData.get('old_entry_id') ?? '');
+  const newEntryId = String(formData.get('new_entry_id') ?? '');
+  if (!oldEntryId || !newEntryId || oldEntryId === newEntryId) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'Pick two different teams to substitute.');
+  }
+  try {
+    await handlers.replaceBracketEntry.execute(
+      new ReplaceEntryCommand(divisionId, user.id, oldEntryId, newEntryId),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'entry_replaced');
 }
 
 /**
@@ -339,11 +541,14 @@ export async function resetMatch(
 
 /**
  * Host-only escape hatch for adding walk-in / unregistered teams directly
- * to a division's bracket. Reuses the ad-hoc registration pipeline
- * (ADR 0007) so each new row participates in seeding, capacity accounting,
- * and audit history the same as any other team. The acting host becomes the
- * nominal captain — they can rename or reassign the roster later from the
- * event's team management UI.
+ * to a division's bracket. Registers each as a walk-in (ADR 0017) so the row
+ * participates in seeding, capacity accounting, and audit history the same as
+ * any other team — but with `captain_id = null`. The host is the *creator*,
+ * not a player: recording them as the captain falsely credits them downstream
+ * (badge stats, "your upcoming events", "my teams"), so the entry carries no
+ * captain account. The team name doubles as the freeform `captainDisplayName`
+ * the walk-in model requires; the host can rename later from the event's team
+ * management UI.
  *
  * Unlike the other actions in this file this one is invoked **from the
  * client**: the walk-in modal calls it inside `useTransition` so the host
@@ -375,8 +580,10 @@ export async function addWalkInTeam(
     );
 
   try {
-    const { id } = await handlers.registerAdHocTeam.execute(
-      new RegisterAdHocTeamCommand(eventId, divisionId, user.id, name, members, true),
+    // Walk-in (captain_id null): the host is the creator, not a player. The
+    // team name stands in for the required freeform captain display name.
+    const { id } = await handlers.registerWalkInTeam.execute(
+      new RegisterWalkInTeamCommand(eventId, divisionId, user.id, name, name, null, members),
     );
     revalidate(eventId);
     return { ok: true, id, name };

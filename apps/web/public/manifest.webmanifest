@@ -1,0 +1,16 @@
+{
+  "name": "PickupVB — pickup volleyball events",
+  "short_name": "PickupVB",
+  "description": "Find, host, and join pickup volleyball events near you — open play, leagues, and tournaments.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F9EBD9",
+  "theme_color": "#e6004a",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

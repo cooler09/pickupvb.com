@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const errorRef = useAlertReveal(error, Boolean(error));
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,8 +63,10 @@ export default function ForgotPasswordPage() {
 
           {error && (
             <div
+              ref={errorRef}
+              tabIndex={-1}
               role="alert"
-              className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
             >
               {error}
             </div>

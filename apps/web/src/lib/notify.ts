@@ -45,10 +45,21 @@ function channelAllowedByPrefs(
   kind: NotificationKind,
   prefs: NotificationPreferences | null,
 ): boolean {
-  // Transactional kinds always go out (CAN-SPAM allows this).
-  if (TRANSACTIONAL_CATEGORIES.has(KIND_CATEGORY[kind])) return true;
+  const category = KIND_CATEGORY[kind];
+
+  // Push has its own consent model — a browser permission grant + a device
+  // subscription + the "Browser push" toggle — so it is *never* force-sent,
+  // not even for a transactional kind (unlike email, where CAN-SPAM lets
+  // transactional sends bypass prefs). No prefs row → push defaults off.
+  if (channel === 'push') {
+    if (!(prefs?.pushEnabled ?? false)) return false;
+    return prefs?.channelOverrides?.[category]?.['push'] !== false;
+  }
+
+  // Transactional kinds always go out on the remaining channels (CAN-SPAM).
+  if (TRANSACTIONAL_CATEGORIES.has(category)) return true;
   if (!prefs) {
-    // No prefs row yet → email + in_app default on, sms/push off.
+    // No prefs row yet → email + in_app default on, sms off.
     return channel === 'email' || channel === 'in_app';
   }
   const masterEnabled =
@@ -56,12 +67,9 @@ function channelAllowedByPrefs(
       ? prefs.emailEnabled
       : channel === 'sms'
         ? prefs.smsEnabled && !prefs.smsOptedOutAt && Boolean(prefs.smsPhone)
-        : channel === 'push'
-          ? prefs.pushEnabled
-          : prefs.inAppEnabled;
+        : prefs.inAppEnabled;
   if (!masterEnabled) return false;
 
-  const category = KIND_CATEGORY[kind];
   const override = prefs.channelOverrides?.[category]?.[channel];
   return override !== false;
 }

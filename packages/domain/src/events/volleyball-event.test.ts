@@ -673,6 +673,56 @@ describe('VolleyballEvent league scaffolding (P1 #1)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// P1 #1 follow-up — captains register a team / sign up as a free agent into a
+// league (same roster path as tournaments; both event types share the
+// aggregate's registerTeam / joinAsFreeAgent). See the league create-flow +
+// public-signup bundle.
+// ---------------------------------------------------------------------------
+
+describe('VolleyballEvent league signup (P1 #1 follow-up)', () => {
+  const LEAGUE_DIV = 'league-div' as DivisionId;
+  function leagueDivision(allowFreeAgents = false): Division {
+    return Division.create({
+      id: LEAGUE_DIV,
+      sortOrder: 0,
+      label: 'Coed B',
+      surface: Surface.Indoor,
+      format: Format.Sixes,
+      gender: Gender.Coed,
+      skillTier: SkillTier.B,
+      teamComposition: TeamComposition.Team,
+      priceCents: 0,
+      priceUnit: PriceUnit.PerTeam,
+      teamRegistrationMode: TeamRegistrationMode.Roster,
+      allowFreeAgents,
+    });
+  }
+
+  it('registerTeam succeeds on a published league (captain season signup)', () => {
+    const evt = makeLeagueWith([leagueDivision()]);
+    evt.publish();
+    evt.registerTeam(TEAM_A, LEAGUE_DIV);
+    expect(evt.teams.has(TEAM_A)).toBe(true);
+    // Same aggregate entry the tournament path records, so save() persists the
+    // join into event_team_entries (source='roster') the schedule page reads.
+    expect(evt.teamEntries).toContainEqual([TEAM_A, LEAGUE_DIV]);
+  });
+
+  it('joinAsFreeAgent succeeds on a league division that allows free agents', () => {
+    const evt = makeLeagueWith([leagueDivision(true)]);
+    evt.publish();
+    evt.joinAsFreeAgent(ALICE, LEAGUE_DIV, null);
+    expect(evt.freeAgents.has(ALICE)).toBe(true);
+  });
+
+  it('joinAsFreeAgent rejects a league division that opts out of free agents', () => {
+    const evt = makeLeagueWith([leagueDivision(false)]);
+    evt.publish();
+    expect(() => evt.joinAsFreeAgent(ALICE, LEAGUE_DIV, null)).toThrow(InvariantViolation);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Step 4 — open-play invariant tightening (P1 #3 + P2 #5 + P2 #8).
 // See docs/audits/event-data-model.md.
 // ---------------------------------------------------------------------------
@@ -775,5 +825,105 @@ describe('VolleyballEvent open-play invariants (P1 #3 + P2 #5)', () => {
         }),
       ]),
     ).toThrow(InvariantViolation);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Denormalized event-level `surface` mirrors the primary division.
+// Regression: an open-play event created Indoor whose sole division was later
+// switched to Grass left `events.surface` stale at Indoor, so cards/search
+// showed the wrong surface. addDivision/updateDivision must keep them in sync.
+// ---------------------------------------------------------------------------
+describe('VolleyballEvent surface mirrors the primary division', () => {
+  function openPlayDivisionOn(surface: Surface, sortOrder = 0): Division {
+    return Division.create({
+      id: 'div-op-1' as DivisionId,
+      sortOrder,
+      label: 'Open',
+      surface,
+      format: Format.Sixes,
+      gender: Gender.Coed,
+      skillTier: SkillTier.B,
+      teamComposition: TeamComposition.Solo,
+      priceCents: 0,
+      priceUnit: PriceUnit.PerPlayer,
+      teamRegistrationMode: null,
+      allowFreeAgents: false,
+    });
+  }
+
+  it('updateDivision on the primary (sortOrder 0) re-syncs event.surface', () => {
+    const evt = makeOpenPlayWith([openPlayDivisionOn(Surface.Indoor)]);
+    expect(evt.surface).toBe(Surface.Indoor);
+
+    evt.updateDivision(openPlayDivisionOn(Surface.Grass));
+
+    expect(evt.surface).toBe(Surface.Grass);
+    expect(evt.divisions[0]?.surface).toBe(Surface.Grass);
+  });
+
+  it('addDivision of a primary division stamps event.surface', () => {
+    const t = makeTournament();
+    expect(t.surface).toBe(Surface.Sand);
+
+    t.addDivision(
+      Division.create({
+        id: 'div-t-1' as DivisionId,
+        sortOrder: 0,
+        label: 'Open',
+        surface: Surface.Grass,
+        format: Format.Sixes,
+        gender: Gender.Coed,
+        skillTier: SkillTier.B,
+        teamComposition: TeamComposition.Team,
+        priceCents: 0,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.AdHoc,
+        allowFreeAgents: false,
+      }),
+    );
+
+    expect(t.surface).toBe(Surface.Grass);
+  });
+
+  it('editing a non-primary division leaves event.surface untouched', () => {
+    const t = makeTournament();
+    t.addDivision(
+      Division.create({
+        id: 'div-a' as DivisionId,
+        sortOrder: 0,
+        label: 'A',
+        surface: Surface.Sand,
+        format: Format.Quads,
+        gender: Gender.Coed,
+        skillTier: SkillTier.B,
+        teamComposition: TeamComposition.Team,
+        priceCents: 0,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.AdHoc,
+        allowFreeAgents: false,
+      }),
+    );
+    expect(t.surface).toBe(Surface.Sand);
+
+    t.addDivision(
+      Division.create({
+        id: 'div-b' as DivisionId,
+        sortOrder: 1,
+        label: 'B',
+        surface: Surface.Grass,
+        format: Format.Sixes,
+        gender: Gender.Coed,
+        skillTier: SkillTier.B,
+        teamComposition: TeamComposition.Team,
+        priceCents: 0,
+        priceUnit: PriceUnit.PerTeam,
+        teamRegistrationMode: TeamRegistrationMode.AdHoc,
+        allowFreeAgents: false,
+      }),
+    );
+
+    // The sortOrder-1 division is Grass, but the primary (Sand) governs the mirror.
+    expect(t.surface).toBe(Surface.Sand);
   });
 });

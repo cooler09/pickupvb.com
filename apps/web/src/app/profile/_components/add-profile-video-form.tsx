@@ -3,12 +3,14 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { addProfileMediaAction, type AddProfileMediaState } from '../media-actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { fieldInputClass as inputClass } from '@/components/field-styles';
 
 const initialState: AddProfileMediaState = {};
 
 export function AddProfileVideoForm() {
   const [state, formAction] = useFormState(addProfileMediaAction, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error || state.ok));
 
   return (
     <form action={formAction} className="space-y-3">
@@ -51,12 +53,16 @@ export function AddProfileVideoForm() {
           className={inputClass}
         />
       </div>
-      {state.error && (
-        <p className="text-sm text-red-500" role="alert">
-          {state.error}
-        </p>
+      {(state.error || state.ok) && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          {state.error && (
+            <p className="text-sm text-red-500" role="alert">
+              {state.error}
+            </p>
+          )}
+          {state.ok && <p className="text-sm text-green-600">Video added to your profile.</p>}
+        </div>
       )}
-      {state.ok && <p className="text-sm text-green-600">Video added to your profile.</p>}
       <div className="flex items-center gap-3">
         <SubmitButton />
         <p className="text-muted text-xs">

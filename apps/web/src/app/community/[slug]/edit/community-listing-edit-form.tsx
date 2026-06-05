@@ -7,6 +7,7 @@ import { useState } from 'react';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
 import { FieldError, fieldA11y } from '@/components/field-error';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { editCommunityListingAction, type EditCommunityListingState } from './actions';
 import {
   fieldInputClass as inputClass,
@@ -59,6 +60,7 @@ function SectionHeader({ title, description }: { title: string; description?: st
 export default function EditCommunityListingForm({ initial }: { initial: EditFormInitialValues }) {
   const boundAction = editCommunityListingAction.bind(null, initial.id, initial.slug);
   const [state, formAction] = useFormState(boundAction, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
 
   const initialAddress = initial.location?.addressLine ?? '';
   const initialCity = initial.location?.city ?? '';
@@ -91,8 +93,10 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
     <form action={formAction} className="space-y-6 pb-24 sm:pb-0">
       {state.error && (
         <div
+          ref={errorRef}
+          tabIndex={-1}
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
         >
           {state.error}
         </div>

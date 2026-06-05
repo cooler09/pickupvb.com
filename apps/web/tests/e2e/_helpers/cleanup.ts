@@ -58,6 +58,36 @@ export function getCleanupClient(): SupabaseClient<Database> | null {
   return cachedClient;
 }
 
+/**
+ * Resolve a test account's auth user id by email via the GoTrue admin API.
+ * Shared by the admin-client fixtures (league, scoped-event) that need to set a
+ * persona as `events.host_id` / a `friendships` endpoint. The dev project has a
+ * small, stable user set, so paging a couple hundred at a time finds the
+ * address on the first page. Throws (loudly) when the account is missing — the
+ * seed-fixture precondition (sign in once as each test account to provision
+ * `auth.users` + `profiles`) applies here too. Requires the admin client; throws
+ * when cleanup isn't configured.
+ */
+export async function resolveUserIdByEmail(email: string): Promise<string> {
+  const admin = getCleanupClient();
+  if (!admin) {
+    throw new Error(
+      'resolveUserIdByEmail: admin client unavailable — set E2E_CLEANUP_SUPABASE_URL / _SECRET_KEY.',
+    );
+  }
+  const target = email.toLowerCase();
+  for (let page = 1; page <= 10; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) throw new Error(`resolveUserIdByEmail: listUsers failed — ${error.message}`);
+    const match = data.users.find((u) => u.email?.toLowerCase() === target);
+    if (match) return match.id;
+    if (data.users.length < 200) break;
+  }
+  throw new Error(
+    `resolveUserIdByEmail: no auth user for ${email}. Sign in once as that account to provision auth.users + profiles, then retry.`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Targeted deletes — call from per-spec `afterAll` with the id you created.
 // All helpers are safe to call when cleanup is disabled (no-op) and when
@@ -126,6 +156,13 @@ function sweepChunks<T>(items: readonly T[]): T[][] {
  * groups, teams, community listings. Returns a per-table count for logging.
  * Idempotent.
  *
+ * Pass `{ olderThanHours: N }` to **only** reclaim fixtures whose `created_at`
+ * is more than N hours old. This is the concurrency guard for `globalTeardown`:
+ * a second run executing against the same environment always has fixtures
+ * younger than the window, so the teardown of one run can't clobber another's
+ * in-flight rows. Omit the option (the maintenance-script case) to sweep every
+ * matching fixture regardless of age.
+ *
  * Order matters: events go first so their CASCADE (divisions → entries →
  * brackets → payments) clears the `event_team_entries` rows that would
  * otherwise FK-block the team deletes. Any team still referenced afterwards
@@ -142,9 +179,10 @@ function sweepChunks<T>(items: readonly T[]): T[][] {
  * NOTE: groups / teams hard-delete CASCADEs to members + followers + any
  * registrations, so don't run this against a live host's group. The `E2E `
  * prefix prevents collisions with real data — keep test fixtures named
- * accordingly.
+ * accordingly, and conversely **never name a persisted seed entity `E2E …`**
+ * or this sweep will reclaim it.
  */
-export async function sweepLeakedE2EFixtures(): Promise<{
+export async function sweepLeakedE2EFixtures(opts?: { olderThanHours?: number }): Promise<{
   events: number;
   groups: number;
   teams: number;
@@ -153,10 +191,18 @@ export async function sweepLeakedE2EFixtures(): Promise<{
   const c = getCleanupClient();
   if (!c) return { events: 0, groups: 0, teams: 0, community_listings: 0 };
 
+  // Age guard (see docstring): when set, only rows created before this cutoff
+  // are eligible, so a concurrent run's fresh fixtures are never swept.
+  const cutoff =
+    opts?.olderThanHours != null
+      ? new Date(Date.now() - opts.olderThanHours * 60 * 60 * 1000).toISOString()
+      : null;
+
   // 1) Events first — CASCADE frees the event_team_entries that FK-block teams.
   let events = 0;
   for (;;) {
-    const { data } = await c.from('events').select('id').ilike('title', 'E2E %').limit(500);
+    const base = c.from('events').select('id').ilike('title', 'E2E %');
+    const { data } = await (cutoff ? base.lt('created_at', cutoff) : base).limit(500);
     const ids = (data ?? []).map((r) => r.id);
     if (ids.length === 0) break;
     let progressed = 0;
@@ -171,7 +217,8 @@ export async function sweepLeakedE2EFixtures(): Promise<{
   // 2) Groups — CASCADE clears members + followers.
   let groups = 0;
   for (;;) {
-    const { data } = await c.from('groups').select('id').ilike('name', 'E2E %').limit(500);
+    const base = c.from('groups').select('id').ilike('name', 'E2E %');
+    const { data } = await (cutoff ? base.lt('created_at', cutoff) : base).limit(500);
     const ids = (data ?? []).map((r) => r.id);
     if (ids.length === 0) break;
     let progressed = 0;
@@ -192,11 +239,11 @@ export async function sweepLeakedE2EFixtures(): Promise<{
     ['slug', 'e2e-%'],
   ] as const) {
     for (let from = 0; ; from += 1000) {
-      const { data } = await c
-        .from('teams')
-        .select('id')
-        .ilike(col, pat)
-        .range(from, from + 999);
+      const base = c.from('teams').select('id').ilike(col, pat);
+      const { data } = await (cutoff ? base.lt('created_at', cutoff) : base).range(
+        from,
+        from + 999,
+      );
       const rows = data ?? [];
       for (const r of rows) teamIds.add(r.id);
       if (rows.length < 1000) break;
@@ -226,11 +273,8 @@ export async function sweepLeakedE2EFixtures(): Promise<{
   // 4) Community listings.
   let community_listings = 0;
   for (;;) {
-    const { data } = await c
-      .from('community_listings')
-      .select('id')
-      .ilike('title', 'E2E %')
-      .limit(500);
+    const base = c.from('community_listings').select('id').ilike('title', 'E2E %');
+    const { data } = await (cutoff ? base.lt('created_at', cutoff) : base).limit(500);
     const ids = (data ?? []).map((r) => r.id);
     if (ids.length === 0) break;
     let progressed = 0;

@@ -2,11 +2,19 @@
  * Surface-keyed gradient for the default court. Mirrors the playing-surface
  * tints used across cards and heroes; falls back to a neutral brand court for
  * groups/profiles and unknown surfaces.
+ *
+ * Each surface carries a `dark:` variant: the light-mode tints (amber/green/
+ * sky) are fixed Tailwind colors that don't follow the theme, so on the dark
+ * theme they'd stay light and wash out the white court tape + the ball (whose
+ * `fg` ink flips to near-white). The dark tints keep the surface's hue identity
+ * while going dark enough for the white motif to read.
  */
 const SURFACE_GRADIENT: Record<string, string> = {
-  sand: 'from-amber-200 via-orange-100 to-amber-300',
-  grass: 'from-emerald-200 via-green-100 to-green-300',
-  indoor: 'from-sky-200 via-cyan-100 to-blue-200',
+  sand: 'from-amber-200 via-orange-100 to-amber-300 dark:from-amber-900 dark:via-orange-900 dark:to-amber-950',
+  grass:
+    'from-emerald-200 via-green-100 to-green-300 dark:from-emerald-900 dark:via-green-900 dark:to-green-950',
+  indoor:
+    'from-sky-200 via-cyan-100 to-blue-200 dark:from-sky-900 dark:via-cyan-900 dark:to-blue-950',
 };
 
 const BRAND_GRADIENT = 'from-primary/20 via-highlight/25 to-primary/10';
@@ -29,7 +37,9 @@ const BRAND_GRADIENT = 'from-primary/20 via-highlight/25 to-primary/10';
  * "chalks in" (stroke-draw) and the ball does a single slow spin-in. Reserved
  * for the wide hero (one per page); cards leave it off so a grid of six stays
  * calm. Both animations are pure CSS in globals.css and self-defang under
- * `prefers-reduced-motion`.
+ * `prefers-reduced-motion`. The conditional class trails a static space (kept
+ * outside the `${}`) so a Tailwind class-sorter can't merge it into the token
+ * before it and break both.
  */
 export function DefaultCourtArt({
   surface,
@@ -43,7 +53,7 @@ export function DefaultCourtArt({
     <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} aria-hidden="true">
       {/* Court markings — stretched to fill; white lines read as court tape. */}
       <svg
-        className={`absolute inset-0 h-full w-full text-white/55${animated ? 'court-line-draw' : ''}`}
+        className={`absolute inset-0 h-full w-full text-white/55 ${animated ? 'court-line-draw' : ''}`}
         viewBox="0 0 360 120"
         preserveAspectRatio="none"
         fill="none"
@@ -56,9 +66,10 @@ export function DefaultCourtArt({
         <line x1="240" y1="14" x2="240" y2="106" strokeDasharray="4 5" />
       </svg>
       {/* Volleyball — same glyph as the card thumbnail, sized off box height so
-          it scales from card to hero. Dark and faint: a motif, not a focal. */}
+          it scales from card to hero. Faint by design: a motif, not a focal.
+          Nudged up in dark mode where `fg` is a light ink on a dark court. */}
       <svg
-        className={`text-fg/12 absolute top-1/2 right-[7%] aspect-square h-[58%] -translate-y-1/2${animated ? 'ball-spin-in' : ''}`}
+        className={`text-fg/12 dark:text-fg/25 absolute top-1/2 right-[7%] aspect-square h-[58%] -translate-y-1/2 ${animated ? 'ball-spin-in' : ''}`}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"

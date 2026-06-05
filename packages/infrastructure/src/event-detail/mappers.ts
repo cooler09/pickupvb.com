@@ -16,7 +16,6 @@ import {
   type CaptainedTeamLite,
   type Capacity,
   type EventPosition,
-  type Format,
   type FreeAgentLite,
   type GroupLite,
   type ProfileLite,
@@ -66,7 +65,6 @@ export type TeamJoinRow = {
     id: string;
     slug: string;
     name: string;
-    format: Format;
     captain_id: string;
     captain: ProfileRow | null;
   } | null;
@@ -78,7 +76,7 @@ export type TeamPaymentRow = {
   amount_paid_cents: number | null;
 };
 
-export type ViewerTeamRow = { id: string; name: string; format: Format };
+export type ViewerTeamRow = { id: string; name: string };
 
 export type HostableGroupRow = { groups: { id: string; name: string } | null };
 
@@ -241,7 +239,6 @@ export function mapRegisteredTeams(
         teamId: t.id,
         slug: t.slug,
         name: t.name,
-        format: t.format,
         captainId: t.captain_id,
         captain: t.captain ? toProfileLite(t.captain) : null,
         memberCount: memberCounts.get(t.id) ?? 0,
@@ -263,7 +260,6 @@ export function mapViewerCaptainedTeams(
   return rows.map((t) => ({
     id: t.id,
     name: t.name,
-    format: t.format,
     memberCount: memberCounts.get(t.id) ?? 0,
     isRegistered: registeredTeamIds.has(t.id),
   }));

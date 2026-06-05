@@ -4,6 +4,7 @@ import type { Route } from 'next';
 import type { InboxItem } from '@pickupvb/domain';
 import { getCurrentUser } from '@/lib/server-auth';
 import { getChatHandlers } from '@/lib/handlers';
+import { EmptyState } from '@/components/empty-state';
 
 export const metadata = {
   title: 'Messages — PickupVB',
@@ -56,9 +57,12 @@ export default async function MessagesPage() {
       </header>
 
       {items.length === 0 ? (
-        <p className="border-border-base bg-surface text-muted rounded-shape-sm border p-6 text-center text-sm">
-          No conversations yet. Join or open a team to start chatting.
-        </p>
+        <EmptyState
+          title="No conversations yet"
+          description="Your team, event, and group chats show up here."
+          primary={{ href: '/events', label: 'Find events' }}
+          unlocks="Join an event or team to start chatting with other players."
+        />
       ) : (
         <ul className="space-y-2">
           {items.map((item) => {

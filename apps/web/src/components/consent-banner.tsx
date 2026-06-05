@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { primaryButtonClass } from '@/components/primary-button';
 import { setConsentDecision } from './consent-banner-actions';
 
 /**
@@ -66,7 +67,7 @@ export function ConsentBanner(): React.ReactElement | null {
             type="button"
             onClick={() => decide('granted')}
             disabled={pending}
-            className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-xs font-semibold hover:opacity-90 disabled:opacity-60"
+            className={primaryButtonClass('sm')}
           >
             Accept
           </button>

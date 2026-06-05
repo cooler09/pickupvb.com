@@ -46,6 +46,27 @@ The suite is designed to leave **no residual data** in the target environment:
    intentionally does not pass auth secrets, so any accidental authed test
    would fail the setup step rather than mutate production data.
 
+### Automatic end-of-run sweep (`globalTeardown`)
+
+A per-spec UI cancel leaves a `status='cancelled'` event behind, and a captain
+soft-delete leaves a `deleted_at` team behind — without `E2E_CLEANUP_SUPABASE_*`
+the per-spec admin hard-delete is a no-op and those rows accumulate. So
+[`global-teardown.ts`](global-teardown.ts) runs `sweepLeakedE2EFixtures()` at
+the end of every run:
+
+- **No-op without `E2E_CLEANUP_SUPABASE_*`** — a fork's `pnpm e2e` deletes
+  nothing.
+- **1-hour age guard** — only fixtures older than an hour are reclaimed, so a
+  run executing concurrently against the same environment (fixtures always
+  < 1h old) is never clobbered.
+- **Opt out** with `E2E_NO_TEARDOWN_SWEEP=1` (e.g. to inspect leaked rows).
+
+⚠️ **Never name a persisted seed entity `E2E …` (or a seed team slug `e2e-…`).**
+The sweep matches that prefix and will reclaim it. The persona seed accounts /
+groups / teams (docs/personas.md) use plain names for exactly this reason. The
+trailing-space `E2E ` prefix deliberately does **not** match the `[E2E] …` seed
+tournaments, so those survive.
+
 If you need to add a write test that genuinely can't clean up (e.g. exercises
 an irreversible flow), gate it with a tag and exclude it from the standard
 runs:
@@ -113,6 +134,38 @@ Test accounts are pre-seeded in the dev Supabase project. All share `TEST_USER_P
 | `TEST_PRO_HOST_EMAIL`    | `zacharyjordan82+pro-host@gmail.com`    | Pro host       |
 | `TEST_STRIPE_HOST_EMAIL` | `zacharyjordan82+stripe-host@gmail.com` | Stripe host    |
 | `TEST_ADMIN_EMAIL`       | `zacharyjordan82+admin@gmail.com`       | Platform admin |
+
+### Persona accounts (`persona-*.spec.ts`)
+
+The six accounts above are reused by six named personas
+([docs/personas.md](../../../../../docs/personas.md)): Amy→attendee-a,
+Adam→attendee-b, Julie→free-host, Mark→pro-host, Carlos→stripe-host,
+Zoe→admin. The remaining personas need their own accounts. Each is
+**skip-graceful** — a persona whose env var is unset has no storage state, and
+`skipIfPersonaMissing` / `withPersona` (in [`_helpers/personas.ts`](_helpers/personas.ts))
+skip its tests with a message naming the missing var. So the persona specs land
+green before all the dev accounts exist; provision them and the tests light up.
+Sign-in is registry-driven by [`auth.personas.setup.ts`](auth.personas.setup.ts)
+(the single `setup-personas` project), and all share `TEST_USER_PASSWORD`:
+
+| Env var                   | Email                              | Persona                  |
+| ------------------------- | ---------------------------------- | ------------------------ |
+| `TEST_CO_HOST_EMAIL`      | `zacharyjordan82+steve@gmail.com`  | Steve (P3, co-host)      |
+| `TEST_LEAGUE_HOST_EMAIL`  | `zacharyjordan82+diana@gmail.com`  | Diana (P4, league)       |
+| `TEST_TOURNEY_HOST_EMAIL` | `zacharyjordan82+sofia@gmail.com`  | Sofia (P5, tourneys)     |
+| `TEST_NEW_HOST_EMAIL`     | `zacharyjordan82+nina@gmail.com`   | Nina (P7, no Stripe)     |
+| `TEST_CAPTAIN_EMAIL`      | `zacharyjordan82+bianca@gmail.com` | Bianca (P10, captain)    |
+| `TEST_FREE_AGENT_EMAIL`   | `zacharyjordan82+tyler@gmail.com`  | Tyler (P11, free agent)  |
+| `TEST_POSITION_EMAIL`     | `zacharyjordan82+priya@gmail.com`  | Priya (P12, positional)  |
+| `TEST_BUYER_EMAIL`        | `zacharyjordan82+marcus@gmail.com` | Marcus (P14, buyer)      |
+| `TEST_WAITLIST_EMAIL`     | `zacharyjordan82+hannah@gmail.com` | Hannah (P15, waitlist)   |
+| `TEST_SOCIAL_EMAIL`       | `zacharyjordan82+olivia@gmail.com` | Olivia (P16, social)     |
+| `TEST_LAPSED_PRO_EMAIL`   | `zacharyjordan82+rachel@gmail.com` | Rachel (P17, lapsed Pro) |
+
+Greg (P13, anonymous→claimed) has no account — his flow is driven at runtime by
+`persona-greg-anon.public.spec.ts`. The full cast, relationships, and the seed
+state each persona's tests assume (group/team membership, co-host rows, friend
+edges) is the [provisioning matrix](../../../../../docs/personas.md#provisioning-matrix).
 
 ## Layout
 

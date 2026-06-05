@@ -348,17 +348,18 @@ None of these are visible in the repo as a real invoice — list-price
 estimates only, marked as such. Confirm against actual Vercel /
 Supabase / etc. dashboards.
 
-| Vendor                  | Plan assumption  | Monthly       | Notes                                                                                      |
-| ----------------------- | ---------------- | ------------- | ------------------------------------------------------------------------------------------ |
-| Supabase Pro            | $25 base         | $25           | + usage when we exceed free Auth MAU + 8GB db                                              |
-| Vercel Pro              | $20/seat         | $20           | + bandwidth/build minutes over free                                                        |
-| PostHog                 | Free             | $0            | free up to 1M events/mo per [docs/integrations.md#L167-L198](../integrations.md#L167-L198) |
-| Sentry Team             | $26              | $26           | required for source maps + replay                                                          |
-| Resend                  | $20 / 50k emails | $0–$20        | $0 free tier; $20 needed once ~3k emails/mo                                                |
-| Cloudflare Turnstile    | Free             | $0            |                                                                                            |
-| Domain + misc           |                  | ~$1           |                                                                                            |
-| **Floor (pre-Twilio)**  |                  | **~$70–$110** |                                                                                            |
-| Twilio SMS (when wired) | $0.0083/SMS      | variable      | 1000 SMS = $8.30                                                                           |
+| Vendor                  | Plan assumption  | Monthly       | Notes                                                                                                                                         |
+| ----------------------- | ---------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supabase Pro            | $25 base         | $25           | + usage when we exceed free Auth MAU + 8GB db                                                                                                 |
+| Vercel Pro              | $20/seat         | $20           | + bandwidth/build minutes over free                                                                                                           |
+| PostHog                 | Free             | $0            | free up to 1M events/mo per [docs/integrations.md#L167-L198](../integrations.md#L167-L198)                                                    |
+| Sentry Team             | $26              | $26           | required for source maps + replay                                                                                                             |
+| Resend                  | $20 / 50k emails | $0–$20        | $0 free tier; $20 needed once ~3k emails/mo                                                                                                   |
+| Email (Zoho Mail Lite)  | $1/mailbox       | ~$1           | Inbound support mailboxes via catch-all (added 2026-06-03); see [integrations.md § Email hosting](../integrations.md#email-hosting-zoho-mail) |
+| Cloudflare Turnstile    | Free             | $0            |                                                                                                                                               |
+| Domain + misc           |                  | ~$1           |                                                                                                                                               |
+| **Floor (pre-Twilio)**  |                  | **~$70–$110** |                                                                                                                                               |
+| Twilio SMS (when wired) | $0.0083/SMS      | variable      | 1000 SMS = $8.30                                                                                                                              |
 
 To clear the floor at ~$90/mo through **Pro alone**: ~10 Pro subs at
 $9.36 net = $93.60. To clear it through **take-rate alone**: $1,800

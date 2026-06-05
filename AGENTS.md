@@ -300,14 +300,27 @@ swap in `@mui/material` (rejected in
 
 ```bash
 supabase migration new <name>          # create new migration
-pnpm db:migrate                        # apply locally
+pnpm db:migrate                        # apply locally (don't — see below)
 pnpm --filter @pickupvb/supabase gen:types  # regenerate DB types
 ```
 
+**Don't verify migrations locally.** The maintainer does not run Docker /
+the local Supabase stack — spinning it up is costly on their machine. As an
+agent, **do not run `pnpm db:migrate` or `gen:types`**, and don't ask the
+user to in order to "verify" a migration. Write the migration file (with its
+preamble), reason about its correctness by reading it, and leave it for
+CI/CD to apply.
+
 **Production migrations are applied automatically by CI/CD** — any new file
 in `supabase/migrations/` is picked up and applied on deploy. Don't run
-production migrations by hand. Locally, you still need to `pnpm db:migrate`
-and regenerate types so typecheck passes against the new schema.
+production migrations by hand.
+
+When a code change depends on the new schema (new columns / tables that
+`pnpm typecheck` must see), **hand-edit the generated types in
+`packages/supabase`** to match what the migration produces, rather than
+regenerating them from a local DB. Note in your hand-off that the types were
+edited by hand and will be regenerated against the real schema on the next
+`gen:types` run.
 
 Never edit an applied migration. Add a follow-up migration instead.
 
@@ -708,7 +721,22 @@ audit CC-1/CC-2):
   [primary-button.tsx](apps/web/src/components/primary-button.tsx)
   (`primaryButtonClass` / `secondaryButtonClass` / `tonalButtonClass` /
   `textButtonClass`) instead of writing `bg-primary hover:bg-primary/90
-text-white …`. The four M3 variants take a `'sm' | 'md'` size.
+text-white …`. The four M3 variants take a `'sm' | 'md'` size. A neutral
+  bordered button (the `border-border-base hover:bg-fg/5` look — "Message",
+  "✓ Following", row toggles, "Sign out") uses `neutralButtonClass(size)` — do
+  **not** reach for the primary-tinted `secondaryButtonClass` just to get a
+  border. Don't hand-roll a filled primary button via either `hover:bg-primary/90`
+  **or** `bg-primary … hover:opacity-90` — both are `no-restricted-syntax` errors
+  now (CC-1 + CC-6); use `primaryButtonClass`. For destructive
+  actions use the **error family** (mirrors the base four on the M3 `error`
+  role token) — `errorButtonClass` (Filled, e.g. a delete confirm),
+  `errorTonalButtonClass` (tinted, e.g. "Report"), `errorOutlinedButtonClass`
+  (a "Delete…" trigger), `errorTextButtonClass` (a borderless row "Remove", pair
+  with `tap-target`) — rather than hand-rolling `bg-red-600` /
+  `border-red-300 bg-red-50 dark:…` / `text-red-600`. See
+  [confirm-submit-button.tsx](apps/web/src/components/confirm-submit-button.tsx),
+  the delete/cancel danger-zone panels, the divisions Remove, and the community
+  Report/Delete buttons.
 - **Fields:** import from
   [field-styles.ts](apps/web/src/components/field-styles.ts) (`fieldInputClass`
   / `fieldLabelClass` / `fieldSubLabelClass` / `fieldHintClass` /
@@ -834,3 +862,39 @@ bucket/cron. The walker still owns the whole bucket, so the columns can't fight.
 Match each branch's liveness check to that parent's path shape (per the rule
 above). Reference:
 [20260831000000_group_avatars_orphan_liveness.sql](supabase/migrations/20260831000000_group_avatars_orphan_liveness.sql).
+
+### 15. Form alerts: make them actionable, and make sure the user sees them
+
+Two paired conventions for any client form that surfaces an error/success
+banner. Full write-up:
+[docs/journal/2026-06-03-bundle-actionable-visible-form-alerts.md](docs/journal/2026-06-03-bundle-actionable-visible-form-alerts.md).
+
+- **Never bake a route into an error string.** A message like `"…finish
+  Stripe setup at /profile/billing…"` or `"…upgrade to Pro at
+/profile/billing/pro…"` is a dead end — the path isn't clickable, and it's
+  a recurring anti-pattern (found in the host-charges gate and both free-tier
+  caps). Instead, the result object carries a typed
+  `cta: { href: string; label: string }` next to `reason`, the form-action
+  state gains an optional `errorAction?: { href: string; label: string }`,
+  and the view renders
+  [`ErrorActionLink`](apps/web/src/components/error-action-link.tsx) after the
+  message (it renders `null` when absent, so pass `state.errorAction`
+  unconditionally). **Only attach a CTA the viewer can act on** — host-facing
+  gates get the link; attendee-facing "the host hasn't finished setup" copy
+  does **not** (a guest can't complete the host's onboarding). If the page
+  already renders a real button for the path (e.g. `/brackets/new`'s Upgrade
+  button), just trim the URL from the prose rather than duplicating it.
+- **Reveal the alert so a scrolled-down user sees it.** Long forms render
+  their banner at the top; a user at the submit button never sees a failure.
+  Wire [`useAlertReveal`](apps/web/src/components/use-alert-reveal.ts)`(trigger,
+active)` and attach the returned ref + `tabIndex={-1}` + `outline-none` to
+  the `role="alert"` node (wrap only the `<Alert>` primitive, which doesn't
+  forward a ref, or an error/success pair). Pass the `useFormState` `state`
+  object as `trigger` (fresh identity each submit re-fires even on a repeated
+  error); for `useState`-based forms pass the error value. The hook scrolls
+  **only when the alert is off-screen** (no jarring re-center on a short form)
+  and always moves focus (the WCAG error-summary pattern — `role="alert"`
+  announces, focus brings keyboard/SR users to it). Applied to ~25 forms in
+  the reference bundle. **Skip** server-rendered flash banners (rendered from
+  `searchParams` after a redirect — no client state to key off; scroll already
+  resets to top), per-field errors, and chat composers (own scroll behavior).

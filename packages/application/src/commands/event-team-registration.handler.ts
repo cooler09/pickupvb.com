@@ -191,12 +191,17 @@ export class WithdrawAdHocTeamRegistrationHandler {
 }
 
 /**
- * Host registers a walk-in team for the bracket (ADR 0017). The acting
- * caller must be the event host on a published tournament with an
- * ad-hoc division. The resulting row has `source = 'walk_in'`,
- * `captain_id = null`, and stores the captain's name + phone as
- * freeform text. Payment starts at `'none'`; the host marks it paid
- * later via {@link MarkWalkInPaidCashHandler}.
+ * Host adds an account-less team (ADR 0017, generalized by ADR 0033). The
+ * acting caller must be the event host. The resulting row has
+ * `source = 'walk_in'`, `captain_id = null`, and stores the captain's name
+ * + phone as freeform text. Payment starts at `'none'`; the host marks it
+ * paid later via {@link MarkWalkInPaidCashHandler}.
+ *
+ * Allowed on any team-registration division: ad-hoc divisions on
+ * tournaments (a same-day walk-in) and roster divisions on leagues (a host
+ * pre-loading teams that registered/paid off-platform — the common league
+ * path, ADR 0033). The entry's `id` is the stable identity bracket/standings
+ * reads key on, so no persistent `Team` row is required.
  */
 export class RegisterWalkInTeamHandler {
   constructor(
@@ -215,16 +220,22 @@ export class RegisterWalkInTeamHandler {
   }: RegisterWalkInTeamCommand): Promise<{ id: string }> {
     const event = await this.events.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
-    if (event.type !== EventType.Tournament) {
-      throw new InvariantViolation('Walk-in registration is only available on tournaments.');
+    if (event.type !== EventType.Tournament && event.type !== EventType.League) {
+      throw new InvariantViolation(
+        'Host-added teams are only available on tournaments and leagues.',
+      );
     }
     if (String(event.hostId) !== String(hostId)) {
-      throw new UnauthorizedError('Only the event host can add a walk-in team.');
+      throw new UnauthorizedError('Only the event host can add a team.');
     }
     const division = event.divisions.find((d) => String(d.id) === divisionId);
     if (!division) throw new NotFoundError('division', divisionId);
-    if (division.teamRegistrationMode !== TeamRegistrationMode.AdHoc) {
-      throw new InvariantViolation('Walk-ins are only allowed in ad-hoc divisions.');
+    // Account-less host-added teams are team-less `walk_in` entries on any
+    // team-registration division — ad-hoc (tournaments) or roster (leagues,
+    // ADR 0033). Open-play / individual (null-mode) divisions reject them.
+    const mode = division.teamRegistrationMode;
+    if (mode !== TeamRegistrationMode.AdHoc && mode !== TeamRegistrationMode.Roster) {
+      throw new InvariantViolation('This division does not accept host-added teams.');
     }
 
     const registration = EventTeamRegistration.create({

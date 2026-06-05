@@ -1,4 +1,5 @@
 import type { Match, EntryId } from './match.js';
+import { ValidationError } from '../shared/result.js';
 
 /**
  * Per-team standings within a pool. Pure summary derived from completed
@@ -119,4 +120,65 @@ export function distinctPools(matches: ReadonlyArray<Match>): string[] {
   const set = new Set<string>();
   for (const m of matches) if (m.pool) set.add(m.pool);
   return Array.from(set).sort();
+}
+
+/**
+ * Cross-pool playoff seeding (ADR 0032). Takes the per-pool standings (each
+ * already sorted best-to-worst by {@link computePoolStandings}) and the
+ * number advancing per pool, and returns a flat, overall seed order for
+ * {@link generatePlayoffFromRanked}:
+ *
+ *  - **Position tier first** — every pool winner outranks every runner-up,
+ *    which keeps two teams from the same pool off the same half in round 1
+ *    and lands the top seeds on opposite sides of the bracket.
+ *  - **Within a tier, by record** — win rate (fair across *uneven* pools),
+ *    then set differential, then point differential — so the strongest pool
+ *    winner is the #1 overall seed.
+ *
+ * The host can override the result with `seedPlayoff()`.
+ *
+ * @throws {ValidationError} if `advancePerPool` < 1 or any pool has fewer
+ *   than `advancePerPool` finishers.
+ */
+export function rankAcrossPools(
+  standingsByPool: ReadonlyArray<ReadonlyArray<PoolStanding>>,
+  advancePerPool: number,
+): EntryId[] {
+  if (advancePerPool < 1) {
+    throw new ValidationError('Must advance at least 1 per pool.', { advancePerPool });
+  }
+  type Ranked = {
+    entryId: EntryId;
+    position: number;
+    winPct: number;
+    setDiff: number;
+    pointDiff: number;
+  };
+  const ranked: Ranked[] = [];
+  for (const standings of standingsByPool) {
+    for (let pos = 0; pos < advancePerPool; pos++) {
+      const s = standings[pos];
+      if (!s) {
+        throw new ValidationError(
+          `Pool standings missing position ${pos + 1}; ` +
+            `each pool must have at least ${advancePerPool} teams.`,
+          { advancePerPool, missingPosition: pos + 1 },
+        );
+      }
+      ranked.push({
+        entryId: s.entryId,
+        position: pos,
+        winPct: s.matchesPlayed > 0 ? s.wins / s.matchesPlayed : 0,
+        setDiff: s.setDiff,
+        pointDiff: s.pointDiff,
+      });
+    }
+  }
+  ranked.sort((a, b) => {
+    if (a.position !== b.position) return a.position - b.position;
+    if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+    if (b.setDiff !== a.setDiff) return b.setDiff - a.setDiff;
+    return b.pointDiff - a.pointDiff;
+  });
+  return ranked.map((r) => r.entryId);
 }

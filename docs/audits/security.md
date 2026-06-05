@@ -6,6 +6,32 @@
 **Method:** read-only static review. Server actions, API routes, auth flows,
 RLS policies, third-party integrations, secrets handling, logging.
 
+**Status update (2026-06-04) — scoped-event read leak (e2e-surfaced):** the
+persona e2e suite (`persona-olivia-social`) caught a **P1 privacy leak**, the
+read-side twin of P1 #12 / [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes).
+
+- **P1 #14 — event-detail read bypasses scoped-event visibility.** The
+  event-detail read runs on the **service-role admin client** — `getDetail` on
+  the no-arg module-singleton `SupabaseEventRepository`
+  ([eventRepo](../../apps/web/src/lib/handlers.ts)) reads `events_view` by id
+  with **no visibility check**. The `viewerId` carried into `GetEventDetailQuery`
+  drives the friend graph / RSVP bits, not access (the doc comment claimed it
+  enforced visibility — it never did). So any signed-in (incl. anonymous) viewer
+  could load a `friends_of_host` / `friends_of_attendees` (or unpublished
+  private) event; anon viewers leaked the same way via
+  `loadEventReadModelPublic` + `generateMetadata` (title in `<head>`/og). **Fix
+  (2026-06-04):** [load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts)
+  gates logged-in viewers with a cheap user-scoped existence check against the
+  RLS-protected base `events` table (delegate to the canonical `events_select`
+  policy — invite*only stays link-readable), and anon viewers with a static
+  `published && (public|invite_only)` check;
+  [page.tsx](../../apps/web/src/app/events/[id]/page.tsx) `generateMetadata`
+  gated the same way. **Deploy-gated** (fix ships to dev on the next deploy).
+  **Open follow-up:** the bracket / schedule / watch spectator pages read
+  via `getBracketMeta` (same admin client, no gate), so a \_scoped* tournament's
+  metadata still leaks there — left open (intended-shareable spectator surfaces;
+  tournaments are usually public).
+
 **Status update (2026-05-30) — fresh re-audit:** read-only pass over the
 feature surface added since the 2026-05-17 audit (brackets, leagues, event
 divisions, ad-hoc + walk-in registrations, community listings, host
@@ -542,6 +568,20 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-06-04 — scoped event-detail visibility gate (P1 #14)
+
+| Item                | Status                  | Notes                                                                                                                                                                                                                  |
+| ------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Logged-in read gate | ✅ fixed (deploy-gated) | `loadEventDetail` runs a user-scoped existence check on the RLS-protected base `events` table before returning; a viewer who can't `SELECT` the row → `notFound()`. Delegates to the canonical `events_select` policy. |
+| Anon read gate      | ✅ fixed (deploy-gated) | `loadEventDetail` gates the cacheable anon path with a static `published && (public \| invite_only)` check (anon has no friend edges).                                                                                 |
+| Metadata gate       | ✅ fixed (deploy-gated) | `generateMetadata` emits a generic, noindex title for non-anon-visible events so scoped titles don't leak in `<head>`/og.                                                                                              |
+| Spectator pages     | ⏳ open                 | `getBracketMeta` (bracket/schedule/watch) still reads admin-side with no gate — scoped tournament metadata leaks. Deferred (intended-shareable surfaces).                                                              |
+
+Regression coverage: `apps/web/tests/e2e/persona-olivia-social.authed.spec.ts`
+(asserts a `friends_of_host` event is hidden from a non-friend). Deploy-gated —
+the e2e goes green once the fix ships to dev. See
+[journal 2026-06-04](../journal/2026-06-04-bundle-persona-e2e-real-bugs.md).
 
 ### 2026-05-31 — CSP `frame-src` for media video embeds
 

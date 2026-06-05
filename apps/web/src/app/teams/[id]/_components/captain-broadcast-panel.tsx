@@ -4,6 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { useState } from 'react';
 import { sendTeamBroadcast } from '../broadcast-actions';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 
 type State = { ok?: boolean; error?: string };
 const initialState: State = {};
@@ -17,6 +18,7 @@ export function CaptainBroadcastPanel({
 }) {
   const action = sendTeamBroadcast.bind(null, teamId);
   const [state, formAction] = useFormState(action, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   const [open, setOpen] = useState(false);
 
   if (memberCount === 0) return null;
@@ -65,7 +67,12 @@ export function CaptainBroadcastPanel({
           />
         </div>
         {state.error && (
-          <p className="text-sm text-red-500" role="alert">
+          <p
+            ref={errorRef}
+            tabIndex={-1}
+            className="text-sm text-red-500 outline-none"
+            role="alert"
+          >
             {state.error}
           </p>
         )}

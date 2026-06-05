@@ -186,6 +186,38 @@ describe('EventTeamRegistration walk-in source', () => {
   });
 });
 
+describe('EventTeamRegistration.assignCaptain (ADR 0033 Phase 3)', () => {
+  function walkIn(): EventTeamRegistration {
+    return EventTeamRegistration.create({
+      id: REG,
+      eventId: EVENT,
+      divisionId: DIV,
+      captainId: null,
+      name: 'Spike Force',
+      members: [guestMember('m', 'Guest A')],
+      source: RegistrationSource.WalkIn,
+      captainDisplayName: 'Jamie Q.',
+      captainPhone: '555-0100',
+    });
+  }
+
+  it('links a real captain and clears the walk-in placeholder identity', () => {
+    const reg = walkIn();
+    reg.assignCaptain('alice' as UserId);
+    expect(reg.captainId).toBe('alice');
+    // DB stores this as source='ad_hoc' (a real account now stands behind it).
+    expect(reg.source).toBe(RegistrationSource.Captain);
+    expect(reg.captainDisplayName).toBeNull();
+    expect(reg.captainPhone).toBeNull();
+  });
+
+  it('refuses a registration that already has a captain', () => {
+    const reg = walkIn();
+    reg.assignCaptain('alice' as UserId);
+    expect(() => reg.assignCaptain('bob' as UserId)).toThrow(InvariantViolation);
+  });
+});
+
 describe('EventTeamRegistration.addMember / removeMember', () => {
   it('adds a member when payment has not started', () => {
     const reg = makeReg([userMember('m1', 'u1')]);

@@ -3,20 +3,12 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { signupAsGuest, type GuestSignupState } from './guest-actions';
 import { TurnstileWidget } from '@/components/turnstile-widget';
-import {
-  fieldErrorClass as errorClass,
-  fieldInputClass as inputClass,
-  fieldLabelClass as labelClass,
-} from '@/components/field-styles';
+import { GuestSignupFields } from './_components/guest-signup-fields';
 
 const initial: GuestSignupState = {};
-
-function Err({ name, errors }: { name: string; errors: Record<string, string> | undefined }) {
-  const msg = errors?.[name];
-  return msg ? <p className={errorClass}>{msg}</p> : null;
-}
 
 function SubmitBtn() {
   const { pending } = useFormStatus();
@@ -30,37 +22,15 @@ function SubmitBtn() {
 export default function GuestSignupForm({ eventId }: { eventId: string }) {
   const action = signupAsGuest.bind(null, eventId);
   const [state, formAction] = useFormState(action, initial);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
     <form action={formAction} className="space-y-3">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
-      <div>
-        <label htmlFor="display_name" className={labelClass}>
-          Name
-        </label>
-        <input
-          id="display_name"
-          name="display_name"
-          required
-          maxLength={80}
-          autoComplete="name"
-          className={inputClass}
-        />
-        <Err name="display_name" errors={state.fieldErrors} />
-      </div>
-      <div>
-        <label htmlFor="email" className={labelClass}>
-          Email <span className="text-fg/50">(optional — lets you claim this signup later)</span>
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          maxLength={120}
-          autoComplete="email"
-          className={inputClass}
-        />
-        <Err name="email" errors={state.fieldErrors} />
-      </div>
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
+        </div>
+      )}
+      <GuestSignupFields errors={state.fieldErrors} />
 
       <TurnstileWidget />
 

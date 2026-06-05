@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   computePoolStandings,
   distinctPools,
@@ -6,10 +7,13 @@ import {
   type PoolStanding,
 } from '@pickupvb/domain';
 import { MatchCard } from './match-card';
+import { MatchEditor } from './match-editor';
 import { bindBracketActions, eventScope } from './bracket-action-binding';
+import { reopenBracket, replaceEntryFromForm } from '../actions';
 import type { BracketScope, TeamLite } from './labels';
+import { FormModal, ModalActions } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
-import { primaryButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 import { TreeBracket } from './tree-bracket';
 
 /**
@@ -55,7 +59,12 @@ export function BoardView(props: {
   scope?: BracketScope;
   matches: ReadonlyArray<Match>;
   teamById: ReadonlyMap<string, TeamLite>;
+  /** Deduped registered teams — drives the host MatchEditor / substitute pickers
+   *  (ADR 0032). Optional so the standalone / spectator callers compile unchanged. */
+  teams?: ReadonlyArray<TeamLite>;
   bestOf: number;
+  /** Stage / global default target score, shown on match cards. */
+  targetScore?: number | null;
   isHost: boolean;
   viewerId: string | null;
   status: 'active' | 'completed';
@@ -67,6 +76,32 @@ export function BoardView(props: {
 }) {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
   const a = bindBracketActions(scope);
+  const teams = props.teams ?? [];
+  // Host structural edits (fix a matchup, court, length) are an event-scope,
+  // live-bracket privilege (ADR 0032). On a completed bracket the host must
+  // Reopen first (editMatch is rejected once completed).
+  const canStructEdit = props.isHost && scope.kind === 'event' && props.status === 'active';
+  const hostEdit = (m: Match): ReactNode =>
+    canStructEdit && m.status !== 'bye' && scope.kind === 'event' ? (
+      <div className="mt-1 text-right">
+        <MatchEditor
+          eventId={scope.eventId}
+          divisionId={scope.divisionId}
+          match={{
+            id: String(m.id),
+            entryAId: m.entryAId,
+            entryBId: m.entryBId,
+            court: m.court,
+            bestOf: m.bestOf,
+            targetScore: m.targetScore,
+          }}
+          teams={teams}
+          defaultBestOf={props.bestOf}
+          defaultTargetScore={props.targetScore ?? null}
+          allowRemove={false}
+        />
+      </div>
+    ) : null;
   const isPoolPlay = props.format === 'pool_play_playoff';
   const isDoubleElim = props.format === 'double_elimination';
   const poolMatches = props.matches.filter((m) => m.pool !== null);
@@ -102,10 +137,12 @@ export function BoardView(props: {
           match={m}
           teamById={props.teamById}
           bestOf={props.bestOf}
+          targetScore={props.targetScore ?? null}
           isHost={props.isHost}
           viewerId={props.viewerId}
           liveScoringEnabled={props.liveScoringEnabled ?? false}
         />
+        {hostEdit(m)}
       </div>
     );
   };
@@ -151,6 +188,15 @@ export function BoardView(props: {
         </div>
       </div>
 
+      {props.isHost && scope.kind === 'event' && (
+        <LiveHostTools
+          eventId={scope.eventId}
+          divisionId={scope.divisionId}
+          status={props.status}
+          teams={teams}
+        />
+      )}
+
       {isPoolPlay && poolMatches.length > 0 && (
         <PoolsView
           scope={scope}
@@ -159,10 +205,12 @@ export function BoardView(props: {
           matches={poolMatches}
           teamById={props.teamById}
           bestOf={props.bestOf}
+          targetScore={props.targetScore ?? null}
           isHost={props.isHost}
           viewerId={props.viewerId}
           highlightMatchId={props.highlightMatchId ?? null}
           liveScoringEnabled={props.liveScoringEnabled ?? false}
+          hostEdit={hostEdit}
         />
       )}
 
@@ -221,10 +269,13 @@ function PoolsView(props: {
   matches: ReadonlyArray<Match>;
   teamById: ReadonlyMap<string, TeamLite>;
   bestOf: number;
+  targetScore?: number | null;
   isHost: boolean;
   viewerId: string | null;
   highlightMatchId: string | null;
   liveScoringEnabled?: boolean;
+  /** Renders the host structural-edit affordance under each match (ADR 0032). */
+  hostEdit?: (m: Match) => ReactNode;
 }) {
   const pools = distinctPools(props.matches);
   return (
@@ -269,10 +320,12 @@ function PoolsView(props: {
                       match={m}
                       teamById={props.teamById}
                       bestOf={props.bestOf}
+                      targetScore={props.targetScore ?? null}
                       isHost={props.isHost}
                       viewerId={props.viewerId}
                       liveScoringEnabled={props.liveScoringEnabled ?? false}
                     />
+                    {props.hostEdit?.(m)}
                   </div>
                 );
               })}
@@ -381,5 +434,103 @@ function PoolStandingsTable(props: {
         })}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * Host-only strip on the live board (ADR 0032 / Phase 5). While `active`:
+ * substitute a dropped team. Once `completed`: re-open to fix a result. Per-match
+ * matchup / court / length edits live on each card via the "Edit" affordance.
+ */
+function LiveHostTools(props: {
+  eventId: string;
+  divisionId: string;
+  status: 'active' | 'completed';
+  teams: ReadonlyArray<TeamLite>;
+}) {
+  const reopen = reopenBracket.bind(null, props.eventId, props.divisionId);
+  return (
+    <div className="border-border-base bg-fg/5 rounded-shape-sm flex flex-wrap items-center gap-3 border p-3">
+      <span className="text-muted text-xs font-semibold tracking-wide uppercase">Host edits</span>
+      {props.status === 'active' ? (
+        <>
+          <SubstituteTeamButton
+            eventId={props.eventId}
+            divisionId={props.divisionId}
+            teams={props.teams}
+          />
+          <span className="text-muted text-xs">
+            Use <span className="text-fg/70">Edit</span> on any match to fix a matchup, court, or
+            match length.
+          </span>
+        </>
+      ) : (
+        <form action={reopen} className="flex items-center gap-2">
+          <SubmitButton className={neutralButtonClass('sm')}>Re-open to edit</SubmitButton>
+          <span className="text-muted text-xs">
+            Re-open this completed bracket to fix a result or matchup.
+          </span>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function SubstituteTeamButton(props: {
+  eventId: string;
+  divisionId: string;
+  teams: ReadonlyArray<TeamLite>;
+}) {
+  const action = replaceEntryFromForm.bind(null, props.eventId, props.divisionId);
+  return (
+    <FormModal
+      trigger={(open) => (
+        <button type="button" onClick={open} className={neutralButtonClass('sm')}>
+          Substitute a team
+        </button>
+      )}
+      title="Substitute a team"
+      description="Swap a team out for another registered team everywhere it appears — for a drop or no-show. Any recorded results carry over to the substitute."
+    >
+      {(close) => (
+        <form action={action} className="space-y-3">
+          <TeamPicker name="old_entry_id" label="Replace" teams={props.teams} />
+          <TeamPicker name="new_entry_id" label="With" teams={props.teams} />
+          <ModalActions
+            dismissive={
+              <button type="button" onClick={close} className={neutralButtonClass('sm')}>
+                Cancel
+              </button>
+            }
+            confirming={
+              <SubmitButton className={primaryButtonClass('sm')}>Substitute</SubmitButton>
+            }
+          />
+        </form>
+      )}
+    </FormModal>
+  );
+}
+
+function TeamPicker(props: { name: string; label: string; teams: ReadonlyArray<TeamLite> }) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-fg/80">{props.label}</span>
+      <select
+        name={props.name}
+        defaultValue=""
+        required
+        className="border-border-base bg-bg rounded border px-2 py-1"
+      >
+        <option value="" disabled>
+          Choose a team…
+        </option>
+        {props.teams.map((t) => (
+          <option key={t.entryId} value={t.entryId}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

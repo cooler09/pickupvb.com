@@ -1,5 +1,9 @@
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import {
+  primaryButtonClass,
+  secondaryButtonClass,
+  tonalButtonClass,
+} from '@/components/primary-button';
 import { getCurrentUser } from '@/lib/server-auth';
 import type { ThemePreference } from '@/lib/theme';
 import { SubmitButton } from '@/components/submit-button';
@@ -174,14 +178,11 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
           ) : (
             <>
               {isAnon && (
-                <Link
-                  href="/claim"
-                  className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-sm font-medium"
-                >
+                <Link href="/claim" className={tonalButtonClass('sm')}>
                   Finish creating your account
                 </Link>
               )}
-              <Link href="/login" className="hover:text-primary text-sm">
+              <Link href="/login" className={secondaryButtonClass('sm')}>
                 Sign in
               </Link>
               <Link href="/login?mode=sign-up" className={primaryButtonClass('sm')}>

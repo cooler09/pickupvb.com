@@ -624,6 +624,91 @@ export type Database = {
           },
         ];
       };
+      event_badge_access: {
+        Row: {
+          access_kind: string;
+          created_at: string;
+          event_id: string;
+          paid_at: string | null;
+          purchased_by_user_id: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          access_kind?: string;
+          created_at?: string;
+          event_id: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          access_kind?: string;
+          created_at?: string;
+          event_id?: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_badge_access_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_badges: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          event_id: string;
+          grant_rule: string;
+          icon_url: string | null;
+          id: string;
+          label: string;
+          sort_order: number;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          event_id: string;
+          grant_rule?: string;
+          icon_url?: string | null;
+          id?: string;
+          label: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          event_id?: string;
+          grant_rule?: string;
+          icon_url?: string | null;
+          id?: string;
+          label?: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_badges_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_co_hosts: {
         Row: {
           added_at: string;
@@ -726,6 +811,8 @@ export type Database = {
           team_composition: Database['public']['Enums']['team_composition'];
           team_registration_mode: Database['public']['Enums']['team_registration_mode'] | null;
           team_size: number | null;
+          runner_up_entry_id: string | null;
+          third_place_entry_id: string | null;
           tier_label: string | null;
           updated_at: string;
           winner_entry_id: string | null;
@@ -755,6 +842,8 @@ export type Database = {
           team_composition?: Database['public']['Enums']['team_composition'];
           team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
+          runner_up_entry_id?: string | null;
+          third_place_entry_id?: string | null;
           tier_label?: string | null;
           updated_at?: string;
           winner_entry_id?: string | null;
@@ -784,6 +873,8 @@ export type Database = {
           team_composition?: Database['public']['Enums']['team_composition'];
           team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
+          runner_up_entry_id?: string | null;
+          third_place_entry_id?: string | null;
           tier_label?: string | null;
           updated_at?: string;
           winner_entry_id?: string | null;
@@ -2448,6 +2539,8 @@ export type Database = {
           handle: string;
           hero_image_url: string | null;
           home_city: string | null;
+          latitude: number | null;
+          longitude: number | null;
           id: string;
           instagram_handle: string | null;
           is_platform_admin: boolean;
@@ -2478,6 +2571,8 @@ export type Database = {
           handle: string;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id: string;
           instagram_handle?: string | null;
           is_platform_admin?: boolean;
@@ -2508,6 +2603,8 @@ export type Database = {
           handle?: string;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id?: string;
           instagram_handle?: string | null;
           is_platform_admin?: boolean;
@@ -2677,7 +2774,6 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
           extra_member_count: number;
-          format: Database['public']['Enums']['format'];
           id: string;
           name: string;
           slug: string;
@@ -2687,7 +2783,6 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           extra_member_count?: number;
-          format: Database['public']['Enums']['format'];
           id?: string;
           name: string;
           slug: string;
@@ -2697,7 +2792,6 @@ export type Database = {
           created_at?: string;
           deleted_at?: string | null;
           extra_member_count?: number;
-          format?: Database['public']['Enums']['format'];
           id?: string;
           name?: string;
           slug?: string;
@@ -2715,6 +2809,44 @@ export type Database = {
             columns: ['captain_id'];
             isOneToOne: false;
             referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      user_badges: {
+        Row: {
+          awarded_at: string;
+          badge_key: string;
+          context: Json | null;
+          hidden: boolean;
+          id: string;
+          source: string;
+          user_id: string;
+        };
+        Insert: {
+          awarded_at?: string;
+          badge_key: string;
+          context?: Json | null;
+          hidden?: boolean;
+          id?: string;
+          source?: string;
+          user_id: string;
+        };
+        Update: {
+          awarded_at?: string;
+          badge_key?: string;
+          context?: Json | null;
+          hidden?: boolean;
+          id?: string;
+          source?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_badges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
         ];
@@ -2768,6 +2900,38 @@ export type Database = {
       };
     };
     Views: {
+      user_badges_public: {
+        Row: {
+          awarded_at: string | null;
+          badge_key: string | null;
+          context: Json | null;
+          source: string | null;
+          user_id: string | null;
+        };
+        Insert: {
+          awarded_at?: string | null;
+          badge_key?: string | null;
+          context?: Json | null;
+          source?: string | null;
+          user_id?: string | null;
+        };
+        Update: {
+          awarded_at?: string | null;
+          badge_key?: string | null;
+          context?: Json | null;
+          source?: string | null;
+          user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_badges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_team_entry_members_public: {
         Row: {
           display_name: string | null;
@@ -3078,6 +3242,8 @@ export type Database = {
           handle: string | null;
           hero_image_url: string | null;
           home_city: string | null;
+          latitude: number | null;
+          longitude: number | null;
           id: string | null;
           instagram_handle: string | null;
           primary_position: string | null;
@@ -3098,6 +3264,8 @@ export type Database = {
           handle?: string | null;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id?: string | null;
           instagram_handle?: string | null;
           primary_position?: string | null;
@@ -3118,6 +3286,8 @@ export type Database = {
           handle?: string | null;
           hero_image_url?: string | null;
           home_city?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           id?: string | null;
           instagram_handle?: string | null;
           primary_position?: string | null;
@@ -3275,6 +3445,26 @@ export type Database = {
       };
       clear_match_live_score: {
         Args: { p_match_id: string };
+        Returns: undefined;
+      };
+      compute_player_badge_stats: {
+        Args: { p_user_id: string };
+        Returns: {
+          attended_event_count: number;
+          distinct_positions_played: number;
+          leagues_completed: number;
+          max_events_with_single_host: number;
+          published_event_count: number;
+          tournament_championships: number;
+          tournament_podiums: number;
+        }[];
+      };
+      set_user_badge_hidden: {
+        Args: { p_badge_key: string; p_hidden: boolean };
+        Returns: undefined;
+      };
+      grant_attended_event_badges: {
+        Args: { p_user_id: string };
         Returns: undefined;
       };
       consume_rate_limit: {

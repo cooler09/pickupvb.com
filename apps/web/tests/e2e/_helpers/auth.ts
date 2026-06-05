@@ -64,7 +64,9 @@ export async function signIn(page: Page, email: string, password: string): Promi
   await page.getByLabel(/password/i).fill(password);
   const form = page.locator('form').filter({ has: page.getByLabel(/password/i) });
   await form.getByRole('button', { name: /sign in|log in|create account/i }).click();
-  await page.waitForURL(/\/events(\b|$)/, { timeout: 15_000 });
+  // 30s (was 15s): the post-login redirect is slow on a cold dev serverless
+  // start, which intermittently failed the auth setup → cascading skips.
+  await page.waitForURL(/\/events(\b|$)/, { timeout: 30_000 });
 }
 
 /**

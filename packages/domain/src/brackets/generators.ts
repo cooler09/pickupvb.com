@@ -83,6 +83,8 @@ export function generateSingleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
         workTeamId: null,
         court: null,
         slot: null,
+        bestOf: null,
+        targetScore: null,
         status: 'pending',
         sets: [],
         advancesToMatchId: feeds ? feeds.id : null,
@@ -152,6 +154,14 @@ function findMatch(matchesByRound: Match[][], id: MatchId): Match | null {
  * have played `maxRounds` opponents (or one fewer when sitting out as
  * the odd team in their round).
  *
+ * By default `maxRounds` is **capped** at a full round-robin (`n − 1`),
+ * so no pairing repeats. Pass `allowRepeats = true` to let `maxRounds`
+ * exceed that — the circle rotation has period `n − 1`, so continuing it
+ * deterministically replays earlier matchups. This backs the rec
+ * "everyone plays ~N games even if they play a team twice" target-games
+ * mode (ADR 0032): a 3-team pool can reach the same games-per-team as a
+ * larger pool by repeating an opponent.
+ *
  * @throws {ValidationError} if fewer than 2 seeds are supplied or
  *   `maxRounds` is not positive.
  */
@@ -159,6 +169,7 @@ export function generateRoundRobin(
   seeds: ReadonlyArray<Seed>,
   mkId: IdFactory,
   maxRounds?: number,
+  allowRepeats = false,
 ): Match[] {
   if (seeds.length < 2) {
     throw new ValidationError('Round robin requires at least 2 teams.', {
@@ -174,7 +185,12 @@ export function generateRoundRobin(
 
   const n = teams.length;
   const fullRounds = n - 1;
-  const rounds = maxRounds !== undefined ? Math.min(maxRounds, fullRounds) : fullRounds;
+  const rounds =
+    maxRounds === undefined
+      ? fullRounds
+      : allowRepeats
+        ? maxRounds
+        : Math.min(maxRounds, fullRounds);
   const half = n / 2;
   const matches: Match[] = [];
 
@@ -201,6 +217,8 @@ export function generateRoundRobin(
         workTeamId: null,
         court: null,
         slot: null,
+        bestOf: null,
+        targetScore: null,
         status: 'pending',
         sets: [],
         advancesToMatchId: null,
@@ -250,6 +268,8 @@ function emptyMatch(
     workTeamId: null,
     court: null,
     slot: null,
+    bestOf: null,
+    targetScore: null,
     status: 'pending',
     sets: [],
     advancesToMatchId: null,
@@ -452,6 +472,51 @@ export function distributeIntoPools(seeds: ReadonlyArray<Seed>, poolCount: numbe
 }
 
 /**
+ * Pool grouping for {@link generatePoolPlay}. When every seed carries a
+ * `pool` label (host hand-assigned via `setPools`, ADR 0032), honor those
+ * groupings verbatim — preserving **uneven** pool sizes. Pools come back in
+ * alphabetical label order; within each pool teams are re-seeded 1..k by the
+ * incoming seed order. Otherwise fall back to even snake distribution.
+ *
+ * @throws {ValidationError} when a hand-assigned pool has fewer than 2 teams.
+ */
+function poolsFromSeedsOrSnake(seeds: ReadonlyArray<Seed>, poolCount: number): Seed[][] {
+  const allAssigned = seeds.length > 0 && seeds.every((s) => s.pool !== null && s.pool !== '');
+  if (!allAssigned) return distributeIntoPools(seeds, poolCount);
+  const byLabel = new Map<string, Seed[]>();
+  for (const s of [...seeds].sort((a, b) => a.seed - b.seed)) {
+    const label = s.pool!;
+    const list = byLabel.get(label) ?? [];
+    list.push({ entryId: s.entryId, seed: list.length + 1, pool: label });
+    byLabel.set(label, list);
+  }
+  const pools = [...byLabel.keys()].sort().map((k) => byLabel.get(k)!);
+  for (const p of pools) {
+    if (p.length < 2) {
+      throw new ValidationError(`Pool ${p[0]?.pool ?? '?'} needs at least 2 teams.`, {
+        pool: p[0]?.pool,
+        size: p.length,
+      });
+    }
+  }
+  return pools;
+}
+
+/**
+ * How many circle-method rounds a pool of `poolSize` must run for each team
+ * to play ~`gamesPerTeam` games (ADR 0032 rec target-games mode). Even pools
+ * play one game per team per round, so it's exactly the target. Odd pools
+ * rotate a bye, so each team plays at rate `(poolSize-1)/poolSize` per round
+ * — bump the count to compensate (rounding up errs toward *more* play, the
+ * rec goal). Returns 0 for degenerate pools (< 2 teams).
+ */
+function roundsForTargetGames(poolSize: number, gamesPerTeam: number): number {
+  if (poolSize < 2) return 0;
+  if (poolSize % 2 === 0) return gamesPerTeam;
+  return Math.ceil((gamesPerTeam * poolSize) / (poolSize - 1));
+}
+
+/**
  * Generate pool-play matches: each pool plays an internal round-robin
  * (or a fixed games-per-team truncation thereof).
  *
@@ -464,11 +529,22 @@ export function distributeIntoPools(seeds: ReadonlyArray<Seed>, poolCount: numbe
  * idle team, so `workTeamId` stays null in that case. Hosts may
  * override per match in the UI. See ADR 0018.
  *
+ * Pool composition: if every seed already carries a `pool` label (the host
+ * hand-assigned pools via `setPools`, ADR 0032), those groupings are honored
+ * verbatim — including **uneven** pools (3 in A, 4 in B). Otherwise seeds are
+ * snake-distributed into `poolCount` even-ish pools.
+ *
+ * Schedule modes:
+ *  - `round_robin` — every team plays every other team in its pool once.
+ *  - `fixed_games` — each team plays ~`gamesPerTeam` games. When the target
+ *    exceeds what a full round-robin provides (smaller pools), the circle
+ *    rotation continues and **repeats** opponents, so uneven pools can still
+ *    hit the same games-per-team. See ADR 0032.
+ *
  * @throws {ValidationError} propagated from {@link distributeIntoPools}
- *   (bad pool count / too few seeds), or when `schedule === 'fixed_games'`
- *   without a positive `gamesPerTeam`, or when `gamesPerTeam` is greater
- *   than or equal to the smallest pool's team count (use round-robin
- *   instead).
+ *   (bad pool count / too few seeds), when a hand-assigned pool has < 2
+ *   teams, or when `schedule === 'fixed_games'` without a positive
+ *   `gamesPerTeam`.
  */
 export function generatePoolPlay(
   seeds: ReadonlyArray<Seed>,
@@ -482,8 +558,8 @@ export function generatePoolPlay(
   },
   mkId: IdFactory,
 ): Match[] {
-  const pools = distributeIntoPools(seeds, poolCount);
-  let maxRounds: number | undefined;
+  const pools = poolsFromSeedsOrSnake(seeds, poolCount);
+  let targetGames: number | null = null;
   if (options.schedule === 'fixed_games') {
     const g = options.gamesPerTeam;
     if (g === null || g < 1) {
@@ -491,21 +567,22 @@ export function generatePoolPlay(
         gamesPerTeam: g,
       });
     }
-    const smallestPool = Math.min(...pools.map((p) => p.length));
-    if (g >= smallestPool) {
-      throw new ValidationError(
-        `gamesPerTeam (${g}) must be less than the smallest pool size (${smallestPool}); ` +
-          `use round_robin for a full schedule.`,
-        { gamesPerTeam: g, smallestPool },
-      );
-    }
-    maxRounds = g;
+    targetGames = g;
   }
   const out: Match[] = [];
-  for (let i = 0; i < pools.length; i++) {
-    const label = poolLabel(i);
-    const poolSeeds = pools[i]!;
-    const poolMatches = generateRoundRobin(poolSeeds, mkId, maxRounds);
+  for (const poolSeeds of pools) {
+    const label = poolSeeds[0]?.pool ?? null;
+    let poolMatches: Match[];
+    if (targetGames !== null) {
+      // Run enough rounds for each team to reach ~targetGames games. Even
+      // pools play one game per team per round (rounds = target); odd pools
+      // rotate a bye so they need a few more. Rounds beyond a full
+      // round-robin replay matchups (allowRepeats), which is intended.
+      const rounds = roundsForTargetGames(poolSeeds.length, targetGames);
+      poolMatches = generateRoundRobin(poolSeeds, mkId, rounds, true);
+    } else {
+      poolMatches = generateRoundRobin(poolSeeds, mkId);
+    }
     const stamped = poolMatches.map((m) => ({ ...m, pool: label }));
     if (options.assignWorkTeam) {
       assignIdleWorkTeams(stamped, poolSeeds);
@@ -630,39 +707,30 @@ export function assignCourtsAndSlots(
 }
 
 /**
- * Build the playoff (single-elim) matches that follow pool play.
- * `advancingPerPool` teams from each pool advance, ordered by their
- * within-pool standings (1st across all pools first, then 2nds, etc.).
+ * Build the playoff (single-elim) matches that follow pool play, from an
+ * already-ranked, flat list of advancing entries (overall seed order, 1st
+ * overall first). The caller decides the order — auto cross-seeding
+ * (`rankAcrossPools`) or a host-edited order (`seedPlayoff`). `entryIds[0]`
+ * becomes the #1 seed, so the standard 1-vs-N cross-bracket placement that
+ * `generateSingleElimination` applies puts the top two seeds on opposite
+ * halves (ADR 0032).
  *
  * `roundOffset` shifts the bracket round numbers so they sort *after*
  * pool-play rounds in the UI.
  *
- * @throws {ValidationError} if `advancingPerPool` is less than 1 or any
- *   pool's standings are short of `advancingPerPool` entries.
+ * @throws {ValidationError} if fewer than 2 entries are supplied.
  */
-export function generatePlayoffFromStandings(
-  poolStandings: ReadonlyArray<ReadonlyArray<EntryId>>,
-  advancingPerPool: number,
+export function generatePlayoffFromRanked(
+  entryIds: ReadonlyArray<EntryId>,
   mkId: IdFactory,
   roundOffset: number,
 ): Match[] {
-  if (advancingPerPool < 1)
-    throw new ValidationError('Must advance at least 1 per pool.', { advancingPerPool });
-  const advancing: EntryId[] = [];
-  for (let pos = 0; pos < advancingPerPool; pos++) {
-    for (const standings of poolStandings) {
-      const t = standings[pos];
-      if (!t) {
-        throw new ValidationError(
-          `Pool standings missing position ${pos + 1}; ` +
-            `each pool must have at least ${advancingPerPool} teams.`,
-          { advancingPerPool, missingPosition: pos + 1 },
-        );
-      }
-      advancing.push(t);
-    }
+  if (entryIds.length < 2) {
+    throw new ValidationError('Playoff needs at least 2 advancing teams.', {
+      teamCount: entryIds.length,
+    });
   }
-  const seeds: Seed[] = advancing.map((entryId, i) => ({
+  const seeds: Seed[] = entryIds.map((entryId, i) => ({
     entryId,
     seed: i + 1,
     pool: null,

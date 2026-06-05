@@ -159,10 +159,18 @@ export default async function NumbersPage() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40 text-left">
                     <tr>
-                      <th className="px-4 py-2 font-medium">City</th>
-                      <th className="px-4 py-2 text-right font-medium">Events</th>
-                      <th className="px-4 py-2 text-right font-medium">Attendees</th>
-                      <th className="px-4 py-2 text-right font-medium">GMV</th>
+                      <th scope="col" className="px-4 py-2 font-medium">
+                        City
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right font-medium">
+                        Events
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right font-medium">
+                        Attendees
+                      </th>
+                      <th scope="col" className="px-4 py-2 text-right font-medium">
+                        GMV
+                      </th>
                     </tr>
                   </thead>
                   <tbody>

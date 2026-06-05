@@ -1,8 +1,11 @@
 'use client';
 
 import { CloseOnSettled, FormModal, ModalFooter } from '@/components/form-modal';
+import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
+import { UserPicker } from '@/components/user-picker';
 import {
+  assignTeamCaptainFromForm,
   hostForceWithdrawTeamRegistration,
   hostMarkTeamRegistrationPaid,
   hostRefundTeamRegistration,
@@ -45,8 +48,12 @@ export type HostAdHocTeamRow = {
 type DivisionLabel = {
   id: string;
   label: string;
-  /** Only ad-hoc divisions accept walk-ins (ADR 0017). */
-  isAdHoc: boolean;
+  /**
+   * Whether the host can add an account-less team to this division — ad-hoc
+   * divisions (tournaments) or roster divisions (leagues), ADR 0033. Open-play
+   * / individual (null-mode) divisions can't.
+   */
+  acceptsHostTeams: boolean;
 };
 
 type Props = {
@@ -85,30 +92,26 @@ function divisionLabel(divisions: ReadonlyArray<DivisionLabel>, id: string): str
  * action can `revalidatePath` + `redirect` with a flash code.
  */
 export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Props) {
-  const adHocDivisions = divisions.filter((d) => d.isAdHoc);
+  const addableDivisions = divisions.filter((d) => d.acceptsHostTeams);
   return (
     <section className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-3 border p-4">
       <header>
         <h3 className="text-fg text-sm font-semibold">Team registrations</h3>
         <p className="text-muted text-xs">
-          Mark off-platform payments, refund Stripe payments, remove unpaid teams, or add a walk-in
-          team that signed up the day of.
+          Add teams that registered another way (cash, Venmo, check, or in person), mark
+          off-platform payments, refund Stripe payments, or remove unpaid teams.
         </p>
       </header>
 
-      {adHocDivisions.length > 0 && (
+      {addableDivisions.length > 0 && (
         <FormModal
           trigger={(open) => (
-            <button
-              type="button"
-              onClick={open}
-              className="bg-primary text-primary-fg inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90"
-            >
-              + Add walk-in team
+            <button type="button" onClick={open} className={primaryButtonClass('sm')}>
+              + Add a team
             </button>
           )}
-          title="Add walk-in team"
-          description="Register a team that signed up the day of. Captain and additional roster are optional — you can edit later."
+          title="Add a team"
+          description="Add a team that registered off the platform (cash, Venmo, check) or in person. Captain and additional roster are optional — you can edit later."
           size="lg"
         >
           {(close) => (
@@ -125,7 +128,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                     required
                     className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
                   >
-                    {adHocDivisions.map((d) => (
+                    {addableDivisions.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.label}
                       </option>
@@ -178,11 +181,8 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                 >
                   Cancel
                 </button>
-                <SubmitButton
-                  pendingChildren="Adding…"
-                  className="bg-primary text-primary-fg rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm hover:opacity-90 disabled:opacity-60"
-                >
-                  Add walk-in team
+                <SubmitButton pendingChildren="Adding…" className={primaryButtonClass('sm')}>
+                  Add team
                 </SubmitButton>
               </ModalFooter>
             </form>
@@ -225,7 +225,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                   <div className="flex shrink-0 flex-wrap items-center gap-1">
                     {isWalkIn && (
                       <span className="rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800">
-                        Walk-in
+                        Added by host
                       </span>
                     )}
                     <span
@@ -265,6 +265,53 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                         Mark paid (cash)
                       </SubmitButton>
                     </form>
+                  )}
+                  {isWalkIn && (
+                    <FormModal
+                      trigger={(open) => (
+                        <button
+                          type="button"
+                          onClick={open}
+                          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-xs font-medium"
+                        >
+                          Assign captain
+                        </button>
+                      )}
+                      title="Assign captain"
+                      description="Link this team to a registered player's account. They'll be able to manage the roster, pay, and report league scores."
+                      size="lg"
+                    >
+                      {(close) => (
+                        <form
+                          action={assignTeamCaptainFromForm.bind(null, eventId, r.id, returnPath)}
+                          className="space-y-3 text-sm"
+                        >
+                          <CloseOnSettled onSettled={close} />
+                          <UserPicker
+                            name="captain_user_id"
+                            label="Captain"
+                            placeholder="Search players by name…"
+                            required
+                            helperText="The player must already have a PickupVB account."
+                          />
+                          <ModalFooter>
+                            <button
+                              type="button"
+                              onClick={close}
+                              className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
+                            >
+                              Cancel
+                            </button>
+                            <SubmitButton
+                              pendingChildren="Assigning…"
+                              className={primaryButtonClass('sm')}
+                            >
+                              Assign captain
+                            </SubmitButton>
+                          </ModalFooter>
+                        </form>
+                      )}
+                    </FormModal>
                   )}
                   {canRefund && (
                     <form action={hostRefundTeamRegistration.bind(null, eventId, r.id, returnPath)}>

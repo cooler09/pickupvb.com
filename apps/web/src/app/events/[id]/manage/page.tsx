@@ -7,6 +7,8 @@ import { getViewer } from '@/lib/server-auth';
 import { LocalDateTime } from '@/components/local-datetime';
 import { loadEventDetail, loadEventReadModelPublic } from '../_loaders/load-event-detail';
 import { ManageDashboard } from './_components/manage-dashboard';
+import { HostAwardBadgesPanel } from '../_components/host-award-badges-panel';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 
 // Host-only dashboard — depends on the viewer's session (`canManage`), so it
 // can't be cached, and must never be indexed. `force-dynamic` is the correct
@@ -52,6 +54,31 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
 
   const returnPath = `/events/${event.id}/manage`;
 
+  // Manual-award (host_grant) badges + their existing grants, for the award
+  // panel. on_attend badges aren't awarded here (they grant on attendance).
+  const hostGrantBadges = vm.eventBadges
+    .filter((b) => b.grantRule === 'host_grant')
+    .map((b) => ({ id: b.id, label: b.label, iconUrl: b.iconUrl }));
+  const awardAttendees = event.attendees.map((a) => ({
+    userId: a.userId,
+    name: a.profile.displayName || a.profile.handle || 'Player',
+  }));
+  let badgeGrants: { badgeKey: string; userId: string }[] = [];
+  if (hostGrantBadges.length > 0) {
+    const { data } = await getAdminSupabase()
+      .from('user_badges')
+      .select('badge_key, user_id')
+      .eq('source', 'host')
+      .in(
+        'badge_key',
+        hostGrantBadges.map((b) => b.id),
+      );
+    badgeGrants = ((data as { badge_key: string; user_id: string }[] | null) ?? []).map((r) => ({
+      badgeKey: r.badge_key,
+      userId: r.user_id,
+    }));
+  }
+
   return (
     <article className="mx-auto max-w-3xl space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -87,6 +114,14 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
         viewerIsPro={vm.viewerIsPro}
         payments={vm.payments}
         primaryHostUserSocial={vm.primaryHostUserSocial}
+      />
+
+      <HostAwardBadgesPanel
+        eventId={event.id}
+        returnPath={returnPath}
+        badges={hostGrantBadges}
+        attendees={awardAttendees}
+        grants={badgeGrants}
       />
     </article>
   );

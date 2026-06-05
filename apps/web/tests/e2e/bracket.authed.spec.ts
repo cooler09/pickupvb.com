@@ -5,9 +5,10 @@ import { withAuthContext } from './_helpers/browser';
 import { cancelEvent } from './_helpers/event-create';
 import { deleteEventById } from './_helpers/cleanup';
 import {
-  addWalkInTeam,
+  addWalkInTeams,
   createAdHocTournament,
   createAndGenerateBracket,
+  createBracketToDraft,
   recordFirstPendingMatch,
   resetFirstCompletedMatch,
   type CreatedTournament,
@@ -51,9 +52,7 @@ test.describe('bracket — result advances the winner (C3)', () => {
       created = await createAdHocTournament(page, { title: `E2E Bracket Advance ${tag}` });
 
       // Register four walk-in teams → 2 semifinals + a (TBD) final.
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
 
       await createAndGenerateBracket(page, created.id);
 
@@ -98,6 +97,48 @@ test.describe('bracket — result advances the winner (C3)', () => {
   });
 });
 
+test.describe('bracket — draft stage hides from spectators until published (ADR 0032)', () => {
+  test('generate lands in an editable draft; publishing makes scoring live', async ({ page }) => {
+    test.setTimeout(180_000);
+
+    const tag = Date.now().toString(36);
+    const teams = [`E2E ${tag} Uno`, `E2E ${tag} Dos`, `E2E ${tag} Tres`, `E2E ${tag} Quatro`];
+    let created: CreatedTournament | null = null;
+
+    try {
+      created = await createAdHocTournament(page, { title: `E2E Bracket Draft ${tag}` });
+      await addWalkInTeams(page, created.id, teams);
+
+      await createBracketToDraft(page, created.id);
+
+      // Draft: the workspace is up (Publish CTA) but scoring isn't live yet —
+      // no "Enter result" forms exist until the host publishes. The generated
+      // matchups are visible in the draft for editing.
+      await expect(page.getByRole('button', { name: /publish bracket/i })).toBeVisible();
+      await expect(page.locator('summary', { hasText: /^Enter result$/ })).toHaveCount(0);
+      await expect(page.getByText(teams[0]!, { exact: true }).first()).toBeVisible();
+
+      // Spectators must not see a half-built draft — the public watch view says
+      // it's being finalized and renders no scoring board.
+      await page.goto(`/events/${created.id}/bracket/watch`);
+      await expect(page.getByText(/finalizing the bracket/i)).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('summary', { hasText: /^Enter result$/ })).toHaveCount(0);
+
+      // Back on the host workspace → Publish → scoring goes live.
+      await page.goto(`/events/${created.id}/bracket`);
+      await page.getByRole('button', { name: /publish bracket/i }).click();
+      await expect(page.locator('summary', { hasText: /^Enter result$/ }).first()).toBeVisible({
+        timeout: 15_000,
+      });
+    } finally {
+      if (created) {
+        await cancelEvent(page, created.url);
+        await deleteEventById(created.id);
+      }
+    }
+  });
+});
+
 test.describe('bracket — result entry is host/captain only (C3)', () => {
   test('a non-host, non-captain viewer sees the board read-only (no result form)', async ({
     page,
@@ -113,9 +154,7 @@ test.describe('bracket — result entry is host/captain only (C3)', () => {
     try {
       // Host (attendee-a) provisions a 2-team bracket → one playable final.
       created = await createAdHocTournament(page, { title: `E2E Bracket Authz ${tag}` });
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
       await createAndGenerateBracket(page, created.id);
 
       // Host sees exactly one result-entry form (they own the walk-in teams).
@@ -154,9 +193,7 @@ test.describe('bracket — record all matches resolves a champion (C3)', () => {
 
     try {
       created = await createAdHocTournament(page, { title: `E2E Bracket Champion ${tag}` });
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
       await createAndGenerateBracket(page, created.id);
 
       // 4-team single-elim = 2 semifinals + 1 final. Record the two semis…
@@ -198,9 +235,7 @@ test.describe('bracket — resetting a match reverts it and clears downstream (C
 
     try {
       created = await createAdHocTournament(page, { title: `E2E Bracket Reset ${tag}` });
-      for (let i = 0; i < teams.length; i++) {
-        await addWalkInTeam(page, created.id, teams[i]!, i + 1);
-      }
+      await addWalkInTeams(page, created.id, teams);
       await createAndGenerateBracket(page, created.id);
 
       // Record one semifinal → its winner advances into the final.

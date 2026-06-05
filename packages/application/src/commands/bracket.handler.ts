@@ -1,9 +1,11 @@
 import type {
+  AddMatchInput,
   AnalyticsPort,
   BracketConfig,
   BracketFormat,
   BracketRepository,
   EventWriteStore,
+  MatchPatch,
   MatchSet,
 } from '@pickupvb/domain';
 import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
@@ -88,6 +90,105 @@ export class ResetMatchCommand {
   ) {}
 }
 
+// ---- Manual-edit commands (ADR 0032) -------------------------------------
+//
+// All host-gated, division-scoped, and persisted through the host-only
+// full-replace `save` (admin client). Structural edits to a bracket are a
+// host privilege — distinct from the captain-reachable match-result writes
+// (`RecordMatchResultCommand` / `ResetMatchCommand`) which route through
+// `saveAsMatchActor` + the RLS-gated RPC. See AGENTS.md pattern #8.
+
+export class PublishBracketCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class ReopenBracketCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class SetPoolsCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly assignments: ReadonlyArray<{ entryId: string; pool: string | null }>,
+  ) {}
+}
+
+/** Match-field patch carrying plain strings; the handler brands the entry ids. */
+export interface EditMatchPatchInput {
+  entryAId?: string | null;
+  entryBId?: string | null;
+  workTeamId?: string | null;
+  court?: string | null;
+  slot?: number | null;
+  scheduledAt?: Date | null;
+  bestOf?: number | null;
+  targetScore?: number | null;
+}
+
+export class EditMatchCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly matchId: string,
+    public readonly patch: EditMatchPatchInput,
+  ) {}
+}
+
+/** New-match shape carrying plain strings; the handler brands the entry ids. */
+export interface AddMatchInputDto {
+  pool?: string | null;
+  bracketSide?: 'winners' | 'losers' | 'final' | null;
+  entryAId?: string | null;
+  entryBId?: string | null;
+  workTeamId?: string | null;
+  court?: string | null;
+  slot?: number | null;
+  bestOf?: number | null;
+  targetScore?: number | null;
+  scheduledAt?: Date | null;
+  round?: number;
+}
+
+export class AddMatchCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly input: AddMatchInputDto,
+  ) {}
+}
+
+export class RemoveMatchCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly matchId: string,
+  ) {}
+}
+
+export class SeedPlayoffCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly orderedEntryIds: ReadonlyArray<string>,
+  ) {}
+}
+
+export class ReplaceEntryCommand {
+  constructor(
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    public readonly oldEntryId: string,
+    public readonly newEntryId: string,
+  ) {}
+}
+
 // ---- Helpers -------------------------------------------------------------
 
 async function loadBracketOrThrow(
@@ -116,6 +217,22 @@ function assertHost(eventHostId: string, requesterId: string): void {
   if (eventHostId !== requesterId) {
     throw new UnauthorizedError('Only the event host can manage the bracket.');
   }
+}
+
+/**
+ * Load a division's bracket and assert the requester is the event host —
+ * the shared preamble for every host-gated structural mutation (ADR 0032).
+ */
+async function loadHostBracket(
+  events: EventWriteStore,
+  brackets: BracketRepository,
+  divisionId: string,
+  requesterId: string,
+): Promise<Bracket> {
+  const bracket = await loadBracketOrThrow(brackets, divisionId);
+  const evt = await loadEventForBracket(events, bracket);
+  assertHost(evt.hostId, requesterId);
+  return bracket;
 }
 
 // ---- Handlers ------------------------------------------------------------
@@ -185,6 +302,10 @@ export class GenerateBracketHandler {
     const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
     const evt = await loadEventForBracket(this.events, bracket);
     assertHost(evt.hostId, cmd.requesterId);
+    // ADR 0032: generate() lands in `draft` — the host reviews/edits the
+    // generated schedule in the draft workspace, then publishes via
+    // PublishBracketCommand. (The earlier auto-publish bridge was removed when
+    // the draft UI shipped.)
     bracket.generate(() => this.brackets.nextMatchId());
     await this.brackets.save(bracket);
     if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
@@ -243,6 +364,214 @@ export class ReorderPoolMatchesHandler {
     await this.brackets.save(bracket);
     if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
+}
+
+// ---- Manual-edit handlers (ADR 0032) -------------------------------------
+//
+// Each follows the host-gated structural-mutation shape: load + assertHost
+// (via loadHostBracket), mutate the aggregate, persist with the host-only
+// `save`, then dispatch the analytics outbox. Built around the module-singleton
+// admin-client bracketRepo in the composition root.
+
+export class PublishBracketHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: PublishBracketCommand): Promise<void> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    bracket.publish();
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class ReopenBracketHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: ReopenBracketCommand): Promise<void> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    bracket.reopen();
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class SetPoolsHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: SetPoolsCommand): Promise<void> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    bracket.setPools(cmd.assignments.map((a) => ({ entryId: EntryId(a.entryId), pool: a.pool })));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class EditMatchHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: EditMatchCommand): Promise<void> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    bracket.editMatch(MatchId(cmd.matchId), buildMatchPatch(cmd.patch));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class AddMatchHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: AddMatchCommand): Promise<{ matchId: string }> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    const id = bracket.addMatch(() => this.brackets.nextMatchId(), buildAddMatchInput(cmd.input));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    return { matchId: String(id) };
+  }
+}
+
+export class RemoveMatchHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: RemoveMatchCommand): Promise<void> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    bracket.removeMatch(MatchId(cmd.matchId));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class SeedPlayoffHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: SeedPlayoffCommand): Promise<void> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    bracket.seedPlayoff(
+      () => this.brackets.nextMatchId(),
+      cmd.orderedEntryIds.map((id) => EntryId(id)),
+    );
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class ReplaceEntryHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: ReplaceEntryCommand): Promise<void> {
+    const bracket = await loadHostBracket(
+      this.events,
+      this.brackets,
+      cmd.divisionId,
+      cmd.requesterId,
+    );
+    bracket.replaceEntry(EntryId(cmd.oldEntryId), EntryId(cmd.newEntryId));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+/** Brand entry-id strings and copy through only the keys the caller set
+ *  (omitted ⇒ unchanged; `null` ⇒ clear). Mirrors the domain `MatchPatch`. */
+function buildMatchPatch(input: EditMatchPatchInput): MatchPatch {
+  const patch: MatchPatch = {};
+  if (input.entryAId !== undefined)
+    patch.entryAId = input.entryAId === null ? null : EntryId(input.entryAId);
+  if (input.entryBId !== undefined)
+    patch.entryBId = input.entryBId === null ? null : EntryId(input.entryBId);
+  if (input.workTeamId !== undefined)
+    patch.workTeamId = input.workTeamId === null ? null : EntryId(input.workTeamId);
+  if (input.court !== undefined) patch.court = input.court;
+  if (input.slot !== undefined) patch.slot = input.slot;
+  if (input.scheduledAt !== undefined) patch.scheduledAt = input.scheduledAt;
+  if (input.bestOf !== undefined) patch.bestOf = input.bestOf;
+  if (input.targetScore !== undefined) patch.targetScore = input.targetScore;
+  return patch;
+}
+
+function buildAddMatchInput(input: AddMatchInputDto): AddMatchInput {
+  const out: AddMatchInput = {};
+  if (input.pool !== undefined) out.pool = input.pool;
+  if (input.bracketSide !== undefined) out.bracketSide = input.bracketSide;
+  if (input.entryAId !== undefined)
+    out.entryAId = input.entryAId === null ? null : EntryId(input.entryAId);
+  if (input.entryBId !== undefined)
+    out.entryBId = input.entryBId === null ? null : EntryId(input.entryBId);
+  if (input.workTeamId !== undefined)
+    out.workTeamId = input.workTeamId === null ? null : EntryId(input.workTeamId);
+  if (input.court !== undefined) out.court = input.court;
+  if (input.slot !== undefined) out.slot = input.slot;
+  if (input.bestOf !== undefined) out.bestOf = input.bestOf;
+  if (input.targetScore !== undefined) out.targetScore = input.targetScore;
+  if (input.scheduledAt !== undefined) out.scheduledAt = input.scheduledAt;
+  if (input.round !== undefined) out.round = input.round;
+  return out;
 }
 
 export class RecordMatchResultHandler {

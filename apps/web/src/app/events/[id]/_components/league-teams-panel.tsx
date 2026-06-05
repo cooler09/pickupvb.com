@@ -49,7 +49,7 @@ export function LeagueTeamsPanel({ eventId, returnPath, divisions, teamsByDivisi
                   <ul className="divide-border-base divide-y">
                     {teams.map((t) => (
                       <li
-                        key={t.teamId}
+                        key={t.entryId}
                         className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0"
                       >
                         <div className="flex flex-wrap items-center gap-2">
@@ -67,7 +67,7 @@ export function LeagueTeamsPanel({ eventId, returnPath, divisions, teamsByDivisi
                               null,
                               eventId,
                               d.id,
-                              t.teamId,
+                              t.entryId,
                               returnPath,
                             )}
                           >
@@ -84,7 +84,7 @@ export function LeagueTeamsPanel({ eventId, returnPath, divisions, teamsByDivisi
                               null,
                               eventId,
                               d.id,
-                              t.teamId,
+                              t.entryId,
                               returnPath,
                             )}
                           >

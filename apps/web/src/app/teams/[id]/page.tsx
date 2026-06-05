@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
-import { FORMAT_LABEL } from '@/lib/enum-labels';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
 import { TeamViewerChrome } from './_components/team-viewer-chrome';
 import { TeamChatPanel } from './_components/team-chat-panel';
@@ -25,13 +24,12 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
   const supabase = createSupabaseAnonClient();
   const { data } = await supabase
     .from('teams')
-    .select('slug, name, format')
+    .select('slug, name')
     .eq('slug', params.id)
     .maybeSingle();
-  const row = data as { slug: string; name: string; format: string } | null;
+  const row = data as { slug: string; name: string } | null;
   if (!row) return { title: 'Team' };
-  const label = FORMAT_LABEL[row.format as keyof typeof FORMAT_LABEL] ?? row.format;
-  const description = `${row.name} — ${label} volleyball team on PickupVB.`;
+  const description = `${row.name} — volleyball team on PickupVB.`;
   return {
     title: row.name,
     description,
@@ -49,7 +47,6 @@ type TeamRow = {
   id: string;
   slug: string;
   name: string;
-  format: string;
   captain_id: string;
   extra_member_count: number | null;
 };
@@ -65,7 +62,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
 
   const { data: teamData } = await supabase
     .from('teams')
-    .select('id, slug, name, format, captain_id, extra_member_count')
+    .select('id, slug, name, captain_id, extra_member_count')
     .eq('slug', params.id)
     .maybeSingle();
   const team = teamData as TeamRow | null;
@@ -115,12 +112,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
           { name: team.name, url: `https://pickupvb.com/teams/${team.slug}` },
         ]}
       />
-      <TeamJsonLd
-        slug={team.slug}
-        name={team.name}
-        format={team.format}
-        memberCount={activeCount + extraMembers}
-      />
+      <TeamJsonLd slug={team.slug} name={team.name} memberCount={activeCount + extraMembers} />
       <header className="space-y-1">
         <Link href="/teams" className="text-primary text-sm hover:underline">
           ← Back to teams
@@ -130,8 +122,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
           <ShareLink path={`/teams/${team.slug}`} title={team.name} />
         </div>
         <p className="text-muted text-sm">
-          {FORMAT_LABEL[team.format] ?? team.format} · {activeCount} player
-          {activeCount === 1 ? '' : 's'}
+          {activeCount} player{activeCount === 1 ? '' : 's'}
           {pendingCount > 0 && ` · ${pendingCount} pending`}
           {extraMembers > 0 && ` · +${extraMembers} off-site`}
         </p>

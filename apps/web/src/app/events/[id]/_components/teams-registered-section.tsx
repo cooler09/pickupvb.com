@@ -60,7 +60,7 @@ function AdHocTeamRow({ reg }: { reg: AdHocTeamPublicEntry }) {
         <div className="flex shrink-0 flex-wrap items-center gap-1">
           {reg.source === 'walk_in' && (
             <span className="rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800">
-              Walk-in
+              Added by host
             </span>
           )}
           <span

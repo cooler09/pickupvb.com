@@ -10,6 +10,7 @@ const config = [
       '.turbo/**',
       'next-env.d.ts',
       'tests/**',
+      'scripts/**',
       'playwright.config.ts',
       '.playwright/**',
       'playwright-report/**',
@@ -101,6 +102,41 @@ const config = [
           selector: 'TemplateElement[value.cooked=/hover:bg-primary\\/90/]',
           message:
             "Don't hand-roll the primary-button recipe in a template literal. Use primaryButtonClass / secondaryButtonClass from '@/components/primary-button'. See docs/audits/persona-ux.md CC-1.",
+        },
+        // CC-6 (docs/audits/persona-ux.md, Bundle 2026-06-01l): the `/90`
+        // ratchet above missed a *second* hand-rolled filled-primary recipe —
+        // `bg-primary … text-primary-fg … hover:opacity-90` — which slipped past
+        // it 17 times. `hover:opacity-90` alone is legitimate (a subtle fade on
+        // non-button row links, e.g. attendee-list / friends-list), so we forbid
+        // only the *co-occurrence* of `bg-primary` + `hover:opacity-90` in one
+        // class string (dual look-ahead, order-independent). A genuinely new
+        // filled button must import primaryButtonClass.
+        {
+          selector: 'Literal[value=/^(?=[\\s\\S]*bg-primary)(?=[\\s\\S]*hover:opacity-90)/]',
+          message:
+            "Don't hand-roll a filled primary button with `bg-primary … hover:opacity-90` (it dodges the `/90` ratchet). Use primaryButtonClass(size) from '@/components/primary-button'. See docs/audits/persona-ux.md CC-6.",
+        },
+        {
+          selector:
+            'TemplateElement[value.cooked=/^(?=[\\s\\S]*bg-primary)(?=[\\s\\S]*hover:opacity-90)/]',
+          message:
+            "Don't hand-roll a filled primary button with `bg-primary … hover:opacity-90` in a template literal. Use primaryButtonClass(size) from '@/components/primary-button'. See docs/audits/persona-ux.md CC-6.",
+        },
+        // Table-header scope ratchet (docs/audits/accessibility.md 2026-06-02
+        // A1). The original 2026-05-17 P1 added `scope="col"` to the receipts /
+        // earnings / pricing tables, but the fix was per-table and nothing
+        // guarded it — three *new* tables (standings tool, billing/analytics,
+        // about/numbers) shipped headers with no `scope`, re-opening the same
+        // 1.3.1 gap. This forbids a `<th>` with no `scope` attribute so every
+        // header cell must declare `scope="col"` (column header) or
+        // `scope="row"` (row header), and the regression can't silently recur.
+        // A genuinely header-less cell in a header row should be a `<td>`, or
+        // opt out with an `eslint-disable-next-line` + reason. (Spread-only
+        // attributes — `<th {...props}>` — would also trip this; none exist.)
+        {
+          selector: "JSXOpeningElement[name.name='th']:not(:has(JSXAttribute[name.name='scope']))",
+          message:
+            'Every <th> needs an explicit scope ("col" for a column header, "row" for a row header) so screen readers associate data cells with their headers. Regression guard for the original accessibility P1 — see docs/audits/accessibility.md 2026-06-02 A1.',
         },
       ],
     },

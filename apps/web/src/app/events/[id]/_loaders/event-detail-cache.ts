@@ -394,3 +394,49 @@ export function loadEventSponsorCached(eventId: string): Promise<EventSponsorVie
     { revalidate: 60, tags: [eventCacheTag(eventId)] },
   )();
 }
+
+export type EventBadgeView = {
+  id: string;
+  label: string;
+  description: string | null;
+  iconUrl: string | null;
+  grantRule: string;
+};
+
+/**
+ * Host-authored collectible badges for the event (gamification Phase 2),
+ * viewer-independent so it stays on the ISR-cached event page. Drives the
+ * "Badges you can earn here" teaser. Evicted by `eventCacheTag(id)` when a host
+ * adds/removes a badge.
+ */
+export function loadEventBadgesCached(eventId: string): Promise<EventBadgeView[]> {
+  return unstable_cache(
+    async () => {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data } = await getAdminSupabase()
+        .from('event_badges')
+        .select('id, label, description, icon_url, grant_rule')
+        .eq('event_id', eventId)
+        .order('sort_order', { ascending: true });
+      return (
+        (data as
+          | {
+              id: string;
+              label: string;
+              description: string | null;
+              icon_url: string | null;
+              grant_rule: string;
+            }[]
+          | null) ?? []
+      ).map((b) => ({
+        id: b.id,
+        label: b.label,
+        description: b.description,
+        iconUrl: b.icon_url,
+        grantRule: b.grant_rule,
+      }));
+    },
+    ['event-badges', eventId],
+    { revalidate: 60, tags: [eventCacheTag(eventId)] },
+  )();
+}

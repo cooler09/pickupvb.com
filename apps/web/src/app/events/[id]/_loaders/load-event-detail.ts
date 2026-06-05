@@ -32,6 +32,7 @@ import {
   loadEventPricingCached,
   loadEventReadModelPublic,
   loadEventSponsorCached,
+  loadEventBadgesCached,
   loadEventTipTotalCached,
   loadHeroImageCached,
   loadHostStripeReadyCached,
@@ -39,6 +40,7 @@ import {
   type AdHocMemberRow,
   type AdHocRegRow,
   type EventSponsorView,
+  type EventBadgeView,
 } from './event-detail-cache';
 import type { EventHeroCta } from '../_components/event-hero';
 import type {
@@ -50,7 +52,7 @@ import type { HostAdHocTeamRow } from '../_components/host-ad-hoc-teams-panel';
 // Re-exported so `page.tsx` (generateMetadata) keeps its import path; the
 // implementation now lives in the consolidated cache module (P2-6).
 export { loadEventReadModelPublic };
-export type { EventSponsorView };
+export type { EventSponsorView, EventBadgeView };
 
 export type EligibleTeamOption = {
   kind: 'team' | 'registration';
@@ -59,7 +61,8 @@ export type EligibleTeamOption = {
 };
 
 export type LeagueTeamView = {
-  teamId: string;
+  /** The team's `event_team_entries.id` (ADR 0034 — roster or host-added). */
+  entryId: string;
   name: string;
   forfeitedAt: Date | null;
 };
@@ -182,6 +185,9 @@ export type EventDetailViewModel = {
   // Optional host-owned sponsor block (Bundle 84).
   sponsor: EventSponsorView | null;
 
+  // Host-authored collectible badges attendees can earn (gamification Phase 2).
+  eventBadges: EventBadgeView[];
+
   // Wide banner image uploaded by the host (nullable — fallback gradient shown).
   heroImageUrl: string | null;
 
@@ -215,6 +221,26 @@ export async function loadEventDetail(
   const user = viewer?.user ?? null;
   const isRealUser = !!user && !isAnonymousUser(user);
 
+  // ── Scoped-event visibility gate ──────────────────────────────────────────
+  // The detail read below runs on the service-role admin client (RLS-bypassed)
+  // so its heavy, viewer-independent parts can be cached + shared. As a result
+  // `getDetail` would otherwise hand a `friends_of_host` / `friends_of_attendees`
+  // (or unpublished private) event to a viewer outside its scope — the
+  // `viewerId` it carries drives the friend graph + RSVP bits, it is NOT an
+  // access gate. Re-assert visibility here, before returning anything.
+  //
+  // Logged-in (incl. anonymous-auth) viewers → a cheap user-scoped existence
+  // check against the RLS-protected base `events` table. That policy is the
+  // single source of truth for who may see an event (host / co-host / friend /
+  // group / public / invite_only-by-link), so we delegate to it rather than
+  // re-deriving the rules. A signed-in detail view is already dynamic, so the
+  // cookie-scoped client adds no caching cost.
+  if (user) {
+    const sb = await getServerSupabase();
+    const { data: visibleRow } = await sb.from('events').select('id').eq('id', id).maybeSingle();
+    if (!visibleRow) notFound();
+  }
+
   let event: EventDetailReadModel;
   try {
     event = user
@@ -223,6 +249,19 @@ export async function loadEventDetail(
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;
+  }
+
+  // Anonymous (logged-out) viewers have no friend edges, so their visibility is
+  // static and the cacheable public read can be gated by the event's own
+  // fields: only a published `public` / `invite_only` event is anon-visible
+  // (mirrors the anon branch of the `events` RLS). This keeps scoped events from
+  // leaking to crawlers / logged-out links while leaving the page cacheable.
+  if (
+    !user &&
+    (event.status !== 'published' ||
+      (event.visibility !== 'public' && event.visibility !== 'invite_only'))
+  ) {
+    notFound();
   }
 
   const friendIds = new Set(event.viewerFriendIds);
@@ -252,6 +291,7 @@ export async function loadEventDetail(
     heroImageUrl,
     leagueTeamsByDivision,
     mediaSummary,
+    eventBadges,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -273,6 +313,7 @@ export async function loadEventDetail(
     loadHeroImageCached(event.id),
     loadLeagueTeamsByDivision(event),
     loadEventMediaSummaryCached(event.id),
+    loadEventBadgesCached(event.id),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -355,6 +396,7 @@ export async function loadEventDetail(
     filledByPosition,
     viewerPosition,
     sponsor,
+    eventBadges,
     heroImageUrl,
     mediaSummary,
     cta,
@@ -422,27 +464,29 @@ async function loadLeagueTeamsByDivision(
     return new Map<string, LeagueTeamView[]>();
   }
   const sb = await getServerSupabase();
+  // ADR 0034: league teams are keyed on the entry id, so this lists every live
+  // entry on the event's league divisions — both rostered (`source='roster'`,
+  // self-registered) and host-added (`source='walk_in'`, team-less). The entry's
+  // `display_name` is the team name for either source, so no `teams` join.
   const { data: rows } = await sb
     .from('event_team_entries')
     .select(
-      'division_id, team_id, forfeited_at, teams!inner(id, name), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+      'id, division_id, display_name, forfeited_at, division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
     )
     .eq('division.event_id', event.id)
-    .eq('source', 'roster')
     .is('deleted_at', null);
   type Row = {
+    id: string;
     division_id: string;
-    team_id: string | null;
+    display_name: string;
     forfeited_at: string | null;
-    teams: { id: string; name: string } | null;
   };
   const map = new Map<string, LeagueTeamView[]>();
   for (const r of (rows as Row[] | null) ?? []) {
-    if (!r.teams || !r.team_id) continue;
     const arr = map.get(r.division_id) ?? [];
     arr.push({
-      teamId: r.team_id,
-      name: r.teams.name,
+      entryId: r.id,
+      name: r.display_name,
       forfeitedAt: r.forfeited_at ? new Date(r.forfeited_at) : null,
     });
     map.set(r.division_id, arr);
@@ -458,10 +502,17 @@ async function loadAdHocBundle(
   event: EventDetailReadModel,
   user: ViewerSession['user'] | null,
 ): Promise<AdHocBundle> {
-  if (
-    event.type !== 'tournament' ||
-    !event.divisions.some((d) => d.teamRegistrationMode === 'ad_hoc')
-  ) {
+  // Host-added (account-less) `walk_in` entries live on any team-registration
+  // division — ad-hoc on tournaments, roster on leagues (ADR 0033). The cached
+  // loaders filter `.neq('source','roster')`, so they already return only the
+  // walk_in/ad-hoc rows (persistent roster teams come from
+  // `loadLeagueTeamsByDivision`). Gate on "has a team-registration division" so
+  // open-play events skip the queries.
+  const isTeamEvent = event.type === 'tournament' || event.type === 'league';
+  const hasTeamRegDivision = event.divisions.some(
+    (d) => d.teamRegistrationMode === 'ad_hoc' || d.teamRegistrationMode === 'roster',
+  );
+  if (!isTeamEvent || !hasTeamRegDivision) {
     return EMPTY_AD_HOC;
   }
 

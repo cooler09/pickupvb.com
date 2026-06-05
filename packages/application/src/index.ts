@@ -19,6 +19,7 @@ export * from './commands/user-profile.handler';
 export * from './commands/group.handler';
 export * from './commands/message.handler';
 export * from './commands/account-deletion.handler';
+export * from './commands/badge.handler';
 export * from './queries/community-listing-queries.handler';
 export * from './queries/media-post-queries.handler';
 export * from './queries/message-queries.handler';

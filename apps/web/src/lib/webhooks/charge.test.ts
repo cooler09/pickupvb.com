@@ -30,6 +30,14 @@ vi.mock('./team-payment-mediators', () => ({
   refundRosterTeamPaymentIfAny: vi.fn(async () => {}),
 }));
 
+// The refund handler evicts the event-detail cache after deleting the roster
+// row (so the page reflects the refund). Inert mock — framework plumbing the
+// e2e validates, kept from throwing outside a Next request scope.
+vi.mock('next/cache', () => ({
+  updateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+}));
+
 import { handleChargeRefunded, handlePaymentFailed } from './charge';
 import { repositories } from '@/lib/handlers';
 import { notify } from '@/lib/notify';

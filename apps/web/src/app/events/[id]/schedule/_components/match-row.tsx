@@ -11,15 +11,15 @@ import { ScoreLiveButton } from '../../_components/score-live-button';
 
 type Status = 'scheduled' | 'in_progress' | 'completed' | 'forfeit' | 'cancelled';
 
-export type ScheduleTeam = { teamId: string; name: string };
+export type ScheduleTeam = { entryId: string; name: string };
 
 export type ScheduleMatchVm = {
   id: string;
   weekNumber: number;
   scheduledAt: string;
   courtLabel: string | null;
-  homeTeamId: string | null;
-  awayTeamId: string | null;
+  homeEntryId: string | null;
+  awayEntryId: string | null;
   homeScore: number | null;
   awayScore: number | null;
   status: Status;
@@ -47,7 +47,7 @@ function toDatetimeLocal(iso: string): string {
 
 function teamLabel(teams: ReadonlyArray<ScheduleTeam>, id: string | null): string {
   if (!id) return 'TBD';
-  return teams.find((t) => t.teamId === id)?.name ?? 'Unknown team';
+  return teams.find((t) => t.entryId === id)?.name ?? 'Unknown team';
 }
 
 function teamSelect(name: string, selected: string | null, teams: ReadonlyArray<ScheduleTeam>) {
@@ -55,7 +55,7 @@ function teamSelect(name: string, selected: string | null, teams: ReadonlyArray<
     <select name={name} defaultValue={selected ?? 'tbd'} className={inputClass}>
       <option value="tbd">TBD</option>
       {teams.map((t) => (
-        <option key={t.teamId} value={t.teamId}>
+        <option key={t.entryId} value={t.entryId}>
           {t.name}
         </option>
       ))}
@@ -97,11 +97,11 @@ export function AddMatchForm(props: {
       </label>
       <label className="sm:col-span-1">
         <span className="text-muted block text-xs">Home</span>
-        {teamSelect('homeTeamId', null, teams)}
+        {teamSelect('homeEntryId', null, teams)}
       </label>
       <label className="sm:col-span-1">
         <span className="text-muted block text-xs">Away</span>
-        {teamSelect('awayTeamId', null, teams)}
+        {teamSelect('awayEntryId', null, teams)}
       </label>
       <div className="flex justify-end sm:col-span-6">
         <button type="submit" className={primaryButtonClass()}>
@@ -141,9 +141,9 @@ export function MatchRow(props: {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-fg font-medium">{teamLabel(teams, match.homeTeamId)}</span>
+        <span className="text-fg font-medium">{teamLabel(teams, match.homeEntryId)}</span>
         <span className="text-muted">vs</span>
-        <span className="text-fg font-medium">{teamLabel(teams, match.awayTeamId)}</span>
+        <span className="text-fg font-medium">{teamLabel(teams, match.awayEntryId)}</span>
         {(match.homeScore !== null || match.awayScore !== null) && (
           <span className="text-fg ml-3 font-mono">
             {match.homeScore ?? '–'}–{match.awayScore ?? '–'}
@@ -157,14 +157,14 @@ export function MatchRow(props: {
 
       {match.notes && <p className="text-muted text-xs whitespace-pre-wrap">{match.notes}</p>}
 
-      {isHost && props.liveScoringEnabled && match.homeTeamId && match.awayTeamId && (
+      {isHost && props.liveScoringEnabled && match.homeEntryId && match.awayEntryId && (
         <ScoreLiveButton
           kind="league"
           eventId={eventId}
           divisionId={divisionId}
           matchId={matchId}
-          teamA={teamLabel(teams, match.homeTeamId)}
-          teamB={teamLabel(teams, match.awayTeamId)}
+          teamA={teamLabel(teams, match.homeEntryId)}
+          teamB={teamLabel(teams, match.awayEntryId)}
           bestOf={1}
           returnPath={returnPath}
         />
@@ -202,10 +202,10 @@ export function MatchRow(props: {
                 className={`${inputClass} sm:col-span-1`}
               />
               <div className="sm:col-span-1">
-                {teamSelect('homeTeamId', match.homeTeamId, teams)}
+                {teamSelect('homeEntryId', match.homeEntryId, teams)}
               </div>
               <div className="sm:col-span-1">
-                {teamSelect('awayTeamId', match.awayTeamId, teams)}
+                {teamSelect('awayEntryId', match.awayEntryId, teams)}
               </div>
               <textarea
                 name="notes"

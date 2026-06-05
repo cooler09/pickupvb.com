@@ -11,6 +11,7 @@ import {
 } from '../actions';
 import {
   addBracketTeamFromClient,
+  addBracketTeamsFromClient,
   generateStandaloneBracket,
   generateStandalonePlayoff,
   moveStandalonePoolMatchFromForm,
@@ -25,6 +26,9 @@ import type { BracketScope } from './labels';
 type TeamMember = { displayName: string; email?: string };
 type AddTeamResult =
   | { ok: true; id: string; name: string }
+  | { ok: false; code: string; message: string };
+type BulkAddTeamsResult =
+  | { ok: true; added: Array<{ id: string; name: string }> }
   | { ok: false; code: string; message: string };
 
 /**
@@ -44,6 +48,12 @@ export type BoundBracketActions = {
   recordResult: (matchId: string) => (formData: FormData) => void | Promise<void>;
   resetMatch: (matchId: string) => () => void | Promise<void>;
   addTeam: (input: { name: string; members: ReadonlyArray<TeamMember> }) => Promise<AddTeamResult>;
+  /**
+   * Bulk "paste a list" add. Only wired for standalone brackets (typed-in
+   * names, no roster); `undefined` for event scope, where walk-in teams carry
+   * rosters and are added one at a time.
+   */
+  bulkAddTeams?: (names: ReadonlyArray<string>) => Promise<BulkAddTeamsResult>;
 };
 
 export function bindBracketActions(scope: BracketScope): BoundBracketActions {
@@ -60,6 +70,7 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
       resetMatch: (matchId) => resetStandaloneMatch.bind(null, b, matchId),
       // Standalone teams are typed-in names only — members are dropped.
       addTeam: (input) => addBracketTeamFromClient(b, input.name),
+      bulkAddTeams: (names) => addBracketTeamsFromClient(b, names),
     };
   }
   const { eventId: e, divisionId: d } = scope;

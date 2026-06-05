@@ -3,6 +3,7 @@
 import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { FieldError, fieldA11y } from '@/components/field-error';
 import { createGroupAction, type GroupFormState } from '../group-form-actions';
 import {
@@ -23,9 +24,14 @@ function SubmitBtn() {
 
 export default function NewGroupForm() {
   const [state, formAction] = useFormState(createGroupAction, initial);
+  const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
     <form action={formAction} className="space-y-4">
-      {state.error && <Alert variant="error">{state.error}</Alert>}
+      {state.error && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
+        </div>
+      )}
       <div>
         <label htmlFor="name" className={labelClass}>
           Name

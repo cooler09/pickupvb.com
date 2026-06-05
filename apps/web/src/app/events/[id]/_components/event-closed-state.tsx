@@ -40,6 +40,7 @@ export function EventClosedState({
 
   if (status === 'completed' || hasStarted) {
     const isTournament = eventType === 'tournament';
+    const isLeague = eventType === 'league';
     return (
       <section
         className="border-border-base bg-fg/5 rounded-shape-sm space-y-2 border p-4 text-sm"
@@ -52,7 +53,9 @@ export function EventClosedState({
           {status === 'completed'
             ? isTournament
               ? 'See the final bracket and results below.'
-              : `Thanks to the ${attendeeCount} player${attendeeCount === 1 ? '' : 's'} who came out.`
+              : isLeague
+                ? 'See the season schedule and final results.'
+                : `Thanks to the ${attendeeCount} player${attendeeCount === 1 ? '' : 's'} who came out.`
             : 'This event has already started.'}
         </p>
         <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -61,7 +64,15 @@ export function EventClosedState({
               View bracket
             </Link>
           )}
-          {!isTournament && (
+          {isLeague && (
+            <Link
+              href={`/events/${eventId}/schedule` as Route}
+              className={primaryButtonClass('sm')}
+            >
+              View schedule
+            </Link>
+          )}
+          {!isTournament && !isLeague && (
             <a href="#attendees" className={primaryButtonClass('sm')}>
               View attendees
             </a>

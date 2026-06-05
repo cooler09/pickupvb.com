@@ -1,5 +1,6 @@
 import type {
   EventPaymentRepository,
+  PaidBadgeSlot,
   PaidSponsorSlot,
   PaymentAuditEntry,
   RefundableAttendee,
@@ -90,6 +91,21 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
       { onConflict: 'event_id' },
     );
     if (error) throw new Error(`mark sponsor slot paid failed: ${error.message}`);
+  }
+
+  async unlockBadgeSlot(slot: PaidBadgeSlot): Promise<void> {
+    const { error } = await this.client.from('event_badge_access').upsert(
+      {
+        event_id: slot.eventId,
+        access_kind: 'ala_carte',
+        purchased_by_user_id: slot.purchasedByUserId,
+        stripe_checkout_session_id: slot.checkoutSessionId,
+        stripe_payment_intent_id: slot.paymentIntentId,
+        paid_at: slot.paidAt,
+      } as never,
+      { onConflict: 'event_id' },
+    );
+    if (error) throw new Error(`unlock badge slot failed: ${error.message}`);
   }
 
   async findEventHostId(eventId: string): Promise<string | null> {

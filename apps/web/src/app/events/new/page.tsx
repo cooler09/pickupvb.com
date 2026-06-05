@@ -83,7 +83,7 @@ export default async function NewEventPage(props: {
       <header className="space-y-1">
         <h1 className="text-3xl font-bold">Host an event</h1>
         <p className="text-muted text-sm">
-          Set up your pickup session or tournament. You can edit any of this later.
+          Set up your pickup session, tournament, or league. You can edit any of this later.
         </p>
       </header>
       <NewEventForm

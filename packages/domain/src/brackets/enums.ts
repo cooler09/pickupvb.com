@@ -11,7 +11,15 @@ export const BRACKET_FORMATS: readonly BracketFormat[] = [
   'pool_play_playoff',
 ] as const;
 
-export type BracketStatus = 'setup' | 'active' | 'completed';
+/**
+ * Bracket lifecycle (ADR 0032):
+ *  - `setup`     — configuring; seeds may exist, no matches generated yet.
+ *  - `draft`     — generated, fully editable (pools, schedule, matchups,
+ *                  playoff). Not yet live; spectators don't score it.
+ *  - `active`    — published / "Live". Scoring is on; targeted edits allowed.
+ *  - `completed` — every match resolved. Locked, but `reopen()`-able.
+ */
+export type BracketStatus = 'setup' | 'draft' | 'active' | 'completed';
 
 export type MatchStatus = 'pending' | 'in_progress' | 'completed' | 'bye';
 

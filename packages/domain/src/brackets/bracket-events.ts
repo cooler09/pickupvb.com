@@ -48,3 +48,13 @@ export class MatchReset extends BaseEvent {
 export class BracketCompleted extends BaseEvent {
   readonly type = 'bracket.completed';
 }
+
+/** Draft → active: the host published the bracket and scoring is now live (ADR 0032). */
+export class BracketPublished extends BaseEvent {
+  readonly type = 'bracket.published';
+}
+
+/** Completed → active: the host re-opened a finished bracket to fix a result (ADR 0032). */
+export class BracketReopened extends BaseEvent {
+  readonly type = 'bracket.reopened';
+}

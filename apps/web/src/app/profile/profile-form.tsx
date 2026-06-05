@@ -4,6 +4,7 @@ import { useFormState, useFormStatus } from 'react-dom';
 import { primaryButtonClass } from '@/components/primary-button';
 import { POSITIONS, POSITION_LABEL } from '@/lib/enum-labels';
 import { Alert } from '@/components/alert';
+import { useAlertReveal } from '@/components/use-alert-reveal';
 import { updateProfile, type ProfileFormState } from './actions';
 import {
   fieldInputClass as inputClass,
@@ -163,6 +164,7 @@ export function ProfileForm({
   isPro: boolean;
 }) {
   const [state, formAction] = useFormState(updateProfile, initialState);
+  const errorRef = useAlertReveal(state, Boolean(state.error || state.success));
 
   return (
     <form action={formAction} className="space-y-6">
@@ -297,8 +299,12 @@ export function ProfileForm({
         </div>
       </Section>
 
-      {state.error && <Alert variant="error">{state.error}</Alert>}
-      {state.success && !state.error && <Alert variant="success">Profile updated.</Alert>}
+      {(state.error || state.success) && (
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          {state.error && <Alert variant="error">{state.error}</Alert>}
+          {state.success && !state.error && <Alert variant="success">Profile updated.</Alert>}
+        </div>
+      )}
 
       <div className="border-border-base flex justify-end border-t pt-4">
         <SubmitButton />
