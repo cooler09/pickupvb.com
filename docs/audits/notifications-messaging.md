@@ -21,18 +21,21 @@ notify(kind,user,payload)
 ## Status
 
 **2026-06-04 — initial audit + P1 bundle shipped (uncommitted).**
+**2026-06-05 — root cause CONFIRMED by live outbox inspection (see P1 #1).**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
 
-1. **Vercel Cron runs only on _production_ deployments.** `dev.pickupvb.com` is
-   a Preview deploy, so the every-5-min `/api/notifications/worker` drain
-   **never fires there** — preview delivery depends entirely on the seeded
-   `pg_net` kick (ADR 0026), which is out-of-band per environment. A push
-   enqueued on dev can sit in the outbox forever. (P1 #1)
-2. **VAPID env vars likely unset on the deployed envs.** `.env.dev` had none;
-   if `NEXT_PUBLIC_VAPID_PUBLIC_KEY` is missing on a deploy, the enable-push
-   button renders "not configured" and nobody can subscribe. (P1 #2)
+1. **Vercel Cron runs only on _production_ deployments — and the dev `pg_net`
+   kick is unseeded — so nothing drains the dev outbox.** CONFIRMED 2026-06-05:
+   a service-role query of dev `notification_outbox` showed **25 rows, every one
+   `pending` / `attempts=0`, push AND email, hours old** — including the
+   `chat.message.received` push the user reported. The in-app bell works because
+   it bypasses the outbox; everything routed through the worker is stranded.
+   (P1 #1)
+2. **VAPID is actually configured on dev** (test-push delivered to Android, and
+   push rows enqueue fine) — so the original "likely unset" worry is resolved
+   for dev; the remaining action is verifying prod. (P1 #2)
 3. **The natural test action didn't push.** `event.signup.confirmed` and
    `event.reminder.24h` were `email + in_app` only — a user "testing push" by
    joining an event got nothing. (P2 #1, fixed)
@@ -49,28 +52,42 @@ remediation log.
 
 ## P1 — ship-blocking
 
-### P1 #1 — Outbox worker never drains on preview/dev (cron is production-only) — OPEN (ops)
+### P1 #1 — Nothing drains the dev outbox (cron is production-only + kick unseeded) — OPEN (ops), CONFIRMED 2026-06-05
 
 Vercel only schedules `crons[]` from `vercel.json` on the **production**
-deployment. dev.pickupvb.com is a `develop`-branch Preview, so the worker is
-never invoked on a schedule there; only the DB `pg_net` kick can drain it, and
-that kick needs Vault secrets seeded for the preview environment (ADR 0026).
-**Fix:** seed the kick secret for Preview, _or_ accept that dev push/email is
-"kick-only" and use the new test-push button to validate delivery (it sends
-in-request, no worker needed). Document which. File:
-[apps/web/vercel.json](../../apps/web/vercel.json),
-[supabase/migrations/20260822000000_event_driven_notification_delivery.sql](../../supabase/migrations/20260822000000_event_driven_notification_delivery.sql).
+deployment, so on the `develop`-branch Preview (`dev.pickupvb.com`) the worker
+is never woken on a schedule. The only other drain path — the `pg_net` kick
+trigger (ADR 0026) — is **inert until two Vault secrets are seeded** in that
+environment's Supabase project (the trigger `null`-returns when `notif_worker_url`
+is absent). On dev neither is happening, so the queue grows forever. **Live proof
+(2026-06-05):** dev `notification_outbox` held 25 rows, all `pending`/`attempts=0`,
+push + email, the oldest hours old.
 
-### P1 #2 — VAPID keys must be set per Vercel environment — OPEN (ops)
+**Fix — seed the kick in the _dev_ Supabase project** (SQL editor; one-time, per
+the migration preamble). `notif_worker_cron_secret` must equal the **deployed
+dev** `CRON_SECRET` (Vercel → dev/Preview env), not the local `.env.dev` value:
 
-`.env.dev` carried no `VAPID_*`. If unset on a deploy, `configure()` returns
-false ([web-push.ts:31-40](../../apps/web/src/lib/web-push.ts#L31-L40)) and the
-client gets a null public key → "not supported (server VAPID key not
-configured)". **Fix:** set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
-`NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_SUBJECT` in Vercel for **both**
-Production and Preview, then redeploy. A keypair was generated into the local
-(gitignored) `.env.dev`; copy those four values into Vercel. Verify per-device
-with the test-push button.
+```sql
+select vault.create_secret('https://dev.pickupvb.com/api/notifications/worker', 'notif_worker_url');
+select vault.create_secret('<deployed dev CRON_SECRET>', 'notif_worker_cron_secret');
+```
+
+After seeding, any new enqueue kicks the worker, which **drains the whole
+backlog per wake** — so one fresh message/event clears all 25 stranded rows.
+Do the same with the prod URL + prod `CRON_SECRET` on the prod project if you
+want sub-5-min delivery there (prod already drains every 5 min via cron).
+Files: [vercel.json](../../apps/web/vercel.json),
+[20260822000000_event_driven_notification_delivery.sql](../../supabase/migrations/20260822000000_event_driven_notification_delivery.sql).
+
+### P1 #2 — VAPID per Vercel environment — RESOLVED for dev (verify prod)
+
+`.env.dev` originally carried no `VAPID_*`. Dev deploy is now confirmed
+configured (test-push delivered to Android; push rows enqueue), so the
+"not configured" failure mode is closed for dev. **Remaining:** confirm all four
+(`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`,
+`VAPID_SUBJECT`) are set on **Production** too. A keypair was generated into the
+local (gitignored) `.env.dev` for local runs.
+([web-push.ts:31-40](../../apps/web/src/lib/web-push.ts#L31-L40))
 
 ### P1 #3 — Chat messages notified the recipient on no channel — FIXED
 
