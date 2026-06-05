@@ -3,4 +3,4 @@
 .fb-session/
 
 # Raw scraped output (transient; feed it to the skill, then discard).
-fb-scrape-output.json
+fb-scrape-*.json
