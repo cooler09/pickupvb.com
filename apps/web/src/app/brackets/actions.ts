@@ -7,9 +7,11 @@ import {
   AddBracketTeamCommand,
   AddBracketTeamsCommand,
   CreateStandaloneBracketCommand,
+  DeleteStandaloneBracketCommand,
   GenerateStandaloneBracketCommand,
   GenerateStandalonePlayoffCommand,
   RecordMatchResultCommand,
+  ReopenStandaloneBracketCommand,
   ReorderStandalonePoolMatchesCommand,
   ResetStandaloneBracketCommand,
   ResetMatchCommand,
@@ -223,6 +225,42 @@ export async function resetStandaloneBracket(bracketId: string): Promise<void> {
   }
   revalidate(bracketId);
   back(bracketId, 'reset');
+}
+
+/** Re-open a completed standalone bracket so the owner can fix a result (TT-10). */
+export async function reopenStandaloneBracket(bracketId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.reopenStandaloneBracket.execute(
+      new ReopenStandaloneBracketCommand(bracketId, user.id),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'reopened');
+}
+
+/**
+ * Permanently delete a standalone bracket (TT-12). On success there's no
+ * bracket to return to, so redirect to the "My brackets" list; the deleted row
+ * frees the free-tier active-bracket slot. Owner-gated in the handler.
+ */
+export async function deleteStandaloneBracket(bracketId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.deleteStandaloneBracket.execute(
+      new DeleteStandaloneBracketCommand(bracketId, user.id),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidatePath('/brackets');
+  redirect('/brackets' as Route);
 }
 
 export async function moveStandalonePoolMatchFromForm(

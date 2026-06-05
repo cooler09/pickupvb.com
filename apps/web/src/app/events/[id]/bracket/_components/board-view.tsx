@@ -197,6 +197,13 @@ export function BoardView(props: {
         />
       )}
 
+      {/* Standalone owner: re-open a completed bracket to fix a result (TT-10).
+          The richer event LiveHostTools (Substitute / per-match Edit) stays
+          event-only — see TT-11. */}
+      {props.isHost && scope.kind === 'standalone' && props.status === 'completed' && (
+        <ReopenStrip reopen={a.reopen} />
+      )}
+
       {isPoolPlay && poolMatches.length > 0 && (
         <PoolsView
           scope={scope}
@@ -448,30 +455,40 @@ function LiveHostTools(props: {
   status: 'active' | 'completed';
   teams: ReadonlyArray<TeamLite>;
 }) {
-  const reopen = reopenBracket.bind(null, props.eventId, props.divisionId);
+  if (props.status === 'completed') {
+    return <ReopenStrip reopen={reopenBracket.bind(null, props.eventId, props.divisionId)} />;
+  }
   return (
     <div className="border-border-base bg-fg/5 rounded-shape-sm flex flex-wrap items-center gap-3 border p-3">
       <span className="text-muted text-xs font-semibold tracking-wide uppercase">Host edits</span>
-      {props.status === 'active' ? (
-        <>
-          <SubstituteTeamButton
-            eventId={props.eventId}
-            divisionId={props.divisionId}
-            teams={props.teams}
-          />
-          <span className="text-muted text-xs">
-            Use <span className="text-fg/70">Edit</span> on any match to fix a matchup, court, or
-            match length.
-          </span>
-        </>
-      ) : (
-        <form action={reopen} className="flex items-center gap-2">
-          <SubmitButton className={neutralButtonClass('sm')}>Re-open to edit</SubmitButton>
-          <span className="text-muted text-xs">
-            Re-open this completed bracket to fix a result or matchup.
-          </span>
-        </form>
-      )}
+      <SubstituteTeamButton
+        eventId={props.eventId}
+        divisionId={props.divisionId}
+        teams={props.teams}
+      />
+      <span className="text-muted text-xs">
+        Use <span className="text-fg/70">Edit</span> on any match to fix a matchup, court, or match
+        length.
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Completed-bracket "Re-open to edit" strip — shared by the event host tools
+ * and the standalone owner board (TT-10). `reopen` is a scope-bound server
+ * action (event → reopenBracket, standalone → reopenStandaloneBracket).
+ */
+function ReopenStrip(props: { reopen: () => void | Promise<void> }) {
+  return (
+    <div className="border-border-base bg-fg/5 rounded-shape-sm flex flex-wrap items-center gap-3 border p-3">
+      <span className="text-muted text-xs font-semibold tracking-wide uppercase">Host edits</span>
+      <form action={props.reopen} className="flex items-center gap-2">
+        <SubmitButton className={neutralButtonClass('sm')}>Re-open to edit</SubmitButton>
+        <span className="text-muted text-xs">
+          Re-open this completed bracket to fix a result or matchup.
+        </span>
+      </form>
     </div>
   );
 }

@@ -65,6 +65,20 @@ export class ResetStandaloneBracketCommand {
   ) {}
 }
 
+export class ReopenStandaloneBracketCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class DeleteStandaloneBracketCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
 export class ReorderStandalonePoolMatchesCommand {
   constructor(
     public readonly bracketId: string,
@@ -211,6 +225,36 @@ export class ReorderStandalonePoolMatchesHandler {
     );
     await this.brackets.save(bracket);
     if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class ReopenStandaloneBracketHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: ReopenStandaloneBracketCommand): Promise<void> {
+    // TT-10: re-open a completed standalone bracket so the owner can fix a
+    // mis-entered result. Mirrors the event-path ReopenBracketHandler;
+    // owner-gated rather than host-gated. The domain `reopen()` rejects
+    // anything but a completed bracket.
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    bracket.reopen();
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class DeleteStandaloneBracketHandler {
+  constructor(private readonly brackets: BracketRepository) {}
+
+  async execute(cmd: DeleteStandaloneBracketCommand): Promise<void> {
+    // TT-12: abandon a standalone bracket (freeing the free-tier active-bracket
+    // slot). Owner-gated via loadOwnedBracket — an event bracket (ownerUserId
+    // null) is rejected, so this path only ever deletes standalone brackets.
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    await this.brackets.deleteBracket(bracket.id);
   }
 }
 

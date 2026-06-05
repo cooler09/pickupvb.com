@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ShareLink } from '@/components/share-link';
+import { SubmitButton } from '@/components/submit-button';
+import { errorButtonClass } from '@/components/primary-button';
 import { repositories } from '@/lib/handlers';
+import { deleteStandaloneBracket } from '../actions';
 import { isPro } from '@/lib/pro';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
@@ -137,6 +140,24 @@ export default async function StandaloneBracketPage(props: {
           />
         </LiveScoresProvider>
       )}
+
+      {/* Danger zone: delete the bracket entirely. Frees the free-tier
+          active-bracket slot and is the only escape for a stuck bracket
+          (TT-12). Two-step disclosure so it isn't a one-click mistake. */}
+      <details className="border-border-base rounded-shape-sm border">
+        <summary className="text-muted hover:text-fg cursor-pointer px-3 py-2 text-sm">
+          Delete this bracket
+        </summary>
+        <div className="border-border-base space-y-2 border-t px-3 py-3">
+          <p className="text-muted text-xs">
+            Permanently removes this bracket and all of its teams, matches, and results. This can
+            {'’'}t be undone.
+          </p>
+          <form action={deleteStandaloneBracket.bind(null, id)}>
+            <SubmitButton className={errorButtonClass('sm')}>Delete bracket</SubmitButton>
+          </form>
+        </div>
+      </details>
     </article>
   );
 }

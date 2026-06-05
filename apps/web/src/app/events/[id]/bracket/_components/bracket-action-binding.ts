@@ -5,6 +5,7 @@ import {
   movePoolMatchFromForm,
   randomizeSeedFromForm,
   recordMatchResultFromForm,
+  reopenBracket,
   resetBracket,
   resetMatch,
   seedBracketFromForm,
@@ -17,6 +18,7 @@ import {
   moveStandalonePoolMatchFromForm,
   randomizeStandaloneSeedFromForm,
   recordStandaloneMatchResultFromForm,
+  reopenStandaloneBracket,
   resetStandaloneBracket,
   resetStandaloneMatch,
   seedStandaloneFromForm,
@@ -42,6 +44,8 @@ export type BoundBracketActions = {
   generate: () => void | Promise<void>;
   generatePlayoff: () => void | Promise<void>;
   reset: () => void | Promise<void>;
+  /** Re-open a completed bracket so the host/owner can fix a result (TT-10). */
+  reopen: () => void | Promise<void>;
   seedFromForm: (formData: FormData) => void | Promise<void>;
   randomizeSeedFromForm: (formData: FormData) => void | Promise<void>;
   movePoolMatch: (pool: string) => (formData: FormData) => void | Promise<void>;
@@ -63,6 +67,7 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
       generate: generateStandaloneBracket.bind(null, b),
       generatePlayoff: generateStandalonePlayoff.bind(null, b),
       reset: resetStandaloneBracket.bind(null, b),
+      reopen: reopenStandaloneBracket.bind(null, b),
       seedFromForm: seedStandaloneFromForm.bind(null, b),
       randomizeSeedFromForm: randomizeStandaloneSeedFromForm.bind(null, b),
       movePoolMatch: (pool) => moveStandalonePoolMatchFromForm.bind(null, b, pool),
@@ -78,6 +83,7 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
     generate: generateBracket.bind(null, e, d),
     generatePlayoff: generatePlayoff.bind(null, e, d),
     reset: resetBracket.bind(null, e, d),
+    reopen: reopenBracket.bind(null, e, d),
     seedFromForm: seedBracketFromForm.bind(null, e, d),
     randomizeSeedFromForm: randomizeSeedFromForm.bind(null, e, d),
     movePoolMatch: (pool) => movePoolMatchFromForm.bind(null, e, d, pool),

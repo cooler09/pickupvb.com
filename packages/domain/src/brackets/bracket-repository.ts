@@ -124,4 +124,13 @@ export interface BracketRepository {
     bracketId: BracketId,
     names: ReadonlyArray<string>,
   ): Promise<Array<{ entryId: string; name: string }>>;
+  /**
+   * Permanently delete a bracket and everything under it (seeds, matches,
+   * sets, typed-in teams, live-score rows — all FK `on delete cascade`). Used
+   * by the standalone owner's "Delete bracket" action (ADR 0025) to abandon a
+   * bracket and free the free-tier active-bracket slot. The caller must have
+   * authorized the delete (owner gate) before invoking; the adapter runs it on
+   * the service-role client.
+   */
+  deleteBracket(bracketId: BracketId): Promise<void>;
 }

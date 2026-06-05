@@ -12,14 +12,17 @@ correctness / parity / stale-data lens. Nine new findings **TT-9 … TT-17** bel
   counts the generator can't build (min-teams said 3, generator needs ≥4 **and** a
   power of two); the failure only surfaced at Generate. Now enforced up-front via a
   shared domain precondition. See the remediation log below.
-- **TT-10 (P2)** — a **completed standalone bracket can never be re-opened or
-  edited**: no standalone reopen exists and the board's Re-open is event-only, so a
-  mis-entered final is frozen forever.
+- **TT-10 (P2) — ✅ FIXED 2026-06-05.** A completed standalone bracket could never
+  be re-opened (no standalone reopen; the board's Re-open was event-only). Added an
+  owner-gated standalone reopen + surfaced the Re-open strip for standalone. See the
+  remediation log below.
 - **TT-11 (P2)** — standalone brackets have none of the division path's ADR-0032
   draft + manual-edit tooling (no draft review, per-match Edit, Substitute,
-  add/remove match, Edit pools, playoff re-seed).
-- **TT-12 (P2)** — the free-tier cap copy promises "delete your bracket" but **no
-  delete-bracket path exists anywhere**.
+  add/remove match, Edit pools, playoff re-seed). _Still open._
+- **TT-12 (P2) — ✅ FIXED 2026-06-05.** The free-tier cap copy promised "delete your
+  bracket" but no delete path existed. Added an owner-gated delete (cascade) + a
+  danger-zone affordance on `/brackets/[id]`; the cap copy is now accurate. See the
+  remediation log below.
 
 The two prior P1s are landed in-tree (TT-7 scope-XOR fix migration
 `20260912000000` committed in `03ab610f`; TT-8 double-elim loser-advance in
@@ -239,7 +242,7 @@ needs 4, 8, 16, or 32 teams; you have N" (compute nearest pow2)
 not just a count. Longer-term, support non-power-of-two DE (byes in WB R1) so
 common counts work — that's the durable fix.
 
-### TT-10 — A completed standalone bracket can never be re-opened or edited (data dead-end) · **P2**
+### TT-10 — A completed standalone bracket can never be re-opened or edited (data dead-end) · **P2** · ✅ FIXED 2026-06-05
 
 There is no standalone reopen command/action, and the only Re-open affordance —
 `LiveHostTools` on the board — is gated `scope.kind === 'event'`
@@ -290,7 +293,7 @@ Parameterize `DraftWorkspace` on a `BracketScope` so standalone can render it. T
 is the deferred "Standalone (ADR 0025) draft/edit UI" — promote it from
 nice-to-have to a tracked P2 because TT-10 (the no-reopen dead-end) rides on it.
 
-### TT-12 — "Delete your bracket" is promised but unimplemented · **P2**
+### TT-12 — "Delete your bracket" is promised but unimplemented · **P2** · ✅ FIXED 2026-06-05
 
 The cap copy and its JSDoc both tell the user to "Finish or **delete** your
 current bracket"
@@ -383,6 +386,43 @@ undisclosed.
 ---
 
 ## Remediation log
+
+### 2026-06-05 — TT-10 + TT-12: standalone reopen + delete (both P2 fixed)
+
+Closed the two standalone dead-ends. Verify chain green (typecheck / lint / unit
+tests / build; standalone handler suite 10 → 15). Full narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-tt10-tt12-standalone-reopen-delete.md).
+
+- **TT-10 — standalone reopen.** New owner-gated `ReopenStandaloneBracketCommand` /
+  `ReopenStandaloneBracketHandler`
+  ([standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts))
+  - `reopenStandaloneBracket` action
+    ([brackets/actions.ts](../../apps/web/src/app/brackets/actions.ts)). The board's
+    completed-state "Re-open to edit" strip was extracted to a shared `ReopenStrip`
+    and is now rendered for `scope.kind === 'standalone'` too — driven by a new
+    `reopen` entry on `BoundBracketActions`
+    ([bracket-action-binding.ts](../../apps/web/src/app/events/[id]/bracket/_components/bracket-action-binding.ts),
+    [board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+    The event-only Substitute / per-match Edit stay event-scoped (that's TT-11).
+- **TT-12 — standalone delete.** New `deleteBracket` repository port
+  ([bracket-repository.ts](../../packages/domain/src/brackets/bracket-repository.ts),
+  [supabase-bracket-repository.ts](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  — a single `DELETE FROM event_brackets`; seeds / matches → sets / teams /
+  `match_live_scores` all FK-cascade), owner-gated
+  `DeleteStandaloneBracketCommand` / handler, and a `deleteStandaloneBracket`
+  action that redirects to `/brackets`. A two-step "Delete this bracket" danger
+  zone was added to the standalone workspace
+  ([brackets/[id]/page.tsx](../../apps/web/src/app/brackets/[id]/page.tsx)). The
+  cap copy's "Finish or delete your current bracket" is now accurate, and a free
+  owner stuck on a non-generatable bracket (TT-9 scenario) can free the slot.
+- **Tests.** 5 application cases added
+  ([standalone-bracket.handler.test.ts](../../packages/application/src/commands/standalone-bracket.handler.test.ts)):
+  reopen completed→active + non-owner reject; delete owned + non-owner reject +
+  unknown-bracket NotFound.
+
+Still open: **TT-11** (the broader standalone draft + manual-edit parity —
+per-match Edit, Substitute, add/remove match, Edit pools, playoff re-seed). TT-10
+unblocks the sharpest data-integrity case; TT-11 remains the larger build.
 
 ### 2026-06-05 — TT-9: double-elimination team-count precondition (P1 fixed)
 

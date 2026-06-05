@@ -103,6 +103,7 @@ class FakeBracketRepo implements BracketRepository {
     this.saveCount += 1;
     throw new Error('save() bypasses RLS; captain-reachable writes must use saveAsMatchActor');
   }
+  async deleteBracket(): Promise<void> {}
   async saveAsMatchActor(bracket: Bracket, actorMatchId: MatchId): Promise<void> {
     this.actorCalls.push({ bracketId: bracket.id, actorMatchId: String(actorMatchId) });
   }
@@ -209,6 +210,7 @@ class HostBracketRepo implements BracketRepository {
   async saveAsMatchActor(): Promise<void> {
     throw new Error('host-gated structural edits must use save(), not saveAsMatchActor');
   }
+  async deleteBracket(): Promise<void> {}
   async listRegisteredTeams(): Promise<BracketTeamLite[]> {
     return [];
   }

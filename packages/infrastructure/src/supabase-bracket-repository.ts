@@ -474,6 +474,16 @@ export class SupabaseBracketRepository implements BracketRepository {
     const rows = (data as Array<{ id: string; name: string }> | null) ?? [];
     return rows.map((r) => ({ entryId: r.id, name: r.name }));
   }
+
+  async deleteBracket(bracketId: BracketId): Promise<void> {
+    // One DELETE on the header; `bracket_seeds` / `bracket_matches`
+    // (→ `bracket_match_sets`) / `bracket_teams` / `match_live_scores` all FK
+    // into `event_brackets(id)` with `on delete cascade`, so the whole bracket
+    // is reaped in one statement. Owner authorization is enforced in the
+    // handler before we get here; this runs on the service-role admin client.
+    const { error } = await this.client.from('event_brackets').delete().eq('id', bracketId);
+    if (error) throw new Error(`deleteBracket failed: ${error.message}`);
+  }
 }
 
 function groupSets(rows: SetRow[]): Map<string, MatchSet[]> {

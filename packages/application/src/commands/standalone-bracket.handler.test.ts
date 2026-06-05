@@ -20,8 +20,12 @@ import {
   AddBracketTeamsHandler,
   CreateStandaloneBracketCommand,
   CreateStandaloneBracketHandler,
+  DeleteStandaloneBracketCommand,
+  DeleteStandaloneBracketHandler,
   GenerateStandaloneBracketHandler,
   GenerateStandaloneBracketCommand,
+  ReopenStandaloneBracketCommand,
+  ReopenStandaloneBracketHandler,
   SeedStandaloneBracketCommand,
   SeedStandaloneBracketHandler,
 } from './standalone-bracket.handler.js';
@@ -35,6 +39,7 @@ const OTHER = 'owner-2';
 class FakeRepo implements BracketRepository {
   saved: Bracket[] = [];
   addedTeams: Array<{ bracketId: string; name: string }> = [];
+  deletedIds: string[] = [];
   private idSeq = 0;
 
   constructor(private readonly bracket: Bracket | null) {}
@@ -80,10 +85,27 @@ class FakeRepo implements BracketRepository {
       return { entryId: `entry-${this.addedTeams.length}`, name };
     });
   }
+  async deleteBracket(bracketId: BracketId): Promise<void> {
+    this.deletedIds.push(String(bracketId));
+  }
 }
 
 function ownedSetupBracket(): Bracket {
   return Bracket.createStandalone('b-1' as BracketId, OWNER, 'single_elimination');
+}
+
+/** Owned 2-team single-elim bracket played to completion (status `completed`). */
+function ownedCompletedBracket(): Bracket {
+  const b = Bracket.createStandalone('b-1' as BracketId, OWNER, 'single_elimination', {
+    bestOf: 1,
+  });
+  b.seedTeams(['e1', 'e2'] as EntryId[]);
+  let n = 0;
+  b.generate(() => `m-${++n}` as MatchId);
+  b.publish();
+  const matchId = b.matches[0]!.id;
+  b.recordResult({ matchId, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+  return b;
 }
 
 describe('CreateStandaloneBracketHandler', () => {
@@ -133,6 +155,57 @@ describe('SeedStandaloneBracketHandler', () => {
 
     expect(repo.saved).toHaveLength(1);
     expect(repo.saved[0]!.seeds.map((s) => s.entryId)).toEqual(['e1', 'e2', 'e3'] as EntryId[]);
+  });
+});
+
+describe('ReopenStandaloneBracketHandler (TT-10)', () => {
+  it('re-opens a completed bracket to active and persists', async () => {
+    const repo = new FakeRepo(ownedCompletedBracket());
+    await new ReopenStandaloneBracketHandler(repo).execute(
+      new ReopenStandaloneBracketCommand('b-1', String(OWNER)),
+    );
+    expect(repo.saved).toHaveLength(1);
+    expect(repo.saved[0]!.status).toBe('active');
+  });
+
+  it('rejects a non-owner with UnauthorizedError', async () => {
+    const repo = new FakeRepo(ownedCompletedBracket());
+    await expect(
+      new ReopenStandaloneBracketHandler(repo).execute(
+        new ReopenStandaloneBracketCommand('b-1', OTHER),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repo.saved).toHaveLength(0);
+  });
+});
+
+describe('DeleteStandaloneBracketHandler (TT-12)', () => {
+  it('deletes the owned bracket', async () => {
+    const repo = new FakeRepo(ownedSetupBracket());
+    await new DeleteStandaloneBracketHandler(repo).execute(
+      new DeleteStandaloneBracketCommand('b-1', String(OWNER)),
+    );
+    expect(repo.deletedIds).toEqual(['b-1']);
+  });
+
+  it('rejects a non-owner and deletes nothing', async () => {
+    const repo = new FakeRepo(ownedSetupBracket());
+    await expect(
+      new DeleteStandaloneBracketHandler(repo).execute(
+        new DeleteStandaloneBracketCommand('b-1', OTHER),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(repo.deletedIds).toHaveLength(0);
+  });
+
+  it('throws NotFoundError when the bracket is unknown', async () => {
+    const repo = new FakeRepo(null);
+    await expect(
+      new DeleteStandaloneBracketHandler(repo).execute(
+        new DeleteStandaloneBracketCommand('missing', String(OWNER)),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(repo.deletedIds).toHaveLength(0);
   });
 });
 
