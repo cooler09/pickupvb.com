@@ -9,6 +9,7 @@ import { isPro } from '@/lib/pro';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '@/app/events/[id]/bracket/_components/board-view';
+import { DraftWorkspace } from '@/app/events/[id]/bracket/_components/draft-workspace';
 import { LatestMatchTracker } from '@/app/events/[id]/bracket/_components/latest-match-tracker';
 import { SetupView } from '@/app/events/[id]/bracket/_components/setup-view';
 import { BracketRealtimeRefresher } from '@/app/events/[id]/bracket/_components/realtime-refresher';
@@ -119,6 +120,18 @@ export default async function StandaloneBracketPage(props: {
         />
       )}
 
+      {bracket.status === 'draft' && (
+        <DraftWorkspace
+          scope={scope}
+          format={bracket.format}
+          bestOf={bracket.config.bestOf}
+          targetScore={bracket.config.targetScore}
+          matches={[...bracket.matches]}
+          teams={registeredTeams}
+          seeds={bracket.seeds.map((s) => ({ entryId: s.entryId, seed: s.seed, pool: s.pool }))}
+        />
+      )}
+
       {(bracket.status === 'active' || bracket.status === 'completed') && (
         <LiveScoresProvider enabled={liveScoringEnabled} bracketId={bracket.id}>
           <LatestMatchTracker
@@ -130,7 +143,9 @@ export default async function StandaloneBracketPage(props: {
             scope={scope}
             matches={[...bracket.matches]}
             teamById={teamById}
+            teams={registeredTeams}
             bestOf={bracket.config.bestOf}
+            targetScore={bracket.config.targetScore}
             isHost
             viewerId={user!.id}
             status={bracket.status}

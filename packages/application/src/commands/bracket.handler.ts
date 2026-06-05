@@ -537,8 +537,9 @@ export class ReplaceEntryHandler {
 }
 
 /** Brand entry-id strings and copy through only the keys the caller set
- *  (omitted ⇒ unchanged; `null` ⇒ clear). Mirrors the domain `MatchPatch`. */
-function buildMatchPatch(input: EditMatchPatchInput): MatchPatch {
+ *  (omitted ⇒ unchanged; `null` ⇒ clear). Mirrors the domain `MatchPatch`.
+ *  Exported so the standalone manual-edit handlers reuse the same branding. */
+export function buildMatchPatch(input: EditMatchPatchInput): MatchPatch {
   const patch: MatchPatch = {};
   if (input.entryAId !== undefined)
     patch.entryAId = input.entryAId === null ? null : EntryId(input.entryAId);
@@ -554,7 +555,7 @@ function buildMatchPatch(input: EditMatchPatchInput): MatchPatch {
   return patch;
 }
 
-function buildAddMatchInput(input: AddMatchInputDto): AddMatchInput {
+export function buildAddMatchInput(input: AddMatchInputDto): AddMatchInput {
   const out: AddMatchInput = {};
   if (input.pool !== undefined) out.pool = input.pool;
   if (input.bracketSide !== undefined) out.bracketSide = input.bracketSide;

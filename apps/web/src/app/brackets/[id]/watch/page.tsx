@@ -73,9 +73,16 @@ export default async function StandaloneBracketWatchPage(props: {
       <header className="space-y-1">
         <div className="flex items-center gap-2">
           <h1 className="text-fg text-2xl font-bold">Live bracket</h1>
-          <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
-            ● LIVE
-          </span>
+          {bracket.status === 'active' && (
+            <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+              ● LIVE
+            </span>
+          )}
+          {bracket.status === 'completed' && (
+            <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+              Final
+            </span>
+          )}
         </div>
         <p className="text-fg/80 text-sm">{FORMAT_LABEL[bracket.format]}</p>
         <p className="text-muted text-sm">
@@ -86,10 +93,12 @@ export default async function StandaloneBracketWatchPage(props: {
 
       <BracketRealtimeRefresher bracketId={bracket.id} />
 
-      {bracket.status === 'setup' && (
+      {(bracket.status === 'setup' || bracket.status === 'draft') && (
         <div className="border-border-base bg-bg rounded-shape-sm border p-6 text-center">
           <p className="text-fg/80 text-sm">
-            Seeding is in progress. The bracket will appear here once it{'’'}s generated.
+            {bracket.status === 'draft'
+              ? 'The organizer is finalizing the bracket. It will appear here once they publish it.'
+              : `Seeding is in progress. The bracket will appear here once it${'’'}s generated.`}
           </p>
         </div>
       )}
@@ -106,6 +115,7 @@ export default async function StandaloneBracketWatchPage(props: {
             matches={[...bracket.matches]}
             teamById={teamById}
             bestOf={bracket.config.bestOf}
+            targetScore={bracket.config.targetScore}
             isHost={false}
             viewerId={null}
             status={bracket.status}

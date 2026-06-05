@@ -6,16 +6,24 @@ import { redirect } from 'next/navigation';
 import {
   AddBracketTeamCommand,
   AddBracketTeamsCommand,
+  AddStandaloneMatchCommand,
   CreateStandaloneBracketCommand,
   DeleteStandaloneBracketCommand,
+  EditStandaloneMatchCommand,
   GenerateStandaloneBracketCommand,
   GenerateStandalonePlayoffCommand,
+  PublishStandaloneBracketCommand,
   RecordMatchResultCommand,
+  RemoveStandaloneMatchCommand,
   ReopenStandaloneBracketCommand,
   ReorderStandalonePoolMatchesCommand,
+  ReplaceStandaloneEntryCommand,
   ResetStandaloneBracketCommand,
   ResetMatchCommand,
   SeedStandaloneBracketCommand,
+  SetStandalonePoolsCommand,
+  type AddMatchInputDto,
+  type EditMatchPatchInput,
 } from '@pickupvb/application';
 import {
   ConflictError,
@@ -241,6 +249,165 @@ export async function reopenStandaloneBracket(bracketId: string): Promise<void> 
   }
   revalidate(bracketId);
   back(bracketId, 'reopened');
+}
+
+// ---- Draft + live structural edits (ADR 0032 / TT-11) ---------------------
+//
+// Standalone twins of the event-path draft workspace + live-board edits. All
+// owner-gated in their handlers; plain flash-param redirects like the actions
+// above. Parsing mirrors the event `*FromForm` actions field-for-field.
+
+/** Publish a draft standalone bracket → live. */
+export async function publishStandaloneBracket(bracketId: string): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.publishStandaloneBracket.execute(
+      new PublishStandaloneBracketCommand(bracketId, user.id),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'published');
+}
+
+/** Patch one match (matchup / court / length). Mirrors editBracketMatchFromForm. */
+export async function editStandaloneMatchFromForm(
+  bracketId: string,
+  matchId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const patch: EditMatchPatchInput = {};
+  const a = formData.get('entry_a');
+  if (a !== null) patch.entryAId = a === '' || a === 'tbd' ? null : String(a);
+  const b = formData.get('entry_b');
+  if (b !== null) patch.entryBId = b === '' || b === 'tbd' ? null : String(b);
+  const court = formData.get('court');
+  if (court !== null) patch.court = String(court).trim() || null;
+  const bo = Number(formData.get('best_of') ?? '');
+  patch.bestOf = bo === 1 || bo === 3 || bo === 5 ? bo : null;
+  const ts = Number(formData.get('target_score') ?? '');
+  patch.targetScore = Number.isInteger(ts) && ts >= 1 ? ts : null;
+  try {
+    await handlers.editStandaloneMatch.execute(
+      new EditStandaloneMatchCommand(bracketId, user.id, matchId, patch),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'match_updated');
+}
+
+/** Append a match to a pool (or the open stage). */
+export async function addStandaloneMatchFromForm(
+  bracketId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const input: AddMatchInputDto = {};
+  const pool = String(formData.get('pool') ?? '').trim();
+  if (pool) input.pool = pool;
+  const a = formData.get('entry_a');
+  if (a !== null && a !== '' && a !== 'tbd') input.entryAId = String(a);
+  const b = formData.get('entry_b');
+  if (b !== null && b !== '' && b !== 'tbd') input.entryBId = String(b);
+  try {
+    await handlers.addStandaloneMatch.execute(
+      new AddStandaloneMatchCommand(bracketId, user.id, input),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'match_added');
+}
+
+/** Remove a match. */
+export async function removeStandaloneBracketMatch(
+  bracketId: string,
+  matchId: string,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  try {
+    await handlers.removeStandaloneMatch.execute(
+      new RemoveStandaloneMatchCommand(bracketId, user.id, matchId),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'match_removed');
+}
+
+/**
+ * Reassign teams to pools in bulk, then rebuild the pool schedule from the new
+ * composition (stays in draft). Mirrors setBracketPoolsFromForm.
+ */
+export async function setStandalonePoolsFromForm(
+  bracketId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const assignments: Array<{ entryId: string; pool: string | null }> = [];
+  for (const [key, val] of formData.entries()) {
+    if (!key.startsWith('team_pool_')) continue;
+    const entryId = key.slice('team_pool_'.length);
+    const pool = String(val).trim();
+    assignments.push({ entryId, pool: pool || null });
+  }
+  if (assignments.length === 0) {
+    revalidate(bracketId);
+    back(bracketId, 'invalid', 'No pool assignments submitted.');
+  }
+  try {
+    await handlers.setStandalonePools.execute(
+      new SetStandalonePoolsCommand(bracketId, user.id, assignments),
+    );
+    await handlers.generateStandaloneBracket.execute(
+      new GenerateStandaloneBracketCommand(bracketId, user.id),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'pools_updated');
+}
+
+/** Substitute one entry for another everywhere it appears in the bracket. */
+export async function replaceStandaloneEntryFromForm(
+  bracketId: string,
+  formData: FormData,
+): Promise<void> {
+  const { user } = await requireRealUser();
+  const oldEntryId = String(formData.get('old_entry_id') ?? '');
+  const newEntryId = String(formData.get('new_entry_id') ?? '');
+  if (!oldEntryId || !newEntryId || oldEntryId === newEntryId) {
+    revalidate(bracketId);
+    back(bracketId, 'invalid', 'Pick two different teams to substitute.');
+  }
+  try {
+    await handlers.replaceStandaloneEntry.execute(
+      new ReplaceStandaloneEntryCommand(bracketId, user.id, oldEntryId, newEntryId),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(bracketId);
+    back(bracketId, code, msg);
+  }
+  revalidate(bracketId);
+  back(bracketId, 'entry_replaced');
 }
 
 /**

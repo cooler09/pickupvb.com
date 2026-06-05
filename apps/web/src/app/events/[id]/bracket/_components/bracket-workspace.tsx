@@ -5,6 +5,7 @@ import type { BracketFormat, BracketStatus, Match } from '@pickupvb/domain';
 import { useEventManageCaps } from '../../_components/use-event-manage-caps';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from './board-view';
+import { eventScope } from './bracket-action-binding';
 import { DraftWorkspace } from './draft-workspace';
 import { LatestMatchTracker } from './latest-match-tracker';
 import { NoBracketView } from './no-bracket-view';
@@ -112,8 +113,7 @@ export function BracketWorkspace(props: {
         bracket.status === 'draft' &&
         (isHost ? (
           <DraftWorkspace
-            eventId={eventId}
-            divisionId={divisionId}
+            scope={eventScope(eventId, divisionId)}
             format={bracket.format}
             bestOf={bracket.bestOf}
             targetScore={bracket.targetScore}

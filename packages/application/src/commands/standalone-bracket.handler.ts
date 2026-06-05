@@ -6,6 +6,12 @@ import type {
 } from '@pickupvb/domain';
 import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
+  buildAddMatchInput,
+  buildMatchPatch,
+  type AddMatchInputDto,
+  type EditMatchPatchInput,
+} from './bracket.handler.js';
+import {
   Bracket,
   BracketId,
   EntryId,
@@ -85,6 +91,62 @@ export class ReorderStandalonePoolMatchesCommand {
     public readonly requesterId: string,
     public readonly pool: string,
     public readonly matchIdsInOrder: ReadonlyArray<string>,
+  ) {}
+}
+
+// ---- Manual-edit commands (ADR 0032 / TT-11) -----------------------------
+//
+// Standalone parity for the event-path draft + live structural edits. Every
+// command keys on the bracket id and is owner-gated in its handler. The DTO
+// shapes (`EditMatchPatchInput` / `AddMatchInputDto`) and branding helpers
+// (`buildMatchPatch` / `buildAddMatchInput`) are shared with the event path.
+
+export class PublishStandaloneBracketCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+  ) {}
+}
+
+export class SetStandalonePoolsCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+    public readonly assignments: ReadonlyArray<{ entryId: string; pool: string | null }>,
+  ) {}
+}
+
+export class EditStandaloneMatchCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+    public readonly matchId: string,
+    public readonly patch: EditMatchPatchInput,
+  ) {}
+}
+
+export class AddStandaloneMatchCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+    public readonly input: AddMatchInputDto,
+  ) {}
+}
+
+export class RemoveStandaloneMatchCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+    public readonly matchId: string,
+  ) {}
+}
+
+export class ReplaceStandaloneEntryCommand {
+  constructor(
+    public readonly bracketId: string,
+    public readonly requesterId: string,
+    public readonly oldEntryId: string,
+    public readonly newEntryId: string,
   ) {}
 }
 
@@ -173,11 +235,11 @@ export class GenerateStandaloneBracketHandler {
 
   async execute(cmd: GenerateStandaloneBracketCommand): Promise<void> {
     const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    // ADR 0032 / TT-11: generate() lands in `draft`. Standalone now has the
+    // full draft workspace (review → edit → Publish), so the auto-publish
+    // bridge was removed — the owner publishes explicitly via
+    // PublishStandaloneBracketHandler. Mirrors GenerateBracketHandler.
     bracket.generate(() => this.brackets.nextMatchId());
-    // ADR 0032: generate() lands in `draft`; auto-publish to preserve the
-    // current one-click standalone flow until the draft workspace ships
-    // (Phase 4). See GenerateBracketHandler for the same bridge.
-    bracket.publish();
     await this.brackets.save(bracket);
     if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
@@ -255,6 +317,97 @@ export class DeleteStandaloneBracketHandler {
     // null) is rejected, so this path only ever deletes standalone brackets.
     const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
     await this.brackets.deleteBracket(bracket.id);
+  }
+}
+
+// ---- Manual-edit handlers (ADR 0032 / TT-11) -----------------------------
+//
+// Each loads the owned bracket, mutates the aggregate, persists via the
+// owner-gated host `save`, and dispatches the analytics outbox — the standalone
+// twin of the event-path host-gated structural handlers.
+
+export class PublishStandaloneBracketHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: PublishStandaloneBracketCommand): Promise<void> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    bracket.publish();
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class SetStandalonePoolsHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: SetStandalonePoolsCommand): Promise<void> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    bracket.setPools(cmd.assignments.map((a) => ({ entryId: EntryId(a.entryId), pool: a.pool })));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class EditStandaloneMatchHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: EditStandaloneMatchCommand): Promise<void> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    bracket.editMatch(MatchId(cmd.matchId), buildMatchPatch(cmd.patch));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class AddStandaloneMatchHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: AddStandaloneMatchCommand): Promise<{ matchId: string }> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    const id = bracket.addMatch(() => this.brackets.nextMatchId(), buildAddMatchInput(cmd.input));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    return { matchId: String(id) };
+  }
+}
+
+export class RemoveStandaloneMatchHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: RemoveStandaloneMatchCommand): Promise<void> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    bracket.removeMatch(MatchId(cmd.matchId));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+  }
+}
+
+export class ReplaceStandaloneEntryHandler {
+  constructor(
+    private readonly brackets: BracketRepository,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute(cmd: ReplaceStandaloneEntryCommand): Promise<void> {
+    const bracket = await loadOwnedBracket(this.brackets, cmd.bracketId, cmd.requesterId);
+    bracket.replaceEntry(EntryId(cmd.oldEntryId), EntryId(cmd.newEntryId));
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 

@@ -13,10 +13,11 @@ import { expect, type Page } from '@playwright/test';
  * attendee-a — one signed-in real user drives create → add → seed → generate →
  * record → watch. No second actor, no Stripe, no admin client to stand it up.
  *
- * Cleanup is admin-only: there is **no UI delete path** for a standalone
- * bracket, so callers tear down with `deleteBracketById(id)` (opt-in via
- * `E2E_CLEANUP_SUPABASE_*`; the fixture leaks otherwise, like the event
- * bracket spec). The board mutation/inspection (`recordFirstPendingMatch`,
+ * Cleanup tears down with `deleteBracketById(id)` on the admin client (opt-in
+ * via `E2E_CLEANUP_SUPABASE_*`; the fixture leaks otherwise, like the event
+ * bracket spec). There **is** a UI delete now (TT-12), but the admin teardown is
+ * deterministic and independent of the workspace render. The board
+ * mutation/inspection (`recordFirstPendingMatch`,
  * etc.) is reused from `./tournament` — the BoardView / MatchCard components
  * are scope-agnostic, so the same board ops drive event and standalone alike.
  */
@@ -152,11 +153,15 @@ export async function addStandaloneTeams(
 
 /**
  * From the workspace (status `setup`, ≥ 2 teams added): save the current
- * seeding order, then generate the bracket. Mirrors the event-path
- * `createAndGenerateBracket` — the bracket is created with zero seeds, so
- * "Save seeding" must persist the order before `generate()` will run (it
- * throws "Need at least 2 seeded teams" otherwise). Leaves the page on the
- * active board with at least one pending "Enter result" form.
+ * seeding order, generate the bracket, then **publish** it. Mirrors the
+ * event-path `createAndGenerateBracket` — the bracket is created with zero
+ * seeds, so "Save seeding" must persist the order before `generate()` will run
+ * (it throws "Need at least 2 seeded teams" otherwise).
+ *
+ * Since TT-11 (full draft→publish parity, ADR 0032) standalone `generate()`
+ * lands in a **draft** workspace rather than going straight live, so this helper
+ * clicks "Publish bracket" to take it active. Leaves the page on the active
+ * board with at least one pending "Enter result" form.
  */
 export async function seedAndGenerateStandaloneBracket(
   page: Page,
@@ -172,6 +177,11 @@ export async function seedAndGenerateStandaloneBracket(
   const generateBtn = page.getByRole('button', { name: /generate bracket/i });
   await expect(generateBtn).toBeVisible({ timeout: 15_000 });
   await generateBtn.click();
+
+  // draft → the DraftWorkspace renders a "Publish bracket" button.
+  const publishBtn = page.getByRole('button', { name: /publish bracket/i });
+  await expect(publishBtn).toBeVisible({ timeout: 15_000 });
+  await publishBtn.click();
 
   // active → BoardView renders at least one pending "Enter result" form.
   await expect(page.locator('summary', { hasText: /^Enter result$/ }).first()).toBeVisible({

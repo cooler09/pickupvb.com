@@ -9,7 +9,6 @@ import {
 import { MatchCard } from './match-card';
 import { MatchEditor } from './match-editor';
 import { bindBracketActions, eventScope } from './bracket-action-binding';
-import { reopenBracket, replaceEntryFromForm } from '../actions';
 import type { BracketScope, TeamLite } from './labels';
 import { FormModal, ModalActions } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
@@ -77,16 +76,16 @@ export function BoardView(props: {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
   const a = bindBracketActions(scope);
   const teams = props.teams ?? [];
-  // Host structural edits (fix a matchup, court, length) are an event-scope,
-  // live-bracket privilege (ADR 0032). On a completed bracket the host must
-  // Reopen first (editMatch is rejected once completed).
-  const canStructEdit = props.isHost && scope.kind === 'event' && props.status === 'active';
+  // Host/owner structural edits (fix a matchup, court, length) are a live-bracket
+  // privilege (ADR 0032) — for both event and standalone scope (TT-11). On a
+  // completed bracket the host must Reopen first (editMatch is rejected once
+  // completed).
+  const canStructEdit = props.isHost && props.status === 'active';
   const hostEdit = (m: Match): ReactNode =>
-    canStructEdit && m.status !== 'bye' && scope.kind === 'event' ? (
+    canStructEdit && m.status !== 'bye' ? (
       <div className="mt-1 text-right">
         <MatchEditor
-          eventId={scope.eventId}
-          divisionId={scope.divisionId}
+          scope={scope}
           match={{
             id: String(m.id),
             entryAId: m.entryAId,
@@ -188,21 +187,10 @@ export function BoardView(props: {
         </div>
       </div>
 
-      {props.isHost && scope.kind === 'event' && (
-        <LiveHostTools
-          eventId={scope.eventId}
-          divisionId={scope.divisionId}
-          status={props.status}
-          teams={teams}
-        />
-      )}
-
-      {/* Standalone owner: re-open a completed bracket to fix a result (TT-10).
-          The richer event LiveHostTools (Substitute / per-match Edit) stays
-          event-only — see TT-11. */}
-      {props.isHost && scope.kind === 'standalone' && props.status === 'completed' && (
-        <ReopenStrip reopen={a.reopen} />
-      )}
+      {/* Live host/owner tools — Substitute + per-match Edit while active,
+          Re-open once completed. Works for both event and standalone scope
+          (TT-11). */}
+      {props.isHost && <LiveHostTools scope={scope} status={props.status} teams={teams} />}
 
       {isPoolPlay && poolMatches.length > 0 && (
         <PoolsView
@@ -450,22 +438,18 @@ function PoolStandingsTable(props: {
  * matchup / court / length edits live on each card via the "Edit" affordance.
  */
 function LiveHostTools(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   status: 'active' | 'completed';
   teams: ReadonlyArray<TeamLite>;
 }) {
+  const a = bindBracketActions(props.scope);
   if (props.status === 'completed') {
-    return <ReopenStrip reopen={reopenBracket.bind(null, props.eventId, props.divisionId)} />;
+    return <ReopenStrip reopen={a.reopen} />;
   }
   return (
     <div className="border-border-base bg-fg/5 rounded-shape-sm flex flex-wrap items-center gap-3 border p-3">
       <span className="text-muted text-xs font-semibold tracking-wide uppercase">Host edits</span>
-      <SubstituteTeamButton
-        eventId={props.eventId}
-        divisionId={props.divisionId}
-        teams={props.teams}
-      />
+      <SubstituteTeamButton scope={props.scope} teams={props.teams} />
       <span className="text-muted text-xs">
         Use <span className="text-fg/70">Edit</span> on any match to fix a matchup, court, or match
         length.
@@ -493,12 +477,8 @@ function ReopenStrip(props: { reopen: () => void | Promise<void> }) {
   );
 }
 
-function SubstituteTeamButton(props: {
-  eventId: string;
-  divisionId: string;
-  teams: ReadonlyArray<TeamLite>;
-}) {
-  const action = replaceEntryFromForm.bind(null, props.eventId, props.divisionId);
+function SubstituteTeamButton(props: { scope: BracketScope; teams: ReadonlyArray<TeamLite> }) {
+  const action = bindBracketActions(props.scope).replaceEntryFromForm;
   return (
     <FormModal
       trigger={(open) => (

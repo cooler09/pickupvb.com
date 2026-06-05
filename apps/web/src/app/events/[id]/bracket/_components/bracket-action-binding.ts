@@ -1,27 +1,39 @@
 import {
+  addBracketMatchFromForm,
   addWalkInTeam,
+  editBracketMatchFromForm,
   generateBracket,
   generatePlayoff,
   movePoolMatchFromForm,
+  publishBracket,
   randomizeSeedFromForm,
   recordMatchResultFromForm,
+  removeBracketMatch,
   reopenBracket,
+  replaceEntryFromForm,
   resetBracket,
   resetMatch,
   seedBracketFromForm,
+  setBracketPoolsFromForm,
 } from '../actions';
 import {
   addBracketTeamFromClient,
   addBracketTeamsFromClient,
+  addStandaloneMatchFromForm,
+  editStandaloneMatchFromForm,
   generateStandaloneBracket,
   generateStandalonePlayoff,
   moveStandalonePoolMatchFromForm,
+  publishStandaloneBracket,
   randomizeStandaloneSeedFromForm,
   recordStandaloneMatchResultFromForm,
+  removeStandaloneBracketMatch,
   reopenStandaloneBracket,
+  replaceStandaloneEntryFromForm,
   resetStandaloneBracket,
   resetStandaloneMatch,
   seedStandaloneFromForm,
+  setStandalonePoolsFromForm,
 } from '@/app/brackets/actions';
 import type { BracketScope } from './labels';
 
@@ -51,6 +63,19 @@ export type BoundBracketActions = {
   movePoolMatch: (pool: string) => (formData: FormData) => void | Promise<void>;
   recordResult: (matchId: string) => (formData: FormData) => void | Promise<void>;
   resetMatch: (matchId: string) => () => void | Promise<void>;
+  // ---- Draft + live structural edits (ADR 0032 / TT-11) ----
+  /** Publish a draft bracket → live. */
+  publish: () => void | Promise<void>;
+  /** Reassign pools then rebuild the schedule (draft). */
+  setPoolsFromForm: (formData: FormData) => void | Promise<void>;
+  /** Append a match (draft / round-robin / pool play). */
+  addMatchFromForm: (formData: FormData) => void | Promise<void>;
+  /** Patch one match's matchup / court / length. */
+  editMatchFromForm: (matchId: string) => (formData: FormData) => void | Promise<void>;
+  /** Remove a match. */
+  removeMatch: (matchId: string) => () => void | Promise<void>;
+  /** Substitute one entry for another everywhere it appears. */
+  replaceEntryFromForm: (formData: FormData) => void | Promise<void>;
   addTeam: (input: { name: string; members: ReadonlyArray<TeamMember> }) => Promise<AddTeamResult>;
   /**
    * Bulk "paste a list" add. Only wired for standalone brackets (typed-in
@@ -73,6 +98,12 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
       movePoolMatch: (pool) => moveStandalonePoolMatchFromForm.bind(null, b, pool),
       recordResult: (matchId) => recordStandaloneMatchResultFromForm.bind(null, b, matchId),
       resetMatch: (matchId) => resetStandaloneMatch.bind(null, b, matchId),
+      publish: publishStandaloneBracket.bind(null, b),
+      setPoolsFromForm: setStandalonePoolsFromForm.bind(null, b),
+      addMatchFromForm: addStandaloneMatchFromForm.bind(null, b),
+      editMatchFromForm: (matchId) => editStandaloneMatchFromForm.bind(null, b, matchId),
+      removeMatch: (matchId) => removeStandaloneBracketMatch.bind(null, b, matchId),
+      replaceEntryFromForm: replaceStandaloneEntryFromForm.bind(null, b),
       // Standalone teams are typed-in names only — members are dropped.
       addTeam: (input) => addBracketTeamFromClient(b, input.name),
       bulkAddTeams: (names) => addBracketTeamsFromClient(b, names),
@@ -89,6 +120,12 @@ export function bindBracketActions(scope: BracketScope): BoundBracketActions {
     movePoolMatch: (pool) => movePoolMatchFromForm.bind(null, e, d, pool),
     recordResult: (matchId) => recordMatchResultFromForm.bind(null, e, d, matchId),
     resetMatch: (matchId) => resetMatch.bind(null, e, d, matchId),
+    publish: publishBracket.bind(null, e, d),
+    setPoolsFromForm: setBracketPoolsFromForm.bind(null, e, d),
+    addMatchFromForm: addBracketMatchFromForm.bind(null, e, d),
+    editMatchFromForm: (matchId) => editBracketMatchFromForm.bind(null, e, d, matchId),
+    removeMatch: (matchId) => removeBracketMatch.bind(null, e, d, matchId),
+    replaceEntryFromForm: replaceEntryFromForm.bind(null, e, d),
     addTeam: (input) => addWalkInTeam(e, d, input),
   };
 }

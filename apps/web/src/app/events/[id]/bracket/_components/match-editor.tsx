@@ -7,20 +7,21 @@ import {
   neutralButtonClass,
   primaryButtonClass,
 } from '@/components/primary-button';
-import { editBracketMatchFromForm, removeBracketMatch } from '../actions';
-import type { TeamLite } from './labels';
+import { bindBracketActions } from './bracket-action-binding';
+import type { BracketScope, TeamLite } from './labels';
 
 /**
- * Host control for manually editing one match in a `draft` bracket (ADR 0032):
- * swap either team (or set "TBD"), set the court, and override the match length
- * (best-of + play-to) for just this match. Also removes the match.
+ * Host/owner control for manually editing one match in a `draft` or live
+ * bracket (ADR 0032): swap either team (or set "TBD"), set the court, and
+ * override the match length (best-of + play-to) for just this match. Also
+ * removes the match. Works for both event and standalone scope (TT-11) via the
+ * scope-bound actions.
  *
  * Plain `<form action>` submits to the flash-param redirect actions, so the
  * page re-renders (closing the modal) on completion — no client result state.
  */
 export function MatchEditor(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   match: {
     id: string;
     entryAId: string | null;
@@ -38,8 +39,9 @@ export function MatchEditor(props: {
   allowRemove?: boolean;
 }) {
   const { match } = props;
-  const edit = editBracketMatchFromForm.bind(null, props.eventId, props.divisionId, match.id);
-  const remove = removeBracketMatch.bind(null, props.eventId, props.divisionId, match.id);
+  const a = bindBracketActions(props.scope);
+  const edit = a.editMatchFromForm(match.id);
+  const remove = a.removeMatch(match.id);
 
   return (
     <FormModal

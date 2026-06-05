@@ -16,9 +16,12 @@ correctness / parity / stale-data lens. Nine new findings **TT-9 … TT-17** bel
   be re-opened (no standalone reopen; the board's Re-open was event-only). Added an
   owner-gated standalone reopen + surfaced the Re-open strip for standalone. See the
   remediation log below.
-- **TT-11 (P2)** — standalone brackets have none of the division path's ADR-0032
-  draft + manual-edit tooling (no draft review, per-match Edit, Substitute,
-  add/remove match, Edit pools, playoff re-seed). _Still open._
+- **TT-11 (P2) — ✅ FIXED 2026-06-05.** Standalone brackets now have the full
+  division-path ADR-0032 draft → publish flow + live manual edits (per-match Edit,
+  Substitute, add/remove match, Edit pools). Auto-publish removed; the draft/edit
+  UI was parameterized on `BracketScope`. The flow change closed **TT-13 / TT-14 /
+  TT-15** as riders (LIVE/Final badge gating, `targetScore` on the standalone
+  board/watch, the `draft` status label). See the remediation log below.
 - **TT-12 (P2) — ✅ FIXED 2026-06-05.** The free-tier cap copy promised "delete your
   bracket" but no delete path existed. Added an owner-gated delete (cascade) + a
   danger-zone affordance on `/brackets/[id]`; the cap copy is now accurate. See the
@@ -262,7 +265,7 @@ just unreachable from standalone.
 Re-open affordance for `scope.kind === 'standalone'` (un-gate the
 `LiveHostTools` reopen branch or add a standalone strip).
 
-### TT-11 — Standalone brackets lack the division path's draft + manual-edit tooling (parity gap) · **P2**
+### TT-11 — Standalone brackets lack the division path's draft + manual-edit tooling (parity gap) · **P2** · ✅ FIXED 2026-06-05
 
 The ADR-0032 manual-edit suite (publish/reopen/setPools/editMatch/addMatch/
 removeMatch/seedPlayoff/replaceEntry) exists **only** for event/division
@@ -309,7 +312,7 @@ short of upgrading to Pro.
 `bracket_teams` / `bracket_seeds` / `bracket_matches` / `bracket_match_sets`.
 Until it ships, change the copy to stop promising deletion.
 
-### TT-13 — Standalone watch page hard-codes "● LIVE", never shows "Final" · **P3**
+### TT-13 — Standalone watch page hard-codes "● LIVE", never shows "Final" · **P3** · ✅ FIXED 2026-06-05 (TT-11 rider)
 
 `/brackets/[id]/watch` renders the `● LIVE` badge **unconditionally**, regardless
 of status ([watch/page.tsx#L74-L79](../../apps/web/src/app/brackets/[id]/watch/page.tsx#L74-L79)),
@@ -319,7 +322,7 @@ gets this right — LIVE only when `status === 'active'`, a green "Final" badge 
 ([events/[id]/bracket/watch/page.tsx#L163-L175](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx#L163-L175)).
 **Fix:** mirror the event gating on the standalone watch header.
 
-### TT-14 — Standalone board/watch never pass `targetScore` (configured "play-to" is invisible) · **P3**
+### TT-14 — Standalone board/watch never pass `targetScore` (configured "play-to" is invisible) · **P3** · ✅ FIXED 2026-06-05 (TT-11 rider)
 
 The ADR-0032 "play to N points" the owner configures is dropped on the standalone
 surfaces: both standalone `BoardView` calls omit `targetScore`
@@ -331,7 +334,7 @@ The event path passes `bracket.config.targetScore`.
 **Fix:** pass `targetScore={bracket.config.targetScore}` in both standalone
 `BoardView` calls (and `teams={registeredTeams}` once standalone edit lands).
 
-### TT-15 — Status labels omit `draft` (latent until TT-11) · **P3**
+### TT-15 — Status labels omit `draft` (latent until TT-11) · **P3** · ✅ FIXED 2026-06-05 (TT-11 rider)
 
 The `/brackets` list `STATUS_LABEL` map handles only setup/active/completed
 ([brackets/page.tsx#L10-L14](../../apps/web/src/app/brackets/page.tsx#L10-L14)), and
@@ -386,6 +389,54 @@ undisclosed.
 ---
 
 ## Remediation log
+
+### 2026-06-05 — TT-11: standalone draft + manual-edit parity (P2 fixed; closes TT-13/14/15)
+
+Standalone brackets now have the **full** ADR-0032 division-path flow:
+`generate → draft (review/edit) → Publish → active (live edits) → completed
+→ Re-open`. The standalone create flow changed from one-click-live to
+draft→publish (user-confirmed). Verify chain green (typecheck / lint / unit
+tests — standalone handler suite 15 → 22 — / build). Full narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-tt11-standalone-draft-edit-parity.md).
+
+- **No auto-publish.** `GenerateStandaloneBracketHandler` dropped the
+  `bracket.publish()` bridge, so generate lands in `draft`
+  ([standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts)).
+- **6 owner-gated manual-edit handlers** (publish / setPools / editMatch /
+  addMatch / removeMatch / replaceEntry), mirroring the event host-gated suite
+  via `loadOwnedBracket` and reusing the shared `buildMatchPatch` /
+  `buildAddMatchInput` (now exported from
+  [bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)),
+  wired in the composition root.
+- **6 standalone server actions** in
+  [brackets/actions.ts](../../apps/web/src/app/brackets/actions.ts), mirroring the
+  event `*FromForm` actions field-for-field.
+- **Scope-driven UI.** `BoundBracketActions` gained
+  publish/setPoolsFromForm/addMatchFromForm/editMatchFromForm/removeMatch/
+  replaceEntryFromForm for both scopes
+  ([bracket-action-binding.ts](../../apps/web/src/app/events/[id]/bracket/_components/bracket-action-binding.ts)).
+  `MatchEditor` + `DraftWorkspace` were parameterized on `BracketScope`
+  ([match-editor.tsx](../../apps/web/src/app/events/[id]/bracket/_components/match-editor.tsx),
+  [draft-workspace.tsx](../../apps/web/src/app/events/[id]/bracket/_components/draft-workspace.tsx)),
+  and the board's structural-edit gate dropped its `scope.kind === 'event'`
+  check — `LiveHostTools` / Substitute / per-match Edit now serve both scopes
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+- **Standalone pages.** `/brackets/[id]` renders the `DraftWorkspace` on `draft`
+  and passes `teams` + `targetScore` to the board
+  ([page.tsx](../../apps/web/src/app/brackets/[id]/page.tsx)); the watch page
+  handles `draft` and gates the LIVE/Final badge
+  ([watch/page.tsx](../../apps/web/src/app/brackets/[id]/watch/page.tsx)); the
+  list labels `draft` ([brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx)).
+  These rider fixes close **TT-13** (badge), **TT-14** (`targetScore`), **TT-15**
+  (`draft` label).
+- **E2E + tests.** The standalone e2e helper now clicks Publish after generate
+  ([standalone-bracket.ts](../../apps/web/tests/e2e/_helpers/standalone-bracket.ts));
+  7 application cases added
+  ([standalone-bracket.handler.test.ts](../../packages/application/src/commands/standalone-bracket.handler.test.ts))
+  including the generate-lands-in-draft behavior change.
+
+Remaining bracket-audit backlog: **TT-16** (per-pool advance feasibility) and
+**TT-17** (DE grand-final reset) — both P3.
 
 ### 2026-06-05 — TT-10 + TT-12: standalone reopen + delete (both P2 fixed)
 

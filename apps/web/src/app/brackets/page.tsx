@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 const STATUS_LABEL: Record<string, string> = {
   setup: 'Setting up',
+  draft: 'Draft',
   active: 'In progress',
   completed: 'Completed',
 };
