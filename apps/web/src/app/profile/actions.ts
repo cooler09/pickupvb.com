@@ -9,6 +9,7 @@ import { normalizeHandle, normalizeWebsiteUrl } from '@/lib/social-handles';
 import { requireSession } from '@/lib/server-auth';
 import { getUserProfileHandlers } from '@/lib/handlers';
 import { geocodePlace } from '@/lib/geocode';
+import { captureOnboardingStep } from '@/lib/onboarding';
 
 export type ProfileFormState = {
   error: string | null;
@@ -26,6 +27,25 @@ export async function updateProfile(
   formData: FormData,
 ): Promise<ProfileFormState> {
   const { supabase, user } = await requireSession();
+
+  // Onboarding funnel (ADR 0035 / M1): snapshot whether the profile was already
+  // "complete" (home city + ≥1 position — matching the domain catalog's
+  // complete-profile rule) before this save, so we fire the step event only on
+  // the incomplete→complete transition rather than on every subsequent edit.
+  const { data: priorRow } = await supabase
+    .from('profiles')
+    .select('home_city, primary_position, secondary_position, tertiary_position')
+    .eq('id', user.id)
+    .maybeSingle();
+  const prior = priorRow as {
+    home_city: string | null;
+    primary_position: string | null;
+    secondary_position: string | null;
+    tertiary_position: string | null;
+  } | null;
+  const profileWasComplete =
+    Boolean(prior?.home_city) &&
+    Boolean(prior?.primary_position || prior?.secondary_position || prior?.tertiary_position);
 
   const firstName = fieldOrNull(formData, 'first_name', 60);
   const lastName = fieldOrNull(formData, 'last_name', 60);
@@ -99,6 +119,14 @@ export async function updateProfile(
     .from('profiles')
     .update({ latitude: coords?.latitude ?? null, longitude: coords?.longitude ?? null })
     .eq('id', user.id);
+
+  // Fire the onboarding funnel event only when this save *completed* the profile
+  // (home city + ≥1 position) for the first time. Fire-and-forget, consent-gated.
+  const profileNowComplete =
+    Boolean(homeCity) && Boolean(primaryPosition || secondaryPosition || tertiaryPosition);
+  if (profileNowComplete && !profileWasComplete) {
+    captureOnboardingStep(user.id, 'player', 'complete-profile');
+  }
 
   revalidatePath('/profile');
   revalidatePath('/', 'layout');

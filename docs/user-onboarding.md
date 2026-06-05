@@ -115,7 +115,13 @@ checklists piggyback on it instead of adding a new system. **Highest leverage.**
 - **M1 — Instrument the first-win funnel** per persona via PostHog:
   _signup → first RSVP_ (player) and _host signup → first publish_ (host).
   Without it we're guessing which step leaks. Badge/checklist completion events
-  (B1/B2) double as funnel markers.
+  (B1/B2) double as funnel markers. ✅ **Shipped 2026-06-04** (ADR 0035 Phase 2,
+  [journal](journal/2026-06-04-bundle-onboarding-m1-funnel.md)). The two first-win
+  funnels already fire via `event_joined` / `event_published`; `connect-stripe`
+  via `host_payout_setup_completed`; a new `onboarding_step_completed` event
+  covers the two remaining steps (`complete-profile`, `create-event`). DB-free —
+  no RPC needed (the persisted-state path stays deferred for a future "1 step
+  away" nudge).
 
 ---
 

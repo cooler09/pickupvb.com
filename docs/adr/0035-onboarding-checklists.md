@@ -1,7 +1,8 @@
 # 0035. Onboarding checklists (player + host)
 
 - **Status:** Accepted (Phase 1 implemented 2026-06-04 — computed checklists, no
-  migration; Phase 2 deferred — see "Deferred")
+  migration; Phase 2 **M1 funnel instrumentation** shipped 2026-06-04, also
+  DB-free — see "Phase 2: M1"; the RPC/persistence path stays deferred)
 - **Date:** 2026-06-04
 - **Relates to:** [ADR 0031 — Gamification badges](0031-gamification-badges.md)
   (the "thresholds in TS, facts aggregated by infra" pattern this reuses, and the
@@ -94,19 +95,47 @@ the fact aggregation. We want the same "rules in TS, facts from data" split for
    account hub, not the per-event `…/manage` dashboard (which is scoped to one
    event and assumes the event already exists).
 
-## Deferred (Phase 2)
+## Phase 2: M1 (shipped 2026-06-04, DB-free)
 
-- **M1 — first-win funnel instrumentation.** Firing a PostHog `onboarding step
-completed` event requires detecting a _transition_ (newly-done this load),
-  which needs prior state persisted per user. That's the natural moment to add a
-  `compute_onboarding_stats` RPC + a small `user_onboarding` progress row and a
-  reconcile-on-view hook (mirroring the badge reconcile), so the snapshot, the
-  funnel events, and a future "you're 1 step away" nudge all share one source.
-  Deferred because it needs live-DB verification; Phase 1 is intentionally
-  DB-free.
-- **Host "first registration" payoff step.** A 3rd required host step ("get your
-  first signup") needs a participants-across-the-host's-events count (a
-  cross-join cleaner as an RPC) — lands with the Phase-2 RPC above.
+The Phase-1 deferral assumed M1 needed transition detection via a persisted
+`user_onboarding` row + a `compute_onboarding_stats` RPC. Revisiting it surfaced
+a cheaper truth: **most onboarding milestones already have a dedicated capture**,
+and PostHog funnels dedupe per person so "first" is implicit. The two first-win
+funnels M1 names are already buildable today from existing events:
+
+- player _signup → first RSVP_: `signup_completed` → `event_joined`
+- host _signup → first publish_: `signup_completed` → `event_published`
+
+And `connect-stripe` maps to the existing `host_payout_setup_completed` (fired
+from the `account.updated` webhook). So M1 reduced to instrumenting the **two
+checklist steps without a dedicated event** — `complete-profile` and
+`create-event` — with one new typed taxonomy variant `onboarding_step_completed
+{ track, step }`, fired from each step's **mutation site on the
+incomplete→complete transition** (the established `event_joined`/`event_published`
+pattern), not a profile-view diff:
+
+- `complete-profile` — fired from the profile-update action when a save first
+  satisfies "home city + ≥1 position" (reads prior state to gate on the
+  transition). [profile/actions.ts](../../apps/web/src/app/profile/actions.ts)
+- `create-event` — fired from the create action only on the host's **first**
+  event (count == 1). [events/new/actions.ts](../../apps/web/src/app/events/new/actions.ts)
+
+The two **optional** steps `join-group` / `send-message` are deliberately **not**
+instrumented: low funnel value, and `send-message` would mean a count query on
+every chat send. They still render on the card — they're just absent from the
+funnel. This keeps Phase 2 **DB-free and fully quad-verifiable** (no Docker /
+gen:types dependency), consistent with Phase 1's rationale.
+
+## Still deferred
+
+- **The RPC + `user_onboarding` persistence path** is only worth building when we
+  want capabilities that genuinely need stored per-step state — a "you're 1 step
+  away" nudge, or an exact once-per-step server-side reconcile. M1's funnel
+  doesn't need it (PostHog dedupes), so it stays deferred until a nudge feature
+  asks for it.
+- **Host "first registration" payoff step** — a 3rd required host step ("get your
+  first signup") needs a participants-across-the-host's-events count (a cross-join
+  cleaner as an RPC); lands with the persistence path above.
 - **E1 empty-state teaching + richer step copy / GIFs** (backlog E1/C1) remain
   open in [docs/user-onboarding.md](../user-onboarding.md).
 

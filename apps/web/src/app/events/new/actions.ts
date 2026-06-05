@@ -16,6 +16,7 @@ import { hasProBenefits } from '@/lib/admin';
 import { clampVisibilityForHost } from '@/lib/visibility';
 import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
+import { captureOnboardingStep } from '@/lib/onboarding';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 
 export type CreateEventState = {
@@ -461,6 +462,19 @@ export async function createEventAction(
     },
     user.id,
   );
+
+  // Onboarding funnel (ADR 0035 / M1): fire `create-event` only on the host's
+  // *first* event so the per-step funnel isn't re-counted on every create.
+  // Best-effort — a count failure must not block the redirect to the new event.
+  try {
+    const { count } = await supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true })
+      .eq('host_id', user.id);
+    if ((count ?? 0) === 1) captureOnboardingStep(user.id, 'host', 'create-event');
+  } catch {
+    // Swallow — analytics can't break the create flow.
+  }
 
   revalidatePath('/events');
   redirect(`/events/${result.id}?created=1`);

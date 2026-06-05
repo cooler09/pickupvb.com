@@ -5,9 +5,11 @@ import {
   progressFor,
   type ChecklistProgress,
   type HostOnboardingSnapshot,
+  type OnboardingStepCompletedProps,
   type PlayerOnboardingSnapshot,
 } from '@pickupvb/domain';
 import { getAdminSupabase } from './supabase-admin';
+import { analytics } from './analytics';
 
 /**
  * Onboarding-checklist facade (ADR 0035, Phase 1). Builds the two track
@@ -117,4 +119,24 @@ export async function loadHostOnboarding(
     progress: progressFor(HOST_ONBOARDING_STEPS, snapshot),
     hasHostIntent: snapshot.eventsCreated > 0 || snapshot.stripeChargesEnabled,
   };
+}
+
+/**
+ * Fire the M1 onboarding funnel event for a step the user just completed (ADR
+ * 0035 Phase 2). Call from the step's mutation site **only on the
+ * incomplete→complete transition** so the per-step funnel stays clean. Only the
+ * two steps without a dedicated event flow through here (`complete-profile`,
+ * `create-event`); `join-event` / `publish-event` / `connect-stripe` are already
+ * covered by `event_joined` / `event_published` / `host_payout_setup_completed`.
+ *
+ * `analytics.capture` is already consent-gated, fire-and-forget, and
+ * error-swallowing (the adapter never throws), so this can't break the calling
+ * mutation — no try/catch needed at the call site.
+ */
+export function captureOnboardingStep(
+  userId: string,
+  track: OnboardingStepCompletedProps['track'],
+  step: OnboardingStepCompletedProps['step'],
+): void {
+  analytics.capture({ name: 'onboarding_step_completed', props: { track, step } }, userId);
 }
