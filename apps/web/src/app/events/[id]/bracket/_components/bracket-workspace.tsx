@@ -74,27 +74,11 @@ export function BracketWorkspace(props: {
 
   return (
     <>
-      {/* Host-gated tools row, bound to this division (tournament-tools-workflow
-          audit TT-1). Rendered only after `caps` resolves the viewer as a
-          manager, so it never shows to spectators on the cacheable page. */}
-      {isHost && (
-        <div className="border-border-base bg-fg/[0.02] rounded-shape-sm space-y-2 border p-3">
-          <p className="text-muted text-xs font-semibold tracking-wide uppercase">Host tools</p>
-          <EventToolsCard
-            eventId={eventId}
-            divisionId={divisionId}
-            ret={`/events/${eventId}/bracket?division=${divisionId}`}
-            tools={['seeding', 'scheduler', 'team-randomizer']}
-            heading={false}
-          />
-        </div>
-      )}
-
       {!bracket && (
         <NoBracketView
           eventId={eventId}
           divisionId={divisionId}
-          teamCount={registeredTeams.length}
+          registeredTeams={registeredTeams}
           isHost={isHost}
         />
       )}
@@ -156,6 +140,36 @@ export function BracketWorkspace(props: {
             liveScoringEnabled={props.liveScoringEnabled}
           />
         </LiveScoresProvider>
+      )}
+
+      {/* Host-gated tools, bound to this division (tournament-tools-workflow
+          audit TT-1). Deliberately third-class: a muted, collapsed disclosure
+          at the bottom of the page so it stays discoverable without competing
+          with the bracket itself. Rendered only after `caps` resolves the
+          viewer as a manager, so it never shows to spectators on the cacheable
+          page. */}
+      {isHost && (
+        <details className="border-border-base group rounded-shape-sm border">
+          <summary className="text-muted hover:text-fg flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-xs font-medium select-none">
+            <span className="transition-transform group-open:rotate-90" aria-hidden="true">
+              ›
+            </span>
+            Host tools
+          </summary>
+          <div className="border-border-base/60 border-t px-3 pt-3 pb-3">
+            <p className="text-muted mb-2 text-xs">
+              Open a tool pre-filled with this division{'’'}s roster and teams — results save back
+              here.
+            </p>
+            <EventToolsCard
+              eventId={eventId}
+              divisionId={divisionId}
+              ret={`/events/${eventId}/bracket?division=${divisionId}`}
+              tools={['seeding', 'scheduler', 'team-randomizer']}
+              heading={false}
+            />
+          </div>
+        </details>
       )}
     </>
   );

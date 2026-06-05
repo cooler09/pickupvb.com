@@ -1,19 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { primaryButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 import type { BracketFormat } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
+import { FormModal } from '@/components/form-modal';
 import { createBracketFromForm } from '../actions';
+import { eventScope } from './bracket-action-binding';
+import type { TeamLite } from './labels';
+import { WalkInTeamForm } from './walk-in-team-form';
 
 /**
  * Card-based picker that replaces the bare `<select>` for choosing a
  * bracket format. Each card carries the format name, a one-line
  * description, a "best for" line, and the main trade-off so the host
- * can choose informed instead of guessing. The pool-play extra controls
- * (pool count, advance-per-pool) collapse in unless that format is
- * selected, and a live "estimated matches" hint updates as the host
- * changes selection.
+ * can choose informed instead of guessing.
+ *
+ * The whole thing is wired as a **stepper** so building a bracket — pool
+ * play especially — is a guided, one-decision-at-a-time flow rather than a
+ * single wall of controls: Format → Match length → (Pools, pool-play only)
+ * → Review & create. It stays a single `<form>` so the server action and
+ * its config parsing are untouched; inactive steps are kept mounted (via the
+ * `hidden` attribute) so every field still submits regardless of which step
+ * is on screen. A live "estimated matches" hint shows on the review step.
  */
 
 type FormatMeta = {
@@ -239,8 +248,16 @@ export function FormatPickerForm(props: {
   action?: (formData: FormData) => void | Promise<void>;
   /** Standalone create has no teams yet — relax the min-team gating. */
   enforceMinTeams?: boolean;
+  /**
+   * Registered teams for the event path. When provided, the stepper opens with
+   * a "Teams" step where the host confirms the registered list and adds any
+   * walk-in / off-site teams before choosing a format. Standalone create
+   * (ADR 0025) omits this — its teams are added after the bracket exists.
+   */
+  registeredTeams?: ReadonlyArray<TeamLite>;
 }) {
   const enforceMin = props.enforceMinTeams ?? true;
+  const [step, setStep] = useState(0);
   const [format, setFormat] = useState<BracketFormat>('single_elimination');
   const [bestOf, setBestOf] = useState<1 | 3 | 5>(3);
   // Target score = the points a game is played to (25 / 21 / 15). Informational
@@ -278,335 +295,485 @@ export function FormatPickerForm(props: {
   const poolPlayUnderfilled =
     isPoolPlay && props.teamCount > 0 && advancePerPool * poolCount > props.teamCount;
 
+  // Event path opens with a "Teams" step (confirm registered teams + add
+  // walk-ins) bound to the event scope; standalone create has no teams yet so
+  // it's skipped. `teams` is the live list (refreshes after a walk-in add
+  // revalidates the page).
+  const teamsScope =
+    props.eventId && props.divisionId ? eventScope(props.eventId, props.divisionId) : undefined;
+  const showTeamsStep = props.registeredTeams !== undefined && !!teamsScope;
+  const teams = props.registeredTeams ?? [];
+
+  // Dynamic step list — the event path leads with "Teams"; pool play earns its
+  // own "Pools" step; everything else goes straight from match length to
+  // review. `current` is clamped so flipping the format (which can shrink the
+  // list) never strands us past the end. Step panels stay mounted and only
+  // toggle `hidden`, so their inputs always submit.
+  const steps: ReadonlyArray<{ key: string; label: string }> = [
+    ...(showTeamsStep ? [{ key: 'teams', label: 'Teams' }] : []),
+    { key: 'format', label: 'Format' },
+    { key: 'length', label: 'Match length' },
+    ...(isPoolPlay ? [{ key: 'pools', label: 'Pools' }] : []),
+    { key: 'review', label: 'Review' },
+  ];
+  const lastStep = steps.length - 1;
+  const current = Math.min(step, lastStep);
+  const stepKey = steps[current]!.key;
+  const onReview = stepKey === 'review';
+  const goNext = () => setStep((s) => Math.min(s + 1, lastStep));
+  const goBack = () => setStep((s) => Math.max(s - 1, 0));
+  const createDisabled = enforceMin && (props.teamCount < 2 || belowMin || poolPlayUnderfilled);
+
   return (
     <form
       action={props.action ?? createBracketFromForm.bind(null, props.eventId!, props.divisionId!)}
       className="space-y-4"
     >
-      <fieldset className="space-y-2">
-        <legend className="text-fg/80 text-sm font-medium">Format</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {FORMATS.map((f) => {
-            const selected = format === f.value;
-            const disabled = props.teamCount > 0 && props.teamCount < f.minTeams;
-            return (
-              <label
-                key={f.value}
+      {/* Stepper rail — shows the path and lets the host jump back to an
+          already-visited step. Forward jumps stay gated behind Next so each
+          decision is made in order. */}
+      <ol
+        className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm"
+        aria-label="Bracket setup steps"
+      >
+        {steps.map((s, i) => {
+          const done = i < current;
+          const active = i === current;
+          return (
+            <li key={s.key} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => i <= current && setStep(i)}
+                disabled={i > current}
+                aria-current={active ? 'step' : undefined}
                 className={
-                  'rounded-shape-sm relative block cursor-pointer border p-3 text-sm transition ' +
-                  (selected
-                    ? 'border-primary bg-primary/5 ring-primary/30 ring-2'
-                    : 'border-border-base bg-bg hover:border-primary/40') +
-                  (disabled ? ' cursor-not-allowed opacity-50' : '')
+                  'flex items-center gap-1.5 rounded px-1 py-0.5 ' +
+                  (i <= current ? 'cursor-pointer' : 'cursor-default')
                 }
               >
-                <input
-                  type="radio"
-                  name="format"
-                  value={f.value}
-                  checked={selected}
-                  onChange={() => setFormat(f.value)}
-                  disabled={disabled}
-                  className="sr-only"
-                />
-                <div className="flex items-start gap-3">
-                  <div className="border-border-base bg-bg shrink-0 rounded border p-1">
-                    <FormatThumbnail format={f.value} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-fg font-semibold">{f.title}</div>
-                    <p className="text-fg/80 mt-1">{f.blurb}</p>
-                  </div>
-                </div>
-                <dl className="text-muted mt-2 space-y-0.5 text-xs">
-                  <div>
-                    <dt className="text-fg/70 inline font-medium">Best for: </dt>
-                    <dd className="inline">{f.bestFor}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-fg/70 inline font-medium">Trade-off: </dt>
-                    <dd className="inline">{f.tradeoff}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-fg/70 inline font-medium">Min teams: </dt>
-                    <dd className="inline">{f.minTeams}</dd>
-                  </div>
-                </dl>
-              </label>
-            );
-          })}
-        </div>
-      </fieldset>
-
-      <fieldset className="border-border-base bg-bg flex flex-wrap items-center gap-3 rounded border p-3">
-        <legend className="text-fg/80 px-1 text-xs font-medium">
-          {isPoolPlay ? 'Pool play match length' : 'Match length'}
-        </legend>
-        <div role="radiogroup" aria-label="Best of" className="flex flex-wrap gap-2">
-          {([1, 3, 5] as const).map((n) => {
-            const selected = bestOf === n;
-            return (
-              <label
-                key={n}
-                className={
-                  'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
-                  (selected
-                    ? 'border-primary bg-primary/10 text-fg'
-                    : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
-                }
-              >
-                <input
-                  type="radio"
-                  name="best_of"
-                  value={n}
-                  checked={selected}
-                  onChange={() => setBestOf(n)}
-                  className="sr-only"
-                />
-                Best of {n}
-              </label>
-            );
-          })}
-        </div>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-fg/80">Play to</span>
-          <input
-            type="number"
-            name="target_score"
-            min={1}
-            value={targetScore}
-            onChange={(e) =>
-              setTargetScore(e.target.value === '' ? '' : Math.max(1, Number(e.target.value) || 0))
-            }
-            placeholder="25"
-            className="border-border-base bg-bg w-20 rounded border px-2 py-1"
-          />
-          <span className="text-muted text-xs">points</span>
-        </label>
-        <p className="text-muted basis-full text-xs">
-          {bestOf === 1
-            ? 'Single game decides each match — fastest schedule.'
-            : `First to ${Math.floor(bestOf / 2) + 1} sets wins each match.`}{' '}
-          The point total is recorded for reference (not enforced).
-        </p>
-      </fieldset>
-
-      {isPoolPlay && (
-        <fieldset className="border-border-base bg-bg flex flex-wrap items-end gap-3 rounded border p-3">
-          <legend className="text-fg/80 px-1 text-xs font-medium">Pool play options</legend>
-          <label className="flex flex-col text-sm">
-            <span className="text-fg/80">Pools</span>
-            <select
-              name="pool_count"
-              value={poolCount}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                setPoolCount(n);
-                // A single pool feeds the playoff directly, so advancing only
-                // 1 team would leave a 1-team (no) playoff — floor it at 2.
-                if (n === 1 && advancePerPool < 2) setAdvancePerPool(2);
-              }}
-              className="border-border-base bg-bg rounded border px-2 py-1"
-            >
-              {[1, 2, 3, 4].map((n) => (
-                <option key={n} value={n}>
-                  {n === 1 ? '1 (single pool)' : n}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col text-sm">
-            <span className="text-fg/80">
-              {poolCount === 1 ? 'Teams in playoff' : 'Advance per pool'}
-            </span>
-            <select
-              name="advance_per_pool"
-              value={advancePerPool}
-              onChange={(e) => setAdvancePerPool(Number(e.target.value))}
-              className="border-border-base bg-bg rounded border px-2 py-1"
-            >
-              {(poolCount === 1 ? [2, 3, 4] : [1, 2, 3, 4]).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="basis-full" />
-          <div role="radiogroup" aria-label="Pool schedule" className="flex flex-col gap-1 text-sm">
-            <span className="text-fg/80">Schedule</span>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  { v: 'round_robin', label: 'Every team plays every other' },
-                  { v: 'fixed_games', label: 'Each team plays N games' },
-                ] as const
-              ).map((opt) => {
-                const selected = poolSchedule === opt.v;
-                return (
-                  <label
-                    key={opt.v}
-                    className={
-                      'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
-                      (selected
-                        ? 'border-primary bg-primary/10 text-fg'
-                        : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
-                    }
-                  >
-                    <input
-                      type="radio"
-                      name="pool_schedule"
-                      value={opt.v}
-                      checked={selected}
-                      onChange={() => setPoolSchedule(opt.v)}
-                      className="sr-only"
-                    />
-                    {opt.label}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-          {isFixedGames && (
-            <label className="flex flex-col text-sm">
-              <span className="text-fg/80">Games per team</span>
-              <input
-                type="number"
-                name="pool_games_per_team"
-                min={1}
-                value={poolGamesPerTeam}
-                onChange={(e) => setPoolGamesPerTeam(Math.max(1, Number(e.target.value) || 1))}
-                className="border-border-base bg-bg w-20 rounded border px-2 py-1"
-              />
-              <span className="text-muted mt-1 max-w-60 text-xs">
-                Everyone plays about this many games. In small or uneven pools, opponents repeat so
-                each team still gets a full slate.
-              </span>
-            </label>
-          )}
-          <label className="inline-flex basis-full items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              name="require_work_team"
-              checked={requireWorkTeam}
-              onChange={(e) => setRequireWorkTeam(e.target.checked)}
-              className="border-border-base bg-bg rounded border"
-            />
-            <span className="text-fg/80">
-              Assign a ref / work team per match (the idle team in each pool round)
-            </span>
-          </label>
-          <label className="flex basis-full flex-col text-sm">
-            <span className="text-fg/80">Courts (comma-separated, optional)</span>
-            <input
-              type="text"
-              name="court_labels"
-              value={courtLabelsText}
-              onChange={(e) => setCourtLabelsText(e.target.value)}
-              placeholder="Court 1, Court 2, North gym"
-              className="border-border-base bg-bg rounded border px-2 py-1"
-            />
-            <span className="text-muted mt-1 text-xs">
-              When set, matches are split into parallel time-slots so no team plays or refs on two
-              courts at once. Leave blank to skip slot scheduling.
-            </span>
-          </label>
-          <label className="inline-flex basis-full items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={perPoolCourts}
-              onChange={(e) => setPerPoolCourts(e.target.checked)}
-              className="border-border-base bg-bg rounded border"
-            />
-            <span className="text-fg/80">Use different courts per pool</span>
-          </label>
-          {perPoolCourts && (
-            <div className="basis-full space-y-2">
-              {Array.from({ length: poolCount }, (_, i) => {
-                const label = String.fromCharCode(65 + i);
-                const value = poolCourtsText[label] ?? '';
-                return (
-                  <label key={label} className="flex flex-col text-sm">
-                    <span className="text-fg/80">Pool {label} courts</span>
-                    <input
-                      type="text"
-                      name={`pool_courts_${label}`}
-                      value={value}
-                      onChange={(e) =>
-                        setPoolCourtsText((prev) => ({ ...prev, [label]: e.target.value }))
-                      }
-                      placeholder={`e.g. Court ${i * 2 + 1}, Court ${i * 2 + 2}`}
-                      className="border-border-base bg-bg rounded border px-2 py-1"
-                    />
-                  </label>
-                );
-              })}
-              <p className="text-muted text-xs">
-                Leave a pool blank to fall back to the bracket-wide courts above. Disjoint per-pool
-                courts schedule fully in parallel.
-              </p>
-            </div>
-          )}
-          {/* Playoff-stage match length (ADR 0032) — overrides the pool-play
-              best-of / play-to for the single-elim playoff bracket. */}
-          <div className="border-border-base/60 basis-full border-t pt-3">
-            <p className="text-fg/80 mb-2 text-xs font-medium">Playoff match length</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-fg/80">Best of</span>
-                <select
-                  name="playoff_best_of"
-                  value={playoffBestOf}
-                  onChange={(e) =>
-                    setPlayoffBestOf(
-                      e.target.value === '' ? '' : (Number(e.target.value) as 1 | 3 | 5),
-                    )
+                <span
+                  className={
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold ' +
+                    (active
+                      ? 'bg-primary text-white'
+                      : done
+                        ? 'bg-primary/15 text-primary'
+                        : 'border-border-base text-muted border')
                   }
-                  className="border-border-base bg-bg rounded border px-2 py-1"
+                  aria-hidden="true"
                 >
-                  <option value="">Same as pool play</option>
-                  {[1, 3, 5].map((n) => (
-                    <option key={n} value={n}>
-                      Best of {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-fg/80">Play to</span>
-                <input
-                  type="number"
-                  name="playoff_target_score"
-                  min={1}
-                  value={playoffTargetScore}
-                  onChange={(e) =>
-                    setPlayoffTargetScore(
-                      e.target.value === '' ? '' : Math.max(1, Number(e.target.value) || 0),
-                    )
-                  }
-                  placeholder="Same"
-                  className="border-border-base bg-bg w-24 rounded border px-2 py-1"
-                />
-              </label>
-            </div>
-            <p className="text-muted mt-1 text-xs">
-              Leave “Same as pool play” to reuse the pool-play length for the playoff too. A common
-              setup is best-of-1 pool play, best-of-3 playoff.
+                  {done ? '✓' : i + 1}
+                </span>
+                <span className={active ? 'text-fg font-medium' : 'text-muted'}>{s.label}</span>
+              </button>
+              {i < steps.length - 1 && (
+                <span className="text-muted/50" aria-hidden="true">
+                  →
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      {showTeamsStep && (
+        <div hidden={stepKey !== 'teams'}>
+          <fieldset className="border-border-base bg-bg rounded border p-3">
+            <legend className="text-fg/80 px-1 text-xs font-medium">Confirm teams</legend>
+            <p className="text-muted text-xs">
+              These teams are registered for this division. Add any that signed up off-platform —
+              walk-ins, paper sign-ups, off-site entries — so they{'’'}re in the bracket, then
+              continue.
             </p>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-fg/80 text-sm">
+                <span className="text-fg font-semibold">{teams.length}</span> team
+                {teams.length === 1 ? '' : 's'} registered
+              </span>
+              {teamsScope && (
+                <FormModal
+                  trigger={(open) => (
+                    <button type="button" onClick={open} className={neutralButtonClass('sm')}>
+                      + Add walk-in / off-site team
+                    </button>
+                  )}
+                  title="Add teams"
+                  description="For teams not registered to this division — walk-ins, paper sign-ups, off-platform entries. Add as many as you need; the modal stays open after each. You can edit rosters later from the event's team management page."
+                >
+                  {(close) => <WalkInTeamForm scope={teamsScope} onClose={close} />}
+                </FormModal>
+              )}
+            </div>
+            {teams.length > 0 ? (
+              <ol className="divide-border-base border-border-base mt-3 max-h-72 divide-y overflow-y-auto rounded border text-sm">
+                {teams.map((t, i) => (
+                  <li key={t.entryId} className="flex items-center gap-2 px-3 py-1.5">
+                    <span className="text-muted w-5 shrink-0 text-right text-xs tabular-nums">
+                      {i + 1}
+                    </span>
+                    <span className="text-fg truncate">{t.name}</span>
+                    {t.captainId === null && (
+                      <span className="text-muted shrink-0 text-xs">· walk-in</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="border-border-base text-muted mt-3 rounded border border-dashed px-3 py-4 text-center text-xs">
+                No teams registered yet. Add walk-in teams above, or wait for registrations.
+              </p>
+            )}
+            {enforceMin && teams.length < 2 && (
+              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" role="status">
+                You need at least 2 teams to build a bracket.
+              </p>
+            )}
+          </fieldset>
+        </div>
+      )}
+
+      <div hidden={stepKey !== 'format'}>
+        <fieldset className="space-y-2">
+          <legend className="text-fg/80 text-sm font-medium">Choose a format</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {FORMATS.map((f) => {
+              const selected = format === f.value;
+              const disabled = props.teamCount > 0 && props.teamCount < f.minTeams;
+              return (
+                <label
+                  key={f.value}
+                  className={
+                    'rounded-shape-sm relative block cursor-pointer border p-3 text-sm transition ' +
+                    (selected
+                      ? 'border-primary bg-primary/5 ring-primary/30 ring-2'
+                      : 'border-border-base bg-bg hover:border-primary/40') +
+                    (disabled ? ' cursor-not-allowed opacity-50' : '')
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="format"
+                    value={f.value}
+                    checked={selected}
+                    onChange={() => setFormat(f.value)}
+                    disabled={disabled}
+                    className="sr-only"
+                  />
+                  <div className="flex items-start gap-3">
+                    <div className="border-border-base bg-bg shrink-0 rounded border p-1">
+                      <FormatThumbnail format={f.value} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-fg font-semibold">{f.title}</div>
+                      <p className="text-fg/80 mt-1">{f.blurb}</p>
+                    </div>
+                  </div>
+                  <dl className="text-muted mt-2 space-y-0.5 text-xs">
+                    <div>
+                      <dt className="text-fg/70 inline font-medium">Best for: </dt>
+                      <dd className="inline">{f.bestFor}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-fg/70 inline font-medium">Trade-off: </dt>
+                      <dd className="inline">{f.tradeoff}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-fg/70 inline font-medium">Min teams: </dt>
+                      <dd className="inline">{f.minTeams}</dd>
+                    </div>
+                  </dl>
+                </label>
+              );
+            })}
           </div>
-          <p className="text-muted basis-full text-xs">
-            {poolCount === 1
-              ? `All ${props.teamCount} teams play one pool; the top ${advancePerPool} advance to a single-elim playoff.`
-              : `With ${props.teamCount} teams in ${poolCount} pools, that’s ~${teamsPerPool} per pool. The top ${advancePerPool} from each pool advance to a single-elim playoff.`}
-          </p>
-          {poolPlayUnderfilled && (
-            <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
-              {poolCount === 1
-                ? `A single-pool playoff of ${advancePerPool} needs at least ${advancePerPool} teams; you have ${props.teamCount}. Lower the playoff size or wait for more teams to register.`
-                : `${poolCount} pools advancing ${advancePerPool} per pool needs at least ${poolCount * advancePerPool} teams; you have ${props.teamCount}. Reduce pools or advance-per-pool, or wait for more teams to register.`}
+          {enforceMin && props.teamCount >= 2 && belowMin && (
+            <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+              {selectedMeta.title} needs at least {selectedMeta.minTeams} teams — you have{' '}
+              {props.teamCount}. Pick another format or wait for more registrations.
             </p>
           )}
         </fieldset>
+      </div>
+
+      <div hidden={stepKey !== 'length'}>
+        <fieldset className="border-border-base bg-bg flex flex-wrap items-center gap-3 rounded border p-3">
+          <legend className="text-fg/80 px-1 text-xs font-medium">
+            {isPoolPlay ? 'Pool play match length' : 'Match length'}
+          </legend>
+          <div role="radiogroup" aria-label="Best of" className="flex flex-wrap gap-2">
+            {([1, 3, 5] as const).map((n) => {
+              const selected = bestOf === n;
+              return (
+                <label
+                  key={n}
+                  className={
+                    'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
+                    (selected
+                      ? 'border-primary bg-primary/10 text-fg'
+                      : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="best_of"
+                    value={n}
+                    checked={selected}
+                    onChange={() => setBestOf(n)}
+                    className="sr-only"
+                  />
+                  Best of {n}
+                </label>
+              );
+            })}
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-fg/80">Play to</span>
+            <input
+              type="number"
+              name="target_score"
+              min={1}
+              value={targetScore}
+              onChange={(e) =>
+                setTargetScore(
+                  e.target.value === '' ? '' : Math.max(1, Number(e.target.value) || 0),
+                )
+              }
+              placeholder="25"
+              className="border-border-base bg-bg w-20 rounded border px-2 py-1"
+            />
+            <span className="text-muted text-xs">points</span>
+          </label>
+          <p className="text-muted basis-full text-xs">
+            {bestOf === 1
+              ? 'Single game decides each match — fastest schedule.'
+              : `First to ${Math.floor(bestOf / 2) + 1} sets wins each match.`}{' '}
+            The point total is recorded for reference (not enforced).
+          </p>
+        </fieldset>
+      </div>
+
+      {isPoolPlay && (
+        <div hidden={stepKey !== 'pools'}>
+          <fieldset className="border-border-base bg-bg flex flex-wrap items-end gap-3 rounded border p-3">
+            <legend className="text-fg/80 px-1 text-xs font-medium">Pool play options</legend>
+            <label className="flex flex-col text-sm">
+              <span className="text-fg/80">Pools</span>
+              <select
+                name="pool_count"
+                value={poolCount}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setPoolCount(n);
+                  // A single pool feeds the playoff directly, so advancing only
+                  // 1 team would leave a 1-team (no) playoff — floor it at 2.
+                  if (n === 1 && advancePerPool < 2) setAdvancePerPool(2);
+                }}
+                className="border-border-base bg-bg rounded border px-2 py-1"
+              >
+                {[1, 2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    {n === 1 ? '1 (single pool)' : n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col text-sm">
+              <span className="text-fg/80">
+                {poolCount === 1 ? 'Teams in playoff' : 'Advance per pool'}
+              </span>
+              <select
+                name="advance_per_pool"
+                value={advancePerPool}
+                onChange={(e) => setAdvancePerPool(Number(e.target.value))}
+                className="border-border-base bg-bg rounded border px-2 py-1"
+              >
+                {(poolCount === 1 ? [2, 3, 4] : [1, 2, 3, 4]).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="basis-full" />
+            <div
+              role="radiogroup"
+              aria-label="Pool schedule"
+              className="flex flex-col gap-1 text-sm"
+            >
+              <span className="text-fg/80">Schedule</span>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { v: 'round_robin', label: 'Every team plays every other' },
+                    { v: 'fixed_games', label: 'Each team plays N games' },
+                  ] as const
+                ).map((opt) => {
+                  const selected = poolSchedule === opt.v;
+                  return (
+                    <label
+                      key={opt.v}
+                      className={
+                        'cursor-pointer rounded border px-3 py-1 text-sm transition ' +
+                        (selected
+                          ? 'border-primary bg-primary/10 text-fg'
+                          : 'border-border-base bg-bg text-fg/80 hover:border-primary/40')
+                      }
+                    >
+                      <input
+                        type="radio"
+                        name="pool_schedule"
+                        value={opt.v}
+                        checked={selected}
+                        onChange={() => setPoolSchedule(opt.v)}
+                        className="sr-only"
+                      />
+                      {opt.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            {isFixedGames && (
+              <label className="flex flex-col text-sm">
+                <span className="text-fg/80">Games per team</span>
+                <input
+                  type="number"
+                  name="pool_games_per_team"
+                  min={1}
+                  value={poolGamesPerTeam}
+                  onChange={(e) => setPoolGamesPerTeam(Math.max(1, Number(e.target.value) || 1))}
+                  className="border-border-base bg-bg w-20 rounded border px-2 py-1"
+                />
+                <span className="text-muted mt-1 max-w-60 text-xs">
+                  Everyone plays about this many games. In small or uneven pools, opponents repeat
+                  so each team still gets a full slate.
+                </span>
+              </label>
+            )}
+            <label className="inline-flex basis-full items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="require_work_team"
+                checked={requireWorkTeam}
+                onChange={(e) => setRequireWorkTeam(e.target.checked)}
+                className="border-border-base bg-bg rounded border"
+              />
+              <span className="text-fg/80">
+                Assign a ref / work team per match (the idle team in each pool round)
+              </span>
+            </label>
+            <label className="flex basis-full flex-col text-sm">
+              <span className="text-fg/80">Courts (comma-separated, optional)</span>
+              <input
+                type="text"
+                name="court_labels"
+                value={courtLabelsText}
+                onChange={(e) => setCourtLabelsText(e.target.value)}
+                placeholder="Court 1, Court 2, North gym"
+                className="border-border-base bg-bg rounded border px-2 py-1"
+              />
+              <span className="text-muted mt-1 text-xs">
+                When set, matches are split into parallel time-slots so no team plays or refs on two
+                courts at once. Leave blank to skip slot scheduling.
+              </span>
+            </label>
+            <label className="inline-flex basis-full items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={perPoolCourts}
+                onChange={(e) => setPerPoolCourts(e.target.checked)}
+                className="border-border-base bg-bg rounded border"
+              />
+              <span className="text-fg/80">Use different courts per pool</span>
+            </label>
+            {perPoolCourts && (
+              <div className="basis-full space-y-2">
+                {Array.from({ length: poolCount }, (_, i) => {
+                  const label = String.fromCharCode(65 + i);
+                  const value = poolCourtsText[label] ?? '';
+                  return (
+                    <label key={label} className="flex flex-col text-sm">
+                      <span className="text-fg/80">Pool {label} courts</span>
+                      <input
+                        type="text"
+                        name={`pool_courts_${label}`}
+                        value={value}
+                        onChange={(e) =>
+                          setPoolCourtsText((prev) => ({ ...prev, [label]: e.target.value }))
+                        }
+                        placeholder={`e.g. Court ${i * 2 + 1}, Court ${i * 2 + 2}`}
+                        className="border-border-base bg-bg rounded border px-2 py-1"
+                      />
+                    </label>
+                  );
+                })}
+                <p className="text-muted text-xs">
+                  Leave a pool blank to fall back to the bracket-wide courts above. Disjoint
+                  per-pool courts schedule fully in parallel.
+                </p>
+              </div>
+            )}
+            {/* Playoff-stage match length (ADR 0032) — overrides the pool-play
+              best-of / play-to for the single-elim playoff bracket. */}
+            <div className="border-border-base/60 basis-full border-t pt-3">
+              <p className="text-fg/80 mb-2 text-xs font-medium">Playoff match length</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-fg/80">Best of</span>
+                  <select
+                    name="playoff_best_of"
+                    value={playoffBestOf}
+                    onChange={(e) =>
+                      setPlayoffBestOf(
+                        e.target.value === '' ? '' : (Number(e.target.value) as 1 | 3 | 5),
+                      )
+                    }
+                    className="border-border-base bg-bg rounded border px-2 py-1"
+                  >
+                    <option value="">Same as pool play</option>
+                    {[1, 3, 5].map((n) => (
+                      <option key={n} value={n}>
+                        Best of {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-fg/80">Play to</span>
+                  <input
+                    type="number"
+                    name="playoff_target_score"
+                    min={1}
+                    value={playoffTargetScore}
+                    onChange={(e) =>
+                      setPlayoffTargetScore(
+                        e.target.value === '' ? '' : Math.max(1, Number(e.target.value) || 0),
+                      )
+                    }
+                    placeholder="Same"
+                    className="border-border-base bg-bg w-24 rounded border px-2 py-1"
+                  />
+                </label>
+              </div>
+              <p className="text-muted mt-1 text-xs">
+                Leave “Same as pool play” to reuse the pool-play length for the playoff too. A
+                common setup is best-of-1 pool play, best-of-3 playoff.
+              </p>
+            </div>
+            <p className="text-muted basis-full text-xs">
+              {poolCount === 1
+                ? `All ${props.teamCount} teams play one pool; the top ${advancePerPool} advance to a single-elim playoff.`
+                : `With ${props.teamCount} teams in ${poolCount} pools, that’s ~${teamsPerPool} per pool. The top ${advancePerPool} from each pool advance to a single-elim playoff.`}
+            </p>
+            {poolPlayUnderfilled && (
+              <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
+                {poolCount === 1
+                  ? `A single-pool playoff of ${advancePerPool} needs at least ${advancePerPool} teams; you have ${props.teamCount}. Lower the playoff size or wait for more teams to register.`
+                  : `${poolCount} pools advancing ${advancePerPool} per pool needs at least ${poolCount * advancePerPool} teams; you have ${props.teamCount}. Reduce pools or advance-per-pool, or wait for more teams to register.`}
+              </p>
+            )}
+          </fieldset>
+        </div>
       )}
 
       {/* Hidden inputs ensure pool fields are always submitted (server reads them
@@ -620,29 +787,103 @@ export function FormatPickerForm(props: {
         </>
       )}
 
-      <div className="border-border-base bg-bg rounded-shape-sm sticky bottom-2 z-10 flex flex-wrap items-center gap-3 border p-3 shadow-sm">
-        <SubmitButton
-          disabled={enforceMin && (props.teamCount < 2 || belowMin || poolPlayUnderfilled)}
-          className={primaryButtonClass('md')}
-        >
-          Create bracket
-        </SubmitButton>
-        {estimate !== null && (
-          <span className="text-fg/80 text-sm">
-            ~<span className="font-semibold">{estimate}</span> match
-            {estimate === 1 ? '' : 'es'} with {props.teamCount} team
-            {props.teamCount === 1 ? '' : 's'}.
-          </span>
+      {/* Review step — a plain-language recap of every choice so the host
+          confirms before committing, plus the estimate and any blocking
+          warnings. The Create button lives here only. */}
+      <div hidden={!onReview}>
+        <dl className="border-border-base bg-bg rounded-shape-sm divide-border-base divide-y border text-sm">
+          {showTeamsStep && (
+            <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+              <dt className="text-muted">Teams</dt>
+              <dd className="text-fg text-right font-medium">{teams.length} registered</dd>
+            </div>
+          )}
+          <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+            <dt className="text-muted">Format</dt>
+            <dd className="text-fg text-right font-medium">{selectedMeta.title}</dd>
+          </div>
+          <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+            <dt className="text-muted">{isPoolPlay ? 'Pool play length' : 'Match length'}</dt>
+            <dd className="text-fg text-right font-medium">
+              Best of {bestOf}
+              {targetScore !== '' ? ` · to ${targetScore}` : ''}
+            </dd>
+          </div>
+          {isPoolPlay && (
+            <>
+              <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+                <dt className="text-muted">Pools</dt>
+                <dd className="text-fg text-right font-medium">
+                  {poolCount === 1 ? '1 pool' : `${poolCount} pools`} ·{' '}
+                  {poolCount === 1
+                    ? `top ${advancePerPool} to playoff`
+                    : `top ${advancePerPool} per pool advance`}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+                <dt className="text-muted">Playoff length</dt>
+                <dd className="text-fg text-right font-medium">
+                  {playoffBestOf === ''
+                    ? 'Same as pool play'
+                    : `Best of ${playoffBestOf}${
+                        playoffTargetScore !== '' ? ` · to ${playoffTargetScore}` : ''
+                      }`}
+                </dd>
+              </div>
+            </>
+          )}
+          {estimate !== null && (
+            <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+              <dt className="text-muted">Estimated matches</dt>
+              <dd className="text-fg text-right font-medium">
+                ~{estimate} with {props.teamCount} team{props.teamCount === 1 ? '' : 's'}
+              </dd>
+            </div>
+          )}
+        </dl>
+        {!enforceMin && (
+          <p className="text-muted mt-2 text-xs">
+            You{'’'}ll add your teams by name, seed them, then generate the bracket after this.
+          </p>
         )}
         {enforceMin && props.teamCount < 2 && (
-          <span className="text-muted text-xs">
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
             Need at least 2 registered teams to create a bracket.
-          </span>
+          </p>
         )}
         {enforceMin && props.teamCount >= 2 && belowMin && (
-          <span className="text-xs text-red-600 dark:text-red-400">
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
             {selectedMeta.title} needs at least {selectedMeta.minTeams} teams.
-          </span>
+          </p>
+        )}
+        {poolPlayUnderfilled && (
+          <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+            This pool configuration needs more teams than are registered. Go back and lower the
+            pools or advance-per-pool.
+          </p>
+        )}
+      </div>
+
+      {/* Step navigation. Back/Next are `type="button"` so they never submit the
+          form; only the review step's Create button is a submit. */}
+      <div className="border-border-base bg-bg rounded-shape-sm sticky bottom-2 z-10 flex items-center gap-3 border p-3 shadow-sm">
+        <button
+          type="button"
+          onClick={goBack}
+          disabled={current === 0}
+          className={neutralButtonClass('md') + ' disabled:invisible'}
+        >
+          Back
+        </button>
+        <div className="flex-1" />
+        {onReview ? (
+          <SubmitButton disabled={createDisabled} className={primaryButtonClass('md')}>
+            Create bracket
+          </SubmitButton>
+        ) : (
+          <button type="button" onClick={goNext} className={primaryButtonClass('md')}>
+            Next
+          </button>
         )}
       </div>
     </form>
