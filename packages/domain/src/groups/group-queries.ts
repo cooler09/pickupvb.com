@@ -72,7 +72,7 @@ export interface GroupSlugEntry {
 export interface GroupQueries {
   /** Paginated public directory, optionally filtered by a search term. */
   searchDirectory(query: GroupDirectoryQuery): Promise<GroupDirectoryPage>;
-  /** Up to `limit` group cards ordered by name (e.g. the home-page rail). */
+  /** Up to `limit` group cards, newest-first (the home-page "fresh" rail). */
   listCards(limit: number): Promise<GroupCard[]>;
   /** The full public profile for a group by its slug, or `null` if missing /
    * soft-deleted. Backs the detail page, metadata, OG image, and edit form. */

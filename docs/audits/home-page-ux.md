@@ -266,7 +266,7 @@ their primary surfaces, so this is upside, not a gap.
 
 ### E. Marketing-copy honesty (stale claims)
 
-#### H-7 — The homepage advertises "waitlists" the product doesn't actually run · **P2** · _new 2026-06-05_
+#### H-7 — The homepage advertises "waitlists" the product doesn't actually run · **P2** · ✅ resolved 2026-06-05
 
 The page sells **waitlists as a host feature** in three places:
 
@@ -307,7 +307,7 @@ Recommend (a) now; (b) is its own initiative.
 
 ### F. Content curation (visitor / stale-feel)
 
-#### H-8 — The groups peek is alphabetical, contradicting its "fresh / running events" framing · **P3** · _new 2026-06-05_
+#### H-8 — The groups peek is alphabetical, contradicting its "fresh / running events" framing · **P3** · ✅ resolved 2026-06-05
 
 The page comment says it pulls _"a small slice of **fresh** content to make the
 landing page feel alive"_ ([page.tsx#L30](../../apps/web/src/app/page.tsx#L30)),
@@ -337,7 +337,7 @@ P3 (the section works; it's curation quality).
 
 ### G. Performance
 
-#### H-9 — The highest-traffic page is fully dynamic, though the anon peek is viewer-independent and cacheable · **P3** · _new 2026-06-05_
+#### H-9 — The highest-traffic page is fully dynamic, though the anon peek is viewer-independent and cacheable · **P3** · ✅ resolved 2026-06-05
 
 The home page reads `cookies()` via `getCurrentUser()` + `getServerSupabase()`
 ([page.tsx#L26-L27](../../apps/web/src/app/page.tsx#L26-L27)), so Next renders it
@@ -362,6 +362,18 @@ which is correct here because the cached payload is the **public** (anon) view o
 events/groups. Mirrors the `loadAdHocRowsCached` pattern in
 [load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts).
 Belongs in the [performance.md](performance.md) sweep too.
+
+**Resolved 2026-06-05:** both peek reads moved into a single `loadHomePeek`
+`unstable_cache` (60s `revalidate`) in [page.tsx](../../apps/web/src/app/page.tsx),
+running on the admin client (the search RPC takes no viewer arg and returns only
+public events, and `searchEvents`'s repo already self-builds the admin client, so
+the cache callback is cookie-free and the service-role read is safe). The route
+stays dynamic (`getCurrentUser` still reads `cookies()` to branch guest vs. authed
+UI), but every render now shares one cached data result instead of re-running two
+DB round-trips. Used a short time-based `revalidate` rather than tags because the
+peek is a denormalized cross-entity list that doesn't fit `unstable_cache`'s
+static per-id tag model — see the journal entry for the trade-off. No `Date`
+revival needed: `relativeEventDay` / `EventCard` already accept `Date | string`.
 
 > **Minor (noise, not graded):** `upcomingEvents.slice(0, 6)`
 > ([page.tsx#L116](../../apps/web/src/app/page.tsx#L116)) is redundant — the
@@ -392,21 +404,38 @@ now)` off the `now` the page already had (stays a pure server component). Zero
 _Open: H-2 (location honesty), H-3 (empty-peek), H-4 (shared `GroupCard`),
 H-6 (signed-in personalization). H-5 lives with persona-ux V-4._
 
-### 2026-06-05 — Re-audit pass (new findings, none fixed yet)
+### 2026-06-05 — Re-audit pass + H-7 / H-8 shipped
 
-Bugs / gaps / stale-data sweep at the user's request. **No code shipped** — this
-entry records the new backlog only.
+Bugs / gaps / stale-data sweep at the user's request, then shipped the two
+copy/curation fixes. Verified `pnpm typecheck && lint && test && build` (all
+green; the only lint warnings are pre-existing `set-state-in-effect` in unrelated
+files).
 
-- **H-7 (P2)** — homepage advertises "run waitlists" / "Waitlists & capacity
-  rules" but only over-fill _flagging_ exists; no host-side promotion/management.
-  Soften copy (option a) or build the queue (option b, the Hannah gap).
-- **H-8 (P3)** — groups peek ordered `name ASC` with no events filter, so it's
-  static and contradicts "fresh / running events". Order by `created_at DESC`
-  (a) or join upcoming events (b).
-- **H-9 (P3)** — page is fully dynamic; anon peek reads are viewer-independent
-  and cacheable via `unstable_cache` + admin client (don't read `cookies()` in
-  the cache callback).
+- **H-7 ✅ (P2)** — removed the overstated "waitlists" host claim from all three
+  homepage spots: the Host value-card body now reads "set capacity" (was "run
+  waitlists"), the host-pitch prose reads "capacity limits" (was "waitlists"),
+  and the checklist reads "Capacity & over-fill rules" (was "Waitlists & capacity
+  rules"). The player-facing "Join waitlist" CTA on the detail page is accurate
+  and untouched. Option (b) — a real managed waitlist queue / promotion — remains
+  the **Hannah** initiative, not gated on this. [page.tsx](../../apps/web/src/app/page.tsx).
+- **H-8 ✅ (P3)** — `listCards` now orders `created_at DESC` (was `name ASC`), so
+  the home "Groups & organizations" peek rotates as new clubs join instead of
+  pinning the same six A-named groups; the subtitle softened to "Clubs, leagues,
+  and crews on PickupVB" (was "… running events") since newest-first doesn't
+  guarantee events. Port doc updated to match.
+  [supabase-group-query-repository.ts#L112-L125](../../packages/infrastructure/src/supabase-group-query-repository.ts#L112-L125),
+  [group-queries.ts#L75-L76](../../packages/domain/src/groups/group-queries.ts#L75-L76),
+  [page.tsx](../../apps/web/src/app/page.tsx). Option (b) (filter to groups with
+  upcoming events) deferred — would re-introduce the empty-section risk (H-3).
+- **H-9 ✅ (P3)** — both viewer-independent peek reads now share a single
+  `loadHomePeek` `unstable_cache` (60s `revalidate`, admin client, cookie-free
+  callback). The route stays dynamic for the guest/authed UI branch, but the two
+  DB round-trips no longer run per hit. Time-based (not tag-based) eviction —
+  the denormalized cross-entity list doesn't fit `unstable_cache`'s static
+  per-id tag model. Journal:
+  [2026-06-05-home-peek-cache.md](../journal/2026-06-05-home-peek-cache.md).
+  [page.tsx](../../apps/web/src/app/page.tsx).
 - Verified **not** stale: the "Real-time spot updates" hero claim is backed by
   `use-event-attendees.ts` realtime — left as-is.
 
-_Open after this pass: H-2, H-3, H-6 (prior) + H-7, H-8, H-9 (new)._
+_Open after this pass: H-2, H-3, H-6 (prior). H-7 ✅ / H-8 ✅ / H-9 ✅._

@@ -110,11 +110,15 @@ export class SupabaseGroupQueryRepository implements GroupQueries {
   }
 
   async listCards(limit: number): Promise<GroupCard[]> {
+    // Newest-first (not alphabetical): this feeds the home-page "fresh content"
+    // peek, so the slice should rotate as new clubs join rather than pinning the
+    // same A-named groups forever (home-page-ux H-8). `created_at` need not be in
+    // CARD_COLUMNS for the server-side order to apply.
     const { data, error } = await this.client
       .from('groups')
       .select(CARD_COLUMNS)
       .is('deleted_at', null)
-      .order('name', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(limit);
     if (error) throw new Error(`listCards failed: ${error.message}`);
     return ((data as CardRow[] | null) ?? []).map(toCard);
