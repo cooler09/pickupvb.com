@@ -51,7 +51,12 @@ These live in pages users already hit — no tour engine required.
   joined a group," host dashboard with zero events. Replace blank/sad empty
   states with a one-line _why_ + a single primary CTA + a short "here's what
   this unlocks." Reuse the existing CTA vocabulary
-  (`primaryButtonClass`, etc.) so they stay on-brand.
+  (`primaryButtonClass`, etc.) so they stay on-brand. ✅ **Shipped 2026-06-04**
+  ([journal](journal/2026-06-04-bundle-onboarding-e1-empty-states.md)). Added a
+  shared `EmptyState` primitive (`components/empty-state.tsx`); the audit found
+  most directories already taught, so the fixes landed on `/messages` + `/players`
+  (were CTA-less) and consolidated `/groups` + `/teams` onto it. `/events` keeps
+  its richer bespoke one.
 - **E2 — Contextual hint popovers** on genuinely non-obvious controls
   (divisions, ad-hoc vs. roster teams, capacity, anonymous-vs-real-account).
   Use a Radix Popover to match the existing headless-primitive strategy and

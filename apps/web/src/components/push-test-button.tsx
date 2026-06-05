@@ -34,7 +34,7 @@ export function PushTestButton() {
       if (data.ok) {
         setTone('ok');
         setMsg(
-          `Sent to ${data.delivered ?? 0} of ${data.subscriptions ?? 0} device(s). Look for the notification.`,
+          `Sent to ${data.delivered ?? 0} of ${data.subscriptions ?? 0} device(s). If nothing appears, check your OS notification settings — on a Mac, Focus / Do Not Disturb or System Settings → Notifications → your browser.`,
         );
       } else {
         setTone('err');

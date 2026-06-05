@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { SupabaseTeamQueryRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
+import { EmptyState } from '@/components/empty-state';
 import { MyTeamsPanel } from './_components/my-teams-panel';
 import { TeamCard } from './_components/team-card';
 
@@ -85,21 +85,20 @@ export default async function TeamsIndexPage(props: {
           </button>
         </form>
         {discoverTeams.length === 0 ? (
-          <div className="border-border-base rounded-shape-sm flex flex-col items-center gap-3 border border-dashed p-8 text-center">
-            <p className="text-fg text-sm font-medium">
-              {hasFilter ? 'No teams match those filters.' : 'No teams yet.'}
-            </p>
-            <p className="text-muted text-xs">
-              {hasFilter
-                ? 'Try a different name, or clear the search.'
-                : 'Be the first — teams sign up for tournaments together with a saved roster.'}
-            </p>
-            {!hasFilter && (
-              <Link href="/teams/new" className={primaryButtonClass()}>
-                + New team
-              </Link>
-            )}
-          </div>
+          hasFilter ? (
+            <EmptyState
+              title="No teams match those filters"
+              description="Try a different name, or clear the search."
+              secondary={{ href: '/teams', label: 'Clear search' }}
+            />
+          ) : (
+            <EmptyState
+              title="No teams yet"
+              description="Teams sign up for tournaments together with a saved roster."
+              primary={{ href: '/teams/new', label: '+ New team' }}
+              unlocks="Create a team to register for tournaments and keep your roster."
+            />
+          )
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {discoverTeams.map((t) => (

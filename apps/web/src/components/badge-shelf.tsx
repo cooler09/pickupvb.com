@@ -54,7 +54,7 @@ export function BadgeShelf({
       ) : null}
 
       {(earnedDefs.length > 0 || eggEarnedDefs.length > 0 || lockedDefs.length > 0) && (
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-5">
+        <div className="mt-4 flex flex-wrap gap-x-3 gap-y-4">
           {earnedDefs.map((d) => (
             <AchievementBadge
               key={d.key}
@@ -82,7 +82,7 @@ export function BadgeShelf({
           <h3 className="text-muted mt-6 text-xs font-semibold tracking-wide uppercase">
             Event badges
           </h3>
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-5">
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-4">
             {hostEarned.map((b) => (
               <HostBadgeTile
                 key={b.badgeKey}

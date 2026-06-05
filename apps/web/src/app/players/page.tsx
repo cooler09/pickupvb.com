@@ -8,6 +8,7 @@ import { Pagination } from '@/components/pagination';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 import { fieldInputClass } from '@/components/field-styles';
 import { primaryButtonClass } from '@/components/primary-button';
+import { EmptyState } from '@/components/empty-state';
 import { PlayersFollowProvider, FollowButton } from './_components/players-follow';
 import { NearMeButton } from '../events/near-me-button';
 import { LocationSearch } from '../events/location-search';
@@ -116,11 +117,20 @@ export default async function PlayersIndexPage(props: {
         </p>
       )}
       {players.length === 0 ? (
-        <p className="border-border-base text-muted rounded-shape-sm border border-dashed p-6 text-center text-sm">
-          {hasFilter
-            ? 'No players match those filters.'
-            : 'No players yet — be the first to sign up.'}
-        </p>
+        hasFilter ? (
+          <EmptyState
+            title="No players match those filters"
+            description="Try a different name, widen your radius, or clear the search."
+            secondary={{ href: '/players', label: 'Clear filters' }}
+          />
+        ) : (
+          <EmptyState
+            title="No players yet"
+            description="This is where you'll discover players to follow and team up with."
+            primary={{ href: '/events', label: 'Find events' }}
+            unlocks="Sign up for an event to put yourself on the map — be the first."
+          />
+        )
       ) : (
         <PlayersFollowProvider playerIds={players.map((p) => p.id)}>
           <ul className="grid gap-3 sm:grid-cols-2">

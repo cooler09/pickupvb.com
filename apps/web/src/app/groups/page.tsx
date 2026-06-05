@@ -3,6 +3,7 @@ import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { Pagination } from '@/components/pagination';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
+import { EmptyState } from '@/components/empty-state';
 import { NewGroupButton } from './_components/new-group-button';
 import { GroupCard } from './_components/group-card';
 import { GroupsFollowProvider, GroupFollowButton } from './_components/groups-follow';
@@ -71,20 +72,24 @@ export default async function GroupsIndexPage(props: {
         </button>
       </form>
       {groups.length === 0 ? (
-        <div className="border-border-base rounded-shape-sm flex flex-col items-center gap-3 border border-dashed p-8 text-center">
-          <p className="text-fg text-sm font-medium">
-            {q ? 'No groups match your search.' : 'No groups yet.'}
-          </p>
-          <p className="text-muted text-xs">
-            {q
-              ? 'Try a different search term, or browse all groups.'
-              : 'Be the first to create one — groups are how clubs and crews host events together.'}
-          </p>
-          {/* `<NewGroupButton />` self-hides for signed-out viewers, so this
-              extra CTA only appears to people who can act on it. Anonymous
-              visitors just see the encouraging copy above. */}
-          <NewGroupButton />
-        </div>
+        q ? (
+          <EmptyState
+            title="No groups match your search"
+            description="Try a different term, or browse all groups."
+            secondary={{ href: '/groups', label: 'Browse all groups' }}
+          />
+        ) : (
+          /* `<NewGroupButton />` self-hides for signed-out viewers, so the CTA
+             only appears to people who can act on it. Anonymous visitors just
+             see the encouraging copy. */
+          <EmptyState
+            title="No groups yet"
+            description="Groups are how clubs and crews host events together."
+            unlocks="Create one to organize events and rosters with your crew."
+          >
+            <NewGroupButton />
+          </EmptyState>
+        )
       ) : (
         <GroupsFollowProvider groupIds={groups.map((g) => g.id)}>
           <ul className="stagger-in grid gap-3 sm:grid-cols-2">

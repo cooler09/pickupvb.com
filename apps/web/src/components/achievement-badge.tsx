@@ -37,23 +37,24 @@ export function AchievementBadge({
 
   return (
     <div
-      className="flex w-20 flex-col items-center gap-1.5 text-center"
-      title={`${def.title} — ${def.description}${earned ? '' : ' (locked)'}`}
+      className="flex w-14 flex-col items-center gap-1 text-center"
+      title={`${def.title} — ${def.description} (${earnedLine.toLowerCase()})`}
     >
       <span
         className={
-          'flex h-14 w-14 items-center justify-center rounded-full ring-2 ' +
+          'flex h-9 w-9 items-center justify-center rounded-full ring-2 ' +
           (earned
             ? tierDisc[def.tier] + ' shadow-sm'
             : 'bg-fg/5 text-fg/30 ring-border-base grayscale')
         }
       >
-        <BadgeGlyph icon={def.icon} className="h-7 w-7" />
+        <BadgeGlyph icon={def.icon} className="h-4.5 w-4.5" />
       </span>
-      <span className={'text-xs font-semibold ' + (earned ? 'text-fg' : 'text-fg/40')}>
+      <span
+        className={'text-[10px] leading-tight font-semibold ' + (earned ? 'text-fg' : 'text-fg/40')}
+      >
         {def.title}
       </span>
-      <span className="text-muted text-[10px] leading-tight">{earnedLine}</span>
     </div>
   );
 }
@@ -74,27 +75,29 @@ export function HostBadgeTile({
   awardedAt?: Date | null;
 }) {
   const earnedLine = awardedAt
-    ? `Earned ${awardedAt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`
-    : 'Earned';
+    ? `earned ${awardedAt.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`
+    : 'earned';
   return (
-    <div className="flex w-20 flex-col items-center gap-1.5 text-center" title={label}>
-      <span className="ring-primary/40 bg-primary/10 text-primary flex h-14 w-14 items-center justify-center overflow-hidden rounded-full shadow-sm ring-2">
+    <div
+      className="flex w-14 flex-col items-center gap-1 text-center"
+      title={`${label} (${earnedLine})`}
+    >
+      <span className="ring-primary/40 bg-primary/10 text-primary flex h-9 w-9 items-center justify-center overflow-hidden rounded-full shadow-sm ring-2">
         {iconUrl ? (
           <Image
             src={iconUrl}
             alt=""
-            width={56}
-            height={56}
+            width={36}
+            height={36}
             unoptimized
             aria-hidden
             className="h-full w-full object-cover"
           />
         ) : (
-          <BadgeGlyph icon="medal" className="h-7 w-7" />
+          <BadgeGlyph icon="medal" className="h-4.5 w-4.5" />
         )}
       </span>
-      <span className="text-fg line-clamp-2 text-xs font-semibold">{label}</span>
-      <span className="text-muted text-[10px] leading-tight">{earnedLine}</span>
+      <span className="text-fg line-clamp-2 text-[10px] leading-tight font-semibold">{label}</span>
     </div>
   );
 }
