@@ -10,11 +10,9 @@ import { requireRealUser } from '@/lib/server-auth';
 import { isPlatformAdmin } from '@/lib/admin';
 import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords } from '@/lib/timezone';
-import { extractListingDrafts, type ListingDraft } from '@/lib/listing-extract';
+import type { ListingDraft } from '@/lib/listing-draft';
 
 const RETURN_PATH = '/admin/community-import';
-
-export type ParseResult = { ok: true; drafts: ListingDraft[] } | { ok: false; error: string };
 
 export type ImportRowResult =
   | { title: string; ok: true; slug: string }
@@ -29,24 +27,8 @@ async function requireAdmin(): Promise<{ userId: string } | null> {
   return { userId: viewer.user.id };
 }
 
-/** Step 1: turn pasted event text into reviewable drafts via the AI extractor. */
-export async function parseAction(rawText: string): Promise<ParseResult> {
-  const admin = await requireAdmin();
-  if (!admin) return { ok: false, error: 'Admin access required.' };
-
-  try {
-    const drafts = await extractListingDrafts(rawText);
-    if (drafts.length === 0) {
-      return { ok: false, error: 'No events could be parsed from that text.' };
-    }
-    return { ok: true, drafts };
-  } catch (err) {
-    return { ok: false, error: messageFor(err) };
-  }
-}
-
 /**
- * Step 2: geocode + validate + create each reviewed draft. Per-row failures
+ * Geocode + validate + create each reviewed draft. Per-row failures
  * don't abort the batch — each row reports its own success/error so the admin
  * can fix and retry just the ones that failed.
  */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
@@ -8,9 +8,9 @@ import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
 } from '@/components/field-styles';
-import { parseAction, importAction, type ImportRowResult } from './actions';
+import { importAction, type ImportRowResult } from './actions';
 import { useAlertReveal } from '@/components/use-alert-reveal';
-import type { ListingDraft } from '@/lib/listing-extract';
+import { parseDraftsJson, type ListingDraft } from '@/lib/listing-draft';
 
 const SURFACES = [
   ['', 'Any'],
@@ -34,21 +34,29 @@ const SKILLS = [
 ] as const;
 
 export default function ImportClient() {
-  const [rawText, setRawText] = useState('');
+  const [jsonText, setJsonText] = useState('');
   const [drafts, setDrafts] = useState<ListingDraft[] | null>(null);
   const [results, setResults] = useState<ImportRowResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const errorRef = useAlertReveal(error, Boolean(error));
 
-  function parse() {
+  function loadDrafts(text: string) {
     setError(null);
     setResults(null);
-    startTransition(async () => {
-      const res = await parseAction(rawText);
-      if (res.ok) setDrafts(res.drafts);
-      else setError(res.error);
-    });
+    try {
+      setDrafts(parseDraftsJson(text));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read that JSON.');
+    }
+  }
+
+  function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    void file.text().then(loadDrafts);
+    // Reset the input so re-selecting the same file fires onChange again.
+    e.target.value = '';
   }
 
   function runImport() {
@@ -73,6 +81,7 @@ export default function ImportClient() {
     setDrafts(null);
     setResults(null);
     setError(null);
+    setJsonText('');
   }
 
   return (
@@ -125,33 +134,52 @@ export default function ImportClient() {
         </div>
       )}
 
-      {/* Step 1 — paste */}
+      {/* Step 1 — upload the JSON produced by the skill */}
       {!drafts && !results && (
-        <div className="space-y-3">
-          <label htmlFor="rawText" className={labelClass}>
-            Paste event text
-          </label>
-          <p className="text-muted text-xs">
-            Open a Facebook event (or Meetup, Eventbrite, etc.), copy the page text, and paste it
-            here. You can paste several events at once. Claude extracts the fields; you review and
-            fix before anything is saved.
-          </p>
-          <textarea
-            id="rawText"
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            rows={12}
-            className={inputClass}
-            placeholder="Saturday Morning Beach Volleyball · Erie Beach Volleyball Club&#10;Sat, Jul 11 at 9:00 AM · 123 Lakeshore Dr, Erie, PA&#10;https://www.facebook.com/events/..."
-          />
-          <button
-            type="button"
-            onClick={parse}
-            disabled={pending || rawText.trim().length === 0}
-            className={primaryButtonClass('md')}
-          >
-            {pending ? 'Parsing…' : 'Parse'}
-          </button>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="jsonFile" className={labelClass}>
+              Upload listings JSON
+            </label>
+            <p className="text-muted mt-1 text-xs">
+              Generate the file with the{' '}
+              <code className="bg-fg/5 rounded px-1">facebook-events-import</code> Claude Code
+              skill, then upload it here. Every entry is a draft you review and fix before anything
+              is saved; geocoding and timezone are resolved server-side on import.
+            </p>
+            <input
+              id="jsonFile"
+              type="file"
+              accept="application/json,.json"
+              onChange={onFile}
+              className="text-muted file:bg-fg/10 file:text-fg mt-2 block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:px-3 file:py-2 file:text-sm hover:file:cursor-pointer"
+            />
+          </div>
+
+          <details className="text-sm">
+            <summary className="text-muted cursor-pointer">…or paste JSON directly</summary>
+            <div className="mt-3 space-y-3">
+              <textarea
+                value={jsonText}
+                onChange={(e) => setJsonText(e.target.value)}
+                rows={10}
+                className={inputClass}
+                placeholder={
+                  '[{"title":"Saturday Beach Doubles","externalUrl":"https://www.facebook.com/events/123",' +
+                  '"startsAtLocal":"2026-07-11T09:00","city":"Erie","region":"PA","country":"United States",' +
+                  '"surface":"sand","format":"doubles"}]'
+                }
+              />
+              <button
+                type="button"
+                onClick={() => loadDrafts(jsonText)}
+                disabled={jsonText.trim().length === 0}
+                className={primaryButtonClass('md')}
+              >
+                Load drafts
+              </button>
+            </div>
+          </details>
         </div>
       )}
 

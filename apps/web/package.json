@@ -16,7 +16,6 @@
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.100.1",
     "@pickupvb/application": "workspace:*",
     "@pickupvb/domain": "workspace:*",
     "@pickupvb/infrastructure": "workspace:*",
