@@ -3,6 +3,7 @@ import type { Route } from 'next';
 import type { Metadata } from 'next';
 import { secondaryButtonClass } from '@/components/primary-button';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { JsonLd } from '@/components/json-ld';
 import { StandingsSetupForm } from './_components/setup-form.js';
 import { EventBindingBanner } from '../_components/event-binding-banner';
 import { parseEventBinding } from '../_lib/event-binding';
@@ -99,11 +100,7 @@ export default async function StandingsSetupPage(props: {
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
-      <script
-        type="application/ld+json"
-        // Static, server-rendered JSON — safe to inline.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <BreadcrumbJsonLd
         trail={[
           { name: 'Host tools', path: '/tools' },

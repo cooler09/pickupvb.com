@@ -7,6 +7,8 @@ import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import { isPlatformAdmin } from '@/lib/admin';
 import { Pagination } from '@/components/pagination';
+import { NearMeButton } from '../events/near-me-button';
+import { LocationSearch } from '../events/location-search';
 import { CommunityListingCard } from './_components/community-listing-card';
 
 const SURFACES = ['indoor', 'grass', 'sand'] as const;
@@ -15,6 +17,7 @@ const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
 const WHENS = ['upcoming', 'past'] as const;
 const PER_PAGE = 24;
 const FETCH_CAP = 120;
+const DEFAULT_RADIUS_KM = 40;
 
 type Surface = (typeof SURFACES)[number];
 type Format = (typeof FORMATS)[number];
@@ -32,6 +35,7 @@ export async function generateMetadata(props: {
     sp['surface'] != null ||
     sp['format'] != null ||
     sp['skill'] != null ||
+    sp['lat'] != null ||
     sp['when'] === 'past' ||
     (sp['page'] != null && sp['page'] !== '1');
   return {
@@ -54,6 +58,12 @@ function pick<T extends string>(value: string | undefined, allowed: readonly T[]
   return allowed.includes(value as T) ? (value as T) : undefined;
 }
 
+function parseNum(value: string | undefined): number | null {
+  if (value == null || value === '') return null;
+  const n = Number.parseFloat(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export default async function CommunityListingsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
@@ -73,6 +83,14 @@ export default async function CommunityListingsPage(props: {
   const isPast = when === 'past';
   const page = Math.max(1, Number.parseInt(get('page') ?? '1', 10) || 1);
 
+  // Optional "near me" / city search. `lat`/`lng`/`radiusKm` are written by the
+  // shared LocationSearch + NearMeButton controls (same as /events); when
+  // present we hand `near` to the geo RPC path, which orders by distance.
+  const lat = parseNum(get('lat'));
+  const lng = parseNum(get('lng'));
+  const radiusKm = parseNum(get('radiusKm')) ?? DEFAULT_RADIUS_KM;
+  const hasLocation = lat !== null && lng !== null;
+
   const now = new Date();
   // Load a generous window and slice for display (pattern #12). This removes the
   // old silent 60-row cap; if community volume ever exceeds FETCH_CAP per view,
@@ -84,6 +102,7 @@ export default async function CommunityListingsPage(props: {
       // Upcoming: soonest-first. Past: most-recent-first (order desc) so the
       // freshest history leads instead of the oldest archived event.
       ...(isPast ? { startsBefore: now, order: 'desc' as const } : { startsAfter: now }),
+      ...(hasLocation ? { near: { latitude: lat, longitude: lng, radiusKm } } : {}),
       ...(surface ? { surface } : {}),
       ...(format ? { format } : {}),
       ...(skillLevel ? { skillLevel } : {}),
@@ -92,11 +111,18 @@ export default async function CommunityListingsPage(props: {
   const total = allListings.length;
   const listings = allListings.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
-  // Preserve the active filters when switching tabs / applying filters.
-  const filterQuery: Record<string, string> = {
+  // Non-location filters, preserved across the "clear location" link.
+  const baseFilterQuery: Record<string, string> = {
     ...(surface ? { surface } : {}),
     ...(format ? { format } : {}),
     ...(skillLevel ? { skill: skillLevel } : {}),
+  };
+  // All active state, preserved when switching tabs / applying filters / paging.
+  const filterQuery: Record<string, string> = {
+    ...baseFilterQuery,
+    ...(hasLocation
+      ? { lat: lat.toFixed(6), lng: lng.toFixed(6), radiusKm: String(radiusKm) }
+      : {}),
   };
 
   return (
@@ -152,11 +178,36 @@ export default async function CommunityListingsPage(props: {
         </Link>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <LocationSearch basePath="/community" />
+        <NearMeButton basePath="/community" />
+        {hasLocation && (
+          <span className="text-muted text-sm">
+            Within {radiusKm} km ·{' '}
+            <Link
+              href={{ pathname: '/community', query: { ...baseFilterQuery, when } }}
+              className="text-primary hover:underline"
+            >
+              Clear location
+            </Link>
+          </span>
+        )}
+      </div>
+
       <form
         method="get"
         className="border-border-base bg-surface rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
       >
         <input type="hidden" name="when" value={when} />
+        {/* Preserve an active location across an Apply (the GET form would
+            otherwise drop these and reset to a non-geo search). */}
+        {hasLocation && (
+          <>
+            <input type="hidden" name="lat" value={lat.toFixed(6)} />
+            <input type="hidden" name="lng" value={lng.toFixed(6)} />
+            <input type="hidden" name="radiusKm" value={String(radiusKm)} />
+          </>
+        )}
         <label className="text-sm">
           <span className="text-muted block text-xs font-semibold tracking-wide uppercase">
             Surface

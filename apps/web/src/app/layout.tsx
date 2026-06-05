@@ -10,6 +10,7 @@ import { EnvBanner } from '@/components/env-banner';
 import { WebVitalsClient } from '@/components/web-vitals-client';
 import { ConsentBanner } from '@/components/consent-banner';
 import { AuthStateSync } from '@/components/auth-state-sync';
+import { JsonLd } from '@/components/json-ld';
 import { PostHogProvider } from '@/components/posthog-provider';
 import { getCurrentUser } from '@/lib/server-auth';
 import { getViewerHashedDistinctId, getViewerTraits } from '@/lib/server-distinct-id';
@@ -170,10 +171,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" data-theme={theme} data-theme-mode={preference}>
       <body className="flex min-h-dvh flex-col">
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }}
-        />
+        <JsonLd data={siteJsonLd} />
         <a
           href="#main"
           className="focus:bg-primary focus:text-primary-fg sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:px-3 focus:py-2 focus:text-sm focus:shadow-lg"

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { JsonLd } from '@/components/json-ld';
 import { Scheduler } from './_components/scheduler.js';
 import { parseEventBinding } from '../_lib/event-binding';
 import { loadEventToolContext } from '../_lib/load-event-tool-context';
@@ -110,11 +111,7 @@ export default async function SchedulerPage(props: {
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
-      <script
-        type="application/ld+json"
-        // Static, server-rendered JSON — safe to inline.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <BreadcrumbJsonLd
         trail={[
           { name: 'Host tools', path: '/tools' },
