@@ -15,7 +15,7 @@
   "dependencies": {
     "@pickupvb/domain": "workspace:*",
     "@pickupvb/supabase": "workspace:*",
-    "posthog-node": "^5.35.1"
+    "posthog-node": "^5.36.2"
   },
   "devDependencies": {
     "@pickupvb/config": "workspace:*",
