@@ -29,7 +29,7 @@ import {
   assignCourtsAndSlots,
 } from './generators.js';
 import type { BracketId, Match, MatchId, MatchSet, Seed } from './match.js';
-import { determineWinner } from './match.js';
+import { determineWinner, effectiveBestOf } from './match.js';
 import { computePoolStandings, distinctPools, rankAcrossPools } from './standings.js';
 
 export interface BracketConfig {
@@ -609,7 +609,7 @@ export class Bracket extends AggregateRoot<BracketId> {
       input.sets,
       match.entryAId,
       match.entryBId,
-      this.effectiveBestOf(match),
+      effectiveBestOf(match, this._config),
     );
 
     // Reverting an existing wired-forward result first.
@@ -821,14 +821,6 @@ export class Bracket extends AggregateRoot<BracketId> {
 
   // ---- Internals -------------------------------------------------------
 
-  /** Effective best-of for a match: per-match override → stage default → global. */
-  private effectiveBestOf(m: Match): number {
-    if (m.bestOf !== null) return m.bestOf;
-    if (m.bracketSide === 'final' && this._config.playoffBestOf !== null) {
-      return this._config.playoffBestOf;
-    }
-    return this._config.bestOf;
-  }
   private matchOrThrow(matchId: MatchId): Match {
     const m = this._matches.find((x) => x.id === matchId);
     if (!m) throw new NotFoundError('match', matchId);

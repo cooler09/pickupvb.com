@@ -86,6 +86,11 @@ export function BoardView(props: {
   bestOf: number;
   /** Stage / global default target score, shown on match cards. */
   targetScore?: number | null;
+  /** Playoff-stage best-of / target-score defaults (`pool_play_playoff`) — let
+   *  each `final` match resolve its true length instead of the pool default
+   *  (ADR 0032). Omitted ⇒ the playoff reuses the pool-play length. */
+  playoffBestOf?: number | null;
+  playoffTargetScore?: number | null;
   isHost: boolean;
   viewerId: string | null;
   status: 'active' | 'completed';
@@ -106,6 +111,16 @@ export function BoardView(props: {
   // completed bracket the host must Reopen first (editMatch is rejected once
   // completed).
   const canStructEdit = props.isHost && props.status === 'active';
+  // The "Default" the editor labels for a match is its *stage* default — the
+  // playoff-stage length for a `final` match, the bracket default otherwise —
+  // so clearing a per-match override falls back to the length the match would
+  // actually be scored at (ADR 0032).
+  const stageBestOf = (m: Match): number =>
+    m.bracketSide === 'final' && props.playoffBestOf != null ? props.playoffBestOf : props.bestOf;
+  const stageTargetScore = (m: Match): number | null =>
+    m.bracketSide === 'final' && props.playoffTargetScore != null
+      ? props.playoffTargetScore
+      : (props.targetScore ?? null);
   const hostEdit = (m: Match): ReactNode =>
     canStructEdit && m.status !== 'bye' ? (
       <div className="mt-1 text-right">
@@ -120,8 +135,8 @@ export function BoardView(props: {
             targetScore: m.targetScore,
           }}
           teams={teams}
-          defaultBestOf={props.bestOf}
-          defaultTargetScore={props.targetScore ?? null}
+          defaultBestOf={stageBestOf(m)}
+          defaultTargetScore={stageTargetScore(m)}
           allowRemove={false}
         />
       </div>
@@ -196,6 +211,8 @@ export function BoardView(props: {
           teamById={props.teamById}
           bestOf={props.bestOf}
           targetScore={props.targetScore ?? null}
+          playoffBestOf={props.playoffBestOf ?? null}
+          playoffTargetScore={props.playoffTargetScore ?? null}
           isHost={props.isHost}
           viewerId={props.viewerId}
           liveScoringEnabled={props.liveScoringEnabled ?? false}

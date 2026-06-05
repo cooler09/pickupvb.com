@@ -4,6 +4,8 @@ import {
   Bracket,
   DEFAULT_BRACKET_CONFIG,
   assignCourtsAndSlots,
+  effectiveBestOf,
+  effectiveTargetScore,
   generateDoubleElimination,
   generatePlayoffFromRanked,
   generatePoolPlay,
@@ -1290,6 +1292,53 @@ describe('Bracket per-stage / per-match best-of (ADR 0032)', () => {
     // One set can't clinch best-of-3 → still in progress (bestOf:1 would complete).
     b.recordResult({ matchId: m.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
     expect(b.matches.find((x) => x.id === m.id)!.status).toBe('in_progress');
+  });
+
+  // The exported resolvers are the single source of truth the score form uses to
+  // decide how many set inputs to render. If they drift from the bracket's own
+  // winner resolution, a playoff match shows too few/many boxes and a saved
+  // score never clinches — the "doesn't adhere to the format" bug.
+  describe('effectiveBestOf / effectiveTargetScore resolvers', () => {
+    const defaults = { bestOf: 1, playoffBestOf: 3 } as const;
+    const targetDefaults = { targetScore: 21, playoffTargetScore: 25 } as const;
+
+    it('a per-match override wins over both stage and global defaults', () => {
+      const m = { bestOf: 5, bracketSide: 'final' } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, defaults)).toBe(5);
+    });
+
+    it('a `final` match with no override uses the playoff-stage default', () => {
+      const m = { bestOf: null, bracketSide: 'final' } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, defaults)).toBe(3);
+    });
+
+    it('a pool / non-final match with no override uses the global default', () => {
+      const m = { bestOf: null, bracketSide: null } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, defaults)).toBe(1);
+    });
+
+    it('falls back to the global default when no playoff-stage default is set', () => {
+      const m = { bestOf: null, bracketSide: 'final' } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, { bestOf: 3, playoffBestOf: null })).toBe(3);
+    });
+
+    it('target score resolves with the same per-match → stage → global precedence', () => {
+      const override = {
+        targetScore: 15,
+        bracketSide: 'final',
+      } as Pick<Match, 'targetScore' | 'bracketSide'>;
+      const playoff = {
+        targetScore: null,
+        bracketSide: 'final',
+      } as Pick<Match, 'targetScore' | 'bracketSide'>;
+      const pool = {
+        targetScore: null,
+        bracketSide: null,
+      } as Pick<Match, 'targetScore' | 'bracketSide'>;
+      expect(effectiveTargetScore(override, targetDefaults)).toBe(15);
+      expect(effectiveTargetScore(playoff, targetDefaults)).toBe(25);
+      expect(effectiveTargetScore(pool, targetDefaults)).toBe(21);
+    });
   });
 });
 

@@ -99,6 +99,54 @@ export interface Match {
   scheduledAt: Date | null;
 }
 
+/** Stage / global defaults needed to resolve a match's effective best-of. */
+export interface MatchLengthDefaults {
+  readonly bestOf: number;
+  readonly playoffBestOf: number | null;
+}
+
+/**
+ * Resolve a match's **effective** best-of: per-match override →
+ * playoff-stage default (for `final` matches) → global default. This is the
+ * same precedence {@link Bracket} applies internally before picking a winner,
+ * exported so the UI can show the matching number of set inputs and the
+ * correct "Best of N" label — otherwise a playoff match (or any per-match
+ * override) renders against the bracket-wide default and "doesn't adhere to
+ * the format" (ADR 0032).
+ */
+export function effectiveBestOf(
+  match: Pick<Match, 'bestOf' | 'bracketSide'>,
+  defaults: MatchLengthDefaults,
+): number {
+  if (match.bestOf !== null) return match.bestOf;
+  if (match.bracketSide === 'final' && defaults.playoffBestOf !== null) {
+    return defaults.playoffBestOf;
+  }
+  return defaults.bestOf;
+}
+
+/** Stage / global defaults needed to resolve a match's effective target score. */
+export interface MatchTargetDefaults {
+  readonly targetScore: number | null;
+  readonly playoffTargetScore: number | null;
+}
+
+/**
+ * Resolve a match's **effective** target score (the number a game is played to
+ * — informational, never enforced): per-match override → playoff-stage default
+ * (for `final` matches) → global default. Mirrors {@link effectiveBestOf}.
+ */
+export function effectiveTargetScore(
+  match: Pick<Match, 'targetScore' | 'bracketSide'>,
+  defaults: MatchTargetDefaults,
+): number | null {
+  if (match.targetScore !== null) return match.targetScore;
+  if (match.bracketSide === 'final' && defaults.playoffTargetScore !== null) {
+    return defaults.playoffTargetScore;
+  }
+  return defaults.targetScore;
+}
+
 /**
  * Compute the match winner from its sets given a best-of-N format.
  * Returns null while neither side has clinched a majority.

@@ -1,4 +1,4 @@
-import type { Match } from '@pickupvb/domain';
+import { effectiveBestOf, effectiveTargetScore, type Match } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { LiveScore } from '../../_components/live-score';
 import { ScoreLiveButton } from '../../_components/score-live-button';
@@ -14,9 +14,17 @@ export function MatchCard(props: {
   scope?: BracketScope;
   match: Match;
   teamById: ReadonlyMap<string, TeamLite>;
+  /** Bracket-wide / pool-stage default best-of (ADR 0032). The card resolves the
+   *  match's *effective* best-of from this, the playoff-stage default, and any
+   *  per-match override — so the score form shows the right number of sets. */
   bestOf: number;
   /** Stage / global default target score (ADR 0032); per-match override wins. */
   targetScore?: number | null;
+  /** Playoff-stage best-of default (`pool_play_playoff`) — applied to `final`
+   *  matches when they carry no per-match override. */
+  playoffBestOf?: number | null;
+  /** Playoff-stage target-score default (`pool_play_playoff`). */
+  playoffTargetScore?: number | null;
   isHost: boolean;
   viewerId: string | null;
   /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
@@ -38,7 +46,23 @@ export function MatchCard(props: {
   const aWins = m.sets.filter((s) => s.teamAScore > s.teamBScore).length;
   const bWins = m.sets.filter((s) => s.teamBScore > s.teamAScore).length;
 
-  const setsToShow = Math.max(props.bestOf, m.sets.length + 1);
+  // Resolve this match's *effective* length (per-match override → playoff-stage
+  // default → bracket default) so the score form offers exactly enough set
+  // inputs to clinch — a best-of-3 playoff in a best-of-1 tournament needs two
+  // boxes, and a match edited down to best-of-1 needs only one. Mirrors the
+  // domain's own winner resolution (ADR 0032).
+  const matchBestOf = effectiveBestOf(m, {
+    bestOf: props.bestOf,
+    playoffBestOf: props.playoffBestOf ?? null,
+  });
+  const matchTargetScore = effectiveTargetScore(m, {
+    targetScore: props.targetScore ?? null,
+    playoffTargetScore: props.playoffTargetScore ?? null,
+  });
+  const lengthDiffersFromDefault =
+    matchBestOf !== props.bestOf || matchTargetScore !== (props.targetScore ?? null);
+
+  const setsToShow = Math.max(matchBestOf, m.sets.length + 1);
 
   return (
     <div
@@ -57,14 +81,13 @@ export function MatchCard(props: {
           {m.slot ? <span>Slot {m.slot}</span> : null}
         </p>
       )}
-      {/* Per-match length / point-total override (ADR 0032) — only when this
-          match differs from the bracket default, so the row stays quiet otherwise. */}
-      {(m.bestOf != null || m.targetScore != null) && (
+      {/* Per-match length / point-total (ADR 0032) — shown only when this match
+          differs from the bracket default (a per-match override or a distinct
+          playoff-stage length), so the row stays quiet otherwise. */}
+      {lengthDiffersFromDefault && (
         <p className="text-muted -mt-1 mb-2 text-xs">
-          Best of {m.bestOf ?? props.bestOf}
-          {(m.targetScore ?? props.targetScore) != null
-            ? ` · to ${m.targetScore ?? props.targetScore}`
-            : ''}
+          Best of {matchBestOf}
+          {matchTargetScore != null ? ` · to ${matchTargetScore}` : ''}
         </p>
       )}
       <ul className="space-y-1">
@@ -94,7 +117,7 @@ export function MatchCard(props: {
             matchId={String(m.id)}
             teamA={teamA.name}
             teamB={teamB.name}
-            bestOf={props.bestOf}
+            bestOf={matchBestOf}
             {...(scope.kind === 'standalone'
               ? { bracketId: scope.bracketId, returnPath: `/brackets/${scope.bracketId}` }
               : {

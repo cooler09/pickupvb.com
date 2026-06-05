@@ -22,6 +22,8 @@ type BracketVm = {
   format: BracketFormat;
   bestOf: number;
   targetScore: number | null;
+  playoffBestOf: number | null;
+  playoffTargetScore: number | null;
   advancePerPool: number;
   seeds: ReadonlyArray<{ entryId: string; seed: number; pool: string | null }>;
   matches: ReadonlyArray<Match>;
@@ -143,6 +145,8 @@ export function BracketWorkspace(props: {
             teams={registeredTeams}
             bestOf={bracket.bestOf}
             targetScore={bracket.targetScore}
+            playoffBestOf={bracket.playoffBestOf}
+            playoffTargetScore={bracket.playoffTargetScore}
             advancePerPool={bracket.advancePerPool}
             isHost={isHost}
             viewerId={caps.viewerId}
