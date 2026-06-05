@@ -35,6 +35,39 @@ The user provides one or both:
    > in your browser, select all the page text, and paste it here and I'll parse
    > it.
 
+   **Alternative to pasting — the logged-in scraper.** This skill ships a
+   Playwright helper, [`scrape-fb-event.mjs`](scrape-fb-event.mjs), that renders
+   FB event pages with the user's own logged-in session and dumps the structured
+   signals (og:/event: meta tags, JSON-LD, visible text) to JSON. Prefer it over
+   asking for a paste when `WebFetch` fails on a Facebook URL. Run from the repo
+   root:
+
+   ```bash
+   node .claude/skills/facebook-events-import/scrape-fb-event.mjs <url> [<url> ...]
+   ```
+
+   A real Chromium window opens; on first use the user logs into Facebook once
+   (session persists under `.fb-session/`, gitignored). Output is written to
+   `.claude/skills/facebook-events-import/fb-scrape-output.json` — `Read` that
+   file and parse each entry into the contract below. Fields, best-first:
+   - `metas` — `event:start_time` / `event:end_time` are ISO timestamps **when
+     present**, but Facebook's logged-in app shell usually emits none (`{}`).
+   - `jsonLd` — schema.org `Event` blocks when present (often empty on FB).
+   - `tooltips` / `dateCandidates` — absolute-date strings harvested from the
+     date tooltip and from `title`/`aria-label` attributes. **Check these for
+     the real calendar date** before trusting the visible text.
+   - `text` — the visible event text. Reliable for host (`Event by …`),
+     address, format, cost, divisions — but Facebook renders the **date
+     relatively** ("Tomorrow at 9 AM", "Sat at 10 AM"). Resolve any relative
+     date against **`scrapedAt`** (ISO) / `scrapedAtLocal` on the same record —
+     do **not** guess it from the file mtime or today's date.
+
+   **The GUI window does not surface when launched from a background/agent
+   process** — it only appears when the _user_ runs the command in their own
+   terminal. So don't run it yourself; hand the user the command above and have
+   them run it, then `Read` the output file once they confirm it finished.
+   Don't commit `.fb-session/`.
+
 3. **For pasted text: parse directly.** Split into multiple listings if the text
    clearly describes several distinct events.
 
