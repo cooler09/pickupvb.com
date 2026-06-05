@@ -300,14 +300,27 @@ swap in `@mui/material` (rejected in
 
 ```bash
 supabase migration new <name>          # create new migration
-pnpm db:migrate                        # apply locally
+pnpm db:migrate                        # apply locally (don't — see below)
 pnpm --filter @pickupvb/supabase gen:types  # regenerate DB types
 ```
 
+**Don't verify migrations locally.** The maintainer does not run Docker /
+the local Supabase stack — spinning it up is costly on their machine. As an
+agent, **do not run `pnpm db:migrate` or `gen:types`**, and don't ask the
+user to in order to "verify" a migration. Write the migration file (with its
+preamble), reason about its correctness by reading it, and leave it for
+CI/CD to apply.
+
 **Production migrations are applied automatically by CI/CD** — any new file
 in `supabase/migrations/` is picked up and applied on deploy. Don't run
-production migrations by hand. Locally, you still need to `pnpm db:migrate`
-and regenerate types so typecheck passes against the new schema.
+production migrations by hand.
+
+When a code change depends on the new schema (new columns / tables that
+`pnpm typecheck` must see), **hand-edit the generated types in
+`packages/supabase`** to match what the migration produces, rather than
+regenerating them from a local DB. Note in your hand-off that the types were
+edited by hand and will be regenerated against the real schema on the next
+`gen:types` run.
 
 Never edit an applied migration. Add a follow-up migration instead.
 
