@@ -12,11 +12,23 @@
 // JSON-LD, visible text) to a JSON file the skill then parses into listings.
 //
 // Usage:
-//   node scrape-fb-event.mjs <url> [<url> ...] [--urls=<file>] [--out=<path>] [--headless]
+//   node scrape-fb-event.mjs <url> [<url> ...] [--urls=<file>] [--listings=<path>]
+//       [--out=<path>] [--max-age-days=<n>] [--force] [--headless]
 //
 // Pass event URLs as args and/or point --urls at a text file with one URL per
 // line (blank lines and #-comments ignored). URLs from both sources are scraped
 // in order, de-duplicated.
+//
+// Results are cached in fb-scrape-cache.json keyed by normalized URL:
+//   • Past events are NEVER re-scraped — once an event's date (from
+//     community-listings.json, via --listings, default ./community-listings.json)
+//     has elapsed, its cached entry is reused forever. They don't change.
+//   • Upcoming events are reused while their cached entry is younger than
+//     --max-age-days (default 7), else re-scraped.
+// So re-running over a growing fb-urls.txt only hits Facebook for new or
+// week-old upcoming entries. --force ignores both rules. If nothing needs
+// scraping, the browser (and Facebook login) is skipped entirely. The --out
+// file always contains all requested URLs (fresh + reused + past).
 //
 // First run: a browser window opens. Log into Facebook in it — the script
 // detects login automatically (via the c_user cookie) and continues. No
@@ -68,11 +80,19 @@ const rawUrls = [];
 let outPath = path.join(__dirname, 'fb-scrape-output.json');
 let headless = false;
 let loginTimeoutMin = 20;
+let maxAgeDays = 7;
+let force = false;
+let listingsPath = path.resolve('community-listings.json');
 for (const a of args) {
   if (a === '--headless') headless = true;
+  else if (a === '--force') force = true;
   else if (a.startsWith('--out=')) outPath = path.resolve(a.slice('--out='.length));
   else if (a.startsWith('--urls=')) rawUrls.push(...readUrlList(a.slice('--urls='.length)));
-  else if (a.startsWith('--login-timeout=')) {
+  else if (a.startsWith('--listings=')) listingsPath = path.resolve(a.slice('--listings='.length));
+  else if (a.startsWith('--max-age-days=')) {
+    const n = Number(a.slice('--max-age-days='.length));
+    if (Number.isFinite(n) && n >= 0) maxAgeDays = n;
+  } else if (a.startsWith('--login-timeout=')) {
     const n = Number(a.slice('--login-timeout='.length));
     if (Number.isFinite(n) && n > 0) loginTimeoutMin = n;
   } else if (a.startsWith('http')) rawUrls.push(a);
@@ -84,12 +104,75 @@ const urls = [...new Set(rawUrls)];
 
 if (urls.length === 0) {
   console.error(
-    'Usage: node scrape-fb-event.mjs <event-url> [<event-url> ...] [--urls=<file>] [--out=<path>] [--headless]',
+    'Usage: node scrape-fb-event.mjs <event-url> [<event-url> ...] [--urls=<file>]\n' +
+      '         [--out=<path>] [--max-age-days=<n>] [--force] [--headless]',
   );
   process.exit(1);
 }
 
 const SESSION_DIR = path.join(__dirname, '.fb-session');
+const CACHE_FILE = path.join(__dirname, 'fb-scrape-cache.json');
+const MAX_AGE_MS = maxAgeDays * 24 * 60 * 60 * 1000;
+
+/**
+ * Canonical cache key for a URL: drop query/fragment and any trailing slash so
+ * `…/events/123/`, `…/events/123`, and `…/events/123?ref=x` all map to one
+ * entry (and to the `externalUrl` the importer keys on).
+ */
+function normalizeUrl(u) {
+  try {
+    const url = new URL(u);
+    url.hash = '';
+    url.search = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return u.replace(/[?#].*$/, '').replace(/\/$/, '');
+  }
+}
+
+function loadCache() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {}; // missing/corrupt cache → start fresh
+  }
+}
+
+/**
+ * Map of normalized externalUrl → its resolved local date, read from the
+ * generated community-listings.json. This is the authoritative event date
+ * (the agent resolves relative dates like "Tomorrow" when writing that file),
+ * so the scraper uses it to tell which events are already in the past.
+ */
+function loadListingDates() {
+  const map = new Map();
+  try {
+    const arr = JSON.parse(fs.readFileSync(listingsPath, 'utf8'));
+    if (Array.isArray(arr)) {
+      for (const l of arr) {
+        if (l && l.externalUrl && (l.startsAtLocal || l.endsAtLocal)) {
+          map.set(normalizeUrl(l.externalUrl), l.endsAtLocal || l.startsAtLocal);
+        }
+      }
+    }
+  } catch {
+    /* no listings file yet → nothing is known-past */
+  }
+  return map;
+}
+
+/** A naive local wall-clock ('YYYY-MM-DDTHH:mm') that has already elapsed. */
+function isPastDate(localDate) {
+  const t = Date.parse(localDate); // parsed in the runtime's local zone
+  return Number.isFinite(t) && t < Date.now();
+}
+
+function isFresh(entry) {
+  if (force || !entry || entry.error || !entry.scrapedAt) return false;
+  const ts = Date.parse(entry.scrapedAt);
+  return Number.isFinite(ts) && Date.now() - ts < MAX_AGE_MS;
+}
 
 // ---- helpers --------------------------------------------------------------
 const log = (...m) => console.error('[scrape-fb-event]', ...m);
@@ -252,34 +335,96 @@ async function extract(page, requestedUrl) {
 }
 
 // ---- main -----------------------------------------------------------------
-const { chromium } = loadPlaywright();
+const cache = loadCache();
+const listingDates = loadListingDates();
 
-const context = await chromium.launchPersistentContext(SESSION_DIR, {
-  headless,
-  viewport: { width: 1280, height: 1400 },
-  args: ['--disable-blink-features=AutomationControlled'],
+// Decide up front which URLs still need a (re)scrape, so we can skip launching
+// the browser entirely (and skip the Facebook login) when everything is fresh.
+//
+// A URL is never (re)scraped when its event is already in the past (its date in
+// community-listings.json has elapsed) — past events don't change. `--force`
+// still overrides for a deliberate refetch. Otherwise the week-old freshness
+// rule applies.
+const plan = urls.map((url) => {
+  const key = normalizeUrl(url);
+  const listed = listingDates.get(key);
+  const past = !force && listed != null && isPastDate(listed);
+  if (past) return { url, key, past: true, fresh: !!cache[key] };
+  return { url, key, fresh: isFresh(cache[key]) };
 });
+const toScrape = plan.filter((p) => !p.fresh && !p.past);
+const pastSkipped = plan.filter((p) => p.past).length;
 
-const results = [];
-try {
-  const page = context.pages()[0] ?? (await context.newPage());
-  await ensureLoggedIn(context, page);
+if (toScrape.length === 0) {
+  log(
+    `Nothing to scrape — ${urls.length} URL(s): ${urls.length - pastSkipped} cached/fresh, ` +
+      `${pastSkipped} past (never rescraped).`,
+  );
+} else {
+  log(
+    `${toScrape.length} to scrape, ${urls.length - toScrape.length} reused ` +
+      `(${pastSkipped} past, rest fresh < ${maxAgeDays}d).`,
+  );
+  const { chromium } = loadPlaywright();
+  const context = await chromium.launchPersistentContext(SESSION_DIR, {
+    headless,
+    viewport: { width: 1280, height: 1400 },
+    args: ['--disable-blink-features=AutomationControlled'],
+  });
+  try {
+    const page = context.pages()[0] ?? (await context.newPage());
+    await ensureLoggedIn(context, page);
 
-  for (const url of urls) {
-    log(`Scraping ${url}`);
-    try {
-      const r = await extract(page, url);
-      results.push(r);
-      const titleHint = r.metas?.['og:title'] || r.title || '(no title)';
-      log(`  → captured "${titleHint}" (${r.text.length} chars text, ${r.jsonLd.length} JSON-LD)`);
-    } catch (err) {
-      log(`  ! failed: ${err.message}`);
-      results.push({ requestedUrl: url, finalUrl: null, error: String(err.message) });
+    for (const { url, key } of toScrape) {
+      log(`Scraping ${url}`);
+      try {
+        const r = await extract(page, url);
+        cache[key] = r;
+        const titleHint = r.metas?.['og:title'] || r.title || '(no title)';
+        log(
+          `  → captured "${titleHint}" (${r.text.length} chars text, ${r.jsonLd.length} JSON-LD)`,
+        );
+      } catch (err) {
+        log(`  ! failed: ${err.message}`);
+        // Don't overwrite a usable older cache entry with an error; only record
+        // the failure if we had nothing cached for this URL.
+        if (!cache[key] || cache[key].error) {
+          cache[key] = { requestedUrl: url, finalUrl: null, error: String(err.message) };
+        }
+      }
     }
+  } finally {
+    await context.close();
   }
-} finally {
-  await context.close();
+  // Persist the cache (gitignored via fb-scrape-*.json) for the next run.
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
 }
 
+// Assemble output for every requested URL, in request order, from the cache
+// (now containing this run's fresh scrapes plus reused older entries).
+const results = plan.map(({ url, key, fresh, past }) => {
+  const entry = cache[key];
+  if (entry) return { ...entry, cached: fresh, ...(past ? { pastEvent: true } : {}) };
+  // A past event we never cached: don't scrape it — the existing community
+  // listing already holds its data; signal the merge to keep that listing.
+  if (past) {
+    return {
+      requestedUrl: url,
+      finalUrl: null,
+      pastEvent: true,
+      note: 'Past event — not scraped; keep the existing community listing as-is.',
+    };
+  }
+  return { requestedUrl: url, finalUrl: null, error: 'No data scraped.' };
+});
+
 fs.writeFileSync(outPath, JSON.stringify(results, null, 2));
-log(`Wrote ${results.length} result(s) → ${outPath}`);
+// Partition disjointly: past events that are reused still carry `cached`, so
+// count them under "past" only to avoid double-counting.
+const pastOut = results.filter((r) => r.pastEvent).length;
+const reusedOut = results.filter((r) => r.cached && !r.pastEvent).length;
+const freshOut = results.filter((r) => !r.cached && !r.pastEvent && !r.error).length;
+log(
+  `Wrote ${results.length} result(s) (${freshOut} fresh, ${reusedOut} reused, ` +
+    `${pastOut} past) → ${outPath}`,
+);

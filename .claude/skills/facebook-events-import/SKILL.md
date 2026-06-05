@@ -49,8 +49,25 @@ The user provides one or both:
    node .claude/skills/facebook-events-import/scrape-fb-event.mjs --urls=fb-urls.txt
    ```
 
-   A real Chromium window opens; on first use the user logs into Facebook once
-   (session persists under `.fb-session/`, gitignored). Output is written to
+   Results are **cached** in `fb-scrape-cache.json` (keyed by normalized URL):
+   - **Past events are never re-scraped** — once an event's date (read from
+     `community-listings.json`, the authoritative resolved date) has elapsed,
+     its cached entry is reused forever, since the event can't change. A past
+     URL with no cache entry is skipped entirely (`pastEvent: true` in the
+     output) — keep its existing community listing in the merge rather than
+     re-parsing.
+   - **Upcoming events** are reused while younger than `--max-age-days`
+     (default 7), else re-scraped.
+
+   So re-running over a growing `fb-urls.txt` only hits Facebook for new or
+   week-old upcoming entries; if nothing needs scraping, the browser and login
+   are skipped entirely. Pass `--force` to ignore both rules. The `--out` file
+   always contains every requested URL (fresh + reused + past), each tagged
+   with `cached: true|false` (and `pastEvent: true` when applicable).
+
+   A real Chromium window opens (only when something needs scraping); on first
+   use the user logs into Facebook once (session persists under `.fb-session/`,
+   gitignored). Output is written to
    `.claude/skills/facebook-events-import/fb-scrape-output.json` — `Read` that
    file and parse each entry into the contract below. Fields, best-first:
    - `metas` — `event:start_time` / `event:end_time` are ISO timestamps **when
