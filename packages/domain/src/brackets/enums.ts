@@ -85,10 +85,18 @@ function floorPowerOfTwo(n: number): number {
  * the setup "Generate" gate all enforce the **same** rule with one message,
  * instead of letting the host commit a field that only fails late inside the
  * generator (TT-9). Pure — safe to call from a client component.
+ *
+ * For `pool_play_playoff`, pass the resolved `poolCount` / `advancePerPool`
+ * (defaults mirror `DEFAULT_BRACKET_CONFIG`: 2 / 2) so the create gate accounts
+ * for the **config**, not just the floor: a field smaller than
+ * `poolCount × advancePerPool` can't seed the playoff (TT-16). Omit `opts` to
+ * skip that check (e.g. the standalone setup gate, where the domain
+ * `generate()` guard is the backstop).
  */
 export function validateTeamCountForFormat(
   format: BracketFormat,
   teamCount: number,
+  opts?: { poolCount?: number; advancePerPool?: number },
 ): { ok: true } | { ok: false; reason: string } {
   const min = minTeamsForFormat(format);
   if (teamCount < min) {
@@ -106,6 +114,21 @@ export function validateTeamCountForFormat(
         'Double elimination needs a power-of-two field (4, 8, 16, 32, …). ' +
         `You have ${teamCount} — drop to ${lower} or add ${higher - teamCount} to reach ${higher}.`,
     };
+  }
+  if (format === 'pool_play_playoff' && opts) {
+    // Defaults mirror DEFAULT_BRACKET_CONFIG (can't import it here — enums is
+    // upstream of bracket.ts).
+    const poolCount = opts.poolCount ?? 2;
+    const advancePerPool = opts.advancePerPool ?? 2;
+    const need = poolCount * advancePerPool;
+    if (teamCount < need) {
+      return {
+        ok: false,
+        reason:
+          `Pool play with ${poolCount} pools advancing ${advancePerPool} per pool needs at ` +
+          `least ${need} teams; you have ${teamCount}. Reduce the pool count or advance-per-pool.`,
+      };
+    }
   }
   return { ok: true };
 }

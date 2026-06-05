@@ -26,6 +26,21 @@ describe('validateTeamCountForFormat', () => {
     expect(validateTeamCountForFormat('pool_play_playoff', 4).ok).toBe(true);
   });
 
+  it('accounts for pool config (poolCount × advancePerPool) when opts are passed (TT-16)', () => {
+    // 2 pools advancing 3 each → needs 6, not just the floor of 4.
+    const five = validateTeamCountForFormat('pool_play_playoff', 5, {
+      poolCount: 2,
+      advancePerPool: 3,
+    });
+    expect(five.ok).toBe(false);
+    if (!five.ok) expect(five.reason).toMatch(/at least 6/);
+    expect(
+      validateTeamCountForFormat('pool_play_playoff', 6, { poolCount: 2, advancePerPool: 3 }).ok,
+    ).toBe(true);
+    // Without opts only the format floor (4) applies.
+    expect(validateTeamCountForFormat('pool_play_playoff', 4).ok).toBe(true);
+  });
+
   it('requires a power-of-two field for double elimination', () => {
     // Below the floor → min message, not the power-of-two message.
     const below = validateTeamCountForFormat('double_elimination', 3);

@@ -168,7 +168,9 @@ const FORMATS: ReadonlyArray<FormatMeta> = [
     title: 'Double elimination',
     blurb: 'Lose once and you drop to a losers bracket; lose twice and you’re out.',
     bestFor: 'Most competitive tournaments — every team plays ≥ 2 matches.',
-    tradeoff: 'About twice the matches of single-elim; needs a power-of-two field (4, 8, 16, 32).',
+    tradeoff:
+      'About twice the matches of single-elim; needs a power-of-two field (4, 8, 16, 32). ' +
+      'Grand final is a single game (no bracket reset).',
     minTeams: 4,
   },
   {

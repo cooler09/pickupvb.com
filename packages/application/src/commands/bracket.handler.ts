@@ -11,6 +11,7 @@ import type {
 import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
 import {
   Bracket,
+  DEFAULT_BRACKET_CONFIG,
   DivisionId,
   EntryId,
   MatchId,
@@ -250,10 +251,15 @@ export class CreateBracketHandler {
     assertHost(evt.hostId, cmd.requesterId);
     const existing = await this.brackets.findByDivisionId(DivisionId(cmd.divisionId));
     if (existing) return { bracketId: existing.id };
-    // Full structural precondition, not just a count: double elimination also
-    // needs a power-of-two field, so a 5/6/7-team division can't run it (TT-9).
+    // Full structural precondition, not just a count: double elimination needs
+    // a power-of-two field (TT-9), and pool play needs ≥ poolCount×advancePerPool
+    // teams to seed the playoff (TT-16) — so the create gate accounts for the
+    // chosen config, not just the format floor.
     const teams = await this.brackets.listRegisteredTeams(evt.id, DivisionId(cmd.divisionId));
-    const check = validateTeamCountForFormat(cmd.format, teams.length);
+    const check = validateTeamCountForFormat(cmd.format, teams.length, {
+      poolCount: cmd.config?.poolCount ?? DEFAULT_BRACKET_CONFIG.poolCount,
+      advancePerPool: cmd.config?.advancePerPool ?? DEFAULT_BRACKET_CONFIG.advancePerPool,
+    });
     if (!check.ok) {
       throw new ValidationError(check.reason, { teamCount: teams.length, format: cmd.format });
     }

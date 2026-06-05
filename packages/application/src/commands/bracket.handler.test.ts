@@ -320,6 +320,21 @@ describe('Host-gated structural handlers (ADR 0032)', () => {
     expect(repo.saved!.status).toBe('setup');
   });
 
+  it('CreateBracketHandler rejects pool play under-configured for advance-per-pool (TT-16)', async () => {
+    // 5 teams, 2 pools advancing 3 each → needs 6; the floor (4) alone would
+    // have let it through.
+    const repo = new CountRepo(5);
+    await expect(
+      new CreateBracketHandler(hostEvents(), repo).execute(
+        new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'pool_play_playoff', {
+          poolCount: 2,
+          advancePerPool: 3,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.saveCount).toBe(0);
+  });
+
   it('SetPoolsHandler brands entry ids and assigns pools', async () => {
     const bracket = Bracket.create(BRACKET_ID, EVENT_ID, DIVISION_ID, 'pool_play_playoff', {
       bestOf: 1,

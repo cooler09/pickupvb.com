@@ -369,6 +369,9 @@ export class Bracket extends AggregateRoot<BracketId> {
             assignWorkTeam: this._config.requireWorkTeam,
             courtLabels: this._config.courtLabels,
             courtsByPool: this._config.courtsByPool,
+            // Every pool must field ≥ advancePerPool teams so the playoff can
+            // cross-seed — catches a too-small hand-assigned pool here (TT-16).
+            minAdvancePerPool: advancePerPool,
           },
           idFactory,
         );
@@ -438,6 +441,20 @@ export class Bracket extends AggregateRoot<BracketId> {
     }
     const pools = distinctPools(poolMatches);
     const standingsByPool = pools.map((p) => computePoolStandings(this._matches, p));
+    // Per-pool feasibility (TT-16, defense-in-depth): every pool must field at
+    // least advancePerPool finishers, else the cross-seed can't fill the
+    // bracket. Name the short pool rather than letting rankAcrossPools throw the
+    // generic "missing position N". Normally already caught at generate() time.
+    pools.forEach((p, i) => {
+      const size = standingsByPool[i]?.length ?? 0;
+      if (size < this._config.advancePerPool) {
+        throw new ValidationError(
+          `Pool ${p} has only ${size} team(s); can't advance ${this._config.advancePerPool} ` +
+            `per pool. Lower advance-per-pool or rebalance the pools.`,
+          { pool: p, size, advancePerPool: this._config.advancePerPool },
+        );
+      }
+    });
     // Auto cross-seed: overall finish across pools (pool winners ranked above
     // runners-up, by record within a tier) → standard 1-vs-N bracket. The host
     // can override the result with `seedPlayoff`. See ADR 0032.

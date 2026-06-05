@@ -27,6 +27,11 @@ correctness / parity / stale-data lens. Nine new findings **TT-9 … TT-17** bel
   danger-zone affordance on `/brackets/[id]`; the cap copy is now accurate. See the
   remediation log below.
 
+**TT-13 / TT-14 / TT-15 / TT-16 / TT-17 — ✅ all FIXED 2026-06-05** (TT-13/14/15 as
+TT-11 riders; TT-16 per-pool feasibility + TT-17 DE grand-final disclosure as a
+final P3 pass). **The entire TT-9 … TT-17 bracket-audit backlog is now resolved
+in-tree.**
+
 The two prior P1s are landed in-tree (TT-7 scope-XOR fix migration
 `20260912000000` committed in `03ab610f`; TT-8 double-elim loser-advance in
 `bracket.ts` committed in `ac43501f`) — verify on the next deploy.
@@ -345,7 +350,7 @@ standalone draft (TT-11) lands.
 **Fix:** add `draft: 'Draft'` and a draft render branch wherever standalone
 status is shown — bundle with TT-11.
 
-### TT-16 — Pool-play create gate ignores `advancePerPool`; uneven pools can fail playoff generation · **P3**
+### TT-16 — Pool-play create gate ignores `advancePerPool`; uneven pools can fail playoff generation · **P3** · ✅ FIXED 2026-06-05
 
 `CreateBracketHandler` checks only `minTeamsForFormat` (4 for pool play), not
 `poolCount * advancePerPool`
@@ -361,7 +366,7 @@ even when the global count passes.
 at `setPools`/Edit-pools time) with a message naming the short pool; factor the
 config into the create handler's min-team check.
 
-### TT-17 (note) — Double-elimination grand final has no bracket reset · **P3 (documented limitation)**
+### TT-17 (note) — Double-elimination grand final has no bracket reset · **P3 (documented limitation)** · ✅ DISCLOSED 2026-06-05
 
 The v1 grand final is a single match
 ([generators.ts#L283-L293](../../packages/domain/src/brackets/generators.ts#L283-L293)):
@@ -389,6 +394,33 @@ undisclosed.
 ---
 
 ## Remediation log
+
+### 2026-06-05 — TT-16 + TT-17: pool-play feasibility + DE grand-final disclosure (both P3)
+
+Closes the bracket-audit P3 backlog. Verify chain green (typecheck / lint / unit
+tests — domain 504, application 135 — / build). Narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-tt16-tt17-pool-feasibility-de-disclosure.md).
+
+- **TT-16 — per-pool advance feasibility.** The real bug was a **hand-assigned
+  uneven pool** (via `setPools`) leaving one pool with fewer than `advancePerPool`
+  teams even when the global count passed — surfacing late at `generatePlayoff`
+  as a cryptic "missing position N". Now caught at generate / Edit-pools time:
+  `generatePoolPlay` takes a `minAdvancePerPool` and throws a **pool-named**
+  `ValidationError`
+  ([generators.ts](../../packages/domain/src/brackets/generators.ts)), wired from
+  `Bracket.generate()`; `generatePlayoff` keeps a defense-in-depth pool-named
+  guard ([bracket.ts](../../packages/domain/src/brackets/bracket.ts)). The create
+  gate now factors the config in — `validateTeamCountForFormat` takes optional
+  `{ poolCount, advancePerPool }` and the create handler passes them, so an
+  under-configured pool field fails at **create**, not generate
+  ([enums.ts](../../packages/domain/src/brackets/enums.ts),
+  [bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)).
+  4 domain + 1 handler test added.
+- **TT-17 — DE grand-final disclosure.** The v1 single grand final (no bracket
+  reset) is now disclosed on the double-elimination format card
+  ([format-picker-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx)):
+  "Grand final is a single game (no bracket reset)." The reset itself stays a
+  roadmap item (a genuine generator change).
 
 ### 2026-06-05 — TT-11: standalone draft + manual-edit parity (P2 fixed; closes TT-13/14/15)
 

@@ -555,10 +555,31 @@ export function generatePoolPlay(
     assignWorkTeam?: boolean;
     courtLabels?: ReadonlyArray<string>;
     courtsByPool?: Readonly<Record<string, ReadonlyArray<string>>>;
+    /**
+     * When set, every pool must field at least this many teams so the later
+     * playoff cross-seed can fill its bracket. Hand-assigned **uneven** pools
+     * (via `setPools`) can otherwise leave one pool too small even when the
+     * global team count is sufficient — the failure would surface late at
+     * `generatePlayoff` with a cryptic "missing position N". Validating here
+     * names the short pool at generate / Edit-pools time instead. See TT-16.
+     */
+    minAdvancePerPool?: number;
   },
   mkId: IdFactory,
 ): Match[] {
   const pools = poolsFromSeedsOrSnake(seeds, poolCount);
+  if (options.minAdvancePerPool != null && options.minAdvancePerPool > 0) {
+    for (const p of pools) {
+      if (p.length < options.minAdvancePerPool) {
+        throw new ValidationError(
+          `Pool ${p[0]?.pool ?? '?'} has ${p.length} team(s) but ${options.minAdvancePerPool} ` +
+            `must advance to the playoff. Move teams so every pool has at least ` +
+            `${options.minAdvancePerPool}, or lower advance-per-pool.`,
+          { pool: p[0]?.pool, size: p.length, advancePerPool: options.minAdvancePerPool },
+        );
+      }
+    }
+  }
   let targetGames: number | null = null;
   if (options.schedule === 'fixed_games') {
     const g = options.gamesPerTeam;

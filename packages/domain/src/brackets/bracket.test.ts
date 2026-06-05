@@ -624,6 +624,64 @@ describe('Bracket.create courtLabels', () => {
   });
 });
 
+// ---- Per-pool advance feasibility (TT-16) ---------------------------
+
+describe('pool-play per-pool advance feasibility (TT-16)', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  const unevenSeeds = (): Seed[] => [
+    { entryId: tid(1), seed: 1, pool: 'A' },
+    { entryId: tid(2), seed: 2, pool: 'A' },
+    { entryId: tid(3), seed: 3, pool: 'B' },
+    { entryId: tid(4), seed: 4, pool: 'B' },
+    { entryId: tid(5), seed: 5, pool: 'B' },
+    { entryId: tid(6), seed: 6, pool: 'B' },
+  ];
+
+  it('generatePoolPlay rejects a hand-assigned pool smaller than advancePerPool, naming it', () => {
+    expect(() =>
+      generatePoolPlay(
+        unevenSeeds(),
+        2,
+        { schedule: 'round_robin', gamesPerTeam: null, minAdvancePerPool: 3 },
+        mkIdFactory(),
+      ),
+    ).toThrow(/Pool A has 2 team/);
+  });
+
+  it('generatePoolPlay allows pools that all meet advancePerPool', () => {
+    const even: Seed[] = [
+      { entryId: tid(1), seed: 1, pool: 'A' },
+      { entryId: tid(2), seed: 2, pool: 'A' },
+      { entryId: tid(3), seed: 3, pool: 'A' },
+      { entryId: tid(4), seed: 4, pool: 'B' },
+      { entryId: tid(5), seed: 5, pool: 'B' },
+      { entryId: tid(6), seed: 6, pool: 'B' },
+    ];
+    expect(() =>
+      generatePoolPlay(
+        even,
+        2,
+        { schedule: 'round_robin', gamesPerTeam: null, minAdvancePerPool: 3 },
+        mkIdFactory(),
+      ),
+    ).not.toThrow();
+  });
+
+  it('generate() rejects a too-small hand-assigned pool even when the global count passes', () => {
+    // 6 teams, 2 pools advancing 3 → global guard (6 ≥ 2×3) passes, but the
+    // hand-assigned A:2 / B:4 split leaves A short.
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      advancePerPool: 3,
+    });
+    b.seedTeams([tid(1), tid(2), tid(3), tid(4), tid(5), tid(6)]);
+    b.setPools(unevenSeeds().map((s) => ({ entryId: s.entryId, pool: s.pool })));
+    expect(() => b.generate(mkIdFactory())).toThrow(/Pool A/);
+  });
+});
+
 // ---- Per-pool courts -----------------------------------------------
 
 describe('assignCourtsAndSlots courtsByPool', () => {
