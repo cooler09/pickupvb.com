@@ -43,7 +43,7 @@ export type ByeStrategy = 'top_seeds' | 'play_in';
  * picker UI — keep both in sync.
  *
  * Note: a count at or above this floor is necessary but not always
- * sufficient — double elimination additionally needs a power-of-two field.
+ * sufficient — pool play additionally needs `poolCount × advancePerPool` teams.
  * Use {@link validateTeamCountForFormat} for the full precondition.
  */
 export function minTeamsForFormat(format: BracketFormat): number {
@@ -51,9 +51,8 @@ export function minTeamsForFormat(format: BracketFormat): number {
     case 'single_elimination':
       return 2;
     case 'double_elimination':
-      // The v1 generator needs ≥ 4 AND a power of two (see
-      // generateDoubleElimination). The floor is 4; the power-of-two shape
-      // is enforced by validateTeamCountForFormat.
+      // The generator needs ≥ 4; non-power-of-two fields get winners-round-1
+      // byes (see generateDoubleElimination).
       return 4;
     case 'round_robin':
       return 3;
@@ -62,29 +61,17 @@ export function minTeamsForFormat(format: BracketFormat): number {
   }
 }
 
-/** True for n in {1, 2, 4, 8, 16, …}. */
-function isPowerOfTwo(n: number): boolean {
-  return Number.isInteger(n) && n >= 1 && (n & (n - 1)) === 0;
-}
-
-/** Largest power of two ≤ n (n ≥ 1). */
-function floorPowerOfTwo(n: number): number {
-  let p = 1;
-  while (p * 2 <= n) p *= 2;
-  return p;
-}
-
 /**
  * Validate a team count against a format's **structural** requirements — the
  * {@link minTeamsForFormat} floor plus any shape constraint the generator
- * imposes. Double elimination (v1) additionally needs a power-of-two field
- * (4, 8, 16, 32, …) so the losers-bracket pairing stays clean (see
- * {@link generateDoubleElimination}); the other formats only have a minimum.
+ * imposes. Double elimination supports any field of 4+ (non-power-of-two fields
+ * get byes in winners-round 1 — see {@link generateDoubleElimination}); pool
+ * play additionally needs `poolCount × advancePerPool` teams to seed the playoff.
  *
  * Returns a structured result so the create handler, the format picker, and
  * the setup "Generate" gate all enforce the **same** rule with one message,
  * instead of letting the host commit a field that only fails late inside the
- * generator (TT-9). Pure — safe to call from a client component.
+ * generator. Pure — safe to call from a client component.
  *
  * For `pool_play_playoff`, pass the resolved `poolCount` / `advancePerPool`
  * (defaults mirror `DEFAULT_BRACKET_CONFIG`: 2 / 2) so the create gate accounts
@@ -103,16 +90,6 @@ export function validateTeamCountForFormat(
     return {
       ok: false,
       reason: `This format needs at least ${min} team${min === 1 ? '' : 's'}; you have ${teamCount}.`,
-    };
-  }
-  if (format === 'double_elimination' && !isPowerOfTwo(teamCount)) {
-    const lower = floorPowerOfTwo(teamCount); // ≥ 4 because teamCount ≥ min (4)
-    const higher = lower * 2;
-    return {
-      ok: false,
-      reason:
-        'Double elimination needs a power-of-two field (4, 8, 16, 32, …). ' +
-        `You have ${teamCount} — drop to ${lower} or add ${higher - teamCount} to reach ${higher}.`,
     };
   }
   if (format === 'pool_play_playoff' && opts) {

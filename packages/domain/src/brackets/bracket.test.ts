@@ -4,6 +4,7 @@ import {
   Bracket,
   DEFAULT_BRACKET_CONFIG,
   assignCourtsAndSlots,
+  generateDoubleElimination,
   generatePlayoffFromRanked,
   generatePoolPlay,
   generateRoundRobin,
@@ -234,6 +235,158 @@ describe('double elimination — losers bracket advancement', () => {
     b.resetMatch(semis[0]!.id);
     const lbAfter = b.matches.find((m) => m.id === lbMatch!.id)!;
     expect(lbAfter.entryAId === droppedLoser || lbAfter.entryBId === droppedLoser).toBe(false);
+  });
+});
+
+// ---- Double elimination — non-power-of-two byes + reset final -------
+
+describe('double elimination — non-power-of-two fields (byes)', () => {
+  const eventId = 'event-de-bye' as EventId;
+  const divisionId = 'division-de-bye' as DivisionId;
+
+  it('generates a 6-team double elim with two WB-R1 byes and a reset final (no power-of-two throw)', () => {
+    const matches = generateDoubleElimination(seedTeams(6), mkIdFactory());
+    const wbR1Byes = matches.filter(
+      (m) => m.bracketSide === 'winners' && m.round === 1 && m.status === 'bye',
+    );
+    expect(wbR1Byes.length).toBe(2); // P=8, 4 WB-R1 matches, 6 teams → 2 byes
+    // Grand final + reset are both `final`.
+    expect(matches.filter((m) => m.bracketSide === 'final').length).toBe(2);
+    // Pruning left no LB match with a permanently-empty slot: every surviving LB
+    // match is either fed by two live sources or is a real R1 with two seeds.
+  });
+
+  for (const n of [5, 6, 7]) {
+    it(`an ${n}-team double elim plays through to a single champion (top seed wins out)`, () => {
+      const b = Bracket.create(
+        `bracket-de-${n}` as BracketId,
+        eventId,
+        divisionId,
+        'double_elimination',
+        { bestOf: 1 }, // one set decides; entryA (top row) always wins
+      );
+      b.seedTeams(seedTeams(n).map((s) => s.entryId));
+      b.generate(mkIdFactory());
+      b.publish();
+
+      // Record every playable match (entryA always wins) until none remain. If
+      // bye pruning left an unreachable match, this stalls and the status
+      // assertion below fails.
+      for (let i = 0; i < 200; i++) {
+        const next = b.matches.find(
+          (m) => m.status !== 'completed' && m.status !== 'bye' && m.entryAId && m.entryBId,
+        );
+        if (!next) break;
+        b.recordResult({
+          matchId: next.id,
+          sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }],
+        });
+      }
+
+      // Whole graph resolved.
+      expect(b.matches.every((m) => m.status === 'completed' || m.status === 'bye')).toBe(true);
+      expect(b.status).toBe('completed');
+      // Every completed match actually had two real teams (no orphan TBD slot).
+      for (const m of b.matches) {
+        if (m.status === 'completed') expect(!!(m.entryAId && m.entryBId)).toBe(true);
+      }
+      // A single champion: the winner of the highest-round completed final.
+      const finals = b.matches
+        .filter((m) => m.bracketSide === 'final' && m.status === 'completed')
+        .sort((x, y) => y.round - x.round);
+      expect(finals[0]?.winnerEntryId).toBeTruthy();
+    });
+  }
+});
+
+describe('double elimination — reset grand final', () => {
+  const recordWinner = (b: Bracket, m: Match, side: 'a' | 'b') =>
+    b.recordResult({
+      matchId: m.id,
+      sets: [
+        { setNumber: 1, teamAScore: side === 'a' ? 25 : 10, teamBScore: side === 'a' ? 10 : 25 },
+      ],
+    });
+
+  it('voids the reset when the winners-bracket team wins the grand final', () => {
+    const b = Bracket.create(
+      'bracket-de-noreset' as BracketId,
+      'event-x' as EventId,
+      'division-x' as DivisionId,
+      'double_elimination',
+      { bestOf: 1 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    b.publish();
+    // Play everything (entryA wins) — the WB team also wins the grand final.
+    for (let i = 0; i < 50; i++) {
+      const next = b.matches.find(
+        (m) => m.status !== 'completed' && m.status !== 'bye' && m.entryAId && m.entryBId,
+      );
+      if (!next) break;
+      recordWinner(b, next, 'a');
+    }
+    expect(b.status).toBe('completed');
+    const finals = b.matches.filter((m) => m.bracketSide === 'final');
+    const reset = finals.sort((x, y) => y.round - x.round)[0]!;
+    expect(reset.status).toBe('bye'); // voided
+    expect(reset.entryAId).toBeNull();
+  });
+
+  it('forces a deciding reset when the losers-bracket team wins the grand final', () => {
+    const b = Bracket.create(
+      'bracket-de-reset' as BracketId,
+      'event-y' as EventId,
+      'division-y' as DivisionId,
+      'double_elimination',
+      { bestOf: 1 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    b.publish();
+
+    // Play every non-final match (entryA wins) so only the grand final remains.
+    for (let i = 0; i < 50; i++) {
+      const next = b.matches.find(
+        (m) =>
+          m.status !== 'completed' &&
+          m.status !== 'bye' &&
+          m.entryAId &&
+          m.entryBId &&
+          m.bracketSide !== 'final',
+      );
+      if (!next) break;
+      recordWinner(b, next, 'a');
+    }
+    const gf = b.matches.find(
+      (m) => m.bracketSide === 'final' && m.status !== 'completed' && m.entryAId && m.entryBId,
+    )!;
+    expect(gf).toBeTruthy();
+
+    // The losers-bracket team (slot b) wins the grand final → reset required.
+    recordWinner(b, gf, 'b');
+    expect(b.status).not.toBe('completed');
+    const reset = b.matches.find((m) => m.bracketSide === 'final' && m.id !== gf.id)!;
+    expect(reset.status).toBe('pending');
+    expect(!!(reset.entryAId && reset.entryBId)).toBe(true);
+
+    // Reverting the grand final (still active) pulls the reset back to a clean
+    // slate — it's a conditional game that only exists once the LB side wins.
+    b.resetMatch(gf.id);
+    const resetReverted = b.matches.find((m) => m.id === reset.id)!;
+    expect(resetReverted.entryAId).toBeNull();
+    expect(resetReverted.entryBId).toBeNull();
+    expect(resetReverted.status).toBe('pending');
+
+    // Re-decide the grand final the same way, then play the reset → the bracket
+    // completes with the reset's winner as champion.
+    recordWinner(b, b.matches.find((m) => m.id === gf.id)!, 'b');
+    const resetLive = b.matches.find((m) => m.id === reset.id)!;
+    expect(!!(resetLive.entryAId && resetLive.entryBId)).toBe(true);
+    recordWinner(b, resetLive, 'a');
+    expect(b.status).toBe('completed');
+    expect(resetLive.winnerEntryId).toBeTruthy();
   });
 });
 

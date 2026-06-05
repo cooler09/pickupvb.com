@@ -298,10 +298,8 @@ describe('Host-gated structural handlers (ADR 0032)', () => {
     expect(m.bestOf).toBe(3);
   });
 
-  it('CreateBracketHandler rejects a double-elim field that is not a power of two (TT-9)', async () => {
-    // 6 registered teams meets the old floor (3) but the v1 generator can't
-    // build a non-power-of-two double-elim — reject at create, before save.
-    const repo = new CountRepo(6);
+  it('CreateBracketHandler rejects a double-elim field below the floor of 4', async () => {
+    const repo = new CountRepo(3);
     await expect(
       new CreateBracketHandler(hostEvents(), repo).execute(
         new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'double_elimination'),
@@ -310,8 +308,9 @@ describe('Host-gated structural handlers (ADR 0032)', () => {
     expect(repo.saveCount).toBe(0);
   });
 
-  it('CreateBracketHandler accepts a power-of-two double-elim field', async () => {
-    const repo = new CountRepo(8);
+  it('CreateBracketHandler accepts a non-power-of-two double-elim field (byes)', async () => {
+    // 6-team DE is now valid — the generator gives the top seeds R1 byes.
+    const repo = new CountRepo(6);
     const { bracketId } = await new CreateBracketHandler(hostEvents(), repo).execute(
       new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'double_elimination'),
     );

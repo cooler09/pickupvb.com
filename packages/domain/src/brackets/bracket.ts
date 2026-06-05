@@ -835,8 +835,54 @@ export class Bracket extends AggregateRoot<BracketId> {
     return m;
   }
 
+  /**
+   * When `match` is the double-elimination grand final — a `final` match whose
+   * winner edge points at another `final` match (the reset) — return that reset
+   * match; otherwise null. Guards on the format so a pool-play playoff (whose
+   * matches are all `bracketSide: 'final'`) never trips the reset logic.
+   */
+  private grandFinalResetFor(match: Match): Match | null {
+    if (this._format !== 'double_elimination') return null;
+    if (match.bracketSide !== 'final' || !match.advancesToMatchId) return null;
+    const target = this._matches.find((m) => m.id === match.advancesToMatchId);
+    return target && target.bracketSide === 'final' ? target : null;
+  }
+
+  /** Return the grand-final reset to a clean, unplayed-and-unvoided slate. */
+  private clearGrandFinalReset(reset: Match): void {
+    reset.entryAId = null;
+    reset.entryBId = null;
+    reset.sets = [];
+    reset.winnerEntryId = null;
+    reset.status = 'pending';
+  }
+
   private applyAdvancement(match: Match): void {
     if (!match.winnerEntryId) return;
+    // Double-elimination grand-final → reset. The grand final's winner edge
+    // points at the reset, but the reset is a *conditional* game: only the
+    // losers-bracket team (slot b) forces it. If the winners-bracket team
+    // (slot a) wins the grand final it has the title (the LB side now has two
+    // losses), so the reset is voided as a bye to let the bracket complete.
+    const gfReset = this.grandFinalResetFor(match);
+    if (gfReset) {
+      if (match.winnerEntryId === match.entryAId) {
+        // WB champion — void the reset.
+        gfReset.entryAId = null;
+        gfReset.entryBId = null;
+        gfReset.sets = [];
+        gfReset.winnerEntryId = null;
+        gfReset.status = 'bye';
+      } else {
+        // LB champion — both teams have one loss; play the deciding reset.
+        gfReset.entryAId = match.entryAId;
+        gfReset.entryBId = match.entryBId;
+        gfReset.sets = [];
+        gfReset.winnerEntryId = null;
+        gfReset.status = 'pending';
+      }
+      return;
+    }
     // Winner advances to its next match.
     if (match.advancesToMatchId && match.advancesToSlot) {
       const next = this._matches.find((m) => m.id === match.advancesToMatchId);
@@ -860,6 +906,13 @@ export class Bracket extends AggregateRoot<BracketId> {
   }
 
   private unwireAdvancement(match: Match): void {
+    // Double-elim grand final → reset: clearing the grand final's result fully
+    // resets the (conditional) reset game, not just one of its slots.
+    const directReset = this.grandFinalResetFor(match);
+    if (directReset) {
+      this.clearGrandFinalReset(directReset);
+      return;
+    }
     // Walk forward and clear every slot this match's result fed — the winner's
     // advancement AND (double elim) the loser's drop — cascading through any
     // downstream match whose own result consumed a now-removed team. Slots are
@@ -890,6 +943,14 @@ export class Bracket extends AggregateRoot<BracketId> {
         m.winnerEntryId = null;
         m.sets = [];
         m.status = 'pending';
+        // If the cleared match is the grand final, fully reset its reset game
+        // rather than pushing the generic forward edge (which would clear only
+        // one reset slot).
+        const cascadeReset = this.grandFinalResetFor(m);
+        if (cascadeReset) {
+          this.clearGrandFinalReset(cascadeReset);
+          continue;
+        }
         if (m.advancesToMatchId && m.advancesToSlot) {
           queue.push({ matchId: m.advancesToMatchId, slot: m.advancesToSlot });
         }

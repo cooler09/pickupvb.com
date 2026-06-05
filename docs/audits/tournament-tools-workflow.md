@@ -375,7 +375,9 @@ losses), the WB team is eliminated on a **single** loss — not true double-elim
 which would grant a reset game. Acceptable as a v1 limitation but currently
 undisclosed.
 **Fix:** disclose it in the format picker ("single grand final, no reset") and put
-"grand-final reset" on the roadmap.
+"grand-final reset" on the roadmap. **✅ The reset grand final was implemented
+2026-06-05** (see the double-elim-parity remediation entry above), superseding this
+disclosure — the format card now describes the reset behavior instead.
 
 ### Stale data / cleanup notes
 
@@ -394,6 +396,38 @@ undisclosed.
 ---
 
 ## Remediation log
+
+### 2026-06-05 — Double-elim parity: non-power-of-two byes + reset grand final (roadmap items; supersedes the TT-9 pow2 guard + TT-17 disclosure)
+
+Implemented the two genuine generator limitations that TT-9 and TT-17 had been
+papering over. Verify chain green (typecheck / lint / unit tests — domain 510 — /
+build). Narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-double-elim-byes-reset-final.md).
+
+- **Non-power-of-two double elim.** `generateDoubleElimination` now builds for any
+  field of 4+: it lays out the `P = nextPow2(N)` skeleton, gives the top seeds
+  winners-round-1 byes, then a structural "will this slot ever hold a real team?"
+  propagation prunes the losers-bracket matches a bye starves and re-routes the
+  live feeders past them (`resolveLosersBracketByes` in
+  [generators.ts](../../packages/domain/src/brackets/generators.ts)). 5/6/7-team
+  fields now play cleanly through to a champion (domain tests).
+  **This supersedes TT-9's power-of-two precondition** — `validateTeamCountForFormat`
+  dropped the DE pow2 check (the floor of 4 stays); the format picker no longer
+  shows a pow2 shape gate.
+- **Reset grand final (true double elim).** The generator emits a second `final`
+  match (the reset) wired off the grand final; the aggregate activates it only
+  when the **losers-bracket** team wins the grand final (both then have one loss),
+  and voids it as a bye when the winners-bracket team wins
+  (`grandFinalResetFor` / `applyAdvancement` / `unwireAdvancement` in
+  [bracket.ts](../../packages/domain/src/brackets/bracket.ts)). The board renders
+  the reset only once it's populated
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+  **This supersedes TT-17** — the "single grand final (no bracket reset)"
+  disclosure was removed from the format card.
+- Backward compatible: a power-of-two field generates no byes (no pruning), and a
+  WB-team grand-final win voids the reset, so existing 4-/8-team behavior is
+  unchanged apart from the (conditional) reset match. 6 domain tests added
+  (byes playthrough for 5/6/7 teams; reset forced vs. voided; reset revert).
 
 ### 2026-06-05 — TT-16 + TT-17: pool-play feasibility + DE grand-final disclosure (both P3)
 
@@ -535,9 +569,10 @@ Verify chain green (typecheck / lint / 657 unit tests / build).
   also covers the **standalone** surface, whose create path doesn't enforce a count
   ([setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)).
 
-Not yet addressed (roadmap): true non-power-of-two double-elim support (byes in
-WB R1) so 5/6/7-team fields can run it at all — the durable fix. Until then the
-guard fails fast with a clear path instead of a late generator error.
+~~Not yet addressed (roadmap): true non-power-of-two double-elim support (byes in
+WB R1)~~ — **✅ implemented 2026-06-05** (see the double-elim-parity remediation
+entry above); the TT-9 power-of-two precondition this fix added was superseded by
+that work. The floor of 4 remains.
 
 ### 2026-06-02 — bracket workflow redesign (ADR 0032, cross-reference)
 

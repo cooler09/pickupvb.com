@@ -53,10 +53,10 @@ export function SetupView(props: {
     props.seeds.length -
     props.seeds.filter((s) => props.registeredTeams.some((t) => t.entryId === s.entryId)).length;
 
-  // Format-aware readiness: beyond the 2-team floor, double elimination needs a
-  // power-of-two field. Gate Generate on the full precondition so the host (or
-  // standalone owner, whose create path doesn't enforce a count) sees the issue
-  // here instead of a late generator error (TT-9).
+  // Format-aware readiness: gate Generate on each format's minimum (single 2,
+  // round-robin/double-elim 4, …) so the host — or standalone owner, whose
+  // create path doesn't enforce a count — sees the issue here instead of a late
+  // generator error.
   const genCheck = validateTeamCountForFormat(props.bracketFormat, orderedTeams.length);
   const canGenerate = genCheck.ok;
 

@@ -238,12 +238,23 @@ export function BoardView(props: {
         </div>
       )}
 
-      {isDoubleElim && playoffMatches.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-fg text-base font-semibold">Grand final</h2>
-          {renderRoundColumns(playoffMatches, () => 'Final')}
-        </div>
-      )}
+      {isDoubleElim &&
+        (() => {
+          // The grand final + (conditional) reset are both `bracketSide:'final'`.
+          // Show the reset only once it's populated — it's voided (empty bye)
+          // when the winners-bracket team takes the grand final, and empty before
+          // the grand final is played. The reset is the higher-numbered round.
+          const finals = playoffMatches.slice().sort((a, b) => a.round - b.round);
+          const visibleFinals = finals.filter((m, i) => i === 0 || !!m.entryAId || !!m.entryBId);
+          if (visibleFinals.length === 0) return null;
+          const resetRound = finals.length > 1 ? finals[finals.length - 1]!.round : null;
+          return (
+            <div className="space-y-2">
+              <h2 className="text-fg text-base font-semibold">Grand final</h2>
+              {renderRoundColumns(visibleFinals, (r) => (r === resetRound ? 'Reset' : 'Final'))}
+            </div>
+          );
+        })()}
 
       {!isDoubleElim && (otherMatches.length > 0 || playoffMatches.length > 0) && (
         <div className="space-y-2">

@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { minTeamsForFormat, validateTeamCountForFormat } from './enums.js';
 
 describe('minTeamsForFormat', () => {
-  it('floors double elimination at 4 (the generator needs ≥4 + power-of-two)', () => {
-    // Regression for TT-9: the floor said 3 while generateDoubleElimination
-    // requires at least 4 — letting a host commit a field that only failed at
-    // generate time.
+  it('floors double elimination at 4', () => {
     expect(minTeamsForFormat('double_elimination')).toBe(4);
   });
 
@@ -41,30 +38,16 @@ describe('validateTeamCountForFormat', () => {
     expect(validateTeamCountForFormat('pool_play_playoff', 4).ok).toBe(true);
   });
 
-  it('requires a power-of-two field for double elimination', () => {
-    // Below the floor → min message, not the power-of-two message.
+  it('accepts any double-elimination field of 4+ (non-power-of-two gets byes)', () => {
+    // Below the floor is still rejected.
     const below = validateTeamCountForFormat('double_elimination', 3);
     expect(below.ok).toBe(false);
     if (!below.ok) expect(below.reason).toMatch(/at least 4/);
 
-    // Power-of-two counts pass.
-    for (const n of [4, 8, 16, 32]) {
+    // Power-of-two AND non-power-of-two counts all pass now (the generator
+    // handles odd sizes with winners-round-1 byes).
+    for (const n of [4, 5, 6, 7, 8, 9, 15, 16]) {
       expect(validateTeamCountForFormat('double_elimination', n).ok).toBe(true);
-    }
-
-    // The common "stuck" counts are rejected with an actionable hint.
-    for (const n of [5, 6, 7, 9, 15]) {
-      const res = validateTeamCountForFormat('double_elimination', n);
-      expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.reason).toMatch(/power-of-two/);
-    }
-
-    // 6 → suggest dropping to 4 or adding 2 to reach 8.
-    const six = validateTeamCountForFormat('double_elimination', 6);
-    expect(six.ok).toBe(false);
-    if (!six.ok) {
-      expect(six.reason).toContain('drop to 4');
-      expect(six.reason).toContain('reach 8');
     }
   });
 });
