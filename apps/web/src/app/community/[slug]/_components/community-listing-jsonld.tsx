@@ -23,8 +23,8 @@ export function CommunityListingJsonLd({
     region: string | null;
     postalCode: string | null;
     country: string;
-    latitude: number;
-    longitude: number;
+    latitude: number | null;
+    longitude: number | null;
   } | null;
 }) {
   const url = `https://pickupvb.com/community/${slug}`;
@@ -50,11 +50,16 @@ export function CommunityListingJsonLd({
               ...(location.postalCode ? { postalCode: location.postalCode } : {}),
               addressCountry: location.country,
             },
-            geo: {
-              '@type': 'GeoCoordinates',
-              latitude: location.latitude,
-              longitude: location.longitude,
-            },
+            // Only emit coordinates when the address was geocoded.
+            ...(location.latitude !== null && location.longitude !== null
+              ? {
+                  geo: {
+                    '@type': 'GeoCoordinates',
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                  },
+                }
+              : {}),
           },
         }
       : {}),

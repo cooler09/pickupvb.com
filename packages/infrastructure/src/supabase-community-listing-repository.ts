@@ -90,22 +90,27 @@ function parsePointFromGeo(geo: unknown): {
 }
 
 function rowToLocation(row: ListingRow): ListingLocation | null {
+  // The text address is the all-or-nothing part: no city/country means no
+  // location at all (matches the DB `community_listings_location_complete`
+  // check). Coordinates are a separate optional layer — a row may legitimately
+  // carry an address with a null `geo` (geocoding failed at import), in which
+  // case we keep the address and report null coords rather than dropping it.
+  if (row.city === null || row.country === null) {
+    return null;
+  }
   const latitude = isFiniteNumber(row.latitude) ? row.latitude : null;
   const longitude = isFiniteNumber(row.longitude) ? row.longitude : null;
   const point =
     latitude !== null && longitude !== null ? { latitude, longitude } : parsePointFromGeo(row.geo);
 
-  if (row.city === null || row.country === null || point === null) {
-    return null;
-  }
   return {
     addressLine: row.address_line,
     city: row.city,
     region: row.region,
     postalCode: row.postal_code,
     country: row.country,
-    latitude: point.latitude,
-    longitude: point.longitude,
+    latitude: point?.latitude ?? null,
+    longitude: point?.longitude ?? null,
   };
 }
 

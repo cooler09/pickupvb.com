@@ -116,6 +116,12 @@ export default function ImportClient() {
                     <Link href={`/community/${r.slug}`} className="text-primary underline">
                       view
                     </Link>
+                    {!r.geocoded && (
+                      <span className="mt-1 block text-xs text-amber-700">
+                        Saved with the address as text — it didn&rsquo;t geocode, so it won&rsquo;t
+                        show on the map or in distance search until coordinates are added.
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="text-red-700"> — {r.error}</span>

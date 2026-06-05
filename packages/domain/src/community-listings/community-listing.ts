@@ -12,9 +12,13 @@ export const CommunityListingId = idConstructor<'CommunityListingId'>();
 export type CommunityListingStatus = 'active' | 'hidden' | 'claim_pending' | 'claimed' | 'removed';
 
 /**
- * Optional location for a listing. All fields move together: either every
- * required field is present, or the whole location is null. Coordinates are
- * required when a location is present so geo search works.
+ * Optional location for a listing. The text fields move together: either
+ * `city` + `country` are present (the all-or-nothing rule enforced below and by
+ * the DB check), or the whole location is null. Coordinates are a *separate*
+ * optional layer: present when the address geocoded, null when it didn't (e.g.
+ * a bulk-imported listing whose street address MapTiler couldn't resolve). A
+ * coordless location still displays its address text; it's simply absent from
+ * the map and from distance-based search until coordinates are added.
  */
 export interface ListingLocation {
   addressLine: string | null;
@@ -22,8 +26,8 @@ export interface ListingLocation {
   region: string | null;
   postalCode: string | null;
   country: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface CreateCommunityListingProps {
@@ -62,11 +66,17 @@ function normalizeLocation(loc: ListingLocation | null): ListingLocation | null 
   if (!loc.city.trim() || !loc.country.trim()) {
     throw new InvariantViolation('City and country are required when location is provided.');
   }
-  if (loc.latitude < -90 || loc.latitude > 90) {
-    throw new InvariantViolation('Latitude must be between -90 and 90.');
-  }
-  if (loc.longitude < -180 || loc.longitude > 180) {
-    throw new InvariantViolation('Longitude must be between -180 and 180.');
+  // Coordinates are optional and move together — a listing keeps its text
+  // address even when geocoding failed. Validate the range only when both are
+  // present; if either is missing, store no point at all.
+  const hasCoords = typeof loc.latitude === 'number' && typeof loc.longitude === 'number';
+  if (hasCoords) {
+    if (loc.latitude! < -90 || loc.latitude! > 90) {
+      throw new InvariantViolation('Latitude must be between -90 and 90.');
+    }
+    if (loc.longitude! < -180 || loc.longitude! > 180) {
+      throw new InvariantViolation('Longitude must be between -180 and 180.');
+    }
   }
   return {
     addressLine: loc.addressLine?.trim() || null,
@@ -74,8 +84,8 @@ function normalizeLocation(loc: ListingLocation | null): ListingLocation | null 
     region: loc.region?.trim() || null,
     postalCode: loc.postalCode?.trim() || null,
     country: loc.country.trim(),
-    latitude: loc.latitude,
-    longitude: loc.longitude,
+    latitude: hasCoords ? loc.latitude : null,
+    longitude: hasCoords ? loc.longitude : null,
   };
 }
 

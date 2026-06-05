@@ -35,8 +35,8 @@ function toListingLocation(
         region?: string | null | undefined;
         postalCode?: string | null | undefined;
         country: string;
-        latitude: number;
-        longitude: number;
+        latitude?: number | null | undefined;
+        longitude?: number | null | undefined;
       }
     | null
     | undefined,
@@ -48,8 +48,8 @@ function toListingLocation(
     region: loc.region ?? null,
     postalCode: loc.postalCode ?? null,
     country: loc.country,
-    latitude: loc.latitude,
-    longitude: loc.longitude,
+    latitude: loc.latitude ?? null,
+    longitude: loc.longitude ?? null,
   };
 }
 

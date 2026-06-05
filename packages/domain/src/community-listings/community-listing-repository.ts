@@ -82,8 +82,9 @@ export interface CommunityListingDetailReadModel {
     region: string | null;
     postalCode: string | null;
     country: string;
-    latitude: number;
-    longitude: number;
+    /** Null when the address couldn't be geocoded (no map / distance search). */
+    latitude: number | null;
+    longitude: number | null;
   } | null;
   surface: Surface | null;
   format: Format | null;
