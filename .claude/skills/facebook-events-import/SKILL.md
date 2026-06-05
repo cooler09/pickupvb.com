@@ -43,7 +43,10 @@ The user provides one or both:
    root:
 
    ```bash
+   # one or more URLs as args …
    node .claude/skills/facebook-events-import/scrape-fb-event.mjs <url> [<url> ...]
+   # … and/or a text file with one URL per line (blank lines / #-comments ok):
+   node .claude/skills/facebook-events-import/scrape-fb-event.mjs --urls=fb-urls.txt
    ```
 
    A real Chromium window opens; on first use the user logs into Facebook once
@@ -73,14 +76,26 @@ The user provides one or both:
 
 4. **Build one draft object per event** following the contract below.
 
-5. **Write the result** to a file (default `community-listings.json` in the
+5. **Write/merge the result** into `community-listings.json` (default in the
    current directory, or a path the user names) as a **bare JSON array**,
-   pretty-printed. Then validate it (see "Self-check") and report a one-line
-   summary per event (title — date — city).
+   pretty-printed. **Upsert, don't overwrite:** if the file already exists, read
+   it and merge by **`externalUrl`** — replace the entry whose `externalUrl`
+   matches a freshly-parsed event, append the ones that are new, and leave
+   untouched entries that weren't re-scraped. This keeps one
+   `community-listings.json` as the durable source of truth across runs (it
+   mirrors the importer's server-side upsert in step 6). Normalize the
+   `externalUrl` to the canonical event URL (e.g. strip query/fragment →
+   `https://www.facebook.com/events/<id>`) so the key is stable. Then validate
+   the merged array (see "Self-check") and report a one-line summary per event
+   (title — date — city), noting which were added vs. updated.
 
 6. **Tell the user how to import:** upload the file at
    `https://pickupvb.com/admin/community-import` (platform-admin only); they'll
-   review and fix each draft before creating them in bulk. The "…or paste JSON
+   review and fix each draft before importing in bulk. **The importer is
+   idempotent** — it matches on `externalUrl` and **updates** an existing
+   listing in place (or **creates** a new one), so re-uploading the same file
+   after edits won't make duplicates. A listing that's already been claimed /
+   removed / is under review is skipped, not overwritten. The "…or paste JSON
    directly" disclosure on that page also accepts the array contents.
 
 ## Output contract — one object per event

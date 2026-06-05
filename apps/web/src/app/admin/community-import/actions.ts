@@ -3,19 +3,22 @@
 import { revalidatePath } from 'next/cache';
 import { ZodError } from 'zod';
 import { CreateCommunityListingSchema, type CreateCommunityListingDto } from '@pickupvb/types';
-import { CreateCommunityListingCommand } from '@pickupvb/application';
+import {
+  CreateCommunityListingCommand,
+  UpdateCommunityListingCommand,
+} from '@pickupvb/application';
 import { ValidationError } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { handlers, repositories } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 import { isPlatformAdmin } from '@/lib/admin';
 import { geocodeAddress } from '@/lib/geocode';
-import { timeZoneForCoords } from '@/lib/timezone';
+import { timeZoneForCoords, zonedWallClockToUtc } from '@/lib/timezone';
 import type { ListingDraft } from '@/lib/listing-draft';
 
 const RETURN_PATH = '/admin/community-import';
 
 export type ImportRowResult =
-  | { title: string; ok: true; slug: string; geocoded: boolean }
+  | { title: string; ok: true; slug: string; geocoded: boolean; action: 'created' | 'updated' }
   | { title: string; ok: false; error: string };
 
 export type ImportResult = { ok: true; results: ImportRowResult[] } | { ok: false; error: string };
@@ -28,9 +31,15 @@ async function requireAdmin(): Promise<{ userId: string } | null> {
 }
 
 /**
- * Geocode + validate + create each reviewed draft. Per-row failures
- * don't abort the batch — each row reports its own success/error so the admin
- * can fix and retry just the ones that failed.
+ * Geocode + validate + **upsert** each reviewed draft. Re-importing the same
+ * external URL updates the existing listing in place rather than creating a
+ * duplicate — so the importer is idempotent and an admin can keep one
+ * `community-listings.json` as the source of truth. Matching is on
+ * `external_url` (see `findByExternalUrl`); an existing listing that's already
+ * claimed / removed / under review is left untouched and reported as skipped.
+ *
+ * Per-row failures don't abort the batch — each row reports its own
+ * success/error so the admin can fix and retry just the ones that failed.
  */
 export async function importAction(drafts: ListingDraft[]): Promise<ImportResult> {
   const admin = await requireAdmin();
@@ -40,10 +49,36 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
   for (const draft of drafts) {
     try {
       const { dto, geocoded } = await draftToDto(draft);
-      const { slug } = await handlers.createCommunityListing.execute(
-        new CreateCommunityListingCommand(admin.userId, dto),
-      );
-      results.push({ title: draft.title, ok: true, slug, geocoded });
+      const existing = await repositories.communityListingRepo.findByExternalUrl(dto.externalUrl);
+
+      if (existing) {
+        // Don't silently overwrite a listing that's left the editable states —
+        // a claimed/removed/pending listing is no longer a plain import target.
+        if (existing.status !== 'active' && existing.status !== 'hidden') {
+          results.push({
+            title: draft.title,
+            ok: false,
+            error: `Skipped — an existing listing for this URL is ${existing.status.replace('_', ' ')}.`,
+          });
+          continue;
+        }
+        await handlers.updateCommunityListing.execute(
+          new UpdateCommunityListingCommand(existing.id, admin.userId, dto),
+        );
+        revalidatePath(`/community/${existing.slug}`);
+        results.push({
+          title: draft.title,
+          ok: true,
+          slug: existing.slug,
+          geocoded,
+          action: 'updated',
+        });
+      } else {
+        const { slug } = await handlers.createCommunityListing.execute(
+          new CreateCommunityListingCommand(admin.userId, dto),
+        );
+        results.push({ title: draft.title, ok: true, slug, geocoded, action: 'created' });
+      }
     } catch (err) {
       results.push({ title: draft.title, ok: false, error: messageFor(err) });
     }
@@ -104,18 +139,25 @@ async function draftToDto(
   }
 
   const hasCoords = location?.latitude != null && location?.longitude != null;
+  const timeZone =
+    location && hasCoords
+      ? timeZoneForCoords(location.latitude as number, location.longitude as number)
+      : null;
+
+  // `startsAtLocal` / `endsAtLocal` are venue-local wall-clock with no zone.
+  // Anchor them in the venue timezone before persisting — otherwise the naive
+  // string is parsed in the server's zone (UTC on Vercel) and the listing shows
+  // hours off (the 5am-vs-9am bug). Falls back to UTC when there's no geocoded
+  // zone. See `zonedWallClockToUtc`.
   const raw = {
     title: d.title,
     description: d.description,
     externalUrl: d.externalUrl,
     externalHostName: d.externalHostName,
-    startsAt: d.startsAtLocal,
-    endsAt: d.endsAtLocal || null,
+    startsAt: zonedWallClockToUtc(d.startsAtLocal, timeZone),
+    endsAt: d.endsAtLocal ? zonedWallClockToUtc(d.endsAtLocal, timeZone) : null,
     location,
-    timeZone:
-      location && hasCoords
-        ? timeZoneForCoords(location.latitude as number, location.longitude as number)
-        : null,
+    timeZone,
     surface: d.surface,
     format: d.format,
     skillLevel: d.skillLevel,

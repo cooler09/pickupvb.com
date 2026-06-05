@@ -3,6 +3,7 @@ import {
   ConflictError,
   ExternalUrl,
   type CommunityListingDetailReadModel,
+  type CommunityListingIdentity,
   type CommunityListingRepository,
   type CommunityListingSearchQuery,
   type CommunityListingStatus,
@@ -171,6 +172,23 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (error) throw new Error(`CommunityListing.findBySlug(${slug}) failed: ${error.message}`);
     if (!data) return null;
     return rowToAggregate(data as unknown as ListingRow);
+  }
+
+  async findByExternalUrl(externalUrl: string): Promise<CommunityListingIdentity | null> {
+    // `external_url` isn't unique (a listing can be re-submitted); the importer
+    // upserts the earliest row so re-imports converge on one canonical listing.
+    const { data, error } = await this.table('community_listings')
+      .select('id, slug, status')
+      .eq('external_url', externalUrl)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`CommunityListing.findByExternalUrl failed: ${error.message}`);
+    }
+    if (!data) return null;
+    const row = data as { id: string; slug: string; status: CommunityListingStatus };
+    return { id: row.id, slug: row.slug, status: row.status };
   }
 
   async save(listing: CommunityListing): Promise<void> {

@@ -112,7 +112,7 @@ export default function ImportClient() {
                 <span className="font-medium">{r.title}</span>
                 {r.ok ? (
                   <>
-                    {' — created · '}
+                    {r.action === 'updated' ? ' — updated · ' : ' — created · '}
                     <Link href={`/community/${r.slug}`} className="text-primary underline">
                       view
                     </Link>

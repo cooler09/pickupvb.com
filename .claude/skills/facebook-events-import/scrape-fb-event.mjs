@@ -12,7 +12,11 @@
 // JSON-LD, visible text) to a JSON file the skill then parses into listings.
 //
 // Usage:
-//   node scrape-fb-event.mjs <url> [<url> ...] [--out=<path>] [--headless]
+//   node scrape-fb-event.mjs <url> [<url> ...] [--urls=<file>] [--out=<path>] [--headless]
+//
+// Pass event URLs as args and/or point --urls at a text file with one URL per
+// line (blank lines and #-comments ignored). URLs from both sources are scraped
+// in order, de-duplicated.
 //
 // First run: a browser window opens. Log into Facebook in it — the script
 // detects login automatically (via the c_user cookie) and continues. No
@@ -44,24 +48,43 @@ function loadPlaywright() {
 }
 
 // ---- args -----------------------------------------------------------------
+function readUrlList(file) {
+  const resolved = path.resolve(file);
+  let text;
+  try {
+    text = fs.readFileSync(resolved, 'utf8');
+  } catch (err) {
+    console.error(`[scrape-fb-event] Could not read --urls file ${resolved}: ${err.message}`);
+    process.exit(1);
+  }
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#') && line.startsWith('http'));
+}
+
 const args = process.argv.slice(2);
-const urls = [];
+const rawUrls = [];
 let outPath = path.join(__dirname, 'fb-scrape-output.json');
 let headless = false;
 let loginTimeoutMin = 20;
 for (const a of args) {
   if (a === '--headless') headless = true;
   else if (a.startsWith('--out=')) outPath = path.resolve(a.slice('--out='.length));
+  else if (a.startsWith('--urls=')) rawUrls.push(...readUrlList(a.slice('--urls='.length)));
   else if (a.startsWith('--login-timeout=')) {
     const n = Number(a.slice('--login-timeout='.length));
     if (Number.isFinite(n) && n > 0) loginTimeoutMin = n;
-  } else if (a.startsWith('http')) urls.push(a);
+  } else if (a.startsWith('http')) rawUrls.push(a);
   else console.error(`[scrape-fb-event] Ignoring unrecognized arg: ${a}`);
 }
 
+// De-dupe while preserving order (a URL may appear in both args and the file).
+const urls = [...new Set(rawUrls)];
+
 if (urls.length === 0) {
   console.error(
-    'Usage: node scrape-fb-event.mjs <event-url> [<event-url> ...] [--out=<path>] [--headless]',
+    'Usage: node scrape-fb-event.mjs <event-url> [<event-url> ...] [--urls=<file>] [--out=<path>] [--headless]',
   );
   process.exit(1);
 }

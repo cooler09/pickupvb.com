@@ -8,10 +8,26 @@ import type { CommunityListing, CommunityListingStatus } from './community-listi
  * Write side returns/accepts the `CommunityListing` aggregate.
  * Read side returns denormalized read models shaped for the UI.
  */
+/**
+ * Lightweight identity lookup for the bulk importer's upsert: enough to decide
+ * whether a re-imported draft creates a new listing or updates an existing one,
+ * and to link to it — without rebuilding the full aggregate.
+ */
+export interface CommunityListingIdentity {
+  id: string;
+  slug: string;
+  status: CommunityListingStatus;
+}
+
 export interface CommunityListingRepository {
   // ---- Write side ------------------------------------------------------
   findById(id: string): Promise<CommunityListing | null>;
   findBySlug(slug: string): Promise<CommunityListing | null>;
+  /**
+   * Identity of the earliest listing with this external URL, or null. The
+   * external URL is the stable cross-import key the admin importer upserts on.
+   */
+  findByExternalUrl(externalUrl: string): Promise<CommunityListingIdentity | null>;
   save(listing: CommunityListing): Promise<void>;
   delete(id: string): Promise<void>;
 
