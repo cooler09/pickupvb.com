@@ -18,7 +18,26 @@
 import { useCallback, useEffect, useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
 
-type State = 'unknown' | 'unsupported' | 'denied' | 'off' | 'on' | 'working';
+type State = 'unknown' | 'unsupported' | 'ios-install' | 'denied' | 'off' | 'on' | 'working';
+
+/**
+ * iOS only exposes the Push API to an **installed** PWA (Add to Home Screen),
+ * never to a Safari tab. Detect that case so we can show actionable guidance
+ * instead of a flat "not supported".
+ */
+function isIosNeedsInstall(): boolean {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') return false;
+  const ua = navigator.userAgent;
+  const isIOS =
+    /iphone|ipad|ipod/i.test(ua) ||
+    // iPadOS reports as Mac; disambiguate by touch support.
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (!isIOS) return false;
+  const standalone =
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
+  return !standalone;
+}
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -45,7 +64,7 @@ export function PushSubscribeButton({ vapidPublicKey }: { vapidPublicKey: string
         !('serviceWorker' in navigator) ||
         !('PushManager' in window)
       ) {
-        if (!cancelled) setState('unsupported');
+        if (!cancelled) setState(isIosNeedsInstall() ? 'ios-install' : 'unsupported');
         return;
       }
       try {
@@ -126,6 +145,15 @@ export function PushSubscribeButton({ vapidPublicKey }: { vapidPublicKey: string
       <p className="text-muted text-xs">
         Push notifications aren&apos;t supported in this browser
         {!vapidPublicKey ? ' (server VAPID key not configured)' : ''}.
+      </p>
+    );
+  }
+  if (state === 'ios-install') {
+    return (
+      <p className="text-muted text-xs">
+        On iPhone &amp; iPad, push works only after you install PickupVB: tap the Share button, then{' '}
+        <span className="font-medium">Add to Home Screen</span>. Open the app from your home screen
+        and you&apos;ll be able to enable push here.
       </p>
     );
   }

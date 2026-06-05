@@ -241,6 +241,18 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'Open in PickupVB',
     ),
   }),
+  // Default channels are push + in_app (see KIND_DEFAULT_CHANNELS); the
+  // email/sms renderers exist to satisfy the exhaustive Record and never dispatch.
+  'chat.message.received': (p) => ({
+    subject: `New message from ${p.senderName}`,
+    text: `${p.senderName}: ${p.preview}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">New message from ${escapeHtml(p.senderName)}</h2>
+             <p>${escapeHtml(p.preview)}</p>`,
+      `${APP_URL}/messages/${p.conversationId}`,
+      'Open conversation',
+    ),
+  }),
   'account.deletion.requested': (p) => ({
     subject: 'Your PickupVB account is scheduled for deletion',
     text: `Your PickupVB account is scheduled to be permanently deleted on ${formatDate(p.scheduledFor)}. If you didn't request this — or change your mind — you can cancel any time before then from your profile.`,
@@ -309,6 +321,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   }),
   'broadcast.host_message': (p) => ({
     body: `PickupVB · ${p.senderName}: ${p.body.slice(0, 240)}`,
+  }),
+  'chat.message.received': (p) => ({
+    body: `PickupVB · ${p.senderName}: ${p.preview.slice(0, 200)}`,
   }),
   'account.deletion.requested': (p) => ({
     body: `PickupVB: Your account is scheduled for deletion on ${formatDate(p.scheduledFor)}. Cancel before then: ${APP_URL}/profile/account/delete`,
@@ -387,6 +402,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     title: p.subject,
     body: p.body.slice(0, 200),
     href: p.eventId ? `/events/${p.eventId}` : p.groupId ? `/groups/${p.groupId}` : '/',
+  }),
+  'chat.message.received': (p) => ({
+    title: `New message from ${p.senderName}`,
+    body: p.preview || null,
+    href: `/messages/${p.conversationId}`,
   }),
   'account.deletion.requested': (p) => ({
     title: 'Account deletion scheduled',

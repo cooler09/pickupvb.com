@@ -27,6 +27,7 @@ export type NotificationKind =
   | 'badge.earned'
   | 'team.invite'
   | 'broadcast.host_message'
+  | 'chat.message.received'
   | 'account.deletion.requested'
   | 'account.deletion.cancelled';
 
@@ -38,6 +39,7 @@ export type NotificationCategory =
   | 'social'
   | 'host_payouts'
   | 'broadcasts'
+  | 'messages'
   | 'marketing';
 
 export type NotificationChannel = 'email' | 'sms' | 'push' | 'in_app';
@@ -56,17 +58,18 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'badge.earned': 'social',
   'team.invite': 'group_activity',
   'broadcast.host_message': 'broadcasts',
+  'chat.message.received': 'messages',
   'account.deletion.requested': 'transactional',
   'account.deletion.cancelled': 'transactional',
 };
 
 /** Default channels for each kind. Per-user prefs further filter this set. */
 export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel[]> = {
-  'event.signup.confirmed': ['email', 'in_app'],
+  'event.signup.confirmed': ['email', 'push', 'in_app'],
   'event.waitlist.promoted': ['email', 'push', 'in_app'],
   'event.cancelled': ['email', 'push', 'in_app'],
   'event.updated': ['email', 'push', 'in_app'],
-  'event.reminder.24h': ['email', 'in_app'],
+  'event.reminder.24h': ['email', 'push', 'in_app'],
   'event.reminder.2h': ['email', 'push', 'in_app'],
   'payment.refunded': ['email', 'in_app'],
   'host.payout.paid': ['email', 'in_app'],
@@ -75,6 +78,10 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   'badge.earned': ['in_app'],
   'team.invite': ['email', 'push', 'in_app'],
   'broadcast.host_message': ['email', 'push', 'in_app'],
+  // Chat pings are push + bell only — no email (a DM isn't an email-worthy
+  // event); the dispatch site coalesces a back-and-forth so a thread doesn't
+  // spam. See lib/notify-chat.ts.
+  'chat.message.received': ['push', 'in_app'],
   'account.deletion.requested': ['email', 'in_app'],
   'account.deletion.cancelled': ['email', 'in_app'],
 };
@@ -154,6 +161,14 @@ export type NotificationPayloadMap = {
     subject: string;
     body: string;
     senderName: string;
+  };
+  'chat.message.received': {
+    /** Conversation the message landed in (drives the thread href). */
+    conversationId: string;
+    senderId: string;
+    senderName: string;
+    /** Short, already-truncated message preview (or a placeholder for images). */
+    preview: string;
   };
   'account.deletion.requested': {
     /** ISO date the account is scheduled to be permanently deleted. */

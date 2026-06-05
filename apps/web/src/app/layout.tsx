@@ -38,6 +38,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: '#e6004a',
 };
 
 export const metadata: Metadata = {
@@ -49,6 +50,8 @@ export const metadata: Metadata = {
     'Discover, create, and join pickup volleyball events near you — indoor, grass, and beach. Open play, leagues, and tournaments. Free to use.',
   metadataBase: new URL('https://pickupvb.com'),
   applicationName: 'PickupVB',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'PickupVB', statusBarStyle: 'default' },
   keywords: [
     'volleyball',
     'pickup volleyball',
