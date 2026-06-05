@@ -1,6 +1,6 @@
 # Home / Landing Page UX Audit
 
-_Last updated: 2026-06-01_
+_Last updated: 2026-06-05_
 
 UX/UI evaluation of the **home / landing page**
 ([apps/web/src/app/page.tsx](../../apps/web/src/app/page.tsx)) — the front door
@@ -51,6 +51,41 @@ This file is complementary to — not a duplicate of:
 > - The page already computes `now` at the server boundary
 >   ([page.tsx#L27](../../apps/web/src/app/page.tsx#L27)), so `relativeEventDay`
 >   can be threaded without re-introducing `Date.now()` in render.
+
+> **Status update (2026-06-05):** Re-audit pass at the user's request — bugs /
+> gaps / stale data / improvements. No new P1; the page renders and is
+> SEO-covered by the root layout. Three **new** findings added below: **H-7**
+> (the "waitlists" host claim overstates what the product does — only over-fill
+> _flagging_ exists, no host-side promotion/management; see the
+> `waitlist-not-implemented` note and the **Hannah** persona gap), **H-8** (the
+> "Groups & organizations" peek is ordered `name ASC`, so it shows the same six
+> alphabetically-first groups forever — it contradicts the page's own "fresh
+> content … running events" framing), and **H-9** (the highest-traffic page is
+> fully dynamic, yet both anon peek reads are viewer-independent and trivially
+> cacheable). Verified the **"Real-time spot updates"** hero claim is _honest_ —
+> [use-event-attendees.ts#L32](../../apps/web/src/hooks/use-event-attendees.ts#L32)
+> subscribes to per-event `postgres_changes`, so it is **not** flagged. H-2 / H-3
+> / H-6 from the prior pass remain open and unchanged.
+>
+> Grounding facts that shaped grading:
+>
+> - **Waitlist is over-fill flagging, not a managed queue.** The domain raises
+>   `SpotFilled(..., waitlist)` when a position goes over its configured count
+>   ([volleyball-event.ts#L686-L688](../../packages/domain/src/events/volleyball-event.ts#L686-L688)),
+>   and the RSVP panel shows a "Join waitlist" CTA / "Waitlist" badge
+>   ([position-rsvp-panel.tsx#L98](../../apps/web/src/app/events/[id]/_components/position-rsvp-panel.tsx#L98)).
+>   There is **no** host-side waitlist roster, promotion, or auto-fill — so
+>   "run waitlists" / "Waitlists & capacity rules" promise host capability the
+>   product doesn't have.
+> - **The groups peek is `name ASC`, capped at 6**
+>   ([supabase-group-query-repository.ts#L112-L121](../../packages/infrastructure/src/supabase-group-query-repository.ts#L112-L121)),
+>   with no "has upcoming events" filter. The `groups` row has `created_at`, so a
+>   "fresh / active" ordering is available without a schema change.
+> - **The page reads `cookies()`** (`getCurrentUser` + `getServerSupabase`,
+>   [page.tsx#L26-L27](../../apps/web/src/app/page.tsx#L26-L27)), so it renders
+>   dynamically on every hit. For an anonymous viewer both peek reads
+>   (`searchEvents` with `viewerId: null`; `listCards`) are **identical across
+>   all anon visitors** — a perfect `unstable_cache` candidate.
 
 ---
 
@@ -229,6 +264,110 @@ marketing footer for a player-relevant block. Flagged **P3** and called out as a
 **product decision**, not a defect — the header + bottom-nav already give players
 their primary surfaces, so this is upside, not a gap.
 
+### E. Marketing-copy honesty (stale claims)
+
+#### H-7 — The homepage advertises "waitlists" the product doesn't actually run · **P2** · _new 2026-06-05_
+
+The page sells **waitlists as a host feature** in three places:
+
+- the "Host" value card body — _"Collect signups, **run waitlists**, take payment…"_
+  ([page.tsx#L166](../../apps/web/src/app/page.tsx#L166)),
+- the host-pitch prose — _"signups, **waitlists**, online payments…"_
+  ([page.tsx#L204](../../apps/web/src/app/page.tsx#L204)),
+- the host-pitch checklist — _"**Waitlists** & capacity rules"_
+  ([page.tsx#L218](../../apps/web/src/app/page.tsx#L218)).
+
+But there is **no waitlist feature** in the host sense. What exists is over-fill
+_flagging_: when a position goes past its configured count the aggregate raises
+`SpotFilled(..., waitlist: true)`
+([volleyball-event.ts#L686-L688](../../packages/domain/src/events/volleyball-event.ts#L686-L688)),
+the RSVP panel shows a "Join waitlist" CTA / "Waitlist" badge
+([position-rsvp-panel.tsx#L98](../../apps/web/src/app/events/[id]/_components/position-rsvp-panel.tsx#L98)),
+and the join CTA reads "Join waitlist" when full
+([load-event-detail.ts#L683](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts#L683)).
+There is **no waitlist queue a host manages, no auto-promotion when a spot frees
+up, and no separate waitlist roster** — confirmed by the `waitlist-not-implemented`
+note (the **Hannah** persona gap). A host who signs up because of this copy will
+look for a "promote from waitlist" control that isn't there. Stale/overstated
+public claim on the highest-traffic page → graded **P2** (honesty, not polish:
+it sets a host expectation the product fails).
+
+**Recommended fix (pick one):**
+
+- (a) Cheapest + honest: soften the three strings to what's real —
+  e.g. "**over-capacity signups flagged**" / "capacity & over-fill rules" rather
+  than "run waitlists" / "Waitlists & capacity rules". The "Join waitlist" CTA on
+  the detail page is accurate for the _player_ side, so the player-facing framing
+  can stay; only the **host-capability** framing on the homepage overstates.
+- (b) Build the feature (waitlist roster + host promotion / auto-fill on a freed
+  spot), then the copy becomes true. That's the real **Hannah** gap; tracked
+  separately — don't gate the copy fix on it.
+
+Recommend (a) now; (b) is its own initiative.
+
+### F. Content curation (visitor / stale-feel)
+
+#### H-8 — The groups peek is alphabetical, contradicting its "fresh / running events" framing · **P3** · _new 2026-06-05_
+
+The page comment says it pulls _"a small slice of **fresh** content to make the
+landing page feel alive"_ ([page.tsx#L30](../../apps/web/src/app/page.tsx#L30)),
+and the section subtitle reads _"Clubs, leagues, and crews **running events**"_
+([page.tsx#L179](../../apps/web/src/app/page.tsx#L179)). But `listCards(6)` orders
+by **`name` ascending**
+([supabase-group-query-repository.ts#L112-L121](../../packages/infrastructure/src/supabase-group-query-repository.ts#L112-L121)),
+with no "has upcoming events" filter. Net effect: the peek shows the **same six
+alphabetically-first groups forever** — a brand-new empty group named "A-Town VB"
+outranks an active club, and the slice never changes, so the page does **not**
+feel alive and the "running events" claim isn't enforced. (The "Upcoming events"
+peek above it _is_ time-ordered and fresh; only groups is static.)
+
+**Recommended fix (pick one):**
+
+- (a) Cheap: add an ordering param to `listCards` (or a dedicated
+  `listFreshCards`) and order by **`created_at DESC`** — the `groups` row already
+  has `created_at`, so no schema change. At least the slice rotates as new groups
+  appear, and matches "fresh".
+- (b) Honest to the subtitle: surface groups that actually **host upcoming
+  events** (join `events` on `host_group_id` with `starts_at > now`, order by
+  soonest / count). More work; truest to the copy. If not done, soften the
+  subtitle to "Clubs, leagues, and crews on PickupVB".
+
+Recommend (a) for the quick win; (b) if we want the section to mean what it says.
+P3 (the section works; it's curation quality).
+
+### G. Performance
+
+#### H-9 — The highest-traffic page is fully dynamic, though the anon peek is viewer-independent and cacheable · **P3** · _new 2026-06-05_
+
+The home page reads `cookies()` via `getCurrentUser()` + `getServerSupabase()`
+([page.tsx#L26-L27](../../apps/web/src/app/page.tsx#L26-L27)), so Next renders it
+**dynamically on every request** — no CDN/full-route cache on the busiest public
+page, and two DB round-trips (`searchEvents` RPC + `listCards`) per hit including
+every anonymous visitor and crawler. For an **anonymous** viewer both reads are
+_viewer-independent_: `searchEvents` runs with `viewerId: null` and `listCards`
+is identical for everyone. So the data is shared across all anon hits but
+re-fetched each time.
+
+This isn't `force-dynamic` abuse (the page never sets it — pitfall #3 is clean);
+it's an unrealized caching opportunity, hence **P3**, but high-leverage given the
+traffic.
+
+**Recommended fix:** wrap the two anon-branch reads in `unstable_cache` with a
+short `revalidate` (e.g. 60–300s) and tags, invalidated by the existing event /
+group mutators (`eventCacheTag` / a new groups tag). Keep the **authed** branch
+dynamic (it personalizes via `viewerId`). Per the repo pitfall _"Never call
+`cookies()` inside `unstable_cache`"_, the cached callback must use
+`getAdminSupabase()` (via dynamic `import()`) rather than the session client —
+which is correct here because the cached payload is the **public** (anon) view of
+events/groups. Mirrors the `loadAdHocRowsCached` pattern in
+[load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts).
+Belongs in the [performance.md](performance.md) sweep too.
+
+> **Minor (noise, not graded):** `upcomingEvents.slice(0, 6)`
+> ([page.tsx#L116](../../apps/web/src/app/page.tsx#L116)) is redundant — the
+> `searchEvents` query already passes `limit: 6`. Harmless; drop it if touching
+> the block.
+
 ---
 
 ## Remediation log
@@ -252,3 +391,22 @@ now)` off the `now` the page already had (stays a pure server component). Zero
 
 _Open: H-2 (location honesty), H-3 (empty-peek), H-4 (shared `GroupCard`),
 H-6 (signed-in personalization). H-5 lives with persona-ux V-4._
+
+### 2026-06-05 — Re-audit pass (new findings, none fixed yet)
+
+Bugs / gaps / stale-data sweep at the user's request. **No code shipped** — this
+entry records the new backlog only.
+
+- **H-7 (P2)** — homepage advertises "run waitlists" / "Waitlists & capacity
+  rules" but only over-fill _flagging_ exists; no host-side promotion/management.
+  Soften copy (option a) or build the queue (option b, the Hannah gap).
+- **H-8 (P3)** — groups peek ordered `name ASC` with no events filter, so it's
+  static and contradicts "fresh / running events". Order by `created_at DESC`
+  (a) or join upcoming events (b).
+- **H-9 (P3)** — page is fully dynamic; anon peek reads are viewer-independent
+  and cacheable via `unstable_cache` + admin client (don't read `cookies()` in
+  the cache callback).
+- Verified **not** stale: the "Real-time spot updates" hero claim is backed by
+  `use-event-attendees.ts` realtime — left as-is.
+
+_Open after this pass: H-2, H-3, H-6 (prior) + H-7, H-8, H-9 (new)._

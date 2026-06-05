@@ -89,7 +89,9 @@ export default async function CommunityListingsPage(props: {
   const lat = parseNum(get('lat'));
   const lng = parseNum(get('lng'));
   const radiusKm = parseNum(get('radiusKm')) ?? DEFAULT_RADIUS_KM;
-  const hasLocation = lat !== null && lng !== null;
+  // Narrowed once so every downstream dereference (query, links, hidden inputs)
+  // type-checks without repeating the null guard.
+  const near = lat !== null && lng !== null ? { latitude: lat, longitude: lng, radiusKm } : null;
 
   const now = new Date();
   // Load a generous window and slice for display (pattern #12). This removes the
@@ -102,7 +104,7 @@ export default async function CommunityListingsPage(props: {
       // Upcoming: soonest-first. Past: most-recent-first (order desc) so the
       // freshest history leads instead of the oldest archived event.
       ...(isPast ? { startsBefore: now, order: 'desc' as const } : { startsAfter: now }),
-      ...(hasLocation ? { near: { latitude: lat, longitude: lng, radiusKm } } : {}),
+      ...(near ? { near } : {}),
       ...(surface ? { surface } : {}),
       ...(format ? { format } : {}),
       ...(skillLevel ? { skillLevel } : {}),
@@ -120,8 +122,12 @@ export default async function CommunityListingsPage(props: {
   // All active state, preserved when switching tabs / applying filters / paging.
   const filterQuery: Record<string, string> = {
     ...baseFilterQuery,
-    ...(hasLocation
-      ? { lat: lat.toFixed(6), lng: lng.toFixed(6), radiusKm: String(radiusKm) }
+    ...(near
+      ? {
+          lat: near.latitude.toFixed(6),
+          lng: near.longitude.toFixed(6),
+          radiusKm: String(radiusKm),
+        }
       : {}),
   };
 
@@ -181,7 +187,7 @@ export default async function CommunityListingsPage(props: {
       <div className="flex flex-wrap items-center gap-2">
         <LocationSearch basePath="/community" />
         <NearMeButton basePath="/community" />
-        {hasLocation && (
+        {near && (
           <span className="text-muted text-sm">
             Within {radiusKm} km ·{' '}
             <Link
@@ -201,10 +207,10 @@ export default async function CommunityListingsPage(props: {
         <input type="hidden" name="when" value={when} />
         {/* Preserve an active location across an Apply (the GET form would
             otherwise drop these and reset to a non-geo search). */}
-        {hasLocation && (
+        {near && (
           <>
-            <input type="hidden" name="lat" value={lat.toFixed(6)} />
-            <input type="hidden" name="lng" value={lng.toFixed(6)} />
+            <input type="hidden" name="lat" value={near.latitude.toFixed(6)} />
+            <input type="hidden" name="lng" value={near.longitude.toFixed(6)} />
             <input type="hidden" name="radiusKm" value={String(radiusKm)} />
           </>
         )}
@@ -273,7 +279,18 @@ export default async function CommunityListingsPage(props: {
 
       {listings.length === 0 ? (
         <p className="bg-highlight/30 text-muted rounded-md p-6 text-center">
-          {isPast ? (
+          {near ? (
+            <>
+              No community listings within {radiusKm} km match your filters.{' '}
+              <Link
+                href={{ pathname: '/community', query: { ...baseFilterQuery, when } }}
+                className="text-primary font-semibold hover:underline"
+              >
+                Clear the location filter
+              </Link>{' '}
+              to see all{isPast ? ' past' : ' upcoming'} listings.
+            </>
+          ) : isPast ? (
             'No past community listings match your filters.'
           ) : (
             <>

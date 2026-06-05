@@ -13,10 +13,11 @@ the claim feature's advertised outcome was a no-op, and the JSON-LD embed was a
 stored-XSS vector that arbitrary users could reach.
 
 **Remediation update — 2026-06-05 (verified quad-green: typecheck/lint/test/build):**
-Fixed **all 3 P1** + **CL-5 / CL-6 / CL-8 / CL-9** (P2) + **CL-10 / CL-11 /
-CL-13 / CL-14** (P3). Still open: **CL-4** (claim notifications + auto-approve —
-Stage B feature), **CL-7** (location / near-me discovery — new UI), **CL-12**
-(anonymous CDN caching — P3). Remediation log at the bottom of this file.
+**All 14 findings resolved** — 3 P1, 6 P2, 5 P3. Two follow-ups for the
+maintainer to apply: nothing new in `supabase/migrations/` (no schema change
+needed), but the new daily cron `/api/community-listings/auto-approve` is wired
+into `apps/web/vercel.json` and needs `CRON_SECRET` set in the deploy env (same
+as the other crons). Remediation log at the bottom of this file.
 
 ---
 
@@ -304,12 +305,26 @@ Bundle landed uncommitted; `pnpm typecheck && pnpm lint && pnpm test && pnpm bui
 - **CL-14** — importer reports `hidden: true` on updates to an already-hidden
   row and the client renders a "still hidden" note.
 
-### Still open
+### 2026-06-05 (later) — remaining P2/P3 (quad-green)
 
-- **CL-4** — needs the notification subsystem + a cron + likely a migration, and
-  carries product decisions (auto-approve after N days? auto-approve
-  admin-submitted listings?). Deferred pending direction.
-- **CL-7** — backend (`near` / geo RPC) exists; needs the location-picker UI and
-  the page→handler wiring. Should reuse the events find-page "near me" control.
-- **CL-12** — P3; anonymous CDN caching of the cookie-dependent list/detail
-  pages carries read-your-own-writes risk for a nice-to-have. Deferred.
+- **CL-7** — `/community` now has the shared `LocationSearch` + `NearMeButton`
+  controls (reused from `/events`), reads `lat`/`lng`/`radiusKm` → hands `near`
+  to the geo RPC, shows "within N km · Clear location", distance-per-card, and a
+  location-aware empty state. Location is preserved across tabs / Apply /
+  paging; `lat` also flips the page to `noindex` (CL-13).
+- **CL-4** — two new notification kinds (`community.claim.pending` → submitter,
+  `community.claim.approved` → claimant) in `@pickupvb/notifications`; a
+  best-effort `lib/notify-community.ts` fires them from the claim/approve
+  actions; and a daily `/api/community-listings/auto-approve` cron approves
+  claims left pending > 7 days via a new `AutoApproveExpiredCommunityClaimsHandler`
+  (+ `findClaimPendingOlderThan` repo port) and pings each claimant. No
+  migration (the `kind` column is free-text; `claimed_at` already records the
+  pending-since time). Handler unit-tested. Cron added to `vercel.json` — needs
+  `CRON_SECRET` in the deploy env.
+- **CL-12** — the anonymous community **detail** read is now a 60s
+  `unstable_cache` (`community-detail-cache.ts`, mirrors `loadEventReadModelPublic`
+  incl. `Date` revival); logged-in viewers still get a fresh viewer-scoped read.
+  Evicted by `updateTag(communityListingCacheTag(slug))` from every mutator
+  (report/hide/unhide/delete/claim/approve/reject/edit/import); the 60s TTL is
+  the backstop for the slug-less auto-approve cron. The list page stays dynamic
+  — its filter/location/page combinatorics make data-caching low-value.

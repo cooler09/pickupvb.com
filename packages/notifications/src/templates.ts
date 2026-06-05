@@ -253,6 +253,30 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'Open conversation',
     ),
   }),
+  'community.claim.pending': (p) => ({
+    subject: `Someone claimed your listing: ${p.listingTitle}`,
+    text: `${p.claimantName} asked to link your community listing "${p.listingTitle}" to their PickupVB event. Review and approve or reject it: ${APP_URL}/community/${p.listingSlug}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">A host claimed your listing</h2>
+             <p><strong>${escapeHtml(p.claimantName)}</strong> asked to link your community listing
+             <strong>${escapeHtml(p.listingTitle)}</strong> to their PickupVB event.</p>
+             <p>Approve it to redirect the listing to their event, or reject it to leave the listing
+             as-is. If you don't respond within 7 days, the claim is auto-approved.</p>`,
+      `${APP_URL}/community/${p.listingSlug}`,
+      'Review claim',
+    ),
+  }),
+  'community.claim.approved': (p) => ({
+    subject: `Your claim was approved: ${p.listingTitle}`,
+    text: `Your claim on "${p.listingTitle}" was approved — the listing now points to your PickupVB event. ${APP_URL}/community/${p.listingSlug}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Claim approved</h2>
+             <p>Your claim on <strong>${escapeHtml(p.listingTitle)}</strong> was approved. The
+             listing now points visitors at your PickupVB event.</p>`,
+      `${APP_URL}/community/${p.listingSlug}`,
+      'View event',
+    ),
+  }),
   'account.deletion.requested': (p) => ({
     subject: 'Your PickupVB account is scheduled for deletion',
     text: `Your PickupVB account is scheduled to be permanently deleted on ${formatDate(p.scheduledFor)}. If you didn't request this — or change your mind — you can cancel any time before then from your profile.`,
@@ -324,6 +348,12 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   }),
   'chat.message.received': (p) => ({
     body: `PickupVB · ${p.senderName}: ${p.preview.slice(0, 200)}`,
+  }),
+  'community.claim.pending': (p) => ({
+    body: `PickupVB: ${p.claimantName} claimed your listing "${p.listingTitle}". Review it: ${APP_URL}/community/${p.listingSlug}`,
+  }),
+  'community.claim.approved': (p) => ({
+    body: `PickupVB: your claim on "${p.listingTitle}" was approved. ${APP_URL}/community/${p.listingSlug}`,
   }),
   'account.deletion.requested': (p) => ({
     body: `PickupVB: Your account is scheduled for deletion on ${formatDate(p.scheduledFor)}. Cancel before then: ${APP_URL}/profile/account/delete`,
@@ -407,6 +437,16 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     title: `New message from ${p.senderName}`,
     body: p.preview || null,
     href: `/messages/${p.conversationId}`,
+  }),
+  'community.claim.pending': (p) => ({
+    title: `${p.claimantName} claimed your listing`,
+    body: `Review the claim on "${p.listingTitle}"`,
+    href: `/community/${p.listingSlug}`,
+  }),
+  'community.claim.approved': (p) => ({
+    title: 'Your listing claim was approved',
+    body: `"${p.listingTitle}" now points to your event`,
+    href: `/community/${p.listingSlug}`,
   }),
   'account.deletion.requested': (p) => ({
     title: 'Account deletion scheduled',

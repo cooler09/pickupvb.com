@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   ApproveCommunityListingClaimCommand,
@@ -15,6 +15,8 @@ import { ConflictError, NotFoundError, UnauthorizedError } from '@pickupvb/domai
 import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
 import { requireRealUser } from '@/lib/server-auth';
+import { notifyClaimApproved, notifyClaimPending } from '@/lib/notify-community';
+import { communityListingCacheTag } from '@/lib/cache-tags';
 
 /**
  * Flash-param redirect back to a community listing detail page.
@@ -53,6 +55,7 @@ export async function reportListing(
     if (err instanceof NotFoundError) back(slug, 'notfound');
     throw err;
   }
+  updateTag(communityListingCacheTag(slug));
   revalidatePath(`/community/${slug}`);
   back(slug, 'reported');
 }
@@ -68,6 +71,7 @@ export async function hideListing(listingId: string, slug: string): Promise<void
     if (err instanceof NotFoundError) back(slug, 'notfound');
     throw err;
   }
+  updateTag(communityListingCacheTag(slug));
   revalidatePath(`/community/${slug}`);
   revalidatePath('/community');
   back(slug, 'hidden');
@@ -84,6 +88,7 @@ export async function unhideListing(listingId: string, slug: string): Promise<vo
     if (err instanceof NotFoundError) back(slug, 'notfound');
     throw err;
   }
+  updateTag(communityListingCacheTag(slug));
   revalidatePath(`/community/${slug}`);
   revalidatePath('/community');
   back(slug, 'unhidden');
@@ -104,6 +109,7 @@ export async function deleteListing(listingId: string, slug: string): Promise<vo
     }
     throw err;
   }
+  updateTag(communityListingCacheTag(slug));
   revalidatePath('/community');
   redirect('/community?notice=removed');
 }
@@ -163,6 +169,9 @@ export async function claimListing(
     if (err instanceof NotFoundError) back(slug, 'notfound');
     throw err;
   }
+  // Tell the submitter (or admin) a claim is waiting on them. Best-effort.
+  await notifyClaimPending(listingId, user.id);
+  updateTag(communityListingCacheTag(slug));
   revalidatePath(`/community/${slug}`);
   revalidatePath('/community');
   back(slug, 'claimproposed');
@@ -180,6 +189,9 @@ export async function approveListingClaim(listingId: string, slug: string): Prom
     if (err instanceof NotFoundError) back(slug, 'notfound');
     throw err;
   }
+  // Tell the claimant their listing now points at their event. Best-effort.
+  await notifyClaimApproved(listingId);
+  updateTag(communityListingCacheTag(slug));
   revalidatePath(`/community/${slug}`);
   revalidatePath('/community');
   back(slug, 'claimapproved');
@@ -197,6 +209,7 @@ export async function rejectListingClaim(listingId: string, slug: string): Promi
     if (err instanceof NotFoundError) back(slug, 'notfound');
     throw err;
   }
+  updateTag(communityListingCacheTag(slug));
   revalidatePath(`/community/${slug}`);
   revalidatePath('/community');
   back(slug, 'claimrejected');

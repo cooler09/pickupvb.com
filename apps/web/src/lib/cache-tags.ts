@@ -16,3 +16,5 @@
 export const eventCacheTag = (eventId: string): string => `event:${eventId}`;
 export const profileCacheTag = (userId: string): string => `profile:${userId}`;
 export const hostStripeCacheTag = (userId: string): string => `host-stripe:${userId}`;
+/** Tag for the cached anonymous community-listing detail read (audit CL-12). */
+export const communityListingCacheTag = (slug: string): string => `community-listing:${slug}`;

@@ -232,6 +232,17 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (error) throw new Error(`CommunityListing.delete(${id}) failed: ${error.message}`);
   }
 
+  async findClaimPendingOlderThan(cutoff: Date): Promise<CommunityListing[]> {
+    const { data, error } = await this.table('community_listings')
+      .select('*')
+      .eq('status', 'claim_pending')
+      .lt('claimed_at', cutoff.toISOString());
+    if (error) {
+      throw new Error(`CommunityListing.findClaimPendingOlderThan failed: ${error.message}`);
+    }
+    return ((data ?? []) as unknown as ListingRow[]).map(rowToAggregate);
+  }
+
   async countByUserSince(userId: string, since: Date): Promise<number> {
     // Excludes `removed` rows so a wrongly-removed submission doesn't keep
     // burning the user's 5/24h quota (a re-submission should be allowed).

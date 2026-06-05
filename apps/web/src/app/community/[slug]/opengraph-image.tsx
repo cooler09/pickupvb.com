@@ -1,7 +1,6 @@
-import { GetCommunityListingDetailQuery } from '@pickupvb/application';
-import { handlers } from '@/lib/handlers';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { brandOgImage, OG_SIZE, OG_CONTENT_TYPE } from '@/lib/og-image';
+import { loadCommunityDetailPublic } from './community-detail-cache';
 
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
@@ -15,9 +14,14 @@ export const alt = 'Community volleyball listing on PickupVB';
  */
 export default async function Image({ params }: { params: { slug: string } }) {
   try {
-    const detail = await handlers.getCommunityListingDetail.execute(
-      new GetCommunityListingDetailQuery(params.slug, null),
-    );
+    const detail = await loadCommunityDetailPublic(params.slug);
+    if (!detail) {
+      return brandOgImage({
+        eyebrow: 'PickupVB',
+        title: 'Community volleyball listing',
+        meta: 'pickupvb.com',
+      });
+    }
     const place = [detail.location?.city, detail.location?.region].filter(Boolean).join(', ');
     const dateLabel = formatEventDateLong(detail.startsAt, detail.timeZone);
     return brandOgImage({

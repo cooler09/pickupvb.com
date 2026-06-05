@@ -34,6 +34,7 @@ import {
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
   ApproveCommunityListingClaimHandler,
+  AutoApproveExpiredCommunityClaimsHandler,
   RejectCommunityListingClaimHandler,
   ClearLiveMatchScoreHandler,
   CastVoteHandler,
@@ -302,6 +303,9 @@ export const handlers = {
   rejectCommunityListingClaim: new RejectCommunityListingClaimHandler(
     communityListingRepo,
     isPlatformAdmin,
+  ),
+  autoApproveExpiredCommunityClaims: new AutoApproveExpiredCommunityClaimsHandler(
+    communityListingRepo,
   ),
   searchCommunityListings: new SearchCommunityListingsHandler(communityListingRepo),
   getCommunityListingDetail: new GetCommunityListingDetailHandler(communityListingRepo),

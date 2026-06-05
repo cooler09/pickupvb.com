@@ -19,6 +19,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { loadVisibleHostedEvents } from '@/components/hosted-events-list';
 import { externalLinkHref } from '@/lib/external-link';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
+import { loadCommunityDetailPublic } from './community-detail-cache';
 import { CommunityListingJsonLd } from './_components/community-listing-jsonld';
 import {
   approveListingClaimFromForm,
@@ -48,7 +49,7 @@ async function loadDetail(slug: string, viewerId: string | null) {
 
 export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const { slug } = await props.params;
-  const detail = await loadDetail(slug, null);
+  const detail = await loadCommunityDetailPublic(slug);
   if (!detail) return { title: 'Community listing not found' };
   const place = [detail.location?.city, detail.location?.region].filter(Boolean).join(', ');
   const description = detail.description?.trim()
@@ -156,7 +157,10 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   const { slug } = await props.params;
   const searchParams = await props.searchParams;
   const { user } = await getCurrentUser();
-  const detail = await loadDetail(slug, user?.id ?? null);
+  // Anonymous viewers (and crawlers) read the shared 60s-cached public model;
+  // logged-in viewers get a fresh viewer-scoped read (canManage / hasReported /
+  // own-hidden). See community-detail-cache.ts (audit CL-12).
+  const detail = user ? await loadDetail(slug, user.id) : await loadCommunityDetailPublic(slug);
   if (!detail) notFound();
 
   // A claimed listing exists only to funnel visitors to the on-platform event

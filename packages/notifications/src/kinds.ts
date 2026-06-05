@@ -28,6 +28,8 @@ export type NotificationKind =
   | 'team.invite'
   | 'broadcast.host_message'
   | 'chat.message.received'
+  | 'community.claim.pending'
+  | 'community.claim.approved'
   | 'account.deletion.requested'
   | 'account.deletion.cancelled';
 
@@ -59,6 +61,12 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'team.invite': 'group_activity',
   'broadcast.host_message': 'broadcasts',
   'chat.message.received': 'messages',
+  // Community-listing claims are actionable account events about content the
+  // user submitted/claimed — transactional so they're never silently disabled
+  // (the submitter must decide, and a disabled ping + the 7-day auto-approve
+  // would otherwise redirect their listing without their knowledge).
+  'community.claim.pending': 'transactional',
+  'community.claim.approved': 'transactional',
   'account.deletion.requested': 'transactional',
   'account.deletion.cancelled': 'transactional',
 };
@@ -82,6 +90,10 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   // event); the dispatch site coalesces a back-and-forth so a thread doesn't
   // spam. See lib/notify-chat.ts.
   'chat.message.received': ['push', 'in_app'],
+  // Submitter gets an email + bell to review; the claimant's approval ping is
+  // bell-only (informational, no email-worthy action).
+  'community.claim.pending': ['email', 'in_app'],
+  'community.claim.approved': ['in_app'],
   'account.deletion.requested': ['email', 'in_app'],
   'account.deletion.cancelled': ['email', 'in_app'],
 };
@@ -169,6 +181,17 @@ export type NotificationPayloadMap = {
     senderName: string;
     /** Short, already-truncated message preview (or a placeholder for images). */
     preview: string;
+  };
+  'community.claim.pending': {
+    /** Slug of the listing the claim targets (drives the review href). */
+    listingSlug: string;
+    listingTitle: string;
+    /** Display name of the host who filed the claim. */
+    claimantName: string;
+  };
+  'community.claim.approved': {
+    listingSlug: string;
+    listingTitle: string;
   };
   'account.deletion.requested': {
     /** ISO date the account is scheduled to be permanently deleted. */

@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { ZodError } from 'zod';
 import { CreateCommunityListingSchema, type CreateCommunityListingDto } from '@pickupvb/types';
 import {
@@ -13,6 +13,7 @@ import { requireRealUser } from '@/lib/server-auth';
 import { isPlatformAdmin } from '@/lib/admin';
 import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords, zonedWallClockToUtc } from '@/lib/timezone';
+import { communityListingCacheTag } from '@/lib/cache-tags';
 import type { ListingDraft } from '@/lib/listing-draft';
 
 const RETURN_PATH = '/admin/community-import';
@@ -73,6 +74,7 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
         await handlers.updateCommunityListing.execute(
           new UpdateCommunityListingCommand(existing.id, admin.userId, dto),
         );
+        updateTag(communityListingCacheTag(existing.slug));
         revalidatePath(`/community/${existing.slug}`);
         results.push({
           title: draft.title,

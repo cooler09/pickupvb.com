@@ -20,6 +20,10 @@
     {
       "path": "/api/account/execute-deletions",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/community-listings/auto-approve",
+      "schedule": "0 5 * * *"
     }
   ]
 }

@@ -311,6 +311,33 @@ export class RejectCommunityListingClaimHandler {
 }
 
 /**
+ * Auto-approve community-listing claims left un-reviewed past a cutoff
+ * (the 7-day backstop in audit CL-4). System action — no approver identity,
+ * so there's no auth gate; the cron route is the only caller. Returns the
+ * approved listings + their claimants so the caller can notify them.
+ */
+export class AutoApproveExpiredCommunityClaimsHandler {
+  constructor(private readonly repo: CommunityListingRepository) {}
+
+  async execute(
+    olderThan: Date,
+    now: Date = new Date(),
+  ): Promise<Array<{ listingId: string; claimantId: string | null }>> {
+    const pending = await this.repo.findClaimPendingOlderThan(olderThan);
+    const approved: Array<{ listingId: string; claimantId: string | null }> = [];
+    for (const listing of pending) {
+      listing.approveClaim(now);
+      await this.repo.save(listing);
+      approved.push({
+        listingId: String(listing.id),
+        claimantId: listing.claimedByUserId ? String(listing.claimedByUserId) : null,
+      });
+    }
+    return approved;
+  }
+}
+
+/**
  * "Same calendar day, same city." The day comparison uses the listing's
  * timezone when available (falls back to the event's timezone, then UTC) so
  * that an event scheduled `7pm Pacific` and a listing posted `10pm Pacific`

@@ -31,6 +31,13 @@ export interface CommunityListingRepository {
   save(listing: CommunityListing): Promise<void>;
   delete(id: string): Promise<void>;
 
+  /**
+   * Listings stuck in `claim_pending` whose claim was filed (`claimedAt`)
+   * before `cutoff`. Drives the 7-day auto-approve cron (community-listings
+   * audit CL-4).
+   */
+  findClaimPendingOlderThan(cutoff: Date): Promise<CommunityListing[]>;
+
   /** Used for rate limiting: how many non-removed submissions by this user since `since`. */
   countByUserSince(userId: string, since: Date): Promise<number>;
 
