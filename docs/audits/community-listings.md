@@ -5,12 +5,18 @@ submit/edit forms) and the admin bulk importer (`/admin/community-import`),
 down through the application handlers, the `CommunityListing` aggregate, the
 Supabase adapter, and the migrations.
 
-**Status: 2026-06-05 — initial audit. 3 P1 · 6 P2 · 5 P3. Nothing fixed yet.**
+**Status: 2026-06-05 — initial audit. 3 P1 · 6 P2 · 5 P3.**
 The feature is well-built end-to-end (typed errors, idempotent importer,
 timezone anchoring, SEO/OG/JSON-LD, belt-and-suspenders claim index), but it
-ships the same class of visibility leak as the (now-fixed) event-detail read,
-the claim feature's advertised outcome is a no-op, and the JSON-LD embed is a
-stored-XSS vector that arbitrary users can reach.
+shipped the same class of visibility leak as the (now-fixed) event-detail read,
+the claim feature's advertised outcome was a no-op, and the JSON-LD embed was a
+stored-XSS vector that arbitrary users could reach.
+
+**Remediation update — 2026-06-05 (verified quad-green: typecheck/lint/test/build):**
+Fixed **all 3 P1** + **CL-5 / CL-6 / CL-8 / CL-9** (P2) + **CL-10 / CL-11 /
+CL-13 / CL-14** (P3). Still open: **CL-4** (claim notifications + auto-approve —
+Stage B feature), **CL-7** (location / near-me discovery — new UI), **CL-12**
+(anonymous CDN caching — P3). Remediation log at the bottom of this file.
 
 ---
 
@@ -85,10 +91,8 @@ the same unescaped way — so fix it once and reuse.
 **Fix:** add a shared `jsonLdScript(data)` helper that escapes `<` (and the
 line/paragraph separators U+2028 / U+2029) to their `\uXXXX` forms before
 embedding — `JSON.stringify(data).replace(/</g, '\\u003c')` (plus the two
-separators) — and route all four JSON-LD components through it.
+separators) — and route all JSON-LD components through it.
 (Cross-reference: also log in [security.md](security.md).)
-— and route all four JSON-LD components through it. (Cross-reference: also log
-in [security.md](security.md).)
 
 ---
 
@@ -260,3 +264,52 @@ hidden".
   match independent of the UI filter.
 - **SEO** — canonical, `SportsEvent` JSON-LD, tailored OG card, breadcrumbs, and
   `noindex` on non-public statuses (modulo the CL-3 escaping bug).
+
+---
+
+## Remediation log
+
+### 2026-06-05 — P1s + quick-win P2/P3 (quad-green)
+
+Bundle landed uncommitted; `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all pass.
+
+- **CL-1** — `getDetail` now returns `null` for `hidden`/`removed` rows unless
+  the viewer can manage them, closing the service-role read leak across the
+  detail page, `generateMetadata`, and the OG image in one place.
+  [supabase-community-listing-repository.ts](../../packages/infrastructure/src/supabase-community-listing-repository.ts).
+- **CL-2** — the detail page `permanentRedirect`s a `claimed` listing to its
+  linked event (`/events/{slug}`, id fallback). Side effect: the manage/delete
+  UI for claimed listings is now unreachable from the community side (intended —
+  they live as events).
+  [community/[slug]/page.tsx](../../apps/web/src/app/community/[slug]/page.tsx).
+- **CL-3** — new shared `JsonLd` / `jsonLdString` escaping the `<` and U+2028 /
+  U+2029 break-out sequences; all five JSON-LD components route through it.
+  Regression test in
+  [json-ld.test.ts](../../apps/web/src/components/json-ld.test.ts).
+  [components/json-ld.tsx](../../apps/web/src/components/json-ld.tsx).
+- **CL-5** — non-geo `search` honors `viewerId`: active listings + the viewer's
+  own `hidden` rows (UUID-guarded `.or()`), with a "Hidden — only you" card
+  badge. (Geo RPC path still active-only; not UI-wired — folded into CL-7.)
+- **CL-6** — `/community` paginates via the shared `Pagination` (24/page,
+  in-memory slice of a 120-row window). Removes the silent 60-row cap; keyset
+  paging deferred until volume exceeds the window.
+- **CL-8** — `countByUserSince` excludes `removed` rows (port doc updated).
+- **CL-9** — Approve/Reject/Claim buttons route through `primaryButtonClass` /
+  `errorTonalButtonClass`.
+- **CL-10** — error-tone notice banner uses `role="alert"`.
+- **CL-11** — `DeleteCommunityListingHandler` blocks hard-deleting a `claimed`
+  listing for non-admins (`ConflictError`, mapped to a flash notice).
+- **CL-13** — list page `generateMetadata` noindexes filtered / paged / past-tab
+  permutations (still `follow: true`, canonical `/community`).
+- **CL-14** — importer reports `hidden: true` on updates to an already-hidden
+  row and the client renders a "still hidden" note.
+
+### Still open
+
+- **CL-4** — needs the notification subsystem + a cron + likely a migration, and
+  carries product decisions (auto-approve after N days? auto-approve
+  admin-submitted listings?). Deferred pending direction.
+- **CL-7** — backend (`near` / geo RPC) exists; needs the location-picker UI and
+  the page→handler wiring. Should reuse the events find-page "near me" control.
+- **CL-12** — P3; anonymous CDN caching of the cookie-dependent list/detail
+  pages carries read-your-own-writes risk for a nice-to-have. Deferred.

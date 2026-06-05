@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { SeedingTool } from './_components/seeding.js';
 import { parseEventBinding } from '../_lib/event-binding';
 import { loadEventToolContext } from '../_lib/load-event-tool-context';
@@ -109,6 +110,12 @@ export default async function SeedingPage(props: {
         type="application/ld+json"
         // Static, server-rendered JSON — safe to inline.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <BreadcrumbJsonLd
+        trail={[
+          { name: 'Host tools', path: '/tools' },
+          { name: 'Seeding generator', path: '/tools/seeding' },
+        ]}
       />
 
       <header className="space-y-1">

@@ -5,7 +5,7 @@ import {
   errorTonalButtonClass,
 } from '@/components/primary-button';
 import type { Route } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import type { Metadata } from 'next/types';
 import { GetCommunityListingDetailQuery } from '@pickupvb/application';
 import { NotFoundError } from '@pickupvb/domain';
@@ -115,7 +115,10 @@ function noticeBanner(code: string | undefined): React.ReactNode {
         ? 'border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
         : 'border-red-200 bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200';
   return (
-    <div role="status" className={`rounded-md border p-3 text-sm ${toneClass}`}>
+    <div
+      role={m.tone === 'err' ? 'alert' : 'status'}
+      className={`rounded-md border p-3 text-sm ${toneClass}`}
+    >
       {m.text}
     </div>
   );
@@ -155,6 +158,24 @@ export default async function CommunityListingDetailPage(props: PageProps) {
   const { user } = await getCurrentUser();
   const detail = await loadDetail(slug, user?.id ?? null);
   if (!detail) notFound();
+
+  // A claimed listing exists only to funnel visitors to the on-platform event
+  // it was linked to (the whole point of the claim flow). Permanently redirect
+  // to that event so old listing URLs — and any search-indexed copies — land on
+  // the event page instead of a dead-end community page still pointing at the
+  // external site. The FK is `on delete set null`, so a non-null
+  // `claimedEventId` here means the event still exists; resolve its slug (fall
+  // back to the id, which the events route also accepts).
+  if (detail.status === 'claimed' && detail.claimedEventId) {
+    const sb = await getServerSupabase();
+    const { data: ev } = await sb
+      .from('events')
+      .select('slug')
+      .eq('id', detail.claimedEventId)
+      .maybeSingle();
+    const target = (ev as { slug?: string | null } | null)?.slug ?? detail.claimedEventId;
+    permanentRedirect(`/events/${target}`);
+  }
 
   // Only emit structured data on the indexable statuses (matches the
   // `generateMetadata` noindex guard) so hidden/removed/claimed listings don't
@@ -244,10 +265,9 @@ export default async function CommunityListingDetailPage(props: PageProps) {
       {isIndexable && (
         <>
           <BreadcrumbJsonLd
-            items={[
-              { name: 'Home', url: 'https://pickupvb.com/' },
-              { name: 'Community', url: 'https://pickupvb.com/community' },
-              { name: detail.title, url: `https://pickupvb.com/community/${detail.slug}` },
+            trail={[
+              { name: 'Community', path: '/community' },
+              { name: detail.title, path: `/community/${detail.slug}` },
             ]}
           />
           <CommunityListingJsonLd
@@ -293,14 +313,10 @@ export default async function CommunityListingDetailPage(props: PageProps) {
           </div>
           <div className="flex flex-wrap gap-2">
             <form action={approveListingClaimFromForm.bind(null, detail.id, detail.slug)}>
-              <SubmitButton className="rounded-md border border-green-300 bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-800 hover:bg-green-200 disabled:opacity-50 dark:bg-green-900/40 dark:text-green-100">
-                Approve claim
-              </SubmitButton>
+              <SubmitButton className={primaryButtonClass('sm')}>Approve claim</SubmitButton>
             </form>
             <form action={rejectListingClaimFromForm.bind(null, detail.id, detail.slug)}>
-              <SubmitButton className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-200">
-                Reject claim
-              </SubmitButton>
+              <SubmitButton className={errorTonalButtonClass('sm')}>Reject claim</SubmitButton>
             </form>
           </div>
         </section>
@@ -464,9 +480,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
                 </Link>{' '}
                 first.
               </p>
-              <SubmitButton className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
-                Claim listing
-              </SubmitButton>
+              <SubmitButton className={primaryButtonClass('sm')}>Claim listing</SubmitButton>
             </form>
           )}
         </section>

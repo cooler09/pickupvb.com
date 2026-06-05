@@ -27,10 +27,9 @@ export function EventStructuredData({
         ticketCents={ticketCents}
       />
       <BreadcrumbJsonLd
-        items={[
-          { name: 'Home', url: 'https://pickupvb.com/' },
-          { name: 'Events', url: 'https://pickupvb.com/events' },
-          { name: event.title, url: `https://pickupvb.com/events/${event.id}` },
+        trail={[
+          { name: 'Events', path: '/events' },
+          { name: event.title, path: `/events/${event.id}` },
         ]}
       />
     </>

@@ -6,6 +6,7 @@ import { NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
 import { LatestMatchTracker } from '../_components/latest-match-tracker';
@@ -147,6 +148,13 @@ export default async function BracketWatchPage(props: {
 
   return (
     <article className="mx-auto max-w-5xl space-y-6 p-4">
+      <BreadcrumbJsonLd
+        trail={[
+          { name: 'Events', path: '/events' },
+          { name: event.title, path: `/events/${event.id}` },
+          { name: 'Live bracket', path: `/events/${event.id}/bracket/watch` },
+        ]}
+      />
       <Link href={`/events/${event.id}`} className="text-primary text-sm hover:underline">
         {'← Back to event'}
       </Link>

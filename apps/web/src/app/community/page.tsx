@@ -6,31 +6,49 @@ import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { handlers } from '@/lib/handlers';
 import { getCurrentUser } from '@/lib/server-auth';
 import { isPlatformAdmin } from '@/lib/admin';
+import { Pagination } from '@/components/pagination';
 import { CommunityListingCard } from './_components/community-listing-card';
 
 const SURFACES = ['indoor', 'grass', 'sand'] as const;
 const FORMATS = ['sixes', 'quads', 'triples', 'doubles'] as const;
 const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
 const WHENS = ['upcoming', 'past'] as const;
+const PER_PAGE = 24;
+const FETCH_CAP = 120;
 
 type Surface = (typeof SURFACES)[number];
 type Format = (typeof FORMATS)[number];
 type Skill = (typeof SKILLS)[number];
 type When = (typeof WHENS)[number];
 
-export const metadata: Metadata = {
-  title: 'Community listings',
-  description:
-    'Volleyball events shared by the PickupVB community. Submit a Facebook post, Meetup, or other external event so others in your area can find it.',
-  alternates: { canonical: '/community' },
-  openGraph: {
-    title: 'Community listings · PickupVB',
+export async function generateMetadata(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+  const sp = await props.searchParams;
+  // Keep the bare `/community` page indexable; noindex thin filter/page/tab
+  // permutations so crawlers don't burn budget on near-duplicate slices. They
+  // all canonicalize to `/community`, and `follow: true` lets link equity flow.
+  const isFilteredOrPaged =
+    sp['surface'] != null ||
+    sp['format'] != null ||
+    sp['skill'] != null ||
+    sp['when'] === 'past' ||
+    (sp['page'] != null && sp['page'] !== '1');
+  return {
+    title: 'Community listings',
     description:
-      'Discover volleyball events posted by the community — outbound links to Facebook, Meetup, and more.',
-    url: '/community',
-    type: 'website',
-  },
-};
+      'Volleyball events shared by the PickupVB community. Submit a Facebook post, Meetup, or other external event so others in your area can find it.',
+    alternates: { canonical: '/community' },
+    openGraph: {
+      title: 'Community listings · PickupVB',
+      description:
+        'Discover volleyball events posted by the community — outbound links to Facebook, Meetup, and more.',
+      url: '/community',
+      type: 'website',
+    },
+    ...(isFilteredOrPaged ? { robots: { index: false, follow: true } } : {}),
+  };
+}
 
 function pick<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
   return allowed.includes(value as T) ? (value as T) : undefined;
@@ -53,11 +71,16 @@ export default async function CommunityListingsPage(props: {
   const skillLevel: Skill | undefined = pick(get('skill'), SKILLS);
   const when: When = pick(get('when'), WHENS) ?? 'upcoming';
   const isPast = when === 'past';
+  const page = Math.max(1, Number.parseInt(get('page') ?? '1', 10) || 1);
 
   const now = new Date();
-  const listings = await handlers.searchCommunityListings.execute(
+  // Load a generous window and slice for display (pattern #12). This removes the
+  // old silent 60-row cap; if community volume ever exceeds FETCH_CAP per view,
+  // swap to keyset paging (offset/count) in the repo — tracked in
+  // docs/audits/community-listings.md CL-6.
+  const allListings = await handlers.searchCommunityListings.execute(
     new SearchCommunityListingsQuery(user?.id ?? null, {
-      limit: 60,
+      limit: FETCH_CAP,
       // Upcoming: soonest-first. Past: most-recent-first (order desc) so the
       // freshest history leads instead of the oldest archived event.
       ...(isPast ? { startsBefore: now, order: 'desc' as const } : { startsAfter: now }),
@@ -66,6 +89,8 @@ export default async function CommunityListingsPage(props: {
       ...(skillLevel ? { skillLevel } : {}),
     }),
   );
+  const total = allListings.length;
+  const listings = allListings.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   // Preserve the active filters when switching tabs / applying filters.
   const filterQuery: Record<string, string> = {
@@ -210,11 +235,20 @@ export default async function CommunityListingsPage(props: {
           )}
         </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {listings.map((l) => (
-            <CommunityListingCard key={l.id} listing={l} />
-          ))}
-        </ul>
+        <>
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {listings.map((l) => (
+              <CommunityListingCard key={l.id} listing={l} />
+            ))}
+          </ul>
+          <Pagination
+            basePath="/community"
+            page={page}
+            pageSize={PER_PAGE}
+            total={total}
+            searchParams={{ ...filterQuery, when }}
+          />
+        </>
       )}
     </section>
   );

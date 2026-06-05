@@ -3,9 +3,12 @@
  * Community listings represent real volleyball events, so we mirror the
  * `event-jsonld.tsx` shape (sport: Volleyball, offline attendance) but keep it
  * minimal — these are externally-hosted events we don't own the registration
- * for, so there are no `offers` / capacity signals. Inline
- * `<script type="application/ld+json">` is the canonical embed mechanism.
+ * for, so there are no `offers` / capacity signals. Rendered via the shared
+ * `JsonLd` emitter so the user-controlled title can't break out of the inline
+ * script (see `components/json-ld.tsx`).
  */
+import { JsonLd } from '@/components/json-ld';
+
 export function CommunityListingJsonLd({
   title,
   slug,
@@ -65,11 +68,5 @@ export function CommunityListingJsonLd({
       : {}),
   };
 
-  return (
-    <script
-      type="application/ld+json"
-      // schema.org JSON-LD; we control the values, no untrusted HTML.
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
-    />
-  );
+  return <JsonLd data={data} />;
 }

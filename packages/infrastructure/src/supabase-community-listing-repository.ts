@@ -233,9 +233,14 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
   }
 
   async countByUserSince(userId: string, since: Date): Promise<number> {
+    // Excludes `removed` rows so a wrongly-removed submission doesn't keep
+    // burning the user's 5/24h quota (a re-submission should be allowed).
+    // `hidden` rows still count — a spammer whose listings were auto-hidden by
+    // reports shouldn't get free quota back.
     const { count, error } = await this.table('community_listings')
       .select('id', { count: 'exact', head: true })
       .eq('submitter_user_id', userId)
+      .neq('status', 'removed')
       .gte('created_at', since.toISOString());
     if (error) throw new Error(`CommunityListing.countByUserSince failed: ${error.message}`);
     return count ?? 0;
@@ -329,11 +334,23 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       }));
     }
 
-    let q = this.table('community_listings')
-      .select(
-        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
-      )
-      .in('status', statuses as unknown as string[]);
+    let q = this.table('community_listings').select(
+      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
+    );
+    // Default public view (no explicit statuses) + a signed-in viewer: also
+    // return the viewer's own `hidden` listings so a submitter whose listing was
+    // auto-hidden by reports can still find and manage it from the list. The
+    // adapter reads through the service-role client (RLS bypassed), so the scope
+    // is explicit. viewerId is a server-derived auth UUID, but we validate its
+    // shape before interpolating into the PostgREST `.or()` filter.
+    const viewerIsUuid =
+      !!query.viewerId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.viewerId);
+    if (!query.statuses && viewerIsUuid) {
+      q = q.or(`status.eq.active,and(submitter_user_id.eq.${query.viewerId},status.eq.hidden)`);
+    } else {
+      q = q.in('status', statuses as unknown as string[]);
+    }
     if (query.surface) q = q.eq('surface', query.surface);
     if (query.format) q = q.eq('format', query.format);
     if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
@@ -428,6 +445,16 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       !!(viewerProfileRes.data as { is_platform_admin?: boolean } | null)?.is_platform_admin;
     const hasReported = !!viewerId && ((reportRes as { count: number | null }).count ?? 0) > 0;
     const canManage = !!viewerId && (viewerId === row.submitter_user_id || isPlatformAdmin);
+
+    // Visibility gate. This adapter reads through the service-role client, so
+    // RLS never fires — without this check a moderation-`hidden` or `removed`
+    // listing would stay fully readable by anyone who has the slug. Only the
+    // submitter / a platform admin may load those statuses; `active` and
+    // `claim_pending` stay public, and `claimed` is funneled to the linked
+    // event by a redirect at the page boundary.
+    if ((row.status === 'hidden' || row.status === 'removed') && !canManage) {
+      return null;
+    }
 
     return {
       id: row.id,

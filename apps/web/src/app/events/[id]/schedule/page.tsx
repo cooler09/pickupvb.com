@@ -5,6 +5,7 @@ import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { NotFoundError, type DivisionId, type EventId } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { ScheduleWorkspace } from './_components/schedule-workspace';
 import { type ScheduleMatchVm } from './_components/match-row';
 import { NOTICE_LABEL } from './_components/labels';
@@ -137,6 +138,13 @@ export default async function SchedulePage(props: {
 
   return (
     <article className="mx-auto max-w-4xl space-y-6 p-4">
+      <BreadcrumbJsonLd
+        trail={[
+          { name: 'Events', path: '/events' },
+          { name: event.title, path: `/events/${event.id}` },
+          { name: 'Schedule', path: `/events/${event.id}/schedule` },
+        ]}
+      />
       <Link href={`/events/${event.id}`} className="text-primary text-sm hover:underline">
         {'← Back to event'}
       </Link>

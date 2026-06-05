@@ -157,6 +157,14 @@ export class DeleteCommunityListingHandler {
     if (!listing) throw new NotFoundError('CommunityListing', listingId);
     const admin = await this.isPlatformAdmin(requesterId);
     assertCanManage(String(listing.submitterUserId), requesterId, admin);
+    // A claimed listing is linked to a live PickupVB event (and now redirects to
+    // it). `delete()` is a hard DB delete that bypasses the aggregate's
+    // `remove()` guard, so block it here for non-admins — mirrors the domain
+    // invariant "claimed listings cannot be removed." Platform admins keep an
+    // escape hatch for genuine cleanup.
+    if (listing.status === 'claimed' && !admin) {
+      throw new ConflictError('A claimed listing is linked to an event and cannot be deleted.');
+    }
     await this.repo.delete(listingId);
   }
 }

@@ -31,7 +31,7 @@ export interface CommunityListingRepository {
   save(listing: CommunityListing): Promise<void>;
   delete(id: string): Promise<void>;
 
-  /** Used for rate limiting: how many active submissions by this user since `since`. */
+  /** Used for rate limiting: how many non-removed submissions by this user since `since`. */
   countByUserSince(userId: string, since: Date): Promise<number>;
 
   /** Records a single report. Throws ConflictError on duplicate (same user, same listing). */

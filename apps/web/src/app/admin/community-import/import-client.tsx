@@ -122,6 +122,12 @@ export default function ImportClient() {
                         show on the map or in distance search until coordinates are added.
                       </span>
                     )}
+                    {r.hidden && (
+                      <span className="mt-1 block text-xs text-amber-700">
+                        This listing is currently <strong>hidden</strong> (it was hidden before this
+                        update) — it won&rsquo;t appear publicly until you un-hide it from its page.
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="text-red-700"> — {r.error}</span>

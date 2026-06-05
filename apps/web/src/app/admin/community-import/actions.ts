@@ -18,7 +18,15 @@ import type { ListingDraft } from '@/lib/listing-draft';
 const RETURN_PATH = '/admin/community-import';
 
 export type ImportRowResult =
-  | { title: string; ok: true; slug: string; geocoded: boolean; action: 'created' | 'updated' }
+  | {
+      title: string;
+      ok: true;
+      slug: string;
+      geocoded: boolean;
+      action: 'created' | 'updated';
+      /** True when the upserted row is currently hidden (won't show publicly). */
+      hidden: boolean;
+    }
   | { title: string; ok: false; error: string };
 
 export type ImportResult = { ok: true; results: ImportRowResult[] } | { ok: false; error: string };
@@ -72,12 +80,22 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
           slug: existing.slug,
           geocoded,
           action: 'updated',
+          // An update leaves status untouched — flag hidden rows so the admin
+          // knows the listing won't reappear publicly until it's un-hidden.
+          hidden: existing.status === 'hidden',
         });
       } else {
         const { slug } = await handlers.createCommunityListing.execute(
           new CreateCommunityListingCommand(admin.userId, dto),
         );
-        results.push({ title: draft.title, ok: true, slug, geocoded, action: 'created' });
+        results.push({
+          title: draft.title,
+          ok: true,
+          slug,
+          geocoded,
+          action: 'created',
+          hidden: false,
+        });
       }
     } catch (err) {
       results.push({ title: draft.title, ok: false, error: messageFor(err) });

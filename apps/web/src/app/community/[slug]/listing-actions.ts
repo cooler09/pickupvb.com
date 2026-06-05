@@ -97,6 +97,7 @@ export async function deleteListing(listingId: string, slug: string): Promise<vo
     );
   } catch (err) {
     if (err instanceof UnauthorizedError) back(slug, 'notallow');
+    if (err instanceof ConflictError) back(slug, 'claimfail');
     if (err instanceof NotFoundError) {
       revalidatePath('/community');
       redirect('/community?notice=removed');

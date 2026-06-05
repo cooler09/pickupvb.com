@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { TimerSetupForm } from './_components/setup-form.js';
 
 /**
@@ -86,6 +87,12 @@ export default function TimerSetupPage() {
         type="application/ld+json"
         // Static, server-rendered JSON — safe to inline.
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <BreadcrumbJsonLd
+        trail={[
+          { name: 'Host tools', path: '/tools' },
+          { name: 'Match timer', path: '/tools/timer' },
+        ]}
       />
 
       <header className="space-y-1">

@@ -41,6 +41,11 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
       </p>
       {place && <p className="text-fg/80 mt-1 text-sm">{place}</p>}
       <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
+        {listing.status === 'hidden' && (
+          <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-red-700 dark:text-red-300">
+            Hidden — only you
+          </span>
+        )}
         <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
           Community
         </span>

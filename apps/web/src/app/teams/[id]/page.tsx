@@ -106,10 +106,9 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
       <BreadcrumbJsonLd
-        items={[
-          { name: 'Home', url: 'https://pickupvb.com/' },
-          { name: 'Teams', url: 'https://pickupvb.com/teams' },
-          { name: team.name, url: `https://pickupvb.com/teams/${team.slug}` },
+        trail={[
+          { name: 'Teams', path: '/teams' },
+          { name: team.name, path: `/teams/${team.slug}` },
         ]}
       />
       <TeamJsonLd slug={team.slug} name={team.name} memberCount={activeCount + extraMembers} />
