@@ -52,6 +52,12 @@ export interface CommunityListingSearchQuery {
   skillLevel?: SkillLevel;
   startsAfter?: Date;
   startsBefore?: Date;
+  /**
+   * Sort direction by start time. Defaults to `'asc'` (soonest first) for the
+   * upcoming view; pass `'desc'` for a "past events" view so the most recent
+   * past event leads. Ignored when `near` is set (geo results sort by distance).
+   */
+  order?: 'asc' | 'desc';
   /** Pass viewer id so submitters can see their own hidden listings. Admins see all via RLS. */
   viewerId?: string;
   /** Defaults to ['active']. Pass ['active', 'hidden'] for admin views, etc. */

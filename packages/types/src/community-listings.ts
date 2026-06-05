@@ -53,6 +53,7 @@ export const SearchCommunityListingsSchema = z.object({
   skillLevel: z.enum(enumValues(SkillLevel)).optional(),
   startsAfter: z.coerce.date().optional(),
   startsBefore: z.coerce.date().optional(),
+  order: z.enum(['asc', 'desc']).optional(),
   limit: z.number().int().positive().max(100).default(20),
   cursor: z.string().optional(),
 });

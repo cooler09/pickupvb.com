@@ -11,10 +11,12 @@ import { CommunityListingCard } from './_components/community-listing-card';
 const SURFACES = ['indoor', 'grass', 'sand'] as const;
 const FORMATS = ['sixes', 'quads', 'triples', 'doubles'] as const;
 const SKILLS = ['beginner', 'intermediate', 'advanced', 'competitive'] as const;
+const WHENS = ['upcoming', 'past'] as const;
 
 type Surface = (typeof SURFACES)[number];
 type Format = (typeof FORMATS)[number];
 type Skill = (typeof SKILLS)[number];
+type When = (typeof WHENS)[number];
 
 export const metadata: Metadata = {
   title: 'Community listings',
@@ -49,17 +51,28 @@ export default async function CommunityListingsPage(props: {
   const surface: Surface | undefined = pick(get('surface'), SURFACES);
   const format: Format | undefined = pick(get('format'), FORMATS);
   const skillLevel: Skill | undefined = pick(get('skill'), SKILLS);
+  const when: When = pick(get('when'), WHENS) ?? 'upcoming';
+  const isPast = when === 'past';
 
   const now = new Date();
   const listings = await handlers.searchCommunityListings.execute(
     new SearchCommunityListingsQuery(user?.id ?? null, {
       limit: 60,
-      startsAfter: now,
+      // Upcoming: soonest-first. Past: most-recent-first (order desc) so the
+      // freshest history leads instead of the oldest archived event.
+      ...(isPast ? { startsBefore: now, order: 'desc' as const } : { startsAfter: now }),
       ...(surface ? { surface } : {}),
       ...(format ? { format } : {}),
       ...(skillLevel ? { skillLevel } : {}),
     }),
   );
+
+  // Preserve the active filters when switching tabs / applying filters.
+  const filterQuery: Record<string, string> = {
+    ...(surface ? { surface } : {}),
+    ...(format ? { format } : {}),
+    ...(skillLevel ? { skill: skillLevel } : {}),
+  };
 
   return (
     <section className="space-y-6">
@@ -93,10 +106,32 @@ export default async function CommunityListingsPage(props: {
         </div>
       </div>
 
+      <div className="border-border-base flex gap-1 border-b">
+        <Link
+          href={{ pathname: '/community', query: { ...filterQuery, when: 'upcoming' } }}
+          aria-current={!isPast ? 'page' : undefined}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            !isPast ? 'border-primary text-primary' : 'text-muted hover:text-fg border-transparent'
+          }`}
+        >
+          Upcoming
+        </Link>
+        <Link
+          href={{ pathname: '/community', query: { ...filterQuery, when: 'past' } }}
+          aria-current={isPast ? 'page' : undefined}
+          className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+            isPast ? 'border-primary text-primary' : 'text-muted hover:text-fg border-transparent'
+          }`}
+        >
+          Past
+        </Link>
+      </div>
+
       <form
         method="get"
         className="border-border-base bg-surface rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
       >
+        <input type="hidden" name="when" value={when} />
         <label className="text-sm">
           <span className="text-muted block text-xs font-semibold tracking-wide uppercase">
             Surface
@@ -162,10 +197,17 @@ export default async function CommunityListingsPage(props: {
 
       {listings.length === 0 ? (
         <p className="bg-highlight/30 text-muted rounded-md p-6 text-center">
-          No community listings match your filters yet. Know about an event we should add?{' '}
-          <Link href="/community/new" className="text-primary font-semibold hover:underline">
-            Submit one.
-          </Link>
+          {isPast ? (
+            'No past community listings match your filters.'
+          ) : (
+            <>
+              No upcoming community listings match your filters yet. Know about an event we should
+              add?{' '}
+              <Link href="/community/new" className="text-primary font-semibold hover:underline">
+                Submit one.
+              </Link>
+            </>
+          )}
         </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

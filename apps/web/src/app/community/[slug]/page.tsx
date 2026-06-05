@@ -387,6 +387,7 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         </p>
         <a
           href={externalLinkHref(detail.externalUrl)}
+          target="_blank"
           rel="noopener noreferrer nofollow"
           className={`${primaryButtonClass('md')} gap-2`}
         >

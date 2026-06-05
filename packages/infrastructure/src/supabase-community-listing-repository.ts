@@ -339,7 +339,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
     if (query.startsAfter) q = q.gte('starts_at', query.startsAfter.toISOString());
     if (query.startsBefore) q = q.lte('starts_at', query.startsBefore.toISOString());
-    q = q.order('starts_at', { ascending: true }).limit(limit);
+    q = q.order('starts_at', { ascending: query.order !== 'desc' }).limit(limit);
 
     const { data, error } = await q;
     if (error) throw new Error(`CommunityListing.search failed: ${error.message}`);

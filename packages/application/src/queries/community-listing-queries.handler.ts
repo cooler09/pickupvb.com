@@ -20,6 +20,7 @@ export class SearchCommunityListingsHandler {
       ...(filters.skillLevel ? { skillLevel: filters.skillLevel } : {}),
       ...(filters.startsAfter ? { startsAfter: filters.startsAfter } : {}),
       ...(filters.startsBefore ? { startsBefore: filters.startsBefore } : {}),
+      ...(filters.order ? { order: filters.order } : {}),
       ...(viewerId ? { viewerId } : {}),
       ...(filters.limit ? { limit: filters.limit } : {}),
       ...(filters.cursor ? { cursor: filters.cursor } : {}),
