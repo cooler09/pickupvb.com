@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
-import type { BracketFormat } from '@pickupvb/domain';
+import { validateTeamCountForFormat, type BracketFormat } from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { createBracketFromForm } from '../actions';
 
@@ -168,8 +168,8 @@ const FORMATS: ReadonlyArray<FormatMeta> = [
     title: 'Double elimination',
     blurb: 'Lose once and you drop to a losers bracket; lose twice and you’re out.',
     bestFor: 'Most competitive tournaments — every team plays ≥ 2 matches.',
-    tradeoff: 'About twice the matches of single-elim; needs more court time.',
-    minTeams: 3,
+    tradeoff: 'About twice the matches of single-elim; needs a power-of-two field (4, 8, 16, 32).',
+    minTeams: 4,
   },
   {
     value: 'round_robin',
@@ -275,6 +275,16 @@ export function FormatPickerForm(props: {
   // doesn't ship a config that's guaranteed to fail later.
   const poolPlayUnderfilled =
     isPoolPlay && props.teamCount > 0 && advancePerPool * poolCount > props.teamCount;
+  // Beyond the min-team floor, some formats have a shape rule (double
+  // elimination needs a power-of-two field). Surface it at create time so the
+  // host doesn't commit a config that only fails at Generate (TT-9). Standalone
+  // create (enforceMin=false, no teams yet) seeds later, so it's skipped here —
+  // the SetupView Generate gate enforces the same rule once teams are added.
+  const shapeCheck =
+    enforceMin && props.teamCount >= selectedMeta.minTeams
+      ? validateTeamCountForFormat(format, props.teamCount)
+      : null;
+  const shapeBlocked = shapeCheck !== null && !shapeCheck.ok;
 
   return (
     <form
@@ -611,7 +621,9 @@ export function FormatPickerForm(props: {
 
       <div className="border-border-base bg-bg rounded-shape-sm sticky bottom-2 z-10 flex flex-wrap items-center gap-3 border p-3 shadow-sm">
         <SubmitButton
-          disabled={enforceMin && (props.teamCount < 2 || belowMin || poolPlayUnderfilled)}
+          disabled={
+            enforceMin && (props.teamCount < 2 || belowMin || poolPlayUnderfilled || shapeBlocked)
+          }
           className={primaryButtonClass('md')}
         >
           Create bracket
@@ -631,6 +643,11 @@ export function FormatPickerForm(props: {
         {enforceMin && props.teamCount >= 2 && belowMin && (
           <span className="text-xs text-red-600 dark:text-red-400">
             {selectedMeta.title} needs at least {selectedMeta.minTeams} teams.
+          </span>
+        )}
+        {shapeCheck && !shapeCheck.ok && !belowMin && (
+          <span className="text-xs text-red-600 dark:text-red-400" role="alert">
+            {shapeCheck.reason}
           </span>
         )}
       </div>

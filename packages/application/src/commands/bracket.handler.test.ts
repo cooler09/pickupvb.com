@@ -4,6 +4,7 @@ import {
   DEFAULT_BRACKET_CONFIG,
   NotFoundError,
   UnauthorizedError,
+  ValidationError,
   type BracketId,
   type BracketRepository,
   type BracketTeamLite,
@@ -15,6 +16,8 @@ import {
   type MatchId,
 } from '@pickupvb/domain';
 import {
+  CreateBracketCommand,
+  CreateBracketHandler,
   EditMatchCommand,
   EditMatchHandler,
   PublishBracketCommand,
@@ -223,6 +226,23 @@ class HostBracketRepo implements BracketRepository {
   }
 }
 
+/** Host-path repo with no existing bracket and a configurable registered-team
+ *  count — drives the CreateBracketHandler precondition tests (TT-9). */
+class CountRepo extends HostBracketRepo {
+  constructor(private readonly teamCount: number) {
+    super(null);
+  }
+  override async listRegisteredTeams(): Promise<BracketTeamLite[]> {
+    return Array.from({ length: this.teamCount }, (_, i) => ({
+      teamId: null,
+      entryId: `e${i}`,
+      name: `Team ${i}`,
+      captainId: null,
+      forfeitedAt: null,
+    }));
+  }
+}
+
 function draftElim4(): Bracket {
   let n = 0;
   const b = Bracket.create(BRACKET_ID, EVENT_ID, DIVISION_ID, 'single_elimination', { bestOf: 1 });
@@ -274,6 +294,28 @@ describe('Host-gated structural handlers (ADR 0032)', () => {
     const m = repo.saved!.matches.find((x) => String(x.id) === String(matchId))!;
     expect(m.court).toBe('Court 7');
     expect(m.bestOf).toBe(3);
+  });
+
+  it('CreateBracketHandler rejects a double-elim field that is not a power of two (TT-9)', async () => {
+    // 6 registered teams meets the old floor (3) but the v1 generator can't
+    // build a non-power-of-two double-elim — reject at create, before save.
+    const repo = new CountRepo(6);
+    await expect(
+      new CreateBracketHandler(hostEvents(), repo).execute(
+        new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'double_elimination'),
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.saveCount).toBe(0);
+  });
+
+  it('CreateBracketHandler accepts a power-of-two double-elim field', async () => {
+    const repo = new CountRepo(8);
+    const { bracketId } = await new CreateBracketHandler(hostEvents(), repo).execute(
+      new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'double_elimination'),
+    );
+    expect(bracketId).toBe('b-new');
+    expect(repo.saveCount).toBe(1);
+    expect(repo.saved!.status).toBe('setup');
   });
 
   it('SetPoolsHandler brands entry ids and assigns pools', async () => {

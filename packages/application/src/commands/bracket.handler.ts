@@ -17,7 +17,7 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
-  minTeamsForFormat,
+  validateTeamCountForFormat,
 } from '@pickupvb/domain';
 
 // ---- Commands ------------------------------------------------------------
@@ -250,13 +250,12 @@ export class CreateBracketHandler {
     assertHost(evt.hostId, cmd.requesterId);
     const existing = await this.brackets.findByDivisionId(DivisionId(cmd.divisionId));
     if (existing) return { bracketId: existing.id };
-    const min = minTeamsForFormat(cmd.format);
+    // Full structural precondition, not just a count: double elimination also
+    // needs a power-of-two field, so a 5/6/7-team division can't run it (TT-9).
     const teams = await this.brackets.listRegisteredTeams(evt.id, DivisionId(cmd.divisionId));
-    if (teams.length < min) {
-      throw new ValidationError(
-        `This format needs at least ${min} registered teams (only ${teams.length} so far).`,
-        { teamCount: teams.length, minTeams: min, format: cmd.format },
-      );
+    const check = validateTeamCountForFormat(cmd.format, teams.length);
+    if (!check.ok) {
+      throw new ValidationError(check.reason, { teamCount: teams.length, format: cmd.format });
     }
     const bracket = Bracket.create(
       this.brackets.nextBracketId(),
