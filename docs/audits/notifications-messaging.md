@@ -157,20 +157,36 @@ Emails link to `/profile/notifications` but carry no `List-Unsubscribe` /
 headers in [email-resend.ts](../../apps/web/src/lib/email-resend.ts) pointing at
 a tokenized unsubscribe route.
 
-### P2 #5 — Header unread badge isn't live — OPEN
+### P2 #5 — Header unread badge isn't live — ✅ resolved 2026-06-06
 
 [messages-nav-link.tsx](../../apps/web/src/components/messages-nav-link.tsx) is
-server-rendered; the count only updates on reload (ADR 0028 follow-up).
-**Fix:** subscribe to an `inbox:{uid}` Realtime topic like the bell (ADR 0027).
-Partly mitigated now that DMs ping the bell (P1 #3).
+now a client component that increments live on each `chat.message.received`
+INSERT. Rather than a new `inbox:{uid}` topic, it reuses the bell's existing
+`notifications:<userId>` Broadcast topic (ADR 0027) — the DM ping already flows
+there. To avoid a second join to the same private topic (the RLS topic is fixed,
+so a duplicate join is rejected), the channel was extracted into a ref-counted
+shared subscriber [subscribe-notifications.ts](../../apps/web/src/lib/subscribe-notifications.ts)
+that both the bell and the badge consume. The live increment is an approximation
+between navigations (coalesced ping ≈ one per newly-active conversation); the
+exact count re-syncs from `count_unread_conversations` on the next navigation.
+**Realtime delivery itself is deploy-gated to verify** (two sessions, deployed
+target). Rooms join the live signal once P2 #6 lands.
 
-### P2 #6 — Room (team/event/group) messages don't notify — OPEN
+### P2 #6 — Room (team/event/group) messages don't notify — ✅ resolved 2026-06-06
 
-The chat-notify fix is DM-only; room messages still ping nobody. Enumerating
-room recipients means fanning out across source-membership tables and must
-respect the participant `muted_at` flag + a per-recipient throttle. **Fix:**
-extend [notify-chat.ts](../../apps/web/src/lib/notify-chat.ts) with a room
-branch (in_app default; push opt-in), mute-aware.
+[notify-chat.ts](../../apps/web/src/lib/notify-chat.ts) now branches on kind:
+rooms resolve recipients via the new `list_room_recipients` RPC
+([20260916000000](../../supabase/migrations/20260916000000_list_room_recipients.sql)),
+a SECURITY DEFINER set-returning function modeled on `can_access_conversation`
+(single source of truth for membership) that excludes the sender + anyone who
+muted the room. The coalesce/throttle is now a single batched lookup over the
+recipient set (a busy room pings each person once), and the deep-link is uniform
+`/messages/<id>` for all kinds (the route renders rooms too). Channels follow the
+kind's map — push stays opt-in (P1 #2 fix). Tests in
+[notify-chat.test.ts](../../apps/web/src/lib/notify-chat.test.ts) cover the room
+fan-out + per-recipient coalesce. **Deploy-gated:** the RPC migration + the
+hand-edited `database.types.ts` entry need `gen:types` against the real schema,
+and the fan-out can only be exercised against a deployed DB.
 
 ---
 

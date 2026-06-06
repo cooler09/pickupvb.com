@@ -3663,6 +3663,10 @@ export type Database = {
       };
       is_platform_admin: { Args: never; Returns: boolean };
       is_pro_host: { Args: { p_user_id: string }; Returns: boolean };
+      list_room_recipients: {
+        Args: { p_conversation_id: string; p_exclude: string };
+        Returns: { user_id: string }[];
+      };
       longtransactionsenabled: { Args: never; Returns: boolean };
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }

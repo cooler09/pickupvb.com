@@ -2,21 +2,24 @@
  * Chat-message notification fan-out (ADR 0028 follow-up).
  *
  * Sending a chat message used to notify the recipient on **no channel** — they
- * only discovered it by opening `/messages`. This closes that gap for direct
- * messages: a new DM pings the recipient's bell (in_app) and their device
- * (push), gated by their notification preferences like any other kind.
+ * only discovered it by opening `/messages`. This closes that gap for both
+ * direct messages **and** room (team/event/group) messages: a new message pings
+ * each recipient's bell (in_app) and device (push), gated by their notification
+ * preferences like any other kind.
  *
- * Scope (P1): **direct messages only.** Room (team/event/group) pings are
- * deferred — enumerating room recipients means fanning out across the
- * source-membership tables, and a naive per-line fan-out would spam a whole
- * roster. DMs are the acute case (1:1; the recipient has no other live signal).
+ * Recipients by kind:
+ *   - **DM** — the other materialized participant (their two rows are the grant).
+ *   - **Room** — derived from the source membership tables (team/event/group),
+ *     not materialized, so resolved via the `list_room_recipients` RPC, which
+ *     mirrors `can_access_conversation` and already excludes the sender + anyone
+ *     who muted the room (notifications audit P2 #6).
  *
- * Coalescing: if the recipient already has an *unread* chat ping for this
- * conversation from the last few minutes, we skip — a rapid back-and-forth
- * pings once, not per line. Once they read it (or the window lapses) the next
- * message pings again. This throttles both channels with one rule, using the
- * existing `notifications` feed (no new table). The push channel additionally
- * carries a per-window idempotency key as belt-and-suspenders.
+ * Coalescing / throttle: if a recipient already has an *unread* chat ping for
+ * this conversation from the last few minutes, we skip — a rapid back-and-forth
+ * (or a busy room) pings each person once, not per line. The check is a single
+ * batched query over the recipient set, so a large room costs one lookup. Once
+ * read (or the window lapses) the next message pings again. The push channel
+ * additionally carries a per-window idempotency key as belt-and-suspenders.
  *
  * Best-effort: runs on the service-role client (session-less fan-out, the
  * sanctioned admin-client case per AGENTS.md pitfall #8) and swallows errors —
@@ -47,18 +50,28 @@ export async function notifyChatMessage(args: {
   kind: ConversationKind;
 }): Promise<void> {
   const { conversationId, senderId, body, attachmentsCount, kind } = args;
-  if (kind !== 'dm') return; // rooms deferred (audit: notifications-messaging P2)
   try {
     const admin = createSupabaseAdminClient();
 
-    // Recipient(s): the other materialized participant(s) of the DM. (A DM has
-    // exactly two; the loop tolerates any non-room conversation with rows.)
-    const { data: parts } = await admin
-      .from('conversation_participants')
-      .select('user_id')
-      .eq('conversation_id', conversationId)
-      .neq('user_id', senderId);
-    const recipientIds = ((parts as { user_id: string }[] | null) ?? []).map((p) => p.user_id);
+    // Recipients depend on the conversation kind.
+    let recipientIds: string[];
+    if (kind === 'dm') {
+      // The other materialized participant(s) of the DM (a DM has exactly two).
+      const { data: parts } = await admin
+        .from('conversation_participants')
+        .select('user_id')
+        .eq('conversation_id', conversationId)
+        .neq('user_id', senderId);
+      recipientIds = ((parts as { user_id: string }[] | null) ?? []).map((p) => p.user_id);
+    } else {
+      // Room membership is derived from the source tables, not materialized, so
+      // resolve it via the RPC (excludes the sender + muted members in SQL).
+      const { data: rows } = await admin.rpc('list_room_recipients', {
+        p_conversation_id: conversationId,
+        p_exclude: senderId,
+      });
+      recipientIds = ((rows as { user_id: string }[] | null) ?? []).map((r) => r.user_id);
+    }
     if (recipientIds.length === 0) return;
 
     const { data: senderRow } = await admin
@@ -74,19 +87,22 @@ export async function notifyChatMessage(args: {
     const since = new Date(Date.now() - THROTTLE_MS).toISOString();
     const bucket = Math.floor(Date.now() / THROTTLE_MS);
 
-    for (const recipientId of recipientIds) {
-      // Coalesce: skip if an unread ping for this thread is already waiting.
-      const { data: recent } = await admin
-        .from('notifications')
-        .select('id')
-        .eq('user_id', recipientId)
-        .eq('kind', 'chat.message.received')
-        .eq('href', href)
-        .is('read_at', null)
-        .gte('created_at', since)
-        .limit(1);
-      if (recent && recent.length > 0) continue;
+    // Coalesce in one batched lookup: recipients with an unread ping for this
+    // thread in the window are skipped (a busy room pings each person once).
+    const { data: pending } = await admin
+      .from('notifications')
+      .select('user_id')
+      .in('user_id', recipientIds)
+      .eq('kind', 'chat.message.received')
+      .eq('href', href)
+      .is('read_at', null)
+      .gte('created_at', since);
+    const alreadyPinged = new Set(
+      ((pending as { user_id: string }[] | null) ?? []).map((p) => p.user_id),
+    );
 
+    for (const recipientId of recipientIds) {
+      if (alreadyPinged.has(recipientId)) continue;
       await notify(
         'chat.message.received',
         recipientId,

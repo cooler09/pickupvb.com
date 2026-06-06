@@ -153,7 +153,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
           <ThemeToggle current={theme} />
           {userInfo ? (
             <>
-              <MessagesNavLink unread={messagesUnread} />
+              {user && <MessagesNavLink userId={user.id} initialUnread={messagesUnread} />}
               {user && (
                 <NotificationBell
                   userId={user.id}
@@ -194,7 +194,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
 
         {/* Mobile nav */}
         <div className="flex items-center gap-2 md:hidden">
-          {userInfo && <MessagesNavLink unread={messagesUnread} />}
+          {userInfo && user && <MessagesNavLink userId={user.id} initialUnread={messagesUnread} />}
           {user && (
             <NotificationBell
               userId={user.id}
