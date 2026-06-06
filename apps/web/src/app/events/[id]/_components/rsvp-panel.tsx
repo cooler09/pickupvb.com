@@ -1,16 +1,24 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { SubmitButton } from '@/components/submit-button';
 import { StatusPill } from '@/components/status-pill';
 import { ConfettiBurst } from '@/components/confetti-burst';
+import { primaryButtonClass, neutralButtonClass } from '@/components/primary-button';
 import { rsvpBannerFor, RSVP_BANNER_CLASS } from '@/lib/event-rsvp-flash';
 import GuestSignupForm from '../guest-signup-form';
-import { joinEvent, leaveEvent } from '../rsvp-actions';
+import { joinEvent, joinWaitlist, leaveEvent, leaveWaitlist } from '../rsvp-actions';
 
 type Props = {
   eventId: string;
   eventTitle: string;
   isAttending: boolean;
   isRealUser: boolean;
+  /** True when the event is at fixed capacity (spotsRemaining === 0). */
+  isFull: boolean;
+  /** The viewer's 1-based waitlist place, or null if not queued (ADR 0036). */
+  waitlistPosition: number | null;
+  /** Total players queued. */
+  waitlistCount: number;
   rsvp: string | undefined;
   rsvpMsg: string | undefined;
 };
@@ -19,10 +27,23 @@ type Props = {
  * Bottom-of-page RSVP UI for open-play published events:
  * - Optional flash banner driven by the `?rsvp=` query param
  * - Join / Leave buttons for signed-in users (Leave is confirmed)
+ * - When full: a real "Join waitlist" action (ADR 0036); a queued viewer sees
+ *   their place + a "Leave waitlist" button
  * - Sign-in CTA + guest signup form for anonymous / signed-out viewers
  */
-export function RsvpPanel({ eventId, eventTitle, isAttending, isRealUser, rsvp, rsvpMsg }: Props) {
+export function RsvpPanel({
+  eventId,
+  eventTitle,
+  isAttending,
+  isRealUser,
+  isFull,
+  waitlistPosition,
+  waitlistCount,
+  rsvp,
+  rsvpMsg,
+}: Props) {
   const banner = rsvpBannerFor(rsvp, rsvpMsg);
+  const isWaitlisted = waitlistPosition !== null;
   return (
     <div className="space-y-4">
       {banner && (
@@ -39,7 +60,7 @@ export function RsvpPanel({ eventId, eventTitle, isAttending, isRealUser, rsvp, 
           )}
         </div>
       )}
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {isAttending ? (
           <>
             <StatusPill tone="primary">You&apos;re signed up</StatusPill>
@@ -53,6 +74,22 @@ export function RsvpPanel({ eventId, eventTitle, isAttending, isRealUser, rsvp, 
               />
             </form>
           </>
+        ) : isWaitlisted ? (
+          <>
+            <StatusPill tone="neutral">You&apos;re #{waitlistPosition} on the waitlist</StatusPill>
+            <form action={leaveWaitlist.bind(null, eventId)}>
+              <SubmitButton className={neutralButtonClass('md')}>Leave waitlist</SubmitButton>
+            </form>
+          </>
+        ) : isRealUser && isFull ? (
+          <form action={joinWaitlist.bind(null, eventId)} className="text-right">
+            <SubmitButton className={primaryButtonClass('md')}>Join waitlist</SubmitButton>
+            {waitlistCount > 0 && (
+              <p className="text-muted mt-1 text-xs">
+                {waitlistCount} {waitlistCount === 1 ? 'person' : 'people'} ahead of you
+              </p>
+            )}
+          </form>
         ) : isRealUser ? (
           <form action={joinEvent.bind(null, eventId)}>
             <ConfirmSubmitButton

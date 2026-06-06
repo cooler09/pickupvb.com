@@ -52,6 +52,22 @@ export class LeaveEventCommand {
   ) {}
 }
 
+/** Join the capacity waitlist of a full fixed-capacity open-play event (ADR 0036). */
+export class JoinWaitlistCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly userId: string,
+  ) {}
+}
+
+/** Leave the capacity waitlist (ADR 0036). */
+export class LeaveWaitlistCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly userId: string,
+  ) {}
+}
+
 export class JoinEventAsFreeAgentCommand {
   constructor(
     public readonly eventId: string,

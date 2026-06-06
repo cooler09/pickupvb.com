@@ -23,6 +23,7 @@ import {
   InvariantViolation,
   NotFoundError,
 } from '../shared/result.js';
+import { WaitlistPromoted } from './events.js';
 
 const HOST = 'host-1' as UserId;
 const ALICE = 'alice' as UserId;
@@ -925,5 +926,76 @@ describe('VolleyballEvent surface mirrors the primary division', () => {
 
     // The sortOrder-1 division is Grass, but the primary (Sand) governs the mirror.
     expect(t.surface).toBe(Surface.Sand);
+  });
+});
+
+describe('capacity waitlist + auto-promotion (ADR 0036)', () => {
+  const DAVE = 'dave' as UserId;
+  let evt: VolleyballEvent;
+  beforeEach(() => {
+    // Fixed capacity of 2, filled by ALICE + BOB so the event is full.
+    evt = makeOpenPlay({ capacity: Capacity.fixed(2) });
+    evt.publish();
+    evt.joinAsPlayer(ALICE);
+    evt.joinAsPlayer(BOB);
+  });
+
+  it('queues FIFO with 1-based positions once full', () => {
+    evt.joinWaitlist(CAROL);
+    evt.joinWaitlist(DAVE);
+    expect(evt.waitlist).toEqual([CAROL, DAVE]);
+    expect(evt.waitlistPosition(CAROL)).toBe(1);
+    expect(evt.waitlistPosition(DAVE)).toBe(2);
+    expect(evt.waitlistPosition(ALICE)).toBeNull();
+  });
+
+  it('rejects joining the waitlist when there is room (join directly)', () => {
+    const open = makeOpenPlay({ capacity: Capacity.fixed(2) });
+    open.publish();
+    open.joinAsPlayer(ALICE); // one seat left
+    expect(() => open.joinWaitlist(CAROL)).toThrow(InvariantViolation);
+  });
+
+  it('rejects an attendee or an already-queued user with ConflictError', () => {
+    evt.joinWaitlist(CAROL);
+    expect(() => evt.joinWaitlist(ALICE)).toThrow(ConflictError); // already attending
+    expect(() => evt.joinWaitlist(CAROL)).toThrow(ConflictError); // already queued
+  });
+
+  it('has no capacity waitlist on a positional event', () => {
+    const positional = makeOpenPlay({ positionRoster: new Map([[EventPosition.Setter, 1]]) });
+    positional.publish();
+    expect(() => positional.joinWaitlist(CAROL)).toThrow(InvariantViolation);
+  });
+
+  it('promotes the head into the roster when an attendee leaves (FIFO)', () => {
+    evt.joinWaitlist(CAROL);
+    evt.joinWaitlist(DAVE);
+    evt.pullEvents(); // clear create/publish/join events
+
+    evt.leave(ALICE);
+
+    expect(evt.attendees.has(CAROL)).toBe(true); // head promoted
+    expect(evt.waitlist).toEqual([DAVE]); // DAVE moves up to head
+    expect(evt.waitlistPosition(DAVE)).toBe(1);
+    expect(evt.spotsRemaining).toBe(0); // back to full
+
+    const promoted = evt.pullEvents().filter((e) => e instanceof WaitlistPromoted);
+    expect(promoted).toHaveLength(1);
+    expect((promoted[0] as WaitlistPromoted).userId).toBe(CAROL);
+  });
+
+  it('does not promote when the waitlist is empty', () => {
+    evt.pullEvents();
+    evt.leave(ALICE);
+    expect(evt.spotsRemaining).toBe(1);
+    expect(evt.pullEvents().some((e) => e instanceof WaitlistPromoted)).toBe(false);
+  });
+
+  it('leaveWaitlist removes a queued user and rejects a non-queued one', () => {
+    evt.joinWaitlist(CAROL);
+    evt.leaveWaitlist(CAROL);
+    expect(evt.waitlist).toEqual([]);
+    expect(() => evt.leaveWaitlist(DAVE)).toThrow(NotFoundError);
   });
 });

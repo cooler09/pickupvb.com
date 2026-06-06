@@ -3,6 +3,7 @@ import {
   DivisionId,
   NotFoundError,
   UserId,
+  WaitlistPromoted,
   isEventPosition,
   ValidationError,
 } from '@pickupvb/domain';
@@ -11,8 +12,10 @@ import {
   JoinEventAsFreeAgentCommand,
   JoinEventCommand,
   JoinEventWithPositionCommand,
+  JoinWaitlistCommand,
   LeaveEventAsFreeAgentCommand,
   LeaveEventCommand,
+  LeaveWaitlistCommand,
 } from '../messages';
 
 export class JoinEventHandler {
@@ -54,10 +57,53 @@ export class LeaveEventHandler {
     private readonly analytics?: AnalyticsPort,
   ) {}
 
-  async execute({ eventId, userId }: LeaveEventCommand): Promise<void> {
+  /**
+   * Leaving may auto-promote the head of the capacity waitlist (ADR 0036). The
+   * promoted user id is returned so the caller can notify them
+   * (`event.waitlist.promoted`) — read from the raised events before `save()`
+   * drains them.
+   */
+  async execute({
+    eventId,
+    userId,
+  }: LeaveEventCommand): Promise<{ promotedUserId: string | null }> {
     const event = await this.repo.findById(eventId);
     if (!event) throw new NotFoundError('event', eventId);
     event.leave(UserId(userId));
+    const promoted = event.pendingEvents.find(
+      (e): e is WaitlistPromoted => e instanceof WaitlistPromoted,
+    );
+    await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
+    return { promotedUserId: promoted ? promoted.userId : null };
+  }
+}
+
+export class JoinWaitlistHandler {
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute({ eventId, userId }: JoinWaitlistCommand): Promise<void> {
+    const event = await this.repo.findById(eventId);
+    if (!event) throw new NotFoundError('event', eventId);
+    event.joinWaitlist(UserId(userId));
+    await this.repo.save(event);
+    if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
+  }
+}
+
+export class LeaveWaitlistHandler {
+  constructor(
+    private readonly repo: EventWriteStore,
+    private readonly analytics?: AnalyticsPort,
+  ) {}
+
+  async execute({ eventId, userId }: LeaveWaitlistCommand): Promise<void> {
+    const event = await this.repo.findById(eventId);
+    if (!event) throw new NotFoundError('event', eventId);
+    event.leaveWaitlist(UserId(userId));
     await this.repo.save(event);
     if (this.analytics) dispatchAnalyticsOutbox(event, this.analytics);
   }

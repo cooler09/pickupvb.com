@@ -319,6 +319,7 @@ export class SupabaseEventRepository implements EventRepository {
       { data: teams, error: tErr },
       { data: freeAgents, error: fErr },
       { data: divisions, error: dErr },
+      { data: waitlist, error: wErr },
     ] = await Promise.all([
       this.client
         .from('event_participants')
@@ -343,11 +344,18 @@ export class SupabaseEventRepository implements EventRepository {
         .select('*')
         .eq('event_id', id)
         .order('sort_order', { ascending: true }),
+      // FIFO capacity waitlist, head-first (ADR 0036).
+      this.client
+        .from('event_waitlist')
+        .select('user_id')
+        .eq('event_id', id)
+        .order('created_at', { ascending: true }),
     ]);
     if (aErr) throw new Error(`findById attendees failed: ${aErr.message}`);
     if (tErr) throw new Error(`findById teams failed: ${tErr.message}`);
     if (fErr) throw new Error(`findById free agents failed: ${fErr.message}`);
     if (dErr) throw new Error(`findById divisions failed: ${dErr.message}`);
+    if (wErr) throw new Error(`findById waitlist failed: ${wErr.message}`);
 
     const divisionRows = (divisions ?? []) as DivisionRow[];
     const legacy = primaryDivisionFallback(row, divisionRows);
@@ -397,6 +405,7 @@ export class SupabaseEventRepository implements EventRepository {
       positionRoster: divisionRowToPositionRoster(divisionRows[0]),
       extensions: rowToExtensions(row),
       divisions: divisionRows.map(divisionRowToDomain),
+      waitlist: ((waitlist ?? []) as Array<{ user_id: string }>).map((w) => UserId(w.user_id)),
     });
   }
 
@@ -536,6 +545,37 @@ export class SupabaseEventRepository implements EventRepository {
         .in('division_id', divisionIds)
         .eq('user_id', row.user_id);
       if (updErr) throw new Error(`save attendees update failed: ${updErr.message}`);
+    }
+
+    // Reconcile the capacity waitlist (event-level, ADR 0036) by delta. Inserts
+    // take `created_at = now()` so FIFO order survives across saves (each join is
+    // its own save). A delete covers both leaving the queue and being promoted —
+    // a promoted user drops out of `event.waitlist` and appears in
+    // `event.attendees` (inserted above) in the same save.
+    const { data: existingWaitRows, error: selWErr } = await this.client
+      .from('event_waitlist')
+      .select('user_id')
+      .eq('event_id', eventIdForChildren);
+    if (selWErr) throw new Error(`save waitlist load failed: ${selWErr.message}`);
+    const existingWait = new Set(
+      ((existingWaitRows as Array<{ user_id: string }> | null) ?? []).map((r) => r.user_id),
+    );
+    const desiredWait = event.waitlist.map((u) => String(u));
+    const desiredWaitSet = new Set(desiredWait);
+    const waitToDelete = [...existingWait].filter((u) => !desiredWaitSet.has(u));
+    const waitToInsert = desiredWait.filter((u) => !existingWait.has(u));
+    if (waitToDelete.length > 0) {
+      const { error: delWErr } = await this.client
+        .from('event_waitlist')
+        .delete()
+        .eq('event_id', eventIdForChildren)
+        .in('user_id', waitToDelete);
+      if (delWErr) throw new Error(`save waitlist delete failed: ${delWErr.message}`);
+    }
+    if (waitToInsert.length > 0) {
+      const rows = waitToInsert.map((user_id) => ({ event_id: eventIdForChildren, user_id }));
+      const { error: insWErr } = await this.client.from('event_waitlist').insert(rows as never);
+      if (insWErr) throw new Error(`save waitlist insert failed: ${insWErr.message}`);
     }
 
     // Same delta pattern for the roster-mode entries in event_team_entries,

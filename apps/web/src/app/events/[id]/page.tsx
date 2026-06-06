@@ -138,6 +138,8 @@ export default async function EventDetailPage(props: {
     attendeesForList,
     filledByPosition,
     viewerPosition,
+    waitlistCount,
+    viewerWaitlistPosition,
     sponsor,
     eventBadges,
     heroImageUrl,
@@ -305,6 +307,8 @@ export default async function EventDetailPage(props: {
         hostStripeReady={hostStripeReady}
         filledByPosition={filledByPosition}
         viewerPosition={viewerPosition}
+        waitlistCount={waitlistCount}
+        viewerWaitlistPosition={viewerWaitlistPosition}
         adHocViewerRegistrations={adHocViewerRegistrations}
         adHocAllRegistrations={adHocAllRegistrations}
         rsvp={pickQuery(searchParams, 'rsvp')}

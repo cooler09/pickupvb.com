@@ -39,6 +39,8 @@ export function EventSignupArea({
   hostStripeReady,
   filledByPosition,
   viewerPosition,
+  waitlistCount,
+  viewerWaitlistPosition,
   adHocViewerRegistrations,
   adHocAllRegistrations,
   rsvp,
@@ -67,6 +69,10 @@ export function EventSignupArea({
   hostStripeReady: boolean;
   filledByPosition: Partial<Record<string, number>>;
   viewerPosition: EventPosition | null;
+  /** Total players queued on the capacity waitlist (ADR 0036). */
+  waitlistCount: number;
+  /** The viewer's 1-based waitlist place, or null if not queued. */
+  viewerWaitlistPosition: number | null;
   adHocViewerRegistrations: ReadonlyArray<AdHocTeamRegistration>;
   adHocAllRegistrations: ReadonlyArray<AdHocTeamPublicEntry>;
   rsvp: string | undefined;
@@ -123,7 +129,9 @@ export function EventSignupArea({
             : event.spotsRemaining === null
               ? 'Unlimited spots.'
               : event.spotsRemaining === 0
-                ? 'Full — join the waitlist below.'
+                ? waitlistCount > 0
+                  ? `Full — ${waitlistCount} on the waitlist.`
+                  : 'Full — join the waitlist below.'
                 : `${event.spotsRemaining} ${event.spotsRemaining === 1 ? 'spot' : 'spots'} left.`
         }
       >
@@ -158,6 +166,9 @@ export function EventSignupArea({
             eventTitle={event.title}
             isAttending={event.isAttending}
             isRealUser={isRealUser}
+            isFull={event.spotsRemaining === 0}
+            waitlistPosition={viewerWaitlistPosition}
+            waitlistCount={waitlistCount}
             rsvp={effRsvp}
             rsvpMsg={effRsvpMsg}
           />
