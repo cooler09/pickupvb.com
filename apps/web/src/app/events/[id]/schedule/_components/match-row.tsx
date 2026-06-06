@@ -1,5 +1,6 @@
 import {
   addMatchFromForm,
+  generateScheduleFromForm,
   recordResultFromForm,
   removeMatch,
   updateMatchFromForm,
@@ -106,6 +107,50 @@ export function AddMatchForm(props: {
       <div className="flex justify-end sm:col-span-6">
         <button type="submit" className={primaryButtonClass()}>
           Add match
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export function GenerateScheduleForm(props: {
+  eventId: string;
+  divisionId: string;
+  returnPath: string;
+  teamCount: number;
+}) {
+  const { eventId, divisionId, returnPath, teamCount } = props;
+  return (
+    <form
+      action={generateScheduleFromForm.bind(null, eventId, divisionId, returnPath)}
+      className="border-border-base bg-fg/5 grid grid-cols-1 gap-3 rounded border p-3 sm:grid-cols-6"
+    >
+      <p className="text-muted text-xs sm:col-span-6">
+        Auto-build a weekly round-robin for all {teamCount} registered teams. You can edit, add, or
+        delete matches afterward.
+      </p>
+      <label className="sm:col-span-2">
+        <span className="text-muted block text-xs">Format</span>
+        <select name="legs" defaultValue="1" className={inputClass}>
+          <option value="1">Single — play each team once</option>
+          <option value="2">Double — play each team twice</option>
+        </select>
+      </label>
+      <label className="sm:col-span-2">
+        <span className="text-muted block text-xs">First match</span>
+        <input name="firstMatchAt" type="datetime-local" required className={inputClass} />
+      </label>
+      <label className="sm:col-span-1">
+        <span className="text-muted block text-xs">Days/week</span>
+        <input name="intervalDays" type="number" min={1} defaultValue={7} className={inputClass} />
+      </label>
+      <label className="sm:col-span-1">
+        <span className="text-muted block text-xs">Courts</span>
+        <input name="courts" type="number" min={1} placeholder="—" className={inputClass} />
+      </label>
+      <div className="flex justify-end sm:col-span-6">
+        <button type="submit" className={primaryButtonClass()}>
+          Generate round-robin
         </button>
       </div>
     </form>

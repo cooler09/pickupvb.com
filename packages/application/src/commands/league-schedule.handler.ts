@@ -1,5 +1,7 @@
 import {
+  ConflictError,
   EventType,
+  generateLeagueRoundRobin,
   LeagueMatchStatus,
   LeagueScheduleMatch,
   NotFoundError,
@@ -66,6 +68,28 @@ export class RemoveLeagueScheduleMatchCommand {
     public readonly divisionId: string,
     public readonly matchId: string,
     public readonly requesterId: string,
+  ) {}
+}
+
+export interface GenerateLeagueScheduleOptions {
+  /** 1 = single round-robin (each pair once), 2 = double. Default 1. */
+  legs?: 1 | 2;
+  /** Date/time of week 1's slate. */
+  firstMatchAt: Date;
+  /** Days between weekly slates. Default 7. */
+  intervalDays?: number;
+  /** Optional court labels spread across each week's matches. */
+  courtLabels?: ReadonlyArray<string>;
+}
+
+export class GenerateLeagueScheduleCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly divisionId: string,
+    public readonly requesterId: string,
+    /** Competing entries (`event_team_entries.id`) loaded at the route boundary. */
+    public readonly entryIds: ReadonlyArray<string>,
+    public readonly options: GenerateLeagueScheduleOptions,
   ) {}
 }
 
@@ -199,6 +223,42 @@ export class RemoveLeagueScheduleMatchHandler {
     const schedule = await loadScheduleOrThrow(this.schedules, cmd.divisionId);
     schedule.removeMatch(cmd.matchId as LeagueScheduleMatchId);
     await this.schedules.save(schedule);
+  }
+}
+
+export class GenerateLeagueScheduleHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly schedules: LeagueScheduleRepository,
+  ) {}
+
+  async execute(cmd: GenerateLeagueScheduleCommand): Promise<{ created: number }> {
+    const evt = await loadEventOrThrow(this.events, cmd.eventId);
+    assertHost(evt.hostId, cmd.requesterId);
+    assertLeagueDivision(evt, cmd.divisionId);
+    const schedule = await loadScheduleOrThrow(this.schedules, cmd.divisionId);
+    // Generation is all-or-nothing into an empty slate so it can never clobber
+    // recorded results — the host clears the slate to regenerate. `save` is a
+    // full delete+reinsert, so an empty starting point also keeps the write a
+    // pure insert.
+    if (schedule.matches.length > 0) {
+      throw new ConflictError(
+        'This division already has scheduled matches — remove them before generating a new schedule.',
+      );
+    }
+    const matches = generateLeagueRoundRobin({
+      entryIds: cmd.entryIds.map((id) => id as EntryId),
+      mkId: () => this.schedules.nextMatchId(),
+      firstMatchAt: cmd.options.firstMatchAt,
+      ...(cmd.options.legs !== undefined ? { legs: cmd.options.legs } : {}),
+      ...(cmd.options.intervalDays !== undefined ? { intervalDays: cmd.options.intervalDays } : {}),
+      ...(cmd.options.courtLabels !== undefined ? { courtLabels: cmd.options.courtLabels } : {}),
+    });
+    // `addMatch` enforces the event window per fixture, so an over-long season
+    // surfaces as an InvariantViolation here rather than persisting bad rows.
+    for (const m of matches) schedule.addMatch(m);
+    await this.schedules.save(schedule);
+    return { created: matches.length };
   }
 }
 

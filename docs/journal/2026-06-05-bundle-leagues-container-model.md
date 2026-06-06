@@ -68,6 +68,13 @@ The user initially leaned B, then chose **A**. Background:
   thread `endsAt` to hero); `events/[id]/_components/event-hero.tsx` (season
   sub-line, new `endsAt` prop); `events/_components/event-card.tsx` ("Season ·
   {date}" instead of the countdown — covers home/profile/events listings).
+- **Schedule generator** — `packages/domain/src/leagues/schedule-generator.ts`
+  (new): `generateLeagueRoundRobin` reuses bracket `generateRoundRobin` for
+  pairings, maps round→week, single/double legs, court assignment; +6 tests.
+  `GenerateLeagueSchedule{Command,Handler}` in `league-schedule.handler.ts`
+  (empty-slate `ConflictError` guard; +3 tests); wired in `lib/handlers.ts`.
+  `generateScheduleFromForm` action + `GenerateScheduleForm` UI in the workspace
+  (shown only when the slate is empty and ≥2 teams).
 
 ## Patterns observed
 
@@ -89,8 +96,8 @@ The user initially leaned B, then chose **A**. Background:
 - **Per-fixture reminders for leagues (optional).** Now that the season is
   excluded from the event reminder sweep, weekly-match reminders would be a new,
   `league_schedule_matches`-driven sweep.
-- **Phase 5 (optional): host round-robin schedule generator** reusing
-  `generateRoundRobin` (brackets/generators.ts) to seed weekly fixtures instead
-  of adding matches one at a time.
+- **Regenerate-after-clear UX (optional).** The generator refuses a non-empty
+  slate (never clobbers recorded results), so regenerating means deleting
+  matches first. A "clear schedule" bulk action would smooth that.
 - **Team-rollup pagination** if a team accumulates many seasons (AGENTS.md
   pattern #12) — slow growth, skipped for v1.

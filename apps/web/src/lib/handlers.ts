@@ -31,6 +31,7 @@ import {
   AddEventCoHostHandler,
   AddEventDivisionHandler,
   AddLeagueScheduleMatchHandler,
+  GenerateLeagueScheduleHandler,
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
   ApproveCommunityListingClaimHandler,
@@ -302,6 +303,7 @@ export const handlers = {
   // service-role admin client, which would bypass that gate.
   // League schedule (per-division weekly slate)
   addLeagueScheduleMatch: new AddLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
+  generateLeagueSchedule: new GenerateLeagueScheduleHandler(eventRepo, leagueScheduleRepo),
   updateLeagueScheduleMatch: new UpdateLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   setLeagueTeamForfeited: new SetLeagueTeamForfeitedHandler(eventRepo),

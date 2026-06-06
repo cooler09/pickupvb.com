@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   AddLeagueScheduleMatchCommand,
+  GenerateLeagueScheduleCommand,
   RecordLeagueMatchResultCommand,
   RemoveLeagueScheduleMatchCommand,
   UpdateLeagueScheduleMatchCommand,
@@ -16,8 +17,10 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
+  type DivisionId,
+  type EventId,
 } from '@pickupvb/domain';
-import { getMatchResultHandlers, handlers } from '@/lib/handlers';
+import { getMatchResultHandlers, handlers, repositories } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 import { field, fieldOrUndefined } from '@/lib/form-data';
 
@@ -144,6 +147,63 @@ export async function addMatchFromForm(
   }
   revalidate(eventId);
   back(eventId, divisionId, 'added');
+}
+
+export async function generateScheduleFromForm(
+  eventId: string,
+  divisionId: string,
+  returnPath: string,
+  formData: FormData,
+): Promise<void> {
+  void returnPath;
+  if (!eventId || !divisionId) return;
+  const { user } = await requireRealUser();
+
+  const firstMatchAt = parseScheduledAt(field(formData, 'firstMatchAt'));
+  if (!firstMatchAt) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'A first match date and time is required.');
+  }
+  const legs = fieldOrUndefined(formData, 'legs') === '2' ? 2 : 1;
+  const intervalRaw = Number(fieldOrUndefined(formData, 'intervalDays'));
+  const intervalDays = Number.isInteger(intervalRaw) && intervalRaw >= 1 ? intervalRaw : 7;
+  const courtsRaw = Number(fieldOrUndefined(formData, 'courts'));
+  const courtLabels =
+    Number.isInteger(courtsRaw) && courtsRaw >= 1
+      ? Array.from({ length: courtsRaw }, (_, i) => `Court ${i + 1}`)
+      : undefined;
+
+  let created = 0;
+  try {
+    // Entries are loaded here (route boundary) and passed in, keeping the
+    // handler free of an entries port — mirrors how the schedule page reads
+    // registered teams via the bracket repo.
+    const teams = await repositories.bracketRepo.listRegisteredTeams(
+      eventId as EventId,
+      divisionId as DivisionId,
+    );
+    const result = await handlers.generateLeagueSchedule.execute(
+      new GenerateLeagueScheduleCommand(
+        eventId,
+        divisionId,
+        user.id,
+        teams.map((t) => String(t.entryId)),
+        {
+          legs,
+          firstMatchAt,
+          intervalDays,
+          ...(courtLabels ? { courtLabels } : {}),
+        },
+      ),
+    );
+    created = result.created;
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'generated', `${created} matches`);
 }
 
 export async function updateMatchFromForm(
