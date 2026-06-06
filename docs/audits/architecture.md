@@ -1,5 +1,29 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-06-06, Phase B — P2-1 parallel bracket command hierarchies: RESOLVED).**
+> Collapsed the two near-identical bracket handler hierarchies onto a shared base.
+> [bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)
+> now defines `BracketStructuralHandler` (owns `brackets`/`analytics` + a
+> `runMutation(bracket, mutate)` that does mutate→`save`→outbox-dispatch) and
+> `EventBracketStructuralHandler extends` it (adds `events` + the host-gated
+> `loadHost` resolver). All 13 event structural handlers + all 13 standalone twins
+> ([standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts),
+> which `extends BracketStructuralHandler` and resolves via `loadOwnedBracket`)
+> drop their constructors + duplicated mutate→save→dispatch tails — each body is
+> now `resolve → runMutation((b) => b.op())`, the **only** difference between the
+> paths being the resolver (event-host vs. bracket-owner). **Centralizing the
+> persist tail hardens pattern #9** (the analytics-outbox dispatch is now
+> structurally impossible to forget across the ~26 handlers). Combined LOC
+> **1,115 → 939 (−16%)**; came in above the ~650 estimate **by design** — kept the
+> distinct command classes + handler-registry keys + both test files unchanged
+> (the audit's "keep thin distinct command classes if naming matters"), so the 33
+> bracket handler tests stayed green as the regression net and **zero web call
+> sites changed**. The captain-RLS `RecordMatchResult`/`ResetMatch` handlers (the
+> `saveAsMatchActor` path) are deliberately left independent. **Verify quad green**
+> (typecheck 15/15; lint 0 errors; test domain 547 / application 145 / infra 48 /
+> web 262; build 8/8). No DB change. **Next: Phase C (P2-2 event-repo
+> decomposition + `save()` atomicity).**
+>
 > **Status update (2026-06-06, Phase A — P2-3 `as never` ratchet gap: RESOLVED).**
 > Drained the entire `as never` corpus **155 → 0** in source (infra 88 + web 67;
 > domain/application were already clean). **Read-side brand casts → smart
@@ -895,7 +919,17 @@ delivery, division-scoped registration) are all intact at this HEAD.
 
 ---
 
-### P2-1 — Parallel bracket command hierarchies (DRY / throughput)
+### P2-1 — Parallel bracket command hierarchies (DRY / throughput) ✅ Resolved 2026-06-06 (Phase B)
+
+> **Resolved (Phase B, 2026-06-06):** both hierarchies now share a
+> `BracketStructuralHandler` base (mutate→`save`→outbox-dispatch in one
+> `runMutation`); the event handlers add a host-gated `loadHost` resolver, the
+> standalone twins resolve via `loadOwnedBracket` — the resolver is the only
+> remaining difference. Each handler body collapsed to `resolve → runMutation`;
+> the outbox dispatch is now centralized (pattern #9 hardening). Combined LOC
+> 1,115 → 939; distinct command classes + registry keys + both test files kept
+> unchanged (33 tests green, zero web call-site churn). Verify quad green. See the
+> top-of-doc status block.
 
 - **Where:** [standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts)
   (491 LOC, 17 command classes + 15 handlers) duplicates

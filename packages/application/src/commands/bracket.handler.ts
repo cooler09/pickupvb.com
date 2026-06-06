@@ -236,15 +236,66 @@ async function loadHostBracket(
   return bracket;
 }
 
-// ---- Handlers ------------------------------------------------------------
+// ---- Shared handler machinery --------------------------------------------
+//
+// Every structural bracket mutation — event-scoped and standalone alike
+// (ADR 0025) — follows one flow: resolve an authorized `Bracket`, mutate it,
+// persist via the host-only full-replace `save`, then drain its analytics
+// outbox (pattern #9). Only the *resolve* step differs (host-of-event vs.
+// owner-of-bracket), so the flow lives on a shared base that the standalone
+// handlers ([standalone-bracket.handler.ts]) extend too — collapsing what were
+// two near-identical handler hierarchies (architecture audit P2-1).
 
-export class CreateBracketHandler {
+export abstract class BracketStructuralHandler {
   constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
+    protected readonly brackets: BracketRepository,
+    protected readonly analytics?: AnalyticsPort,
   ) {}
 
+  /**
+   * Apply `mutate`, persist through the host-only full-replace `save`, and
+   * dispatch the bracket's analytics outbox. Centralizing the save+dispatch
+   * tail makes the outbox delivery (pattern #9) structurally impossible to
+   * forget across the ~26 structural handlers. Returns the mutation's own
+   * result (e.g. a new match id) so value-returning ops compose.
+   *
+   * NOTE: this is the **host-only** persist (`save`). The captain-reachable
+   * match-result writes (`RecordMatchResultHandler` / `ResetMatchHandler`) do
+   * NOT use it — they route through `saveAsMatchActor` + the RLS-gated RPC
+   * (AGENTS.md pattern #8).
+   */
+  protected async runMutation<R>(bracket: Bracket, mutate: (b: Bracket) => R): Promise<R> {
+    const result = mutate(bracket);
+    await this.brackets.save(bracket);
+    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    return result;
+  }
+}
+
+/**
+ * Base for the event-scoped structural handlers: adds the `EventWriteStore`
+ * dependency and the host-gated `loadHost` resolver (find-by-division → assert
+ * the requester is the event host). The standalone twins instead resolve via
+ * `loadOwnedBracket` (owner check) — that's the entire difference between the
+ * two hierarchies.
+ */
+export abstract class EventBracketStructuralHandler extends BracketStructuralHandler {
+  constructor(
+    protected readonly events: EventWriteStore,
+    brackets: BracketRepository,
+    analytics?: AnalyticsPort,
+  ) {
+    super(brackets, analytics);
+  }
+
+  protected loadHost(divisionId: string, requesterId: string): Promise<Bracket> {
+    return loadHostBracket(this.events, this.brackets, divisionId, requesterId);
+  }
+}
+
+// ---- Handlers ------------------------------------------------------------
+
+export class CreateBracketHandler extends EventBracketStructuralHandler {
   async execute(cmd: CreateBracketCommand): Promise<{ bracketId: string }> {
     const evt = await this.events.findById(cmd.eventId);
     if (!evt) throw new NotFoundError('event', cmd.eventId);
@@ -270,275 +321,134 @@ export class CreateBracketHandler {
       cmd.format,
       cmd.config,
     );
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
-    return { bracketId: bracket.id };
+    return this.runMutation(bracket, (b) => ({ bracketId: b.id }));
   }
 }
 
-export class SeedBracketHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class SeedBracketHandler extends EventBracketStructuralHandler {
   async execute(cmd: SeedBracketCommand): Promise<void> {
-    const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
-    const evt = await loadEventForBracket(this.events, bracket);
-    assertHost(evt.hostId, cmd.requesterId);
-    bracket.seedTeams(
-      cmd.entryIdsInOrder.map((t) => EntryId(t)),
-      cmd.pools,
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) =>
+      b.seedTeams(
+        cmd.entryIdsInOrder.map((t) => EntryId(t)),
+        cmd.pools,
+      ),
     );
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
-export class GenerateBracketHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class GenerateBracketHandler extends EventBracketStructuralHandler {
   async execute(cmd: GenerateBracketCommand): Promise<void> {
-    const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
-    const evt = await loadEventForBracket(this.events, bracket);
-    assertHost(evt.hostId, cmd.requesterId);
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
     // ADR 0032: generate() lands in `draft` — the host reviews/edits the
     // generated schedule in the draft workspace, then publishes via
     // PublishBracketCommand. (The earlier auto-publish bridge was removed when
     // the draft UI shipped.)
-    bracket.generate(() => this.brackets.nextMatchId());
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    await this.runMutation(bracket, (b) => b.generate(() => this.brackets.nextMatchId()));
   }
 }
 
-export class GeneratePlayoffHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class GeneratePlayoffHandler extends EventBracketStructuralHandler {
   async execute(cmd: GeneratePlayoffCommand): Promise<void> {
-    const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
-    const evt = await loadEventForBracket(this.events, bracket);
-    assertHost(evt.hostId, cmd.requesterId);
-    bracket.generatePlayoff(() => this.brackets.nextMatchId());
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) => b.generatePlayoff(() => this.brackets.nextMatchId()));
   }
 }
 
-export class ResetBracketHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class ResetBracketHandler extends EventBracketStructuralHandler {
   async execute(cmd: ResetBracketCommand): Promise<void> {
-    const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
-    const evt = await loadEventForBracket(this.events, bracket);
-    assertHost(evt.hostId, cmd.requesterId);
-    bracket.reset();
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) => b.reset());
   }
 }
 
-export class ReorderPoolMatchesHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class ReorderPoolMatchesHandler extends EventBracketStructuralHandler {
   async execute(cmd: ReorderPoolMatchesCommand): Promise<void> {
-    const bracket = await loadBracketOrThrow(this.brackets, cmd.divisionId);
-    const evt = await loadEventForBracket(this.events, bracket);
-    assertHost(evt.hostId, cmd.requesterId);
-    bracket.reorderPoolMatches(
-      cmd.pool,
-      cmd.matchIdsInOrder.map((id) => MatchId(id)),
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) =>
+      b.reorderPoolMatches(
+        cmd.pool,
+        cmd.matchIdsInOrder.map((id) => MatchId(id)),
+      ),
     );
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
 // ---- Manual-edit handlers (ADR 0032) -------------------------------------
 //
-// Each follows the host-gated structural-mutation shape: load + assertHost
-// (via loadHostBracket), mutate the aggregate, persist with the host-only
-// `save`, then dispatch the analytics outbox. Built around the module-singleton
-// admin-client bracketRepo in the composition root.
+// Host-gated structural edits. Each resolves the division's bracket + asserts
+// the requester is the event host (`loadHost`), mutates, and persists via the
+// host-only `save` + outbox dispatch (`runMutation`) — distinct from the
+// captain-reachable match-result writes below, which route through
+// `saveAsMatchActor` + the RLS-gated RPC (AGENTS.md pattern #8).
 
-export class PublishBracketHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class PublishBracketHandler extends EventBracketStructuralHandler {
   async execute(cmd: PublishBracketCommand): Promise<void> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
-    );
-    bracket.publish();
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) => b.publish());
   }
 }
 
-export class ReopenBracketHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class ReopenBracketHandler extends EventBracketStructuralHandler {
   async execute(cmd: ReopenBracketCommand): Promise<void> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
-    );
-    bracket.reopen();
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) => b.reopen());
   }
 }
 
-export class SetPoolsHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class SetPoolsHandler extends EventBracketStructuralHandler {
   async execute(cmd: SetPoolsCommand): Promise<void> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) =>
+      b.setPools(cmd.assignments.map((a) => ({ entryId: EntryId(a.entryId), pool: a.pool }))),
     );
-    bracket.setPools(cmd.assignments.map((a) => ({ entryId: EntryId(a.entryId), pool: a.pool })));
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
-export class EditMatchHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class EditMatchHandler extends EventBracketStructuralHandler {
   async execute(cmd: EditMatchCommand): Promise<void> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) =>
+      b.editMatch(MatchId(cmd.matchId), buildMatchPatch(cmd.patch)),
     );
-    bracket.editMatch(MatchId(cmd.matchId), buildMatchPatch(cmd.patch));
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
-export class AddMatchHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class AddMatchHandler extends EventBracketStructuralHandler {
   async execute(cmd: AddMatchCommand): Promise<{ matchId: string }> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    const id = await this.runMutation(bracket, (b) =>
+      b.addMatch(() => this.brackets.nextMatchId(), buildAddMatchInput(cmd.input)),
     );
-    const id = bracket.addMatch(() => this.brackets.nextMatchId(), buildAddMatchInput(cmd.input));
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
     return { matchId: String(id) };
   }
 }
 
-export class RemoveMatchHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class RemoveMatchHandler extends EventBracketStructuralHandler {
   async execute(cmd: RemoveMatchCommand): Promise<void> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
-    );
-    bracket.removeMatch(MatchId(cmd.matchId));
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) => b.removeMatch(MatchId(cmd.matchId)));
   }
 }
 
-export class SeedPlayoffHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class SeedPlayoffHandler extends EventBracketStructuralHandler {
   async execute(cmd: SeedPlayoffCommand): Promise<void> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) =>
+      b.seedPlayoff(
+        () => this.brackets.nextMatchId(),
+        cmd.orderedEntryIds.map((id) => EntryId(id)),
+      ),
     );
-    bracket.seedPlayoff(
-      () => this.brackets.nextMatchId(),
-      cmd.orderedEntryIds.map((id) => EntryId(id)),
-    );
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
-export class ReplaceEntryHandler {
-  constructor(
-    private readonly events: EventWriteStore,
-    private readonly brackets: BracketRepository,
-    private readonly analytics?: AnalyticsPort,
-  ) {}
-
+export class ReplaceEntryHandler extends EventBracketStructuralHandler {
   async execute(cmd: ReplaceEntryCommand): Promise<void> {
-    const bracket = await loadHostBracket(
-      this.events,
-      this.brackets,
-      cmd.divisionId,
-      cmd.requesterId,
+    const bracket = await this.loadHost(cmd.divisionId, cmd.requesterId);
+    await this.runMutation(bracket, (b) =>
+      b.replaceEntry(EntryId(cmd.oldEntryId), EntryId(cmd.newEntryId)),
     );
-    bracket.replaceEntry(EntryId(cmd.oldEntryId), EntryId(cmd.newEntryId));
-    await this.brackets.save(bracket);
-    if (this.analytics) dispatchAnalyticsOutbox(bracket, this.analytics);
   }
 }
 
