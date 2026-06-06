@@ -120,14 +120,27 @@ added `public/manifest.webmanifest`, linked `manifest` + `appleWebApp` +
 `push` to both ([kinds.ts](../../packages/notifications/src/kinds.ts)). Paired
 with the correctness fix below so transactional push still honors the opt-in.
 
-### P2 #2 — Three notification kinds defined but never triggered — OPEN
+### P2 #2 — Three notification kinds defined but never triggered — ◑ mostly resolved 2026-06-06
 
 `event.waitlist.promoted` (waitlist feature itself unimplemented),
-`host.stripe.action_required`, and `social.follow.new` have kinds + templates
-but **zero `notify()` call sites**. Either wire them at their event source or
-remove to avoid dead config. Files: trigger sites absent;
-[kinds.ts](../../packages/notifications/src/kinds.ts),
-[templates.ts](../../packages/notifications/src/templates.ts).
+`host.stripe.action_required`, and `social.follow.new` had kinds + templates
+but **zero `notify()` call sites**.
+
+- **`social.follow.new` — wired.** `notifyNewFollower`
+  ([notify-follow.ts](../../apps/web/src/lib/notify-follow.ts)) fires from
+  `addFriend` ([friends/actions.ts](../../apps/web/src/app/friends/actions.ts))
+  via `after()`. Coalesced on the unread-bell href so a follow/unfollow churn
+  pings once.
+- **`host.stripe.action_required` — wired.** `maybeNotifyStripeActionRequired`
+  ([webhooks/connect.ts](../../apps/web/src/lib/webhooks/connect.ts)) fires from
+  `handleAccountUpdated` when `requirements.past_due` / `currently_due` /
+  `disabled_reason` is set. Email/push dedup on a requirement-signature
+  idempotency key; in_app coalesces on the unread bell.
+- **`event.waitlist.promoted` — still OPEN**, blocked on the waitlist feature
+  (P3 of the outstanding-items plan). It will be fired from the promote handler.
+
+Tests: [notify-follow.test.ts](../../apps/web/src/lib/notify-follow.test.ts),
+[webhooks/connect.test.ts](../../apps/web/src/lib/webhooks/connect.test.ts).
 
 ### P2 #3 — No email bounce/complaint handling — OPEN
 

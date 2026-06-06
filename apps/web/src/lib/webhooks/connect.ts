@@ -43,6 +43,70 @@ export async function handleAccountUpdated(account: Stripe.Account): Promise<voi
       analytics.capture({ name: 'host_payout_setup_completed', props: { hostId } }, hostId);
     }
   }
+
+  // Nudge the host if Stripe needs more info to keep payouts flowing.
+  await maybeNotifyStripeActionRequired(account);
+}
+
+/**
+ * Ping the host when their Connect account has an outstanding Stripe
+ * requirement (lights up the previously-dead `host.stripe.action_required`
+ * kind). Stripe re-sends `account.updated` on every change, so this dedups two
+ * ways:
+ *   - email/push carry a requirement-*signature* idempotency key, so the host
+ *     gets one mail per distinct set of outstanding requirements, not one per
+ *     webhook; and
+ *   - in_app (which carries no idempotency key) is coalesced — skip when an
+ *     unread action-required bell is already waiting, so the host sees one
+ *     "fix Stripe" bell at a time.
+ *
+ * Best-effort: a notify failure must never reject the webhook (Stripe would
+ * retry the whole event).
+ */
+export async function maybeNotifyStripeActionRequired(account: Stripe.Account): Promise<void> {
+  const req = account.requirements;
+  const pastDue = req?.past_due ?? [];
+  const currentlyDue = req?.currently_due ?? [];
+  const disabledReason = req?.disabled_reason ?? null;
+  if (pastDue.length === 0 && currentlyDue.length === 0 && !disabledReason) return;
+
+  const admin = getAdminSupabase();
+  const { data: row } = await admin
+    .from('host_stripe_accounts')
+    .select('user_id')
+    .eq('stripe_account_id', account.id)
+    .maybeSingle();
+  const hostId = (row as { user_id: string } | null)?.user_id ?? null;
+  if (!hostId) return;
+
+  // Coalesce in_app: one outstanding action-required bell at a time.
+  const { data: pending } = await admin
+    .from('notifications')
+    .select('id')
+    .eq('user_id', hostId)
+    .eq('kind', 'host.stripe.action_required')
+    .is('read_at', null)
+    .limit(1);
+  if (pending && pending.length > 0) return;
+
+  const message =
+    pastDue.length > 0 || disabledReason
+      ? 'Your payouts are paused until you finish verifying your account with Stripe.'
+      : 'Stripe needs more information to keep your payouts active.';
+  // Stable per distinct outstanding-requirement set so resends with the same
+  // state dedup, but a newly-added requirement re-notifies.
+  const signature = `${disabledReason ?? ''}|${[...pastDue, ...currentlyDue].sort().join(',')}`;
+
+  try {
+    await notify(
+      'host.stripe.action_required',
+      hostId,
+      { message },
+      { idempotencyKey: `stripe-req:${account.id}:${signature}` },
+    );
+  } catch {
+    // best-effort
+  }
 }
 
 /**
