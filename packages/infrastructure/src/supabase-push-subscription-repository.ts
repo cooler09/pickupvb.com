@@ -60,7 +60,7 @@ export class SupabasePushSubscriptionRepository implements PushSubscriptionPort 
         user_agent: sub.userAgent,
         last_used_at: new Date().toISOString(),
         failure_count: 0,
-      } as never,
+      },
       { onConflict: 'endpoint' },
     );
     if (error) throw new Error(`upsert failed: ${error.message}`);

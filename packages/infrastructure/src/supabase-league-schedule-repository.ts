@@ -125,7 +125,7 @@ export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepositor
     const { error } = await this.client.rpc('save_league_schedule', {
       p_division_id: schedule.divisionId,
       p_matches: matches,
-    } as never);
+    });
     if (error) throw new Error(`league schedule save failed: ${error.message}`);
   }
 
@@ -143,7 +143,7 @@ export class SupabaseLeagueScheduleRepository implements LeagueScheduleRepositor
       p_home_score: input.homeScore,
       p_away_score: input.awayScore,
       p_status: input.status,
-    } as never);
+    });
     if (error) {
       if (error.code === '42501') {
         throw new UnauthorizedError('You can only record results for matches you host or captain.');

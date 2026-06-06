@@ -1,12 +1,12 @@
 import {
   NotFoundError,
   Team,
-  type TeamId,
+  TeamId,
   type TeamMemberStatus,
   type TeamRepository,
   type UserId,
 } from '@pickupvb/domain';
-import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { createSupabaseAdminClient, type TablesInsert } from '@pickupvb/supabase';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -53,7 +53,7 @@ export class SupabaseTeamRepository implements TeamRepository {
       members.set(m.user_id as UserId, m.status ?? 'active');
     }
     return Team.rehydrate({
-      id: row.id as never as TeamId,
+      id: TeamId(row.id),
       captainId: row.captain_id as UserId,
       name: row.name,
       members,
@@ -68,7 +68,9 @@ export class SupabaseTeamRepository implements TeamRepository {
       name: team.name,
       extra_member_count: team.extraMemberCount,
     };
-    const { error } = await this.client.from('teams').upsert(row as never, { onConflict: 'id' });
+    const { error } = await this.client
+      .from('teams')
+      .upsert(row as TablesInsert<'teams'>, { onConflict: 'id' });
     if (error) throw new Error(`Team.save(${team.id}) failed: ${error.message}`);
 
     // Reconcile roster.
@@ -83,7 +85,7 @@ export class SupabaseTeamRepository implements TeamRepository {
       .eq('team_id', String(team.id));
     if (delErr) throw new Error(`Team.save members clear failed: ${delErr.message}`);
     if (rows.length > 0) {
-      const { error: insErr } = await this.client.from('team_members').insert(rows as never);
+      const { error: insErr } = await this.client.from('team_members').insert(rows);
       if (insErr) throw new Error(`Team.save members insert failed: ${insErr.message}`);
     }
   }
@@ -94,7 +96,7 @@ export class SupabaseTeamRepository implements TeamRepository {
  * absent (call sites usually want a typed `NotFoundError` rather than null).
  */
 export async function loadTeamOrThrow(repo: TeamRepository, id: string): Promise<Team> {
-  const team = await repo.findById(id as never as TeamId);
+  const team = await repo.findById(TeamId(id));
   if (!team) throw new NotFoundError('team', id);
   return team;
 }

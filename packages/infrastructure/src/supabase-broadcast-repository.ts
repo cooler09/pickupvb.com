@@ -22,7 +22,7 @@ export class SupabaseBroadcastRepository implements BroadcastPort {
         subject: input.subject,
         body: input.body,
         channels: input.channels,
-      } as never)
+      })
       .select('id')
       .single();
     if (error) throw new Error(`Broadcast.create failed: ${error.message}`);
@@ -32,7 +32,7 @@ export class SupabaseBroadcastRepository implements BroadcastPort {
   async markSent(id: string): Promise<void> {
     const { error } = await this.client
       .from('broadcasts')
-      .update({ sent_at: new Date().toISOString() } as never)
+      .update({ sent_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(`Broadcast.markSent failed: ${error.message}`);
   }
@@ -52,7 +52,7 @@ export class SupabaseBroadcastRepository implements BroadcastPort {
   async softDelete(id: string): Promise<void> {
     const { error } = await this.client
       .from('broadcasts')
-      .update({ deleted_at: new Date().toISOString() } as never)
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw new Error(`Broadcast.softDelete failed: ${error.message}`);
   }

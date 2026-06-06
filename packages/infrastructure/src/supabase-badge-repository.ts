@@ -7,6 +7,7 @@ import {
   type PlayerBadgeStats,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { asJson } from './supabase-json.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -65,7 +66,7 @@ export class SupabaseBadgeRepository implements BadgeRepository {
         user_id: input.userId,
         badge_key: input.badgeKey,
         source: input.source,
-        context: (input.context ?? null) as never,
+        context: asJson(input.context ?? null),
       })
       .select('badge_key')
       .maybeSingle();

@@ -569,7 +569,7 @@ export async function getGroupHandlers(): Promise<{
     const admin = getAdminSupabase();
     const { error } = await admin
       .from('groups')
-      .update({ deleted_at: new Date().toISOString() } as never)
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', groupId);
     if (error) throw new Error(`Group soft-delete failed: ${error.message}`);
   };

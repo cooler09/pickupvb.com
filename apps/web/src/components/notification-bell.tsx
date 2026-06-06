@@ -80,7 +80,7 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
     if (unreadIds.length === 0) return;
     void supabase
       .from('notifications')
-      .update({ read_at: new Date().toISOString() } as never)
+      .update({ read_at: new Date().toISOString() })
       .in('id', unreadIds)
       .then(() => {
         setUnread(0);

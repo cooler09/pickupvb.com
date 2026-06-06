@@ -3,6 +3,7 @@ import {
   Capacity,
   Division,
   DivisionId,
+  EventId,
   EventStatus,
   EventType,
   Format,
@@ -31,7 +32,7 @@ import {
   type EventSearchQuery,
   type VolleyballEventSummary,
 } from '@pickupvb/domain';
-import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { createSupabaseAdminClient, type Database, type TablesInsert } from '@pickupvb/supabase';
 import {
   computeSpotsRemaining,
   indexPaymentsByTeam,
@@ -189,7 +190,7 @@ function divisionRowToPositionRoster(
 
 function divisionRowToDomain(row: DivisionRow): Division {
   return Division.fromPersistence({
-    id: row.id as never,
+    id: DivisionId(row.id),
     sortOrder: row.sort_order,
     label: row.label,
     surface: row.surface,
@@ -361,8 +362,8 @@ export class SupabaseEventRepository implements EventRepository {
     const legacy = primaryDivisionFallback(row, divisionRows);
 
     return VolleyballEvent.fromPersistence({
-      id: row.id as never,
-      hostId: row.host_id as never,
+      id: EventId(row.id),
+      hostId: UserId(row.host_id),
       title: row.title,
       description: row.description,
       rules: row.rules,
@@ -384,7 +385,7 @@ export class SupabaseEventRepository implements EventRepository {
       capacity: legacy.capacity,
       status: row.status,
       attendees: ((attendees ?? []) as Array<{ user_id: string; position: string | null }>).map(
-        (a) => [a.user_id as never, isEventPosition(a.position) ? a.position : null] as const,
+        (a) => [UserId(a.user_id), isEventPosition(a.position) ? a.position : null] as const,
       ),
       teams: ((teams ?? []) as Array<{ team_id: string; division_id: string | null }>).map(
         (t) => [TeamId(t.team_id), t.division_id ? DivisionId(t.division_id) : null] as const,
@@ -457,7 +458,9 @@ export class SupabaseEventRepository implements EventRepository {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await this.client.from('events').upsert(row as never, { onConflict: 'id' });
+    const { error } = await this.client
+      .from('events')
+      .upsert(row as TablesInsert<'events'>, { onConflict: 'id' });
     if (error) throw new Error(`save(${event.id}) failed: ${error.message}`);
 
     // Reconcile attendees by delta. The aggregate's `_attendees` Map carries
@@ -534,13 +537,13 @@ export class SupabaseEventRepository implements EventRepository {
     }
     if (attendeesToInsert.length > 0) {
       const rows = attendeesToInsert.map((a) => ({ ...a, role: 'attendee' as const }));
-      const { error: insErr } = await this.client.from('event_participants').insert(rows as never);
+      const { error: insErr } = await this.client.from('event_participants').insert(rows);
       if (insErr) throw new Error(`save attendees insert failed: ${insErr.message}`);
     }
     for (const row of attendeesToUpdate) {
       const { error: updErr } = await this.client
         .from('event_participants')
-        .update({ position: row.position } as never)
+        .update({ position: row.position })
         .eq('role', 'attendee')
         .in('division_id', divisionIds)
         .eq('user_id', row.user_id);
@@ -574,7 +577,7 @@ export class SupabaseEventRepository implements EventRepository {
     }
     if (waitToInsert.length > 0) {
       const rows = waitToInsert.map((user_id) => ({ event_id: eventIdForChildren, user_id }));
-      const { error: insWErr } = await this.client.from('event_waitlist').insert(rows as never);
+      const { error: insWErr } = await this.client.from('event_waitlist').insert(rows);
       if (insWErr) throw new Error(`save waitlist insert failed: ${insWErr.message}`);
     }
 
@@ -623,7 +626,7 @@ export class SupabaseEventRepository implements EventRepository {
       const { error: insTErr } = await this.client.rpc('attach_team_to_division', {
         p_division_id: teamDivisionId,
         p_team_id: teamId,
-      } as never);
+      });
       if (insTErr) throw new Error(`save teams insert failed: ${insTErr.message}`);
     }
 
@@ -686,7 +689,7 @@ export class SupabaseEventRepository implements EventRepository {
       // a concurrent double-submit raises 23505 (unique_violation) — which we
       // swallow to keep the operation idempotent (matches the removed
       // attachFreeAgentToDivision behaviour — ADR 0019).
-      const { error: insFErr } = await this.client.from('event_participants').insert(rows as never);
+      const { error: insFErr } = await this.client.from('event_participants').insert(rows);
       if (insFErr && insFErr.code !== '23505') {
         throw new Error(`save free agents insert failed: ${insFErr.message}`);
       }
@@ -694,7 +697,7 @@ export class SupabaseEventRepository implements EventRepository {
     for (const row of faToUpdate) {
       const { error: updErr } = await this.client
         .from('event_participants')
-        .update({ notes: row.notes } as never)
+        .update({ notes: row.notes })
         .eq('role', 'free_agent')
         .in('division_id', divisionIds)
         .eq('user_id', row.user_id);
@@ -724,7 +727,7 @@ export class SupabaseEventRepository implements EventRepository {
         : null;
       const { error: upErr } = await this.client
         .from('event_divisions')
-        .upsert(divisionRows as never, { onConflict: 'id' });
+        .upsert(divisionRows as TablesInsert<'event_divisions'>[], { onConflict: 'id' });
       if (upErr) throw new Error(`save divisions upsert failed: ${upErr.message}`);
       const keepIds = event.divisions.map((d) => String(d.id));
       const { error: delDivErr } = await this.client
@@ -795,7 +798,10 @@ export class SupabaseEventRepository implements EventRepository {
       p_is_fundraiser: query.isFundraiser ?? null,
     };
 
-    const { data, error } = await this.client.rpc('search_events', args as never);
+    const { data, error } = await this.client.rpc(
+      'search_events',
+      args as Database['public']['Functions']['search_events']['Args'],
+    );
     if (error) throw new Error(`search failed: ${error.message}`);
 
     const rows = (data ?? []) as unknown as SearchRow[];
@@ -1430,7 +1436,7 @@ export class SupabaseEventRepository implements EventRepository {
       host_user_id: party.userId ?? null,
       host_group_id: party.groupId ?? null,
       added_by: addedBy,
-    } as never);
+    });
     if (error) throw new Error(`addCoHost failed: ${error.message}`);
   }
 
@@ -1454,7 +1460,7 @@ export class SupabaseEventRepository implements EventRepository {
     // withdrawn rows. RLS on event_team_entries gates the write to the host.
     const { error } = await this.client
       .from('event_team_entries')
-      .update({ forfeited_at: forfeitedAt ? forfeitedAt.toISOString() : null } as never)
+      .update({ forfeited_at: forfeitedAt ? forfeitedAt.toISOString() : null })
       .eq('id', entryId)
       .is('deleted_at', null);
     if (error) throw new Error(`setLeagueEntryForfeited failed: ${error.message}`);

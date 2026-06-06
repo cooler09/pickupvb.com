@@ -30,7 +30,7 @@ async function unsubscribe(token: string | null): Promise<boolean> {
   // existing row only flips email_enabled.
   const { error } = await admin
     .from('notification_preferences')
-    .upsert({ user_id: userId, email_enabled: false } as never, { onConflict: 'user_id' });
+    .upsert({ user_id: userId, email_enabled: false }, { onConflict: 'user_id' });
   return !error;
 }
 

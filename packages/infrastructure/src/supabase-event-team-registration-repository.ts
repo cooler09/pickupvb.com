@@ -4,9 +4,9 @@ import {
   RegistrationMember,
   RegistrationPaymentStatus,
   RegistrationSource,
-  type DivisionId,
-  type EventTeamRegistrationId,
-  type EventTeamRegistrationMemberId,
+  DivisionId,
+  EventTeamRegistrationId,
+  EventTeamRegistrationMemberId,
   type EventTeamRegistrationRepository,
   type UserId,
 } from '@pickupvb/domain';
@@ -134,7 +134,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
 
     const { error } = await this.client
       .from('event_team_entries')
-      .upsert(entryRow as never, { onConflict: 'id' });
+      .upsert(entryRow, { onConflict: 'id' });
     if (error) {
       throw new Error(`EventTeamRegistration.save(${registration.id}) failed: ${error.message}`);
     }
@@ -154,7 +154,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     };
     const { error: payErr } = await this.client
       .from('event_team_payments')
-      .upsert(paymentRow as never, { onConflict: 'entry_id' });
+      .upsert(paymentRow, { onConflict: 'entry_id' });
     if (payErr) {
       throw new Error(
         `EventTeamRegistration.save payment(${registration.id}) failed: ${payErr.message}`,
@@ -179,9 +179,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
       email: m.email,
       sort_order: m.sortOrder,
     }));
-    const { error: insErr } = await this.client
-      .from('event_team_entry_members')
-      .insert(memberRows as never);
+    const { error: insErr } = await this.client.from('event_team_entry_members').insert(memberRows);
     if (insErr) {
       throw new Error(`EventTeamRegistration.save members insert failed: ${insErr.message}`);
     }
@@ -197,7 +195,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
   async softDelete(id: EventTeamRegistrationId): Promise<void> {
     const { error } = await this.client
       .from('event_team_entries')
-      .update({ deleted_at: new Date().toISOString() } as never)
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', String(id))
       .is('deleted_at', null);
     if (error) {
@@ -275,7 +273,7 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
 
     const members = ((memberRows as MemberRow[] | null) ?? []).map((m) =>
       RegistrationMember.create({
-        id: m.id as never as EventTeamRegistrationMemberId,
+        id: EventTeamRegistrationMemberId(m.id),
         userId: m.user_id ? (m.user_id as UserId) : null,
         displayName: m.display_name,
         email: m.email,
@@ -286,9 +284,9 @@ export class SupabaseEventTeamRegistrationRepository implements EventTeamRegistr
     const isWalkIn = row.source === 'walk_in';
 
     return EventTeamRegistration.rehydrate({
-      id: row.id as never as EventTeamRegistrationId,
+      id: EventTeamRegistrationId(row.id),
       eventId: row.event_id,
-      divisionId: row.division_id as never as DivisionId,
+      divisionId: DivisionId(row.division_id),
       captainId: row.captain_id === null ? null : (row.captain_id as UserId),
       name: row.display_name,
       members,
@@ -318,7 +316,7 @@ export async function loadEventTeamRegistrationOrThrow(
   repo: EventTeamRegistrationRepository,
   id: string,
 ): Promise<EventTeamRegistration> {
-  const registration = await repo.findById(id as never as EventTeamRegistrationId);
+  const registration = await repo.findById(EventTeamRegistrationId(id));
   if (!registration) throw new NotFoundError('event_team_registration', id);
   return registration;
 }

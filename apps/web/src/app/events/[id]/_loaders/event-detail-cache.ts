@@ -97,7 +97,7 @@ export function loadEventTipTotalCached(id: string): Promise<number> {
       const { getAdminSupabase } = await import('@/lib/supabase-admin');
       const { data } = await getAdminSupabase().rpc('event_tip_total_cents', {
         p_event_id: id,
-      } as never);
+      });
       return Number(data ?? 0);
     },
     ['event-tip-total', id],

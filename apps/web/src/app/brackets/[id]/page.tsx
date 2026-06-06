@@ -6,6 +6,7 @@ import { errorButtonClass } from '@/components/primary-button';
 import { repositories } from '@/lib/handlers';
 import { deleteStandaloneBracket } from '../actions';
 import { isPro } from '@/lib/pro';
+import { BracketId } from '@pickupvb/domain';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '@/app/events/[id]/bracket/_components/board-view';
@@ -46,7 +47,7 @@ export default async function StandaloneBracketPage(props: {
   const user = viewer?.user ?? null;
   const isRealUser = !!user && !isAnonymousUser(user);
 
-  const bracket = await repositories.bracketRepo.findById(id as never);
+  const bracket = await repositories.bracketRepo.findById(BracketId(id));
   if (!bracket || !bracket.ownerUserId) notFound();
 
   // Only the owner edits here; everyone else gets the read-only watch view.
@@ -55,7 +56,7 @@ export default async function StandaloneBracketPage(props: {
   }
 
   const registeredTeams = (await repositories.bracketRepo.listStandaloneTeams(
-    id as never,
+    BracketId(id),
   )) as TeamLite[];
 
   const teamById = new Map<string, TeamLite>();

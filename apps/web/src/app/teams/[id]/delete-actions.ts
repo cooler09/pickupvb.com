@@ -62,7 +62,7 @@ export async function deleteTeamAction(
     const admin = getAdminSupabase();
     const { error: updErr } = await admin
       .from('teams')
-      .update({ deleted_at: new Date().toISOString() } as never)
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', teamId);
     if (updErr) return { error: updErr.message };
 

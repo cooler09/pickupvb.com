@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
-import { NotFoundError } from '@pickupvb/domain';
+import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
@@ -122,8 +122,11 @@ export default async function BracketWatchPage(props: {
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
   const [bracket, registeredTeams] = await Promise.all([
-    repositories.bracketRepo.findByDivisionId(selectedDivision.id as never),
-    repositories.bracketRepo.listRegisteredTeams(event.id as never, selectedDivision.id as never),
+    repositories.bracketRepo.findByDivisionId(DivisionId(selectedDivision.id)),
+    repositories.bracketRepo.listRegisteredTeams(
+      EventId(event.id),
+      DivisionId(selectedDivision.id),
+    ),
   ]);
 
   // Dual-keyed by both `entryId` and (when set) `teamId` — see page.tsx

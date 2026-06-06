@@ -12,30 +12,30 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 /**
+ * Shared `no-restricted-syntax` entry banning `as never`. Applied repo-wide —
+ * this base's default block (so every library package gets it) plus apps/web's
+ * own config, which imports this const. As of the 2026-06-06 architecture
+ * re-audit (P2-3) no layer is exempt: the inner layers were already clean and
+ * the 155 infra/web casts were drained (read-side brand casts → smart
+ * constructors; Supabase write payloads → generated `TablesInsert<>` /
+ * `TablesUpdate<>` types or the `asJson()` helper). This is now a pure ratchet
+ * — green today, fails the build the moment an `as never` reappears anywhere.
+ */
+export const noAsNeverRule = {
+  selector: 'TSAsExpression > TSNeverKeyword',
+  message:
+    'Do not launder values through `as never`. For branded ids use the smart constructor (UserId(value), EventId(value), …) from packages/domain/src/shared/brand.ts; for Supabase write payloads use the generated TablesInsert<>/TablesUpdate<> types or asJson() (packages/infrastructure/src/supabase-json.ts) — architecture audit P2-3.',
+};
+
+/**
  * Onion-layer ratchet for the pure inner layers (domain, application — ADR
- * 0001). Returns a flat-config block that:
- *
- *  - **Bans `as never`.** Branded ids must be built with their smart
- *    constructor (`UserId(value)`, `DivisionId(value)`, …) from
- *    `packages/domain/src/shared/brand.ts`, never laundered through
- *    `as never`. (Infrastructure is intentionally exempt — there `as never`
- *    is a Supabase write-payload workaround, a separate concern.)
- *  - **Bans outward/framework imports.** Each layer passes the outer layers
- *    and frameworks it must not reach in `bannedImports`.
- *
- * Both layers are clean today, so these are pure ratchets: green now, and
- * they fail the build the moment a regression is introduced.
+ * 0001). Returns a flat-config block that bans outward/framework imports: each
+ * layer passes the outer layers and frameworks it must not reach in
+ * `bannedImports`. (The `as never` ban now lives in this file's default block
+ * via `noAsNeverRule`, so it covers every package — not just these two.)
  */
 export const purityRatchet = ({ bannedImports }) => ({
   rules: {
-    'no-restricted-syntax': [
-      'error',
-      {
-        selector: 'TSAsExpression > TSNeverKeyword',
-        message:
-          'Do not launder values through `as never`. Construct branded ids with their smart constructor (e.g. UserId(value)) — see packages/domain/src/shared/brand.ts.',
-      },
-    ],
     'no-restricted-imports': [
       'error',
       {
@@ -72,6 +72,14 @@ export default [
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-restricted-syntax': ['error', noAsNeverRule],
     },
+  },
+  {
+    // Test doubles legitimately cast partial mocks to a repository's injection
+    // type (`client as never`); the production `as never` ban targets domain
+    // laundering, not specs. Keep the ratchet off for test files only.
+    files: ['**/*.test.ts', '**/*.test.tsx'],
+    rules: { 'no-restricted-syntax': 'off' },
   },
 ];

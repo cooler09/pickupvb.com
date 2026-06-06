@@ -80,7 +80,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
       division_id: pricing.divisionId,
       user_id: user.id,
       role: 'attendee',
-    } as never)
+    })
     .select('id')
     .maybeSingle();
   if (insertedRow) participantId = (insertedRow as { id: string }).id;
@@ -121,7 +121,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
         participant_id: participantId,
         payment_status: 'pending',
         amount_paid_cents: 0,
-      } as never,
+      },
       { onConflict: 'participant_id' },
     );
     if (payErr) {
@@ -198,7 +198,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   // Stash the session id on the payment row so we can match the webhook later.
   await supabase
     .from('event_participant_payments')
-    .update({ checkout_session_id: session.id } as never)
+    .update({ checkout_session_id: session.id })
     .eq('participant_id', participantId!);
 
   if (!session.url) backWithError(eventId, 'error', 'Stripe did not return a URL.');
@@ -285,10 +285,7 @@ export async function startGuestTicketCheckout(eventId: string, formData: FormDa
     data: { user: signedInUser },
   } = await supabase.auth.getUser();
   if (signedInUser) {
-    await supabase
-      .from('profiles')
-      .update({ display_name: displayName } as never)
-      .eq('id', signedInUser.id);
+    await supabase.from('profiles').update({ display_name: displayName }).eq('id', signedInUser.id);
     // Attach email so the receipt + future claim flow have it. Don't fail
     // if Supabase rejects it (e.g. address already belongs to another user).
     const { error: emailErr } = await supabase.auth.updateUser({ email });

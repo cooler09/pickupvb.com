@@ -1,7 +1,10 @@
 import {
   CommunityListing,
+  CommunityListingId,
   ConflictError,
+  EventId,
   ExternalUrl,
+  UserId,
   type CommunityListingDetailReadModel,
   type CommunityListingIdentity,
   type CommunityListingRepository,
@@ -117,8 +120,8 @@ function rowToLocation(row: ListingRow): ListingLocation | null {
 
 function rowToAggregate(row: ListingRow): CommunityListing {
   return CommunityListing.fromPersistence({
-    id: row.id as never,
-    submitterUserId: row.submitter_user_id as never,
+    id: CommunityListingId(row.id),
+    submitterUserId: UserId(row.submitter_user_id),
     title: row.title,
     description: row.description,
     externalUrl: ExternalUrl.fromPersistence(row.external_url),
@@ -132,8 +135,8 @@ function rowToAggregate(row: ListingRow): CommunityListing {
     skillLevel: row.skill_level,
     status: row.status,
     reportCount: row.report_count,
-    claimedEventId: row.claimed_event_id as never,
-    claimedByUserId: row.claimed_by_user_id as never,
+    claimedEventId: row.claimed_event_id ? EventId(row.claimed_event_id) : null,
+    claimedByUserId: row.claimed_by_user_id ? UserId(row.claimed_by_user_id) : null,
     claimedAt: row.claimed_at ? new Date(row.claimed_at) : null,
   });
 }
@@ -146,9 +149,9 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     return this._client;
   }
 
-  // Untyped accessor for tables not yet in the generated Database types.
-  // After `pnpm --filter @pickupvb/supabase gen:types`, these `as never` casts
-  // can be removed.
+  // Untyped accessor, retained for the wide select/filter surface in this file.
+  // The table is now in the generated types; row→domain mapping is typed via the
+  // explicit `ListingRow` annotation, so per-call payload casts are unnecessary.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private table(name: string): any {
     return (this.client as unknown as { from: (n: string) => unknown }).from(name);
@@ -221,7 +224,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       claimed_at: listing.claimedAt ? listing.claimedAt.toISOString() : null,
     };
 
-    const { error } = await this.table('community_listings').upsert(row as never, {
+    const { error } = await this.table('community_listings').upsert(row, {
       onConflict: 'id',
     });
     if (error) throw new Error(`CommunityListing.save(${listing.id}) failed: ${error.message}`);
@@ -266,7 +269,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       listing_id: listingId,
       reporter_user_id: reporterUserId,
       reason,
-    } as never);
+    });
     if (error) {
       // 23505 = unique_violation (one report per user per listing).
       if ((error as { code?: string }).code === '23505') {

@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
                 referrer: attr.referrer,
                 landing_path: attr.landingPath,
                 captured_at: attr.capturedAt,
-              } as never,
+              },
               { onConflict: 'user_id', ignoreDuplicates: true },
             );
           } catch {

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
+import { BracketId } from '@pickupvb/domain';
 import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '@/app/events/[id]/bracket/_components/board-view';
 import { LatestMatchTracker } from '@/app/events/[id]/bracket/_components/latest-match-tracker';
@@ -27,7 +28,7 @@ export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await props.params;
-  const bracket = await repositories.bracketRepo.findById(id as never);
+  const bracket = await repositories.bracketRepo.findById(BracketId(id));
   if (!bracket || !bracket.ownerUserId) return { title: 'Live bracket — PickupVB' };
   const title = `Live bracket — ${FORMAT_LABEL[bracket.format]} · PickupVB`;
   return {
@@ -53,11 +54,11 @@ export default async function StandaloneBracketWatchPage(props: {
   const { id } = await props.params;
   const searchParams = await props.searchParams;
 
-  const bracket = await repositories.bracketRepo.findById(id as never);
+  const bracket = await repositories.bracketRepo.findById(BracketId(id));
   if (!bracket || !bracket.ownerUserId) notFound();
 
   const registeredTeams = (await repositories.bracketRepo.listStandaloneTeams(
-    id as never,
+    BracketId(id),
   )) as TeamLite[];
   const teamById = new Map<string, TeamLite>();
   for (const t of registeredTeams) teamById.set(t.entryId, t);

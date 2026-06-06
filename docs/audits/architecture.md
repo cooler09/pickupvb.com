@@ -1,5 +1,29 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-06-06, Phase A — P2-3 `as never` ratchet gap: RESOLVED).**
+> Drained the entire `as never` corpus **155 → 0** in source (infra 88 + web 67;
+> domain/application were already clean). **Read-side brand casts → smart
+> constructors** (`EventId(row.id)`, `UserId(...)`, `DivisionId(...)`,
+> `EventTeamRegistrationId(...)`, etc.) across the event / team / registration /
+> media / community-listing adapters and the bracket pages / tools / webhook
+> mediators. **Supabase write-payload casts → precise types:** a new centralized
+> [`asJson()`](../../packages/infrastructure/src/supabase-json.ts) helper for JSON
+> columns / RPC args (`BracketConfig`, `LiveMatchScore`, attachment arrays, outbox
+> `payload`/`data`, badge `context`) — the one sanctioned assertion now lives in an
+> audited helper instead of ~6 adapters — plus generated `TablesInsert<>` /
+> `TablesUpdate<>` types (newly exported from `@pickupvb/supabase`) for the
+> trigger-defaulted / dynamically-built / computed-key payloads (`events`, `teams`,
+> `event_divisions`, profiles claim, reminder columns). The bulk of the 155 were
+> **cargo-cult** (proven: removing the first trivial cast typechecked clean) — only
+> ~15 were genuinely load-bearing and got a precise non-`never` cast. Then **extended
+> the ratchet**: the `as never` ban moved into a shared
+> [`noAsNeverRule`](../../packages/config/eslint.base.mjs) applied in the base default
+> block (covers infra/notifications/supabase/types) and imported into
+> [apps/web](../../apps/web/eslint.config.mjs); test-double mock casts in `*.test.ts`
+> are exempted. **Verify quad green** (typecheck 15/15; lint 0 errors; test domain
+> 547 / application 145 / infra 48 / web 262; build 8/8). No DB change. **Next:
+> Phase B (P2-1 bracket handler unification).**
+>
 > **Fresh re-audit (2026-06-06, HEAD `401062bc`) — new backlog opened; see [§ Reevaluation — 2026-06-06](#reevaluation--2026-06-06).**
 > The 2026-05-29 roadmap is **fully closed** and the boundary held: web-layer raw
 > `supabase.from(...)` dropped **76 → 16 files** (~28 calls, almost all sanctioned),
@@ -918,7 +942,14 @@ delivery, division-scoped registration) are all intact at this HEAD.
   refactor behind characterization tests on `getDetail`/`save` first (the adapter-test
   precedent from Phase 5 inc. 7).
 
-### P2-3 — `as never` ratchet gap (155 occurrences, infra + web)
+### P2-3 — `as never` ratchet gap (155 occurrences, infra + web) ✅ Resolved 2026-06-06 (Phase A)
+
+> **Resolved (Phase A, 2026-06-06):** corpus drained **155 → 0** in source. Read-side
+> brand casts → smart constructors; Supabase write payloads → the centralized
+> [`asJson()`](../../packages/infrastructure/src/supabase-json.ts) helper + generated
+> `TablesInsert<>`/`TablesUpdate<>` types; `as never` ban extended repo-wide via the
+> shared [`noAsNeverRule`](../../packages/config/eslint.base.mjs) (base default + apps/web;
+> `*.test.ts` mock casts exempted). Verify quad green. See the top-of-doc status block.
 
 - **Where:** **0** in `packages/domain` / `packages/application` (the Phase-0 P2-5 ban
   reached only those two layers), but **~12 in `packages/infrastructure`** +

@@ -7,6 +7,7 @@ import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
 import { getViewer } from '@/lib/server-auth';
+import type { TablesUpdate } from '@pickupvb/supabase';
 
 export type ClaimState = {
   error?: string;
@@ -67,15 +68,12 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
       await log.error('[claim] updateUser(metadata) failed', metaErr);
     }
 
-    const updates: Record<string, string> = {
+    const updates: TablesUpdate<'profiles'> = {
       display_name: [firstName, lastName].filter(Boolean).join(' '),
     };
     if (firstName) updates['first_name'] = firstName;
     if (lastName) updates['last_name'] = lastName;
-    await supabase
-      .from('profiles')
-      .update(updates as never)
-      .eq('id', user.id);
+    await supabase.from('profiles').update(updates).eq('id', user.id);
   }
 
   // Step 2: attach the email. Supabase sends a confirmation link; until the

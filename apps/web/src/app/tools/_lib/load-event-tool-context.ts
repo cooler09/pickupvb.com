@@ -2,6 +2,7 @@ import 'server-only';
 import { getViewer } from '@/lib/server-auth';
 import { repositories } from '@/lib/handlers';
 import { loadEventDetail } from '@/app/events/[id]/_loaders/load-event-detail';
+import { DivisionId, EventId } from '@pickupvb/domain';
 import type { EventToolBinding } from './event-binding';
 
 /**
@@ -59,8 +60,8 @@ export async function loadEventToolContext(
   let teams: ReadonlyArray<{ entryId: string; name: string }> = [];
   if (division) {
     const registered = await repositories.bracketRepo.listRegisteredTeams(
-      event.id as never,
-      division.id as never,
+      EventId(event.id),
+      DivisionId(division.id),
     );
     teams = registered.map((t) => ({ entryId: t.entryId, name: t.name }));
   }

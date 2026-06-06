@@ -1,6 +1,7 @@
 import 'server-only';
 import { repositories } from './handlers';
 import { hasProBenefits } from './admin';
+import { UserId } from '@pickupvb/domain';
 
 /**
  * Free-tier cap on **active** standalone brackets (ADR 0025 addendum /
@@ -35,7 +36,7 @@ export type BracketCapResult = { ok: true } | { ok: false; reason: string };
  */
 export async function validateActiveBracketCap(ownerUserId: string): Promise<BracketCapResult> {
   if (await hasProBenefits(ownerUserId)) return { ok: true };
-  const brackets = await repositories.bracketRepo.listByOwner(ownerUserId as never);
+  const brackets = await repositories.bracketRepo.listByOwner(UserId(ownerUserId));
   const activeCount = brackets.filter((b) => b.status !== 'completed').length;
   if (activeCount >= FREE_ACTIVE_BRACKET_CAP) return { ok: false, reason: CAP_MESSAGE };
   return { ok: true };

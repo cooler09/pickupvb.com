@@ -136,7 +136,7 @@ function makeLeagueReminderPort(admin: AdminClient): LeagueReminderPort {
       if (matchIds.length === 0) return;
       await admin
         .from('league_schedule_matches')
-        .update({ reminded_at: new Date().toISOString() } as never)
+        .update({ reminded_at: new Date().toISOString() })
         .in('id', matchIds);
     },
   };

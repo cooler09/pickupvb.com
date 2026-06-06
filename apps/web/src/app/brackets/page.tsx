@@ -4,6 +4,7 @@ import { SubmitButton } from '@/components/submit-button';
 import type { Route } from 'next';
 import { repositories } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
+import { UserId } from '@pickupvb/domain';
 import { FORMAT_LABEL } from '@/app/events/[id]/bracket/_components/labels';
 import { deleteStandaloneBracket } from './actions';
 
@@ -23,7 +24,7 @@ const STATUS_LABEL: Record<string, string> = {
  */
 export default async function MyBracketsPage() {
   const { user } = await requireRealUser('/brackets');
-  const brackets = await repositories.bracketRepo.listByOwner(user.id as never);
+  const brackets = await repositories.bracketRepo.listByOwner(UserId(user.id));
 
   return (
     <article className="mx-auto max-w-3xl space-y-6 p-4">

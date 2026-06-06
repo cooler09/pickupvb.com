@@ -20,7 +20,7 @@
  * Supabase-backed port + `notify` and handles auth.
  */
 import { NextResponse } from 'next/server';
-import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { createSupabaseAdminClient, type TablesUpdate } from '@pickupvb/supabase';
 import { notify } from '@/lib/notify';
 import { log } from '@/lib/log';
 import {
@@ -67,7 +67,7 @@ function makeReminderPort(admin: ReturnType<typeof createSupabaseAdminClient>): 
       if (participantIds.length === 0) return;
       await admin
         .from('event_participants')
-        .update({ [column]: new Date().toISOString() } as never)
+        .update({ [column]: new Date().toISOString() } as TablesUpdate<'event_participants'>)
         .in('id', participantIds);
     },
   };

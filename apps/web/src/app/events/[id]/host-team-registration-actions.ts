@@ -18,8 +18,8 @@ import { GetEventDetailQuery } from '@pickupvb/application';
 import {
   InvariantViolation,
   RegistrationPaymentStatus,
-  type EventTeamRegistrationId,
-  type UserId,
+  EventTeamRegistrationId,
+  UserId,
 } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
@@ -57,9 +57,7 @@ export async function hostMarkTeamRegistrationPaid(
   }
 
   const { eventTeamRegistrationRepo } = repositories;
-  const reg = await eventTeamRegistrationRepo.findById(
-    registrationId as never as EventTeamRegistrationId,
-  );
+  const reg = await eventTeamRegistrationRepo.findById(EventTeamRegistrationId(registrationId));
   if (!reg) redirectEventNotice(eventId, 'rsvp', 'event_not_found');
   if (reg.paymentStatus === RegistrationPaymentStatus.Paid) {
     redirectEventNotice(eventId, 'rsvp', 'already');
@@ -111,9 +109,7 @@ export async function hostRefundTeamRegistration(
   }
 
   const { eventTeamRegistrationRepo } = repositories;
-  const reg = await eventTeamRegistrationRepo.findById(
-    registrationId as never as EventTeamRegistrationId,
-  );
+  const reg = await eventTeamRegistrationRepo.findById(EventTeamRegistrationId(registrationId));
   if (!reg) redirectEventNotice(eventId, 'rsvp', 'event_not_found');
   if (reg.paymentStatus !== RegistrationPaymentStatus.Paid) {
     redirectEventNotice(eventId, 'rsvp', 'team_not_paid');
@@ -192,9 +188,7 @@ export async function hostForceWithdrawTeamRegistration(
   }
 
   const { eventTeamRegistrationRepo } = repositories;
-  const reg = await eventTeamRegistrationRepo.findById(
-    registrationId as never as EventTeamRegistrationId,
-  );
+  const reg = await eventTeamRegistrationRepo.findById(EventTeamRegistrationId(registrationId));
   if (!reg) redirectEventNotice(eventId, 'rsvp', 'event_not_found');
 
   if (
@@ -239,9 +233,7 @@ export async function assignTeamCaptainFromForm(
   }
 
   const { eventTeamRegistrationRepo } = repositories;
-  const reg = await eventTeamRegistrationRepo.findById(
-    registrationId as never as EventTeamRegistrationId,
-  );
+  const reg = await eventTeamRegistrationRepo.findById(EventTeamRegistrationId(registrationId));
   if (!reg) redirectEventNotice(eventId, 'rsvp', 'event_not_found');
 
   // One team per captain per division — don't let the assignee end up
@@ -254,7 +246,7 @@ export async function assignTeamCaptainFromForm(
   if (dup) redirectEventNotice(eventId, 'rsvp', 'captain_dup');
 
   try {
-    reg.assignCaptain(captainUserId as never as UserId);
+    reg.assignCaptain(UserId(captainUserId));
     await eventTeamRegistrationRepo.save(reg);
   } catch (err) {
     if (err instanceof InvariantViolation) {

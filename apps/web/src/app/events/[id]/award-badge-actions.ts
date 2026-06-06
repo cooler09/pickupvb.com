@@ -79,7 +79,7 @@ export async function awardEventBadge(
       user_id: userId,
       badge_key: badge.id,
       source: 'host',
-      context: { eventId, label: badge.label, iconUrl: badge.iconUrl } as never,
+      context: { eventId, label: badge.label, iconUrl: badge.iconUrl },
     },
     { onConflict: 'user_id,badge_key', ignoreDuplicates: true },
   );

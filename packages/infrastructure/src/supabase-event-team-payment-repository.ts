@@ -1,7 +1,7 @@
 import {
   EventTeamPayment,
   RegistrationPaymentStatus,
-  type EventTeamPaymentId,
+  EventTeamPaymentId,
   type EventTeamPaymentRepository,
   type UserId,
 } from '@pickupvb/domain';
@@ -97,7 +97,7 @@ export class SupabaseEventTeamPaymentRepository implements EventTeamPaymentRepos
     };
     const { error } = await this.client
       .from('event_team_payments')
-      .upsert(row as never, { onConflict: 'id' });
+      .upsert(row, { onConflict: 'id' });
     if (error) {
       throw new Error(`EventTeamPayment.save(${payment.id}) failed: ${error.message}`);
     }
@@ -144,7 +144,7 @@ export class SupabaseEventTeamPaymentRepository implements EventTeamPaymentRepos
       );
     }
     return EventTeamPayment.rehydrate({
-      id: row.id as never as EventTeamPaymentId,
+      id: EventTeamPaymentId(row.id),
       eventId,
       teamId,
       captainId: row.captain_id as UserId,

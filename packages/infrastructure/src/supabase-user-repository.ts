@@ -125,7 +125,7 @@ export class SupabaseUserRepository implements UserRepository {
         business_name: user.businessInfo.businessName,
         business_address: user.businessInfo.businessAddress,
         tax_id: user.businessInfo.taxId,
-      } as never)
+      })
       .eq('id', user.id);
 
     if (error) {
@@ -141,12 +141,13 @@ export class SupabaseUserRepository implements UserRepository {
   async addFriendEdge(viewerId: UserId, friendId: UserId): Promise<void> {
     // Idempotent: re-following an existing edge must not error. The edge table
     // is keyed on (user_id, friend_id), so ignore the duplicate on conflict.
-    const { error } = await this.client
-      .from('friendships')
-      .upsert({ user_id: viewerId, friend_id: friendId } as never, {
+    const { error } = await this.client.from('friendships').upsert(
+      { user_id: viewerId, friend_id: friendId },
+      {
         onConflict: 'user_id,friend_id',
         ignoreDuplicates: true,
-      });
+      },
+    );
     if (error) throw new Error(`addFriendEdge failed: ${error.message}`);
   }
 
