@@ -35,6 +35,12 @@ export interface HostOnboardingSnapshot {
   publishedEventCount: number;
   /** The host's Stripe Connect account exists and can take charges. */
   stripeChargesEnabled: boolean;
+  /**
+   * At least one *other* player has registered for one of the host's events —
+   * the payoff that closes the loop on the host track. Excludes the host's own
+   * RSVP so it means a genuine external signup.
+   */
+  firstRegistrationReceived: boolean;
 }
 
 /** A zeroed player snapshot — the baseline a brand-new account reconciles against. */
@@ -51,4 +57,5 @@ export const emptyHostOnboardingSnapshot = (): HostOnboardingSnapshot => ({
   eventsCreated: 0,
   publishedEventCount: 0,
   stripeChargesEnabled: false,
+  firstRegistrationReceived: false,
 });

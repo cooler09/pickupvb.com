@@ -1,4 +1,5 @@
 import { SubmitButton } from '@/components/submit-button';
+import { neutralButtonClass } from '@/components/primary-button';
 import { setExtraMembersFromForm } from '../../actions';
 
 type Props = {
@@ -38,9 +39,7 @@ export function ExtraMembersForm({ teamId, returnPath, value }: Props) {
             className="border-border-base bg-surface w-24 rounded-md border px-3 py-2 text-sm"
           />
         </label>
-        <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-sm disabled:opacity-50">
-          Save
-        </SubmitButton>
+        <SubmitButton className={neutralButtonClass('md')}>Save</SubmitButton>
       </form>
     </section>
   );

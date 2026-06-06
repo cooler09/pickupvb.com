@@ -85,9 +85,15 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
   const h = await headers();
   const origin =
     h.get('origin') ?? (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
-  const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
-    '/reset-password?from=claim',
-  )}`;
+  // Thread the gate's `next` (e.g. /events/new) through the confirm →
+  // set-password chain so the user lands where they were headed. Same-origin
+  // relative only — reject `//evil.com` / `/\evil.com` (mirrors /auth/callback).
+  const next = field(formData, 'next');
+  const safeNext = next && /^\/(?![/\\])/.test(next) ? next : null;
+  const afterPassword = safeNext
+    ? `/reset-password?from=claim&next=${encodeURIComponent(safeNext)}`
+    : '/reset-password?from=claim';
+  const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(afterPassword)}`;
 
   // Rate-limit before the email send so an attacker can't replay this
   // form to spam a target with confirmation emails. Audit P2 #6.

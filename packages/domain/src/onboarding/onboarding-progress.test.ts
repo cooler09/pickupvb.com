@@ -94,4 +94,17 @@ describe('host onboarding progress', () => {
     const stripeStep = hostProgress(host({})).steps.find((s) => s.key === 'connect-stripe');
     expect(stripeStep?.optional).toBe(true);
   });
+
+  it('first-registration is an optional payoff that tracks an external signup', () => {
+    const step = hostProgress(host({})).steps.find((s) => s.key === 'first-registration');
+    expect(step?.optional).toBe(true);
+    expect(doneKeys(hostProgress(host({ firstRegistrationReceived: true })))).toContain(
+      'first-registration',
+    );
+    // Optional → never counts toward the required rollup, so it can't keep the
+    // card alive once create + publish are done.
+    const p = hostProgress(host({ eventsCreated: 1, publishedEventCount: 1 }));
+    expect(p.requiredComplete).toBe(true);
+    expect(doneKeys(p)).not.toContain('first-registration');
+  });
 });

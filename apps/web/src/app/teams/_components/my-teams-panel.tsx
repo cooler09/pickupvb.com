@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
-import { primaryButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 import { TeamCard, type TeamCardData } from './team-card';
 
 type TeamsByRole = {
@@ -86,10 +86,7 @@ export function MyTeamsPanel() {
   if (state.status === 'anon') {
     return (
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <Link
-          href="/login?next=/teams"
-          className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm"
-        >
+        <Link href="/login?next=/teams" className={neutralButtonClass('sm')}>
           Sign in to create a team
         </Link>
       </div>

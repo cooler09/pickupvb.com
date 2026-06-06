@@ -1,5 +1,5 @@
 import { SubmitButton } from '@/components/submit-button';
-import { primaryButtonClass } from '@/components/primary-button';
+import { neutralButtonClass, primaryButtonClass } from '@/components/primary-button';
 import { acceptInviteAction, declineInviteAction } from '../../actions';
 
 type Props = {
@@ -26,9 +26,7 @@ export function InviteResponse({ teamId, teamName, returnPath }: Props) {
           <SubmitButton className={primaryButtonClass('sm')}>Accept invite</SubmitButton>
         </form>
         <form action={declineInviteAction.bind(null, teamId, returnPath)}>
-          <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-sm disabled:opacity-50">
-            Decline
-          </SubmitButton>
+          <SubmitButton className={neutralButtonClass('sm')}>Decline</SubmitButton>
         </form>
       </div>
     </section>
