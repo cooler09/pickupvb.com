@@ -278,6 +278,7 @@ export function EventSignupArea({
               isFreeAgent={event.isFreeAgent}
               viewerId={user?.id ?? null}
               isRealUser={isRealUser}
+              viewerCanPickUp={event.viewerCaptainedTeams.some((t) => t.isRegistered)}
               returnPath={returnPath}
               {...(fa ? { resultCode: fa } : {})}
             />
@@ -359,6 +360,7 @@ export function EventSignupArea({
               isFreeAgent={event.isFreeAgent}
               viewerId={user?.id ?? null}
               isRealUser={isRealUser}
+              viewerCanPickUp={event.viewerCaptainedTeams.some((t) => t.isRegistered)}
               returnPath={returnPath}
               {...(fa ? { resultCode: fa } : {})}
             />

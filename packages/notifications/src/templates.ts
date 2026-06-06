@@ -226,6 +226,16 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View team',
     ),
   }),
+  'event.free_agent.picked_up': (p) => ({
+    subject: `${p.captainName} picked you up for ${p.teamName}`,
+    text: `${p.captainName} picked you up for ${p.teamName} (${p.eventTitle}) on PickupVB. Accept the invite to join the roster.`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">You've been picked up!</h2>
+             <p><strong>${escapeHtml(p.captainName)}</strong> picked you up for <strong>${escapeHtml(p.teamName)}</strong> (${escapeHtml(p.eventTitle)}). Accept the invite to join the roster.</p>`,
+      `${APP_URL}/teams/${p.teamSlug}`,
+      'View team',
+    ),
+  }),
   'broadcast.host_message': (p) => ({
     subject: p.subject,
     text: `${p.body}\n\n— ${p.senderName}`,
@@ -343,6 +353,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'team.invite': (p) => ({
     body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/teams/${p.teamSlug}`,
   }),
+  'event.free_agent.picked_up': (p) => ({
+    body: `PickupVB: ${p.captainName} picked you up for ${p.teamName} (${p.eventTitle}). ${APP_URL}/teams/${p.teamSlug}`,
+  }),
   'broadcast.host_message': (p) => ({
     body: `PickupVB · ${p.senderName}: ${p.body.slice(0, 240)}`,
   }),
@@ -426,6 +439,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
   'team.invite': (p) => ({
     title: `Invited to ${p.groupName}`,
     body: `from ${p.inviterName}`,
+    href: `/teams/${p.teamSlug}`,
+  }),
+  'event.free_agent.picked_up': (p) => ({
+    title: `Picked up for ${p.teamName}`,
+    body: `${p.captainName} · ${p.eventTitle}`,
     href: `/teams/${p.teamSlug}`,
   }),
   'broadcast.host_message': (p) => ({
