@@ -1,6 +1,11 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: '14.5';
+  };
   graphql_public: {
     Tables: {
       [_ in never]: never;
@@ -61,6 +66,7 @@ export type Database = {
         Row: {
           advances_to_match_id: string | null;
           advances_to_slot: string | null;
+          best_of: number | null;
           bracket_id: string;
           bracket_side: string | null;
           court: string | null;
@@ -76,6 +82,7 @@ export type Database = {
           scheduled_at: string | null;
           slot: number | null;
           status: string;
+          target_score: number | null;
           updated_at: string;
           winner_entry_id: string | null;
           work_entry_id: string | null;
@@ -83,6 +90,7 @@ export type Database = {
         Insert: {
           advances_to_match_id?: string | null;
           advances_to_slot?: string | null;
+          best_of?: number | null;
           bracket_id: string;
           bracket_side?: string | null;
           court?: string | null;
@@ -98,6 +106,7 @@ export type Database = {
           scheduled_at?: string | null;
           slot?: number | null;
           status?: string;
+          target_score?: number | null;
           updated_at?: string;
           winner_entry_id?: string | null;
           work_entry_id?: string | null;
@@ -105,6 +114,7 @@ export type Database = {
         Update: {
           advances_to_match_id?: string | null;
           advances_to_slot?: string | null;
+          best_of?: number | null;
           bracket_id?: string;
           bracket_side?: string | null;
           court?: string | null;
@@ -120,6 +130,7 @@ export type Database = {
           scheduled_at?: string | null;
           slot?: number | null;
           status?: string;
+          target_score?: number | null;
           updated_at?: string;
           winner_entry_id?: string | null;
           work_entry_id?: string | null;
@@ -569,6 +580,119 @@ export type Database = {
           },
         ];
       };
+      event_badge_access: {
+        Row: {
+          access_kind: string;
+          created_at: string;
+          event_id: string;
+          paid_at: string | null;
+          purchased_by_user_id: string | null;
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          access_kind?: string;
+          created_at?: string;
+          event_id: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          access_kind?: string;
+          created_at?: string;
+          event_id?: string;
+          paid_at?: string | null;
+          purchased_by_user_id?: string | null;
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_badge_access_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_badge_access_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: true;
+            referencedRelation: 'events_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_badge_access_purchased_by_user_id_fkey';
+            columns: ['purchased_by_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_badge_access_purchased_by_user_id_fkey';
+            columns: ['purchased_by_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      event_badges: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          event_id: string;
+          grant_rule: string;
+          icon_url: string | null;
+          id: string;
+          label: string;
+          sort_order: number;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          event_id: string;
+          grant_rule?: string;
+          icon_url?: string | null;
+          id?: string;
+          label: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          event_id?: string;
+          grant_rule?: string;
+          icon_url?: string | null;
+          id?: string;
+          label?: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_badges_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_badges_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events_view';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       event_brackets: {
         Row: {
           config: Json;
@@ -620,124 +744,6 @@ export type Database = {
             columns: ['owner_user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles_public';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      event_badge_access: {
-        Row: {
-          access_kind: string;
-          created_at: string;
-          event_id: string;
-          paid_at: string | null;
-          purchased_by_user_id: string | null;
-          stripe_checkout_session_id: string | null;
-          stripe_payment_intent_id: string | null;
-          updated_at: string;
-        };
-        Insert: {
-          access_kind?: string;
-          created_at?: string;
-          event_id: string;
-          paid_at?: string | null;
-          purchased_by_user_id?: string | null;
-          stripe_checkout_session_id?: string | null;
-          stripe_payment_intent_id?: string | null;
-          updated_at?: string;
-        };
-        Update: {
-          access_kind?: string;
-          created_at?: string;
-          event_id?: string;
-          paid_at?: string | null;
-          purchased_by_user_id?: string | null;
-          stripe_checkout_session_id?: string | null;
-          stripe_payment_intent_id?: string | null;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'event_badge_access_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: true;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      event_badges: {
-        Row: {
-          created_at: string;
-          description: string | null;
-          event_id: string;
-          grant_rule: string;
-          icon_url: string | null;
-          id: string;
-          label: string;
-          sort_order: number;
-          updated_at: string;
-        };
-        Insert: {
-          created_at?: string;
-          description?: string | null;
-          event_id: string;
-          grant_rule?: string;
-          icon_url?: string | null;
-          id?: string;
-          label: string;
-          sort_order?: number;
-          updated_at?: string;
-        };
-        Update: {
-          created_at?: string;
-          description?: string | null;
-          event_id?: string;
-          grant_rule?: string;
-          icon_url?: string | null;
-          id?: string;
-          label?: string;
-          sort_order?: number;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'event_badges_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      event_waitlist: {
-        Row: {
-          created_at: string;
-          event_id: string;
-          user_id: string;
-        };
-        Insert: {
-          created_at?: string;
-          event_id: string;
-          user_id: string;
-        };
-        Update: {
-          created_at?: string;
-          event_id?: string;
-          user_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'event_waitlist_event_id_fkey';
-            columns: ['event_id'];
-            isOneToOne: false;
-            referencedRelation: 'events';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'event_waitlist_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
         ];
@@ -837,6 +843,7 @@ export type Database = {
           price_unit: Database['public']['Enums']['price_unit'];
           prize_purse_cents: number | null;
           prize_text: string | null;
+          runner_up_entry_id: string | null;
           skill_tier: Database['public']['Enums']['skill_tier'];
           sort_order: number;
           starts_at: string | null;
@@ -844,7 +851,6 @@ export type Database = {
           team_composition: Database['public']['Enums']['team_composition'];
           team_registration_mode: Database['public']['Enums']['team_registration_mode'] | null;
           team_size: number | null;
-          runner_up_entry_id: string | null;
           third_place_entry_id: string | null;
           tier_label: string | null;
           updated_at: string;
@@ -868,6 +874,7 @@ export type Database = {
           price_unit?: Database['public']['Enums']['price_unit'];
           prize_purse_cents?: number | null;
           prize_text?: string | null;
+          runner_up_entry_id?: string | null;
           skill_tier: Database['public']['Enums']['skill_tier'];
           sort_order?: number;
           starts_at?: string | null;
@@ -875,7 +882,6 @@ export type Database = {
           team_composition?: Database['public']['Enums']['team_composition'];
           team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
-          runner_up_entry_id?: string | null;
           third_place_entry_id?: string | null;
           tier_label?: string | null;
           updated_at?: string;
@@ -899,6 +905,7 @@ export type Database = {
           price_unit?: Database['public']['Enums']['price_unit'];
           prize_purse_cents?: number | null;
           prize_text?: string | null;
+          runner_up_entry_id?: string | null;
           skill_tier?: Database['public']['Enums']['skill_tier'];
           sort_order?: number;
           starts_at?: string | null;
@@ -906,7 +913,6 @@ export type Database = {
           team_composition?: Database['public']['Enums']['team_composition'];
           team_registration_mode?: Database['public']['Enums']['team_registration_mode'] | null;
           team_size?: number | null;
-          runner_up_entry_id?: string | null;
           third_place_entry_id?: string | null;
           tier_label?: string | null;
           updated_at?: string;
@@ -926,6 +932,20 @@ export type Database = {
             columns: ['event_id'];
             isOneToOne: false;
             referencedRelation: 'events_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_divisions_runner_up_entry_id_fkey';
+            columns: ['runner_up_entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_entries';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_divisions_third_place_entry_id_fkey';
+            columns: ['third_place_entry_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
           {
@@ -1420,6 +1440,53 @@ export type Database = {
           },
         ];
       };
+      event_waitlist: {
+        Row: {
+          created_at: string;
+          event_id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          event_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          event_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_waitlist_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_waitlist_event_id_fkey';
+            columns: ['event_id'];
+            isOneToOne: false;
+            referencedRelation: 'events_view';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_waitlist_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_waitlist_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       events: {
         Row: {
           address_line: string;
@@ -1897,13 +1964,11 @@ export type Database = {
         Row: {
           away_entry_id: string | null;
           away_score: number | null;
-          away_team_id: string | null;
           court_label: string | null;
           created_at: string;
           division_id: string;
           home_entry_id: string | null;
           home_score: number | null;
-          home_team_id: string | null;
           id: string;
           notes: string | null;
           reminded_at: string | null;
@@ -1915,13 +1980,11 @@ export type Database = {
         Insert: {
           away_entry_id?: string | null;
           away_score?: number | null;
-          away_team_id?: string | null;
           court_label?: string | null;
           created_at?: string;
           division_id: string;
           home_entry_id?: string | null;
           home_score?: number | null;
-          home_team_id?: string | null;
           id?: string;
           notes?: string | null;
           reminded_at?: string | null;
@@ -1933,13 +1996,11 @@ export type Database = {
         Update: {
           away_entry_id?: string | null;
           away_score?: number | null;
-          away_team_id?: string | null;
           court_label?: string | null;
           created_at?: string;
           division_id?: string;
           home_entry_id?: string | null;
           home_score?: number | null;
-          home_team_id?: string | null;
           id?: string;
           notes?: string | null;
           reminded_at?: string | null;
@@ -1950,10 +2011,10 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: 'league_schedule_matches_away_team_id_fkey';
-            columns: ['away_team_id'];
+            foreignKeyName: 'league_schedule_matches_away_entry_id_fkey';
+            columns: ['away_entry_id'];
             isOneToOne: false;
-            referencedRelation: 'teams';
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
           {
@@ -1964,10 +2025,10 @@ export type Database = {
             referencedColumns: ['id'];
           },
           {
-            foreignKeyName: 'league_schedule_matches_home_team_id_fkey';
-            columns: ['home_team_id'];
+            foreignKeyName: 'league_schedule_matches_home_entry_id_fkey';
+            columns: ['home_entry_id'];
             isOneToOne: false;
-            referencedRelation: 'teams';
+            referencedRelation: 'event_team_entries';
             referencedColumns: ['id'];
           },
         ];
@@ -2581,12 +2642,12 @@ export type Database = {
           handle: string;
           hero_image_url: string | null;
           home_city: string | null;
-          latitude: number | null;
-          longitude: number | null;
           id: string;
           instagram_handle: string | null;
           is_platform_admin: boolean;
           last_name: string | null;
+          latitude: number | null;
+          longitude: number | null;
           primary_position: string | null;
           secondary_position: string | null;
           show_pro_badge: boolean;
@@ -2613,12 +2674,12 @@ export type Database = {
           handle: string;
           hero_image_url?: string | null;
           home_city?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
           id: string;
           instagram_handle?: string | null;
           is_platform_admin?: boolean;
           last_name?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           primary_position?: string | null;
           secondary_position?: string | null;
           show_pro_badge?: boolean;
@@ -2645,12 +2706,12 @@ export type Database = {
           handle?: string;
           hero_image_url?: string | null;
           home_city?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
           id?: string;
           instagram_handle?: string | null;
           is_platform_admin?: boolean;
           last_name?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           primary_position?: string | null;
           secondary_position?: string | null;
           show_pro_badge?: boolean;
@@ -2891,6 +2952,13 @@ export type Database = {
             referencedRelation: 'profiles';
             referencedColumns: ['id'];
           },
+          {
+            foreignKeyName: 'user_badges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
         ];
       };
       user_blocks: {
@@ -2942,38 +3010,6 @@ export type Database = {
       };
     };
     Views: {
-      user_badges_public: {
-        Row: {
-          awarded_at: string | null;
-          badge_key: string | null;
-          context: Json | null;
-          source: string | null;
-          user_id: string | null;
-        };
-        Insert: {
-          awarded_at?: string | null;
-          badge_key?: string | null;
-          context?: Json | null;
-          source?: string | null;
-          user_id?: string | null;
-        };
-        Update: {
-          awarded_at?: string | null;
-          badge_key?: string | null;
-          context?: Json | null;
-          source?: string | null;
-          user_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'user_badges_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: false;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
       event_team_entry_members_public: {
         Row: {
           display_name: string | null;
@@ -3284,10 +3320,10 @@ export type Database = {
           handle: string | null;
           hero_image_url: string | null;
           home_city: string | null;
-          latitude: number | null;
-          longitude: number | null;
           id: string | null;
           instagram_handle: string | null;
+          latitude: number | null;
+          longitude: number | null;
           primary_position: string | null;
           secondary_position: string | null;
           show_pro_badge: boolean | null;
@@ -3306,10 +3342,10 @@ export type Database = {
           handle?: string | null;
           hero_image_url?: string | null;
           home_city?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
           id?: string | null;
           instagram_handle?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           primary_position?: string | null;
           secondary_position?: string | null;
           show_pro_badge?: boolean | null;
@@ -3328,10 +3364,10 @@ export type Database = {
           handle?: string | null;
           hero_image_url?: string | null;
           home_city?: string | null;
-          latitude?: number | null;
-          longitude?: number | null;
           id?: string | null;
           instagram_handle?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
           primary_position?: string | null;
           secondary_position?: string | null;
           show_pro_badge?: boolean | null;
@@ -3343,6 +3379,31 @@ export type Database = {
           youtube_handle?: string | null;
         };
         Relationships: [];
+      };
+      user_badges_public: {
+        Row: {
+          awarded_at: string | null;
+          badge_key: string | null;
+          context: Json | null;
+          source: string | null;
+          user_id: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_badges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'user_badges_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
       };
     };
     Functions: {
@@ -3500,14 +3561,6 @@ export type Database = {
           tournament_championships: number;
           tournament_podiums: number;
         }[];
-      };
-      set_user_badge_hidden: {
-        Args: { p_badge_key: string; p_hidden: boolean };
-        Returns: undefined;
-      };
-      grant_attended_event_badges: {
-        Args: { p_user_id: string };
-        Returns: undefined;
       };
       consume_rate_limit: {
         Args: { p_key: string; p_limit: number; p_window_seconds: number };
@@ -3684,6 +3737,10 @@ export type Database = {
       };
       get_or_create_dm: { Args: { p_other_id: string }; Returns: string };
       gettransactionid: { Args: never; Returns: unknown };
+      grant_attended_event_badges: {
+        Args: { p_user_id: string };
+        Returns: undefined;
+      };
       host_paid_event_count_30d: {
         Args: { p_user_id: string };
         Returns: number;
@@ -3705,9 +3762,12 @@ export type Database = {
       };
       is_platform_admin: { Args: never; Returns: boolean };
       is_pro_host: { Args: { p_user_id: string }; Returns: boolean };
+      kick_badge_reconcile: { Args: never; Returns: undefined };
       list_room_recipients: {
         Args: { p_conversation_id: string; p_exclude: string };
-        Returns: { user_id: string }[];
+        Returns: {
+          user_id: string;
+        }[];
       };
       longtransactionsenabled: { Args: never; Returns: boolean };
       populate_geometry_columns:
@@ -3750,6 +3810,18 @@ export type Database = {
       };
       postgis_version: { Args: never; Returns: string };
       postgis_wagyu_version: { Args: never; Returns: string };
+      purge_avatar_orphans: {
+        Args: { p_grace_hours?: number };
+        Returns: number;
+      };
+      purge_chat_attachment_orphans: {
+        Args: { p_grace_hours?: number };
+        Returns: number;
+      };
+      purge_event_badge_orphans: {
+        Args: { p_grace_hours?: number };
+        Returns: number;
+      };
       purge_hero_image_orphans: {
         Args: { p_grace_hours?: number };
         Returns: number;
@@ -3881,6 +3953,10 @@ export type Database = {
           type: string;
           visibility: string;
         }[];
+      };
+      set_user_badge_hidden: {
+        Args: { p_badge_key: string; p_hidden: boolean };
+        Returns: undefined;
       };
       slugify: { Args: { input: string }; Returns: string };
       st_3dclosestpoint: {
@@ -4602,101 +4678,6 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
-      };
-      iceberg_namespaces: {
-        Row: {
-          bucket_name: string;
-          catalog_id: string;
-          created_at: string;
-          id: string;
-          metadata: Json;
-          name: string;
-          updated_at: string;
-        };
-        Insert: {
-          bucket_name: string;
-          catalog_id: string;
-          created_at?: string;
-          id?: string;
-          metadata?: Json;
-          name: string;
-          updated_at?: string;
-        };
-        Update: {
-          bucket_name?: string;
-          catalog_id?: string;
-          created_at?: string;
-          id?: string;
-          metadata?: Json;
-          name?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'iceberg_namespaces_catalog_id_fkey';
-            columns: ['catalog_id'];
-            isOneToOne: false;
-            referencedRelation: 'buckets_analytics';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      iceberg_tables: {
-        Row: {
-          bucket_name: string;
-          catalog_id: string;
-          created_at: string;
-          id: string;
-          location: string;
-          name: string;
-          namespace_id: string;
-          remote_table_id: string | null;
-          shard_id: string | null;
-          shard_key: string | null;
-          updated_at: string;
-        };
-        Insert: {
-          bucket_name: string;
-          catalog_id: string;
-          created_at?: string;
-          id?: string;
-          location: string;
-          name: string;
-          namespace_id: string;
-          remote_table_id?: string | null;
-          shard_id?: string | null;
-          shard_key?: string | null;
-          updated_at?: string;
-        };
-        Update: {
-          bucket_name?: string;
-          catalog_id?: string;
-          created_at?: string;
-          id?: string;
-          location?: string;
-          name?: string;
-          namespace_id?: string;
-          remote_table_id?: string | null;
-          shard_id?: string | null;
-          shard_key?: string | null;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'iceberg_tables_catalog_id_fkey';
-            columns: ['catalog_id'];
-            isOneToOne: false;
-            referencedRelation: 'buckets_analytics';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'iceberg_tables_namespace_id_fkey';
-            columns: ['namespace_id'];
-            isOneToOne: false;
-            referencedRelation: 'iceberg_namespaces';
-            referencedColumns: ['id'];
-          },
-        ];
       };
       migrations: {
         Row: {

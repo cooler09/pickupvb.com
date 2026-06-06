@@ -306,10 +306,12 @@ pnpm --filter @pickupvb/supabase gen:types  # regenerate DB types
 
 **Don't verify migrations locally.** The maintainer does not run Docker /
 the local Supabase stack — spinning it up is costly on their machine. As an
-agent, **do not run `pnpm db:migrate` or `gen:types`**, and don't ask the
-user to in order to "verify" a migration. Write the migration file (with its
-preamble), reason about its correctness by reading it, and leave it for
-CI/CD to apply.
+agent, **do not run `pnpm db:migrate` or the (local) `gen:types` script**, and
+don't ask the user to in order to "verify" a migration. Write the migration file
+(with its preamble), reason about its correctness by reading it, and leave it for
+CI/CD to apply. (Regenerating types from the _deployed_ schema is a separate,
+supported post-deploy step — see "Regenerating types from the deployed schema"
+below.)
 
 **Production migrations are applied automatically by CI/CD** — any new file
 in `supabase/migrations/` is picked up and applied on deploy. Don't run
@@ -321,6 +323,48 @@ When a code change depends on the new schema (new columns / tables that
 regenerating them from a local DB. Note in your hand-off that the types were
 edited by hand and will be regenerated against the real schema on the next
 `gen:types` run.
+
+### Regenerating types from the deployed schema (no Docker)
+
+The `gen:types` npm script is hardcoded to `--local`, so it needs the Docker
+stack and only ever reflects a _local_ DB — **don't run it.** Once a migration
+has shipped (CI applied it on deploy), regenerate `database.types.ts` from the
+**remote** project instead. This needs no Docker, only an authed Supabase CLI
+(`supabase projects list` should list the projects, not ask you to log in). It's
+an explicit post-deploy step — run it when the maintainer asks, not to "verify"
+an unshipped migration.
+
+```bash
+# Regen from the project that HAS the migration applied. `develop` deploys to
+# the dev project; only regen from prod once the migration has reached prod too.
+#   dev.pickupvb.com → rjkqldsxeidqzsameker
+#   pickupvb.com     → civomzrspifpoufajmmw
+supabase gen types typescript --project-id rjkqldsxeidqzsameker \
+  --schema public --schema storage --schema graphql_public \
+  > packages/supabase/src/database.types.ts
+
+# Committed types are prettier-formatted; raw gen output is not, so without this
+# the diff is the whole file. Normalize, then prove nothing regressed.
+pnpm exec prettier --write packages/supabase/src/database.types.ts
+pnpm typecheck && pnpm lint && pnpm test && pnpm build
+```
+
+Gotchas, each of which bit during the 2026-06-06 regen:
+
+- **Keep all three schemas** (`public,storage,graphql_public`). A bare
+  `--project-id` defaults to `public` only and silently drops the other two the
+  committed file carries (nothing references them today, but it shrinks the type
+  surface).
+- **Regen from the env that actually has the migration.** Gen'ing from a project
+  that's behind produces stale types and clobbers any hand-edits. `develop` →
+  the dev project; prod lags until `develop` reaches it.
+- **A green typecheck against the fresh types is the real proof** the schema and
+  app code agree — e.g. it catches code still reading a column a cutover dropped
+  (the `league_schedule_matches` `home_team_id` → `home_entry_id` cutover is the
+  reference case).
+- This **supersedes hand-edited types**: once regenerated, the by-hand entries
+  are replaced by the canonical generated ones, and accumulated drift from
+  earlier migrations that were never regen'd is picked up in the same pass.
 
 Never edit an applied migration. Add a follow-up migration instead.
 

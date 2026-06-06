@@ -1,5 +1,23 @@
 # Architecture audit — 2026-05-17
 
+> **Fresh re-audit (2026-06-06, HEAD `401062bc`) — new backlog opened; see [§ Reevaluation — 2026-06-06](#reevaluation--2026-06-06).**
+> The 2026-05-29 roadmap is **fully closed** and the boundary held: web-layer raw
+> `supabase.from(...)` dropped **76 → 16 files** (~28 calls, almost all sanctioned),
+> and every subdomain shipped since (badges, leagues, media, messaging, moderation,
+> onboarding, scoring, team-queries, plus standalone brackets / waitlist / free-agent)
+> came with a domain model + port + adapter + handler + tests. **No P1.** The growth
+> re-surfaced three P2s — (1) **parallel bracket command hierarchies**
+> (`standalone-bracket.handler.ts` duplicates ~13 handlers from `bracket.handler.ts`
+> over the same `Bracket` aggregate), (2) **`supabase-event-repository.ts` regrew to
+> 1,462 LOC** with a ~330-LOC non-atomic `save()` + ~316-LOC `getDetail()` (folds in
+> the two carried-over deferrals: multi-statement `save()` atomicity + the per-surface
+> `EventDetailReadModel` split), (3) the **`as never` ratchet gap** — 155 occurrences
+> in infra+web (the Phase-0 P2-5 ban only ever reached domain+application) — and two
+> P3s (page-diet regressions, the 761-LOC `messages.ts` single-module). Verified-good
+> set: outbox fully wired (incl. new waitlist/free-agent paths), ISP holds, purity
+> clean inward, test coverage complete for invariant-bearing units. Roadmap + per-
+> finding fixes in the section below.
+>
 > **Status update (2026-05-30, Phase 5 inc. 8 — event-form decomposition; P3-1 resolved → entire 2026-05-29 backlog closed):**
 > **Closed P3-1, the last open finding from the 2026-05-29 re-audit.** Extracted
 > the remaining inline section JSX from the create-event form into six
@@ -794,6 +812,214 @@ divisionId)` validates the division and `joinAsFreeAgent` stores it, so
 > five importers updated. Now matches the events/[id] convention of one
 > action file per concern. Remaining P2: mapper extraction (still needs
 > a design call).
+
+## Reevaluation — 2026-06-06
+
+Read-only re-audit against HEAD (`401062bc`), graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = ship-blocking
+bug / data-loss / broken behavior; P2 = next-sprint hardening/quality; P3 =
+nice-to-have). Lens: DRY, SOLID, Onion/hexagonal, DDD aggregates, CQRS, test
+architecture, layer purity. Triggered by the closure of the entire 2026-05-29
+roadmap (the prior "next step" note: "would need a fresh re-audit against
+current HEAD").
+
+### What changed since the last audit
+
+The 2026-05-29 → 2026-05-30 backlog (Phases 0–5, every P1/P2/P3) is **closed**.
+Since then the app shipped a large second wave of features — unified chat
+messaging (ADR 0028), the leagues container model, the bracket draft→live
+redesign (standalone brackets), gamification badges, onboarding checklists,
+host-managed team registration, content moderation, live match scoring,
+capacity waitlists, and first-class free-agent pickup. The decisive question
+for this re-audit: **did that wave erode the hexagonal boundary the way the
+_first_ doubling did?** It did not.
+
+```
+apps/web/src/app+components files calling lib/handlers:        88
+apps/web/src/app+components files issuing raw supabase.from():  16   (was 76)
+'as never' casts:  domain 0 · application 0 · infrastructure ~12 · web 67
+```
+
+Web-layer DB leakage **fell 76 → 16 files** while the surface grew — every new
+subdomain landed _with_ a domain model, a repository port, an infra adapter, a
+handler, and domain tests (`badges`, `leagues`, `media`, `messaging`,
+`moderation`, `onboarding`, `scoring`, `teams`/`team-queries`). The structural
+pressure this time is **not** porosity; it's three narrower seams the growth
+re-opened. **No P1 findings.**
+
+The 16 remaining raw-read sites break down as: sanctioned boundary/trivial reads
+(`api/health/deep`, `auth/callback` marketing-attribution, `sitemap`,
+`teams/[id]/opengraph-image`, `api/account/export` GDPR dump, own-row reads in
+`profile/media-actions`/`teams/actions`), the explicitly-deprioritized **payment
+sidecars** (`event_tips` / `event_participant_payments` / `event_payment_audit`
+in [checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts),
+[manage-payments-actions.ts](../../apps/web/src/app/events/%5Bid%5D/manage-payments-actions.ts),
+[tip-actions.ts](../../apps/web/src/app/events/%5Bid%5D/tip-actions.ts)), and a
+handful of small candidates (`event_co_hosts` in
+[group-hosted-events.tsx](../../apps/web/src/components/group-hosted-events.tsx) /
+[hosted-events-list.tsx](../../apps/web/src/components/hosted-events-list.tsx),
+`teams.slug` in [sitemap.ts](../../apps/web/src/app/sitemap.ts)) that could move
+onto `EventReadModels`/`TeamQueries` but buy little. None rise to a finding.
+
+---
+
+### P1 — none
+
+No ship-blocking architecture defect found. The correctness-critical seams the
+prior audit hardened (typed errors, RLS-on-user-client for owner writes, outbox
+delivery, division-scoped registration) are all intact at this HEAD.
+
+---
+
+### P2-1 — Parallel bracket command hierarchies (DRY / throughput)
+
+- **Where:** [standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts)
+  (491 LOC, 17 command classes + 15 handlers) duplicates
+  [bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)
+  (624 LOC) — and the two command sets are duplicated again in
+  [messages.ts](../../packages/application/src/messages.ts). ~13 of the standalone
+  handlers mirror an event-bound counterpart 1:1: `CreateStandaloneBracket↔CreateBracket`,
+  `Seed`, `Generate`, `GeneratePlayoff`, `SeedPlayoff`, `Reset`, `Reopen`,
+  `ReorderPoolMatches`, `Publish`, `SetPools`, `EditMatch`, `AddMatch`,
+  `RemoveMatch`, `ReplaceEntry`.
+- **Issue:** both hierarchies operate on the **same `Bracket` aggregate** and call
+  the same aggregate methods; they differ only in the _load/authz seam_ — event-bound
+  loads `findByDivisionId` and gates on `is_event_host`, standalone loads `findById`
+  and gates on `listByOwner`/owner. The bracket-workflow-redesign initiative (see
+  memory) paid this tax once; every future bracket capability is now written twice,
+  in three places (two handler files + `messages.ts`).
+- **Fix:** unify the handler bodies behind a single set parameterized by a **bracket
+  locator** (division-scoped vs. standalone-id) + an authz strategy — e.g. a
+  `BracketCommandBase` with a protected `loadBracket(cmd)` + `assertAuthorized(...)`
+  hook, or an injected `BracketSource` strategy. Keep thin distinct command classes
+  if the call-site naming matters, but collapse the ~13 mirrored bodies. Ship behind
+  the existing `bracket.handler.test.ts` + `standalone-bracket.handler.test.ts` as
+  the regression net. Est. ~1,115 → ~650 LOC.
+
+### P2-2 — `supabase-event-repository.ts` god-adapter regrowth + non-atomic `save()`
+
+- **Where:** [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts)
+  — **1,462 LOC** (was decomposed to **1,141** at 2026-05-29 Phase-4-eventrepo inc. 2).
+  `save()` spans L412–741 (**~330 LOC**); `getDetail()` L1089–1405 (**~316 LOC**).
+- **Issue:** the loader-split the prior pass deferred never landed, and the
+  leagues/waitlist/free-agent additions re-inflated both methods. `save()` is a long
+  **multi-statement write** (event row → divisions → attendees → registered teams →
+  free-agents → waitlist) with **no enclosing transaction** — a partial failure
+  mid-`save()` leaves the event half-written. This is the **"true multi-statement
+  `save()` atomicity"** deferral the 2026-05-29 roadmap explicitly carried forward,
+  now with more rows to lose.
+- **Fix (three folded items):** (1) extract `getDetail`'s two query waves into
+  `event-detail/` loaders — the parsing already lives in
+  [event-detail/mappers.ts](../../packages/infrastructure/src/event-detail/mappers.ts),
+  so this is the I/O half; (2) decompose `save()` into focused per-child write
+  helpers; (3) wrap the multi-statement write in a `SECURITY DEFINER` RPC (or a single
+  transaction) for atomicity. Carry the per-surface **`EventDetailReadModel` split**
+  (the other 2026-05-29 deferral) here too — both are this method's problem. Gate the
+  refactor behind characterization tests on `getDetail`/`save` first (the adapter-test
+  precedent from Phase 5 inc. 7).
+
+### P2-3 — `as never` ratchet gap (155 occurrences, infra + web)
+
+- **Where:** **0** in `packages/domain` / `packages/application` (the Phase-0 P2-5 ban
+  reached only those two layers), but **~12 in `packages/infrastructure`** +
+  **67 in `apps/web`**. Examples:
+  [supabase-event-repository.ts:192](../../packages/infrastructure/src/supabase-event-repository.ts#L192)
+  (`id: row.id as never`), [supabase-messaging-repository.ts](../../packages/infrastructure/src/supabase-messaging-repository.ts)
+  (5×), [brackets/page.tsx:26](../../apps/web/src/app/brackets/page.tsx#L26)
+  (`listByOwner(user.id as never)`),
+  [team-checkout-actions.ts:54](../../apps/web/src/app/events/%5Bid%5D/team-checkout-actions.ts#L54)
+  (`registrationId as never as EventTeamRegistrationId`),
+  [events/new/actions.ts](../../apps/web/src/app/events/new/actions.ts) (write payloads).
+- **Issue:** two distinct anti-patterns hide under one cast. **(a) Brand casts**
+  (`event.id as never`, `user.id as never`, `x as never as SomeId`) bypass the brand
+  smart constructors (`EventId(...)`, `UserId(...)`) the brands exist to enforce —
+  the _exact_ P2-5 anti-pattern the inward ratchet killed, now thriving in web/infra.
+  **(b) Supabase write-payload casts** (`.update({…} as never)`, `.upsert({…} as never)`)
+  silence the generated-types friction on writes, so **every mutation loses column
+  type-checking**.
+- **Fix:** (a) replace brand casts with the smart constructor at the boundary;
+  (b) add a small typed-write helper (or use the generated `TablesInsert<>` /
+  `TablesUpdate<>` types from `packages/supabase`) so payload casts aren't needed.
+  Then extend the `as never` ban (the `purityRatchet()` lever in
+  [packages/config/eslint.base.mjs](../../packages/config/eslint.base.mjs)) to
+  `packages/infrastructure` + `apps/web` **per-directory behind a grandfather
+  baseline** — the same ratchet-behind-migration strategy used for the original
+  `supabase.from` boundary lock and the M3 shape-scale lock.
+
+---
+
+### P3-1 — Page-diet regressions
+
+- **Where:** [events/page.tsx](../../apps/web/src/app/events/page.tsx) **602**,
+  [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) **601**,
+  [community/[slug]/page.tsx](../../apps/web/src/app/community/%5Bslug%5D/page.tsx) **567**,
+  [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) **424**
+  (regrew from the **294** the 2026-05-22 decomposition landed),
+  [profile/billing/earnings/page.tsx](../../apps/web/src/app/profile/billing/earnings/page.tsx) **424**.
+- **Issue:** all exceed the AGENTS.md ~200-LOC soft cap (ADR 0005 target <150).
+  `events/[id]` is the notable regression — a flagship decomposition re-inflated by
+  the leagues/waitlist/bracket sections.
+- **Fix:** extract render branches into `_components/` (the established pattern). Lower
+  priority than the P2s: loaders already exist, so this is _renderer_ bloat, not
+  data-assembly-in-page — no correctness risk.
+
+### P3-2 — `messages.ts` single-module grown to 761 LOC / ~90 classes
+
+- **Where:** [packages/application/src/messages.ts](../../packages/application/src/messages.ts)
+  — documented in the package README as "Command + query payload shapes."
+- **Issue:** every command/query class for every subdomain lives in one file, while the
+  handlers are split per-subdomain (`*.handler.ts`). The message module didn't follow
+  the handler split, so it's a merge-conflict magnet and obscures which command belongs
+  to which aggregate (and it's where P2-1's bracket-command duplication compounds).
+- **Fix:** split into per-subdomain message files re-exported from a barrel (e.g.
+  `commands/bracket.commands.ts`), co-located with handlers — **or** explicitly affirm
+  the single-module convention in the README if it's intentional. Judgment call; flag,
+  don't force.
+
+---
+
+### Verified good (still holding, and worth protecting)
+
+- **Analytics outbox fully wired (pattern #9).** Only `VolleyballEvent` + `Bracket`
+  `this.raise(...)`; **every** handler that saves them dispatches
+  `dispatchAnalyticsOutbox` after `save()` — including the _new_ waitlist
+  (`joinWaitlist`/`leaveWaitlist`/`WaitlistPromoted`) and free-agent
+  (`joinAsFreeAgent`/`leaveAsFreeAgent`) paths in
+  [join-event.handler.ts](../../packages/application/src/commands/join-event.handler.ts).
+  Non-dispatching handlers all save **non-raising** aggregates. No half-wired regression.
+- **Hexagonal boundary held under 2× growth:** 76 → 16 raw-read files; remaining are
+  sanctioned (see "What changed").
+- **Every new subdomain is fully layered** — domain model + port + adapter + handler +
+  domain tests. No anemic data-bag aggregates introduced.
+- **ISP holds.** No god-ports — `bracket-repository` (12 cohesive methods),
+  `media-post-repository` (10), `event-team-registration-repository` (6),
+  `league-schedule-repository` (4); the 2026-05-29 `EventRepository`
+  read/write/membership split is intact.
+- **Layer purity clean inward:** 0 bare `throw new Error` and 0 `as never` in
+  `domain`/`application`; the `purityRatchet()` import ban holds.
+- **Test coverage complete for invariant-bearing units.** The domain files without a
+  `*.test.ts` (`messaging/conversation.ts`, `messaging/user-block.ts`, `media/award.ts`,
+  `badges/player-badge-stats.ts`, `onboarding/onboarding-snapshot.ts`, the `payments`
+  - `notifications` ports) are pure types / port interfaces with no logic — correctly
+    untested per the P3-4 reasoning.
+
+### Refactoring roadmap (2026-06-06)
+
+Each phase is independently shippable and verify-clean
+(`pnpm typecheck && pnpm lint && pnpm test && pnpm build`).
+
+- **Phase A — P2-3 (`as never`).** Highest compounding, lowest risk: replace brand
+  casts with smart constructors, add the typed-write helper, then extend the ratchet
+  per-directory. Stops the bleed and makes every subsequent write safer. Start here.
+- **Phase B — P2-1 (bracket handler unification).** Biggest throughput win. Do after
+  Phase A so the suite is green; ship behind the two existing bracket handler test
+  files.
+- **Phase C — P2-2 (event-repo decomposition + `save()` atomicity).** Largest and
+  touches the hottest adapter — do last, alone, behind characterization tests on
+  `getDetail`/`save`. Folds in both carried-over 2026-05-29 deferrals.
+- **Opportunistic — P3-1 page diets, P3-2 `messages.ts` split.**
+
+---
 
 ## Reevaluation — 2026-05-29
 
