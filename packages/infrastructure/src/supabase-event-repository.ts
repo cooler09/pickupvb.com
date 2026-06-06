@@ -32,7 +32,8 @@ import {
   type EventSearchQuery,
   type VolleyballEventSummary,
 } from '@pickupvb/domain';
-import { createSupabaseAdminClient, type Database, type TablesInsert } from '@pickupvb/supabase';
+import { createSupabaseAdminClient, type Database } from '@pickupvb/supabase';
+import { asJson } from './supabase-json.js';
 import {
   computeSpotsRemaining,
   indexPaymentsByTeam,
@@ -56,14 +57,6 @@ import {
   type ViewerTeamRow,
   type WinnerEntryRow,
 } from './event-detail/mappers.js';
-import {
-  loadDivisionIds,
-  reconcileAttendees,
-  reconcileDivisions,
-  reconcileFreeAgents,
-  reconcileRosterTeams,
-  reconcileWaitlist,
-} from './event-save-children.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -219,6 +212,35 @@ function divisionRowToDomain(row: DivisionRow): Division {
     allowFreeAgents: row.allow_free_agents ?? true,
     teamRegistrationMode: row.team_registration_mode ?? null,
   });
+}
+
+/** Map a `Division` aggregate to its `event_divisions` row shape (the
+ *  `save_event` RPC's `p_divisions` element). */
+function divisionToRow(eventId: string, d: Division): Record<string, unknown> {
+  return {
+    id: String(d.id),
+    event_id: eventId,
+    sort_order: d.sortOrder,
+    label: d.label,
+    surface: d.surface,
+    format: d.format,
+    gender: d.gender,
+    skill_tier: d.skillTier,
+    age_group: d.ageGroup,
+    tier_label: d.tierLabel,
+    team_composition: d.teamComposition,
+    team_size: d.teamSize,
+    capacity_kind: d.capacity?.kind ?? null,
+    max_spots: d.capacity?.kind === 'fixed' ? d.capacity.maxSpots : null,
+    price_cents: d.priceCents,
+    price_unit: d.priceUnit,
+    prize_text: d.prizeText,
+    prize_purse_cents: d.prizePurseCents,
+    starts_at: d.startsAt ? d.startsAt.toISOString() : null,
+    ends_at: d.endsAt ? d.endsAt.toISOString() : null,
+    allow_free_agents: d.allowFreeAgents,
+    team_registration_mode: d.teamRegistrationMode,
+  };
 }
 
 function divisionRowToLite(
@@ -400,9 +422,17 @@ export class SupabaseEventRepository implements EventRepository {
   async save(event: VolleyballEvent): Promise<void> {
     const loc = event.location;
     const wkt = `SRID=4326;POINT(${loc.longitude} ${loc.latitude})`;
+    const eventId = String(event.id);
 
-    const row = {
-      id: String(event.id),
+    // ADR 0006 Phase 9c: legacy event columns (format/gender/skill_level/
+    // capacity_kind/max_spots) are not written here — authority is on
+    // event_divisions; positionRoster lives on the primary division row
+    // (stamped below). Columns NOT listed (host_group_id, host_absorbs_fee,
+    // pass_processing_fee_to_buyer, refund_window_hours, hero_image_url) are
+    // owned by other write paths and left untouched by save_event. short_code
+    // is filled by the BEFORE INSERT trigger on create.
+    const eventRow = {
+      id: eventId,
       host_id: String(event.hostId),
       title: event.title,
       description: event.description,
@@ -420,12 +450,6 @@ export class SupabaseEventRepository implements EventRepository {
       starts_at: event.startsAt.toISOString(),
       ends_at: event.endsAt.toISOString(),
       time_zone: event.timeZone,
-      // ADR 0006 Phase 9c: legacy event columns (format, gender, skill_level,
-      // capacity_kind, max_spots) are no longer written here. Authority
-      // lives on event_divisions. positionRoster also lives on the
-      // primary division row — stamped below alongside the division
-      // reconciliation.
-      // ADR 0006 extension columns
       venue_name: event.venueName,
       registration_closes_at: event.registrationClosesAt
         ? event.registrationClosesAt.toISOString()
@@ -445,29 +469,43 @@ export class SupabaseEventRepository implements EventRepository {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await this.client
-      .from('events')
-      .upsert(row as TablesInsert<'events'>, { onConflict: 'id' });
+    const attendees = Array.from(event.attendees.entries()).map(([u, position]) => ({
+      user_id: String(u),
+      position,
+    }));
+    const waitlist = event.waitlist.map((u) => String(u));
+    const teams = event.teamEntries.map(([t, d]) => ({
+      team_id: String(t),
+      division_id: d ? String(d) : null,
+    }));
+    const freeAgents = event.freeAgentEntries.map(([u, e]) => ({
+      user_id: String(u),
+      division_id: e.divisionId ? String(e.divisionId) : null,
+      notes: e.notes,
+    }));
+    const divisionRows = event.divisions.map((d) => divisionToRow(eventId, d));
+    if (divisionRows.length > 0) {
+      // Stamp the aggregate-level positionRoster onto the primary division row.
+      const primary = divisionRows[0] as Record<string, unknown>;
+      primary.position_roster = event.positionRoster
+        ? Object.fromEntries(event.positionRoster.entries())
+        : null;
+    }
+
+    // Atomic full persist (architecture audit P2-2 inc. 3): the events row +
+    // every child reconcile (attendees / waitlist / roster teams / free agents /
+    // divisions) run in ONE transaction via the save_event RPC, replacing the
+    // prior per-statement write sequence. The RPC performs the identical delta
+    // semantics — see migration 20260919000000_save_event_rpc.sql.
+    const { error } = await this.client.rpc('save_event', {
+      p_event: asJson(eventRow),
+      p_attendees: asJson(attendees),
+      p_waitlist: asJson(waitlist),
+      p_teams: asJson(teams),
+      p_free_agents: asJson(freeAgents),
+      p_divisions: asJson(divisionRows),
+    });
     if (error) throw new Error(`save(${event.id}) failed: ${error.message}`);
-
-    // Reconcile the event's child tables by delta (ADR 0019/0036). Each block
-    // was extracted into a focused reconciler (architecture audit P2-2); they
-    // run on the same service-role client, in the same order, still sequential
-    // and non-transactional (true atomicity is a follow-up). Reads/writes scope
-    // through the event's division ids; a new attendee uses `soleDivisionId`
-    // (open-play is single-division), while teams and free agents carry their
-    // own division on the aggregate.
-    const eventId = String(event.id);
-    const { divisionIds, soleDivisionId } = await loadDivisionIds(this.client, eventId);
-    await reconcileAttendees(this.client, event, divisionIds, soleDivisionId);
-
-    await reconcileWaitlist(this.client, event, eventId);
-
-    await reconcileRosterTeams(this.client, event, divisionIds, soleDivisionId);
-
-    await reconcileFreeAgents(this.client, event, divisionIds, soleDivisionId);
-
-    await reconcileDivisions(this.client, event);
 
     // Drain raised events so callers don't double-handle them.
     event.pullEvents();

@@ -3866,6 +3866,17 @@ export type Database = {
         };
         Returns: undefined;
       };
+      save_event: {
+        Args: {
+          p_event: Json;
+          p_attendees: Json;
+          p_waitlist: Json;
+          p_teams: Json;
+          p_free_agents: Json;
+          p_divisions: Json;
+        };
+        Returns: undefined;
+      };
       save_league_schedule: {
         Args: { p_division_id: string; p_matches: Json };
         Returns: undefined;

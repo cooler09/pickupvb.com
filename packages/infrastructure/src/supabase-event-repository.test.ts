@@ -14,13 +14,11 @@ import {
 import { SupabaseEventRepository } from './supabase-event-repository.js';
 
 // ----------------------------------------------------------------------------
-// Characterization test for SupabaseEventRepository.save() — the precondition
-// for the Phase C decomposition (architecture audit P2-2). save() is a sequence
-// of independent delta-reconcilers (events row → division ids → attendees →
-// waitlist → roster teams → free agents → divisions). This pins the exact
-// ordered sequence of writes for a freshly-populated event (no existing child
-// rows ⇒ every desired child is an INSERT) so the extraction into reconciler
-// helpers can't silently reorder, drop, or mis-thread a block.
+// Characterization tests for SupabaseEventRepository (architecture audit P2-2).
+// save() persists the whole aggregate atomically via the single `save_event`
+// RPC (inc. 3); these pin that it issues exactly one RPC carrying the full
+// desired state (the contract the PL/pgSQL function implements). getDetail()'s
+// read-query sequence is pinned further down.
 // ----------------------------------------------------------------------------
 
 const DIV = '11111111-1111-1111-1111-111111111111';
@@ -123,11 +121,6 @@ function recordingClient(log: RecordedOp[], canned: (table: string, single: bool
   };
 }
 
-/** save() canned reads: the division-id lookup returns one division (so
- *  `soleDivisionId` resolves and child inserts fire); every other select is
- *  empty (no existing child rows ⇒ all desired children are inserts). */
-const saveCanned = (table: string): unknown => (table === 'event_divisions' ? [{ id: DIV }] : []);
-
 const LOCATION = Location.create({
   addressLine: '1 Main St',
   city: 'Long Beach',
@@ -164,54 +157,42 @@ function populatedEvent(): VolleyballEvent {
   });
 }
 
-describe('SupabaseEventRepository.save() — write sequence (characterization)', () => {
-  it('writes events → divisions(id) → attendees → waitlist → teams → free agents in order', async () => {
+describe('SupabaseEventRepository.save() — single atomic save_event RPC (characterization)', () => {
+  it('persists the whole aggregate via exactly one save_event RPC (no per-table writes)', async () => {
     const log: RecordedOp[] = [];
-    const repo = new SupabaseEventRepository(recordingClient(log, saveCanned) as never);
+    const repo = new SupabaseEventRepository(recordingClient(log, () => []) as never);
 
     await repo.save(populatedEvent());
 
-    expect(log.map((o) => `${o.table}.${o.op}`)).toEqual([
-      'events.upsert',
-      'event_divisions.select', // resolve division ids → soleDivisionId
-      'event_participants.select', // existing attendees
-      'event_participants.insert', // new attendee
-      'event_waitlist.select', // existing waitlist
-      'event_waitlist.insert', // new waitlisted user
-      'event_team_entries.select', // existing roster teams
-      'attach_team_to_division.rpc', // new roster team
-      'event_participants.select', // existing free agents
-      'event_participants.insert', // new free agent
-    ]);
+    // The entire persist is one transactional RPC — no individual table writes.
+    expect(log.map((o) => `${o.table}.${o.op}`)).toEqual(['save_event.rpc']);
   });
 
-  it('threads soleDivisionId into the attendee insert and the team/free-agent division', async () => {
+  it('passes the full desired state as the save_event payload', async () => {
     const log: RecordedOp[] = [];
-    const repo = new SupabaseEventRepository(recordingClient(log, saveCanned) as never);
+    const repo = new SupabaseEventRepository(recordingClient(log, () => []) as never);
 
     await repo.save(populatedEvent());
 
-    const eventsUpsert = log.find((o) => o.table === 'events' && o.op === 'upsert');
-    expect((eventsUpsert?.payload as { id: string }).id).toBe('event-1');
-
-    const attendeeInsert = log.find((o) => o.table === 'event_participants' && o.op === 'insert');
-    expect(attendeeInsert?.payload).toEqual([
-      { division_id: DIV, user_id: 'att-1', position: null, role: 'attendee' },
-    ]);
-
-    const attachRpc = log.find((o) => o.op === 'rpc');
-    expect(attachRpc?.payload).toEqual({ p_division_id: DIV, p_team_id: 'team-1' });
-
-    const waitlistInsert = log.find((o) => o.table === 'event_waitlist' && o.op === 'insert');
-    expect(waitlistInsert?.payload).toEqual([{ event_id: 'event-1', user_id: 'wait-1' }]);
-
-    // Free-agent insert is the second event_participants insert (after attendees).
-    const participantInserts = log.filter(
-      (o) => o.table === 'event_participants' && o.op === 'insert',
-    );
-    expect(participantInserts[1]?.payload).toEqual([
-      { division_id: DIV, user_id: 'fa-1', notes: 'setter', role: 'free_agent' },
-    ]);
+    const args = log[0]!.payload as {
+      p_event: { id: string; host_id: string; geo: string; status: string };
+      p_attendees: unknown;
+      p_waitlist: unknown;
+      p_teams: unknown;
+      p_free_agents: unknown;
+      p_divisions: unknown;
+    };
+    expect(args.p_event.id).toBe('event-1');
+    expect(args.p_event.host_id).toBe('host-1');
+    expect(args.p_event.status).toBe('published');
+    // WKT is `POINT(longitude latitude)`.
+    expect(args.p_event.geo).toBe('SRID=4326;POINT(-118.19 33.77)');
+    expect(args.p_attendees).toEqual([{ user_id: 'att-1', position: null }]);
+    expect(args.p_waitlist).toEqual(['wait-1']);
+    expect(args.p_teams).toEqual([{ team_id: 'team-1', division_id: DIV }]);
+    expect(args.p_free_agents).toEqual([{ user_id: 'fa-1', division_id: DIV, notes: 'setter' }]);
+    // populatedEvent carries no aggregate-level divisions.
+    expect(args.p_divisions).toEqual([]);
   });
 });
 
