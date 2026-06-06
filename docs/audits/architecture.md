@@ -1,5 +1,28 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-06-06, Phase C inc. 1 — P2-2 `supabase-event-repository.ts` `save()` decomposition: PARTIAL).**
+> Decomposed the ~330-LOC non-atomic `save()` into a readable orchestrator. The
+> five delta-reconcile blocks (attendees, waitlist, roster teams, free agents,
+> divisions) + the division-id load + the `divisionToRow` mapper moved **verbatim**
+> into a new focused module
+> [event-save-children.ts](../../packages/infrastructure/src/event-save-children.ts);
+> `save()` is now `events` upsert → `loadDivisionIds` → five `reconcile*` calls →
+> `pullEvents()`. The adapter file shrank **1,468 → 1,199 LOC** and `save()` from
+> ~330 → ~50 LOC. **Gated on a characterization test first** (the audit's mandated
+> precondition): a new
+> [supabase-event-repository.test.ts](../../packages/infrastructure/src/supabase-event-repository.test.ts)
+> drives `save()` through a recording fake client and pins the exact ordered write
+> sequence + key payloads (the division-id thread-through) — written green against
+> the _original_ `save()`, still green after the extraction, so the relocation
+> can't silently reorder/drop/mis-thread a block. Added an injectable
+> `constructor(client?)` to the adapter (the test seam; matches the sibling
+> adapters). **Verify quad green** (typecheck 15/15; lint 0 errors; test domain 547
+> / application 145 / infra 50 / web 262; build 8/8). No DB change. **P2-2 stays
+> PARTIAL — remaining: inc. 2 (`getDetail` query-wave extraction into loaders, to
+> shrink the file further) and inc. 3 (the carried-over deferral — true
+> multi-statement `save()` atomicity via a `SECURITY DEFINER` RPC; the reconcilers
+> are still sequential / non-transactional).**
+>
 > **Status update (2026-06-06, Phase B — P2-1 parallel bracket command hierarchies: RESOLVED).**
 > Collapsed the two near-identical bracket handler hierarchies onto a shared base.
 > [bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)
@@ -954,7 +977,17 @@ delivery, division-scoped registration) are all intact at this HEAD.
   the existing `bracket.handler.test.ts` + `standalone-bracket.handler.test.ts` as
   the regression net. Est. ~1,115 → ~650 LOC.
 
-### P2-2 — `supabase-event-repository.ts` god-adapter regrowth + non-atomic `save()`
+### P2-2 — `supabase-event-repository.ts` god-adapter regrowth + non-atomic `save()` 🟡 Partial 2026-06-06 (Phase C inc. 1)
+
+> **Phase C inc. 1 (2026-06-06):** the ~330-LOC `save()` is decomposed — its five
+> delta-reconcile blocks + the `divisionToRow` mapper moved verbatim into
+> [event-save-children.ts](../../packages/infrastructure/src/event-save-children.ts),
+> `save()` now a ~50-LOC orchestrator, adapter file 1,468 → 1,199 LOC. Gated on a
+> new `save()` characterization test (recording fake, pins the write sequence).
+> Verify quad green. **Remaining: inc. 2** (`getDetail` query waves → loaders) **and
+> inc. 3** (multi-statement `save()` atomicity via a `SECURITY DEFINER` RPC — the
+> carried-over deferral; reconcilers are still sequential/non-transactional). See
+> the top-of-doc status block.
 
 - **Where:** [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts)
   — **1,462 LOC** (was decomposed to **1,141** at 2026-05-29 Phase-4-eventrepo inc. 2).
