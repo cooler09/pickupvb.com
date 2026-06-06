@@ -1,5 +1,31 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-06-06, Phase C inc. 2 — P2-2 `getDetail` query-wave extraction: PARTIAL).**
+> Decomposed the ~316-LOC `getDetail` god-method into a readable orchestrator
+> (**316 → 184 LOC**). The two parallel read waves + the conditional podium-label
+> read + the viewer-team-member read moved **verbatim** into four named private
+> loaders on the adapter — `loadDetailWave1` (event's own child reads; also owns
+> the co-host FK-hint error check), `loadPodiumLabels`, `loadDetailWave2`
+> (viewer-scoped reads + team aggregates), `loadViewerTeamMemberCounts`. Each
+> returns the raw PostgREST result objects, so the (separately-tested)
+> `event-detail/mappers.ts` parsing + the assembly are **byte-identical** — only
+> the query I/O moved. **Kept as private methods rather than a separate module:**
+> the waves are tightly coupled to the repo-local `DivisionRow`/`EventRow` row
+> types, so a module split would have forced relocating those (+ circular-import
+> risk) for no behavioural gain; the win here is the **method** decomposition +
+> isolation, not file shrink (file 1,199 → 1,264 LOC; +65 from method scaffolding
+>
+> - JSDoc — net **1,468 → 1,264, −14%** from the audit baseline across inc. 1+2).
+>   **Gated on a getDetail characterization test first** (extended
+>   [supabase-event-repository.test.ts](../../packages/infrastructure/src/supabase-event-repository.test.ts):
+>   the recording fake gained `maybeSingle()` + an injectable canned-read resolver;
+>   3 new cases pin the read-query **sequence** + key filters + the null-event
+>   early-return — green vs the original, still green after). **Verify quad green**
+>   (typecheck 15/15; lint 0 errors; test domain 547 / application 145 / infra **53**
+>   / web 262; build 8/8). No DB change. **P2-2 stays PARTIAL — only inc. 3 remains:
+>   true multi-statement `save()` atomicity via a `SECURITY DEFINER` RPC (the
+>   carried-over deferral; migration, deploy-gated / unverifiable locally).**
+>
 > **Status update (2026-06-06, Phase C inc. 1 — P2-2 `supabase-event-repository.ts` `save()` decomposition: PARTIAL).**
 > Decomposed the ~330-LOC non-atomic `save()` into a readable orchestrator. The
 > five delta-reconcile blocks (attendees, waitlist, roster teams, free agents,
@@ -984,10 +1010,21 @@ delivery, division-scoped registration) are all intact at this HEAD.
 > [event-save-children.ts](../../packages/infrastructure/src/event-save-children.ts),
 > `save()` now a ~50-LOC orchestrator, adapter file 1,468 → 1,199 LOC. Gated on a
 > new `save()` characterization test (recording fake, pins the write sequence).
-> Verify quad green. **Remaining: inc. 2** (`getDetail` query waves → loaders) **and
-> inc. 3** (multi-statement `save()` atomicity via a `SECURITY DEFINER` RPC — the
-> carried-over deferral; reconcilers are still sequential/non-transactional). See
-> the top-of-doc status block.
+>
+> **Phase C inc. 2 (2026-06-06):** the ~316-LOC `getDetail` is decomposed (316 →
+> 184 LOC) — its two read waves + podium read + viewer-team read moved verbatim
+> into four named private loaders (`loadDetailWave1`/`loadPodiumLabels`/
+> `loadDetailWave2`/`loadViewerTeamMemberCounts`), returning the raw result
+> objects so the mappers + assembly are byte-identical. Kept as private methods
+> (not a module) — the waves are coupled to repo-local `DivisionRow`/`EventRow`;
+> the win is method decomposition, not file shrink (file +65 LOC; net −14% across
+> inc. 1+2). Gated on a new `getDetail` read-sequence characterization test.
+> Verify quad green.
+>
+> **Remaining: inc. 3** — multi-statement `save()` atomicity via a `SECURITY
+DEFINER` RPC (the carried-over deferral; reconcilers are still
+> sequential/non-transactional; migration = deploy-gated, unverifiable locally).
+> See the top-of-doc status block.
 
 - **Where:** [supabase-event-repository.ts](../../packages/infrastructure/src/supabase-event-repository.ts)
   — **1,462 LOC** (was decomposed to **1,141** at 2026-05-29 Phase-4-eventrepo inc. 2).

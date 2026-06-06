@@ -833,8 +833,10 @@ export class SupabaseEventRepository implements EventRepository {
     if (!ev) return null;
     const row = ev as unknown as EventRow & { host_group_id: string | null };
 
-    // Run independent queries in parallel.
-    const [
+    // Wave 1: the event's own child reads (attendees, co-hosts, primary host
+    // user/group, roster teams, free agents, divisions), run in parallel — see
+    // loadDetailWave1.
+    const {
       attendeeRowsRes,
       coHostRowsRes,
       primaryHostUserRes,
@@ -842,71 +844,7 @@ export class SupabaseEventRepository implements EventRepository {
       teamRowsRes,
       freeAgentRowsRes,
       divisionRowsRes,
-    ] = await Promise.all([
-      this.client
-        .from('event_participants')
-        .select(
-          'user_id, joined_at, position, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
-        )
-        .eq('role', 'attendee')
-        .eq('division.event_id', id)
-        .order('joined_at', { ascending: true }),
-      this.client
-        .from('event_co_hosts')
-        .select(
-          // `event_co_hosts` has TWO FKs to `profiles` (`host_user_id` and
-          // `added_by`), so the embed MUST be disambiguated with the FK
-          // hint — otherwise PostgREST returns PGRST201 ("more than one
-          // relationship was found") and `data` comes back null. Without
-          // the hint the code below silently treated every event as
-          // having zero co-hosts, even when rows existed in the table.
-          'host_user_id, host_group_id, profiles:profiles!host_user_id(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
-        )
-        .eq('event_id', id),
-      row.host_id
-        ? this.client
-            .from('profiles')
-            .select('id, handle, display_name, first_name, last_name, avatar_url')
-            .eq('id', row.host_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      row.host_group_id
-        ? this.client
-            .from('groups')
-            .select('id, slug, name, avatar_url')
-            .eq('id', row.host_group_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      this.client
-        .from('event_team_entries')
-        .select(
-          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
-        )
-        .eq('division.event_id', id)
-        .eq('source', 'roster')
-        .is('deleted_at', null)
-        .order('registered_at', { ascending: true }),
-      this.client
-        .from('event_participants')
-        .select(
-          'user_id, notes, division_id, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
-        )
-        .eq('role', 'free_agent')
-        .eq('division.event_id', id)
-        .order('joined_at', { ascending: true }),
-      this.client
-        .from('event_divisions')
-        .select('*')
-        .eq('event_id', id)
-        .order('sort_order', { ascending: true }),
-    ]);
-
-    // The co-host embed needs a disambiguated FK hint (two FKs to `profiles`);
-    // a missing hint returns PGRST201 with null data, which used to silently
-    // drop every co-host. Surface the failure instead of swallowing it.
-    if (coHostRowsRes.error) {
-      throw new Error(`getDetail(${id}) co-host query failed: ${coHostRowsRes.error.message}`);
-    }
+    } = await this.loadDetailWave1(id, row.host_id, row.host_group_id);
 
     // Derive legacy display fields from primary division when the event
     // columns are null (ADR 0006 Phase 9b).
@@ -914,31 +852,8 @@ export class SupabaseEventRepository implements EventRepository {
     const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
 
     // Resolve podium labels (one extra read when any division has a recorded
-    // placement). Collect every placement entry id across all three places,
-    // fetch once, and build an entry-id → label map (preferring the live
-    // `teams.name` over the entry `display_name` for ad-hoc / walk-in rows).
-    let entryLabelById = new Map<string, string>();
-    const placementEntryIds = [
-      ...new Set(
-        divisionRowsForDetail.flatMap((d) =>
-          [d.winner_entry_id, d.runner_up_entry_id, d.third_place_entry_id].filter(
-            (v): v is string => !!v,
-          ),
-        ),
-      ),
-    ];
-    if (placementEntryIds.length > 0) {
-      const { data: entryRows } = await this.client
-        .from('event_team_entries')
-        .select('id, display_name, team_id, teams:teams(name)')
-        .in('id', placementEntryIds);
-      entryLabelById = new Map(
-        ((entryRows as WinnerEntryRow[] | null) ?? []).map((r) => [
-          r.id,
-          r.teams?.name ?? r.display_name,
-        ]),
-      );
-    }
+    // placement) — see loadPodiumLabels.
+    const entryLabelById = await this.loadPodiumLabels(divisionRowsForDetail);
     const placementLabels = (d: DivisionRow) => ({
       winner: d.winner_entry_id ? (entryLabelById.get(d.winner_entry_id) ?? null) : null,
       runnerUp: d.runner_up_entry_id ? (entryLabelById.get(d.runner_up_entry_id) ?? null) : null,
@@ -958,57 +873,16 @@ export class SupabaseEventRepository implements EventRepository {
     const teamJoinRows = (teamRowsRes.data as TeamJoinRow[] | null) ?? [];
     const registeredTeamIds = teamJoinRows.map((r) => r.teams?.id).filter((v): v is string => !!v);
 
-    // ---- Wave 2: viewer-specific reads + team aggregates ----------------
-    // These depend on Wave 1 (`registeredTeamIds`, `legacyDetail.format`), so
-    // they form a second parallel batch.
-    const [
+    // Wave 2: viewer-specific reads + team aggregates (depend on Wave 1's
+    // registeredTeamIds) — see loadDetailWave2.
+    const {
       viewerFriendsRes,
       viewerRoleRes,
       viewerHostableGroupsRes,
       teamMemberCountsRes,
       teamPaymentsRes,
       viewerCaptainedTeamsRes,
-    ] = await Promise.all([
-      viewerId
-        ? this.client.from('friendships').select('friend_id').eq('user_id', viewerId)
-        : Promise.resolve({ data: [], error: null }),
-      viewerId && row.host_group_id
-        ? this.client
-            .from('group_members')
-            .select('role')
-            .eq('group_id', row.host_group_id)
-            .eq('user_id', viewerId)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      viewerId
-        ? this.client
-            .from('group_members')
-            .select('groups:groups!inner(id, name)')
-            .eq('user_id', viewerId)
-            .in('role', ['owner', 'admin'])
-        : Promise.resolve({ data: [], error: null }),
-      registeredTeamIds.length
-        ? this.client.from('team_members').select('team_id').in('team_id', registeredTeamIds)
-        : Promise.resolve({ data: [], error: null }),
-      registeredTeamIds.length
-        ? this.client
-            .from('event_team_payments')
-            .select(
-              'team_id, payment_status, amount_paid_cents, division:event_divisions!inner(event_id)',
-            )
-            .eq('division.event_id', id)
-            .in('team_id', registeredTeamIds)
-        : Promise.resolve({ data: [], error: null }),
-      // Every team the viewer captains. Teams are not format-locked (ADR
-      // 0013) — a roster can enter a division of any format — so we no longer
-      // filter by the event's format; the picker shows all of them. Only
-      // consumed by the tournament/league signup panels (harmless elsewhere).
-      // One tiny query, issued for any logged-in viewer to keep the response
-      // shape uniform.
-      viewerId
-        ? this.client.from('teams').select('id, name').eq('captain_id', viewerId)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+    } = await this.loadDetailWave2(id, viewerId, row.host_group_id, registeredTeamIds);
 
     const primaryHostUser = primaryHostUserRes.data
       ? toProfileLite(primaryHostUserRes.data as ProfileRow)
@@ -1062,17 +936,11 @@ export class SupabaseEventRepository implements EventRepository {
     );
 
     // Viewer's captained teams need a member-count read of their own (the ids
-    // aren't known until the Wave 2 captained-teams query resolves).
+    // aren't known until the Wave 2 captained-teams query resolves) — see
+    // loadViewerTeamMemberCounts.
     const viewerTeamRows = (viewerCaptainedTeamsRes.data as ViewerTeamRow[] | null) ?? [];
     const viewerTeamIds = viewerTeamRows.map((t) => t.id);
-    let viewerTeamMemberCounts = new Map<string, number>();
-    if (viewerTeamIds.length) {
-      const { data: vtm } = await this.client
-        .from('team_members')
-        .select('team_id')
-        .in('team_id', viewerTeamIds);
-      viewerTeamMemberCounts = tallyTeamMembers((vtm as { team_id: string }[] | null) ?? []);
-    }
+    const viewerTeamMemberCounts = await this.loadViewerTeamMemberCounts(viewerTeamIds);
     const viewerCaptainedTeams = mapViewerCaptainedTeams(
       viewerTeamRows,
       viewerTeamMemberCounts,
@@ -1138,6 +1006,206 @@ export class SupabaseEventRepository implements EventRepository {
       ...rowToExtensions(row),
       divisions: divisionRowsForDetail.map((d) => divisionRowToLite(d, placementLabels(d))),
     };
+  }
+
+  // ---- getDetail query waves (extracted I/O — architecture audit P2-2 inc. 2) ----
+  //
+  // The two parallel read waves + the conditional podium / viewer-team reads
+  // live here so getDetail is a readable orchestrator (loaders → mappers →
+  // assemble). Each returns the raw PostgREST result objects so the (separately
+  // tested) parsing in getDetail/mappers.ts is unchanged. Verbatim queries —
+  // pinned by the read-sequence characterization test.
+
+  /** Wave 1: the event's own child reads, run in parallel. */
+  private async loadDetailWave1(id: string, hostId: string | null, hostGroupId: string | null) {
+    const [
+      attendeeRowsRes,
+      coHostRowsRes,
+      primaryHostUserRes,
+      primaryHostGroupRes,
+      teamRowsRes,
+      freeAgentRowsRes,
+      divisionRowsRes,
+    ] = await Promise.all([
+      this.client
+        .from('event_participants')
+        .select(
+          'user_id, joined_at, position, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
+        )
+        .eq('role', 'attendee')
+        .eq('division.event_id', id)
+        .order('joined_at', { ascending: true }),
+      this.client
+        .from('event_co_hosts')
+        .select(
+          // `event_co_hosts` has TWO FKs to `profiles` (`host_user_id` and
+          // `added_by`), so the embed MUST be disambiguated with the FK
+          // hint — otherwise PostgREST returns PGRST201 ("more than one
+          // relationship was found") and `data` comes back null. Without
+          // the hint the code below silently treated every event as
+          // having zero co-hosts, even when rows existed in the table.
+          'host_user_id, host_group_id, profiles:profiles!host_user_id(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
+        )
+        .eq('event_id', id),
+      hostId
+        ? this.client
+            .from('profiles')
+            .select('id, handle, display_name, first_name, last_name, avatar_url')
+            .eq('id', hostId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      hostGroupId
+        ? this.client
+            .from('groups')
+            .select('id, slug, name, avatar_url')
+            .eq('id', hostGroupId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      this.client
+        .from('event_team_entries')
+        .select(
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+        )
+        .eq('division.event_id', id)
+        .eq('source', 'roster')
+        .is('deleted_at', null)
+        .order('registered_at', { ascending: true }),
+      this.client
+        .from('event_participants')
+        .select(
+          'user_id, notes, division_id, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
+        )
+        .eq('role', 'free_agent')
+        .eq('division.event_id', id)
+        .order('joined_at', { ascending: true }),
+      this.client
+        .from('event_divisions')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
+    ]);
+
+    // The co-host embed needs a disambiguated FK hint (two FKs to `profiles`);
+    // a missing hint returns PGRST201 with null data, which used to silently
+    // drop every co-host. Surface the failure instead of swallowing it.
+    if (coHostRowsRes.error) {
+      throw new Error(`getDetail(${id}) co-host query failed: ${coHostRowsRes.error.message}`);
+    }
+
+    return {
+      attendeeRowsRes,
+      coHostRowsRes,
+      primaryHostUserRes,
+      primaryHostGroupRes,
+      teamRowsRes,
+      freeAgentRowsRes,
+      divisionRowsRes,
+    };
+  }
+
+  /** Podium labels: one extra read when any division has a recorded placement.
+   *  Collect every placement entry id across all three places, fetch once, and
+   *  build an entry-id → label map (preferring the live `teams.name` over the
+   *  entry `display_name` for ad-hoc / walk-in rows). */
+  private async loadPodiumLabels(divisionRows: DivisionRow[]): Promise<Map<string, string>> {
+    const placementEntryIds = [
+      ...new Set(
+        divisionRows.flatMap((d) =>
+          [d.winner_entry_id, d.runner_up_entry_id, d.third_place_entry_id].filter(
+            (v): v is string => !!v,
+          ),
+        ),
+      ),
+    ];
+    if (placementEntryIds.length === 0) return new Map();
+    const { data: entryRows } = await this.client
+      .from('event_team_entries')
+      .select('id, display_name, team_id, teams:teams(name)')
+      .in('id', placementEntryIds);
+    return new Map(
+      ((entryRows as WinnerEntryRow[] | null) ?? []).map((r) => [
+        r.id,
+        r.teams?.name ?? r.display_name,
+      ]),
+    );
+  }
+
+  /** Wave 2: viewer-specific reads + team aggregates (depend on Wave 1's
+   *  `registeredTeamIds`), run in parallel. */
+  private async loadDetailWave2(
+    id: string,
+    viewerId: string | null,
+    hostGroupId: string | null,
+    registeredTeamIds: string[],
+  ) {
+    const [
+      viewerFriendsRes,
+      viewerRoleRes,
+      viewerHostableGroupsRes,
+      teamMemberCountsRes,
+      teamPaymentsRes,
+      viewerCaptainedTeamsRes,
+    ] = await Promise.all([
+      viewerId
+        ? this.client.from('friendships').select('friend_id').eq('user_id', viewerId)
+        : Promise.resolve({ data: [], error: null }),
+      viewerId && hostGroupId
+        ? this.client
+            .from('group_members')
+            .select('role')
+            .eq('group_id', hostGroupId)
+            .eq('user_id', viewerId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      viewerId
+        ? this.client
+            .from('group_members')
+            .select('groups:groups!inner(id, name)')
+            .eq('user_id', viewerId)
+            .in('role', ['owner', 'admin'])
+        : Promise.resolve({ data: [], error: null }),
+      registeredTeamIds.length
+        ? this.client.from('team_members').select('team_id').in('team_id', registeredTeamIds)
+        : Promise.resolve({ data: [], error: null }),
+      registeredTeamIds.length
+        ? this.client
+            .from('event_team_payments')
+            .select(
+              'team_id, payment_status, amount_paid_cents, division:event_divisions!inner(event_id)',
+            )
+            .eq('division.event_id', id)
+            .in('team_id', registeredTeamIds)
+        : Promise.resolve({ data: [], error: null }),
+      // Every team the viewer captains. Teams are not format-locked (ADR
+      // 0013) — a roster can enter a division of any format — so we no longer
+      // filter by the event's format; the picker shows all of them. Only
+      // consumed by the tournament/league signup panels (harmless elsewhere).
+      // One tiny query, issued for any logged-in viewer to keep the response
+      // shape uniform.
+      viewerId
+        ? this.client.from('teams').select('id, name').eq('captain_id', viewerId)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    return {
+      viewerFriendsRes,
+      viewerRoleRes,
+      viewerHostableGroupsRes,
+      teamMemberCountsRes,
+      teamPaymentsRes,
+      viewerCaptainedTeamsRes,
+    };
+  }
+
+  /** Member counts for the viewer's captained teams (ids known only after the
+   *  Wave 2 captained-teams query resolves). */
+  private async loadViewerTeamMemberCounts(teamIds: string[]): Promise<Map<string, number>> {
+    if (teamIds.length === 0) return new Map();
+    const { data: vtm } = await this.client
+      .from('team_members')
+      .select('team_id')
+      .in('team_id', teamIds);
+    return tallyTeamMembers((vtm as { team_id: string }[] | null) ?? []);
   }
 
   async findIdByShortCode(shortCode: string): Promise<string | null> {
