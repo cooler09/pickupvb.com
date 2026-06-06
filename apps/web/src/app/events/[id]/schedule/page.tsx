@@ -2,12 +2,18 @@ import Link from 'next/link';
 import type { Metadata, Route } from 'next';
 import { notFound } from 'next/navigation';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
-import { NotFoundError, type DivisionId, type EventId } from '@pickupvb/domain';
+import {
+  computeLeagueStandings,
+  NotFoundError,
+  type DivisionId,
+  type EventId,
+} from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { ScheduleWorkspace } from './_components/schedule-workspace';
 import { type ScheduleMatchVm } from './_components/match-row';
+import { StandingsSection, type LeagueStandingRow } from './_components/standings-section';
 import { NOTICE_LABEL } from './_components/labels';
 
 // No `force-dynamic` and no `cookies()` read: viewer-independent metadata
@@ -132,6 +138,24 @@ export default async function SchedulePage(props: {
     notes: m.notes,
   }));
 
+  // Standings are derived from recorded results (viewer-independent), so they
+  // render server-side here rather than inside the `<ScheduleWorkspace>` client
+  // island. Domain `LeagueScheduleMatch` satisfies the structural input.
+  const teamName = new Map(teams.map((t) => [t.entryId, t.name]));
+  const standingsRows: LeagueStandingRow[] = computeLeagueStandings(schedule?.matches ?? []).map(
+    (s, i) => ({
+      rank: i + 1,
+      entryId: String(s.entryId),
+      name: teamName.get(String(s.entryId)) ?? 'Unknown team',
+      played: s.matchesPlayed,
+      wins: s.wins,
+      losses: s.losses,
+      pointsFor: s.pointsFor,
+      pointsAgainst: s.pointsAgainst,
+      diff: s.pointDiff,
+    }),
+  );
+
   const noticeCode = pickQuery(searchParams, 'notice');
   const noticeMsg = pickQuery(searchParams, 'msg');
   const notice = noticeCode ? (NOTICE_LABEL[noticeCode] ?? null) : null;
@@ -192,6 +216,8 @@ export default async function SchedulePage(props: {
           {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}
         </div>
       )}
+
+      <StandingsSection rows={standingsRows} />
 
       <ScheduleWorkspace
         eventId={event.id}

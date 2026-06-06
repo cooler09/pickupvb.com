@@ -209,6 +209,7 @@ export default async function EventDetailPage(props: {
           gender={event.gender}
           status={event.status}
           startsAt={event.startsAt}
+          endsAt={event.endsAt}
           timeZone={event.timeZone}
           city={event.location.city}
           region={event.location.region}
@@ -224,14 +225,39 @@ export default async function EventDetailPage(props: {
 
       <section className="border-border-base rounded-shape-sm overflow-hidden border sm:grid sm:grid-cols-2">
         <div className="sm:border-border-base p-4 sm:border-r">
-          <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">When</h2>
-          <p className="text-fg mt-1 font-medium">
-            <LocalDateTime iso={event.startsAt} variant="eventDateLong" timeZone={event.timeZone} />
-          </p>
-          <p className="text-muted text-sm">
-            to{' '}
-            <LocalDateTime iso={event.endsAt} variant="eventDateLong" timeZone={event.timeZone} />
-          </p>
+          {event.type === 'league' ? (
+            // A league is a season, not a single gathering: show the season
+            // window as a date range (no single start time) and point at the
+            // weekly schedule rather than implying one continuous event.
+            <>
+              <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Season</h2>
+              <p className="text-fg mt-1 font-medium">
+                <LocalDateTime iso={event.startsAt} variant="dateShort" timeZone={event.timeZone} />
+                {' – '}
+                <LocalDateTime iso={event.endsAt} variant="dateShort" timeZone={event.timeZone} />
+              </p>
+              <p className="text-muted text-sm">Weekly schedule &amp; standings</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">When</h2>
+              <p className="text-fg mt-1 font-medium">
+                <LocalDateTime
+                  iso={event.startsAt}
+                  variant="eventDateLong"
+                  timeZone={event.timeZone}
+                />
+              </p>
+              <p className="text-muted text-sm">
+                to{' '}
+                <LocalDateTime
+                  iso={event.endsAt}
+                  variant="eventDateLong"
+                  timeZone={event.timeZone}
+                />
+              </p>
+            </>
+          )}
         </div>
         <div className="border-border-base border-t p-4 sm:border-t-0 sm:border-l-0">
           <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Spots</h2>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
 import type { Route } from 'next';
 import { LocalDateTime } from '@/components/local-datetime';
-import { formatEventDateLong } from '@/lib/date-formats';
+import { formatDateShort, formatEventDateLong } from '@/lib/date-formats';
 import { externalLinkHref } from '@/lib/external-link';
 import { EventTags } from './event-tags';
 import { EventShareLink } from './event-share-link';
@@ -28,6 +28,8 @@ type Props = {
   gender: string | null;
   status: string;
   startsAt: Date;
+  /** Season end for leagues; used to render a date range instead of a single start. */
+  endsAt: Date;
   timeZone: string | null;
   city: string;
   region: string;
@@ -71,6 +73,7 @@ export function EventHero({
   gender,
   status,
   startsAt,
+  endsAt,
   timeZone,
   city,
   region,
@@ -110,12 +113,34 @@ export function EventHero({
           signal facts; spots and the closing-soon pill ride along when
           present. Price moved into the CTA row to declutter. */}
       <p className="text-muted flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        <LocalDateTime
-          iso={startsAt}
-          variant="dateShort"
-          timeZone={timeZone}
-          fallback={formatEventDateLong(startsAt, timeZone)}
-        />
+        {type === 'league' ? (
+          // Season window, not a single start moment (see the "Season" block
+          // on the event page).
+          <span>
+            <span className="text-fg font-medium">Season</span>
+            {' · '}
+            <LocalDateTime
+              iso={startsAt}
+              variant="dateShort"
+              timeZone={timeZone}
+              fallback={formatDateShort(startsAt, timeZone)}
+            />
+            {' – '}
+            <LocalDateTime
+              iso={endsAt}
+              variant="dateShort"
+              timeZone={timeZone}
+              fallback={formatDateShort(endsAt, timeZone)}
+            />
+          </span>
+        ) : (
+          <LocalDateTime
+            iso={startsAt}
+            variant="dateShort"
+            timeZone={timeZone}
+            fallback={formatEventDateLong(startsAt, timeZone)}
+          />
+        )}
         <span aria-hidden="true">·</span>
         <span>
           {city}, {region}

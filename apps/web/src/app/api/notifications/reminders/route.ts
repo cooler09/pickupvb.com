@@ -43,7 +43,13 @@ function makeReminderPort(admin: ReturnType<typeof createSupabaseAdminClient>): 
         .select('id, title, starts_at, location_city, location_region')
         .gte('starts_at', windowStart.toISOString())
         .lte('starts_at', windowEnd.toISOString())
-        .neq('status', 'cancelled');
+        .neq('status', 'cancelled')
+        // Leagues are seasons, not single gatherings: `starts_at` is the season
+        // start, so a 24h/2h "starts soon" reminder would fire once at kickoff
+        // and misrepresent a months-long league as a one-time event. Per-fixture
+        // reminders are a separate concern (the weekly schedule lives in
+        // `league_schedule_matches`, not on the event row).
+        .neq('type', 'league');
       return (data as ReminderEvent[] | null) ?? [];
     },
     async findUnremindedAttendees(eventId, column: ReminderColumn, limit) {
