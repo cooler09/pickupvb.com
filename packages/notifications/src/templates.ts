@@ -152,6 +152,17 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View event',
     ),
   }),
+  'league.match.reminder': (p) => ({
+    subject: `Match tomorrow vs ${p.opponentName}`,
+    text: `Reminder: your ${p.eventTitle} match vs ${p.opponentName} is at ${formatStart(p.scheduledAt)}${p.courtLabel ? ` on ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Match tomorrow</h2>
+             <p><strong>vs ${escapeHtml(p.opponentName)}</strong> · ${escapeHtml(p.eventTitle)}<br>
+             ${escapeHtml(formatStart(p.scheduledAt))}${p.courtLabel ? `<br>${escapeHtml(p.courtLabel)}` : ''}</p>`,
+      `${APP_URL}/events/${p.eventId}/schedule`,
+      'View schedule',
+    ),
+  }),
   'event.reminder.2h': (p) => ({
     subject: `Starting soon: ${p.eventTitle}`,
     text: `${p.eventTitle} starts at ${formatStart(p.startsAt)} — ${p.location}.`,
@@ -332,6 +343,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'event.reminder.24h': (p) => ({
     body: `PickupVB: ${p.eventTitle} tomorrow at ${formatStart(p.startsAt)}, ${p.location}. ${APP_URL}/events/${p.eventId}`,
   }),
+  'league.match.reminder': (p) => ({
+    body: `PickupVB: match vs ${p.opponentName} (${p.eventTitle}) at ${formatStart(p.scheduledAt)}${p.courtLabel ? `, ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
+  }),
   'event.reminder.2h': (p) => ({
     body: `PickupVB: ${p.eventTitle} starts at ${formatStart(p.startsAt)} — ${p.location}.`,
   }),
@@ -405,6 +419,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     title: `Tomorrow: ${p.eventTitle}`,
     body: `${formatStart(p.startsAt)} · ${p.location}`,
     href: `/events/${p.eventId}`,
+  }),
+  'league.match.reminder': (p) => ({
+    title: `Match vs ${p.opponentName}`,
+    body: `${formatStart(p.scheduledAt)}${p.courtLabel ? ` · ${p.courtLabel}` : ''}`,
+    href: `/events/${p.eventId}/schedule`,
   }),
   'event.reminder.2h': (p) => ({
     title: `Starting soon: ${p.eventTitle}`,

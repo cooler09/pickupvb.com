@@ -1895,45 +1895,54 @@ export type Database = {
       };
       league_schedule_matches: {
         Row: {
+          away_entry_id: string | null;
           away_score: number | null;
           away_team_id: string | null;
           court_label: string | null;
           created_at: string;
           division_id: string;
+          home_entry_id: string | null;
           home_score: number | null;
           home_team_id: string | null;
           id: string;
           notes: string | null;
+          reminded_at: string | null;
           scheduled_at: string;
           status: string;
           updated_at: string;
           week_number: number;
         };
         Insert: {
+          away_entry_id?: string | null;
           away_score?: number | null;
           away_team_id?: string | null;
           court_label?: string | null;
           created_at?: string;
           division_id: string;
+          home_entry_id?: string | null;
           home_score?: number | null;
           home_team_id?: string | null;
           id?: string;
           notes?: string | null;
+          reminded_at?: string | null;
           scheduled_at: string;
           status?: string;
           updated_at?: string;
           week_number: number;
         };
         Update: {
+          away_entry_id?: string | null;
           away_score?: number | null;
           away_team_id?: string | null;
           court_label?: string | null;
           created_at?: string;
           division_id?: string;
+          home_entry_id?: string | null;
           home_score?: number | null;
           home_team_id?: string | null;
           id?: string;
           notes?: string | null;
+          reminded_at?: string | null;
           scheduled_at?: string;
           status?: string;
           updated_at?: string;

@@ -20,6 +20,7 @@ export type NotificationKind =
   | 'event.updated'
   | 'event.reminder.24h'
   | 'event.reminder.2h'
+  | 'league.match.reminder'
   | 'payment.refunded'
   | 'host.payout.paid'
   | 'host.stripe.action_required'
@@ -54,6 +55,7 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'event.updated': 'event_reminders',
   'event.reminder.24h': 'event_reminders',
   'event.reminder.2h': 'event_reminders',
+  'league.match.reminder': 'event_reminders',
   'payment.refunded': 'transactional',
   'host.payout.paid': 'host_payouts',
   'host.stripe.action_required': 'transactional',
@@ -81,6 +83,7 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   'event.updated': ['email', 'push', 'in_app'],
   'event.reminder.24h': ['email', 'push', 'in_app'],
   'event.reminder.2h': ['email', 'push', 'in_app'],
+  'league.match.reminder': ['email', 'push', 'in_app'],
   'payment.refunded': ['email', 'in_app'],
   'host.payout.paid': ['email', 'in_app'],
   'host.stripe.action_required': ['email', 'in_app'],
@@ -144,6 +147,16 @@ export type NotificationPayloadMap = {
     eventTitle: string;
     startsAt: string;
     location: string;
+  };
+  'league.match.reminder': {
+    eventId: string;
+    eventTitle: string;
+    /** The recipient's opponent in this fixture. */
+    opponentName: string;
+    /** ISO kickoff time. */
+    scheduledAt: string;
+    /** Court label, when the host set one. */
+    courtLabel: string | null;
   };
   'payment.refunded': {
     eventId: string;
