@@ -3,6 +3,7 @@ import {
   EventType,
   generateLeagueRoundRobin,
   LeagueMatchStatus,
+  LeagueSchedule,
   LeagueScheduleMatch,
   NotFoundError,
   UnauthorizedError,
@@ -10,7 +11,6 @@ import {
   type DivisionId,
   type EntryId,
   type EventWriteStore,
-  type LeagueSchedule,
   type LeagueScheduleMatchId,
   type LeagueScheduleRepository,
   type VolleyballEvent,
@@ -90,6 +90,14 @@ export class GenerateLeagueScheduleCommand {
     /** Competing entries (`event_team_entries.id`) loaded at the route boundary. */
     public readonly entryIds: ReadonlyArray<string>,
     public readonly options: GenerateLeagueScheduleOptions,
+  ) {}
+}
+
+export class ClearLeagueScheduleCommand {
+  constructor(
+    public readonly eventId: string,
+    public readonly divisionId: string,
+    public readonly requesterId: string,
   ) {}
 }
 
@@ -259,6 +267,31 @@ export class GenerateLeagueScheduleHandler {
     for (const m of matches) schedule.addMatch(m);
     await this.schedules.save(schedule);
     return { created: matches.length };
+  }
+}
+
+export class ClearLeagueScheduleHandler {
+  constructor(
+    private readonly events: EventWriteStore,
+    private readonly schedules: LeagueScheduleRepository,
+  ) {}
+
+  async execute(cmd: ClearLeagueScheduleCommand): Promise<{ removed: number }> {
+    const evt = await loadEventOrThrow(this.events, cmd.eventId);
+    assertHost(evt.hostId, cmd.requesterId);
+    assertLeagueDivision(evt, cmd.divisionId);
+    const schedule = await loadScheduleOrThrow(this.schedules, cmd.divisionId);
+    const removed = schedule.matches.length;
+    // `save` is a full delete+reinsert, so persisting an empty schedule wipes
+    // the whole division slate (the host-side counterpart to "generate", which
+    // refuses a non-empty slate). Re-keys on the loaded window so it stays valid.
+    const cleared = LeagueSchedule.fromPersistence(
+      cmd.divisionId as DivisionId,
+      schedule.eventWindow,
+      [],
+    );
+    await this.schedules.save(cleared);
+    return { removed };
   }
 }
 

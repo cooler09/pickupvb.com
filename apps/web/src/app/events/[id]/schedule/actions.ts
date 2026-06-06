@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   AddLeagueScheduleMatchCommand,
+  ClearLeagueScheduleCommand,
   GenerateLeagueScheduleCommand,
   RecordLeagueMatchResultCommand,
   RemoveLeagueScheduleMatchCommand,
@@ -204,6 +205,27 @@ export async function generateScheduleFromForm(
   }
   revalidate(eventId);
   back(eventId, divisionId, 'generated', `${created} matches`);
+}
+
+export async function clearScheduleFromForm(
+  eventId: string,
+  divisionId: string,
+  returnPath: string,
+): Promise<void> {
+  void returnPath;
+  if (!eventId || !divisionId) return;
+  const { user } = await requireRealUser();
+  try {
+    await handlers.clearLeagueSchedule.execute(
+      new ClearLeagueScheduleCommand(eventId, divisionId, user.id),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'cleared');
 }
 
 export async function updateMatchFromForm(

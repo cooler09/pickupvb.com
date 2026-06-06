@@ -35,6 +35,7 @@ import {
 } from '@pickupvb/domain';
 import {
   AddLeagueScheduleMatchHandler,
+  ClearLeagueScheduleHandler,
   GenerateLeagueScheduleHandler,
   RecordLeagueMatchResultHandler,
   RemoveLeagueScheduleMatchHandler,
@@ -377,6 +378,41 @@ describe('GenerateLeagueScheduleHandler', () => {
         requesterId: 'someone-else',
         entryIds: FOUR_TEAMS,
         options: { firstMatchAt: MATCH_TIME },
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+});
+
+describe('ClearLeagueScheduleHandler', () => {
+  it('wipes the slate and reports the removed count', async () => {
+    const { events, schedules } = makeRepos();
+    const { schedule } = scheduleWithMatch();
+    schedules.putSchedule(schedule);
+    const handler = new ClearLeagueScheduleHandler(events as unknown as EventRepository, schedules);
+
+    const result = await handler.execute({
+      eventId: 'event-league-1',
+      divisionId: String(DIVISION_ID),
+      requesterId: String(HOST),
+    });
+
+    expect(result.removed).toBe(1);
+    expect(schedules.saveCount).toBe(1);
+    const saved = await schedules.findByDivisionId(DIVISION_ID);
+    expect(saved?.matches).toHaveLength(0);
+  });
+
+  it('rejects non-host requesters', async () => {
+    const { events, schedules } = makeRepos();
+    const { schedule } = scheduleWithMatch();
+    schedules.putSchedule(schedule);
+    const handler = new ClearLeagueScheduleHandler(events as unknown as EventRepository, schedules);
+
+    await expect(
+      handler.execute({
+        eventId: 'event-league-1',
+        divisionId: String(DIVISION_ID),
+        requesterId: 'someone-else',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });

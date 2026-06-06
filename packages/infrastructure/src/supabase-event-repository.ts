@@ -852,7 +852,13 @@ export class SupabaseEventRepository implements EventRepository {
       )
       .in('id', eventIds)
       .order('starts_at', { ascending: true });
-    if (opts.startsAfter) q = q.gte('starts_at', opts.startsAfter.toISOString());
+    if (opts.startsAfter) {
+      // Leagues are seasons: keep an in-progress league "upcoming" until its
+      // season ends (`ends_at`), not the season start. Mirrors the
+      // `search_events` RPC classification (migration 20260915000000).
+      const iso = opts.startsAfter.toISOString();
+      q = q.or(`and(type.neq.league,starts_at.gte.${iso}),and(type.eq.league,ends_at.gte.${iso})`);
+    }
     if (opts.limit) q = q.limit(opts.limit);
     const { data: evData, error: evErr } = await q;
     if (evErr) throw new Error(`listAttending events failed: ${evErr.message}`);

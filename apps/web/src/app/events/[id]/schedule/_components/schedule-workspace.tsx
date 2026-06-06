@@ -1,6 +1,8 @@
 'use client';
 
 import { useMemo } from 'react';
+import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { clearScheduleFromForm } from '../actions';
 import { useEventManageCaps } from '../../_components/use-event-manage-caps';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import {
@@ -106,6 +108,24 @@ export function ScheduleWorkspace(props: {
             ))}
           </div>
         </LiveScoresProvider>
+      )}
+
+      {canManage && matches.length > 0 && (
+        // Host counterpart to "generate": wipe the slate (re-enables generation).
+        // Destructive — confirms first because it also deletes recorded scores.
+        <form
+          action={clearScheduleFromForm.bind(null, eventId, divisionId, returnPath)}
+          className="pt-2"
+        >
+          <ConfirmSubmitButton
+            label="Clear schedule"
+            pendingLabel="Clearing…"
+            confirmTitle="Clear the entire schedule?"
+            confirmMessage="This deletes every match in this division, including any recorded scores. This cannot be undone."
+            confirmLabel="Clear schedule"
+            destructive
+          />
+        </form>
       )}
     </>
   );

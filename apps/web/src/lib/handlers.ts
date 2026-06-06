@@ -32,6 +32,7 @@ import {
   AddEventDivisionHandler,
   AddLeagueScheduleMatchHandler,
   GenerateLeagueScheduleHandler,
+  ClearLeagueScheduleHandler,
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
   ApproveCommunityListingClaimHandler,
@@ -304,6 +305,7 @@ export const handlers = {
   // League schedule (per-division weekly slate)
   addLeagueScheduleMatch: new AddLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   generateLeagueSchedule: new GenerateLeagueScheduleHandler(eventRepo, leagueScheduleRepo),
+  clearLeagueSchedule: new ClearLeagueScheduleHandler(eventRepo, leagueScheduleRepo),
   updateLeagueScheduleMatch: new UpdateLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   setLeagueTeamForfeited: new SetLeagueTeamForfeitedHandler(eventRepo),

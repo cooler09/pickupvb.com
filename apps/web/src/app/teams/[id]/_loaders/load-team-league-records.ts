@@ -131,8 +131,13 @@ export async function loadTeamLeagueRecords(
     });
   }
 
-  // Newest season first.
+  // Newest season first, bounded to the most recent few. Capped rather than
+  // paginated so the team page stays ISR-cacheable — reading a `?page=`
+  // searchParams would force dynamic rendering, a poor trade for a list that
+  // grows only a handful of seasons per year (AGENTS.md pattern #12, bounded).
+  const MAX_RECORDS = 12;
   return ranked
     .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())
+    .slice(0, MAX_RECORDS)
     .map((x) => x.record);
 }
