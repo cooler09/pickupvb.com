@@ -65,6 +65,24 @@ function revalidate(eventId: string): void {
   revalidatePath(`/events/${eventId}/bracket`);
 }
 
+/**
+ * Parse the per-game target-score fields `${prefix}_1`, `${prefix}_2`, … into a
+ * positive-integer array (ADR 0032). Iterates contiguous indices until a field
+ * is absent. A blank/non-positive game carries forward the previous game's value
+ * so the array stays aligned to the game number; leading blanks are skipped.
+ */
+function parseGameTargets(formData: FormData, prefix: string): number[] {
+  const out: number[] = [];
+  for (let i = 1; ; i++) {
+    const raw = formData.get(`${prefix}_${i}`);
+    if (raw === null) break;
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= 1) out.push(n);
+    else if (out.length > 0) out.push(out[out.length - 1]!);
+  }
+  return out;
+}
+
 function classify(err: unknown): { code: string; msg: string } {
   if (err instanceof UnauthorizedError) return { code: 'forbidden', msg: err.message };
   if (err instanceof ConflictError) return { code: 'conflict', msg: err.message };
@@ -104,10 +122,15 @@ export async function createBracketFromForm(
   const config: Partial<BracketConfig> = {};
   const bestOf = Number(formData.get('best_of') ?? '');
   if (bestOf === 1 || bestOf === 3 || bestOf === 5) config.bestOf = bestOf;
-  // Target score (ADR 0032) — points a game is played to; informational. Applies
-  // to every format. Empty / non-positive leaves it unset (null default).
-  const targetScore = Number(formData.get('target_score') ?? '');
-  if (Number.isInteger(targetScore) && targetScore >= 1) config.targetScore = targetScore;
+  // Per-game target scores (ADR 0032) — points each game is played to;
+  // informational. `target_score_1`, `target_score_2`, … one per game of the
+  // chosen best-of. The single `targetScore` is kept = game 1 for back-compat
+  // with the many single-value display sites.
+  const targetScores = parseGameTargets(formData, 'target_score');
+  if (targetScores.length > 0) {
+    config.targetScores = targetScores;
+    config.targetScore = targetScores[0]!;
+  }
   if (format === 'pool_play_playoff') {
     const poolCount = Number(formData.get('pool_count') ?? '');
     const advance = Number(formData.get('advance_per_pool') ?? '');
@@ -128,29 +151,21 @@ export async function createBracketFromForm(
     if (playoffBestOf === 1 || playoffBestOf === 3 || playoffBestOf === 5) {
       config.playoffBestOf = playoffBestOf;
     }
-    const playoffTarget = Number(formData.get('playoff_target_score') ?? '');
-    if (Number.isInteger(playoffTarget) && playoffTarget >= 1) {
-      config.playoffTargetScore = playoffTarget;
+    const playoffTargetScores = parseGameTargets(formData, 'playoff_target_score');
+    if (playoffTargetScores.length > 0) {
+      config.playoffTargetScores = playoffTargetScores;
+      config.playoffTargetScore = playoffTargetScores[0]!;
     }
-    const rawCourts = String(formData.get('court_labels') ?? '');
-    const courts = rawCourts
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    if (courts.length > 0) config.courtLabels = courts;
-    // Per-pool overrides: any field named `pool_courts_<LABEL>` becomes
-    // an entry in courtsByPool. Empty string is treated as "no entry"
-    // (fall back to bracket-wide list) — to explicitly opt a pool out,
-    // the host would need future UI; we keep the form simple for now.
+    // Per-pool courts (ADR 0018): each court is its own `pool_courts_<LABEL>`
+    // field, so a pool can carry several. `courtLabels` is no longer set from the
+    // form — single-pool courts live under `courtsByPool['A']`.
     const courtsByPool: Record<string, string[]> = {};
     for (const [key, val] of formData.entries()) {
       if (!key.startsWith('pool_courts_')) continue;
       const label = key.slice('pool_courts_'.length);
-      const list = String(val)
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      if (list.length > 0) courtsByPool[label] = list;
+      const court = String(val).trim();
+      if (court.length === 0) continue;
+      (courtsByPool[label] ??= []).push(court);
     }
     if (Object.keys(courtsByPool).length > 0) config.courtsByPool = courtsByPool;
   }

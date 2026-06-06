@@ -92,6 +92,34 @@ describe('Bracket.create', () => {
     expect(b.config.poolSchedule).toBe('fixed_games');
     expect(b.config.poolGamesPerTeam).toBe(3);
   });
+
+  it('accepts per-game target scores (ADR 0032)', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      targetScores: [25, 25, 15],
+      playoffTargetScores: [25, 25, 15],
+    });
+    expect(b.config.targetScores).toEqual([25, 25, 15]);
+    expect(b.config.playoffTargetScores).toEqual([25, 25, 15]);
+  });
+
+  it('rejects an empty per-game target array', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', { targetScores: [] }),
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects non-positive / non-integer per-game targets', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+        targetScores: [25, 0, 15],
+      }),
+    ).toThrow(ValidationError);
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+        playoffTargetScores: [25, 12.5],
+      }),
+    ).toThrow(ValidationError);
+  });
 });
 
 // ---- Bracket.createStandalone (ADR 0025) -----------------------------

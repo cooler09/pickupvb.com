@@ -236,6 +236,58 @@ function estimateMatches(
   }
 }
 
+/**
+ * Standard per-game target scores for a best-of-N (ADR 0032): every game to 25
+ * except the deciding game to 15 (e.g. best-of-3 → `[25, 25, 15]`). Best-of-1 is
+ * a single game to 25. The host can edit any game in the setup form.
+ */
+function defaultGameTargets(bestOf: number): Array<number | ''> {
+  return Array.from({ length: Math.max(1, bestOf) }, (_, i) =>
+    bestOf > 1 && i === bestOf - 1 ? 15 : 25,
+  );
+}
+
+/** Join the per-game targets for a compact recap, e.g. `25 / 25 / 15`. */
+function formatGameTargets(targets: ReadonlyArray<number | ''>): string {
+  return targets.map((t) => (t === '' ? '–' : t)).join(' / ');
+}
+
+/**
+ * A "play to" number box per game in a best-of-N, submitting `${namePrefix}_1`,
+ * `${namePrefix}_2`, … so the server can rebuild the per-game array. A blank box
+ * records no target for that game (informational only — ADR 0032).
+ */
+function PerGameTargets(props: {
+  namePrefix: string;
+  targets: ReadonlyArray<number | ''>;
+  onChange: (index: number, value: number | '') => void;
+}) {
+  const single = props.targets.length <= 1;
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      {props.targets.map((t, i) => (
+        <label key={i} className="flex flex-col text-sm">
+          <span className="text-muted text-xs">{single ? 'Play to' : `Game ${i + 1}`}</span>
+          <input
+            type="number"
+            name={`${props.namePrefix}_${i + 1}`}
+            min={1}
+            value={t}
+            onChange={(e) =>
+              props.onChange(
+                i,
+                e.target.value === '' ? '' : Math.max(1, Number(e.target.value) || 0),
+              )
+            }
+            placeholder="25"
+            className="border-border-base bg-bg w-16 rounded border px-2 py-1"
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function FormatPickerForm(props: {
   eventId?: string;
   divisionId?: string;
@@ -257,34 +309,79 @@ export function FormatPickerForm(props: {
   registeredTeams?: ReadonlyArray<TeamLite>;
 }) {
   const enforceMin = props.enforceMinTeams ?? true;
+  const knowsTeamCount = props.teamCount > 0;
   const [step, setStep] = useState(0);
   const [format, setFormat] = useState<BracketFormat>('single_elimination');
   const [bestOf, setBestOf] = useState<1 | 3 | 5>(3);
-  // Target score = the points a game is played to (25 / 21 / 15). Informational
-  // (ADR 0032). Defaults to 25 (standard); '' means "don't record one".
-  const [targetScore, setTargetScore] = useState<number | ''>(25);
-  const [poolCount, setPoolCount] = useState(2);
-  const [advancePerPool, setAdvancePerPool] = useState(2);
+  // Per-game target scores (ADR 0032) — one "play to" per game, e.g. [25, 25, 15].
+  // Resized to the chosen best-of; '' on a game means "don't record one".
+  const [targetScores, setTargetScores] = useState<Array<number | ''>>(() => defaultGameTargets(3));
+  // Default to a single pool that seeds a playoff (the common rec case).
+  const [poolCount, setPoolCount] = useState(1);
+  // Advance selection: 'all' ⇒ every team makes the playoff (resolved to a
+  // concrete count at submit from the team count); otherwise the numeric pick.
+  // Standalone create has no teams yet, so it can't offer 'all'.
+  const [advanceSel, setAdvanceSel] = useState<string>(() => (knowsTeamCount ? 'all' : '2'));
   const [poolSchedule, setPoolSchedule] = useState<'round_robin' | 'fixed_games'>('round_robin');
   const [poolGamesPerTeam, setPoolGamesPerTeam] = useState(3);
-  // Playoff-stage overrides (pool_play_playoff only). '' = same as pool play.
+  // Playoff-stage overrides (pool_play_playoff only). '' best-of = same as pool
+  // play (then no per-game playoff boxes show and the pool length is reused).
   const [playoffBestOf, setPlayoffBestOf] = useState<'' | 1 | 3 | 5>('');
-  const [playoffTargetScore, setPlayoffTargetScore] = useState<number | ''>('');
+  const [playoffTargetScores, setPlayoffTargetScores] = useState<Array<number | ''>>([]);
   const [requireWorkTeam, setRequireWorkTeam] = useState(false);
-  const [courtLabelsText, setCourtLabelsText] = useState('');
-  const [perPoolCourts, setPerPoolCourts] = useState(false);
-  const [poolCourtsText, setPoolCourtsText] = useState<Record<string, string>>({});
+  // Per-pool court lists keyed by pool label (A, B, …) — each pool owns its
+  // courts. Empty list ⇒ that pool isn't slot-scheduled.
+  const [poolCourts, setPoolCourts] = useState<Record<string, string[]>>({});
+
+  // Update one game's target within a per-game array (immutable replace).
+  const setTargetAt = (index: number, value: number | '') =>
+    setTargetScores((prev) => prev.map((v, i) => (i === index ? value : v)));
+  const setPlayoffTargetAt = (index: number, value: number | '') =>
+    setPlayoffTargetScores((prev) => prev.map((v, i) => (i === index ? value : v)));
+  // Changing best-of resets the per-game targets to the standard pattern for the
+  // new length (25 … / 15 decider) — the old per-game values no longer line up.
+  const chooseBestOf = (n: 1 | 3 | 5) => {
+    setBestOf(n);
+    setTargetScores(defaultGameTargets(n));
+  };
+  const choosePlayoffBestOf = (n: '' | 1 | 3 | 5) => {
+    setPlayoffBestOf(n);
+    setPlayoffTargetScores(n === '' ? [] : defaultGameTargets(n));
+  };
+  // Add / remove a court for a pool (keyed by its label A, B, …).
+  const addPoolCourt = (label: string) =>
+    setPoolCourts((prev) => ({ ...prev, [label]: [...(prev[label] ?? []), ''] }));
+  const setPoolCourtAt = (label: string, index: number, value: string) =>
+    setPoolCourts((prev) => ({
+      ...prev,
+      [label]: (prev[label] ?? []).map((c, i) => (i === index ? value : c)),
+    }));
+  const removePoolCourt = (label: string, index: number) =>
+    setPoolCourts((prev) => ({
+      ...prev,
+      [label]: (prev[label] ?? []).filter((_, i) => i !== index),
+    }));
 
   const isPoolPlay = format === 'pool_play_playoff';
   const isFixedGames = isPoolPlay && poolSchedule === 'fixed_games';
   const selectedMeta = FORMATS.find((f) => f.value === format)!;
   const belowMin = props.teamCount < selectedMeta.minTeams;
   const teamsPerPool = isPoolPlay ? Math.floor(props.teamCount / poolCount) : 0;
+  // Resolve 'all teams advance' to a concrete per-pool count: a single pool
+  // advances every team (floored at 2 so the playoff is real); N pools advance
+  // each pool's snake-safe floor (floor(teams / pools)).
+  const resolvedAdvance =
+    advanceSel === 'all'
+      ? poolCount === 1
+        ? Math.max(2, props.teamCount)
+        : Math.max(1, Math.floor(props.teamCount / poolCount))
+      : Number(advanceSel) || 1;
+  const advancesAll = advanceSel === 'all';
   const estimate = estimateMatches(
     format,
     props.teamCount,
     poolCount,
-    advancePerPool,
+    resolvedAdvance,
     poolSchedule,
     poolGamesPerTeam,
   );
@@ -293,7 +390,7 @@ export function FormatPickerForm(props: {
   // The domain enforces this at generate() time; mirror it here so the host
   // doesn't ship a config that's guaranteed to fail later.
   const poolPlayUnderfilled =
-    isPoolPlay && props.teamCount > 0 && advancePerPool * poolCount > props.teamCount;
+    isPoolPlay && props.teamCount > 0 && resolvedAdvance * poolCount > props.teamCount;
 
   // Event path opens with a "Teams" step (confirm registered teams + add
   // walk-ins) bound to the event scope; standalone create has no teams yet so
@@ -518,7 +615,7 @@ export function FormatPickerForm(props: {
                     name="best_of"
                     value={n}
                     checked={selected}
-                    onChange={() => setBestOf(n)}
+                    onChange={() => chooseBestOf(n)}
                     className="sr-only"
                   />
                   Best of {n}
@@ -526,28 +623,13 @@ export function FormatPickerForm(props: {
               );
             })}
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-fg/80">Play to</span>
-            <input
-              type="number"
-              name="target_score"
-              min={1}
-              value={targetScore}
-              onChange={(e) =>
-                setTargetScore(
-                  e.target.value === '' ? '' : Math.max(1, Number(e.target.value) || 0),
-                )
-              }
-              placeholder="25"
-              className="border-border-base bg-bg w-20 rounded border px-2 py-1"
-            />
-            <span className="text-muted text-xs">points</span>
-          </label>
+          <div className="basis-full" />
+          <PerGameTargets namePrefix="target_score" targets={targetScores} onChange={setTargetAt} />
           <p className="text-muted basis-full text-xs">
             {bestOf === 1
               ? 'Single game decides each match — fastest schedule.'
-              : `First to ${Math.floor(bestOf / 2) + 1} sets wins each match.`}{' '}
-            The point total is recorded for reference (not enforced).
+              : `First to ${Math.floor(bestOf / 2) + 1} games wins each match. A best-of-${bestOf} is usually ${formatGameTargets(defaultGameTargets(bestOf))}.`}{' '}
+            Point totals are recorded for reference (not enforced).
           </p>
         </fieldset>
       </div>
@@ -565,8 +647,8 @@ export function FormatPickerForm(props: {
                   const n = Number(e.target.value);
                   setPoolCount(n);
                   // A single pool feeds the playoff directly, so advancing only
-                  // 1 team would leave a 1-team (no) playoff — floor it at 2.
-                  if (n === 1 && advancePerPool < 2) setAdvancePerPool(2);
+                  // 1 team would leave a 1-team (no) playoff — bump it to 2.
+                  if (n === 1 && advanceSel === '1') setAdvanceSel('2');
                 }}
                 className="border-border-base bg-bg rounded border px-2 py-1"
               >
@@ -581,14 +663,20 @@ export function FormatPickerForm(props: {
               <span className="text-fg/80">
                 {poolCount === 1 ? 'Teams in playoff' : 'Advance per pool'}
               </span>
+              {/* Unnamed — the resolved numeric count is submitted via the hidden
+                  `advance_per_pool` below ('all' isn't a number). */}
               <select
-                name="advance_per_pool"
-                value={advancePerPool}
-                onChange={(e) => setAdvancePerPool(Number(e.target.value))}
+                value={advanceSel}
+                onChange={(e) => setAdvanceSel(e.target.value)}
                 className="border-border-base bg-bg rounded border px-2 py-1"
               >
+                {knowsTeamCount && (
+                  <option value="all">
+                    {poolCount === 1 ? 'All teams' : 'All teams (full pool)'}
+                  </option>
+                )}
                 {(poolCount === 1 ? [2, 3, 4] : [1, 2, 3, 4]).map((n) => (
-                  <option key={n} value={n}>
+                  <option key={n} value={String(n)}>
                     {n}
                   </option>
                 ))}
@@ -662,69 +750,73 @@ export function FormatPickerForm(props: {
                 Assign a ref / work team per match (the idle team in each pool round)
               </span>
             </label>
-            <label className="flex basis-full flex-col text-sm">
-              <span className="text-fg/80">Courts (comma-separated, optional)</span>
-              <input
-                type="text"
-                name="court_labels"
-                value={courtLabelsText}
-                onChange={(e) => setCourtLabelsText(e.target.value)}
-                placeholder="Court 1, Court 2, North gym"
-                className="border-border-base bg-bg rounded border px-2 py-1"
-              />
-              <span className="text-muted mt-1 text-xs">
-                When set, matches are split into parallel time-slots so no team plays or refs on two
-                courts at once. Leave blank to skip slot scheduling.
+            {/* Courts — one list per pool. Each court is its own field
+                (`pool_courts_<LABEL>`); pools labelled A, B, … to match the
+                generator. A pool with courts is split into parallel time-slots so
+                no team plays or refs on two courts at once; a pool left empty
+                isn't slot-scheduled. */}
+            <div className="basis-full space-y-3">
+              <span className="text-fg/80 text-sm">
+                Courts <span className="text-muted text-xs">(optional)</span>
               </span>
-            </label>
-            <label className="inline-flex basis-full items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={perPoolCourts}
-                onChange={(e) => setPerPoolCourts(e.target.checked)}
-                className="border-border-base bg-bg rounded border"
-              />
-              <span className="text-fg/80">Use different courts per pool</span>
-            </label>
-            {perPoolCourts && (
-              <div className="basis-full space-y-2">
-                {Array.from({ length: poolCount }, (_, i) => {
-                  const label = String.fromCharCode(65 + i);
-                  const value = poolCourtsText[label] ?? '';
-                  return (
-                    <label key={label} className="flex flex-col text-sm">
-                      <span className="text-fg/80">Pool {label} courts</span>
-                      <input
-                        type="text"
-                        name={`pool_courts_${label}`}
-                        value={value}
-                        onChange={(e) =>
-                          setPoolCourtsText((prev) => ({ ...prev, [label]: e.target.value }))
-                        }
-                        placeholder={`e.g. Court ${i * 2 + 1}, Court ${i * 2 + 2}`}
-                        className="border-border-base bg-bg rounded border px-2 py-1"
-                      />
-                    </label>
-                  );
-                })}
-                <p className="text-muted text-xs">
-                  Leave a pool blank to fall back to the bracket-wide courts above. Disjoint
-                  per-pool courts schedule fully in parallel.
-                </p>
-              </div>
-            )}
+              {Array.from({ length: poolCount }, (_, i) => {
+                const label = String.fromCharCode(65 + i);
+                const courts = poolCourts[label] ?? [];
+                return (
+                  <div key={label} className="space-y-1.5">
+                    <span className="text-fg/70 text-xs font-medium">
+                      {poolCount === 1 ? 'Courts for this pool' : `Pool ${label} courts`}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {courts.map((court, ci) => (
+                        <span key={ci} className="inline-flex items-center gap-1">
+                          <input
+                            type="text"
+                            name={`pool_courts_${label}`}
+                            value={court}
+                            onChange={(e) => setPoolCourtAt(label, ci, e.target.value)}
+                            placeholder={`Court ${ci + 1}`}
+                            className="border-border-base bg-bg w-28 rounded border px-2 py-1 text-sm"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePoolCourt(label, ci)}
+                            aria-label={`Remove court ${ci + 1}`}
+                            className="text-muted hover:text-fg tap-target rounded text-sm"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => addPoolCourt(label)}
+                        className={neutralButtonClass('sm')}
+                      >
+                        + Add court
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-muted text-xs">
+                {poolCount === 1
+                  ? 'Add the courts this pool plays on to spread matches across them. Leave empty to skip slot scheduling.'
+                  : 'Give each pool its own court(s). Pools on different courts play fully in parallel; leave a pool empty to skip its scheduling.'}
+              </p>
+            </div>
             {/* Playoff-stage match length (ADR 0032) — overrides the pool-play
               best-of / play-to for the single-elim playoff bracket. */}
             <div className="border-border-base/60 basis-full border-t pt-3">
               <p className="text-fg/80 mb-2 text-xs font-medium">Playoff match length</p>
-              <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-sm">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col text-sm">
                   <span className="text-fg/80">Best of</span>
                   <select
                     name="playoff_best_of"
                     value={playoffBestOf}
                     onChange={(e) =>
-                      setPlayoffBestOf(
+                      choosePlayoffBestOf(
                         e.target.value === '' ? '' : (Number(e.target.value) as 1 | 3 | 5),
                       )
                     }
@@ -738,38 +830,37 @@ export function FormatPickerForm(props: {
                     ))}
                   </select>
                 </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <span className="text-fg/80">Play to</span>
-                  <input
-                    type="number"
-                    name="playoff_target_score"
-                    min={1}
-                    value={playoffTargetScore}
-                    onChange={(e) =>
-                      setPlayoffTargetScore(
-                        e.target.value === '' ? '' : Math.max(1, Number(e.target.value) || 0),
-                      )
-                    }
-                    placeholder="Same"
-                    className="border-border-base bg-bg w-24 rounded border px-2 py-1"
+                {playoffBestOf !== '' && (
+                  <PerGameTargets
+                    namePrefix="playoff_target_score"
+                    targets={playoffTargetScores}
+                    onChange={setPlayoffTargetAt}
                   />
-                </label>
+                )}
               </div>
               <p className="text-muted mt-1 text-xs">
                 Leave “Same as pool play” to reuse the pool-play length for the playoff too. A
-                common setup is best-of-1 pool play, best-of-3 playoff.
+                common setup is best-of-1 pool play, best-of-3 playoff to{' '}
+                {formatGameTargets(defaultGameTargets(3))}.
               </p>
             </div>
+            {/* Resolved 'all'/numeric advance count — the visible select above is
+                unnamed so 'all' resolves to a concrete number here. */}
+            <input type="hidden" name="advance_per_pool" value={resolvedAdvance} />
             <p className="text-muted basis-full text-xs">
               {poolCount === 1
-                ? `All ${props.teamCount} teams play one pool; the top ${advancePerPool} advance to a single-elim playoff.`
-                : `With ${props.teamCount} teams in ${poolCount} pools, that’s ~${teamsPerPool} per pool. The top ${advancePerPool} from each pool advance to a single-elim playoff.`}
+                ? advancesAll
+                  ? `All ${props.teamCount} teams play one pool, then every team advances to a single-elim playoff (pool play seeds the bracket).`
+                  : `All ${props.teamCount} teams play one pool; the top ${resolvedAdvance} advance to a single-elim playoff.`
+                : advancesAll
+                  ? `With ${props.teamCount} teams in ${poolCount} pools (~${teamsPerPool} per pool), every team advances to a single-elim playoff.`
+                  : `With ${props.teamCount} teams in ${poolCount} pools, that’s ~${teamsPerPool} per pool. The top ${resolvedAdvance} from each pool advance to a single-elim playoff.`}
             </p>
             {poolPlayUnderfilled && (
               <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
                 {poolCount === 1
-                  ? `A single-pool playoff of ${advancePerPool} needs at least ${advancePerPool} teams; you have ${props.teamCount}. Lower the playoff size or wait for more teams to register.`
-                  : `${poolCount} pools advancing ${advancePerPool} per pool needs at least ${poolCount * advancePerPool} teams; you have ${props.teamCount}. Reduce pools or advance-per-pool, or wait for more teams to register.`}
+                  ? `A single-pool playoff of ${resolvedAdvance} needs at least ${resolvedAdvance} teams; you have ${props.teamCount}. Lower the playoff size or wait for more teams to register.`
+                  : `${poolCount} pools advancing ${resolvedAdvance} per pool needs at least ${poolCount * resolvedAdvance} teams; you have ${props.teamCount}. Reduce pools or advance-per-pool, or wait for more teams to register.`}
               </p>
             )}
           </fieldset>
@@ -781,7 +872,7 @@ export function FormatPickerForm(props: {
       {!isPoolPlay && (
         <>
           <input type="hidden" name="pool_count" value={poolCount} />
-          <input type="hidden" name="advance_per_pool" value={advancePerPool} />
+          <input type="hidden" name="advance_per_pool" value={resolvedAdvance} />
           <input type="hidden" name="pool_schedule" value={poolSchedule} />
           <input type="hidden" name="pool_games_per_team" value={poolGamesPerTeam} />
         </>
@@ -805,8 +896,7 @@ export function FormatPickerForm(props: {
           <div className="flex items-baseline justify-between gap-4 px-3 py-2">
             <dt className="text-muted">{isPoolPlay ? 'Pool play length' : 'Match length'}</dt>
             <dd className="text-fg text-right font-medium">
-              Best of {bestOf}
-              {targetScore !== '' ? ` · to ${targetScore}` : ''}
+              Best of {bestOf} · {formatGameTargets(targetScores)}
             </dd>
           </div>
           {isPoolPlay && (
@@ -815,9 +905,11 @@ export function FormatPickerForm(props: {
                 <dt className="text-muted">Pools</dt>
                 <dd className="text-fg text-right font-medium">
                   {poolCount === 1 ? '1 pool' : `${poolCount} pools`} ·{' '}
-                  {poolCount === 1
-                    ? `top ${advancePerPool} to playoff`
-                    : `top ${advancePerPool} per pool advance`}
+                  {advancesAll
+                    ? 'all teams to playoff'
+                    : poolCount === 1
+                      ? `top ${resolvedAdvance} to playoff`
+                      : `top ${resolvedAdvance} per pool advance`}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-4 px-3 py-2">
@@ -825,9 +917,7 @@ export function FormatPickerForm(props: {
                 <dd className="text-fg text-right font-medium">
                   {playoffBestOf === ''
                     ? 'Same as pool play'
-                    : `Best of ${playoffBestOf}${
-                        playoffTargetScore !== '' ? ` · to ${playoffTargetScore}` : ''
-                      }`}
+                    : `Best of ${playoffBestOf} · ${formatGameTargets(playoffTargetScores)}`}
                 </dd>
               </div>
             </>

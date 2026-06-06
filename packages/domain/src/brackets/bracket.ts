@@ -43,6 +43,14 @@ export interface BracketConfig {
    */
   targetScore: number | null;
   /**
+   * Pool/global **per-game** target scores (e.g. `[25, 25, 15]` for a
+   * best-of-3 with a deciding game to 15). Index `i` is game `i + 1`; a match
+   * with more games than entries reuses the last entry. Informational, like
+   * {@link targetScore}. `null` ⇒ fall back to the single {@link targetScore}
+   * for every game. See ADR 0032.
+   */
+  targetScores: ReadonlyArray<number> | null;
+  /**
    * `pool_play_playoff` only: best-of for the playoff stage. `null` ⇒ fall
    * back to {@link bestOf}. Lets pool play be best-of-1 while the playoff is
    * best-of-3. See ADR 0032.
@@ -50,6 +58,12 @@ export interface BracketConfig {
   playoffBestOf: number | null;
   /** `pool_play_playoff` only: target score for the playoff stage. `null` ⇒ {@link targetScore}. */
   playoffTargetScore: number | null;
+  /**
+   * `pool_play_playoff` only: per-game target scores for the playoff stage
+   * (parallels {@link targetScores}). `null` ⇒ fall back to
+   * {@link playoffTargetScore}, then the pool resolution. See ADR 0032.
+   */
+  playoffTargetScores: ReadonlyArray<number> | null;
   /** Pool play only: number of pools (default 2). */
   poolCount: number;
   /** Pool play only: how many top teams from each pool advance (default 2). */
@@ -93,8 +107,10 @@ export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   bestOf: 3,
   byeStrategy: 'top_seeds',
   targetScore: null,
+  targetScores: null,
   playoffBestOf: null,
   playoffTargetScore: null,
+  playoffTargetScores: null,
   poolCount: 2,
   advancePerPool: 2,
   poolSchedule: 'round_robin',
@@ -240,6 +256,18 @@ export class Bracket extends AggregateRoot<BracketId> {
         throw new ValidationError(`${k} must be a positive integer when set; got ${v}.`, {
           [k]: v,
         });
+      }
+    }
+    for (const [k, arr] of [
+      ['targetScores', merged.targetScores],
+      ['playoffTargetScores', merged.playoffTargetScores],
+    ] as const) {
+      if (arr === null) continue;
+      if (arr.length === 0 || arr.some((v) => !Number.isInteger(v) || v < 1)) {
+        throw new ValidationError(
+          `${k} must be a non-empty array of positive integers when set; got ${JSON.stringify(arr)}.`,
+          { [k]: arr },
+        );
       }
     }
     return merged;

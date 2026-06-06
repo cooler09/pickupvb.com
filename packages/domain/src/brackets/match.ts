@@ -129,6 +129,10 @@ export function effectiveBestOf(
 export interface MatchTargetDefaults {
   readonly targetScore: number | null;
   readonly playoffTargetScore: number | null;
+  /** Per-game pool/global targets (e.g. `[25, 25, 15]`). See {@link effectiveSetTargetScore}. */
+  readonly targetScores?: ReadonlyArray<number> | null;
+  /** Per-game playoff-stage targets. See {@link effectiveSetTargetScore}. */
+  readonly playoffTargetScores?: ReadonlyArray<number> | null;
 }
 
 /**
@@ -145,6 +149,40 @@ export function effectiveTargetScore(
     return defaults.playoffTargetScore;
   }
   return defaults.targetScore;
+}
+
+/**
+ * Resolve the target score for a **specific game** (1-indexed `setNumber`)
+ * within a match — the per-game extension of {@link effectiveTargetScore} (e.g.
+ * a best-of-3 playoff to `[25, 25, 15]` answers `15` for game 3). Precedence:
+ *
+ *  1. per-match override (`match.targetScore`) — uniform across games, so it
+ *     wins for every set when set;
+ *  2. `final` matches consult the playoff per-game array;
+ *  3. otherwise the pool/global per-game array;
+ *  4. fall back to the single-value {@link effectiveTargetScore}.
+ *
+ * A game past the end of an array reuses the array's last entry (so a 4th set in
+ * a `[25, 25, 15]` config still reads 15). Informational, never enforced.
+ */
+export function effectiveSetTargetScore(
+  match: Pick<Match, 'targetScore' | 'bracketSide'>,
+  setNumber: number,
+  defaults: MatchTargetDefaults,
+): number | null {
+  if (match.targetScore !== null) return match.targetScore;
+  const fromArray = (arr: ReadonlyArray<number> | null | undefined): number | null => {
+    if (!arr || arr.length === 0) return null;
+    const idx = Math.min(Math.max(setNumber, 1), arr.length) - 1;
+    return arr[idx] ?? null;
+  };
+  if (match.bracketSide === 'final') {
+    const playoff = fromArray(defaults.playoffTargetScores);
+    if (playoff !== null) return playoff;
+  }
+  const pool = fromArray(defaults.targetScores);
+  if (pool !== null) return pool;
+  return effectiveTargetScore(match, defaults);
 }
 
 /**

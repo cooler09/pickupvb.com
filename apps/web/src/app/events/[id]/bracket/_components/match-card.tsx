@@ -1,4 +1,10 @@
-import { effectiveBestOf, effectiveTargetScore, type Match } from '@pickupvb/domain';
+import {
+  effectiveBestOf,
+  effectiveSetTargetScore,
+  effectiveTargetScore,
+  type Match,
+  type MatchTargetDefaults,
+} from '@pickupvb/domain';
 import { SubmitButton } from '@/components/submit-button';
 import { LiveScore } from '../../_components/live-score';
 import { ScoreLiveButton } from '../../_components/score-live-button';
@@ -20,11 +26,15 @@ export function MatchCard(props: {
   bestOf: number;
   /** Stage / global default target score (ADR 0032); per-match override wins. */
   targetScore?: number | null;
+  /** Per-game pool/global target scores (ADR 0032) — labels each set input. */
+  targetScores?: ReadonlyArray<number> | null;
   /** Playoff-stage best-of default (`pool_play_playoff`) — applied to `final`
    *  matches when they carry no per-match override. */
   playoffBestOf?: number | null;
   /** Playoff-stage target-score default (`pool_play_playoff`). */
   playoffTargetScore?: number | null;
+  /** Per-game playoff target scores (ADR 0032). */
+  playoffTargetScores?: ReadonlyArray<number> | null;
   isHost: boolean;
   viewerId: string | null;
   /** Host is Pro → the "Score live" launcher is offered (ADR 0023). */
@@ -55,10 +65,13 @@ export function MatchCard(props: {
     bestOf: props.bestOf,
     playoffBestOf: props.playoffBestOf ?? null,
   });
-  const matchTargetScore = effectiveTargetScore(m, {
+  const targetDefaults: MatchTargetDefaults = {
     targetScore: props.targetScore ?? null,
     playoffTargetScore: props.playoffTargetScore ?? null,
-  });
+    targetScores: props.targetScores ?? null,
+    playoffTargetScores: props.playoffTargetScores ?? null,
+  };
+  const matchTargetScore = effectiveTargetScore(m, targetDefaults);
   const lengthDiffersFromDefault =
     matchBestOf !== props.bestOf || matchTargetScore !== (props.targetScore ?? null);
 
@@ -137,9 +150,13 @@ export function MatchCard(props: {
           <form action={a.recordResult(String(m.id))} className="mt-2 space-y-1">
             {Array.from({ length: setsToShow }, (_, i) => {
               const existing = m.sets[i];
+              const setTarget = effectiveSetTargetScore(m, i + 1, targetDefaults);
               return (
                 <div key={i} className="flex items-center gap-1 text-xs">
-                  <span className="text-muted w-12">Set {i + 1}</span>
+                  <span className="text-muted w-16 shrink-0">
+                    Set {i + 1}
+                    {setTarget != null && <span className="text-muted/70"> · {setTarget}</span>}
+                  </span>
                   <input
                     name={`set_a_${i + 1}`}
                     type="number"

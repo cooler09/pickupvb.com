@@ -86,11 +86,15 @@ export function BoardView(props: {
   bestOf: number;
   /** Stage / global default target score, shown on match cards. */
   targetScore?: number | null;
+  /** Per-game pool/global target scores (ADR 0032) — labels each set input. */
+  targetScores?: ReadonlyArray<number> | null;
   /** Playoff-stage best-of / target-score defaults (`pool_play_playoff`) — let
    *  each `final` match resolve its true length instead of the pool default
    *  (ADR 0032). Omitted ⇒ the playoff reuses the pool-play length. */
   playoffBestOf?: number | null;
   playoffTargetScore?: number | null;
+  /** Per-game playoff target scores (ADR 0032). */
+  playoffTargetScores?: ReadonlyArray<number> | null;
   isHost: boolean;
   viewerId: string | null;
   status: 'active' | 'completed';
@@ -211,8 +215,10 @@ export function BoardView(props: {
           teamById={props.teamById}
           bestOf={props.bestOf}
           targetScore={props.targetScore ?? null}
+          targetScores={props.targetScores ?? null}
           playoffBestOf={props.playoffBestOf ?? null}
           playoffTargetScore={props.playoffTargetScore ?? null}
+          playoffTargetScores={props.playoffTargetScores ?? null}
           isHost={props.isHost}
           viewerId={props.viewerId}
           liveScoringEnabled={props.liveScoringEnabled ?? false}
@@ -278,6 +284,7 @@ export function BoardView(props: {
           teams={teams}
           bestOf={props.bestOf}
           targetScore={props.targetScore ?? null}
+          targetScores={props.targetScores ?? null}
           isHost={props.isHost}
           viewerId={props.viewerId}
           highlightMatchId={props.highlightMatchId ?? null}
@@ -366,6 +373,8 @@ function PoolsView(props: {
   teams?: ReadonlyArray<TeamLite>;
   bestOf: number;
   targetScore?: number | null;
+  /** Per-game pool target scores (ADR 0032) — labels each set input. */
+  targetScores?: ReadonlyArray<number> | null;
   isHost: boolean;
   viewerId: string | null;
   highlightMatchId: string | null;
@@ -437,6 +446,7 @@ function PoolsView(props: {
                       teamById={props.teamById}
                       bestOf={props.bestOf}
                       targetScore={props.targetScore ?? null}
+                      targetScores={props.targetScores ?? null}
                       isHost={props.isHost}
                       viewerId={props.viewerId}
                       liveScoringEnabled={props.liveScoringEnabled ?? false}
