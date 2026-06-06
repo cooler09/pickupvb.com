@@ -4,7 +4,7 @@ import {
   type CommunityListingRepository,
   type CommunityListingSummary,
 } from '@pickupvb/domain';
-import { GetCommunityListingDetailQuery, SearchCommunityListingsQuery } from '../messages';
+import { GetCommunityListingDetailQuery, SearchCommunityListingsQuery } from '../messages/index';
 
 export class SearchCommunityListingsHandler {
   constructor(private readonly repo: CommunityListingRepository) {}

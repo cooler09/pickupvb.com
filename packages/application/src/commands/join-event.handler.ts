@@ -16,7 +16,7 @@ import {
   LeaveEventAsFreeAgentCommand,
   LeaveEventCommand,
   LeaveWaitlistCommand,
-} from '../messages';
+} from '../messages/index';
 
 export class JoinEventHandler {
   constructor(

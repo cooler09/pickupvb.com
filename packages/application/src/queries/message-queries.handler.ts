@@ -1,5 +1,5 @@
 import type { ConversationQueries, InboxItem, MessagePage, MessageQueries } from '@pickupvb/domain';
-import { ListMessagesQuery } from '../messages';
+import { ListMessagesQuery } from '../messages/index';
 
 /** Read a page of a conversation's messages (oldest-first; `before` paginates
  * into older messages). Access is enforced by RLS on the underlying select. */

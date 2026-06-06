@@ -12,7 +12,7 @@ import {
   GetEventDetailQuery,
   GetFollowingFeedQuery,
   GetViewerFriendsQuery,
-} from '../messages.js';
+} from '../messages/index.js';
 
 export class GetEventDetailHandler {
   constructor(private readonly repo: EventReadModels) {}

@@ -7,7 +7,7 @@ import {
   type UserId,
 } from '@pickupvb/domain';
 import { CreateGroupHandler } from './group.handler.js';
-import { CreateGroupCommand } from '../messages.js';
+import { CreateGroupCommand } from '../messages/index.js';
 
 const FOUNDER = 'founder-1' as UserId;
 

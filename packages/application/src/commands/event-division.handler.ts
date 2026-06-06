@@ -15,7 +15,7 @@ import {
   AddEventDivisionCommand,
   RemoveEventDivisionCommand,
   UpdateEventDivisionCommand,
-} from '../messages';
+} from '../messages/index';
 
 /**
  * Authorization for division mutations lives at the DB layer (RLS on

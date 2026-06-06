@@ -1,5 +1,32 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-06-06, Phase D — P3 cleanup: P3-2 RESOLVED, P3-1 PARTIAL).**
+> **P3-2 (`messages.ts` 761-LOC single-module) — RESOLVED.** Split into a
+> [`messages/`](../../packages/application/src/messages/) directory, one file per
+> subdomain (`event`, `team`, `community-listing`, `media-post`, `user-profile`,
+> `group`, `messaging`, `account-deletion`) re-exported from
+> [`messages/index.ts`](../../packages/application/src/messages/index.ts), so the
+> command/query classes now match the per-subdomain handler organization. All ~25
+> importers repointed to the explicit barrel path; `@pickupvb/application`
+> consumers unchanged. Pure mechanical move, typecheck/test-verified.
+> **P3-1 (page-diet regressions) — PARTIAL.** Applied the audit's prescribed
+> render-branch extraction to the two worst offenders:
+> [events/page.tsx](../../apps/web/src/app/events/page.tsx) **602 → 501** (extracted
+> `EventsEmptyState` + the `CommunityRail` to `_components/`) and
+> [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) **601 → 537**
+> (extracted the `SectionHeader` + `ActionTile` primitives). Verbatim moves,
+> typecheck-clean. **Remaining (lower-priority follow-up):** the other three pages
+> (`community/[slug]` 567, `events/[id]` 424, `profile/billing/earnings` 424) and
+> getting all of them under the ~200-LOC cap — the residual bulk is **data
+> orchestration**, not render branches, so the deeper reduction needs per-page
+> `_loaders/` extraction. Deliberately stopped there: page render output isn't
+> covered by the verify quad (no page unit tests), so further flagship-page
+> surgery wants per-page manual/e2e confirmation and is best done incrementally.
+> **Verify quad green** (typecheck 15/15; lint 0 errors; test domain 547 /
+> application 145 / infra 53 / web 262; build 8/8). No DB change. **With this, the
+> 2026-06-06 re-audit backlog is fully actioned: No P1; all P2 resolved; P3-2
+> resolved; P3-1 partially resolved with a documented follow-up.**
+>
 > **Status update (2026-06-06, Phase C inc. 3 — P2-2 `save()` atomicity: RESOLVED (deploy-gated). P2-2 + the whole P2 backlog now closed.)**
 > The multi-statement `save()` write is now atomic. New
 > [save_event RPC](../../supabase/migrations/20260919000000_save_event_rpc.sql)
@@ -1116,7 +1143,15 @@ delivery, division-scoped registration) are all intact at this HEAD.
 
 ---
 
-### P3-1 — Page-diet regressions
+### P3-1 — Page-diet regressions 🟡 Partial 2026-06-06 (Phase D)
+
+> **Phase D (2026-06-06):** render branches extracted from the two worst pages —
+> events/page.tsx 602 → 501 (`EventsEmptyState` + `CommunityRail` →
+> `_components/`), profile/page.tsx 601 → 537 (`SectionHeader` + `ActionTile`).
+> Remaining: `community/[slug]` 567, `events/[id]` 424, `profile/billing/earnings`
+> 424 + getting all under ~200 (residual bulk is data orchestration → wants
+> per-page `_loaders/` extraction; render output isn't quad-covered, so do it
+> incrementally with manual/e2e confirmation). See the top-of-doc status block.
 
 - **Where:** [events/page.tsx](../../apps/web/src/app/events/page.tsx) **602**,
   [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) **601**,
@@ -1131,7 +1166,12 @@ delivery, division-scoped registration) are all intact at this HEAD.
   priority than the P2s: loaders already exist, so this is _renderer_ bloat, not
   data-assembly-in-page — no correctness risk.
 
-### P3-2 — `messages.ts` single-module grown to 761 LOC / ~90 classes
+### P3-2 — `messages.ts` single-module grown to 761 LOC / ~90 classes ✅ Resolved 2026-06-06 (Phase D)
+
+> **Phase D (2026-06-06):** split into a `messages/` directory — one file per
+> subdomain re-exported from `messages/index.ts` — matching the per-subdomain
+> handler organization. ~25 importers repointed to the barrel; `@pickupvb/application`
+> consumers unchanged. Verify quad green. See the top-of-doc status block.
 
 - **Where:** [packages/application/src/messages.ts](../../packages/application/src/messages.ts)
   — documented in the package README as "Command + query payload shapes."

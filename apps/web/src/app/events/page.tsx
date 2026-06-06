@@ -19,7 +19,8 @@ import {
   isEventFree,
   type EventCardData,
 } from './_components/event-card';
-import { CommunityListingCard } from '@/app/community/_components/community-listing-card';
+import { CommunityRail } from './_components/community-rail';
+import { EventsEmptyState, type FollowingEmptyReason } from './_components/events-empty-state';
 import { EventFilterForm } from './_components/event-filter-form';
 import {
   SURFACES,
@@ -79,8 +80,6 @@ function minPriceCents(event: EventCardData): number {
   if (cents.length === 0) return Number.POSITIVE_INFINITY;
   return Math.min(...cents.map((c) => c ?? 0));
 }
-
-type FollowingEmptyReason = 'not_signed_in' | 'no_follows' | null;
 
 export default async function EventsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -450,7 +449,7 @@ export default async function EventsPage(props: {
       />
 
       {events.length === 0 ? (
-        <EmptyState
+        <EventsEmptyState
           when={when}
           reason={followingEmptyReason}
           hasAnyFilter={hasAnyFilter}
@@ -478,45 +477,7 @@ export default async function EventsPage(props: {
         </>
       )}
 
-      {communityListings.length > 0 && (
-        <section className="border-border-base space-y-3 border-t pt-6">
-          <div className="flex items-end justify-between gap-2">
-            <div>
-              <h2 className="text-xl font-semibold">From the community</h2>
-              <p className="text-muted text-sm">
-                Events posted by players that aren&rsquo;t hosted on PickupVB. RSVP at the linked
-                source.
-              </p>
-            </div>
-            <Link
-              href="/community"
-              className="text-primary text-sm whitespace-nowrap hover:underline"
-            >
-              See all
-            </Link>
-          </div>
-          <ul className="stagger-in grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {communityListings.map((listing) => (
-              <CommunityListingCard
-                key={listing.id}
-                listing={{
-                  slug: listing.slug,
-                  title: listing.title,
-                  externalHostName: listing.externalHostName,
-                  startsAt: listing.startsAt,
-                  timeZone: listing.timeZone,
-                  city: listing.city,
-                  region: listing.region,
-                  surface: listing.surface,
-                  format: listing.format,
-                  skillLevel: listing.skillLevel,
-                  status: listing.status,
-                }}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
+      <CommunityRail listings={communityListings} />
       {user && (
         <Fab href="/events/new" label="Host an event">
           <svg
@@ -536,67 +497,5 @@ export default async function EventsPage(props: {
         </Fab>
       )}
     </section>
-  );
-}
-
-function EmptyState({
-  when,
-  reason,
-  hasAnyFilter,
-  clearAllHref,
-  canHost,
-}: {
-  when: Timeframe;
-  reason: FollowingEmptyReason;
-  hasAnyFilter: boolean;
-  clearAllHref: Route;
-  canHost: boolean;
-}) {
-  let title = 'No events match your filters';
-  let body: string | null = null;
-  if (when === 'past') {
-    title = 'No past events match your filters';
-  } else if (when === 'following') {
-    if (reason === 'not_signed_in') {
-      title = 'Sign in to see events from people you follow';
-      body = "We'll personalize your feed once you're signed in.";
-    } else if (reason === 'no_follows') {
-      title = "You're not following anyone yet";
-      body = 'Follow players from any event page to see their upcoming events here.';
-    } else {
-      title = 'No upcoming events from people you follow';
-      body = 'Try the Upcoming tab to see more events near you.';
-    }
-  } else if (!hasAnyFilter) {
-    title = 'No upcoming events yet';
-    body = canHost
-      ? 'Be the first to host one in your area.'
-      : 'Check back soon or sign in to host an event.';
-  } else {
-    body = 'Try clearing a filter or widening your radius.';
-  }
-
-  return (
-    <div className="border-border-base bg-surface rounded-shape-sm border p-8 text-center">
-      <h3 className="text-fg text-base font-semibold">{title}</h3>
-      {body && <p className="text-muted mt-1 text-sm">{body}</p>}
-      <div className="mt-4 flex flex-wrap justify-center gap-3">
-        {hasAnyFilter && (
-          <Link href={clearAllHref} className={secondaryButtonClass('sm')}>
-            Clear filters
-          </Link>
-        )}
-        {when === 'following' && reason === 'not_signed_in' && (
-          <Link href="/login" className={primaryButtonClass('sm')}>
-            Sign in
-          </Link>
-        )}
-        {canHost && (
-          <Link href="/events/new" className={primaryButtonClass('sm')}>
-            Host an event
-          </Link>
-        )}
-      </div>
-    </div>
   );
 }

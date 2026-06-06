@@ -1,5 +1,5 @@
 import type { EventMediaReadModel, MediaPostItem, MediaPostRepository } from '@pickupvb/domain';
-import { ListEventMediaQuery, ListProfileMediaQuery } from '../messages';
+import { ListEventMediaQuery, ListProfileMediaQuery } from '../messages/index';
 
 export class ListEventMediaHandler {
   constructor(private readonly repo: MediaPostRepository) {}

@@ -24,7 +24,7 @@ import {
   type UserId,
 } from '@pickupvb/domain';
 import { RegisterWalkInTeamHandler } from './event-team-registration.handler.js';
-import { RegisterWalkInTeamCommand } from '../messages.js';
+import { RegisterWalkInTeamCommand } from '../messages/index.js';
 
 const HOST = 'host-1' as UserId;
 const STRANGER = 'stranger' as UserId;

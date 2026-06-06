@@ -13,7 +13,7 @@ import {
   AutoApproveExpiredCommunityClaimsHandler,
   CreateCommunityListingHandler,
 } from './community-listing.handler.js';
-import { CreateCommunityListingCommand } from '../messages.js';
+import { CreateCommunityListingCommand } from '../messages/index.js';
 
 const DTO: CreateCommunityListingDto = {
   title: 'Saturday morning beach league',

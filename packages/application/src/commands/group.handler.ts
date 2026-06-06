@@ -17,7 +17,7 @@ import {
   SetGroupAvatarCommand,
   UnfollowGroupCommand,
   UpdateGroupProfileCommand,
-} from '../messages';
+} from '../messages/index';
 
 /**
  * Create a group (ADR 0021). The aggregate validates the name + slug; the

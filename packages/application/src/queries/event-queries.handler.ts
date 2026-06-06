@@ -5,7 +5,7 @@ import type {
   VolleyballEventSummary,
 } from '@pickupvb/domain';
 import { NotFoundError, skillTierBand } from '@pickupvb/domain';
-import { GetAttendingEventsQuery, GetEventByIdQuery, SearchEventsQuery } from '../messages';
+import { GetAttendingEventsQuery, GetEventByIdQuery, SearchEventsQuery } from '../messages/index';
 
 export class SearchEventsHandler {
   constructor(private readonly repo: EventReadModels) {}

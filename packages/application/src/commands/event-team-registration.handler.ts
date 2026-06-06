@@ -25,7 +25,7 @@ import {
   RenameAdHocTeamRegistrationCommand,
   WithdrawAdHocTeamRegistrationCommand,
   type AdHocRegistrationMemberInput,
-} from '../messages';
+} from '../messages/index';
 
 /**
  * Application handlers for ad-hoc team registrations (ADR 0007).

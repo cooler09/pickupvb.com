@@ -8,7 +8,7 @@ import {
   SetProfileThemeCommand,
   UpdateBusinessInfoCommand,
   UpdateProfileCommand,
-} from '../messages';
+} from '../messages/index';
 
 /**
  * Apply an edit from the profile form (ADR 0020). Loads the `UserProfile`

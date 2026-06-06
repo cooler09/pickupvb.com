@@ -30,7 +30,7 @@ import {
   RemoveMediaPostCommand,
   ReportMediaPostCommand,
   UpdateMediaPostCommand,
-} from '../messages.js';
+} from '../messages/index.js';
 
 const SUBMITTER = '22222222-2222-2222-2222-222222222222';
 const HOST = '44444444-4444-4444-4444-444444444444';
