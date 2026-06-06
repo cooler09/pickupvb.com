@@ -11,10 +11,11 @@ import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
-const CLAIM_COLUMNS = 'id, channel, kind, to_address, payload, attempts';
+const CLAIM_COLUMNS = 'id, user_id, channel, kind, to_address, payload, attempts';
 
 type OutboxRow = {
   id: string;
+  user_id: string;
   channel: string;
   kind: string;
   to_address: string;
@@ -116,6 +117,7 @@ export class SupabaseNotificationOutboxRepository
     if (error) throw new Error(`claimBatch failed: ${error.message}`);
     return ((data as unknown as OutboxRow[] | null) ?? []).map((r) => ({
       id: r.id,
+      userId: r.user_id,
       channel: r.channel,
       kind: r.kind,
       toAddress: r.to_address,

@@ -150,12 +150,21 @@ list, so a dead address is retried and re-sent indefinitely. **Fix:** add a
 Resend webhook route that records `bounced`/`complained` and skips future sends
 to that address.
 
-### P2 #4 — No one-click `List-Unsubscribe` — OPEN
+### P2 #4 — No one-click `List-Unsubscribe` — ✅ resolved 2026-06-06
 
-Emails link to `/profile/notifications` but carry no `List-Unsubscribe` /
-`List-Unsubscribe-Post` header (gmail/outlook one-click). **Fix:** add the
-headers in [email-resend.ts](../../apps/web/src/lib/email-resend.ts) pointing at
-a tokenized unsubscribe route.
+Non-transactional email now carries `List-Unsubscribe` +
+`List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). The worker
+([worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts))
+mints a per-user HMAC token ([unsubscribe-token.ts](../../apps/web/src/lib/unsubscribe-token.ts),
+keyed on the existing `CRON_SECRET` — no new ops config) for any non-transactional
+kind and passes the URL to [email-resend.ts](../../apps/web/src/lib/email-resend.ts);
+transactional mail (receipts/account events) gets no header (CAN-SPAM). The
+target [api/unsubscribe/route.ts](../../apps/web/src/app/api/unsubscribe/route.ts)
+verifies the token (no session) and flips `email_enabled = false` on the admin
+client — silencing non-transactional email while the bell + transactional mail
+stay on. To thread the recipient, `OutboxRecord` gained `userId` (claimed in
+`claimBatch`). Tests: `unsubscribe-token.test.ts`, `email-resend.test.ts`.
+Degrades off when `CRON_SECRET` is unset (header simply omitted).
 
 ### P2 #5 — Header unread badge isn't live — ✅ resolved 2026-06-06
 

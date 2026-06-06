@@ -6,7 +6,8 @@
  * (the cron worker) translate throws into outbox `failed`/retry semantics.
  *
  * Hard-bounce handling lives in the Resend webhook (TBD); this adapter
- * just sends.
+ * just sends. Non-transactional mail carries a one-click `List-Unsubscribe`
+ * header (RFC 8058) when the worker supplies a `listUnsubscribeUrl`.
  */
 
 const RESEND_API = 'https://api.resend.com/emails';
@@ -23,6 +24,13 @@ export type SendEmailInput = {
    * for 24h. See docs/audits/third-party-integrations.md TPI-8.
    */
   idempotencyKey?: string;
+  /**
+   * One-click unsubscribe URL (RFC 8058). When present, the email carries
+   * `List-Unsubscribe: <url>` + `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+   * so Gmail/Apple Mail render a native Unsubscribe affordance and POST to it.
+   * Omitted for transactional mail (you can't unsubscribe from a receipt).
+   */
+  listUnsubscribeUrl?: string;
 };
 
 export type SendEmailResult = {
@@ -56,6 +64,16 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       subject: input.subject,
       html: input.html,
       text: input.text,
+      // RFC 8058 one-click unsubscribe — surfaced as native mail-client
+      // "Unsubscribe" UI. Resend forwards custom `headers` to the message.
+      ...(input.listUnsubscribeUrl
+        ? {
+            headers: {
+              'List-Unsubscribe': `<${input.listUnsubscribeUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            },
+          }
+        : {}),
     }),
   });
 

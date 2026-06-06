@@ -30,7 +30,14 @@ import type {
   PushSubscriptionRecord,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import {
+  KIND_CATEGORY,
+  TRANSACTIONAL_CATEGORIES,
+  type NotificationKind,
+} from '@pickupvb/notifications';
 import { sendEmail } from '@/lib/email-resend';
+import { signUnsubscribeToken } from '@/lib/unsubscribe-token';
+import { APP_URL } from '@/lib/app-url';
 import { sendWebPush, type WebPushPayload } from '@/lib/web-push';
 import { log } from '@/lib/log';
 
@@ -62,6 +69,15 @@ async function processRow(
 ): Promise<void> {
   if (row.channel === 'email') {
     const p = row.payload as { subject: string; html: string; text: string };
+    // One-click List-Unsubscribe (RFC 8058) on non-transactional mail only —
+    // you can't unsubscribe from a receipt/confirmation (CAN-SPAM). An unknown
+    // kind has no category, so it's treated as non-transactional (gets a link).
+    const category = KIND_CATEGORY[row.kind as NotificationKind];
+    const token =
+      category && TRANSACTIONAL_CATEGORIES.has(category) ? null : signUnsubscribeToken(row.userId);
+    const listUnsubscribeUrl = token
+      ? `${APP_URL}/api/unsubscribe?u=${encodeURIComponent(token)}`
+      : undefined;
     const result = await sendEmail({
       to: row.toAddress,
       subject: p.subject,
@@ -70,6 +86,7 @@ async function processRow(
       // Idempotency key so a redelivery after a crash between send and
       // markSent returns the original email, not a duplicate (TPI-8).
       idempotencyKey: row.id,
+      ...(listUnsubscribeUrl ? { listUnsubscribeUrl } : {}),
     });
     await outbox.markSent(row.id, result.id);
     return;

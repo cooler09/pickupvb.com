@@ -58,4 +58,22 @@ describe('sendEmail idempotency', () => {
     const headers = calls[0]!.headers as Record<string, string>;
     expect(headers['Idempotency-Key']).toBeUndefined();
   });
+
+  it('attaches RFC 8058 one-click List-Unsubscribe headers when a url is given', async () => {
+    const { calls } = mockFetchCapture();
+    await sendEmail({
+      ...baseInput,
+      listUnsubscribeUrl: 'https://pickupvb.com/api/unsubscribe?u=t',
+    });
+    const body = JSON.parse(calls[0]!.body as string) as { headers?: Record<string, string> };
+    expect(body.headers?.['List-Unsubscribe']).toBe('<https://pickupvb.com/api/unsubscribe?u=t>');
+    expect(body.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+  });
+
+  it('omits List-Unsubscribe headers when no url is given (transactional mail)', async () => {
+    const { calls } = mockFetchCapture();
+    await sendEmail(baseInput);
+    const body = JSON.parse(calls[0]!.body as string) as { headers?: Record<string, string> };
+    expect(body.headers).toBeUndefined();
+  });
 });
