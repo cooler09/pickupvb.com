@@ -7,6 +7,28 @@ traces. Latency estimates are educated guesses; treat them as relative,
 not absolute. Confirm with Vercel Analytics + Supabase slow-query log
 before/after each fix.
 
+**Status update (2026-06-06) — fresh re-audit (202 commits since 05-31):**
+read-only pass over the large feature surface added since the last audit —
+standalone brackets (ADR 0025), chat messaging, capacity waitlist, free-agent
+pickup, leagues container-model, community listings, badges/gamification,
+account deletion, and the atomic `save_event` RPC. **The new code is mostly
+well-built for performance** (full index coverage on every new table, batched
+`.in(...)` reads with no N+1, cursor-paginated chat threads, a fully-batched
+league-reminder cron, a correctly-ISR'd standalone-bracket watch page, and the
+multi-write→single-transaction `save_event` RPC). Opened **1 P2 + 4 P3**, all
+caching-posture / over-fetch / hygiene items — no new bugs or data-loss. Full
+write-up + recommended fixes in
+[§ Reevaluation — 2026-06-06](#reevaluation--2026-06-06). Headlines:
+
+- **P2 #16** — the new public `/community/[slug]` listing page reads
+  `cookies()` for the whole render, so anonymous spectators/crawlers never hit
+  ISR/CDN despite the `unstable_cache` data layer behind it (same partial state
+  as `/events/[id]`). Highest-value new SEO/share target.
+- **P3 #18** — `/brackets` + `/brackets/[id]` carry redundant `force-dynamic`
+  (already dynamic via `cookies()` — a no-op, like the resolved P1 #2).
+- **P3 #19** — the event-detail capacity-waitlist read is an avoidable third
+  sequential wave on full open-play events.
+
 **Status update (2026-05-31) — pagination sweep (unbounded UI lists):** a
 read-only scan for list views that render an entire result set with no paging,
 prompted by the `/profile` Hosting section. Found and **fixed 6 P2 list views**,
@@ -526,6 +548,210 @@ Cron fires every minute; Node cold start eats ~500 ms; once push fanout is
 parallelized (P1 #3) the worker has plenty of headroom, but worth a
 follow-up: monitor execution time and split into queue tasks if backlog
 grows.
+
+---
+
+## Reevaluation — 2026-06-06
+
+Read-only re-audit against HEAD, graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = bug /
+data-loss / broken behavior; P2 = important hardening/quality; P3 =
+nice-to-have). Scope: the ~202-commit feature surface added since the
+2026-05-31 pass — **standalone brackets** (ADR 0025), **chat messaging**
+(ADR 0028), **capacity waitlist** (ADR 0036), **free-agent pickup**,
+**leagues** container-model, **community listings**, **badges /
+gamification** (ADR 0031), **account deletion**, and the **atomic
+`save_event` RPC**. No profiling; latency/cost notes are static-analysis
+estimates.
+
+### What's well-built (no findings)
+
+The new surface is, on the whole, performance-clean — the recurring smells from
+the 2026-05 audits (N+1 fan-out, missing indexes, sequential awaits, unbounded
+loads) are largely absent:
+
+- **Index coverage on every new table.** `media_posts(event_id, kind)`,
+  `conversations(last_message_at desc)`, `messages(conversation_id, created_at
+desc)`, `conversation_participants(user_id)`, `event_waitlist(event_id,
+created_at)` (FIFO), `user_badges(user_id)`, `event_badges(event_id,
+sort_order)`, `bracket_teams(bracket_id)`, `league_schedule_matches`
+  home/away entry-id + reminder indexes — all the hot read columns are covered.
+- **Chat is N+1-free.** `loadSenderCards` collects ids and does one
+  `profiles_public in(...)` merge-in-JS
+  ([supabase-messaging-repository.ts#L284](../../packages/infrastructure/src/supabase-messaging-repository.ts#L284));
+  the DM thread pages with a cursor (`PAGE_SIZE = 30`, `limit+1` has-more probe,
+  `nextBefore`) at
+  [messages/[id]/page.tsx#L52](../../apps/web/src/app/messages/%5Bid%5D/page.tsx#L52);
+  liveness uses Supabase realtime, not polling.
+- **League-reminder cron is fully batched.** `findDueFixtures` does five set
+  reads (`.in(...)` on divisions → events → entries → team_members) and assembles
+  in memory — no per-fixture query
+  ([league-reminders/route.ts#L42-L132](../../apps/web/src/app/api/notifications/league-reminders/route.ts#L42-L132)).
+- **`save_event` RPC collapses the aggregate save** (event + divisions + child
+  reconciliation) into one transaction, replacing the old multi-write path
+  ([supabase-event-repository.ts#L497-L500](../../packages/infrastructure/src/supabase-event-repository.ts#L497-L500),
+  migration `20260919000000_save_event_rpc.sql`) — a correctness **and** a
+  round-trip win.
+- **Standalone-bracket watch page is correctly ISR'd** (`revalidate = 15`, no
+  `force-dynamic`, no `cookies()` — realtime refresher for liveness), the shape
+  P2 #14 prescribes
+  ([brackets/[id]/watch/page.tsx#L25](../../apps/web/src/app/brackets/%5Bid%5D/watch/page.tsx#L25)).
+- **Badge reads are single-query + ISR-cacheable.** `players/[id]` reads the
+  trophy case from the anon-granted `user_badges_public` view inside its
+  `Promise.all`
+  ([players/[id]/page.tsx#L80-L91](../../apps/web/src/app/players/%5Bid%5D/page.tsx#L80-L91));
+  event-detail badges/media load via `unstable_cache` helpers in wave 1.
+
+---
+
+### P2 #16 — `/community/[slug]` reads `cookies()` for the whole render → anonymous spectators never hit ISR/CDN 🆕 2026-06-06
+
+**Category:** Caching / revalidation
+**Files:**
+
+- [apps/web/src/app/community/[slug]/page.tsx#L50-L66](../../apps/web/src/app/community/%5Bslug%5D/page.tsx) — `getCurrentUser()` at L53 (reads `cookies()`), then `loadCommunityDetailPage(slug, searchParams, user)`.
+- Data layer (already cached): [community-detail-cache.ts](../../apps/web/src/app/community/%5Bslug%5D/community-detail-cache.ts) — `loadCommunityDetailPublic` wraps the viewer-`null` read in `unstable_cache` (60s, `communityListingCacheTag`); the loader correctly routes anon viewers to it ([load-community-detail-page.ts#L88](../../apps/web/src/app/community/%5Bslug%5D/_loaders/load-community-detail-page.ts#L88)).
+- Contrast (already correct): [brackets/[id]/watch/page.tsx#L25](../../apps/web/src/app/brackets/%5Bid%5D/watch/page.tsx#L25).
+
+**Issue:** A community listing detail page is inherently public,
+viewer-independent spectator content — it emits a canonical URL, OpenGraph
+tags, and `CommunityListingJsonLd` structured data, i.e. it's explicitly built
+as an SEO/share target. The **data** read is already cached (anon viewers serve
+from `unstable_cache` with no Supabase round-trip), but the page unconditionally
+calls `getCurrentUser()`, so Next 16 auto-marks the route dynamic and **every
+anonymous render is a full origin render** — the `unstable_cache` win is real
+but the page shell itself is never CDN/ISR-cached. This is the same "data cached,
+shell not" partial state `/events/[id]` is parked in (Bundle 26), now re-created
+on a brand-new public page.
+
+**Why P2:** Pure caching/cost regression (not broken behavior) on a public
+read path that's specifically optimized for crawlers + share unfurls. Graded P2
+to match the detail-page half of P1 #1 and the P2 #14 spectator-page grading.
+
+**Fix:** Apply the Bundle 25 ISR refactor:
+
+1. Drop `getCurrentUser()` from the page; render the public shell from
+   `loadCommunityDetailPublic(slug)` and add `export const revalidate = 60`.
+2. Lift the viewer-conditional sections — `PendingClaimReview`, the claimant
+   "awaiting review" banner, `ClaimSection`, `ReportSection`, `ManageSection`,
+   and the `showHiddenWarning` panel — into a single `'use client'`
+   viewer-chrome island that resolves the viewer client-side (the
+   `<TeamViewerChrome />` pattern). The claimed-listing `permanentRedirect` and
+   the claim-eligibility `loadVisibleHostedEvents` calls are viewer-scoped, so
+   they move into the island (or a nested dynamic segment) too.
+3. Liveness: the listing's mutating actions already evict via
+   `updateTag(communityListingCacheTag(slug))`, so tag eviction keeps the cached
+   shell current; the 60s `revalidate` is the backstop for the slug-less
+   auto-approve cron writer (already documented in `community-detail-cache.ts`).
+
+---
+
+### P3 #17 — `/community` listing is dynamic-per-request + fetches 120 rows uncached 🆕 2026-06-06
+
+**Category:** Caching / over-fetch
+**Files:**
+
+- [apps/web/src/app/community/page.tsx#L71](../../apps/web/src/app/community/page.tsx#L71) — `getCurrentUser()` + `isPlatformAdmin` at L72.
+- [apps/web/src/app/community/page.tsx#L101-L114](../../apps/web/src/app/community/page.tsx#L101) — `FETCH_CAP = 120` rows fetched, then `slice` to `PER_PAGE = 24`.
+
+**Issue:** The public `/community` discovery feed (canonical + OpenGraph,
+indexable) is dynamic on every request because it reads `cookies()` via
+`getCurrentUser()` — the only viewer-conditional output is the "Submit a
+listing" CTA (signed-in vs sign-in link) and the admin import link. Each
+dynamic render also fetches up to 120 rows to display 24 (the documented
+in-memory-slice pattern #12). This is the **same deferred class as `/events`**
+(still-open half of P1 #1): a public listing page that can't be cached until the
+viewer CTA is split into an island.
+
+**Why P3:** Caching/over-fetch on a listing page, not broken behavior; matches
+the `/events` deferral grade. The 120-row fetch is bounded (pattern #12) and
+only bites once volume exceeds the cap.
+
+**Fix:** Same shape as the deferred `/events` fix — render the list from
+`createSupabaseAnonClient()` + `export const revalidate = 60`, and lift the
+"Submit a listing" CTA + admin import link into a `'use client'` island that
+fetches its own session (mirrors `<NewGroupButton />`). Track alongside the
+`/events` ISR follow-up — both want the same friends/CTA-island split.
+
+---
+
+### P3 #18 — Standalone bracket owner pages carry redundant `force-dynamic` 🆕 2026-06-06
+
+**Category:** Caching / revalidation (clarity)
+**Files:**
+
+- [apps/web/src/app/brackets/page.tsx#L11](../../apps/web/src/app/brackets/page.tsx#L11) — `export const dynamic = 'force-dynamic'`; the page calls `requireRealUser('/brackets')` (reads `cookies()`).
+- [apps/web/src/app/brackets/[id]/page.tsx#L24](../../apps/web/src/app/brackets/%5Bid%5D/page.tsx#L24) — same flag; the page calls `getViewer()` and `redirect`s non-owners to `/watch`.
+
+**Issue:** Both pages are owner-only/private surfaces that already read
+`cookies()`, so Next renders them dynamically regardless — the
+`force-dynamic` flag is a redundant no-op. This is the exact pattern the
+resolved P1 #2 cleaned up on the profile pages: harmless, but it makes the
+codebase's caching story dishonest (a reader can't tell the flag does nothing).
+The public spectator sibling (`/brackets/[id]/watch`) is already correct.
+
+**Why P3:** No behavior change; clarity/hygiene only.
+
+**Fix:** Delete the `export const dynamic = 'force-dynamic'` line from both
+pages. They stay dynamic via `cookies()`; the line was never doing anything.
+(Pairs with the AGENTS.md "No `force-dynamic` on public pages" rule — these
+aren't public, but the flag should still go.)
+
+---
+
+### P3 #19 — Event-detail capacity-waitlist read is an avoidable third sequential wave 🆕 2026-06-06
+
+**Category:** Sequential await / extra RTT
+**File:**
+
+- [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts#L363-L382](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L363-L382)
+
+**Issue:** The capacity-waitlist read (queue length + viewer's place) runs as a
+standalone `await` **after** wave 1 (#L299) and wave 2 (#L328). It depends only
+on `event` (resolved before wave 1) and on nothing either wave produces, so it
+adds one avoidable round-trip to the event-detail render. It is tightly gated —
+only fires for a **full** fixed-capacity open play (`type === 'open_play' &&
+!positionRoster && spotsRemaining === 0`) — so the common case pays nothing,
+but on exactly the high-fanout "event is full, everyone's refreshing" view it
+serializes one extra RTT.
+
+**Why P3:** Micro-optimization on a gated path; cost only materializes on full
+open-play events.
+
+**Fix:** Fold the gated read into the wave-1 `Promise.all` — extract a
+`loadWaitlist(event, user)` helper that internally applies the
+`open_play && !positionRoster && spotsRemaining === 0` gate and resolves
+`{ waitlistCount: 0, viewerWaitlistPosition: null }` otherwise, then add it as a
+wave-1 entry. Removes the serial RTT on full-event renders with no behavior
+change.
+
+---
+
+### P3 #20 — Existing audit's file/line anchors went stale after the post-05-31 refactors 🆕 2026-06-06
+
+**Category:** Documentation hygiene (stale references)
+**Where:** the "Files" anchors in the **already-resolved** P1 #0 / P1 #4 / P2 #8
+/ P3 #12 findings above.
+
+**Issue:** The 2026-05 findings cite `events/[id]/page.tsx` line numbers
+(`#L72`, `#L115`, `#L120`, `#L140`, `#L340`) that no longer point at the cited
+code. Since then the event-detail page was decomposed (now 360 LOC), and the
+relevant logic moved: the `Date.now()`/`hasStarted` reads are now lifted to
+[load-event-detail.ts#L273-L277](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L273-L277)
+via `renderNowMs()`; the narrowed payment-status selects live in the `_loaders`
+
+- `event-detail-cache.ts`; the infra `getDetail()` was split into
+  `event-detail/` loaders (commit `68e80ff1`); and the application `messages.ts`
+  was split per-subdomain (architecture audit P3-2). The findings are all ✅
+  resolved, so this is purely a navigation hazard for a future reader, not a
+  regression.
+
+**Why P3:** Documentation only; the underlying fixes are live.
+
+**Fix:** When these sections are next edited, repoint the anchors to the
+loader/cache files (or add a one-line "anchors historical — code relocated by
+the 2026-06 decomposition" note). Not worth a standalone edit pass for resolved
+findings.
 
 ---
 
