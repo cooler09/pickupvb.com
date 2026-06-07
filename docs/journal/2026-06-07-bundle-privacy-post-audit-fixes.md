@@ -81,9 +81,9 @@ status-update block).
 
 ## Follow-ups
 
-- **`event-detail-cache.ts:185` stale comment** says `event_team_entries (RLS:
-using (true))`; the policy is `using (deleted_at is null)`. Cosmetic; fold into
-  the next edit of that file. (Noted in privacy.md.)
+- ~~`event-detail-cache.ts:185` stale comment~~ — fixed in this bundle (the
+  `RLS: using (true)` note now reads `using (deleted_at is null)` + the #16
+  column-grant caveat).
 - **`share_location` opt-out** for player coords — deferred; rounding covers the
   exposure. Tracked in privacy.md #17.
 - **Two migrations are deploy-gated** — CI applies on deploy; a green typecheck
