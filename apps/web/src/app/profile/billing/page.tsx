@@ -22,7 +22,7 @@ export const metadata = {
 
 type SearchParams = Promise<{ onboarding?: string; error?: string }>;
 
-const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
+const cardClass = 'border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6';
 
 type StepState = 'done' | 'current' | 'todo';
 

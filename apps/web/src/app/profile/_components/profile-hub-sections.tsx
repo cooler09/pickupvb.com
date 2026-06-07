@@ -123,7 +123,7 @@ export function PendingInvitesSection({ invites }: { invites: Model['pendingInvi
           <li key={t.id}>
             <Link
               href={`/teams/${t.slug}` as Route}
-              className="border-border-base bg-surface hover:border-primary/40 flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
+              className="border-border-base bg-md-surface-container hover:border-primary/40 flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
             >
               <span className="truncate font-medium">{t.name}</span>
               <span className="text-primary shrink-0 text-xs">Respond →</span>

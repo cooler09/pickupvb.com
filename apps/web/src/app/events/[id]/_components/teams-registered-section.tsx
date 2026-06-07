@@ -36,7 +36,7 @@ const PAYMENT_PILL: Record<AdHocTeamPublicEntry['paymentStatus'], { label: strin
 
 function RosterTeamRow({ team }: { team: RegisteredTeam }) {
   return (
-    <li className="border-border-base bg-surface flex items-center justify-between gap-3 rounded-md border p-3">
+    <li className="border-border-base bg-md-surface-container flex items-center justify-between gap-3 rounded-md border p-3">
       <div className="min-w-0">
         <Link
           href={`/teams/${team.slug}`}
@@ -57,7 +57,7 @@ function AdHocTeamRow({ reg }: { reg: AdHocTeamPublicEntry }) {
   const rosterSize = 1 + reg.members.length;
   const captainLabel = reg.captainName ?? 'Captain';
   return (
-    <li className="border-border-base bg-surface rounded-md border p-3">
+    <li className="border-border-base bg-md-surface-container rounded-md border p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{reg.name}</p>

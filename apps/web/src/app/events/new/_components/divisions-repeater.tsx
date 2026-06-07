@@ -427,7 +427,7 @@ export default function DivisionsRepeater({
         <button
           type="button"
           onClick={add}
-          className="border-border-base bg-surface text-fg hover:bg-highlight/40 rounded-md border px-3 py-1.5 text-sm font-medium"
+          className="border-border-base bg-md-surface-container text-fg hover:bg-highlight/40 rounded-md border px-3 py-1.5 text-sm font-medium"
         >
           + Add another division
         </button>

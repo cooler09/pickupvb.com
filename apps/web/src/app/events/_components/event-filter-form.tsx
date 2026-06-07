@@ -51,7 +51,7 @@ export type EventFilterFormProps = {
 
 // eslint-disable-next-line no-restricted-syntax -- compact filter-bar select, not a labeled form field (persona-ux.md CC-2 exception)
 const selectClass =
-  'mt-1 w-full rounded-md border border-border-base bg-surface px-2 py-1.5 text-sm';
+  'mt-1 w-full rounded-md border border-border-base bg-md-surface-container px-2 py-1.5 text-sm';
 // eslint-disable-next-line no-restricted-syntax -- uppercase filter-bar label, distinct from form field labels (persona-ux.md CC-2 exception)
 const labelClass = 'text-muted block text-xs font-semibold tracking-wide uppercase';
 
@@ -104,7 +104,7 @@ export function EventFilterForm({
         e.preventDefault();
         apply(e.currentTarget);
       }}
-      className={`border-border-base bg-surface rounded-shape-sm space-y-3 border p-4 transition-opacity ${
+      className={`border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-4 transition-opacity ${
         pending ? 'opacity-60' : ''
       }`}
     >
@@ -247,7 +247,7 @@ export function EventFilterForm({
             <select
               name="sort"
               defaultValue={sort ?? ''}
-              className="border-border-base bg-surface rounded-md border px-2 py-1.5 text-sm"
+              className="border-border-base bg-md-surface-container rounded-md border px-2 py-1.5 text-sm"
             >
               <option value="">Date</option>
               {/* "Nearest" needs distances, which only exist with a location. */}

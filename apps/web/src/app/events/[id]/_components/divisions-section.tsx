@@ -68,7 +68,7 @@ export function DivisionsSection({ divisions, teamCounts }: Props) {
           return (
             <li
               key={d.id}
-              className="border-border-base bg-surface rounded-shape-sm space-y-2 border p-4"
+              className="border-border-base bg-md-surface-container rounded-shape-sm space-y-2 border p-4"
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="text-fg text-base font-semibold">{d.label}</h3>

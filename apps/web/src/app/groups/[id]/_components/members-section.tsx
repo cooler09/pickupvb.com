@@ -60,7 +60,7 @@ export function MembersSection({ groupSlug, members, manageSlot, page, searchPar
   return (
     <section
       id="members"
-      className="border-border-base bg-surface rounded-shape-sm space-y-4 border p-5 sm:p-6"
+      className="border-border-base bg-md-surface-container rounded-shape-sm space-y-4 border p-5 sm:p-6"
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-fg text-lg font-semibold">

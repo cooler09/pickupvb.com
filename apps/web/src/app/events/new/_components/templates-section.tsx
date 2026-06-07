@@ -111,7 +111,7 @@ export default function TemplatesSection({
                     aria-label="Saved template"
                     value={pickedTemplate}
                     onChange={(e) => setPickedTemplate(e.target.value)}
-                    className="border-border-base bg-surface text-fg focus:border-primary focus-visible:ring-primary rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                    className="border-border-base bg-md-surface-container text-fg focus:border-primary focus-visible:ring-primary rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                   >
                     <option value="">Choose saved template</option>
                     {templates.map((t) => (
@@ -160,7 +160,7 @@ export default function TemplatesSection({
                   ref={templateNameRef}
                   type="text"
                   placeholder="Template name"
-                  className="border-border-base bg-surface text-fg focus:border-primary focus-visible:ring-primary w-44 rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                  className="border-border-base bg-md-surface-container text-fg focus:border-primary focus-visible:ring-primary w-44 rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
                   onChange={() => setTemplateNameError(null)}
                 />
                 <button

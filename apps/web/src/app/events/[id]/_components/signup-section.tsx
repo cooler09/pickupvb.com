@@ -61,7 +61,7 @@ export function SignupSection({
       // disclosure idiom in event-filter-form / profile.
       <details
         id="signup"
-        className="group border-border-base bg-surface rounded-shape-sm scroll-mt-20 border"
+        className="group border-border-base bg-md-surface-container rounded-shape-sm scroll-mt-20 border"
         {...(defaultOpen ? { open: true } : {})}
       >
         <summary className="hover:bg-fg/5 flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 p-5 select-none sm:p-6 [&::-webkit-details-marker]:hidden">
@@ -93,7 +93,7 @@ export function SignupSection({
   return (
     <section
       id="signup"
-      className="border-border-base bg-surface rounded-shape-sm scroll-mt-20 space-y-4 border p-5 sm:p-6"
+      className="border-border-base bg-md-surface-container rounded-shape-sm scroll-mt-20 space-y-4 border p-5 sm:p-6"
     >
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">

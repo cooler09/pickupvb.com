@@ -44,7 +44,7 @@ export function BusinessInfoForm({ businessName, businessAddress, taxId }: Props
           defaultValue={businessName ?? ''}
           maxLength={120}
           placeholder="e.g. Acme Volleyball Club LLC"
-          className="border-border-base bg-surface mt-1 w-full rounded-md border px-3 py-2"
+          className="border-border-base bg-md-surface-container mt-1 w-full rounded-md border px-3 py-2"
         />
       </label>
 
@@ -56,7 +56,7 @@ export function BusinessInfoForm({ businessName, businessAddress, taxId }: Props
           defaultValue={businessAddress ?? ''}
           maxLength={400}
           placeholder="Street, City, State ZIP"
-          className="border-border-base bg-surface mt-1 w-full rounded-md border px-3 py-2"
+          className="border-border-base bg-md-surface-container mt-1 w-full rounded-md border px-3 py-2"
         />
       </label>
 
@@ -68,7 +68,7 @@ export function BusinessInfoForm({ businessName, businessAddress, taxId }: Props
           defaultValue={taxId ?? ''}
           maxLength={40}
           placeholder="XX-XXXXXXX"
-          className="border-border-base bg-surface mt-1 w-full rounded-md border px-3 py-2 font-mono"
+          className="border-border-base bg-md-surface-container mt-1 w-full rounded-md border px-3 py-2 font-mono"
         />
         <span className="text-muted mt-1 block text-xs">
           Use an EIN if you have one. Do not enter a Social Security Number — this field is not

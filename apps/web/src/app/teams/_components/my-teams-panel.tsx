@@ -78,7 +78,7 @@ export function MyTeamsPanel() {
     return (
       <div
         aria-hidden="true"
-        className="border-border-base bg-surface/60 rounded-shape-sm h-24 animate-pulse border"
+        className="border-border-base bg-md-surface-container/60 rounded-shape-sm h-24 animate-pulse border"
       />
     );
   }

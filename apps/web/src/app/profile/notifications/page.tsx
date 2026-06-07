@@ -41,7 +41,7 @@ export default async function NotificationsPrefsPage() {
       </div>
 
       <form action={updateNotificationPreferences} className="space-y-4">
-        <section className="border-border-base bg-surface rounded-shape-sm space-y-3 border p-5">
+        <section className="border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-5">
           <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">Channels</h2>
 
           <Toggle

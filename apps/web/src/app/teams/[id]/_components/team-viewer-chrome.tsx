@@ -107,7 +107,7 @@ export function TeamViewerChrome({
               return (
                 <li
                   key={m.userId}
-                  className="border-border-base bg-surface flex items-center justify-between gap-3 rounded-md border p-3"
+                  className="border-border-base bg-md-surface-container flex items-center justify-between gap-3 rounded-md border p-3"
                 >
                   <span className="truncate text-sm">{name}</span>
                   <form action={removeMemberFromForm.bind(null, teamId, m.userId, returnPath)}>

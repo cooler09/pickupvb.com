@@ -46,7 +46,7 @@ export function CommunityListingArticle({ detail }: { detail: CommunityListingDe
         <p className="text-muted text-sm">Submitted by {detail.submitter.displayName}</p>
       </header>
 
-      <div className="border-border-base bg-surface rounded-shape-sm space-y-1 border p-4">
+      <div className="border-border-base bg-md-surface-container rounded-shape-sm space-y-1 border p-4">
         <p className="text-fg text-sm font-semibold">When</p>
         <p className="text-sm">
           <LocalDateTime iso={detail.startsAt} variant="eventDateLong" timeZone={detail.timeZone} />{' '}

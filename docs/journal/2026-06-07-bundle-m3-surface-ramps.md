@@ -71,12 +71,14 @@ work. Digging into _why_ it stalled surfaced a real blocker, not neglect.
 
 ## Follow-ups
 
-- **App-wide surface migration (open, now unblocked)** — assign elevation
-  levels per surface (`page`=surface, card=container, dialog/menu/raised=high,
-  nested=highest), `border-border-base` → `border-md-outline-variant`,
-  `text-muted` → `text-md-on-surface-variant`. A **visual-review** bundle:
-  zero-change for the bg/text swaps, but the border swap adds a faint light-mode
-  hairline that wants eyes in both themes.
+- **App-wide surface migration** — **done (same day):** all 165 `bg-surface` →
+  `bg-md-surface-container` (byte-identical), giving a 2-level elevation
+  hierarchy (cards=container, dialog/menu=`-high`) and closing S2's "surface
+  roles at 0 usages" finding. **Still open** (low-value / visual-review):
+  per-level differentiation beyond 2 levels, `border-border-base` →
+  `border-md-outline-variant` (faint light-mode hairline — wants eyes in both
+  themes), `text-muted` → `text-md-on-surface-variant` (exact but a 752-site
+  rename with no elevation/ratchet payoff — low ROI).
 - **Eyeball the dialog/menu** `surface-container-high` in dark mode — the teal
   elevation step is subtle; confirm it reads as "raised," not "off."
 - **Status pills + destructive text-links** (the prior bundle's deferred items)

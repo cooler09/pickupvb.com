@@ -77,7 +77,7 @@ export function ReportBugButton({
 
   const triggerClass =
     variant === 'button'
-      ? 'inline-flex items-center rounded-md border border-border-base bg-surface px-4 py-2 text-sm font-medium text-fg hover:bg-fg/5'
+      ? 'inline-flex items-center rounded-md border border-border-base bg-md-surface-container px-4 py-2 text-sm font-medium text-fg hover:bg-fg/5'
       : 'text-muted hover:text-fg hover:underline';
 
   return (
@@ -90,7 +90,7 @@ export function ReportBugButton({
         ref={dialogRef}
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="border-border-base bg-surface text-fg rounded-shape-sm m-auto w-full max-w-md border p-0 shadow-xl backdrop:bg-black/50"
+        className="border-border-base bg-md-surface-container text-fg rounded-shape-sm m-auto w-full max-w-md border p-0 shadow-xl backdrop:bg-black/50"
       >
         <form onSubmit={handleSubmit} className="space-y-3 p-5">
           <h2 id={titleId} className="text-base font-semibold">
@@ -113,7 +113,7 @@ export function ReportBugButton({
               maxLength={120}
               required
               placeholder="e.g. RSVP button does nothing on iOS Safari"
-              className="border-border-base bg-surface text-fg block w-full rounded-md border px-3 py-2 text-sm"
+              className="border-border-base bg-md-surface-container text-fg block w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>
 
@@ -128,7 +128,7 @@ export function ReportBugButton({
               rows={5}
               maxLength={4000}
               placeholder="Steps to reproduce, what you expected, what you saw."
-              className="border-border-base bg-surface text-fg block w-full rounded-md border px-3 py-2 text-sm"
+              className="border-border-base bg-md-surface-container text-fg block w-full rounded-md border px-3 py-2 text-sm"
             />
           </div>
 
@@ -140,7 +140,7 @@ export function ReportBugButton({
             <button
               type="button"
               onClick={close}
-              className="border-border-base bg-surface hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
+              className="border-border-base bg-md-surface-container hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
             >
               Cancel
             </button>

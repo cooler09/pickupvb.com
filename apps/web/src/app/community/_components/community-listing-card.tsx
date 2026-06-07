@@ -30,7 +30,7 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
   const place = [listing.city, listing.region].filter(Boolean).join(', ');
 
   return (
-    <li className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm border p-4">
+    <li className="border-border-base bg-md-surface-container hover:border-primary/40 rounded-shape-sm border p-4">
       <Link href={`/community/${listing.slug}`} className="hover:text-primary block font-semibold">
         {listing.title}
       </Link>

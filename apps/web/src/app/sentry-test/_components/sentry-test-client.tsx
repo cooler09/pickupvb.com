@@ -60,21 +60,21 @@ export default function SentryTestClient() {
         <button
           type="button"
           onClick={() => callServer('exception')}
-          className="border-border-base hover:bg-surface rounded-md border px-3 py-2"
+          className="border-border-base hover:bg-md-surface-container rounded-md border px-3 py-2"
         >
           Server: throw (exception)
         </button>
         <button
           type="button"
           onClick={() => callServer('message')}
-          className="border-border-base hover:bg-surface rounded-md border px-3 py-2"
+          className="border-border-base hover:bg-md-surface-container rounded-md border px-3 py-2"
         >
           Server: captureMessage
         </button>
         <button
           type="button"
           onClick={() => callServer('unhandled')}
-          className="border-border-base hover:bg-surface rounded-md border px-3 py-2"
+          className="border-border-base hover:bg-md-surface-container rounded-md border px-3 py-2"
         >
           Server: unhandled rejection
         </button>

@@ -23,7 +23,7 @@ export type CapacityKind = 'unlimited' | 'fixed' | 'by_position';
 export const labelClass = fieldLabelClass;
 export const inputClass = fieldInputClass;
 export const cardClass =
-  'border-border-base bg-surface space-y-5 rounded-shape-sm border p-5 sm:p-6';
+  'border-border-base bg-md-surface-container space-y-5 rounded-shape-sm border p-5 sm:p-6';
 export const cardTitleClass = 'text-fg text-base font-semibold';
 export const cardSubClass = 'text-muted text-sm';
 
@@ -166,7 +166,7 @@ export function SegmentedControl<T extends string>({
             aria-checked={active}
             onClick={() => onChange(opt.value)}
             className={`rounded px-3 py-1.5 transition-colors ${
-              active ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg'
+              active ? 'bg-md-surface-container text-fg shadow-sm' : 'text-muted hover:text-fg'
             }`}
           >
             {opt.label}

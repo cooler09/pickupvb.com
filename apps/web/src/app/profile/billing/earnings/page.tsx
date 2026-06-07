@@ -50,7 +50,7 @@ export default async function EarningsPage(props: { searchParams: Promise<{ page
       </div>
 
       {!hasTransactions ? (
-        <div className="border-border-base bg-surface text-muted rounded-shape-sm border p-6 text-sm">
+        <div className="border-border-base bg-md-surface-container text-muted rounded-shape-sm border p-6 text-sm">
           No online ticket sales yet. When attendees pay for one of your events through PickupVB,
           the totals will show up here.
         </div>

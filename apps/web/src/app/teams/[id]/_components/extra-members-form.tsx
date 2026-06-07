@@ -36,7 +36,7 @@ export function ExtraMembersForm({ teamId, returnPath, value }: Props) {
             min={0}
             max={20}
             defaultValue={value}
-            className="border-border-base bg-surface w-24 rounded-md border px-3 py-2 text-sm"
+            className="border-border-base bg-md-surface-container w-24 rounded-md border px-3 py-2 text-sm"
           />
         </label>
         <SubmitButton className={neutralButtonClass('md')}>Save</SubmitButton>

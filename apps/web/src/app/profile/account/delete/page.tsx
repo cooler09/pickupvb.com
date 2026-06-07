@@ -61,7 +61,7 @@ export default async function DeleteAccountPage(props: {
           <form action={cancelAccountDeletion} className="mt-4">
             <button
               type="submit"
-              className="border-border-base bg-surface hover:bg-fg/5 rounded-md border px-4 py-1.5 text-sm font-medium"
+              className="border-border-base bg-md-surface-container hover:bg-fg/5 rounded-md border px-4 py-1.5 text-sm font-medium"
             >
               Cancel deletion — keep my account
             </button>

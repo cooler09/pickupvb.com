@@ -47,7 +47,7 @@ export function EmptyState({
   const hasActions = Boolean(primary || secondary || children);
   return (
     <div
-      className={`border-border-base bg-surface rounded-shape-sm border p-8 text-center ${className ?? ''}`}
+      className={`border-border-base bg-md-surface-container rounded-shape-sm border p-8 text-center ${className ?? ''}`}
     >
       <h3 className="text-fg text-base font-semibold">{title}</h3>
       {description && <p className="text-muted mx-auto mt-1 max-w-md text-sm">{description}</p>}

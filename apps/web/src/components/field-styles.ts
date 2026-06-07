@@ -16,7 +16,7 @@
  *    forms are select-heavy (skill tier, surface, division mode, …), so a bare
  *    recipe that styles `<select>` identically is what keeps a whole form
  *    visually coherent. These constants intentionally match `TextField`'s
- *    chassis (same `rounded-md border border-border-base bg-surface px-3 py-2
+ *    chassis (same `rounded-md border border-border-base bg-md-surface-container px-3 py-2
  *    text-sm`) so a form can mix both without a seam.
  *  - [field-error.tsx](./field-error.tsx) (`FieldError` / `fieldA11y`) owns the
  *    a11y wiring; `fieldErrorClass` here is the matching visual for the simple
@@ -34,7 +34,7 @@ export const fieldSubLabelClass = 'block text-xs font-medium text-fg';
 
 /** `<input>` / `<textarea>` / `<select>` chassis. Matches the `TextField` look. */
 export const fieldInputClass =
-  'mt-1 block w-full rounded-md border border-border-base bg-surface px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
+  'mt-1 block w-full rounded-md border border-border-base bg-md-surface-container px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary';
 
 /** Helper / supporting copy under a field. */
 export const fieldHintClass = 'mt-1 text-xs text-muted';

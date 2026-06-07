@@ -137,7 +137,7 @@ export default async function PlayersIndexPage(props: {
             {players.map((p) => (
               <li
                 key={p.id}
-                className="border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative flex items-center gap-3 border p-3 focus-within:ring-2"
+                className="border-border-base bg-md-surface-container hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative flex items-center gap-3 border p-3 focus-within:ring-2"
               >
                 {p.avatarUrl ? (
                   <Image

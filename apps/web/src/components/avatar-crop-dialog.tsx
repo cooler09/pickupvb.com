@@ -82,7 +82,7 @@ export function AvatarCropDialog({ imageSrc, cropShape = 'round', onConfirm, onC
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="md-dialog-overlay fixed inset-0 z-50 bg-black/50" />
         <RadixDialog.Content
-          className="md-dialog-motion border-border-base bg-surface text-fg shadow-elevation-3 rounded-shape-lg fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 border p-0"
+          className="md-dialog-motion border-border-base bg-md-surface-container text-fg shadow-elevation-3 rounded-shape-lg fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 border p-0"
           onInteractOutside={(e) => {
             if (saving) e.preventDefault();
           }}

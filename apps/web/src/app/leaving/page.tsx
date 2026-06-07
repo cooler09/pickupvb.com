@@ -76,7 +76,7 @@ export default async function LeavingPage(props: { searchParams: SearchParams })
         </p>
       </header>
 
-      <section className="border-border-base bg-surface rounded-shape-sm border p-4">
+      <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
         <p className="text-muted text-xs tracking-wide uppercase">Destination</p>
         <p className="text-fg mt-1 text-base font-semibold break-all">{displayHost}</p>
         <p className="text-muted mt-2 text-xs break-all">{destination}</p>

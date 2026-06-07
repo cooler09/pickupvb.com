@@ -38,7 +38,8 @@ export type EditFormInitialValues = {
 
 const initialState: EditCommunityListingState = {};
 
-const cardClass = 'border-border-base bg-surface space-y-5 rounded-shape-sm border p-5 sm:p-6';
+const cardClass =
+  'border-border-base bg-md-surface-container space-y-5 rounded-shape-sm border p-5 sm:p-6';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -349,7 +350,7 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
         </div>
       </section>
 
-      <div className="border-border-base bg-surface/95 fixed inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t p-4 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div className="border-border-base bg-md-surface-container/95 fixed inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 border-t p-4 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <Link href={`/community/${initial.slug}`} className="text-muted hover:text-primary text-sm">
           Cancel
         </Link>

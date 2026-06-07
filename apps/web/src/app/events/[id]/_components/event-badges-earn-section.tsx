@@ -17,7 +17,7 @@ export function EventBadgesEarnSection({ badges }: { badges: EventBadge[] }) {
   if (badges.length === 0) return null;
 
   return (
-    <section className="border-border-base bg-surface rounded-shape-sm border p-4">
+    <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
       <p className="text-muted text-xs font-semibold tracking-wide uppercase">
         Badges you can earn here
       </p>

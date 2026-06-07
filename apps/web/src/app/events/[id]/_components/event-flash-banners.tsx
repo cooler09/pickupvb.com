@@ -22,7 +22,7 @@ export function EventFlashBanners({
       )}
       {tip === 'thanks' && <Alert variant="success">Thanks for tipping the host!</Alert>}
       {tip === 'cancel' && (
-        <div className="border-border-base bg-surface rounded-shape-sm border p-3 text-sm">
+        <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-3 text-sm">
           Tip cancelled.
         </div>
       )}

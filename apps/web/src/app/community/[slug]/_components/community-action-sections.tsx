@@ -75,7 +75,7 @@ export function ClaimSection({
   claimableEvents: HostedEvent[];
 }) {
   return (
-    <section className="border-border-base bg-surface space-y-3 rounded-md border p-4 text-sm">
+    <section className="border-border-base bg-md-surface-container space-y-3 rounded-md border p-4 text-sm">
       <div className="space-y-1">
         <p className="font-semibold">Is this your event?</p>
         <p className="text-muted text-xs">
@@ -120,7 +120,7 @@ export function ClaimSection({
             name="event_id"
             required
             defaultValue=""
-            className="border-border-base bg-surface w-full max-w-md rounded-md border px-2 py-1.5 text-sm"
+            className="border-border-base bg-md-surface-container w-full max-w-md rounded-md border px-2 py-1.5 text-sm"
           >
             <option value="" disabled>
               Select one of your events…
@@ -152,7 +152,7 @@ export function ClaimSection({
 /** "See a problem?" report block for a logged-in non-manager on an active listing. */
 export function ReportSection({ detail }: { detail: Detail }) {
   return (
-    <section className="border-border-base bg-surface rounded-md border p-4 text-sm">
+    <section className="border-border-base bg-md-surface-container rounded-md border p-4 text-sm">
       <p className="font-semibold">See a problem?</p>
       <p className="text-muted mt-1">
         Report this listing if it&rsquo;s spam, broken, or shouldn&rsquo;t be here. After three
@@ -167,7 +167,7 @@ export function ReportSection({ detail }: { detail: Detail }) {
         >
           <select
             name="reason"
-            className="border-border-base bg-surface text-fg w-full rounded-md border px-2 py-1.5 text-xs"
+            className="border-border-base bg-md-surface-container text-fg w-full rounded-md border px-2 py-1.5 text-xs"
           >
             <option value="spam">Spam or misleading</option>
             <option value="broken_link">Broken or incorrect link</option>
@@ -185,7 +185,7 @@ export function ReportSection({ detail }: { detail: Detail }) {
 /** Owner/admin management block: edit / hide-unhide / delete. */
 export function ManageSection({ detail }: { detail: Detail }) {
   return (
-    <section className="border-border-base bg-surface space-y-3 rounded-md border p-4 text-sm">
+    <section className="border-border-base bg-md-surface-container space-y-3 rounded-md border p-4 text-sm">
       <p className="font-semibold">Manage listing</p>
       {detail.isPlatformAdmin && !detail.canManage && (
         <p className="text-muted text-xs">(visible to you as a platform admin)</p>

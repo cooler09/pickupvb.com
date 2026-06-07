@@ -403,7 +403,7 @@ export function ConversationView({
   const canSend = (draft.trim().length > 0 || pending.length > 0) && !sending && !uploading;
 
   return (
-    <div className="border-border-base bg-surface rounded-shape-sm flex flex-col overflow-hidden border">
+    <div className="border-border-base bg-md-surface-container rounded-shape-sm flex flex-col overflow-hidden border">
       <div
         ref={listRef}
         onScroll={onScroll}

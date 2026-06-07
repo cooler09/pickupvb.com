@@ -117,7 +117,7 @@ export default function DateTimePicker({
       {open && (
         <div
           role="dialog"
-          className="border-border-base bg-surface absolute top-full left-0 z-20 mt-1 rounded-md border p-3 shadow-lg"
+          className="border-border-base bg-md-surface-container absolute top-full left-0 z-20 mt-1 rounded-md border p-3 shadow-lg"
         >
           <DayPicker
             mode="single"

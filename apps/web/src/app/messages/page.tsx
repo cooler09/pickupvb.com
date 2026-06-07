@@ -97,7 +97,7 @@ export default async function MessagesPage() {
               </>
             );
             const className =
-              'border-border-base bg-surface flex items-start justify-between gap-3 rounded-shape-sm border p-3';
+              'border-border-base bg-md-surface-container flex items-start justify-between gap-3 rounded-shape-sm border p-3';
             return (
               <li key={item.conversationId}>
                 {href ? (

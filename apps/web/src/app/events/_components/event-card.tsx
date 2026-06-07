@@ -186,7 +186,7 @@ export function EventCard({ event, friendNameById }: Props) {
   const price = priceLabel(eventPriceCents(event), event.priceUnit ?? divisions[0]?.priceUnit);
 
   return (
-    <li className="card-lift border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
+    <li className="card-lift border-border-base bg-md-surface-container hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
       <CardThumb url={event.heroImageUrl} surface={event.surface} />
       {/* Stretched link makes the whole tile tappable; there are no other
           interactive children, so `focus-within` rings the entire card on

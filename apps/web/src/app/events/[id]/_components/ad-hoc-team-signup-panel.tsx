@@ -204,7 +204,10 @@ export function AdHocTeamSignupPanel({
                 // redundant with EventHero and adds no information.
                 const showDivision = divisions.length > 1;
                 return (
-                  <li key={t.id} className="border-border-base bg-surface rounded-md border p-3">
+                  <li
+                    key={t.id}
+                    className="border-border-base bg-md-surface-container rounded-md border p-3"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{t.name}</p>
@@ -363,7 +366,7 @@ function NewTeamForm({
           name="division_id"
           required
           defaultValue={divisions.length === 1 ? divisions[0]!.id : ''}
-          className="border-border-base bg-surface w-full rounded-md border px-3 py-2 text-sm"
+          className="border-border-base bg-md-surface-container w-full rounded-md border px-3 py-2 text-sm"
         >
           {divisions.length > 1 && (
             <option value="" disabled>
@@ -385,7 +388,7 @@ function NewTeamForm({
           required
           maxLength={120}
           placeholder="e.g. The Spike Squad"
-          className="border-border-base bg-surface w-full rounded-md border px-3 py-2 text-sm"
+          className="border-border-base bg-md-surface-container w-full rounded-md border px-3 py-2 text-sm"
         />
       </label>
 
@@ -400,14 +403,14 @@ function NewTeamForm({
               name={`member_${i}_name`}
               placeholder={`Player ${i + 2} name`}
               maxLength={120}
-              className="border-border-base bg-surface rounded-md border px-3 py-2 text-sm"
+              className="border-border-base bg-md-surface-container rounded-md border px-3 py-2 text-sm"
             />
             <input
               name={`member_${i}_email`}
               type="email"
               placeholder="email (optional)"
               maxLength={200}
-              className="border-border-base bg-surface rounded-md border px-3 py-2 text-sm"
+              className="border-border-base bg-md-surface-container rounded-md border px-3 py-2 text-sm"
             />
           </div>
         ))}
@@ -438,7 +441,7 @@ function CaptainRegistrationCard({
   const pill = PAYMENT_PILL[registration.paymentStatus];
 
   return (
-    <div className="border-border-base bg-surface space-y-3 rounded-md border p-3">
+    <div className="border-border-base bg-md-surface-container space-y-3 rounded-md border p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-fg text-base font-semibold">{registration.name}</p>
@@ -464,7 +467,7 @@ function CaptainRegistrationCard({
             defaultValue={registration.name}
             required
             maxLength={120}
-            className="border-border-base bg-surface flex-1 rounded-md border px-3 py-1.5 text-sm"
+            className="border-border-base bg-md-surface-container flex-1 rounded-md border px-3 py-1.5 text-sm"
           />
           <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50">
             Rename
@@ -516,14 +519,14 @@ function CaptainRegistrationCard({
               name="member_name"
               placeholder="Name"
               maxLength={120}
-              className="border-border-base bg-surface rounded-md border px-3 py-1.5 text-sm"
+              className="border-border-base bg-md-surface-container rounded-md border px-3 py-1.5 text-sm"
             />
             <input
               name="member_email"
               type="email"
               placeholder="email (optional)"
               maxLength={200}
-              className="border-border-base bg-surface rounded-md border px-3 py-1.5 text-sm"
+              className="border-border-base bg-md-surface-container rounded-md border px-3 py-1.5 text-sm"
             />
             <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50">
               Add player

@@ -32,7 +32,7 @@ export function EventTimeframeTabs({ when, showFollowing, followingCount, hrefFo
   return (
     <nav
       aria-label="Event timeframe"
-      className="border-border-base bg-surface inline-flex rounded-md border p-0.5 text-sm"
+      className="border-border-base bg-md-surface-container inline-flex rounded-md border p-0.5 text-sm"
     >
       <Link
         href={hrefFor('upcoming')}

@@ -192,7 +192,7 @@ export default async function CommunityListingsPage(props: {
 
       <form
         method="get"
-        className="border-border-base bg-surface rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+        className="border-border-base bg-md-surface-container rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
       >
         <input type="hidden" name="when" value={when} />
         {/* Preserve an active location across an Apply (the GET form would

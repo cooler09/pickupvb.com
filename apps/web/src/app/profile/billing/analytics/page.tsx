@@ -72,7 +72,7 @@ export default async function HostAnalyticsPage() {
     return (
       <div className="mx-auto max-w-3xl space-y-6 py-4">
         <PageHeader />
-        <section className="border-border-base bg-surface rounded-shape-sm space-y-4 border p-5 sm:p-6">
+        <section className="border-border-base bg-md-surface-container rounded-shape-sm space-y-4 border p-5 sm:p-6">
           <h2 className="text-fg text-lg font-semibold">Pro feature</h2>
           <p className="text-muted text-sm">
             Host analytics is included with Pro. Upgrade to unlock fill-rate and repeat-attendee
@@ -191,7 +191,7 @@ export default async function HostAnalyticsPage() {
       <PageHeader />
 
       {events.length === 0 && (
-        <section className="border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6">
+        <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6">
           <p className="text-muted text-sm">
             No hosted events yet. Publish your first event to start building analytics history.
           </p>
@@ -223,7 +223,7 @@ export default async function HostAnalyticsPage() {
             />
           </section>
 
-          <section className="border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6">
+          <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6">
             <h2 className="text-fg text-lg font-semibold">Revenue trend</h2>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
               <MoneyStat label="Gross" value={usd(grossCents)} />
@@ -270,7 +270,7 @@ export default async function HostAnalyticsPage() {
             </div>
           </section>
 
-          <section className="border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6">
+          <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6">
             <h2 className="text-fg text-lg font-semibold">Recent events</h2>
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -331,7 +331,7 @@ function PageHeader() {
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="border-border-base bg-surface rounded-shape-sm border p-4">
+    <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
       <p className="text-muted text-xs font-semibold tracking-wide uppercase">{label}</p>
       <p className="text-fg text-headline-sm mt-1 font-bold">{value}</p>
       <p className="text-muted mt-1 text-xs">{hint}</p>

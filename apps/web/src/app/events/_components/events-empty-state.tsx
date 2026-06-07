@@ -46,7 +46,7 @@ export function EventsEmptyState({
   }
 
   return (
-    <div className="border-border-base bg-surface rounded-shape-sm border p-8 text-center">
+    <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-8 text-center">
       <h3 className="text-fg text-base font-semibold">{title}</h3>
       {body && <p className="text-muted mt-1 text-sm">{body}</p>}
       <div className="mt-4 flex flex-wrap justify-center gap-3">

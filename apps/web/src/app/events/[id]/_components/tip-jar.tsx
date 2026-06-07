@@ -76,7 +76,7 @@ export function TipJar({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="border-border-base bg-surface hover:bg-fg/5 mt-3 rounded-md border px-3 py-1.5 text-sm font-medium"
+          className="border-border-base bg-md-surface-container hover:bg-fg/5 mt-3 rounded-md border px-3 py-1.5 text-sm font-medium"
         >
           Leave a tip
         </button>
@@ -91,7 +91,7 @@ export function TipJar({
                 className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
                   amount === String(dollars)
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border-base bg-surface hover:bg-fg/5'
+                    : 'border-border-base bg-md-surface-container hover:bg-fg/5'
                 }`}
               >
                 ${dollars}
@@ -106,7 +106,7 @@ export function TipJar({
                 max={MAX_TIP_CENTS / 100}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="border-border-base bg-surface w-20 rounded-md border px-2 py-1"
+                className="border-border-base bg-md-surface-container w-20 rounded-md border px-2 py-1"
               />
             </label>
           </div>
@@ -125,7 +125,7 @@ export function TipJar({
                 rows={2}
                 maxLength={280}
                 placeholder="Optional note (visible to the host)"
-                className="border-border-base bg-surface w-full rounded-md border p-2 text-sm"
+                className="border-border-base bg-md-surface-container w-full rounded-md border p-2 text-sm"
               />
               <div className="flex items-center gap-2">
                 <SubmitButton disabled={!validAmount} className={primaryButtonClass('md')}>
@@ -151,14 +151,14 @@ export function TipJar({
                 required
                 maxLength={80}
                 placeholder="Your name (shown to the host)"
-                className="border-border-base bg-surface w-full rounded-md border p-2 text-sm"
+                className="border-border-base bg-md-surface-container w-full rounded-md border p-2 text-sm"
               />
               <textarea
                 name="message"
                 rows={2}
                 maxLength={280}
                 placeholder="Optional note (visible to the host)"
-                className="border-border-base bg-surface w-full rounded-md border p-2 text-sm"
+                className="border-border-base bg-md-surface-container w-full rounded-md border p-2 text-sm"
               />
               <TurnstileWidget />
               <div className="flex items-center gap-2">

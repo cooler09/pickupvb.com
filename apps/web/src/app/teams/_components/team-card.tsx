@@ -35,7 +35,7 @@ export function TeamCard({
     <li>
       <Link
         href={`/teams/${team.slug}`}
-        className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-start justify-between gap-3 border p-3"
+        className="border-border-base bg-md-surface-container hover:border-primary/40 rounded-shape-sm flex items-start justify-between gap-3 border p-3"
       >
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{team.name}</p>

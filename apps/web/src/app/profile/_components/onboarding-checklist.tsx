@@ -43,7 +43,7 @@ export function OnboardingChecklist({
 function ChecklistRow({ step }: { step: OnboardingStepStatus }) {
   if (step.done) {
     return (
-      <li className="border-border-base bg-surface/60 flex items-center gap-3 rounded-md border p-3">
+      <li className="border-border-base bg-md-surface-container/60 flex items-center gap-3 rounded-md border p-3">
         <CheckMark />
         <span className="min-w-0 flex-1">
           <span className="text-muted block text-sm font-medium line-through">{step.title}</span>
@@ -56,7 +56,7 @@ function ChecklistRow({ step }: { step: OnboardingStepStatus }) {
     <li>
       <Link
         href={step.href as Route}
-        className="border-border-base bg-surface hover:border-primary/40 flex items-center gap-3 rounded-md border p-3"
+        className="border-border-base bg-md-surface-container hover:border-primary/40 flex items-center gap-3 rounded-md border p-3"
       >
         <PendingCircle />
         <span className="min-w-0 flex-1">

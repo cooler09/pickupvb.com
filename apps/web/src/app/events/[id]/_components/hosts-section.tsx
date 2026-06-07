@@ -180,7 +180,7 @@ export function HostsSection({
                   <select
                     name="group_id"
                     defaultValue=""
-                    className="border-border-base bg-surface mt-1 block rounded-md border px-2 py-1 text-sm"
+                    className="border-border-base bg-md-surface-container mt-1 block rounded-md border px-2 py-1 text-sm"
                   >
                     <option value="">Pick a group…</option>
                     {viewerHostableGroups.map((g) => (

@@ -19,7 +19,7 @@ export function AddMediaForm({ eventId }: { eventId: string }) {
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="border-border-base bg-surface rounded-shape-sm border p-4"
+      className="border-border-base bg-md-surface-container rounded-shape-sm border p-4"
     >
       <summary className="text-fg cursor-pointer text-sm font-semibold">
         Post a video, stream, or clip

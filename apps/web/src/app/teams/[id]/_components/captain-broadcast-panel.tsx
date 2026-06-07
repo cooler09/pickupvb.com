@@ -27,7 +27,7 @@ export function CaptainBroadcastPanel({
     <details
       open={open}
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
-      className="rounded-shape-sm border-border-base bg-surface border p-4"
+      className="rounded-shape-sm border-border-base bg-md-surface-container border p-4"
     >
       <summary className="text-fg cursor-pointer text-sm font-semibold">
         Message team <span className="text-muted font-normal">({memberCount})</span>

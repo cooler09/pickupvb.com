@@ -79,7 +79,7 @@ export function HeroImageUpload({ entityType, entityId, userId, currentUrl, onSa
             )}
           </div>
           {!uploading && (
-            <div className="border-border-base bg-surface flex items-center gap-3 border-t px-3 py-2">
+            <div className="border-border-base bg-md-surface-container flex items-center gap-3 border-t px-3 py-2">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}

@@ -75,7 +75,7 @@ export function SponsorLogoUpload({ eventId, userId, currentUrl }: Props) {
             width={48}
             height={48}
             unoptimized
-            className="border-border-base bg-surface h-12 w-12 rounded-md border object-cover"
+            className="border-border-base bg-md-surface-container h-12 w-12 rounded-md border object-cover"
           />
           <button
             type="button"

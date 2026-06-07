@@ -135,7 +135,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                   <select
                     name="division_id"
                     required
-                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                    className="border-border-base bg-md-surface-container rounded-md border px-2 py-1 text-sm"
                   >
                     {addableDivisions.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -150,7 +150,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                     name="team_name"
                     required
                     maxLength={120}
-                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                    className="border-border-base bg-md-surface-container rounded-md border px-2 py-1 text-sm"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -159,7 +159,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                     name="captain_display_name"
                     required
                     maxLength={80}
-                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                    className="border-border-base bg-md-surface-container rounded-md border px-2 py-1 text-sm"
                   />
                 </label>
                 <label className="flex flex-col gap-1">
@@ -168,7 +168,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                     name="captain_phone"
                     maxLength={40}
                     inputMode="tel"
-                    className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                    className="border-border-base bg-md-surface-container rounded-md border px-2 py-1 text-sm"
                   />
                 </label>
               </div>
@@ -179,7 +179,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                 <textarea
                   name="members"
                   rows={3}
-                  className="border-border-base bg-surface rounded-md border px-2 py-1 text-sm"
+                  className="border-border-base bg-md-surface-container rounded-md border px-2 py-1 text-sm"
                 />
               </label>
               <ModalFooter>
@@ -214,7 +214,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
             return (
               <li
                 key={r.id}
-                className="border-border-base bg-surface space-y-2 rounded-md border p-3"
+                className="border-border-base bg-md-surface-container space-y-2 rounded-md border p-3"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -268,7 +268,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                         name="note"
                         placeholder="Cash note (optional)"
                         maxLength={500}
-                        className="border-border-base bg-surface rounded-md border px-2 py-1 text-xs"
+                        className="border-border-base bg-md-surface-container rounded-md border px-2 py-1 text-xs"
                       />
                       <SubmitButton className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50">
                         Mark paid (cash)
