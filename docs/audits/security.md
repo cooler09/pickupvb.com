@@ -15,14 +15,16 @@ bypass) usage, RLS column-pinning, route auth. **Headline: 2 P1 (one a confirmed
 un-applied regression) + 1 P2 worsened + 1 P2 new + 1 P3 new.** Full write-up:
 [§ Reevaluation — 2026-06-07](#reevaluation--2026-06-07).
 
-> **✅ Remediated (2026-06-07):** the two P1s + the cron fail-open (P2 #13) and the
-> RLS column-pinning gaps (P2 #16) are fixed and verified
+> **✅ All five findings remediated (2026-06-07):** the two P1s, the cron
+> fail-open (P2 #13), the RLS column-pinning gaps (P2 #16), and the public
+> `/api/sentry-test` (P3 #17) are fixed and verified
 > (`pnpm typecheck && lint && test && build` green) — see the
-> [P1 bundle entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening) and the
-> [P2 #16 entry](#2026-06-07--p2-16-rls-column-pinning-on-media_posts--messages)
-> (the two trigger migrations are **deploy-gated** — CI applies them). **Still
-> open: P3 #17** (`/api/sentry-test`). The bullets below describe the findings
-> as-found.
+> [P1 bundle entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening), the
+> [P2 #16 entry](#2026-06-07--p2-16-rls-column-pinning-on-media_posts--messages),
+> and the [P3 #17 entry](#2026-06-07--p3-17-sentry-test-gated) (the two trigger
+> migrations are **deploy-gated** — CI applies them). The bullets below describe
+> the findings as-found. _(Pre-existing backlog untouched: P2 #3b CSP nonce,
+> P3 #8 audit-log coverage, and the P1 #14 `getBracketMeta` spectator follow-up.)_
 
 - **P1 #12 is STILL OPEN — the 2026-05-30 recommended fix was never applied.**
   Re-confirmed exploitable at HEAD: `addEventCoHost` / `add|update|removeEventDivision`
@@ -640,6 +642,14 @@ Add a regression test per surface (e.g. "submitter cannot self-feature",
 
 ### P3 #17 — `/api/sentry-test` is publicly invokable 🆕 2026-06-07
 
+> **✅ Resolved 2026-06-07.** The `GET` now gates on
+> [`isCronAuthorized`](../../apps/web/src/lib/cron-auth.ts) — open in local dev
+> (no `CRON_SECRET`), secret-required on every deployed environment — and returns
+> 404 to unauthorized callers so the debug surface stays invisible. Kept (not
+> deleted) so Sentry can still be verified on a deployed env via
+> `curl -H "Authorization: Bearer $CRON_SECRET" …`. See the
+> [remediation entry](#2026-06-07--p3-17-sentry-test-gated).
+
 **Category:** Stale debug surface / abuse
 **File:** [apps/web/src/app/api/sentry-test/route.ts](../../apps/web/src/app/api/sentry-test/route.ts)
 
@@ -881,6 +891,19 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-06-07 — P3 #17 (sentry-test gated)
+
+[apps/web/src/app/api/sentry-test/route.ts](../../apps/web/src/app/api/sentry-test/route.ts)
+`GET` now returns 404 unless `isCronAuthorized` passes (open in local dev with no
+`CRON_SECRET`; Bearer-secret-required on every deployed env). Closes the
+public-abuse vector (loop-to-inflate-Sentry-quota / forced unhandled rejections)
+while keeping the diagnostic usable by an authorized caller — gated rather than
+deleted because the maintainer keeps such diagnostics (cf. the `test-push`
+route). Reuses the P2 #13 helper rather than a bespoke `NODE_ENV` check, which
+would also have 404'd on Vercel **preview** (where `NODE_ENV=production`).
+Verified `pnpm typecheck && lint && test && build` green. **This closes every
+finding from the 2026-06-07 re-audit.**
 
 ### 2026-06-07 — P2 #16 (RLS column-pinning on media_posts + messages)
 
