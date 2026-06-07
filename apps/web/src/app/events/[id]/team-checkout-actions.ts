@@ -7,7 +7,7 @@ import {
   EventType,
   PriceUnit,
   TeamRegistrationMode,
-  type EventTeamRegistrationId,
+  EventTeamRegistrationId,
 } from '@pickupvb/domain';
 import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
@@ -51,7 +51,7 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
 
   // Load the registration first; we need the event id to build flash redirects.
   const registration = await eventTeamRegistrationRepo.findById(
-    registrationId as never as EventTeamRegistrationId,
+    EventTeamRegistrationId(registrationId),
   );
   if (!registration) {
     // Without an event id we can't redirect to the event page; bounce home.

@@ -20,14 +20,18 @@ export type NotificationKind =
   | 'event.updated'
   | 'event.reminder.24h'
   | 'event.reminder.2h'
+  | 'league.match.reminder'
   | 'payment.refunded'
   | 'host.payout.paid'
   | 'host.stripe.action_required'
   | 'social.follow.new'
+  | 'event.free_agent.picked_up'
   | 'badge.earned'
   | 'team.invite'
   | 'broadcast.host_message'
   | 'chat.message.received'
+  | 'community.claim.pending'
+  | 'community.claim.approved'
   | 'account.deletion.requested'
   | 'account.deletion.cancelled';
 
@@ -51,14 +55,22 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'event.updated': 'event_reminders',
   'event.reminder.24h': 'event_reminders',
   'event.reminder.2h': 'event_reminders',
+  'league.match.reminder': 'event_reminders',
   'payment.refunded': 'transactional',
   'host.payout.paid': 'host_payouts',
   'host.stripe.action_required': 'transactional',
   'social.follow.new': 'social',
+  'event.free_agent.picked_up': 'group_activity',
   'badge.earned': 'social',
   'team.invite': 'group_activity',
   'broadcast.host_message': 'broadcasts',
   'chat.message.received': 'messages',
+  // Community-listing claims are actionable account events about content the
+  // user submitted/claimed — transactional so they're never silently disabled
+  // (the submitter must decide, and a disabled ping + the 7-day auto-approve
+  // would otherwise redirect their listing without their knowledge).
+  'community.claim.pending': 'transactional',
+  'community.claim.approved': 'transactional',
   'account.deletion.requested': 'transactional',
   'account.deletion.cancelled': 'transactional',
 };
@@ -71,10 +83,12 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   'event.updated': ['email', 'push', 'in_app'],
   'event.reminder.24h': ['email', 'push', 'in_app'],
   'event.reminder.2h': ['email', 'push', 'in_app'],
+  'league.match.reminder': ['email', 'push', 'in_app'],
   'payment.refunded': ['email', 'in_app'],
   'host.payout.paid': ['email', 'in_app'],
   'host.stripe.action_required': ['email', 'in_app'],
   'social.follow.new': ['in_app'],
+  'event.free_agent.picked_up': ['email', 'push', 'in_app'],
   'badge.earned': ['in_app'],
   'team.invite': ['email', 'push', 'in_app'],
   'broadcast.host_message': ['email', 'push', 'in_app'],
@@ -82,6 +96,10 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   // event); the dispatch site coalesces a back-and-forth so a thread doesn't
   // spam. See lib/notify-chat.ts.
   'chat.message.received': ['push', 'in_app'],
+  // Submitter gets an email + bell to review; the claimant's approval ping is
+  // bell-only (informational, no email-worthy action).
+  'community.claim.pending': ['email', 'in_app'],
+  'community.claim.approved': ['in_app'],
   'account.deletion.requested': ['email', 'in_app'],
   'account.deletion.cancelled': ['email', 'in_app'],
 };
@@ -130,6 +148,16 @@ export type NotificationPayloadMap = {
     startsAt: string;
     location: string;
   };
+  'league.match.reminder': {
+    eventId: string;
+    eventTitle: string;
+    /** The recipient's opponent in this fixture. */
+    opponentName: string;
+    /** ISO kickoff time. */
+    scheduledAt: string;
+    /** Court label, when the host set one. */
+    courtLabel: string | null;
+  };
   'payment.refunded': {
     eventId: string;
     eventTitle: string;
@@ -145,6 +173,15 @@ export type NotificationPayloadMap = {
   'social.follow.new': {
     followerId: string;
     followerName: string;
+  };
+  'event.free_agent.picked_up': {
+    /** Event the free-agent pool belonged to (context in the message). */
+    eventTitle: string;
+    teamName: string;
+    /** Team slug — drives the href to accept the resulting roster invite. */
+    teamSlug: string;
+    /** Display name of the captain who picked them up. */
+    captainName: string;
   };
   'badge.earned': {
     /** Display title of the badge earned (e.g. "Champion", "Summer Slam 2026"). */
@@ -169,6 +206,17 @@ export type NotificationPayloadMap = {
     senderName: string;
     /** Short, already-truncated message preview (or a placeholder for images). */
     preview: string;
+  };
+  'community.claim.pending': {
+    /** Slug of the listing the claim targets (drives the review href). */
+    listingSlug: string;
+    listingTitle: string;
+    /** Display name of the host who filed the claim. */
+    claimantName: string;
+  };
+  'community.claim.approved': {
+    listingSlug: string;
+    listingTitle: string;
   };
   'account.deletion.requested': {
     /** ISO date the account is scheduled to be permanently deleted. */

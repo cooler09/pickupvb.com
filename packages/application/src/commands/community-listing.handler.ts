@@ -22,7 +22,7 @@ import {
   ReportCommunityListingCommand,
   UnhideCommunityListingCommand,
   UpdateCommunityListingCommand,
-} from '../messages';
+} from '../messages/index';
 
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 5;
@@ -35,8 +35,8 @@ function toListingLocation(
         region?: string | null | undefined;
         postalCode?: string | null | undefined;
         country: string;
-        latitude: number;
-        longitude: number;
+        latitude?: number | null | undefined;
+        longitude?: number | null | undefined;
       }
     | null
     | undefined,
@@ -48,8 +48,8 @@ function toListingLocation(
     region: loc.region ?? null,
     postalCode: loc.postalCode ?? null,
     country: loc.country,
-    latitude: loc.latitude,
-    longitude: loc.longitude,
+    latitude: loc.latitude ?? null,
+    longitude: loc.longitude ?? null,
   };
 }
 
@@ -157,6 +157,14 @@ export class DeleteCommunityListingHandler {
     if (!listing) throw new NotFoundError('CommunityListing', listingId);
     const admin = await this.isPlatformAdmin(requesterId);
     assertCanManage(String(listing.submitterUserId), requesterId, admin);
+    // A claimed listing is linked to a live PickupVB event (and now redirects to
+    // it). `delete()` is a hard DB delete that bypasses the aggregate's
+    // `remove()` guard, so block it here for non-admins — mirrors the domain
+    // invariant "claimed listings cannot be removed." Platform admins keep an
+    // escape hatch for genuine cleanup.
+    if (listing.status === 'claimed' && !admin) {
+      throw new ConflictError('A claimed listing is linked to an event and cannot be deleted.');
+    }
     await this.repo.delete(listingId);
   }
 }
@@ -299,6 +307,33 @@ export class RejectCommunityListingClaimHandler {
 
     listing.rejectClaim();
     await this.repo.save(listing);
+  }
+}
+
+/**
+ * Auto-approve community-listing claims left un-reviewed past a cutoff
+ * (the 7-day backstop in audit CL-4). System action — no approver identity,
+ * so there's no auth gate; the cron route is the only caller. Returns the
+ * approved listings + their claimants so the caller can notify them.
+ */
+export class AutoApproveExpiredCommunityClaimsHandler {
+  constructor(private readonly repo: CommunityListingRepository) {}
+
+  async execute(
+    olderThan: Date,
+    now: Date = new Date(),
+  ): Promise<Array<{ listingId: string; claimantId: string | null }>> {
+    const pending = await this.repo.findClaimPendingOlderThan(olderThan);
+    const approved: Array<{ listingId: string; claimantId: string | null }> = [];
+    for (const listing of pending) {
+      listing.approveClaim(now);
+      await this.repo.save(listing);
+      approved.push({
+        listingId: String(listing.id),
+        claimantId: listing.claimedByUserId ? String(listing.claimedByUserId) : null,
+      });
+    }
+    return approved;
   }
 }
 

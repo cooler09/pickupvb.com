@@ -80,10 +80,7 @@ export async function signupAsGuest(
   }
 
   // (2) Sync the chosen name (and optional email) onto profile + auth user.
-  await supabase
-    .from('profiles')
-    .update({ display_name: displayName } as never)
-    .eq('id', userId);
+  await supabase.from('profiles').update({ display_name: displayName }).eq('id', userId);
 
   if (email.length > 0) {
     // Rate-limit the email-bearing path so a bot can't replay this form

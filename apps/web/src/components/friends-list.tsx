@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { ProfileCard } from '@pickupvb/domain';
 import { removeFriend } from '@/app/friends/actions';
 import { SubmitButton } from '@/components/submit-button';
+import { neutralButtonClass } from '@/components/primary-button';
 
 function initialsOf(p: ProfileCard): string {
   const parts = (p.displayName ?? '').trim().split(/\s+/).filter(Boolean);
@@ -92,10 +93,7 @@ export function FriendsList({
               </div>
             </Link>
             <form action={removeFriend.bind(null, p.id, returnPath)}>
-              <SubmitButton
-                className="border-border-base text-fg/70 rounded-md border px-2 py-1 text-xs hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-                title="Unfollow"
-              >
+              <SubmitButton className={`${neutralButtonClass('sm')} tap-target`} title="Unfollow">
                 Unfollow
               </SubmitButton>
             </form>

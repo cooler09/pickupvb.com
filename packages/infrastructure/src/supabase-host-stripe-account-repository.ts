@@ -57,7 +57,7 @@ export class SupabaseHostStripeAccountRepository implements HostStripeAccountRep
       charges_enabled: account.chargesEnabled,
       payouts_enabled: account.payoutsEnabled,
       details_submitted: account.detailsSubmitted,
-    } as never);
+    });
     if (error) {
       throw new Error(`HostStripeAccount.create(${account.hostId}) failed: ${error.message}`);
     }
@@ -70,7 +70,7 @@ export class SupabaseHostStripeAccountRepository implements HostStripeAccountRep
         charges_enabled: status.chargesEnabled,
         payouts_enabled: status.payoutsEnabled,
         details_submitted: status.detailsSubmitted,
-      } as never)
+      })
       .eq('user_id', hostId);
     if (error) {
       throw new Error(`HostStripeAccount.updateStatusByHostId(${hostId}) failed: ${error.message}`);
@@ -88,7 +88,7 @@ export class SupabaseHostStripeAccountRepository implements HostStripeAccountRep
           charges_enabled: status.chargesEnabled,
           payouts_enabled: status.payoutsEnabled,
           details_submitted: status.detailsSubmitted,
-        } as never,
+        },
         { count: 'exact' },
       )
       .eq('stripe_account_id', accountId);

@@ -30,7 +30,7 @@ import {
   type SortOption,
 } from './event-filter-options';
 
-type Props = {
+export type EventFilterFormProps = {
   when: 'upcoming' | 'past' | 'following';
   surface: Surface | undefined;
   type: Type | undefined;
@@ -76,7 +76,7 @@ export function EventFilterForm({
   price,
   sort,
   location,
-}: Props) {
+}: EventFilterFormProps) {
   const advancedActive = Boolean(ageGroup || teamComposition || seriesName);
   const router = useRouter();
   const [pending, start] = useTransition();

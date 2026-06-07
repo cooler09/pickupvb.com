@@ -10,7 +10,7 @@ import {
   type VolleyballEventSummary,
 } from '@pickupvb/domain';
 import { GetEventBracketMetaHandler } from './event-detail.handler.js';
-import { GetEventBracketMetaQuery } from '../messages.js';
+import { GetEventBracketMetaQuery } from '../messages/index.js';
 
 const META: EventBracketMetaReadModel = {
   id: 'event-1',

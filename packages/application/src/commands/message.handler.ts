@@ -16,7 +16,7 @@ import {
   OpenDmCommand,
   ReportMessageCommand,
   SendMessageCommand,
-} from '../messages';
+} from '../messages/index';
 
 /**
  * Open (get-or-create) the single room conversation for a context. Membership

@@ -4,6 +4,9 @@ import {
   Bracket,
   DEFAULT_BRACKET_CONFIG,
   assignCourtsAndSlots,
+  effectiveBestOf,
+  effectiveTargetScore,
+  generateDoubleElimination,
   generatePlayoffFromRanked,
   generatePoolPlay,
   generateRoundRobin,
@@ -17,7 +20,7 @@ import {
 } from './index.js';
 import type { DivisionId } from '../events/division.js';
 import type { EventId, UserId } from '../events/volleyball-event.js';
-import { InvariantViolation, ValidationError } from '../shared/result.js';
+import { ConflictError, InvariantViolation, ValidationError } from '../shared/result.js';
 
 // ---- Helpers ----------------------------------------------------------
 
@@ -88,6 +91,34 @@ describe('Bracket.create', () => {
     });
     expect(b.config.poolSchedule).toBe('fixed_games');
     expect(b.config.poolGamesPerTeam).toBe(3);
+  });
+
+  it('accepts per-game target scores (ADR 0032)', () => {
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      targetScores: [25, 25, 15],
+      playoffTargetScores: [25, 25, 15],
+    });
+    expect(b.config.targetScores).toEqual([25, 25, 15]);
+    expect(b.config.playoffTargetScores).toEqual([25, 25, 15]);
+  });
+
+  it('rejects an empty per-game target array', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', { targetScores: [] }),
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects non-positive / non-integer per-game targets', () => {
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+        targetScores: [25, 0, 15],
+      }),
+    ).toThrow(ValidationError);
+    expect(() =>
+      Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+        playoffTargetScores: [25, 12.5],
+      }),
+    ).toThrow(ValidationError);
   });
 });
 
@@ -234,6 +265,263 @@ describe('double elimination — losers bracket advancement', () => {
     b.resetMatch(semis[0]!.id);
     const lbAfter = b.matches.find((m) => m.id === lbMatch!.id)!;
     expect(lbAfter.entryAId === droppedLoser || lbAfter.entryBId === droppedLoser).toBe(false);
+  });
+});
+
+// ---- Double elimination — non-power-of-two byes + reset final -------
+
+describe('double elimination — non-power-of-two fields (byes)', () => {
+  const eventId = 'event-de-bye' as EventId;
+  const divisionId = 'division-de-bye' as DivisionId;
+
+  it('generates a 6-team double elim with two WB-R1 byes and a reset final (no power-of-two throw)', () => {
+    const matches = generateDoubleElimination(seedTeams(6), mkIdFactory());
+    const wbR1Byes = matches.filter(
+      (m) => m.bracketSide === 'winners' && m.round === 1 && m.status === 'bye',
+    );
+    expect(wbR1Byes.length).toBe(2); // P=8, 4 WB-R1 matches, 6 teams → 2 byes
+    // Grand final + reset are both `final`.
+    expect(matches.filter((m) => m.bracketSide === 'final').length).toBe(2);
+    // Pruning left no LB match with a permanently-empty slot: every surviving LB
+    // match is either fed by two live sources or is a real R1 with two seeds.
+  });
+
+  for (const n of [5, 6, 7]) {
+    it(`an ${n}-team double elim plays through to a single champion (top seed wins out)`, () => {
+      const b = Bracket.create(
+        `bracket-de-${n}` as BracketId,
+        eventId,
+        divisionId,
+        'double_elimination',
+        { bestOf: 1 }, // one set decides; entryA (top row) always wins
+      );
+      b.seedTeams(seedTeams(n).map((s) => s.entryId));
+      b.generate(mkIdFactory());
+      b.publish();
+
+      // Record every playable match (entryA always wins) until none remain. If
+      // bye pruning left an unreachable match, this stalls and the status
+      // assertion below fails.
+      for (let i = 0; i < 200; i++) {
+        const next = b.matches.find(
+          (m) => m.status !== 'completed' && m.status !== 'bye' && m.entryAId && m.entryBId,
+        );
+        if (!next) break;
+        b.recordResult({
+          matchId: next.id,
+          sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }],
+        });
+      }
+
+      // Whole graph resolved.
+      expect(b.matches.every((m) => m.status === 'completed' || m.status === 'bye')).toBe(true);
+      expect(b.status).toBe('completed');
+      // Every completed match actually had two real teams (no orphan TBD slot).
+      for (const m of b.matches) {
+        if (m.status === 'completed') expect(!!(m.entryAId && m.entryBId)).toBe(true);
+      }
+      // A single champion: the winner of the highest-round completed final.
+      const finals = b.matches
+        .filter((m) => m.bracketSide === 'final' && m.status === 'completed')
+        .sort((x, y) => y.round - x.round);
+      expect(finals[0]?.winnerEntryId).toBeTruthy();
+    });
+  }
+});
+
+describe('double elimination — reset grand final', () => {
+  const recordWinner = (b: Bracket, m: Match, side: 'a' | 'b') =>
+    b.recordResult({
+      matchId: m.id,
+      sets: [
+        { setNumber: 1, teamAScore: side === 'a' ? 25 : 10, teamBScore: side === 'a' ? 10 : 25 },
+      ],
+    });
+
+  it('voids the reset when the winners-bracket team wins the grand final', () => {
+    const b = Bracket.create(
+      'bracket-de-noreset' as BracketId,
+      'event-x' as EventId,
+      'division-x' as DivisionId,
+      'double_elimination',
+      { bestOf: 1 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    b.publish();
+    // Play everything (entryA wins) — the WB team also wins the grand final.
+    for (let i = 0; i < 50; i++) {
+      const next = b.matches.find(
+        (m) => m.status !== 'completed' && m.status !== 'bye' && m.entryAId && m.entryBId,
+      );
+      if (!next) break;
+      recordWinner(b, next, 'a');
+    }
+    expect(b.status).toBe('completed');
+    const finals = b.matches.filter((m) => m.bracketSide === 'final');
+    const reset = finals.sort((x, y) => y.round - x.round)[0]!;
+    expect(reset.status).toBe('bye'); // voided
+    expect(reset.entryAId).toBeNull();
+  });
+
+  it('forces a deciding reset when the losers-bracket team wins the grand final', () => {
+    const b = Bracket.create(
+      'bracket-de-reset' as BracketId,
+      'event-y' as EventId,
+      'division-y' as DivisionId,
+      'double_elimination',
+      { bestOf: 1 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(mkIdFactory());
+    b.publish();
+
+    // Play every non-final match (entryA wins) so only the grand final remains.
+    for (let i = 0; i < 50; i++) {
+      const next = b.matches.find(
+        (m) =>
+          m.status !== 'completed' &&
+          m.status !== 'bye' &&
+          m.entryAId &&
+          m.entryBId &&
+          m.bracketSide !== 'final',
+      );
+      if (!next) break;
+      recordWinner(b, next, 'a');
+    }
+    const gf = b.matches.find(
+      (m) => m.bracketSide === 'final' && m.status !== 'completed' && m.entryAId && m.entryBId,
+    )!;
+    expect(gf).toBeTruthy();
+
+    // The losers-bracket team (slot b) wins the grand final → reset required.
+    recordWinner(b, gf, 'b');
+    expect(b.status).not.toBe('completed');
+    const reset = b.matches.find((m) => m.bracketSide === 'final' && m.id !== gf.id)!;
+    expect(reset.status).toBe('pending');
+    expect(!!(reset.entryAId && reset.entryBId)).toBe(true);
+
+    // Reverting the grand final (still active) pulls the reset back to a clean
+    // slate — it's a conditional game that only exists once the LB side wins.
+    b.resetMatch(gf.id);
+    const resetReverted = b.matches.find((m) => m.id === reset.id)!;
+    expect(resetReverted.entryAId).toBeNull();
+    expect(resetReverted.entryBId).toBeNull();
+    expect(resetReverted.status).toBe('pending');
+
+    // Re-decide the grand final the same way, then play the reset → the bracket
+    // completes with the reset's winner as champion.
+    recordWinner(b, b.matches.find((m) => m.id === gf.id)!, 'b');
+    const resetLive = b.matches.find((m) => m.id === reset.id)!;
+    expect(!!(resetLive.entryAId && resetLive.entryBId)).toBe(true);
+    recordWinner(b, resetLive, 'a');
+    expect(b.status).toBe('completed');
+    expect(resetLive.winnerEntryId).toBeTruthy();
+  });
+});
+
+// ---- Playoff re-seed (host override of the auto cross-seed) ---------
+
+describe('Bracket.seedPlayoff (host re-seed override)', () => {
+  it('rebuilds the playoff from a host-chosen order, placing the new #1 seed on top', () => {
+    // One shared id factory across the whole lifecycle so match ids stay unique
+    // (the real repo uses UUIDs).
+    const ids = mkIdFactory();
+    const b = Bracket.create(
+      'b-seed-playoff' as BracketId,
+      'event-sp' as EventId,
+      'division-sp' as DivisionId,
+      'pool_play_playoff',
+      { bestOf: 1, poolCount: 2, advancePerPool: 2 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(ids);
+    b.publish();
+    // Complete pool play so the playoff can be generated.
+    for (let i = 0; i < 20; i++) {
+      const pm = b.matches.find(
+        (m) => m.pool !== null && m.status === 'pending' && m.entryAId && m.entryBId,
+      );
+      if (!pm) break;
+      b.recordResult({ matchId: pm.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    }
+    b.generatePlayoff(ids);
+    const before = b.matches.filter((m) => m.bracketSide === 'final').length;
+    expect(before).toBeGreaterThan(0);
+
+    // Re-seed with an explicit overall order (all four advance from 2×2).
+    b.seedPlayoff(ids, [tid(4), tid(3), tid(2), tid(1)]);
+    const finals = b.matches.filter((m) => m.bracketSide === 'final');
+    expect(finals.length).toBe(before); // same shape, rebuilt
+    const minRound = Math.min(...finals.map((m) => m.round));
+    const topMatch = finals
+      .filter((m) => m.round === minRound)
+      .sort((x, y) => x.matchNumber - y.matchNumber)[0]!;
+    expect(topMatch.entryAId).toBe(tid(4)); // chosen #1 seed lands in the top slot
+  });
+
+  it('rejects a re-seed once a playoff match has started', () => {
+    const ids = mkIdFactory();
+    const b = Bracket.create(
+      'b-seed-playoff-2' as BracketId,
+      'event-sp2' as EventId,
+      'division-sp2' as DivisionId,
+      'pool_play_playoff',
+      { bestOf: 1, poolCount: 2, advancePerPool: 2 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(ids);
+    b.publish();
+    for (let i = 0; i < 20; i++) {
+      const pm = b.matches.find(
+        (m) => m.pool !== null && m.status === 'pending' && m.entryAId && m.entryBId,
+      );
+      if (!pm) break;
+      b.recordResult({ matchId: pm.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    }
+    b.generatePlayoff(ids);
+    // Start a playoff match.
+    const pf = b.matches.find(
+      (m) => m.bracketSide === 'final' && m.status === 'pending' && m.entryAId && m.entryBId,
+    )!;
+    b.recordResult({ matchId: pf.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    expect(() => b.seedPlayoff(ids, [tid(1), tid(2), tid(3), tid(4)])).toThrow(ConflictError);
+  });
+});
+
+describe('Bracket.generate (single pool → playoff)', () => {
+  it('runs one round-robin pool, then a playoff of the top finishers', () => {
+    // The host can configure a single pool (poolCount: 1): everyone plays one
+    // round-robin, then the top `advancePerPool` advance to a single-elim
+    // playoff. Regression guard for the create path that enables poolCount: 1.
+    const ids = mkIdFactory();
+    const b = Bracket.create(
+      'b-single-pool' as BracketId,
+      'event-sp1' as EventId,
+      'division-sp1' as DivisionId,
+      'pool_play_playoff',
+      { bestOf: 1, poolCount: 1, advancePerPool: 2 },
+    );
+    b.seedTeams(seedTeams(4).map((s) => s.entryId));
+    b.generate(ids);
+    // Single pool ⇒ every generated pool match shares one pool label.
+    const poolMatches = b.matches.filter((m) => m.pool !== null);
+    expect(poolMatches.length).toBeGreaterThan(0);
+    expect(new Set(poolMatches.map((m) => m.pool)).size).toBe(1);
+    expect(b.matches.some((m) => m.bracketSide === 'final')).toBe(false);
+
+    b.publish();
+    for (let i = 0; i < 20; i++) {
+      const pm = b.matches.find(
+        (m) => m.pool !== null && m.status === 'pending' && m.entryAId && m.entryBId,
+      );
+      if (!pm) break;
+      b.recordResult({ matchId: pm.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
+    }
+    b.generatePlayoff(ids);
+    // Top 2 of the single pool → a 1-match final.
+    const finals = b.matches.filter((m) => m.bracketSide === 'final');
+    expect(finals.length).toBe(1);
   });
 });
 
@@ -624,6 +912,64 @@ describe('Bracket.create courtLabels', () => {
   });
 });
 
+// ---- Per-pool advance feasibility (TT-16) ---------------------------
+
+describe('pool-play per-pool advance feasibility (TT-16)', () => {
+  const eventId = 'event-1' as EventId;
+  const divisionId = 'division-1' as DivisionId;
+  const bracketId = 'bracket-1' as BracketId;
+
+  const unevenSeeds = (): Seed[] => [
+    { entryId: tid(1), seed: 1, pool: 'A' },
+    { entryId: tid(2), seed: 2, pool: 'A' },
+    { entryId: tid(3), seed: 3, pool: 'B' },
+    { entryId: tid(4), seed: 4, pool: 'B' },
+    { entryId: tid(5), seed: 5, pool: 'B' },
+    { entryId: tid(6), seed: 6, pool: 'B' },
+  ];
+
+  it('generatePoolPlay rejects a hand-assigned pool smaller than advancePerPool, naming it', () => {
+    expect(() =>
+      generatePoolPlay(
+        unevenSeeds(),
+        2,
+        { schedule: 'round_robin', gamesPerTeam: null, minAdvancePerPool: 3 },
+        mkIdFactory(),
+      ),
+    ).toThrow(/Pool A has 2 team/);
+  });
+
+  it('generatePoolPlay allows pools that all meet advancePerPool', () => {
+    const even: Seed[] = [
+      { entryId: tid(1), seed: 1, pool: 'A' },
+      { entryId: tid(2), seed: 2, pool: 'A' },
+      { entryId: tid(3), seed: 3, pool: 'A' },
+      { entryId: tid(4), seed: 4, pool: 'B' },
+      { entryId: tid(5), seed: 5, pool: 'B' },
+      { entryId: tid(6), seed: 6, pool: 'B' },
+    ];
+    expect(() =>
+      generatePoolPlay(
+        even,
+        2,
+        { schedule: 'round_robin', gamesPerTeam: null, minAdvancePerPool: 3 },
+        mkIdFactory(),
+      ),
+    ).not.toThrow();
+  });
+
+  it('generate() rejects a too-small hand-assigned pool even when the global count passes', () => {
+    // 6 teams, 2 pools advancing 3 → global guard (6 ≥ 2×3) passes, but the
+    // hand-assigned A:2 / B:4 split leaves A short.
+    const b = Bracket.create(bracketId, eventId, divisionId, 'pool_play_playoff', {
+      advancePerPool: 3,
+    });
+    b.seedTeams([tid(1), tid(2), tid(3), tid(4), tid(5), tid(6)]);
+    b.setPools(unevenSeeds().map((s) => ({ entryId: s.entryId, pool: s.pool })));
+    expect(() => b.generate(mkIdFactory())).toThrow(/Pool A/);
+  });
+});
+
 // ---- Per-pool courts -----------------------------------------------
 
 describe('assignCourtsAndSlots courtsByPool', () => {
@@ -974,6 +1320,53 @@ describe('Bracket per-stage / per-match best-of (ADR 0032)', () => {
     // One set can't clinch best-of-3 → still in progress (bestOf:1 would complete).
     b.recordResult({ matchId: m.id, sets: [{ setNumber: 1, teamAScore: 25, teamBScore: 10 }] });
     expect(b.matches.find((x) => x.id === m.id)!.status).toBe('in_progress');
+  });
+
+  // The exported resolvers are the single source of truth the score form uses to
+  // decide how many set inputs to render. If they drift from the bracket's own
+  // winner resolution, a playoff match shows too few/many boxes and a saved
+  // score never clinches — the "doesn't adhere to the format" bug.
+  describe('effectiveBestOf / effectiveTargetScore resolvers', () => {
+    const defaults = { bestOf: 1, playoffBestOf: 3 } as const;
+    const targetDefaults = { targetScore: 21, playoffTargetScore: 25 } as const;
+
+    it('a per-match override wins over both stage and global defaults', () => {
+      const m = { bestOf: 5, bracketSide: 'final' } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, defaults)).toBe(5);
+    });
+
+    it('a `final` match with no override uses the playoff-stage default', () => {
+      const m = { bestOf: null, bracketSide: 'final' } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, defaults)).toBe(3);
+    });
+
+    it('a pool / non-final match with no override uses the global default', () => {
+      const m = { bestOf: null, bracketSide: null } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, defaults)).toBe(1);
+    });
+
+    it('falls back to the global default when no playoff-stage default is set', () => {
+      const m = { bestOf: null, bracketSide: 'final' } as Pick<Match, 'bestOf' | 'bracketSide'>;
+      expect(effectiveBestOf(m, { bestOf: 3, playoffBestOf: null })).toBe(3);
+    });
+
+    it('target score resolves with the same per-match → stage → global precedence', () => {
+      const override = {
+        targetScore: 15,
+        bracketSide: 'final',
+      } as Pick<Match, 'targetScore' | 'bracketSide'>;
+      const playoff = {
+        targetScore: null,
+        bracketSide: 'final',
+      } as Pick<Match, 'targetScore' | 'bracketSide'>;
+      const pool = {
+        targetScore: null,
+        bracketSide: null,
+      } as Pick<Match, 'targetScore' | 'bracketSide'>;
+      expect(effectiveTargetScore(override, targetDefaults)).toBe(15);
+      expect(effectiveTargetScore(playoff, targetDefaults)).toBe(25);
+      expect(effectiveTargetScore(pool, targetDefaults)).toBe(21);
+    });
   });
 });
 

@@ -19,7 +19,7 @@ import {
   RemoveTeamMemberCommand,
   SetTeamExtraMembersCommand,
   WithdrawTeamCommand,
-} from '../messages';
+} from '../messages/index';
 
 export class CreateTeamHandler {
   constructor(private readonly repo: TeamRepository) {}

@@ -7,7 +7,7 @@ import {
   type DeletionRequestRepository,
   type UserId,
 } from '@pickupvb/domain';
-import { CancelAccountDeletionCommand, RequestAccountDeletionCommand } from '../messages';
+import { CancelAccountDeletionCommand, RequestAccountDeletionCommand } from '../messages/index';
 import {
   CancelAccountDeletionHandler,
   DEFAULT_GRACE_DAYS,

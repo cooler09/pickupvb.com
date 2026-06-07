@@ -87,6 +87,19 @@ export const HOST_ONBOARDING_STEPS: readonly OnboardingStep<HostOnboardingSnapsh
     isComplete: (s) => s.publishedEventCount >= 1,
   },
   {
+    // The payoff that closes the host loop. Optional so it never keeps the card
+    // alive (the first signup usually lands *after* the host publishes, by which
+    // point the required steps are done and the card has hidden — ADR 0035
+    // decision 3); it surfaces the milestone as a "what's next" while a host is
+    // still mid-onboarding.
+    key: 'first-registration',
+    title: 'Get your first registration',
+    description: 'Share your event link — your first signup shows up here',
+    href: '/profile#hosted',
+    optional: true,
+    isComplete: (s) => s.firstRegistrationReceived,
+  },
+  {
     key: 'connect-stripe',
     title: 'Connect Stripe to get paid',
     description: 'Take ticket and registration payments',

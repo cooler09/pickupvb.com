@@ -199,7 +199,19 @@ export function EventCard({ event, friendNameById }: Props) {
       </Link>
       {seriesLabel && <p className="text-muted mt-0.5 text-[11px]">{seriesLabel}</p>}
       <p className="text-muted mt-1 text-xs">
-        {event.relativeDay ? (
+        {event.type === 'league' ? (
+          // A league is a season — show a "Season" label + start date, not a
+          // single-gathering countdown ("Today"/"in 2h") off the season start.
+          <>
+            <span className="text-fg font-medium">Season</span>
+            {' · '}
+            <LocalDateTime
+              iso={startsAtIso}
+              variant="dateShort"
+              {...(event.timeZone !== undefined ? { timeZone: event.timeZone } : {})}
+            />
+          </>
+        ) : event.relativeDay ? (
           <>
             <span className="text-fg font-medium">{event.relativeDay}</span>
             {' · '}

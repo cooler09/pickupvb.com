@@ -73,7 +73,7 @@ export async function cancelEventAction(
   // user-session client to keep that audit trail.
   const { error: updErr } = await supabase
     .from('events')
-    .update({ status: 'cancelled', updated_at: new Date().toISOString() } as never)
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
     .eq('id', eventId);
   if (updErr) return { error: `Cancellation failed: ${updErr.message}` };
 

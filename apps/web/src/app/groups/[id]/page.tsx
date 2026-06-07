@@ -95,10 +95,9 @@ export default async function GroupProfilePage(props: {
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
       <BreadcrumbJsonLd
-        items={[
-          { name: 'Home', url: 'https://pickupvb.com/' },
-          { name: 'Groups', url: 'https://pickupvb.com/groups' },
-          { name: group.name, url: `https://pickupvb.com/groups/${group.slug}` },
+        trail={[
+          { name: 'Groups', path: '/groups' },
+          { name: group.name, path: `/groups/${group.slug}` },
         ]}
       />
       <GroupJsonLd

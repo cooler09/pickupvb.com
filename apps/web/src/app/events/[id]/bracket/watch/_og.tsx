@@ -1,4 +1,4 @@
-import type { BracketFormat, Match } from '@pickupvb/domain';
+import { DivisionId, EventId, type BracketFormat, type Match } from '@pickupvb/domain';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { brandOgImage } from '@/lib/og-image';
 import { handlers, repositories } from '@/lib/handlers';
@@ -33,8 +33,8 @@ export async function renderBracketWatchOg(
       (divisionIdHint && event.divisions.find((d) => d.id === divisionIdHint)) ||
       event.divisions[0]!;
     const [bracket, teams] = await Promise.all([
-      repositories.bracketRepo.findByDivisionId(division.id as never),
-      repositories.bracketRepo.listRegisteredTeams(event.id as never, division.id as never),
+      repositories.bracketRepo.findByDivisionId(DivisionId(division.id)),
+      repositories.bracketRepo.listRegisteredTeams(EventId(event.id), DivisionId(division.id)),
     ]);
 
     // Key on `entryId` — `pickChampion` returns a `winnerEntryId` (FK →

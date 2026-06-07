@@ -8,14 +8,37 @@ import type { CommunityListing, CommunityListingStatus } from './community-listi
  * Write side returns/accepts the `CommunityListing` aggregate.
  * Read side returns denormalized read models shaped for the UI.
  */
+/**
+ * Lightweight identity lookup for the bulk importer's upsert: enough to decide
+ * whether a re-imported draft creates a new listing or updates an existing one,
+ * and to link to it — without rebuilding the full aggregate.
+ */
+export interface CommunityListingIdentity {
+  id: string;
+  slug: string;
+  status: CommunityListingStatus;
+}
+
 export interface CommunityListingRepository {
   // ---- Write side ------------------------------------------------------
   findById(id: string): Promise<CommunityListing | null>;
   findBySlug(slug: string): Promise<CommunityListing | null>;
+  /**
+   * Identity of the earliest listing with this external URL, or null. The
+   * external URL is the stable cross-import key the admin importer upserts on.
+   */
+  findByExternalUrl(externalUrl: string): Promise<CommunityListingIdentity | null>;
   save(listing: CommunityListing): Promise<void>;
   delete(id: string): Promise<void>;
 
-  /** Used for rate limiting: how many active submissions by this user since `since`. */
+  /**
+   * Listings stuck in `claim_pending` whose claim was filed (`claimedAt`)
+   * before `cutoff`. Drives the 7-day auto-approve cron (community-listings
+   * audit CL-4).
+   */
+  findClaimPendingOlderThan(cutoff: Date): Promise<CommunityListing[]>;
+
+  /** Used for rate limiting: how many non-removed submissions by this user since `since`. */
   countByUserSince(userId: string, since: Date): Promise<number>;
 
   /** Records a single report. Throws ConflictError on duplicate (same user, same listing). */
@@ -36,6 +59,12 @@ export interface CommunityListingSearchQuery {
   skillLevel?: SkillLevel;
   startsAfter?: Date;
   startsBefore?: Date;
+  /**
+   * Sort direction by start time. Defaults to `'asc'` (soonest first) for the
+   * upcoming view; pass `'desc'` for a "past events" view so the most recent
+   * past event leads. Ignored when `near` is set (geo results sort by distance).
+   */
+  order?: 'asc' | 'desc';
   /** Pass viewer id so submitters can see their own hidden listings. Admins see all via RLS. */
   viewerId?: string;
   /** Defaults to ['active']. Pass ['active', 'hidden'] for admin views, etc. */
@@ -82,8 +111,9 @@ export interface CommunityListingDetailReadModel {
     region: string | null;
     postalCode: string | null;
     country: string;
-    latitude: number;
-    longitude: number;
+    /** Null when the address couldn't be geocoded (no map / distance search). */
+    latitude: number | null;
+    longitude: number | null;
   } | null;
   surface: Surface | null;
   format: Format | null;

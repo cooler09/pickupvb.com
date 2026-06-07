@@ -15,6 +15,8 @@ export type CommunityListingCardData = {
   format: string | null;
   skillLevel: string | null;
   status: string;
+  /** Distance from the search origin in km, when a "near me" search is active. */
+  distanceKm?: number | null;
 };
 
 /**
@@ -40,7 +42,15 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
         />
       </p>
       {place && <p className="text-fg/80 mt-1 text-sm">{place}</p>}
+      {typeof listing.distanceKm === 'number' && (
+        <p className="text-muted mt-0.5 text-xs">{listing.distanceKm.toFixed(1)} km away</p>
+      )}
       <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
+        {listing.status === 'hidden' && (
+          <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-red-700 dark:text-red-300">
+            Hidden — only you
+          </span>
+        )}
         <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
           Community
         </span>

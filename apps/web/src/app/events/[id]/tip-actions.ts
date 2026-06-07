@@ -106,7 +106,7 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
       platform_fee_cents: platformCut,
       message,
       status: 'pending',
-    } as never)
+    })
     .select('id')
     .single();
   if (insertErr || !inserted) {
@@ -156,10 +156,7 @@ export async function startTipCheckout(eventId: string, formData: FormData): Pro
     backWithError(eventId, 'error', m);
   }
 
-  await supabase
-    .from('event_tips')
-    .update({ stripe_session_id: session.id } as never)
-    .eq('id', tipId);
+  await supabase.from('event_tips').update({ stripe_session_id: session.id }).eq('id', tipId);
 
   if (!session.url) backWithError(eventId, 'error', 'Stripe did not return a URL.');
   // No `revalidatePath` here: payment hasn't completed yet. The Stripe
@@ -211,10 +208,7 @@ export async function startGuestTipCheckout(eventId: string, formData: FormData)
   // Persist chosen name onto profile so it shows on the public tip list.
   const userId = existing?.id ?? (await supabase.auth.getUser()).data.user?.id;
   if (userId) {
-    await supabase
-      .from('profiles')
-      .update({ display_name: displayName } as never)
-      .eq('id', userId);
+    await supabase.from('profiles').update({ display_name: displayName }).eq('id', userId);
   }
 
   await startTipCheckout(eventId, formData);

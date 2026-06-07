@@ -1,23 +1,33 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { ZodError } from 'zod';
 import { CreateCommunityListingSchema, type CreateCommunityListingDto } from '@pickupvb/types';
-import { CreateCommunityListingCommand } from '@pickupvb/application';
+import {
+  CreateCommunityListingCommand,
+  UpdateCommunityListingCommand,
+} from '@pickupvb/application';
 import { ValidationError } from '@pickupvb/domain';
-import { handlers } from '@/lib/handlers';
+import { handlers, repositories } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 import { isPlatformAdmin } from '@/lib/admin';
 import { geocodeAddress } from '@/lib/geocode';
-import { timeZoneForCoords } from '@/lib/timezone';
-import { extractListingDrafts, type ListingDraft } from '@/lib/listing-extract';
+import { timeZoneForCoords, zonedWallClockToUtc } from '@/lib/timezone';
+import { communityListingCacheTag } from '@/lib/cache-tags';
+import type { ListingDraft } from '@/lib/listing-draft';
 
 const RETURN_PATH = '/admin/community-import';
 
-export type ParseResult = { ok: true; drafts: ListingDraft[] } | { ok: false; error: string };
-
 export type ImportRowResult =
-  | { title: string; ok: true; slug: string }
+  | {
+      title: string;
+      ok: true;
+      slug: string;
+      geocoded: boolean;
+      action: 'created' | 'updated';
+      /** True when the upserted row is currently hidden (won't show publicly). */
+      hidden: boolean;
+    }
   | { title: string; ok: false; error: string };
 
 export type ImportResult = { ok: true; results: ImportRowResult[] } | { ok: false; error: string };
@@ -29,26 +39,16 @@ async function requireAdmin(): Promise<{ userId: string } | null> {
   return { userId: viewer.user.id };
 }
 
-/** Step 1: turn pasted event text into reviewable drafts via the AI extractor. */
-export async function parseAction(rawText: string): Promise<ParseResult> {
-  const admin = await requireAdmin();
-  if (!admin) return { ok: false, error: 'Admin access required.' };
-
-  try {
-    const drafts = await extractListingDrafts(rawText);
-    if (drafts.length === 0) {
-      return { ok: false, error: 'No events could be parsed from that text.' };
-    }
-    return { ok: true, drafts };
-  } catch (err) {
-    return { ok: false, error: messageFor(err) };
-  }
-}
-
 /**
- * Step 2: geocode + validate + create each reviewed draft. Per-row failures
- * don't abort the batch — each row reports its own success/error so the admin
- * can fix and retry just the ones that failed.
+ * Geocode + validate + **upsert** each reviewed draft. Re-importing the same
+ * external URL updates the existing listing in place rather than creating a
+ * duplicate — so the importer is idempotent and an admin can keep one
+ * `community-listings.json` as the source of truth. Matching is on
+ * `external_url` (see `findByExternalUrl`); an existing listing that's already
+ * claimed / removed / under review is left untouched and reported as skipped.
+ *
+ * Per-row failures don't abort the batch — each row reports its own
+ * success/error so the admin can fix and retry just the ones that failed.
  */
 export async function importAction(drafts: ListingDraft[]): Promise<ImportResult> {
   const admin = await requireAdmin();
@@ -57,11 +57,48 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
   const results: ImportRowResult[] = [];
   for (const draft of drafts) {
     try {
-      const dto = await draftToDto(draft);
-      const { slug } = await handlers.createCommunityListing.execute(
-        new CreateCommunityListingCommand(admin.userId, dto),
-      );
-      results.push({ title: draft.title, ok: true, slug });
+      const { dto, geocoded } = await draftToDto(draft);
+      const existing = await repositories.communityListingRepo.findByExternalUrl(dto.externalUrl);
+
+      if (existing) {
+        // Don't silently overwrite a listing that's left the editable states —
+        // a claimed/removed/pending listing is no longer a plain import target.
+        if (existing.status !== 'active' && existing.status !== 'hidden') {
+          results.push({
+            title: draft.title,
+            ok: false,
+            error: `Skipped — an existing listing for this URL is ${existing.status.replace('_', ' ')}.`,
+          });
+          continue;
+        }
+        await handlers.updateCommunityListing.execute(
+          new UpdateCommunityListingCommand(existing.id, admin.userId, dto),
+        );
+        updateTag(communityListingCacheTag(existing.slug));
+        revalidatePath(`/community/${existing.slug}`);
+        results.push({
+          title: draft.title,
+          ok: true,
+          slug: existing.slug,
+          geocoded,
+          action: 'updated',
+          // An update leaves status untouched — flag hidden rows so the admin
+          // knows the listing won't reappear publicly until it's un-hidden.
+          hidden: existing.status === 'hidden',
+        });
+      } else {
+        const { slug } = await handlers.createCommunityListing.execute(
+          new CreateCommunityListingCommand(admin.userId, dto),
+        );
+        results.push({
+          title: draft.title,
+          ok: true,
+          slug,
+          geocoded,
+          action: 'created',
+          hidden: false,
+        });
+      }
     } catch (err) {
       results.push({ title: draft.title, ok: false, error: messageFor(err) });
     }
@@ -72,52 +109,81 @@ export async function importAction(drafts: ListingDraft[]): Promise<ImportResult
 }
 
 /**
- * Map a reviewed draft to a `CreateCommunityListingDto`, reusing the exact
- * geocode → timezone → schema pipeline the manual create form uses
- * (`apps/web/src/app/community/new/actions.ts`). Throws `ValidationError` /
- * `ZodError` / a geocode `Error` that `importAction` turns into a row error.
+ * Map a reviewed draft to a `CreateCommunityListingDto`, reusing the geocode →
+ * timezone → schema pipeline the manual create form uses
+ * (`apps/web/src/app/community/new/actions.ts`) — with one deliberate
+ * difference: a geocode miss is **non-fatal** here. The manual form makes the
+ * submitter fix an unresolvable address; the bulk importer instead keeps the
+ * address text and stores no coordinates, so one bad street address doesn't
+ * block the whole row (the listing shows its address but is absent from the
+ * map / distance search until coords are added). The returned `geocoded` flag
+ * lets the importer flag those rows for the admin.
+ *
+ * Throws `ValidationError` / `ZodError` for genuinely invalid rows that
+ * `importAction` turns into a row error.
  */
-async function draftToDto(d: ListingDraft): Promise<CreateCommunityListingDto> {
+async function draftToDto(
+  d: ListingDraft,
+): Promise<{ dto: CreateCommunityListingDto; geocoded: boolean }> {
   const hasAnyAddress = Boolean(d.addressLine || d.city || d.region || d.postalCode || d.country);
 
   let location: CreateCommunityListingDto['location'] = null;
+  let geocoded = true;
   if (hasAnyAddress) {
     if (!d.city || !d.country) {
       throw new ValidationError('City and country are required when a location is provided.');
     }
-    const coords = await geocodeAddress({
-      addressLine: d.addressLine ?? '',
-      city: d.city,
-      region: d.region ?? '',
-      postalCode: d.postalCode ?? '',
-      country: d.country,
-    });
+    let coords: { latitude: number; longitude: number } | null = null;
+    try {
+      coords = await geocodeAddress({
+        addressLine: d.addressLine ?? '',
+        city: d.city,
+        region: d.region ?? '',
+        postalCode: d.postalCode ?? '',
+        country: d.country,
+      });
+    } catch {
+      // Address didn't resolve — keep it as text, store no point.
+      coords = null;
+      geocoded = false;
+    }
     location = {
       addressLine: d.addressLine,
       city: d.city,
       region: d.region,
       postalCode: d.postalCode,
       country: d.country,
-      latitude: coords.latitude,
-      longitude: coords.longitude,
+      latitude: coords?.latitude ?? null,
+      longitude: coords?.longitude ?? null,
     };
   }
 
+  const hasCoords = location?.latitude != null && location?.longitude != null;
+  const timeZone =
+    location && hasCoords
+      ? timeZoneForCoords(location.latitude as number, location.longitude as number)
+      : null;
+
+  // `startsAtLocal` / `endsAtLocal` are venue-local wall-clock with no zone.
+  // Anchor them in the venue timezone before persisting — otherwise the naive
+  // string is parsed in the server's zone (UTC on Vercel) and the listing shows
+  // hours off (the 5am-vs-9am bug). Falls back to UTC when there's no geocoded
+  // zone. See `zonedWallClockToUtc`.
   const raw = {
     title: d.title,
     description: d.description,
     externalUrl: d.externalUrl,
     externalHostName: d.externalHostName,
-    startsAt: d.startsAtLocal,
-    endsAt: d.endsAtLocal || null,
+    startsAt: zonedWallClockToUtc(d.startsAtLocal, timeZone),
+    endsAt: d.endsAtLocal ? zonedWallClockToUtc(d.endsAtLocal, timeZone) : null,
     location,
-    timeZone: location ? timeZoneForCoords(location.latitude, location.longitude) : null,
+    timeZone,
     surface: d.surface,
     format: d.format,
     skillLevel: d.skillLevel,
   };
 
-  return CreateCommunityListingSchema.parse(raw);
+  return { dto: CreateCommunityListingSchema.parse(raw), geocoded };
 }
 
 function messageFor(err: unknown): string {

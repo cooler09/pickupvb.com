@@ -15,8 +15,8 @@
 import {
   InvariantViolation,
   RegistrationPaymentStatus,
-  type EventTeamPaymentId,
-  type EventTeamRegistrationId,
+  EventTeamPaymentId,
+  EventTeamRegistrationId,
 } from '@pickupvb/domain';
 import { repositories } from '@/lib/handlers';
 import { log } from '@/lib/log';
@@ -34,7 +34,7 @@ export async function markTeamRegistrationPaid(args: {
 }): Promise<void> {
   const { eventTeamRegistrationRepo } = repositories;
   const reg = await eventTeamRegistrationRepo.findById(
-    args.registrationId as never as EventTeamRegistrationId,
+    EventTeamRegistrationId(args.registrationId),
   );
   if (!reg) {
     log.warn('webhook.team_registration.missing', { registrationId: args.registrationId });
@@ -57,9 +57,7 @@ export async function markTeamRegistrationPaid(args: {
 
 export async function expireTeamRegistrationCheckout(registrationId: string): Promise<void> {
   const { eventTeamRegistrationRepo } = repositories;
-  const reg = await eventTeamRegistrationRepo.findById(
-    registrationId as never as EventTeamRegistrationId,
-  );
+  const reg = await eventTeamRegistrationRepo.findById(EventTeamRegistrationId(registrationId));
   if (!reg) return;
   reg.expireCheckout(); // no-op unless Pending
   await eventTeamRegistrationRepo.save(reg);
@@ -90,9 +88,7 @@ export async function markRosterTeamPaymentPaid(args: {
   paidAt: Date;
 }): Promise<void> {
   const { eventTeamPaymentRepo } = repositories;
-  const payment = await eventTeamPaymentRepo.findById(
-    args.paymentId as never as EventTeamPaymentId,
-  );
+  const payment = await eventTeamPaymentRepo.findById(EventTeamPaymentId(args.paymentId));
   if (!payment) {
     log.warn('webhook.roster_team_payment.missing', { paymentId: args.paymentId });
     return;
@@ -113,7 +109,7 @@ export async function markRosterTeamPaymentPaid(args: {
 
 export async function expireRosterTeamPaymentCheckout(paymentId: string): Promise<void> {
   const { eventTeamPaymentRepo } = repositories;
-  const payment = await eventTeamPaymentRepo.findById(paymentId as never as EventTeamPaymentId);
+  const payment = await eventTeamPaymentRepo.findById(EventTeamPaymentId(paymentId));
   if (!payment) return;
   payment.expireCheckout();
   await eventTeamPaymentRepo.save(payment);

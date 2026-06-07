@@ -2,14 +2,16 @@ import type { ReactNode } from 'react';
 import {
   computePoolStandings,
   distinctPools,
+  rankAcrossPools,
   type BracketFormat,
   type Match,
   type PoolStanding,
 } from '@pickupvb/domain';
+import { AddMatchButton } from './add-match-button';
 import { MatchCard } from './match-card';
 import { MatchEditor } from './match-editor';
+import { ReseedPlayoffButton } from './reseed-playoff-button';
 import { bindBracketActions, eventScope } from './bracket-action-binding';
-import { reopenBracket, replaceEntryFromForm } from '../actions';
 import type { BracketScope, TeamLite } from './labels';
 import { FormModal, ModalActions } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
@@ -36,6 +38,25 @@ export function pickLatestMatchId(matches: ReadonlyArray<Match>): string | null 
   if (live.length > 0) {
     const m = [...live].sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0]!;
     return String(m.id);
+  }
+  // A pending *deciding* final outranks an already-finished one: the
+  // double-elim reset (a higher-round final than the just-completed grand final)
+  // or the championship awaiting both semifinalists. That's the match everyone's
+  // watching for next, so prefer it over the last completed result.
+  const completedFinals = matches.filter(
+    (m) => m.bracketSide === 'final' && m.status === 'completed',
+  );
+  if (completedFinals.length > 0) {
+    const maxDoneRound = Math.max(...completedFinals.map((m) => m.round));
+    const deciding = matches.find(
+      (m) =>
+        m.bracketSide === 'final' &&
+        m.status === 'pending' &&
+        !!m.entryAId &&
+        !!m.entryBId &&
+        m.round > maxDoneRound,
+    );
+    if (deciding) return String(deciding.id);
   }
   const done = matches.filter((m) => m.status === 'completed');
   if (done.length > 0) {
@@ -65,6 +86,15 @@ export function BoardView(props: {
   bestOf: number;
   /** Stage / global default target score, shown on match cards. */
   targetScore?: number | null;
+  /** Per-game pool/global target scores (ADR 0032) — labels each set input. */
+  targetScores?: ReadonlyArray<number> | null;
+  /** Playoff-stage best-of / target-score defaults (`pool_play_playoff`) — let
+   *  each `final` match resolve its true length instead of the pool default
+   *  (ADR 0032). Omitted ⇒ the playoff reuses the pool-play length. */
+  playoffBestOf?: number | null;
+  playoffTargetScore?: number | null;
+  /** Per-game playoff target scores (ADR 0032). */
+  playoffTargetScores?: ReadonlyArray<number> | null;
   isHost: boolean;
   viewerId: string | null;
   status: 'active' | 'completed';
@@ -73,20 +103,33 @@ export function BoardView(props: {
   highlightMatchId?: string | null;
   /** Host is Pro → MatchCards offer the "Score live" launcher (ADR 0023). */
   liveScoringEnabled?: boolean;
+  /** Pool play: teams advancing per pool — lets the host re-seed the playoff
+   *  (ADR 0032). Omitted ⇒ no re-seed affordance. */
+  advancePerPool?: number;
 }) {
   const scope = props.scope ?? eventScope(props.eventId!, props.divisionId!);
   const a = bindBracketActions(scope);
   const teams = props.teams ?? [];
-  // Host structural edits (fix a matchup, court, length) are an event-scope,
-  // live-bracket privilege (ADR 0032). On a completed bracket the host must
-  // Reopen first (editMatch is rejected once completed).
-  const canStructEdit = props.isHost && scope.kind === 'event' && props.status === 'active';
+  // Host/owner structural edits (fix a matchup, court, length) are a live-bracket
+  // privilege (ADR 0032) — for both event and standalone scope (TT-11). On a
+  // completed bracket the host must Reopen first (editMatch is rejected once
+  // completed).
+  const canStructEdit = props.isHost && props.status === 'active';
+  // The "Default" the editor labels for a match is its *stage* default — the
+  // playoff-stage length for a `final` match, the bracket default otherwise —
+  // so clearing a per-match override falls back to the length the match would
+  // actually be scored at (ADR 0032).
+  const stageBestOf = (m: Match): number =>
+    m.bracketSide === 'final' && props.playoffBestOf != null ? props.playoffBestOf : props.bestOf;
+  const stageTargetScore = (m: Match): number | null =>
+    m.bracketSide === 'final' && props.playoffTargetScore != null
+      ? props.playoffTargetScore
+      : (props.targetScore ?? null);
   const hostEdit = (m: Match): ReactNode =>
-    canStructEdit && m.status !== 'bye' && scope.kind === 'event' ? (
+    canStructEdit && m.status !== 'bye' ? (
       <div className="mt-1 text-right">
         <MatchEditor
-          eventId={scope.eventId}
-          divisionId={scope.divisionId}
+          scope={scope}
           match={{
             id: String(m.id),
             entryAId: m.entryAId,
@@ -96,8 +139,8 @@ export function BoardView(props: {
             targetScore: m.targetScore,
           }}
           teams={teams}
-          defaultBestOf={props.bestOf}
-          defaultTargetScore={props.targetScore ?? null}
+          defaultBestOf={stageBestOf(m)}
+          defaultTargetScore={stageTargetScore(m)}
           allowRemove={false}
         />
       </div>
@@ -122,6 +165,40 @@ export function BoardView(props: {
     poolMatches.length > 0 &&
     poolMatches.every((m) => m.status === 'completed' || m.status === 'bye');
   const playoffExists = playoffMatches.length > 0;
+  // Host may add a game to a "free" schedule (pool play / round robin) while the
+  // bracket is live, e.g. to give a pool an extra match (the domain allows
+  // addMatch in `active`). Elimination brackets are wired and must not gain
+  // ad-hoc games.
+  const canAddGame =
+    props.isHost && props.status === 'active' && (isPoolPlay || props.format === 'round_robin');
+
+  // Host may override the auto cross-seed before any playoff match starts. The
+  // current order is recomputed (rankAcrossPools) so the picker pre-fills with
+  // the existing seeding — leaving it untouched is a no-op.
+  const playoffStarted = playoffMatches.some((m) => m.status !== 'pending' && m.status !== 'bye');
+  const canReseedPlayoff =
+    isPoolPlay &&
+    props.isHost &&
+    props.status === 'active' &&
+    playoffExists &&
+    !playoffStarted &&
+    props.advancePerPool != null;
+  let playoffSeedTeams: { entryId: string; name: string }[] = [];
+  if (canReseedPlayoff) {
+    try {
+      const standingsByPool = distinctPools(poolMatches).map((p) =>
+        computePoolStandings(props.matches, p),
+      );
+      playoffSeedTeams = rankAcrossPools(standingsByPool, props.advancePerPool!)
+        .map((id) => {
+          const t = props.teamById.get(String(id));
+          return t ? { entryId: String(id), name: t.name } : null;
+        })
+        .filter((x): x is { entryId: string; name: string } => x !== null);
+    } catch {
+      playoffSeedTeams = [];
+    }
+  }
 
   const renderMatch = (m: Match) => {
     const isHighlighted = !!props.highlightMatchId && String(m.id) === props.highlightMatchId;
@@ -138,6 +215,10 @@ export function BoardView(props: {
           teamById={props.teamById}
           bestOf={props.bestOf}
           targetScore={props.targetScore ?? null}
+          targetScores={props.targetScores ?? null}
+          playoffBestOf={props.playoffBestOf ?? null}
+          playoffTargetScore={props.playoffTargetScore ?? null}
+          playoffTargetScores={props.playoffTargetScores ?? null}
           isHost={props.isHost}
           viewerId={props.viewerId}
           liveScoringEnabled={props.liveScoringEnabled ?? false}
@@ -188,14 +269,10 @@ export function BoardView(props: {
         </div>
       </div>
 
-      {props.isHost && scope.kind === 'event' && (
-        <LiveHostTools
-          eventId={scope.eventId}
-          divisionId={scope.divisionId}
-          status={props.status}
-          teams={teams}
-        />
-      )}
+      {/* Live host/owner tools — Substitute + per-match Edit while active,
+          Re-open once completed. Works for both event and standalone scope
+          (TT-11). */}
+      {props.isHost && <LiveHostTools scope={scope} status={props.status} teams={teams} />}
 
       {isPoolPlay && poolMatches.length > 0 && (
         <PoolsView
@@ -204,13 +281,16 @@ export function BoardView(props: {
           {...(props.divisionId ? { divisionId: props.divisionId } : {})}
           matches={poolMatches}
           teamById={props.teamById}
+          teams={teams}
           bestOf={props.bestOf}
           targetScore={props.targetScore ?? null}
+          targetScores={props.targetScores ?? null}
           isHost={props.isHost}
           viewerId={props.viewerId}
           highlightMatchId={props.highlightMatchId ?? null}
           liveScoringEnabled={props.liveScoringEnabled ?? false}
           hostEdit={hostEdit}
+          canAddGame={canAddGame}
         />
       )}
 
@@ -243,17 +323,38 @@ export function BoardView(props: {
         </div>
       )}
 
-      {isDoubleElim && playoffMatches.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-fg text-base font-semibold">Grand final</h2>
-          {renderRoundColumns(playoffMatches, () => 'Final')}
-        </div>
-      )}
+      {isDoubleElim &&
+        (() => {
+          // The grand final + (conditional) reset are both `bracketSide:'final'`.
+          // Show the reset only once it's populated — it's voided (empty bye)
+          // when the winners-bracket team takes the grand final, and empty before
+          // the grand final is played. The reset is the higher-numbered round.
+          const finals = playoffMatches.slice().sort((a, b) => a.round - b.round);
+          const visibleFinals = finals.filter((m, i) => i === 0 || !!m.entryAId || !!m.entryBId);
+          if (visibleFinals.length === 0) return null;
+          const resetRound = finals.length > 1 ? finals[finals.length - 1]!.round : null;
+          return (
+            <div className="space-y-2">
+              <h2 className="text-fg text-base font-semibold">Grand final</h2>
+              {renderRoundColumns(visibleFinals, (r) => (r === resetRound ? 'Reset' : 'Final'))}
+            </div>
+          );
+        })()}
 
       {!isDoubleElim && (otherMatches.length > 0 || playoffMatches.length > 0) && (
         <div className="space-y-2">
           {isPoolPlay && playoffMatches.length > 0 && (
-            <h2 className="text-fg text-base font-semibold">Playoff</h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-fg text-base font-semibold">Playoff</h2>
+              {canReseedPlayoff && playoffSeedTeams.length >= 2 && (
+                <ReseedPlayoffButton scope={scope} orderedTeams={playoffSeedTeams} />
+              )}
+            </div>
+          )}
+          {canAddGame && props.format === 'round_robin' && (
+            <div className="flex justify-end">
+              <AddMatchButton scope={scope} teams={teams} label="+ Add game" />
+            </div>
           )}
           {renderRoundColumns([...otherMatches, ...playoffMatches])}
         </div>
@@ -268,16 +369,23 @@ function PoolsView(props: {
   divisionId?: string;
   matches: ReadonlyArray<Match>;
   teamById: ReadonlyMap<string, TeamLite>;
+  /** Deduped registered teams — drives the per-pool "Add game" picker. */
+  teams?: ReadonlyArray<TeamLite>;
   bestOf: number;
   targetScore?: number | null;
+  /** Per-game pool target scores (ADR 0032) — labels each set input. */
+  targetScores?: ReadonlyArray<number> | null;
   isHost: boolean;
   viewerId: string | null;
   highlightMatchId: string | null;
   liveScoringEnabled?: boolean;
   /** Renders the host structural-edit affordance under each match (ADR 0032). */
   hostEdit?: (m: Match) => ReactNode;
+  /** Host may append a game to a pool on the live board (ADR 0032). */
+  canAddGame?: boolean;
 }) {
   const pools = distinctPools(props.matches);
+  const allTeams = props.teams ?? [];
   return (
     <div className="space-y-6">
       {pools.map((pool) => {
@@ -290,9 +398,26 @@ function PoolsView(props: {
         // Reorder is allowed when the host hasn't started any pool match.
         const canReorder =
           props.isHost && poolMatches.every((m) => m.status === 'pending' || m.status === 'bye');
+        // "Add game" offers the teams already in this pool (fallback: all teams).
+        const poolEntryIds = new Set<string>();
+        for (const m of poolMatches) {
+          if (m.entryAId) poolEntryIds.add(m.entryAId);
+          if (m.entryBId) poolEntryIds.add(m.entryBId);
+        }
+        const poolTeams = allTeams.filter((t) => poolEntryIds.has(t.entryId));
         return (
           <div key={pool} className="space-y-2">
-            <h2 className="text-fg text-base font-semibold">Pool {pool}</h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-fg text-base font-semibold">Pool {pool}</h2>
+              {props.canAddGame && (
+                <AddMatchButton
+                  scope={props.scope}
+                  pool={pool}
+                  teams={poolTeams.length > 0 ? poolTeams : allTeams}
+                  label="+ Add game"
+                />
+              )}
+            </div>
             <PoolStandingsTable standings={standings} teamById={props.teamById} />
             <div className="flex flex-wrap gap-2">
               {sortedPoolMatches.map((m, i) => {
@@ -321,6 +446,7 @@ function PoolsView(props: {
                       teamById={props.teamById}
                       bestOf={props.bestOf}
                       targetScore={props.targetScore ?? null}
+                      targetScores={props.targetScores ?? null}
                       isHost={props.isHost}
                       viewerId={props.viewerId}
                       liveScoringEnabled={props.liveScoringEnabled ?? false}
@@ -443,45 +569,47 @@ function PoolStandingsTable(props: {
  * matchup / court / length edits live on each card via the "Edit" affordance.
  */
 function LiveHostTools(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   status: 'active' | 'completed';
   teams: ReadonlyArray<TeamLite>;
 }) {
-  const reopen = reopenBracket.bind(null, props.eventId, props.divisionId);
+  const a = bindBracketActions(props.scope);
+  if (props.status === 'completed') {
+    return <ReopenStrip reopen={a.reopen} />;
+  }
   return (
     <div className="border-border-base bg-fg/5 rounded-shape-sm flex flex-wrap items-center gap-3 border p-3">
       <span className="text-muted text-xs font-semibold tracking-wide uppercase">Host edits</span>
-      {props.status === 'active' ? (
-        <>
-          <SubstituteTeamButton
-            eventId={props.eventId}
-            divisionId={props.divisionId}
-            teams={props.teams}
-          />
-          <span className="text-muted text-xs">
-            Use <span className="text-fg/70">Edit</span> on any match to fix a matchup, court, or
-            match length.
-          </span>
-        </>
-      ) : (
-        <form action={reopen} className="flex items-center gap-2">
-          <SubmitButton className={neutralButtonClass('sm')}>Re-open to edit</SubmitButton>
-          <span className="text-muted text-xs">
-            Re-open this completed bracket to fix a result or matchup.
-          </span>
-        </form>
-      )}
+      <SubstituteTeamButton scope={props.scope} teams={props.teams} />
+      <span className="text-muted text-xs">
+        Use <span className="text-fg/70">Edit</span> on any match to fix a matchup, court, or match
+        length.
+      </span>
     </div>
   );
 }
 
-function SubstituteTeamButton(props: {
-  eventId: string;
-  divisionId: string;
-  teams: ReadonlyArray<TeamLite>;
-}) {
-  const action = replaceEntryFromForm.bind(null, props.eventId, props.divisionId);
+/**
+ * Completed-bracket "Re-open to edit" strip — shared by the event host tools
+ * and the standalone owner board (TT-10). `reopen` is a scope-bound server
+ * action (event → reopenBracket, standalone → reopenStandaloneBracket).
+ */
+function ReopenStrip(props: { reopen: () => void | Promise<void> }) {
+  return (
+    <div className="border-border-base bg-fg/5 rounded-shape-sm flex flex-wrap items-center gap-3 border p-3">
+      <span className="text-muted text-xs font-semibold tracking-wide uppercase">Host edits</span>
+      <form action={props.reopen} className="flex items-center gap-2">
+        <SubmitButton className={neutralButtonClass('sm')}>Re-open to edit</SubmitButton>
+        <span className="text-muted text-xs">
+          Re-open this completed bracket to fix a result or matchup.
+        </span>
+      </form>
+    </div>
+  );
+}
+
+function SubstituteTeamButton(props: { scope: BracketScope; teams: ReadonlyArray<TeamLite> }) {
+  const action = bindBracketActions(props.scope).replaceEntryFromForm;
   return (
     <FormModal
       trigger={(open) => (

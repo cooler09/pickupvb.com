@@ -1,7 +1,10 @@
 import {
   ConflictError,
+  EventId,
   ExternalVideoUrl,
   MediaPost,
+  MediaPostId,
+  UserId,
   type AwardCategory,
   type EventAwards,
   type EventMediaReadModel,
@@ -43,9 +46,9 @@ type ProfileCard = { id: string; display_name: string; avatar_url: string | null
 
 function rowToAggregate(row: MediaRow): MediaPost {
   return MediaPost.fromPersistence({
-    id: row.id as never,
-    submitterUserId: row.submitter_user_id as never,
-    eventId: (row.event_id as never) ?? null,
+    id: MediaPostId(row.id),
+    submitterUserId: UserId(row.submitter_user_id),
+    eventId: row.event_id ? EventId(row.event_id) : null,
     matchId: row.match_id,
     kind: row.kind,
     videoUrl: ExternalVideoUrl.fromPersistence(
@@ -165,7 +168,7 @@ export class SupabaseMediaPostRepository implements MediaPostRepository {
     };
     // `report_count`, `short_code`, `created_at`, `updated_at` are managed by
     // DB defaults/triggers — never overwrite them on upsert.
-    const { error } = await this.table('media_posts').upsert(row as never, { onConflict: 'id' });
+    const { error } = await this.table('media_posts').upsert(row, { onConflict: 'id' });
     if (error) throw new Error(`MediaPost.save(${post.id}) failed: ${error.message}`);
   }
 
@@ -189,7 +192,7 @@ export class SupabaseMediaPostRepository implements MediaPostRepository {
       post_id: postId,
       reporter_user_id: reporterUserId,
       reason,
-    } as never);
+    });
     if (error) {
       if ((error as { code?: string }).code === '23505') {
         throw new ConflictError('You have already reported this video.', {
@@ -223,7 +226,7 @@ export class SupabaseMediaPostRepository implements MediaPostRepository {
         post_id: postId,
         category,
         voter_user_id: voterUserId,
-      } as never,
+      },
       { onConflict: 'event_id,category,voter_user_id' },
     );
     if (error) throw new Error(`MediaPost.castVote failed: ${error.message}`);

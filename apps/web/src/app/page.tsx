@@ -1,16 +1,89 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { redirect } from 'next/navigation';
-import { SearchEventsQuery } from '@pickupvb/application';
+import { unstable_cache } from 'next/cache';
+import { SearchEventsQuery, GetAttendingEventsQuery } from '@pickupvb/application';
+import type { VolleyballEventSummary } from '@pickupvb/domain';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { handlers } from '@/lib/handlers';
-import { getServerSupabase } from '@/lib/supabase';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 import { getCurrentUser } from '@/lib/server-auth';
 import { relativeEventDay } from '@/lib/date-formats';
-import { EventCard } from './events/_components/event-card';
+import { EventCard, type EventCardData } from './events/_components/event-card';
 import { GroupCard } from './groups/_components/group-card';
+import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+
+/**
+ * Cached "peek" reads for the landing page (home-page-ux H-9). The homepage
+ * renders dynamically (it reads `cookies()` via `getCurrentUser` to branch the
+ * guest vs. authed UI), but these two reads are **viewer-independent**, so
+ * re-running them on every hit — most of which are anonymous visitors and
+ * crawlers — was pure waste:
+ *
+ *  - `search_events` ignores the viewer entirely (the RPC takes no viewer arg
+ *    and returns only public, upcoming events), so the peek is identical for
+ *    everyone, signed in or not.
+ *  - the groups peek is the public directory slice.
+ *
+ * Both reads run on the **admin client** — required, because `cookies()` is
+ * forbidden inside `unstable_cache` (Next 16). `searchEvents`'s repo already
+ * self-builds an admin client; the groups repo is handed `getAdminSupabase()`
+ * here. The service-role read is safe precisely because the data is public
+ * (the RPC only emits public events; the groups directory is public).
+ *
+ * Time-based eviction (60s, matching the sibling event-detail caches) rather
+ * than tag-based is deliberate: the peek is a denormalized cross-entity list,
+ * so the per-event `eventCacheTag(id)` tags don't fit `unstable_cache`'s
+ * static-tag model, and it's non-critical marketing where ≤60s staleness on a
+ * new/edited event is fine. `startsAt` comes back as an ISO string on a cache
+ * hit (unstable_cache JSON-serializes) — no revival needed here because both
+ * consumers (`relativeEventDay` and `EventCard`) already accept `Date | string`.
+ */
+const loadHomePeek = unstable_cache(
+  async () => {
+    const now = new Date();
+    return Promise.all([
+      handlers.searchEvents
+        .execute(new SearchEventsQuery(null, { startsAfter: now, limit: 6 }))
+        .catch(() => []),
+      new SupabaseGroupQueryRepository(getAdminSupabase()).listCards(6).catch(() => []),
+    ]);
+  },
+  ['home-peek'],
+  { revalidate: 60 },
+);
+
+/**
+ * Map an event summary to the shared `EventCard` shape. Used by both the public
+ * "Upcoming events" peek and the signed-in "Your upcoming events" peek (H-6).
+ * `now` is the live request time, passed in so the relative-day label is
+ * computed without a `Date.now()` in render (React Compiler purity). Mirrors the
+ * mapping the `/events` and `/profile` pages do.
+ */
+function toEventCardData(e: VolleyballEventSummary, now: Date): EventCardData {
+  return {
+    id: e.id,
+    title: e.title,
+    surface: e.surface,
+    skillLevel: e.skillLevel,
+    type: e.type,
+    startsAt: e.startsAt,
+    timeZone: e.timeZone,
+    city: e.city,
+    region: e.region,
+    heroImageUrl: e.heroImageUrl,
+    relativeDay: relativeEventDay(e.startsAt, e.timeZone, now),
+    spotsRemaining: e.spotsRemaining,
+    distanceKm: e.distanceKm,
+    seriesName: e.seriesName,
+    seriesPosition: e.seriesPosition,
+    seriesSize: e.seriesSize,
+    isFundraiser: e.isFundraiser,
+    divisions: e.divisions,
+  };
+}
 
 export default async function HomePage(props: {
   searchParams?: Promise<{ code?: string; type?: string }>;
@@ -24,26 +97,48 @@ export default async function HomePage(props: {
   }
 
   const { user } = await getCurrentUser();
-  const supabase = await getServerSupabase();
   const now = new Date();
 
-  // Pull a small slice of fresh content to make the landing page feel alive.
-  // Both queries degrade gracefully to empty arrays when there's nothing
-  // (or when the user has no session and RLS limits visibility).
-  const [upcomingEvents, groupRows] = await Promise.all([
-    handlers.searchEvents
-      .execute(
-        new SearchEventsQuery(user?.id ?? null, {
-          startsAfter: now,
-          limit: 6,
-        }),
-      )
-      .catch(() => []),
-    new SupabaseGroupQueryRepository(supabase).listCards(6).catch(() => []),
-  ]);
+  // A small slice of fresh content to make the landing page feel alive. Both
+  // reads are viewer-independent and cached (see `loadHomePeek`), and degrade
+  // gracefully to empty arrays. `now` here is the live request time, used only
+  // for the relative-day labels below.
+  const [upcomingEvents, groupRows] = await loadHomePeek();
+
+  // Signed-in players lead with their own RSVP'd upcoming events (H-6). This is
+  // viewer-scoped, so it stays out of the cached peek above; degrades to [] on
+  // failure. Capped at a compact rail; "See all" links to the profile hub.
+  const myEvents = user
+    ? await handlers.getAttendingEvents
+        .execute(new GetAttendingEventsQuery(user.id, now, 3))
+        .catch(() => [])
+    : [];
 
   return (
     <div className="space-y-16">
+      {/* ── Your upcoming events (signed-in players) ────────────── */}
+      {user && myEvents.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold">Your upcoming events</h2>
+              <p className="text-muted text-sm">Events you&apos;re signed up for.</p>
+            </div>
+            <Link
+              href={'/profile' as Route}
+              className="text-primary text-sm font-medium hover:underline"
+            >
+              See all →
+            </Link>
+          </div>
+          <ul className="stagger-in grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {myEvents.map((e) => (
+              <EventCard key={e.id} event={toEventCardData(e, now)} />
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* ── Hero ────────────────────────────────────────────────── */}
       <section className="grid gap-10 md:grid-cols-2 md:items-center">
         <div className="space-y-6">
@@ -56,7 +151,7 @@ export default async function HomePage(props: {
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/events" className={primaryButtonClass('md')}>
-              Find events near me
+              Find events
             </Link>
             <Link
               href={user ? '/events/new' : '/login?next=/events/new'}
@@ -101,46 +196,37 @@ export default async function HomePage(props: {
       </section>
 
       {/* ── Upcoming events ─────────────────────────────────────── */}
-      {upcomingEvents.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-bold">Upcoming events</h2>
-              <p className="text-muted text-sm">A peek at what&apos;s on the schedule.</p>
+      {/* Always rendered (H-3): in a sparse/new market the peek falls back to a
+          host nudge instead of vanishing, so the page never looks dead. */}
+      <section className="space-y-4">
+        {upcomingEvents.length > 0 ? (
+          <>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-bold">Upcoming events</h2>
+                <p className="text-muted text-sm">A peek at what&apos;s on the schedule.</p>
+              </div>
+              <Link href="/events" className="text-primary text-sm font-medium hover:underline">
+                Browse all →
+              </Link>
             </div>
-            <Link href="/events" className="text-primary text-sm font-medium hover:underline">
-              Browse all →
-            </Link>
-          </div>
-          <ul className="stagger-in grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {upcomingEvents.slice(0, 6).map((e) => (
-              <EventCard
-                key={e.id}
-                event={{
-                  id: e.id,
-                  title: e.title,
-                  surface: e.surface,
-                  skillLevel: e.skillLevel,
-                  type: e.type,
-                  startsAt: e.startsAt,
-                  timeZone: e.timeZone,
-                  city: e.city,
-                  region: e.region,
-                  heroImageUrl: e.heroImageUrl,
-                  relativeDay: relativeEventDay(e.startsAt, e.timeZone, now),
-                  spotsRemaining: e.spotsRemaining,
-                  distanceKm: e.distanceKm,
-                  seriesName: e.seriesName,
-                  seriesPosition: e.seriesPosition,
-                  seriesSize: e.seriesSize,
-                  isFundraiser: e.isFundraiser,
-                  divisions: e.divisions,
-                }}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
+            <ul className="stagger-in grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {upcomingEvents.slice(0, 6).map((e) => (
+                <EventCard key={e.id} event={toEventCardData(e, now)} />
+              ))}
+            </ul>
+          </>
+        ) : (
+          <EmptyState
+            title="No upcoming events yet"
+            description="Be the first to host one — it takes a few minutes and players can sign up in a tap."
+            primary={{
+              href: user ? '/events/new' : '/login?next=/events/new',
+              label: 'Host an event',
+            }}
+          />
+        )}
+      </section>
 
       {/* ── What you can do ─────────────────────────────────────── */}
       <section className="space-y-4">
@@ -163,7 +249,7 @@ export default async function HomePage(props: {
           <ValueCard
             icon="trophy"
             title="Host"
-            body="Spin up an event in minutes. Collect signups, run waitlists, take payment, and broadcast updates."
+            body="Spin up an event in minutes. Collect signups, set capacity, take payment, and broadcast updates."
             cta="Host an event"
             href={(user ? '/events/new' : '/login?next=/events/new') as Route}
           />
@@ -176,7 +262,7 @@ export default async function HomePage(props: {
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="text-2xl font-bold">Groups &amp; organizations</h2>
-              <p className="text-muted text-sm">Clubs, leagues, and crews running events.</p>
+              <p className="text-muted text-sm">Clubs, leagues, and crews on PickupVB.</p>
             </div>
             <Link
               href={'/groups' as Route}
@@ -200,7 +286,7 @@ export default async function HomePage(props: {
             <h2 className="text-2xl font-bold">Running a league or club?</h2>
             <p className="text-fg/80">
               PickupVB gives you everything to run open play, leagues, and tournaments — signups,
-              waitlists, online payments with payout to your bank, broadcasts, and printable
+              capacity limits, online payments with payout to your bank, broadcasts, and printable
               receipts for your players.
             </p>
             <ul className="text-fg/80 grid gap-1.5 text-sm sm:grid-cols-2">
@@ -214,7 +300,7 @@ export default async function HomePage(props: {
               </li>
               <li className="flex items-center gap-2">
                 <Icon name="check" size={16} className="text-primary shrink-0" />
-                Waitlists &amp; capacity rules
+                Capacity &amp; over-fill rules
               </li>
               <li className="flex items-center gap-2">
                 <Icon name="check" size={16} className="text-primary shrink-0" />

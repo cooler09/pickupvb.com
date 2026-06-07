@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
+import { BracketId } from '@pickupvb/domain';
 import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '@/app/events/[id]/bracket/_components/board-view';
 import { LatestMatchTracker } from '@/app/events/[id]/bracket/_components/latest-match-tracker';
@@ -27,7 +28,7 @@ export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await props.params;
-  const bracket = await repositories.bracketRepo.findById(id as never);
+  const bracket = await repositories.bracketRepo.findById(BracketId(id));
   if (!bracket || !bracket.ownerUserId) return { title: 'Live bracket — PickupVB' };
   const title = `Live bracket — ${FORMAT_LABEL[bracket.format]} · PickupVB`;
   return {
@@ -53,11 +54,11 @@ export default async function StandaloneBracketWatchPage(props: {
   const { id } = await props.params;
   const searchParams = await props.searchParams;
 
-  const bracket = await repositories.bracketRepo.findById(id as never);
+  const bracket = await repositories.bracketRepo.findById(BracketId(id));
   if (!bracket || !bracket.ownerUserId) notFound();
 
   const registeredTeams = (await repositories.bracketRepo.listStandaloneTeams(
-    id as never,
+    BracketId(id),
   )) as TeamLite[];
   const teamById = new Map<string, TeamLite>();
   for (const t of registeredTeams) teamById.set(t.entryId, t);
@@ -73,9 +74,16 @@ export default async function StandaloneBracketWatchPage(props: {
       <header className="space-y-1">
         <div className="flex items-center gap-2">
           <h1 className="text-fg text-2xl font-bold">Live bracket</h1>
-          <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
-            ● LIVE
-          </span>
+          {bracket.status === 'active' && (
+            <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+              ● LIVE
+            </span>
+          )}
+          {bracket.status === 'completed' && (
+            <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+              Final
+            </span>
+          )}
         </div>
         <p className="text-fg/80 text-sm">{FORMAT_LABEL[bracket.format]}</p>
         <p className="text-muted text-sm">
@@ -86,10 +94,12 @@ export default async function StandaloneBracketWatchPage(props: {
 
       <BracketRealtimeRefresher bracketId={bracket.id} />
 
-      {bracket.status === 'setup' && (
+      {(bracket.status === 'setup' || bracket.status === 'draft') && (
         <div className="border-border-base bg-bg rounded-shape-sm border p-6 text-center">
           <p className="text-fg/80 text-sm">
-            Seeding is in progress. The bracket will appear here once it{'’'}s generated.
+            {bracket.status === 'draft'
+              ? 'The organizer is finalizing the bracket. It will appear here once they publish it.'
+              : `Seeding is in progress. The bracket will appear here once it${'’'}s generated.`}
           </p>
         </div>
       )}
@@ -106,6 +116,11 @@ export default async function StandaloneBracketWatchPage(props: {
             matches={[...bracket.matches]}
             teamById={teamById}
             bestOf={bracket.config.bestOf}
+            targetScore={bracket.config.targetScore}
+            targetScores={bracket.config.targetScores}
+            playoffBestOf={bracket.config.playoffBestOf}
+            playoffTargetScore={bracket.config.playoffTargetScore}
+            playoffTargetScores={bracket.config.playoffTargetScores}
             isHost={false}
             viewerId={null}
             status={bracket.status}

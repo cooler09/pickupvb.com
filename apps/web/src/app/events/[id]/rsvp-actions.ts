@@ -5,7 +5,9 @@ import { redirect } from 'next/navigation';
 import {
   JoinEventCommand,
   JoinEventWithPositionCommand,
+  JoinWaitlistCommand,
   LeaveEventCommand,
+  LeaveWaitlistCommand,
 } from '@pickupvb/application';
 import {
   CapacityExceededError,
@@ -130,8 +132,79 @@ export async function leaveEvent(eventId: string): Promise<void> {
   }
   // outcome.kind === 'not_paid' → fall through to LeaveEventCommand.
 
+  let promotedUserId: string | null = null;
   try {
-    await handlers.leaveEvent.execute(new LeaveEventCommand(eventId, userId));
+    const result = await handlers.leaveEvent.execute(new LeaveEventCommand(eventId, userId));
+    promotedUserId = result.promotedUserId;
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      revalidatePath(`/events/${eventId}`);
+      back(eventId, 'notin');
+    }
+    const m = err instanceof Error ? err.message : String(err);
+    back(eventId, 'error', m);
+  }
+
+  // The freed seat may have auto-promoted the head of the capacity waitlist
+  // (ADR 0036). Notify them their spot is confirmed — best-effort; a missed
+  // ping never loses the seat (the promotion already persisted).
+  if (promotedUserId) await notifyWaitlistPromotion(eventId, promotedUserId);
+
+  revalidatePath(`/events/${eventId}`);
+  back(eventId, 'left');
+}
+
+/** Best-effort `event.waitlist.promoted` ping after an auto-promotion. */
+async function notifyWaitlistPromotion(eventId: string, promotedUserId: string): Promise<void> {
+  try {
+    const supabase = await getServerSupabase();
+    const { data } = await supabase
+      .from('events')
+      .select('title, starts_at')
+      .eq('id', eventId)
+      .maybeSingle();
+    const e = data as { title: string; starts_at: string } | null;
+    if (!e) return;
+    await notify(
+      'event.waitlist.promoted',
+      promotedUserId,
+      { eventId, eventTitle: e.title, startsAt: e.starts_at },
+      { idempotencyKey: `${eventId}:${promotedUserId}:${e.starts_at}` },
+    );
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Join the capacity waitlist of a full open-play event (ADR 0036). The
+ * "Join waitlist" CTA on a full event posts here instead of the dead-end
+ * `?rsvp=full`. Flash: `waitlisted` on success.
+ */
+export async function joinWaitlist(eventId: string): Promise<void> {
+  const userId = await authedUserIdOrFlash(eventId);
+  try {
+    await handlers.joinWaitlist.execute(new JoinWaitlistCommand(eventId, userId));
+  } catch (err) {
+    if (err instanceof ConflictError) {
+      revalidatePath(`/events/${eventId}`);
+      back(eventId, 'already');
+    }
+    // A spot opened between the page render and the click → the event isn't full
+    // anymore. Nudge them to just join.
+    if (err instanceof InvariantViolation) back(eventId, 'error', err.message);
+    const m = err instanceof Error ? err.message : String(err);
+    back(eventId, 'error', m);
+  }
+  revalidatePath(`/events/${eventId}`);
+  back(eventId, 'waitlisted');
+}
+
+/** Leave the capacity waitlist (ADR 0036). Flash: `left_waitlist`. */
+export async function leaveWaitlist(eventId: string): Promise<void> {
+  const userId = await userIdOrFlash(eventId);
+  try {
+    await handlers.leaveWaitlist.execute(new LeaveWaitlistCommand(eventId, userId));
   } catch (err) {
     if (err instanceof NotFoundError) {
       revalidatePath(`/events/${eventId}`);
@@ -141,7 +214,7 @@ export async function leaveEvent(eventId: string): Promise<void> {
     back(eventId, 'error', m);
   }
   revalidatePath(`/events/${eventId}`);
-  back(eventId, 'left');
+  back(eventId, 'left_waitlist');
 }
 
 /**

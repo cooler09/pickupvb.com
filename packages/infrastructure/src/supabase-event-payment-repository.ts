@@ -43,7 +43,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
         payment_intent_id: paid.paymentIntentId,
         amount_paid_cents: paid.amountCents,
         paid_at: paid.paidAt,
-      } as never)
+      })
       .eq('checkout_session_id', checkoutSessionId);
     if (error) throw new Error(`mark attendee paid failed: ${error.message}`);
   }
@@ -55,7 +55,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
       action: entry.action,
       amount_cents: entry.amountCents,
       payment_intent_id: entry.paymentIntentId,
-    } as never);
+    });
   }
 
   async markTipPaid(
@@ -68,7 +68,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
         status: 'paid',
         stripe_payment_intent_id: paid.paymentIntentId,
         paid_at: paid.paidAt,
-      } as never)
+      })
       .eq('id', tipId);
     if (error) throw new Error(`mark tip paid failed: ${error.message}`);
   }
@@ -87,7 +87,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
         stripe_checkout_session_id: slot.checkoutSessionId,
         stripe_payment_intent_id: slot.paymentIntentId,
         paid_at: slot.paidAt,
-      } as never,
+      },
       { onConflict: 'event_id' },
     );
     if (error) throw new Error(`mark sponsor slot paid failed: ${error.message}`);
@@ -102,7 +102,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
         stripe_checkout_session_id: slot.checkoutSessionId,
         stripe_payment_intent_id: slot.paymentIntentId,
         paid_at: slot.paidAt,
-      } as never,
+      },
       { onConflict: 'event_id' },
     );
     if (error) throw new Error(`unlock badge slot failed: ${error.message}`);
@@ -155,7 +155,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
   async markPendingTipsFailedByPaymentIntent(paymentIntentId: string): Promise<void> {
     await this.client
       .from('event_tips')
-      .update({ status: 'failed' } as never)
+      .update({ status: 'failed' })
       .eq('stripe_payment_intent_id', paymentIntentId)
       .eq('status', 'pending');
   }
@@ -171,7 +171,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
       .update({
         status: 'refunded',
         refunded_at: refundedAt,
-      } as never)
+      })
       .eq('stripe_payment_intent_id', paymentIntentId);
   }
 

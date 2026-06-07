@@ -181,6 +181,10 @@ export type EventDetailViewModel = {
   attendeesForList: AttendeeListRow[];
   filledByPosition: Partial<Record<string, number>>;
   viewerPosition: EventPosition | null;
+  /** Total players queued on the capacity waitlist (ADR 0036). */
+  waitlistCount: number;
+  /** The viewer's 1-based waitlist place, or null if not queued. */
+  viewerWaitlistPosition: number | null;
 
   // Optional host-owned sponsor block (Bundle 84).
   sponsor: EventSponsorView | null;
@@ -351,6 +355,32 @@ export async function loadEventDetail(
     ? (event.attendees.find((a) => a.userId === user.id)?.position ?? null)
     : null;
 
+  // Capacity waitlist (ADR 0036): the queue length + the viewer's 1-based place.
+  // Read on the admin client — event_waitlist RLS is owner-or-host, which hides
+  // the ordering a queued non-host viewer needs to compute their position; only
+  // the aggregate count + the viewer's own slot are surfaced. Gated to a *full*
+  // fixed-capacity open play so non-full events pay no extra query.
+  let waitlistCount = 0;
+  let viewerWaitlistPosition: number | null = null;
+  if (event.type === 'open_play' && !event.positionRoster && event.spotsRemaining === 0) {
+    try {
+      const { getAdminSupabase } = await import('@/lib/supabase-admin');
+      const { data: wl } = await getAdminSupabase()
+        .from('event_waitlist')
+        .select('user_id')
+        .eq('event_id', event.id)
+        .order('created_at', { ascending: true });
+      const rows = (wl as { user_id: string }[] | null) ?? [];
+      waitlistCount = rows.length;
+      if (user) {
+        const idx = rows.findIndex((r) => r.user_id === user.id);
+        viewerWaitlistPosition = idx === -1 ? null : idx + 1;
+      }
+    } catch {
+      // best-effort — the waitlist UI simply hides if this read fails.
+    }
+  }
+
   const priceLabel =
     event.divisions.length > 1
       ? multiDivisionPriceLabel(event.divisions)
@@ -395,6 +425,8 @@ export async function loadEventDetail(
     attendeesForList,
     filledByPosition,
     viewerPosition,
+    waitlistCount,
+    viewerWaitlistPosition,
     sponsor,
     eventBadges,
     heroImageUrl,

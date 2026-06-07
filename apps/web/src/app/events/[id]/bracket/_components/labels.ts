@@ -38,6 +38,7 @@ export const NOTICE_LABEL: Record<string, { tone: 'success' | 'error'; text: str
   seeded: { tone: 'success', text: 'Seeding saved.' },
   generated: { tone: 'success', text: 'Bracket generated.' },
   playoff_generated: { tone: 'success', text: 'Playoff bracket generated.' },
+  playoff_reseeded: { tone: 'success', text: 'Playoff re-seeded.' },
   reset: { tone: 'success', text: 'Bracket reset to setup.' },
   published: { tone: 'success', text: 'Bracket published — scoring is now live.' },
   match_updated: { tone: 'success', text: 'Match updated.' },

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import type { Route } from 'next';
 import type { Metadata } from 'next/types';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
@@ -7,8 +6,6 @@ import { NotFoundError } from '@pickupvb/domain';
 import { getViewer } from '@/lib/server-auth';
 import { formatEventDateLong } from '@/lib/date-formats';
 import { OFF_PLATFORM_UPSELL_COOKIE } from '@/lib/off-platform-upsell';
-import { LocalDateTime } from '@/components/local-datetime';
-import { primaryButtonClass } from '@/components/primary-button';
 import { EventHero } from './_components/event-hero';
 import { EventStickyCta } from './_components/event-sticky-cta';
 import { HostsSection } from './_components/hosts-section';
@@ -25,6 +22,9 @@ import { EventSponsorSection } from './_components/event-sponsor-section';
 import { EventBadgesEarnSection } from './_components/event-badges-earn-section';
 import { EventMediaLink } from './_components/event-media-link';
 import { OffPlatformUpsell } from './_components/off-platform-upsell';
+import { EventWhenSpotsSection } from './_components/event-when-spots-section';
+import { EventSubpageLink } from './_components/event-subpage-link';
+import { EventManageBanner } from './_components/event-manage-banner';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 import { HeroImage } from '@/components/hero-image';
 
@@ -138,6 +138,8 @@ export default async function EventDetailPage(props: {
     attendeesForList,
     filledByPosition,
     viewerPosition,
+    waitlistCount,
+    viewerWaitlistPosition,
     sponsor,
     eventBadges,
     heroImageUrl,
@@ -165,19 +167,7 @@ export default async function EventDetailPage(props: {
         ← Back to events
       </Link>
 
-      {event.canManage && (
-        <div className="border-primary/30 bg-primary/5 rounded-shape-sm flex flex-wrap items-center justify-between gap-3 border p-4">
-          <div className="min-w-0">
-            <p className="text-fg text-sm font-semibold">You&apos;re hosting this event</p>
-            <p className="text-muted text-xs">
-              Edit details, manage registrations, message players, and record results.
-            </p>
-          </div>
-          <Link href={`/events/${event.id}/manage` as Route} className={primaryButtonClass('md')}>
-            Manage event
-          </Link>
-        </div>
-      )}
+      {event.canManage && <EventManageBanner eventId={event.id} />}
 
       <EventFlashBanners
         created={pickQuery(searchParams, 'created')}
@@ -209,6 +199,7 @@ export default async function EventDetailPage(props: {
           gender={event.gender}
           status={event.status}
           startsAt={event.startsAt}
+          endsAt={event.endsAt}
           timeZone={event.timeZone}
           city={event.location.city}
           region={event.location.region}
@@ -222,29 +213,14 @@ export default async function EventDetailPage(props: {
         />
       </header>
 
-      <section className="border-border-base rounded-shape-sm overflow-hidden border sm:grid sm:grid-cols-2">
-        <div className="sm:border-border-base p-4 sm:border-r">
-          <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">When</h2>
-          <p className="text-fg mt-1 font-medium">
-            <LocalDateTime iso={event.startsAt} variant="eventDateLong" timeZone={event.timeZone} />
-          </p>
-          <p className="text-muted text-sm">
-            to{' '}
-            <LocalDateTime iso={event.endsAt} variant="eventDateLong" timeZone={event.timeZone} />
-          </p>
-        </div>
-        <div className="border-border-base border-t p-4 sm:border-t-0 sm:border-l-0">
-          <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Spots</h2>
-          {event.spotsRemaining === null ? (
-            <p className="text-fg mt-1 font-medium">Unlimited</p>
-          ) : (
-            <p className="text-fg mt-1 font-medium">
-              {event.spotsRemaining} open ·{' '}
-              <span className="text-muted">{event.attendeeCount} signed up</span>
-            </p>
-          )}
-        </div>
-      </section>
+      <EventWhenSpotsSection
+        type={event.type}
+        startsAt={event.startsAt}
+        endsAt={event.endsAt}
+        timeZone={event.timeZone}
+        spotsRemaining={event.spotsRemaining}
+        attendeeCount={event.attendeeCount}
+      />
 
       <EventMetaSection
         venueName={event.venueName}
@@ -279,6 +255,8 @@ export default async function EventDetailPage(props: {
         hostStripeReady={hostStripeReady}
         filledByPosition={filledByPosition}
         viewerPosition={viewerPosition}
+        waitlistCount={waitlistCount}
+        viewerWaitlistPosition={viewerWaitlistPosition}
         adHocViewerRegistrations={adHocViewerRegistrations}
         adHocAllRegistrations={adHocAllRegistrations}
         rsvp={pickQuery(searchParams, 'rsvp')}
@@ -302,33 +280,21 @@ export default async function EventDetailPage(props: {
       )}
 
       {event.type === 'tournament' && (
-        <section className="border-border-base bg-fg/5 rounded-shape-sm border p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-fg text-base font-semibold">Bracket</h2>
-              <p className="text-muted text-xs">
-                View the tournament bracket, matchups, and live results.
-              </p>
-            </div>
-            <Link href={`/events/${event.id}/bracket` as Route} className={primaryButtonClass()}>
-              Open bracket
-            </Link>
-          </div>
-        </section>
+        <EventSubpageLink
+          title="Bracket"
+          description="View the tournament bracket, matchups, and live results."
+          href={`/events/${event.id}/bracket`}
+          ctaLabel="Open bracket"
+        />
       )}
 
       {event.type === 'league' && (
-        <section className="border-border-base bg-fg/5 rounded-shape-sm border p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-fg text-base font-semibold">Schedule</h2>
-              <p className="text-muted text-xs">View the weekly schedule, matchups, and scores.</p>
-            </div>
-            <Link href={`/events/${event.id}/schedule` as Route} className={primaryButtonClass()}>
-              Open schedule
-            </Link>
-          </div>
-        </section>
+        <EventSubpageLink
+          title="Schedule"
+          description="View the weekly schedule, matchups, and scores."
+          href={`/events/${event.id}/schedule`}
+          ctaLabel="Open schedule"
+        />
       )}
 
       <EventLocationSection event={event} />

@@ -18,9 +18,10 @@ export default async function CommunityImportPage() {
       <div>
         <h1 className="text-3xl font-bold">Import community listings</h1>
         <p className="text-muted mt-1 text-sm">
-          Admin-only. Paste the text of one or more events (e.g. from Facebook) to draft community
-          listings, review them, then create them in bulk. Listings are created under your account
-          and skip the normal daily submission limit.
+          Admin-only. Generate a listings JSON file with the{' '}
+          <code className="bg-fg/5 rounded px-1">facebook-events-import</code> Claude Code skill,
+          upload it here, review and fix each draft, then create them in bulk. Listings are created
+          under your account and skip the normal daily submission limit.
         </p>
       </div>
       <ImportClient />

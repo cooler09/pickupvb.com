@@ -19,7 +19,9 @@ import {
 import {
   JoinEventHandler,
   JoinEventWithPositionHandler,
+  JoinWaitlistHandler,
   LeaveEventHandler,
+  LeaveWaitlistHandler,
 } from './join-event.handler.js';
 
 const LOCATION = Location.create({
@@ -136,6 +138,76 @@ describe('LeaveEventHandler', () => {
     await expect(handler.execute({ eventId: 'event-1', userId: 'ghost' })).rejects.toBeInstanceOf(
       NotFoundError,
     );
+  });
+});
+
+/** Fill the cap-4 open play so it's at capacity, ready for the waitlist. */
+function fullOpenPlay(): VolleyballEvent {
+  const evt = makeOpenPlay();
+  for (const u of ['a', 'b', 'c', 'd']) evt.joinAsPlayer(u as UserId);
+  return evt;
+}
+
+describe('JoinWaitlistHandler', () => {
+  it('queues the user when the event is full and saves', async () => {
+    const repo = new InMemoryEventRepo();
+    repo.put(fullOpenPlay());
+    const handler = new JoinWaitlistHandler(repo as unknown as EventRepository);
+
+    await handler.execute({ eventId: 'event-1', userId: 'eve' });
+
+    expect(repo.saved).toHaveLength(1);
+    expect(repo.saved[0]!.waitlist).toContain('eve' as UserId);
+  });
+
+  it('throws NotFoundError when the event does not exist', async () => {
+    const repo = new InMemoryEventRepo();
+    const handler = new JoinWaitlistHandler(repo as unknown as EventRepository);
+    await expect(handler.execute({ eventId: 'missing', userId: 'eve' })).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+  });
+});
+
+describe('LeaveEventHandler — waitlist promotion (ADR 0036)', () => {
+  it('promotes the queue head and returns the promoted user id', async () => {
+    const repo = new InMemoryEventRepo();
+    const evt = fullOpenPlay();
+    evt.joinWaitlist('eve' as UserId);
+    repo.put(evt);
+    const handler = new LeaveEventHandler(repo as unknown as EventRepository);
+
+    const result = await handler.execute({ eventId: 'event-1', userId: 'a' });
+
+    expect(result.promotedUserId).toBe('eve');
+    expect(repo.saved[0]!.attendees.has('eve' as UserId)).toBe(true);
+    expect(repo.saved[0]!.waitlist).toHaveLength(0);
+  });
+
+  it('returns a null promotedUserId when the waitlist is empty', async () => {
+    const repo = new InMemoryEventRepo();
+    const evt = makeOpenPlay();
+    evt.joinAsPlayer('alice' as UserId);
+    repo.put(evt);
+    const handler = new LeaveEventHandler(repo as unknown as EventRepository);
+
+    const result = await handler.execute({ eventId: 'event-1', userId: 'alice' });
+
+    expect(result.promotedUserId).toBeNull();
+  });
+});
+
+describe('LeaveWaitlistHandler', () => {
+  it('removes the user from the queue', async () => {
+    const repo = new InMemoryEventRepo();
+    const evt = fullOpenPlay();
+    evt.joinWaitlist('eve' as UserId);
+    repo.put(evt);
+    const handler = new LeaveWaitlistHandler(repo as unknown as EventRepository);
+
+    await handler.execute({ eventId: 'event-1', userId: 'eve' });
+
+    expect(repo.saved[0]!.waitlist).toHaveLength(0);
   });
 });
 

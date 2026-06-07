@@ -1,5 +1,6 @@
 import next from 'eslint-config-next';
 import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
+import { noAsNeverRule } from '@pickupvb/config/eslint/base';
 
 const config = [
   {
@@ -48,6 +49,7 @@ const config = [
     rules: {
       'no-restricted-syntax': [
         'error',
+        noAsNeverRule,
         {
           selector: 'Literal[value=/(?:^|[\\s:])rounded-(?:lg|xl|2xl)(?![\\w-])/]',
           message:

@@ -63,7 +63,7 @@ export class SupabaseHostSubscriptionRepository implements HostSubscriptionRepos
   async isPro(hostId: string): Promise<boolean> {
     const { data, error } = await this.client.rpc('is_pro_host', {
       p_user_id: hostId,
-    } as never);
+    });
     if (error) return false;
     return (data as unknown as boolean) === true;
   }
@@ -71,7 +71,7 @@ export class SupabaseHostSubscriptionRepository implements HostSubscriptionRepos
   async paidEventCount30d(hostId: string): Promise<number> {
     const { data, error } = await this.client.rpc('host_paid_event_count_30d', {
       p_user_id: hostId,
-    } as never);
+    });
     if (error) return 0;
     return Number(data ?? 0);
   }
@@ -111,7 +111,7 @@ export class SupabaseHostSubscriptionRepository implements HostSubscriptionRepos
       user_id: hostId,
       stripe_customer_id: stripeCustomerId,
       status: 'incomplete',
-    } as never);
+    });
     // 23505 = unique violation. The webhook may have already inserted
     // a row; that's fine.
     if (error && error.code !== '23505') {
@@ -137,7 +137,7 @@ export class SupabaseHostSubscriptionRepository implements HostSubscriptionRepos
         trial_end: input.trialEnd,
         cancel_at_period_end: input.cancelAtPeriodEnd,
         updated_at: new Date().toISOString(),
-      } as never,
+      },
       { onConflict: 'stripe_customer_id' },
     );
     if (error) {

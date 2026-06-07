@@ -10,8 +10,10 @@ export const ListingLocationSchema = z.object({
   region: z.string().max(100).optional().nullable(),
   postalCode: z.string().max(20).optional().nullable(),
   country: z.string().min(2).max(100),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
+  // Coordinates are optional: present when the address geocoded, null when it
+  // didn't (the listing keeps its text address but has no map point).
+  latitude: z.number().min(-90).max(90).nullable(),
+  longitude: z.number().min(-180).max(180).nullable(),
 });
 
 const CommunityListingFields = z.object({
@@ -51,6 +53,7 @@ export const SearchCommunityListingsSchema = z.object({
   skillLevel: z.enum(enumValues(SkillLevel)).optional(),
   startsAfter: z.coerce.date().optional(),
   startsBefore: z.coerce.date().optional(),
+  order: z.enum(['asc', 'desc']).optional(),
   limit: z.number().int().positive().max(100).default(20),
   cursor: z.string().optional(),
 });

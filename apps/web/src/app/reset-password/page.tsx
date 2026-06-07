@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { Route } from 'next';
 import { primaryButtonClass } from '@/components/primary-button';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -48,7 +49,13 @@ export default function ResetPasswordPage() {
     }
     setDone(true);
     setTimeout(() => {
-      router.push('/events');
+      // Honor the `next` threaded from the claim flow (e.g. /events/new), so a
+      // user who came from a host/team gate lands back there after setting a
+      // password. Read from the URL at submit time to avoid a useSearchParams
+      // Suspense boundary. Same-origin relative only (mirrors /auth/callback).
+      const raw = new URLSearchParams(window.location.search).get('next');
+      const target = raw && /^\/(?![/\\])/.test(raw) ? (raw as Route) : ('/events' as Route);
+      router.push(target);
       router.refresh();
     }, 1500);
   }

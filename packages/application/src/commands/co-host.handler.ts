@@ -1,6 +1,6 @@
 import type { EventMembershipStore } from '@pickupvb/domain';
 import { ValidationError } from '@pickupvb/domain';
-import { AddEventCoHostCommand, RemoveEventCoHostCommand } from '../messages.js';
+import { AddEventCoHostCommand, RemoveEventCoHostCommand } from '../messages/index.js';
 
 /**
  * Authorization for co-host changes lives at the DB layer (RLS on

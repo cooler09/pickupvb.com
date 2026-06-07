@@ -1,8 +1,12 @@
 import {
   CommunityListing,
+  CommunityListingId,
   ConflictError,
+  EventId,
   ExternalUrl,
+  UserId,
   type CommunityListingDetailReadModel,
+  type CommunityListingIdentity,
   type CommunityListingRepository,
   type CommunityListingSearchQuery,
   type CommunityListingStatus,
@@ -90,29 +94,34 @@ function parsePointFromGeo(geo: unknown): {
 }
 
 function rowToLocation(row: ListingRow): ListingLocation | null {
+  // The text address is the all-or-nothing part: no city/country means no
+  // location at all (matches the DB `community_listings_location_complete`
+  // check). Coordinates are a separate optional layer — a row may legitimately
+  // carry an address with a null `geo` (geocoding failed at import), in which
+  // case we keep the address and report null coords rather than dropping it.
+  if (row.city === null || row.country === null) {
+    return null;
+  }
   const latitude = isFiniteNumber(row.latitude) ? row.latitude : null;
   const longitude = isFiniteNumber(row.longitude) ? row.longitude : null;
   const point =
     latitude !== null && longitude !== null ? { latitude, longitude } : parsePointFromGeo(row.geo);
 
-  if (row.city === null || row.country === null || point === null) {
-    return null;
-  }
   return {
     addressLine: row.address_line,
     city: row.city,
     region: row.region,
     postalCode: row.postal_code,
     country: row.country,
-    latitude: point.latitude,
-    longitude: point.longitude,
+    latitude: point?.latitude ?? null,
+    longitude: point?.longitude ?? null,
   };
 }
 
 function rowToAggregate(row: ListingRow): CommunityListing {
   return CommunityListing.fromPersistence({
-    id: row.id as never,
-    submitterUserId: row.submitter_user_id as never,
+    id: CommunityListingId(row.id),
+    submitterUserId: UserId(row.submitter_user_id),
     title: row.title,
     description: row.description,
     externalUrl: ExternalUrl.fromPersistence(row.external_url),
@@ -126,8 +135,8 @@ function rowToAggregate(row: ListingRow): CommunityListing {
     skillLevel: row.skill_level,
     status: row.status,
     reportCount: row.report_count,
-    claimedEventId: row.claimed_event_id as never,
-    claimedByUserId: row.claimed_by_user_id as never,
+    claimedEventId: row.claimed_event_id ? EventId(row.claimed_event_id) : null,
+    claimedByUserId: row.claimed_by_user_id ? UserId(row.claimed_by_user_id) : null,
     claimedAt: row.claimed_at ? new Date(row.claimed_at) : null,
   });
 }
@@ -140,9 +149,9 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     return this._client;
   }
 
-  // Untyped accessor for tables not yet in the generated Database types.
-  // After `pnpm --filter @pickupvb/supabase gen:types`, these `as never` casts
-  // can be removed.
+  // Untyped accessor, retained for the wide select/filter surface in this file.
+  // The table is now in the generated types; row→domain mapping is typed via the
+  // explicit `ListingRow` annotation, so per-call payload casts are unnecessary.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private table(name: string): any {
     return (this.client as unknown as { from: (n: string) => unknown }).from(name);
@@ -166,6 +175,23 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (error) throw new Error(`CommunityListing.findBySlug(${slug}) failed: ${error.message}`);
     if (!data) return null;
     return rowToAggregate(data as unknown as ListingRow);
+  }
+
+  async findByExternalUrl(externalUrl: string): Promise<CommunityListingIdentity | null> {
+    // `external_url` isn't unique (a listing can be re-submitted); the importer
+    // upserts the earliest row so re-imports converge on one canonical listing.
+    const { data, error } = await this.table('community_listings')
+      .select('id, slug, status')
+      .eq('external_url', externalUrl)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`CommunityListing.findByExternalUrl failed: ${error.message}`);
+    }
+    if (!data) return null;
+    const row = data as { id: string; slug: string; status: CommunityListingStatus };
+    return { id: row.id, slug: row.slug, status: row.status };
   }
 
   async save(listing: CommunityListing): Promise<void> {
@@ -198,7 +224,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       claimed_at: listing.claimedAt ? listing.claimedAt.toISOString() : null,
     };
 
-    const { error } = await this.table('community_listings').upsert(row as never, {
+    const { error } = await this.table('community_listings').upsert(row, {
       onConflict: 'id',
     });
     if (error) throw new Error(`CommunityListing.save(${listing.id}) failed: ${error.message}`);
@@ -209,10 +235,26 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     if (error) throw new Error(`CommunityListing.delete(${id}) failed: ${error.message}`);
   }
 
+  async findClaimPendingOlderThan(cutoff: Date): Promise<CommunityListing[]> {
+    const { data, error } = await this.table('community_listings')
+      .select('*')
+      .eq('status', 'claim_pending')
+      .lt('claimed_at', cutoff.toISOString());
+    if (error) {
+      throw new Error(`CommunityListing.findClaimPendingOlderThan failed: ${error.message}`);
+    }
+    return ((data ?? []) as unknown as ListingRow[]).map(rowToAggregate);
+  }
+
   async countByUserSince(userId: string, since: Date): Promise<number> {
+    // Excludes `removed` rows so a wrongly-removed submission doesn't keep
+    // burning the user's 5/24h quota (a re-submission should be allowed).
+    // `hidden` rows still count — a spammer whose listings were auto-hidden by
+    // reports shouldn't get free quota back.
     const { count, error } = await this.table('community_listings')
       .select('id', { count: 'exact', head: true })
       .eq('submitter_user_id', userId)
+      .neq('status', 'removed')
       .gte('created_at', since.toISOString());
     if (error) throw new Error(`CommunityListing.countByUserSince failed: ${error.message}`);
     return count ?? 0;
@@ -227,7 +269,7 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       listing_id: listingId,
       reporter_user_id: reporterUserId,
       reason,
-    } as never);
+    });
     if (error) {
       // 23505 = unique_violation (one report per user per listing).
       if ((error as { code?: string }).code === '23505') {
@@ -306,17 +348,29 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       }));
     }
 
-    let q = this.table('community_listings')
-      .select(
-        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
-      )
-      .in('status', statuses as unknown as string[]);
+    let q = this.table('community_listings').select(
+      'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
+    );
+    // Default public view (no explicit statuses) + a signed-in viewer: also
+    // return the viewer's own `hidden` listings so a submitter whose listing was
+    // auto-hidden by reports can still find and manage it from the list. The
+    // adapter reads through the service-role client (RLS bypassed), so the scope
+    // is explicit. viewerId is a server-derived auth UUID, but we validate its
+    // shape before interpolating into the PostgREST `.or()` filter.
+    const viewerIsUuid =
+      !!query.viewerId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(query.viewerId);
+    if (!query.statuses && viewerIsUuid) {
+      q = q.or(`status.eq.active,and(submitter_user_id.eq.${query.viewerId},status.eq.hidden)`);
+    } else {
+      q = q.in('status', statuses as unknown as string[]);
+    }
     if (query.surface) q = q.eq('surface', query.surface);
     if (query.format) q = q.eq('format', query.format);
     if (query.skillLevel) q = q.eq('skill_level', query.skillLevel);
     if (query.startsAfter) q = q.gte('starts_at', query.startsAfter.toISOString());
     if (query.startsBefore) q = q.lte('starts_at', query.startsBefore.toISOString());
-    q = q.order('starts_at', { ascending: true }).limit(limit);
+    q = q.order('starts_at', { ascending: query.order !== 'desc' }).limit(limit);
 
     const { data, error } = await q;
     if (error) throw new Error(`CommunityListing.search failed: ${error.message}`);
@@ -405,6 +459,16 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
       !!(viewerProfileRes.data as { is_platform_admin?: boolean } | null)?.is_platform_admin;
     const hasReported = !!viewerId && ((reportRes as { count: number | null }).count ?? 0) > 0;
     const canManage = !!viewerId && (viewerId === row.submitter_user_id || isPlatformAdmin);
+
+    // Visibility gate. This adapter reads through the service-role client, so
+    // RLS never fires — without this check a moderation-`hidden` or `removed`
+    // listing would stay fully readable by anyone who has the slug. Only the
+    // submitter / a platform admin may load those statuses; `active` and
+    // `claim_pending` stay public, and `claimed` is funneled to the linked
+    // event by a redirect at the page boundary.
+    if ((row.status === 'hidden' || row.status === 'removed') && !canManage) {
+      return null;
+    }
 
     return {
       id: row.id,

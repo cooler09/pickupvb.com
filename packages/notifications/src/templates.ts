@@ -152,6 +152,17 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View event',
     ),
   }),
+  'league.match.reminder': (p) => ({
+    subject: `Match tomorrow vs ${p.opponentName}`,
+    text: `Reminder: your ${p.eventTitle} match vs ${p.opponentName} is at ${formatStart(p.scheduledAt)}${p.courtLabel ? ` on ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Match tomorrow</h2>
+             <p><strong>vs ${escapeHtml(p.opponentName)}</strong> · ${escapeHtml(p.eventTitle)}<br>
+             ${escapeHtml(formatStart(p.scheduledAt))}${p.courtLabel ? `<br>${escapeHtml(p.courtLabel)}` : ''}</p>`,
+      `${APP_URL}/events/${p.eventId}/schedule`,
+      'View schedule',
+    ),
+  }),
   'event.reminder.2h': (p) => ({
     subject: `Starting soon: ${p.eventTitle}`,
     text: `${p.eventTitle} starts at ${formatStart(p.startsAt)} — ${p.location}.`,
@@ -226,6 +237,16 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View team',
     ),
   }),
+  'event.free_agent.picked_up': (p) => ({
+    subject: `${p.captainName} picked you up for ${p.teamName}`,
+    text: `${p.captainName} picked you up for ${p.teamName} (${p.eventTitle}) on PickupVB. Accept the invite to join the roster.`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">You've been picked up!</h2>
+             <p><strong>${escapeHtml(p.captainName)}</strong> picked you up for <strong>${escapeHtml(p.teamName)}</strong> (${escapeHtml(p.eventTitle)}). Accept the invite to join the roster.</p>`,
+      `${APP_URL}/teams/${p.teamSlug}`,
+      'View team',
+    ),
+  }),
   'broadcast.host_message': (p) => ({
     subject: p.subject,
     text: `${p.body}\n\n— ${p.senderName}`,
@@ -251,6 +272,30 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
              <p>${escapeHtml(p.preview)}</p>`,
       `${APP_URL}/messages/${p.conversationId}`,
       'Open conversation',
+    ),
+  }),
+  'community.claim.pending': (p) => ({
+    subject: `Someone claimed your listing: ${p.listingTitle}`,
+    text: `${p.claimantName} asked to link your community listing "${p.listingTitle}" to their PickupVB event. Review and approve or reject it: ${APP_URL}/community/${p.listingSlug}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">A host claimed your listing</h2>
+             <p><strong>${escapeHtml(p.claimantName)}</strong> asked to link your community listing
+             <strong>${escapeHtml(p.listingTitle)}</strong> to their PickupVB event.</p>
+             <p>Approve it to redirect the listing to their event, or reject it to leave the listing
+             as-is. If you don't respond within 7 days, the claim is auto-approved.</p>`,
+      `${APP_URL}/community/${p.listingSlug}`,
+      'Review claim',
+    ),
+  }),
+  'community.claim.approved': (p) => ({
+    subject: `Your claim was approved: ${p.listingTitle}`,
+    text: `Your claim on "${p.listingTitle}" was approved — the listing now points to your PickupVB event. ${APP_URL}/community/${p.listingSlug}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Claim approved</h2>
+             <p>Your claim on <strong>${escapeHtml(p.listingTitle)}</strong> was approved. The
+             listing now points visitors at your PickupVB event.</p>`,
+      `${APP_URL}/community/${p.listingSlug}`,
+      'View event',
     ),
   }),
   'account.deletion.requested': (p) => ({
@@ -298,6 +343,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'event.reminder.24h': (p) => ({
     body: `PickupVB: ${p.eventTitle} tomorrow at ${formatStart(p.startsAt)}, ${p.location}. ${APP_URL}/events/${p.eventId}`,
   }),
+  'league.match.reminder': (p) => ({
+    body: `PickupVB: match vs ${p.opponentName} (${p.eventTitle}) at ${formatStart(p.scheduledAt)}${p.courtLabel ? `, ${p.courtLabel}` : ''}. ${APP_URL}/events/${p.eventId}/schedule`,
+  }),
   'event.reminder.2h': (p) => ({
     body: `PickupVB: ${p.eventTitle} starts at ${formatStart(p.startsAt)} — ${p.location}.`,
   }),
@@ -319,11 +367,20 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'team.invite': (p) => ({
     body: `PickupVB: ${p.inviterName} invited you to ${p.groupName}. ${APP_URL}/teams/${p.teamSlug}`,
   }),
+  'event.free_agent.picked_up': (p) => ({
+    body: `PickupVB: ${p.captainName} picked you up for ${p.teamName} (${p.eventTitle}). ${APP_URL}/teams/${p.teamSlug}`,
+  }),
   'broadcast.host_message': (p) => ({
     body: `PickupVB · ${p.senderName}: ${p.body.slice(0, 240)}`,
   }),
   'chat.message.received': (p) => ({
     body: `PickupVB · ${p.senderName}: ${p.preview.slice(0, 200)}`,
+  }),
+  'community.claim.pending': (p) => ({
+    body: `PickupVB: ${p.claimantName} claimed your listing "${p.listingTitle}". Review it: ${APP_URL}/community/${p.listingSlug}`,
+  }),
+  'community.claim.approved': (p) => ({
+    body: `PickupVB: your claim on "${p.listingTitle}" was approved. ${APP_URL}/community/${p.listingSlug}`,
   }),
   'account.deletion.requested': (p) => ({
     body: `PickupVB: Your account is scheduled for deletion on ${formatDate(p.scheduledFor)}. Cancel before then: ${APP_URL}/profile/account/delete`,
@@ -363,6 +420,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     body: `${formatStart(p.startsAt)} · ${p.location}`,
     href: `/events/${p.eventId}`,
   }),
+  'league.match.reminder': (p) => ({
+    title: `Match vs ${p.opponentName}`,
+    body: `${formatStart(p.scheduledAt)}${p.courtLabel ? ` · ${p.courtLabel}` : ''}`,
+    href: `/events/${p.eventId}/schedule`,
+  }),
   'event.reminder.2h': (p) => ({
     title: `Starting soon: ${p.eventTitle}`,
     body: `${formatStart(p.startsAt)} · ${p.location}`,
@@ -398,6 +460,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     body: `from ${p.inviterName}`,
     href: `/teams/${p.teamSlug}`,
   }),
+  'event.free_agent.picked_up': (p) => ({
+    title: `Picked up for ${p.teamName}`,
+    body: `${p.captainName} · ${p.eventTitle}`,
+    href: `/teams/${p.teamSlug}`,
+  }),
   'broadcast.host_message': (p) => ({
     title: p.subject,
     body: p.body.slice(0, 200),
@@ -407,6 +474,16 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
     title: `New message from ${p.senderName}`,
     body: p.preview || null,
     href: `/messages/${p.conversationId}`,
+  }),
+  'community.claim.pending': (p) => ({
+    title: `${p.claimantName} claimed your listing`,
+    body: `Review the claim on "${p.listingTitle}"`,
+    href: `/community/${p.listingSlug}`,
+  }),
+  'community.claim.approved': (p) => ({
+    title: 'Your listing claim was approved',
+    body: `"${p.listingTitle}" now points to your event`,
+    href: `/community/${p.listingSlug}`,
   }),
   'account.deletion.requested': (p) => ({
     title: 'Account deletion scheduled',

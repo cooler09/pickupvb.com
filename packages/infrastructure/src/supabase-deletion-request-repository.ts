@@ -69,7 +69,7 @@ export class SupabaseDeletionRequestRepository implements DeletionRequestReposit
         requested_at: request.requestedAt.toISOString(),
         scheduled_for: request.scheduledFor.toISOString(),
         resolved_at: request.resolvedAt ? request.resolvedAt.toISOString() : null,
-      } as never,
+      },
       { onConflict: 'id' },
     );
     if (error) {

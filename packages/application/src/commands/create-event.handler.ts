@@ -22,7 +22,7 @@ import {
 } from '@pickupvb/domain';
 import type { DivisionInputDto, EventExtensionsDto } from '@pickupvb/types';
 import { dispatchAnalyticsOutbox } from '../analytics/dispatch-outbox.js';
-import { CreateEventCommand } from '../messages';
+import { CreateEventCommand } from '../messages/index';
 
 function buildExtensions(input: EventExtensionsDto | undefined): Partial<EventExtensionsInput> {
   if (!input) return {};

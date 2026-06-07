@@ -7,7 +7,7 @@ import {
   UserId,
   type DeletionRequestRepository,
 } from '@pickupvb/domain';
-import { CancelAccountDeletionCommand, RequestAccountDeletionCommand } from '../messages';
+import { CancelAccountDeletionCommand, RequestAccountDeletionCommand } from '../messages/index';
 
 /** Default grace window: the user can cancel within this many days before the
  * cron purges the account. Locked at 30 days (privacy P1 #2 / ADR 0029). */

@@ -21,7 +21,8 @@ import {
   type MatchStatus,
   type Seed,
 } from '@pickupvb/domain';
-import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { createSupabaseAdminClient, type Database, type Json } from '@pickupvb/supabase';
+import { asJson } from './supabase-json.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -265,7 +266,7 @@ export class SupabaseBracketRepository implements BracketRepository {
           id: bracket.id,
           owner_user_id: bracket.ownerUserId,
           format: bracket.format,
-          config: bracket.config as never,
+          config: asJson(bracket.config),
           status: bracket.status,
           updated_at: new Date().toISOString(),
         },
@@ -275,7 +276,10 @@ export class SupabaseBracketRepository implements BracketRepository {
         throw new Error(`standalone bracket header save failed: ${headerErr.message}`);
       }
     }
-    const { error } = await this.client.rpc('save_bracket', this.buildSaveArgs(bracket) as never);
+    const { error } = await this.client.rpc(
+      'save_bracket',
+      this.buildSaveArgs(bracket) as Database['public']['Functions']['save_bracket']['Args'],
+    );
     if (error) throw new Error(`bracket save failed: ${error.message}`);
   }
 
@@ -294,7 +298,7 @@ export class SupabaseBracketRepository implements BracketRepository {
     const { error } = await this.client.rpc('record_bracket_match_result', {
       p_actor_match_id: actorMatchId,
       ...this.buildSaveArgs(bracket),
-    } as never);
+    } as Database['public']['Functions']['record_bracket_match_result']['Args']);
     if (error) {
       if (error.code === '42501') {
         throw new UnauthorizedError('You can only record results for matches you host or captain.');
@@ -312,11 +316,11 @@ export class SupabaseBracketRepository implements BracketRepository {
     p_bracket_id: string;
     p_division_id: string | null;
     p_format: BracketFormat;
-    p_config: BracketConfig;
+    p_config: Json;
     p_status: BracketStatus;
-    p_seeds: Array<{ entry_id: string; seed: number; pool: string | null }>;
-    p_matches: Array<Record<string, unknown>>;
-    p_match_sets: SetRow[];
+    p_seeds: Json;
+    p_matches: Json;
+    p_match_sets: Json;
   } {
     const seeds = bracket.seeds.map((s) => ({
       entry_id: s.entryId,
@@ -359,11 +363,11 @@ export class SupabaseBracketRepository implements BracketRepository {
       p_bracket_id: bracket.id,
       p_division_id: bracket.divisionId,
       p_format: bracket.format,
-      p_config: bracket.config,
+      p_config: asJson(bracket.config),
       p_status: bracket.status,
-      p_seeds: seeds,
-      p_matches: matches,
-      p_match_sets: matchSets,
+      p_seeds: asJson(seeds),
+      p_matches: asJson(matches),
+      p_match_sets: asJson(matchSets),
     };
   }
 
@@ -473,6 +477,16 @@ export class SupabaseBracketRepository implements BracketRepository {
     if (error) throw new Error(`addBracketTeams failed: ${error.message}`);
     const rows = (data as Array<{ id: string; name: string }> | null) ?? [];
     return rows.map((r) => ({ entryId: r.id, name: r.name }));
+  }
+
+  async deleteBracket(bracketId: BracketId): Promise<void> {
+    // One DELETE on the header; `bracket_seeds` / `bracket_matches`
+    // (→ `bracket_match_sets`) / `bracket_teams` / `match_live_scores` all FK
+    // into `event_brackets(id)` with `on delete cascade`, so the whole bracket
+    // is reaped in one statement. Owner authorization is enforced in the
+    // handler before we get here; this runs on the service-role admin client.
+    const { error } = await this.client.from('event_brackets').delete().eq('id', bracketId);
+    if (error) throw new Error(`deleteBracket failed: ${error.message}`);
   }
 }
 

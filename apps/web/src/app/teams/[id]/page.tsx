@@ -5,7 +5,9 @@ import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
 import { TeamViewerChrome } from './_components/team-viewer-chrome';
 import { TeamChatPanel } from './_components/team-chat-panel';
+import { TeamLeagueRecords } from './_components/team-league-records';
 import { TeamJsonLd } from './_components/team-jsonld';
+import { loadTeamLeagueRecords } from './_loaders/load-team-league-records';
 import { ShareLink } from '@/components/share-link';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 
@@ -103,13 +105,15 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
 
   const returnPath = `/teams/${team.slug}`;
 
+  // League season records (roster entries carry the team's id; ADR 0034).
+  const leagueRecords = await loadTeamLeagueRecords(supabase, team.id);
+
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
       <BreadcrumbJsonLd
-        items={[
-          { name: 'Home', url: 'https://pickupvb.com/' },
-          { name: 'Teams', url: 'https://pickupvb.com/teams' },
-          { name: team.name, url: `https://pickupvb.com/teams/${team.slug}` },
+        trail={[
+          { name: 'Teams', path: '/teams' },
+          { name: team.name, path: `/teams/${team.slug}` },
         ]}
       />
       <TeamJsonLd slug={team.slug} name={team.name} memberCount={activeCount + extraMembers} />
@@ -143,6 +147,8 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
           ))}
         </ul>
       </section>
+
+      <TeamLeagueRecords records={leagueRecords} />
 
       <TeamViewerChrome
         teamId={team.id}

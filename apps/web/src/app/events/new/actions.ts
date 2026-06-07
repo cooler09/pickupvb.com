@@ -338,7 +338,7 @@ export async function createEventAction(
   if (hostGroupId) {
     const { error: groupErr } = await supabase
       .from('events')
-      .update({ host_group_id: hostGroupId } as never)
+      .update({ host_group_id: hostGroupId })
       .eq('id', result.id);
     if (groupErr) {
       return {
@@ -374,7 +374,7 @@ export async function createEventAction(
     if (!usesDivisions) {
       const { error: divPriceErr } = await supabase
         .from('event_divisions')
-        .update({ price_cents: priceCents } as never)
+        .update({ price_cents: priceCents })
         .eq('event_id', result.id)
         .eq('sort_order', 0);
       if (divPriceErr) {
@@ -413,7 +413,7 @@ export async function createEventAction(
         host_absorbs_fee: hostAbsorbsFee,
         pass_processing_fee_to_buyer: passProcessingFeeToBuyer,
         refund_window_hours: refundWindowHours,
-      } as never)
+      })
       .eq('id', result.id);
     if (priceErr) {
       return {

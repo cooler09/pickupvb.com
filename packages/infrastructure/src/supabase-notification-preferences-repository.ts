@@ -54,7 +54,7 @@ export class SupabaseNotificationPreferencesRepository implements NotificationPr
         push_enabled: toggles.pushEnabled,
         in_app_enabled: toggles.inAppEnabled,
         updated_at: new Date().toISOString(),
-      } as never,
+      },
       { onConflict: 'user_id' },
     );
     if (error) throw new Error(`NotificationPreferences.upsertChannels failed: ${error.message}`);

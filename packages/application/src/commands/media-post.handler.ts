@@ -25,7 +25,7 @@ import {
   UnfeatureMediaPostCommand,
   UnhideMediaPostCommand,
   UpdateMediaPostCommand,
-} from '../messages';
+} from '../messages/index';
 
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 20;

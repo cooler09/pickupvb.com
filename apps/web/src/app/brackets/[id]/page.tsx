@@ -1,11 +1,16 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ShareLink } from '@/components/share-link';
+import { SubmitButton } from '@/components/submit-button';
+import { errorButtonClass } from '@/components/primary-button';
 import { repositories } from '@/lib/handlers';
+import { deleteStandaloneBracket } from '../actions';
 import { isPro } from '@/lib/pro';
+import { BracketId } from '@pickupvb/domain';
 import { getViewer, isAnonymousUser } from '@/lib/server-auth';
 import { LiveScoresProvider } from '@/app/events/[id]/_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '@/app/events/[id]/bracket/_components/board-view';
+import { DraftWorkspace } from '@/app/events/[id]/bracket/_components/draft-workspace';
 import { LatestMatchTracker } from '@/app/events/[id]/bracket/_components/latest-match-tracker';
 import { SetupView } from '@/app/events/[id]/bracket/_components/setup-view';
 import { BracketRealtimeRefresher } from '@/app/events/[id]/bracket/_components/realtime-refresher';
@@ -42,7 +47,7 @@ export default async function StandaloneBracketPage(props: {
   const user = viewer?.user ?? null;
   const isRealUser = !!user && !isAnonymousUser(user);
 
-  const bracket = await repositories.bracketRepo.findById(id as never);
+  const bracket = await repositories.bracketRepo.findById(BracketId(id));
   if (!bracket || !bracket.ownerUserId) notFound();
 
   // Only the owner edits here; everyone else gets the read-only watch view.
@@ -51,7 +56,7 @@ export default async function StandaloneBracketPage(props: {
   }
 
   const registeredTeams = (await repositories.bracketRepo.listStandaloneTeams(
-    id as never,
+    BracketId(id),
   )) as TeamLite[];
 
   const teamById = new Map<string, TeamLite>();
@@ -116,6 +121,18 @@ export default async function StandaloneBracketPage(props: {
         />
       )}
 
+      {bracket.status === 'draft' && (
+        <DraftWorkspace
+          scope={scope}
+          format={bracket.format}
+          bestOf={bracket.config.bestOf}
+          targetScore={bracket.config.targetScore}
+          matches={[...bracket.matches]}
+          teams={registeredTeams}
+          seeds={bracket.seeds.map((s) => ({ entryId: s.entryId, seed: s.seed, pool: s.pool }))}
+        />
+      )}
+
       {(bracket.status === 'active' || bracket.status === 'completed') && (
         <LiveScoresProvider enabled={liveScoringEnabled} bracketId={bracket.id}>
           <LatestMatchTracker
@@ -127,7 +144,14 @@ export default async function StandaloneBracketPage(props: {
             scope={scope}
             matches={[...bracket.matches]}
             teamById={teamById}
+            teams={registeredTeams}
             bestOf={bracket.config.bestOf}
+            targetScore={bracket.config.targetScore}
+            targetScores={bracket.config.targetScores}
+            playoffBestOf={bracket.config.playoffBestOf}
+            playoffTargetScore={bracket.config.playoffTargetScore}
+            playoffTargetScores={bracket.config.playoffTargetScores}
+            advancePerPool={bracket.config.advancePerPool}
             isHost
             viewerId={user!.id}
             status={bracket.status}
@@ -137,6 +161,24 @@ export default async function StandaloneBracketPage(props: {
           />
         </LiveScoresProvider>
       )}
+
+      {/* Danger zone: delete the bracket entirely. Frees the free-tier
+          active-bracket slot and is the only escape for a stuck bracket
+          (TT-12). Two-step disclosure so it isn't a one-click mistake. */}
+      <details className="border-border-base rounded-shape-sm border">
+        <summary className="text-muted hover:text-fg cursor-pointer px-3 py-2 text-sm">
+          Delete this bracket
+        </summary>
+        <div className="border-border-base space-y-2 border-t px-3 py-3">
+          <p className="text-muted text-xs">
+            Permanently removes this bracket and all of its teams, matches, and results. This can
+            {'’'}t be undone.
+          </p>
+          <form action={deleteStandaloneBracket.bind(null, id)}>
+            <SubmitButton className={errorButtonClass('sm')}>Delete bracket</SubmitButton>
+          </form>
+        </div>
+      </details>
     </article>
   );
 }

@@ -101,10 +101,9 @@ export default async function PlayerProfilePage(props: {
   return (
     <div className="mx-auto max-w-2xl space-y-8 py-4">
       <BreadcrumbJsonLd
-        items={[
-          { name: 'Home', url: 'https://pickupvb.com/' },
-          { name: 'Players', url: 'https://pickupvb.com/players' },
-          { name, url: `https://pickupvb.com/players/${profile.handle}` },
+        trail={[
+          { name: 'Players', path: '/players' },
+          { name, path: `/players/${profile.handle}` },
         ]}
       />
 

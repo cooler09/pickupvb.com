@@ -392,10 +392,18 @@ actions on the button vocabulary + the `tap-target` utility (Bundle 130).
   (a full-row `flex … p-2` link, already > 44px tall), not a sub-tap-target
   button — nothing to change.
 
-**Remaining:** the same neutral row-action pattern in other lists
-(`attendee-list`, `friends-list`, `my-teams-panel`, `invite-response`,
-`extra-members-form`) — now a safe mechanical pass with `neutralButtonClass`
-available (folds into the secondary-convergence item).
+- **Remaining lists** ✅ 2026-06-06 — the neutral/tonal row-action pattern in
+  [attendee-list.tsx](../../apps/web/src/components/attendee-list.tsx),
+  [friends-list.tsx](../../apps/web/src/components/friends-list.tsx),
+  [my-teams-panel.tsx](../../apps/web/src/app/teams/_components/my-teams-panel.tsx),
+  [invite-response.tsx](../../apps/web/src/app/teams/[id]/_components/invite-response.tsx),
+  and [extra-members-form.tsx](../../apps/web/src/app/teams/[id]/_components/extra-members-form.tsx)
+  routed to `neutralButtonClass` / `tonalButtonClass`; the genuine 24px
+  tiny-row offenders (attendee follow/pay/sign-in, friends unfollow) also gained
+  `tap-target` per the member-row precedent. The "mark paid" affirmative keeps
+  its emerald fill (no M3 `success*` vocab yet) + `tap-target`.
+
+**H-3 is now fully resolved.**
 
 ---
 
@@ -858,12 +866,16 @@ member rows.
   `text-xs` row, needs an `xs` size); the member-row red-**on-hover** removes
   (H-3); the approve/reject claim pair (needs a `success*` counterpart for the
   green half); and the compact `bg-red-600` in `board-view.tsx`._
-- **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** the claim
-  email-confirmation flow ([claim/actions.ts#L88-L90](../../apps/web/src/app/claim/actions.ts#L88-L90))
-  hardcodes the post-confirmation redirect to `/reset-password?from=claim` and
-  drops the `?next=` from the `/claim` URL, so neither the V-4 host gate nor the
-  `/teams/new` gate auto-returns the user to where they were headed. Thread `next`
-  through `emailRedirectTo` (and `/auth/callback`) to honor it. Affects both gates.
+- **Claim `?next=` propagation (P3, pre-existing, surfaced by V-4):** ✅ resolved
+  2026-06-06. `/claim` now reads `?next=` (same-origin guard), `ClaimForm`
+  carries it as a hidden field, and `claimAccount` threads it through
+  `emailRedirectTo` → `/auth/callback?next=/reset-password?from=claim&next=<orig>`.
+  [reset-password](../../apps/web/src/app/reset-password/page.tsx) reads `next`
+  from the URL at submit time (same-origin guard) and lands the user there
+  instead of `/events`. Honors the `/events/new`, `/teams/new`, and signup-panel
+  gates. Files: [claim/page.tsx](../../apps/web/src/app/claim/page.tsx),
+  [claim-form.tsx](../../apps/web/src/app/claim/claim-form.tsx),
+  [claim/actions.ts](../../apps/web/src/app/claim/actions.ts).
 
 ### 2026-06-03 — PR-2 partial reversal (restore payouts discoverability)
 

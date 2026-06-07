@@ -1,0 +1,6 @@
+# Persistent Chromium profile holding your logged-in Facebook session cookies.
+# Never commit — it grants access to your account.
+.fb-session/
+
+# Raw scraped output (transient; feed it to the skill, then discard).
+fb-scrape-*.json

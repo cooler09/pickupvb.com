@@ -74,7 +74,7 @@ export async function setAttendeePaymentStatus(
       payment_status: status,
       amount_paid_cents: amountCents,
       paid_at: status === 'paid' ? new Date().toISOString() : null,
-    } as never,
+    },
     { onConflict: 'participant_id' },
   );
   if (updErr) return;
@@ -84,9 +84,9 @@ export async function setAttendeePaymentStatus(
     user_id: userId,
     action: status === 'paid' ? 'paid' : 'refunded',
     amount_cents: status === 'paid' ? pricing.priceCents : r.amount_paid_cents,
-  } as never);
+  });
 
   revalidatePath(`/events/${eventId}`);
   const flash = status === 'paid' ? 'Attendee marked as paid.' : 'Attendee marked as unpaid.';
-  redirect(`/events/${eventId}?flash=${encodeURIComponent(flash)}&flashType=success` as never);
+  redirect(`/events/${eventId}?flash=${encodeURIComponent(flash)}&flashType=success`);
 }

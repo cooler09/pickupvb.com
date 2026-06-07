@@ -20,7 +20,7 @@
  * Supabase-backed port + `notify` and handles auth.
  */
 import { NextResponse } from 'next/server';
-import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { createSupabaseAdminClient, type TablesUpdate } from '@pickupvb/supabase';
 import { notify } from '@/lib/notify';
 import { log } from '@/lib/log';
 import {
@@ -43,7 +43,13 @@ function makeReminderPort(admin: ReturnType<typeof createSupabaseAdminClient>): 
         .select('id, title, starts_at, location_city, location_region')
         .gte('starts_at', windowStart.toISOString())
         .lte('starts_at', windowEnd.toISOString())
-        .neq('status', 'cancelled');
+        .neq('status', 'cancelled')
+        // Leagues are seasons, not single gatherings: `starts_at` is the season
+        // start, so a 24h/2h "starts soon" reminder would fire once at kickoff
+        // and misrepresent a months-long league as a one-time event. Per-fixture
+        // reminders are a separate concern (the weekly schedule lives in
+        // `league_schedule_matches`, not on the event row).
+        .neq('type', 'league');
       return (data as ReminderEvent[] | null) ?? [];
     },
     async findUnremindedAttendees(eventId, column: ReminderColumn, limit) {
@@ -61,7 +67,7 @@ function makeReminderPort(admin: ReturnType<typeof createSupabaseAdminClient>): 
       if (participantIds.length === 0) return;
       await admin
         .from('event_participants')
-        .update({ [column]: new Date().toISOString() } as never)
+        .update({ [column]: new Date().toISOString() } as TablesUpdate<'event_participants'>)
         .in('id', participantIds);
     },
   };

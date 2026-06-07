@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { RegistrationPaymentStatus, type EventTeamPaymentId } from '@pickupvb/domain';
+import { RegistrationPaymentStatus, EventTeamPaymentId } from '@pickupvb/domain';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { repositories } from '@/lib/handlers';
 import { log } from '@/lib/log';
@@ -36,9 +36,7 @@ export async function GET(
     }
 
     const { eventTeamPaymentRepo } = repositories;
-    const payment = await eventTeamPaymentRepo.findById(
-      meta.payment_id as never as EventTeamPaymentId,
-    );
+    const payment = await eventTeamPaymentRepo.findById(EventTeamPaymentId(meta.payment_id));
     if (!payment) return redirectBack();
 
     if (payment.paymentStatus === RegistrationPaymentStatus.Paid) {

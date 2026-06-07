@@ -47,7 +47,7 @@ export async function GET(
             payment_intent_id: piId,
             amount_paid_cents: session.amount_total ?? 0,
             paid_at: new Date().toISOString(),
-          } as never)
+          })
           .eq('checkout_session_id', session.id)
           .neq('payment_status', 'paid');
       }

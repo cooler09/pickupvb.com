@@ -3,6 +3,7 @@ import {
   Capacity,
   Division,
   DivisionId,
+  EventId,
   EventStatus,
   EventType,
   Format,
@@ -31,7 +32,8 @@ import {
   type EventSearchQuery,
   type VolleyballEventSummary,
 } from '@pickupvb/domain';
-import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { createSupabaseAdminClient, type Database } from '@pickupvb/supabase';
+import { asJson } from './supabase-json.js';
 import {
   computeSpotsRemaining,
   indexPaymentsByTeam,
@@ -189,7 +191,7 @@ function divisionRowToPositionRoster(
 
 function divisionRowToDomain(row: DivisionRow): Division {
   return Division.fromPersistence({
-    id: row.id as never,
+    id: DivisionId(row.id),
     sortOrder: row.sort_order,
     label: row.label,
     surface: row.surface,
@@ -210,6 +212,35 @@ function divisionRowToDomain(row: DivisionRow): Division {
     allowFreeAgents: row.allow_free_agents ?? true,
     teamRegistrationMode: row.team_registration_mode ?? null,
   });
+}
+
+/** Map a `Division` aggregate to its `event_divisions` row shape (the
+ *  `save_event` RPC's `p_divisions` element). */
+function divisionToRow(eventId: string, d: Division): Record<string, unknown> {
+  return {
+    id: String(d.id),
+    event_id: eventId,
+    sort_order: d.sortOrder,
+    label: d.label,
+    surface: d.surface,
+    format: d.format,
+    gender: d.gender,
+    skill_tier: d.skillTier,
+    age_group: d.ageGroup,
+    tier_label: d.tierLabel,
+    team_composition: d.teamComposition,
+    team_size: d.teamSize,
+    capacity_kind: d.capacity?.kind ?? null,
+    max_spots: d.capacity?.kind === 'fixed' ? d.capacity.maxSpots : null,
+    price_cents: d.priceCents,
+    price_unit: d.priceUnit,
+    prize_text: d.prizeText,
+    prize_purse_cents: d.prizePurseCents,
+    starts_at: d.startsAt ? d.startsAt.toISOString() : null,
+    ends_at: d.endsAt ? d.endsAt.toISOString() : null,
+    allow_free_agents: d.allowFreeAgents,
+    team_registration_mode: d.teamRegistrationMode,
+  };
 }
 
 function divisionRowToLite(
@@ -250,33 +281,6 @@ function divisionRowToLite(
   };
 }
 
-function divisionToRow(eventId: string, d: Division): Record<string, unknown> {
-  return {
-    id: String(d.id),
-    event_id: eventId,
-    sort_order: d.sortOrder,
-    label: d.label,
-    surface: d.surface,
-    format: d.format,
-    gender: d.gender,
-    skill_tier: d.skillTier,
-    age_group: d.ageGroup,
-    tier_label: d.tierLabel,
-    team_composition: d.teamComposition,
-    team_size: d.teamSize,
-    capacity_kind: d.capacity?.kind ?? null,
-    max_spots: d.capacity?.kind === 'fixed' ? d.capacity.maxSpots : null,
-    price_cents: d.priceCents,
-    price_unit: d.priceUnit,
-    prize_text: d.prizeText,
-    prize_purse_cents: d.prizePurseCents,
-    starts_at: d.startsAt ? d.startsAt.toISOString() : null,
-    ends_at: d.endsAt ? d.endsAt.toISOString() : null,
-    allow_free_agents: d.allowFreeAgents,
-    team_registration_mode: d.teamRegistrationMode,
-  };
-}
-
 function rowToExtensions(row: EventRow) {
   return {
     venueName: row.venue_name,
@@ -299,6 +303,12 @@ function rowToExtensions(row: EventRow) {
 export class SupabaseEventRepository implements EventRepository {
   private _client: SupabaseClient | null = null;
 
+  /** Client-injectable for tests (matches the sibling adapters). Production
+   *  callers construct with no args and get the lazily-built admin client. */
+  constructor(client?: SupabaseClient) {
+    this._client = client ?? null;
+  }
+
   private get client(): SupabaseClient {
     if (!this._client) this._client = createSupabaseAdminClient();
     return this._client;
@@ -319,6 +329,7 @@ export class SupabaseEventRepository implements EventRepository {
       { data: teams, error: tErr },
       { data: freeAgents, error: fErr },
       { data: divisions, error: dErr },
+      { data: waitlist, error: wErr },
     ] = await Promise.all([
       this.client
         .from('event_participants')
@@ -343,18 +354,25 @@ export class SupabaseEventRepository implements EventRepository {
         .select('*')
         .eq('event_id', id)
         .order('sort_order', { ascending: true }),
+      // FIFO capacity waitlist, head-first (ADR 0036).
+      this.client
+        .from('event_waitlist')
+        .select('user_id')
+        .eq('event_id', id)
+        .order('created_at', { ascending: true }),
     ]);
     if (aErr) throw new Error(`findById attendees failed: ${aErr.message}`);
     if (tErr) throw new Error(`findById teams failed: ${tErr.message}`);
     if (fErr) throw new Error(`findById free agents failed: ${fErr.message}`);
     if (dErr) throw new Error(`findById divisions failed: ${dErr.message}`);
+    if (wErr) throw new Error(`findById waitlist failed: ${wErr.message}`);
 
     const divisionRows = (divisions ?? []) as DivisionRow[];
     const legacy = primaryDivisionFallback(row, divisionRows);
 
     return VolleyballEvent.fromPersistence({
-      id: row.id as never,
-      hostId: row.host_id as never,
+      id: EventId(row.id),
+      hostId: UserId(row.host_id),
       title: row.title,
       description: row.description,
       rules: row.rules,
@@ -376,7 +394,7 @@ export class SupabaseEventRepository implements EventRepository {
       capacity: legacy.capacity,
       status: row.status,
       attendees: ((attendees ?? []) as Array<{ user_id: string; position: string | null }>).map(
-        (a) => [a.user_id as never, isEventPosition(a.position) ? a.position : null] as const,
+        (a) => [UserId(a.user_id), isEventPosition(a.position) ? a.position : null] as const,
       ),
       teams: ((teams ?? []) as Array<{ team_id: string; division_id: string | null }>).map(
         (t) => [TeamId(t.team_id), t.division_id ? DivisionId(t.division_id) : null] as const,
@@ -397,15 +415,24 @@ export class SupabaseEventRepository implements EventRepository {
       positionRoster: divisionRowToPositionRoster(divisionRows[0]),
       extensions: rowToExtensions(row),
       divisions: divisionRows.map(divisionRowToDomain),
+      waitlist: ((waitlist ?? []) as Array<{ user_id: string }>).map((w) => UserId(w.user_id)),
     });
   }
 
   async save(event: VolleyballEvent): Promise<void> {
     const loc = event.location;
     const wkt = `SRID=4326;POINT(${loc.longitude} ${loc.latitude})`;
+    const eventId = String(event.id);
 
-    const row = {
-      id: String(event.id),
+    // ADR 0006 Phase 9c: legacy event columns (format/gender/skill_level/
+    // capacity_kind/max_spots) are not written here — authority is on
+    // event_divisions; positionRoster lives on the primary division row
+    // (stamped below). Columns NOT listed (host_group_id, host_absorbs_fee,
+    // pass_processing_fee_to_buyer, refund_window_hours, hero_image_url) are
+    // owned by other write paths and left untouched by save_event. short_code
+    // is filled by the BEFORE INSERT trigger on create.
+    const eventRow = {
+      id: eventId,
       host_id: String(event.hostId),
       title: event.title,
       description: event.description,
@@ -423,12 +450,6 @@ export class SupabaseEventRepository implements EventRepository {
       starts_at: event.startsAt.toISOString(),
       ends_at: event.endsAt.toISOString(),
       time_zone: event.timeZone,
-      // ADR 0006 Phase 9c: legacy event columns (format, gender, skill_level,
-      // capacity_kind, max_spots) are no longer written here. Authority
-      // lives on event_divisions. positionRoster also lives on the
-      // primary division row — stamped below alongside the division
-      // reconciliation.
-      // ADR 0006 extension columns
       venue_name: event.venueName,
       registration_closes_at: event.registrationClosesAt
         ? event.registrationClosesAt.toISOString()
@@ -448,252 +469,43 @@ export class SupabaseEventRepository implements EventRepository {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await this.client.from('events').upsert(row as never, { onConflict: 'id' });
-    if (error) throw new Error(`save(${event.id}) failed: ${error.message}`);
-
-    // Reconcile attendees by delta. The aggregate's `_attendees` Map carries
-    // (userId, position) but NOT `division_id` — that's chosen at signup
-    // time and stored on the DB row. After Step 5a the tables no longer
-    // carry `event_id`, so we scope reads/writes through the event's
-    // division ids:
-    //
-    //   * Read the current rows via `.in('division_id', divisionIds)`.
-    //   * Delete only rows no longer in the aggregate.
-    //   * Insert only rows newly added. Attendees are open-play only and
-    //     open-play is single-division by invariant, so a new attendee uses
-    //     `soleDivisionId`. Teams and free agents now carry their own
-    //     division on the aggregate (ADR 0019), so their inserts below use
-    //     that — no division-less skip, no side-channel attach port.
-    //   * UPDATE rows whose position changed.
-    const eventIdForChildren = String(event.id);
-    const { data: divIdRows, error: divIdErr } = await this.client
-      .from('event_divisions')
-      .select('id')
-      .eq('event_id', eventIdForChildren);
-    if (divIdErr) throw new Error(`save divisions load failed: ${divIdErr.message}`);
-    const divisionIds = ((divIdRows as Array<{ id: string }> | null) ?? []).map((r) => r.id);
-    const soleDivisionId = divisionIds.length === 1 ? divisionIds[0]! : null;
-
-    const { data: existingAttendeeRows, error: selAErr } = await this.client
-      .from('event_participants')
-      .select('user_id, position')
-      .eq('role', 'attendee')
-      .in(
-        'division_id',
-        divisionIds.length > 0 ? divisionIds : ['00000000-0000-0000-0000-000000000000'],
-      );
-    if (selAErr) throw new Error(`save attendees load failed: ${selAErr.message}`);
-    const existingAttendees = new Map<string, string | null>(
-      (
-        (existingAttendeeRows as Array<{ user_id: string; position: string | null }> | null) ?? []
-      ).map((r) => [r.user_id, r.position]),
-    );
-    const desiredAttendees = new Map<string, string | null>(
-      Array.from(event.attendees.entries()).map(([u, position]) => [String(u), position]),
-    );
-    const attendeesToDelete: string[] = [];
-    for (const userId of existingAttendees.keys()) {
-      if (!desiredAttendees.has(userId)) attendeesToDelete.push(userId);
-    }
-    const attendeesToInsert: Array<{
-      division_id: string;
-      user_id: string;
-      position: string | null;
-    }> = [];
-    const attendeesToUpdate: Array<{ user_id: string; position: string | null }> = [];
-    for (const [userId, position] of desiredAttendees.entries()) {
-      if (!existingAttendees.has(userId)) {
-        // Multi-division events: dedicated handlers (the ticket-purchase
-        // checkout flow) write event_attendees rows directly with the
-        // chosen division_id. Skip the aggregate-driven insert here so
-        // re-saving the aggregate after such a write doesn't try to
-        // duplicate the row in the wrong division.
-        if (!soleDivisionId) continue;
-        attendeesToInsert.push({ division_id: soleDivisionId, user_id: userId, position });
-      } else if (existingAttendees.get(userId) !== position) {
-        attendeesToUpdate.push({ user_id: userId, position });
-      }
-    }
-    if (attendeesToDelete.length > 0) {
-      const { error: delErr } = await this.client
-        .from('event_participants')
-        .delete()
-        .eq('role', 'attendee')
-        .in('division_id', divisionIds)
-        .in('user_id', attendeesToDelete);
-      if (delErr) throw new Error(`save attendees delete failed: ${delErr.message}`);
-    }
-    if (attendeesToInsert.length > 0) {
-      const rows = attendeesToInsert.map((a) => ({ ...a, role: 'attendee' as const }));
-      const { error: insErr } = await this.client.from('event_participants').insert(rows as never);
-      if (insErr) throw new Error(`save attendees insert failed: ${insErr.message}`);
-    }
-    for (const row of attendeesToUpdate) {
-      const { error: updErr } = await this.client
-        .from('event_participants')
-        .update({ position: row.position } as never)
-        .eq('role', 'attendee')
-        .in('division_id', divisionIds)
-        .eq('user_id', row.user_id);
-      if (updErr) throw new Error(`save attendees update failed: ${updErr.message}`);
-    }
-
-    // Same delta pattern for the roster-mode entries in event_team_entries,
-    // scoped through divisionIds. Each desired entry now carries its own
-    // division (ADR 0019), so inserts work for single- and multi-division
-    // events alike — they route through the `attach_team_to_division` RPC,
-    // which resolves captain/name and honours the partial unique index via
-    // INSERT … ON CONFLICT DO NOTHING. Ad-hoc / walk-in entries are owned by
-    // the EventTeamRegistration aggregate and are intentionally skipped here.
-    const desiredTeamDivision = new Map(
-      event.teamEntries.map(([t, d]) => [String(t), d ? String(d) : null] as const),
-    );
-    const desiredTeams = new Set(desiredTeamDivision.keys());
-    const { data: existingTeamRows, error: selTErr } = await this.client
-      .from('event_team_entries')
-      .select('team_id')
-      .eq('source', 'roster')
-      .is('deleted_at', null)
-      .in(
-        'division_id',
-        divisionIds.length > 0 ? divisionIds : ['00000000-0000-0000-0000-000000000000'],
-      );
-    if (selTErr) throw new Error(`save teams load failed: ${selTErr.message}`);
-    const existingTeams = new Set(
-      ((existingTeamRows as Array<{ team_id: string | null }> | null) ?? [])
-        .map((r) => r.team_id)
-        .filter((v): v is string => !!v),
-    );
-    const teamsToDelete = Array.from(existingTeams).filter((t) => !desiredTeams.has(t));
-    const teamsToInsert = Array.from(desiredTeams).filter((t) => !existingTeams.has(t));
-    if (teamsToDelete.length > 0) {
-      const { error: delTErr } = await this.client
-        .from('event_team_entries')
-        .delete()
-        .eq('source', 'roster')
-        .in('division_id', divisionIds)
-        .in('team_id', teamsToDelete);
-      if (delTErr) throw new Error(`save teams delete failed: ${delTErr.message}`);
-    }
-    for (const teamId of teamsToInsert) {
-      // Per-entry division (ADR 0019); fall back to the sole division for
-      // legacy rows that carry none.
-      const teamDivisionId = desiredTeamDivision.get(teamId) ?? soleDivisionId;
-      if (!teamDivisionId) continue;
-      const { error: insTErr } = await this.client.rpc('attach_team_to_division', {
-        p_division_id: teamDivisionId,
-        p_team_id: teamId,
-      } as never);
-      if (insTErr) throw new Error(`save teams insert failed: ${insTErr.message}`);
-    }
-
-    // Free agents — delta on membership + notes update.
-    const { data: existingFaRows, error: selFErr } = await this.client
-      .from('event_participants')
-      .select('user_id, notes')
-      .eq('role', 'free_agent')
-      .in(
-        'division_id',
-        divisionIds.length > 0 ? divisionIds : ['00000000-0000-0000-0000-000000000000'],
-      );
-    if (selFErr) throw new Error(`save free agents load failed: ${selFErr.message}`);
-    const existingFa = new Map<string, string | null>(
-      ((existingFaRows as Array<{ user_id: string; notes: string | null }> | null) ?? []).map(
-        (r) => [r.user_id, r.notes],
-      ),
-    );
-    const desiredFa = new Map<string, { divisionId: string | null; notes: string | null }>(
-      event.freeAgentEntries.map(([u, e]) => [
-        String(u),
-        { divisionId: e.divisionId ? String(e.divisionId) : null, notes: e.notes },
-      ]),
-    );
-    const faToDelete: string[] = [];
-    for (const userId of existingFa.keys()) {
-      if (!desiredFa.has(userId)) faToDelete.push(userId);
-    }
-    const faToInsert: Array<{ division_id: string; user_id: string; notes: string | null }> = [];
-    const faToUpdate: Array<{ user_id: string; notes: string | null }> = [];
-    for (const [userId, entry] of desiredFa.entries()) {
-      if (!existingFa.has(userId)) {
-        // Per-entry division (ADR 0019); fall back to the sole division for
-        // legacy rows that carry none.
-        const faDivisionId = entry.divisionId ?? soleDivisionId;
-        if (!faDivisionId) continue;
-        faToInsert.push({ division_id: faDivisionId, user_id: userId, notes: entry.notes });
-      } else if (existingFa.get(userId) !== entry.notes) {
-        faToUpdate.push({ user_id: userId, notes: entry.notes });
-      }
-    }
-    if (faToDelete.length > 0) {
-      const { error: delFErr } = await this.client
-        .from('event_participants')
-        .delete()
-        .eq('role', 'free_agent')
-        .in('division_id', divisionIds)
-        .in('user_id', faToDelete);
-      if (delFErr) throw new Error(`save free agents delete failed: ${delFErr.message}`);
-    }
-    if (faToInsert.length > 0) {
-      const rows = faToInsert.map((f) => ({ ...f, role: 'free_agent' as const }));
-      // Plain insert (not upsert): the only unique index on
-      // (division_id, user_id) is *partial* — `where user_id is not null`
-      // (migration 20260802000000). PostgREST's `onConflict` can't carry the
-      // index predicate a partial index requires for ON CONFLICT inference, so
-      // an upsert here raised 42P10 ("no unique or exclusion constraint
-      // matching the ON CONFLICT specification") and broke every free-agent
-      // signup. The partial index still enforces uniqueness on the insert, so
-      // a concurrent double-submit raises 23505 (unique_violation) — which we
-      // swallow to keep the operation idempotent (matches the removed
-      // attachFreeAgentToDivision behaviour — ADR 0019).
-      const { error: insFErr } = await this.client.from('event_participants').insert(rows as never);
-      if (insFErr && insFErr.code !== '23505') {
-        throw new Error(`save free agents insert failed: ${insFErr.message}`);
-      }
-    }
-    for (const row of faToUpdate) {
-      const { error: updErr } = await this.client
-        .from('event_participants')
-        .update({ notes: row.notes } as never)
-        .eq('role', 'free_agent')
-        .in('division_id', divisionIds)
-        .eq('user_id', row.user_id);
-      if (updErr) throw new Error(`save free agents update failed: ${updErr.message}`);
-    }
-
-    // Reconcile divisions: upsert current set by id, delete any id no
-    // longer present so child rows with `division_id` go to NULL via
-    // `on delete set null` and may be re-resolved by the
-    // `fill_default_division_id` trigger when the event has exactly one
-    // remaining division.
-    //
-    // When the aggregate carries no divisions (legacy create path that
-    // pre-dates multi-division), we skip the delete entirely so the
-    // `events_create_default_division` AFTER INSERT trigger's row stays
-    // put. Reconciliation only runs when the caller explicitly listed
-    // divisions on the aggregate.
-    const eventIdStr = String(event.id);
-    const divisionRows = event.divisions.map((d) => divisionToRow(eventIdStr, d));
+    const attendees = Array.from(event.attendees.entries()).map(([u, position]) => ({
+      user_id: String(u),
+      position,
+    }));
+    const waitlist = event.waitlist.map((u) => String(u));
+    const teams = event.teamEntries.map(([t, d]) => ({
+      team_id: String(t),
+      division_id: d ? String(d) : null,
+    }));
+    const freeAgents = event.freeAgentEntries.map(([u, e]) => ({
+      user_id: String(u),
+      division_id: e.divisionId ? String(e.divisionId) : null,
+      notes: e.notes,
+    }));
+    const divisionRows = event.divisions.map((d) => divisionToRow(eventId, d));
     if (divisionRows.length > 0) {
-      // Stamp the aggregate-level `positionRoster` onto the primary
-      // division row. Open-play events are single-division by invariant
-      // (P1 #3); tournament/league divisions carry null.
+      // Stamp the aggregate-level positionRoster onto the primary division row.
       const primary = divisionRows[0] as Record<string, unknown>;
       primary.position_roster = event.positionRoster
         ? Object.fromEntries(event.positionRoster.entries())
         : null;
-      const { error: upErr } = await this.client
-        .from('event_divisions')
-        .upsert(divisionRows as never, { onConflict: 'id' });
-      if (upErr) throw new Error(`save divisions upsert failed: ${upErr.message}`);
-      const keepIds = event.divisions.map((d) => String(d.id));
-      const { error: delDivErr } = await this.client
-        .from('event_divisions')
-        .delete()
-        .eq('event_id', eventIdStr)
-        .not('id', 'in', `(${keepIds.join(',')})`);
-      if (delDivErr) throw new Error(`save divisions delete failed: ${delDivErr.message}`);
     }
+
+    // Atomic full persist (architecture audit P2-2 inc. 3): the events row +
+    // every child reconcile (attendees / waitlist / roster teams / free agents /
+    // divisions) run in ONE transaction via the save_event RPC, replacing the
+    // prior per-statement write sequence. The RPC performs the identical delta
+    // semantics — see migration 20260919000000_save_event_rpc.sql.
+    const { error } = await this.client.rpc('save_event', {
+      p_event: asJson(eventRow),
+      p_attendees: asJson(attendees),
+      p_waitlist: asJson(waitlist),
+      p_teams: asJson(teams),
+      p_free_agents: asJson(freeAgents),
+      p_divisions: asJson(divisionRows),
+    });
+    if (error) throw new Error(`save(${event.id}) failed: ${error.message}`);
 
     // Drain raised events so callers don't double-handle them.
     event.pullEvents();
@@ -755,7 +567,10 @@ export class SupabaseEventRepository implements EventRepository {
       p_is_fundraiser: query.isFundraiser ?? null,
     };
 
-    const { data, error } = await this.client.rpc('search_events', args as never);
+    const { data, error } = await this.client.rpc(
+      'search_events',
+      args as Database['public']['Functions']['search_events']['Args'],
+    );
     if (error) throw new Error(`search failed: ${error.message}`);
 
     const rows = (data ?? []) as unknown as SearchRow[];
@@ -852,7 +667,13 @@ export class SupabaseEventRepository implements EventRepository {
       )
       .in('id', eventIds)
       .order('starts_at', { ascending: true });
-    if (opts.startsAfter) q = q.gte('starts_at', opts.startsAfter.toISOString());
+    if (opts.startsAfter) {
+      // Leagues are seasons: keep an in-progress league "upcoming" until its
+      // season ends (`ends_at`), not the season start. Mirrors the
+      // `search_events` RPC classification (migration 20260915000000).
+      const iso = opts.startsAfter.toISOString();
+      q = q.or(`and(type.neq.league,starts_at.gte.${iso}),and(type.eq.league,ends_at.gte.${iso})`);
+    }
     if (opts.limit) q = q.limit(opts.limit);
     const { data: evData, error: evErr } = await q;
     if (evErr) throw new Error(`listAttending events failed: ${evErr.message}`);
@@ -1050,8 +871,10 @@ export class SupabaseEventRepository implements EventRepository {
     if (!ev) return null;
     const row = ev as unknown as EventRow & { host_group_id: string | null };
 
-    // Run independent queries in parallel.
-    const [
+    // Wave 1: the event's own child reads (attendees, co-hosts, primary host
+    // user/group, roster teams, free agents, divisions), run in parallel — see
+    // loadDetailWave1.
+    const {
       attendeeRowsRes,
       coHostRowsRes,
       primaryHostUserRes,
@@ -1059,71 +882,7 @@ export class SupabaseEventRepository implements EventRepository {
       teamRowsRes,
       freeAgentRowsRes,
       divisionRowsRes,
-    ] = await Promise.all([
-      this.client
-        .from('event_participants')
-        .select(
-          'user_id, joined_at, position, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
-        )
-        .eq('role', 'attendee')
-        .eq('division.event_id', id)
-        .order('joined_at', { ascending: true }),
-      this.client
-        .from('event_co_hosts')
-        .select(
-          // `event_co_hosts` has TWO FKs to `profiles` (`host_user_id` and
-          // `added_by`), so the embed MUST be disambiguated with the FK
-          // hint — otherwise PostgREST returns PGRST201 ("more than one
-          // relationship was found") and `data` comes back null. Without
-          // the hint the code below silently treated every event as
-          // having zero co-hosts, even when rows existed in the table.
-          'host_user_id, host_group_id, profiles:profiles!host_user_id(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
-        )
-        .eq('event_id', id),
-      row.host_id
-        ? this.client
-            .from('profiles')
-            .select('id, handle, display_name, first_name, last_name, avatar_url')
-            .eq('id', row.host_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      row.host_group_id
-        ? this.client
-            .from('groups')
-            .select('id, slug, name, avatar_url')
-            .eq('id', row.host_group_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      this.client
-        .from('event_team_entries')
-        .select(
-          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
-        )
-        .eq('division.event_id', id)
-        .eq('source', 'roster')
-        .is('deleted_at', null)
-        .order('registered_at', { ascending: true }),
-      this.client
-        .from('event_participants')
-        .select(
-          'user_id, notes, division_id, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
-        )
-        .eq('role', 'free_agent')
-        .eq('division.event_id', id)
-        .order('joined_at', { ascending: true }),
-      this.client
-        .from('event_divisions')
-        .select('*')
-        .eq('event_id', id)
-        .order('sort_order', { ascending: true }),
-    ]);
-
-    // The co-host embed needs a disambiguated FK hint (two FKs to `profiles`);
-    // a missing hint returns PGRST201 with null data, which used to silently
-    // drop every co-host. Surface the failure instead of swallowing it.
-    if (coHostRowsRes.error) {
-      throw new Error(`getDetail(${id}) co-host query failed: ${coHostRowsRes.error.message}`);
-    }
+    } = await this.loadDetailWave1(id, row.host_id, row.host_group_id);
 
     // Derive legacy display fields from primary division when the event
     // columns are null (ADR 0006 Phase 9b).
@@ -1131,31 +890,8 @@ export class SupabaseEventRepository implements EventRepository {
     const legacyDetail = primaryDivisionFallback(row, divisionRowsForDetail);
 
     // Resolve podium labels (one extra read when any division has a recorded
-    // placement). Collect every placement entry id across all three places,
-    // fetch once, and build an entry-id → label map (preferring the live
-    // `teams.name` over the entry `display_name` for ad-hoc / walk-in rows).
-    let entryLabelById = new Map<string, string>();
-    const placementEntryIds = [
-      ...new Set(
-        divisionRowsForDetail.flatMap((d) =>
-          [d.winner_entry_id, d.runner_up_entry_id, d.third_place_entry_id].filter(
-            (v): v is string => !!v,
-          ),
-        ),
-      ),
-    ];
-    if (placementEntryIds.length > 0) {
-      const { data: entryRows } = await this.client
-        .from('event_team_entries')
-        .select('id, display_name, team_id, teams:teams(name)')
-        .in('id', placementEntryIds);
-      entryLabelById = new Map(
-        ((entryRows as WinnerEntryRow[] | null) ?? []).map((r) => [
-          r.id,
-          r.teams?.name ?? r.display_name,
-        ]),
-      );
-    }
+    // placement) — see loadPodiumLabels.
+    const entryLabelById = await this.loadPodiumLabels(divisionRowsForDetail);
     const placementLabels = (d: DivisionRow) => ({
       winner: d.winner_entry_id ? (entryLabelById.get(d.winner_entry_id) ?? null) : null,
       runnerUp: d.runner_up_entry_id ? (entryLabelById.get(d.runner_up_entry_id) ?? null) : null,
@@ -1175,57 +911,16 @@ export class SupabaseEventRepository implements EventRepository {
     const teamJoinRows = (teamRowsRes.data as TeamJoinRow[] | null) ?? [];
     const registeredTeamIds = teamJoinRows.map((r) => r.teams?.id).filter((v): v is string => !!v);
 
-    // ---- Wave 2: viewer-specific reads + team aggregates ----------------
-    // These depend on Wave 1 (`registeredTeamIds`, `legacyDetail.format`), so
-    // they form a second parallel batch.
-    const [
+    // Wave 2: viewer-specific reads + team aggregates (depend on Wave 1's
+    // registeredTeamIds) — see loadDetailWave2.
+    const {
       viewerFriendsRes,
       viewerRoleRes,
       viewerHostableGroupsRes,
       teamMemberCountsRes,
       teamPaymentsRes,
       viewerCaptainedTeamsRes,
-    ] = await Promise.all([
-      viewerId
-        ? this.client.from('friendships').select('friend_id').eq('user_id', viewerId)
-        : Promise.resolve({ data: [], error: null }),
-      viewerId && row.host_group_id
-        ? this.client
-            .from('group_members')
-            .select('role')
-            .eq('group_id', row.host_group_id)
-            .eq('user_id', viewerId)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      viewerId
-        ? this.client
-            .from('group_members')
-            .select('groups:groups!inner(id, name)')
-            .eq('user_id', viewerId)
-            .in('role', ['owner', 'admin'])
-        : Promise.resolve({ data: [], error: null }),
-      registeredTeamIds.length
-        ? this.client.from('team_members').select('team_id').in('team_id', registeredTeamIds)
-        : Promise.resolve({ data: [], error: null }),
-      registeredTeamIds.length
-        ? this.client
-            .from('event_team_payments')
-            .select(
-              'team_id, payment_status, amount_paid_cents, division:event_divisions!inner(event_id)',
-            )
-            .eq('division.event_id', id)
-            .in('team_id', registeredTeamIds)
-        : Promise.resolve({ data: [], error: null }),
-      // Every team the viewer captains. Teams are not format-locked (ADR
-      // 0013) — a roster can enter a division of any format — so we no longer
-      // filter by the event's format; the picker shows all of them. Only
-      // consumed by the tournament/league signup panels (harmless elsewhere).
-      // One tiny query, issued for any logged-in viewer to keep the response
-      // shape uniform.
-      viewerId
-        ? this.client.from('teams').select('id, name').eq('captain_id', viewerId)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+    } = await this.loadDetailWave2(id, viewerId, row.host_group_id, registeredTeamIds);
 
     const primaryHostUser = primaryHostUserRes.data
       ? toProfileLite(primaryHostUserRes.data as ProfileRow)
@@ -1279,17 +974,11 @@ export class SupabaseEventRepository implements EventRepository {
     );
 
     // Viewer's captained teams need a member-count read of their own (the ids
-    // aren't known until the Wave 2 captained-teams query resolves).
+    // aren't known until the Wave 2 captained-teams query resolves) — see
+    // loadViewerTeamMemberCounts.
     const viewerTeamRows = (viewerCaptainedTeamsRes.data as ViewerTeamRow[] | null) ?? [];
     const viewerTeamIds = viewerTeamRows.map((t) => t.id);
-    let viewerTeamMemberCounts = new Map<string, number>();
-    if (viewerTeamIds.length) {
-      const { data: vtm } = await this.client
-        .from('team_members')
-        .select('team_id')
-        .in('team_id', viewerTeamIds);
-      viewerTeamMemberCounts = tallyTeamMembers((vtm as { team_id: string }[] | null) ?? []);
-    }
+    const viewerTeamMemberCounts = await this.loadViewerTeamMemberCounts(viewerTeamIds);
     const viewerCaptainedTeams = mapViewerCaptainedTeams(
       viewerTeamRows,
       viewerTeamMemberCounts,
@@ -1357,6 +1046,206 @@ export class SupabaseEventRepository implements EventRepository {
     };
   }
 
+  // ---- getDetail query waves (extracted I/O — architecture audit P2-2 inc. 2) ----
+  //
+  // The two parallel read waves + the conditional podium / viewer-team reads
+  // live here so getDetail is a readable orchestrator (loaders → mappers →
+  // assemble). Each returns the raw PostgREST result objects so the (separately
+  // tested) parsing in getDetail/mappers.ts is unchanged. Verbatim queries —
+  // pinned by the read-sequence characterization test.
+
+  /** Wave 1: the event's own child reads, run in parallel. */
+  private async loadDetailWave1(id: string, hostId: string | null, hostGroupId: string | null) {
+    const [
+      attendeeRowsRes,
+      coHostRowsRes,
+      primaryHostUserRes,
+      primaryHostGroupRes,
+      teamRowsRes,
+      freeAgentRowsRes,
+      divisionRowsRes,
+    ] = await Promise.all([
+      this.client
+        .from('event_participants')
+        .select(
+          'user_id, joined_at, position, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
+        )
+        .eq('role', 'attendee')
+        .eq('division.event_id', id)
+        .order('joined_at', { ascending: true }),
+      this.client
+        .from('event_co_hosts')
+        .select(
+          // `event_co_hosts` has TWO FKs to `profiles` (`host_user_id` and
+          // `added_by`), so the embed MUST be disambiguated with the FK
+          // hint — otherwise PostgREST returns PGRST201 ("more than one
+          // relationship was found") and `data` comes back null. Without
+          // the hint the code below silently treated every event as
+          // having zero co-hosts, even when rows existed in the table.
+          'host_user_id, host_group_id, profiles:profiles!host_user_id(id, handle, display_name, first_name, last_name, avatar_url), groups:groups(id, slug, name, avatar_url)',
+        )
+        .eq('event_id', id),
+      hostId
+        ? this.client
+            .from('profiles')
+            .select('id, handle, display_name, first_name, last_name, avatar_url')
+            .eq('id', hostId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      hostGroupId
+        ? this.client
+            .from('groups')
+            .select('id, slug, name, avatar_url')
+            .eq('id', hostGroupId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      this.client
+        .from('event_team_entries')
+        .select(
+          'team_id, division_id, registered_at, teams:teams!inner(id, slug, name, captain_id, captain:profiles!teams_captain_id_fkey(id, handle, display_name, first_name, last_name, avatar_url)), division:event_divisions!event_team_entries_division_id_fkey!inner(event_id)',
+        )
+        .eq('division.event_id', id)
+        .eq('source', 'roster')
+        .is('deleted_at', null)
+        .order('registered_at', { ascending: true }),
+      this.client
+        .from('event_participants')
+        .select(
+          'user_id, notes, division_id, joined_at, profiles:profiles!inner(handle, display_name, first_name, last_name, avatar_url), division:event_divisions!inner(event_id)',
+        )
+        .eq('role', 'free_agent')
+        .eq('division.event_id', id)
+        .order('joined_at', { ascending: true }),
+      this.client
+        .from('event_divisions')
+        .select('*')
+        .eq('event_id', id)
+        .order('sort_order', { ascending: true }),
+    ]);
+
+    // The co-host embed needs a disambiguated FK hint (two FKs to `profiles`);
+    // a missing hint returns PGRST201 with null data, which used to silently
+    // drop every co-host. Surface the failure instead of swallowing it.
+    if (coHostRowsRes.error) {
+      throw new Error(`getDetail(${id}) co-host query failed: ${coHostRowsRes.error.message}`);
+    }
+
+    return {
+      attendeeRowsRes,
+      coHostRowsRes,
+      primaryHostUserRes,
+      primaryHostGroupRes,
+      teamRowsRes,
+      freeAgentRowsRes,
+      divisionRowsRes,
+    };
+  }
+
+  /** Podium labels: one extra read when any division has a recorded placement.
+   *  Collect every placement entry id across all three places, fetch once, and
+   *  build an entry-id → label map (preferring the live `teams.name` over the
+   *  entry `display_name` for ad-hoc / walk-in rows). */
+  private async loadPodiumLabels(divisionRows: DivisionRow[]): Promise<Map<string, string>> {
+    const placementEntryIds = [
+      ...new Set(
+        divisionRows.flatMap((d) =>
+          [d.winner_entry_id, d.runner_up_entry_id, d.third_place_entry_id].filter(
+            (v): v is string => !!v,
+          ),
+        ),
+      ),
+    ];
+    if (placementEntryIds.length === 0) return new Map();
+    const { data: entryRows } = await this.client
+      .from('event_team_entries')
+      .select('id, display_name, team_id, teams:teams(name)')
+      .in('id', placementEntryIds);
+    return new Map(
+      ((entryRows as WinnerEntryRow[] | null) ?? []).map((r) => [
+        r.id,
+        r.teams?.name ?? r.display_name,
+      ]),
+    );
+  }
+
+  /** Wave 2: viewer-specific reads + team aggregates (depend on Wave 1's
+   *  `registeredTeamIds`), run in parallel. */
+  private async loadDetailWave2(
+    id: string,
+    viewerId: string | null,
+    hostGroupId: string | null,
+    registeredTeamIds: string[],
+  ) {
+    const [
+      viewerFriendsRes,
+      viewerRoleRes,
+      viewerHostableGroupsRes,
+      teamMemberCountsRes,
+      teamPaymentsRes,
+      viewerCaptainedTeamsRes,
+    ] = await Promise.all([
+      viewerId
+        ? this.client.from('friendships').select('friend_id').eq('user_id', viewerId)
+        : Promise.resolve({ data: [], error: null }),
+      viewerId && hostGroupId
+        ? this.client
+            .from('group_members')
+            .select('role')
+            .eq('group_id', hostGroupId)
+            .eq('user_id', viewerId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+      viewerId
+        ? this.client
+            .from('group_members')
+            .select('groups:groups!inner(id, name)')
+            .eq('user_id', viewerId)
+            .in('role', ['owner', 'admin'])
+        : Promise.resolve({ data: [], error: null }),
+      registeredTeamIds.length
+        ? this.client.from('team_members').select('team_id').in('team_id', registeredTeamIds)
+        : Promise.resolve({ data: [], error: null }),
+      registeredTeamIds.length
+        ? this.client
+            .from('event_team_payments')
+            .select(
+              'team_id, payment_status, amount_paid_cents, division:event_divisions!inner(event_id)',
+            )
+            .eq('division.event_id', id)
+            .in('team_id', registeredTeamIds)
+        : Promise.resolve({ data: [], error: null }),
+      // Every team the viewer captains. Teams are not format-locked (ADR
+      // 0013) — a roster can enter a division of any format — so we no longer
+      // filter by the event's format; the picker shows all of them. Only
+      // consumed by the tournament/league signup panels (harmless elsewhere).
+      // One tiny query, issued for any logged-in viewer to keep the response
+      // shape uniform.
+      viewerId
+        ? this.client.from('teams').select('id, name').eq('captain_id', viewerId)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    return {
+      viewerFriendsRes,
+      viewerRoleRes,
+      viewerHostableGroupsRes,
+      teamMemberCountsRes,
+      teamPaymentsRes,
+      viewerCaptainedTeamsRes,
+    };
+  }
+
+  /** Member counts for the viewer's captained teams (ids known only after the
+   *  Wave 2 captained-teams query resolves). */
+  private async loadViewerTeamMemberCounts(teamIds: string[]): Promise<Map<string, number>> {
+    if (teamIds.length === 0) return new Map();
+    const { data: vtm } = await this.client
+      .from('team_members')
+      .select('team_id')
+      .in('team_id', teamIds);
+    return tallyTeamMembers((vtm as { team_id: string }[] | null) ?? []);
+  }
+
   async findIdByShortCode(shortCode: string): Promise<string | null> {
     const normalized = shortCode.trim().toUpperCase();
     if (normalized.length === 0) return null;
@@ -1384,7 +1273,7 @@ export class SupabaseEventRepository implements EventRepository {
       host_user_id: party.userId ?? null,
       host_group_id: party.groupId ?? null,
       added_by: addedBy,
-    } as never);
+    });
     if (error) throw new Error(`addCoHost failed: ${error.message}`);
   }
 
@@ -1408,7 +1297,7 @@ export class SupabaseEventRepository implements EventRepository {
     // withdrawn rows. RLS on event_team_entries gates the write to the host.
     const { error } = await this.client
       .from('event_team_entries')
-      .update({ forfeited_at: forfeitedAt ? forfeitedAt.toISOString() : null } as never)
+      .update({ forfeited_at: forfeitedAt ? forfeitedAt.toISOString() : null })
       .eq('id', entryId)
       .is('deleted_at', null);
     if (error) throw new Error(`setLeagueEntryForfeited failed: ${error.message}`);

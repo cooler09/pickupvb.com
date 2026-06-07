@@ -1,6 +1,6 @@
 # Home / Landing Page UX Audit
 
-_Last updated: 2026-06-01_
+_Last updated: 2026-06-05_
 
 UX/UI evaluation of the **home / landing page**
 ([apps/web/src/app/page.tsx](../../apps/web/src/app/page.tsx)) — the front door
@@ -51,6 +51,43 @@ This file is complementary to — not a duplicate of:
 > - The page already computes `now` at the server boundary
 >   ([page.tsx#L27](../../apps/web/src/app/page.tsx#L27)), so `relativeEventDay`
 >   can be threaded without re-introducing `Date.now()` in render.
+
+> **Status update (2026-06-05):** Re-audit pass at the user's request — bugs /
+> gaps / stale data / improvements. No new P1; the page renders and is
+> SEO-covered by the root layout. Three **new** findings added below: **H-7**
+> (the "waitlists" host claim overstates what the product does — only over-fill
+> _flagging_ exists, no host-side promotion/management; see the
+> `waitlist-not-implemented` note and the **Hannah** persona gap), **H-8** (the
+> "Groups & organizations" peek is ordered `name ASC`, so it shows the same six
+> alphabetically-first groups forever — it contradicts the page's own "fresh
+> content … running events" framing), and **H-9** (the highest-traffic page is
+> fully dynamic, yet both anon peek reads are viewer-independent and trivially
+> cacheable). Verified the **"Real-time spot updates"** hero claim is _honest_ —
+> [use-event-attendees.ts#L32](../../apps/web/src/hooks/use-event-attendees.ts#L32)
+> subscribes to per-event `postgres_changes`, so it is **not** flagged. **Update
+> (same day):** H-7 / H-8 / H-9 then shipped, followed by the prior pass's
+> **H-2 / H-3 / H-6** — so the audit is now **fully cleared** (every finding
+> H-1…H-9 resolved; H-5 via persona-ux V-4). See the **Remediation log**.
+>
+> Grounding facts that shaped grading:
+>
+> - **Waitlist is over-fill flagging, not a managed queue.** The domain raises
+>   `SpotFilled(..., waitlist)` when a position goes over its configured count
+>   ([volleyball-event.ts#L686-L688](../../packages/domain/src/events/volleyball-event.ts#L686-L688)),
+>   and the RSVP panel shows a "Join waitlist" CTA / "Waitlist" badge
+>   ([position-rsvp-panel.tsx#L98](../../apps/web/src/app/events/[id]/_components/position-rsvp-panel.tsx#L98)).
+>   There is **no** host-side waitlist roster, promotion, or auto-fill — so
+>   "run waitlists" / "Waitlists & capacity rules" promise host capability the
+>   product doesn't have.
+> - **The groups peek is `name ASC`, capped at 6**
+>   ([supabase-group-query-repository.ts#L112-L121](../../packages/infrastructure/src/supabase-group-query-repository.ts#L112-L121)),
+>   with no "has upcoming events" filter. The `groups` row has `created_at`, so a
+>   "fresh / active" ordering is available without a schema change.
+> - **The page reads `cookies()`** (`getCurrentUser` + `getServerSupabase`,
+>   [page.tsx#L26-L27](../../apps/web/src/app/page.tsx#L26-L27)), so it renders
+>   dynamically on every hit. For an anonymous viewer both peek reads
+>   (`searchEvents` with `viewerId: null`; `listCards`) are **identical across
+>   all anon visitors** — a perfect `unstable_cache` candidate.
 
 ---
 
@@ -132,7 +169,7 @@ and lights up four shipped features on the busiest screen at once.
 
 ### B. Location honesty (visitor)
 
-#### H-2 — Hero "Find events near me" promises proximity the page never delivers · **P3**
+#### H-2 — Hero "Find events near me" promises proximity the page never delivers · **P3** · ✅ resolved 2026-06-05
 
 The hero's primary CTA reads **"Find events near me"**
 ([page.tsx#L57-L59](../../apps/web/src/app/page.tsx#L57-L59)) but links to bare
@@ -154,7 +191,13 @@ lands on an unscoped list, and has to tap "Near me" _again_ on the listing page.
 Recommend (a) for the button now; (b) only if we want the homepage to be a true
 near-me entry point. P3.
 
-#### H-3 — The peek section vanishes entirely in an empty/sparse market · **P3**
+**Resolved 2026-06-05 (option a):** the hero CTA now reads **"Find events"** (was
+"Find events near me"), dropping the proximity promise the unscoped `/events`
+link never kept. The peek heading ("Upcoming events" / "A peek at what's on the
+schedule") was already proximity-neutral, so it was left as-is.
+[page.tsx](../../apps/web/src/app/page.tsx).
+
+#### H-3 — The peek section vanishes entirely in an empty/sparse market · **P3** · ✅ resolved 2026-06-05
 
 The whole "Upcoming events" block is gated on `upcomingEvents.length > 0`
 ([page.tsx#L103](../../apps/web/src/app/page.tsx#L103)). In a brand-new metro —
@@ -168,6 +211,13 @@ renders a helpful `EmptyState` (host nudge / clear-filters)
 its place — _"No events scheduled near you yet — be the first to host one"_ with
 the existing host CTA — rather than dropping the section, so the page never
 looks dead. P3.
+
+**Resolved 2026-06-05:** the "Upcoming events" section is now always rendered;
+when the peek is empty it falls back to the shared
+[`EmptyState`](../../apps/web/src/components/empty-state.tsx) — _"No upcoming
+events yet — be the first to host one…"_ with the host CTA (routes anon users to
+`/login?next=/events/new`) — instead of the section vanishing.
+[page.tsx](../../apps/web/src/app/page.tsx).
 
 ### C. Consistency / DRY
 
@@ -212,7 +262,7 @@ CTAs funnel there, an anon user who taps them lands on the claim flow instead of
 the bare form — no home-local change was needed. See persona-ux V-4 + journal
 [2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
 
-#### H-6 — A returning signed-in player sees the visitor's marketing page · **P3** (optional / product call)
+#### H-6 — A returning signed-in player sees the visitor's marketing page · **P3** (optional / product call) · ✅ resolved 2026-06-05
 
 For an authed user the page differs from a visitor's only in that the guest
 sign-in nudge ([page.tsx#L67-L74](../../apps/web/src/app/page.tsx#L67-L74)) and
@@ -228,6 +278,133 @@ Following peek for the player who already has a session.
 marketing footer for a player-relevant block. Flagged **P3** and called out as a
 **product decision**, not a defect — the header + bottom-nav already give players
 their primary surfaces, so this is upside, not a gap.
+
+**Resolved 2026-06-05 (product call: "Your upcoming events" peek):** for
+signed-in users the page now leads with a compact **"Your upcoming events"**
+section above the hero — their RSVP'd upcoming events (≤3) via
+`handlers.getAttendingEvents` (`GetAttendingEventsQuery(user.id, now, 3)`),
+rendered with the shared `EventCard` and a "See all →" link to `/profile`. It's a
+viewer-scoped read (kept out of the cached `loadHomePeek` from H-9) that degrades
+to `[]` on failure, and the section is hidden when the player has none — so they
+fall back to the generic marketing page rather than seeing an empty rail. The
+shared `toEventCardData` helper now feeds both this peek and the public one.
+[page.tsx](../../apps/web/src/app/page.tsx).
+
+### E. Marketing-copy honesty (stale claims)
+
+#### H-7 — The homepage advertises "waitlists" the product doesn't actually run · **P2** · ✅ resolved 2026-06-05
+
+The page sells **waitlists as a host feature** in three places:
+
+- the "Host" value card body — _"Collect signups, **run waitlists**, take payment…"_
+  ([page.tsx#L166](../../apps/web/src/app/page.tsx#L166)),
+- the host-pitch prose — _"signups, **waitlists**, online payments…"_
+  ([page.tsx#L204](../../apps/web/src/app/page.tsx#L204)),
+- the host-pitch checklist — _"**Waitlists** & capacity rules"_
+  ([page.tsx#L218](../../apps/web/src/app/page.tsx#L218)).
+
+But there is **no waitlist feature** in the host sense. What exists is over-fill
+_flagging_: when a position goes past its configured count the aggregate raises
+`SpotFilled(..., waitlist: true)`
+([volleyball-event.ts#L686-L688](../../packages/domain/src/events/volleyball-event.ts#L686-L688)),
+the RSVP panel shows a "Join waitlist" CTA / "Waitlist" badge
+([position-rsvp-panel.tsx#L98](../../apps/web/src/app/events/[id]/_components/position-rsvp-panel.tsx#L98)),
+and the join CTA reads "Join waitlist" when full
+([load-event-detail.ts#L683](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts#L683)).
+There is **no waitlist queue a host manages, no auto-promotion when a spot frees
+up, and no separate waitlist roster** — confirmed by the `waitlist-not-implemented`
+note (the **Hannah** persona gap). A host who signs up because of this copy will
+look for a "promote from waitlist" control that isn't there. Stale/overstated
+public claim on the highest-traffic page → graded **P2** (honesty, not polish:
+it sets a host expectation the product fails).
+
+**Recommended fix (pick one):**
+
+- (a) Cheapest + honest: soften the three strings to what's real —
+  e.g. "**over-capacity signups flagged**" / "capacity & over-fill rules" rather
+  than "run waitlists" / "Waitlists & capacity rules". The "Join waitlist" CTA on
+  the detail page is accurate for the _player_ side, so the player-facing framing
+  can stay; only the **host-capability** framing on the homepage overstates.
+- (b) Build the feature (waitlist roster + host promotion / auto-fill on a freed
+  spot), then the copy becomes true. That's the real **Hannah** gap; tracked
+  separately — don't gate the copy fix on it.
+
+Recommend (a) now; (b) is its own initiative.
+
+### F. Content curation (visitor / stale-feel)
+
+#### H-8 — The groups peek is alphabetical, contradicting its "fresh / running events" framing · **P3** · ✅ resolved 2026-06-05
+
+The page comment says it pulls _"a small slice of **fresh** content to make the
+landing page feel alive"_ ([page.tsx#L30](../../apps/web/src/app/page.tsx#L30)),
+and the section subtitle reads _"Clubs, leagues, and crews **running events**"_
+([page.tsx#L179](../../apps/web/src/app/page.tsx#L179)). But `listCards(6)` orders
+by **`name` ascending**
+([supabase-group-query-repository.ts#L112-L121](../../packages/infrastructure/src/supabase-group-query-repository.ts#L112-L121)),
+with no "has upcoming events" filter. Net effect: the peek shows the **same six
+alphabetically-first groups forever** — a brand-new empty group named "A-Town VB"
+outranks an active club, and the slice never changes, so the page does **not**
+feel alive and the "running events" claim isn't enforced. (The "Upcoming events"
+peek above it _is_ time-ordered and fresh; only groups is static.)
+
+**Recommended fix (pick one):**
+
+- (a) Cheap: add an ordering param to `listCards` (or a dedicated
+  `listFreshCards`) and order by **`created_at DESC`** — the `groups` row already
+  has `created_at`, so no schema change. At least the slice rotates as new groups
+  appear, and matches "fresh".
+- (b) Honest to the subtitle: surface groups that actually **host upcoming
+  events** (join `events` on `host_group_id` with `starts_at > now`, order by
+  soonest / count). More work; truest to the copy. If not done, soften the
+  subtitle to "Clubs, leagues, and crews on PickupVB".
+
+Recommend (a) for the quick win; (b) if we want the section to mean what it says.
+P3 (the section works; it's curation quality).
+
+### G. Performance
+
+#### H-9 — The highest-traffic page is fully dynamic, though the anon peek is viewer-independent and cacheable · **P3** · ✅ resolved 2026-06-05
+
+The home page reads `cookies()` via `getCurrentUser()` + `getServerSupabase()`
+([page.tsx#L26-L27](../../apps/web/src/app/page.tsx#L26-L27)), so Next renders it
+**dynamically on every request** — no CDN/full-route cache on the busiest public
+page, and two DB round-trips (`searchEvents` RPC + `listCards`) per hit including
+every anonymous visitor and crawler. For an **anonymous** viewer both reads are
+_viewer-independent_: `searchEvents` runs with `viewerId: null` and `listCards`
+is identical for everyone. So the data is shared across all anon hits but
+re-fetched each time.
+
+This isn't `force-dynamic` abuse (the page never sets it — pitfall #3 is clean);
+it's an unrealized caching opportunity, hence **P3**, but high-leverage given the
+traffic.
+
+**Recommended fix:** wrap the two anon-branch reads in `unstable_cache` with a
+short `revalidate` (e.g. 60–300s) and tags, invalidated by the existing event /
+group mutators (`eventCacheTag` / a new groups tag). Keep the **authed** branch
+dynamic (it personalizes via `viewerId`). Per the repo pitfall _"Never call
+`cookies()` inside `unstable_cache`"_, the cached callback must use
+`getAdminSupabase()` (via dynamic `import()`) rather than the session client —
+which is correct here because the cached payload is the **public** (anon) view of
+events/groups. Mirrors the `loadAdHocRowsCached` pattern in
+[load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts).
+Belongs in the [performance.md](performance.md) sweep too.
+
+**Resolved 2026-06-05:** both peek reads moved into a single `loadHomePeek`
+`unstable_cache` (60s `revalidate`) in [page.tsx](../../apps/web/src/app/page.tsx),
+running on the admin client (the search RPC takes no viewer arg and returns only
+public events, and `searchEvents`'s repo already self-builds the admin client, so
+the cache callback is cookie-free and the service-role read is safe). The route
+stays dynamic (`getCurrentUser` still reads `cookies()` to branch guest vs. authed
+UI), but every render now shares one cached data result instead of re-running two
+DB round-trips. Used a short time-based `revalidate` rather than tags because the
+peek is a denormalized cross-entity list that doesn't fit `unstable_cache`'s
+static per-id tag model — see the journal entry for the trade-off. No `Date`
+revival needed: `relativeEventDay` / `EventCard` already accept `Date | string`.
+
+> **Minor (noise, not graded):** `upcomingEvents.slice(0, 6)`
+> ([page.tsx#L116](../../apps/web/src/app/page.tsx#L116)) is redundant — the
+> `searchEvents` query already passes `limit: 6`. Harmless; drop it if touching
+> the block.
 
 ---
 
@@ -252,3 +429,59 @@ now)` off the `now` the page already had (stays a pure server component). Zero
 
 _Open: H-2 (location honesty), H-3 (empty-peek), H-4 (shared `GroupCard`),
 H-6 (signed-in personalization). H-5 lives with persona-ux V-4._
+
+### 2026-06-05 — Re-audit pass + H-7 / H-8 shipped
+
+Bugs / gaps / stale-data sweep at the user's request, then shipped the two
+copy/curation fixes. Verified `pnpm typecheck && lint && test && build` (all
+green; the only lint warnings are pre-existing `set-state-in-effect` in unrelated
+files).
+
+- **H-7 ✅ (P2)** — removed the overstated "waitlists" host claim from all three
+  homepage spots: the Host value-card body now reads "set capacity" (was "run
+  waitlists"), the host-pitch prose reads "capacity limits" (was "waitlists"),
+  and the checklist reads "Capacity & over-fill rules" (was "Waitlists & capacity
+  rules"). The player-facing "Join waitlist" CTA on the detail page is accurate
+  and untouched. Option (b) — a real managed waitlist queue / promotion — remains
+  the **Hannah** initiative, not gated on this. [page.tsx](../../apps/web/src/app/page.tsx).
+- **H-8 ✅ (P3)** — `listCards` now orders `created_at DESC` (was `name ASC`), so
+  the home "Groups & organizations" peek rotates as new clubs join instead of
+  pinning the same six A-named groups; the subtitle softened to "Clubs, leagues,
+  and crews on PickupVB" (was "… running events") since newest-first doesn't
+  guarantee events. Port doc updated to match.
+  [supabase-group-query-repository.ts#L112-L125](../../packages/infrastructure/src/supabase-group-query-repository.ts#L112-L125),
+  [group-queries.ts#L75-L76](../../packages/domain/src/groups/group-queries.ts#L75-L76),
+  [page.tsx](../../apps/web/src/app/page.tsx). Option (b) (filter to groups with
+  upcoming events) deferred — would re-introduce the empty-section risk (H-3).
+- **H-9 ✅ (P3)** — both viewer-independent peek reads now share a single
+  `loadHomePeek` `unstable_cache` (60s `revalidate`, admin client, cookie-free
+  callback). The route stays dynamic for the guest/authed UI branch, but the two
+  DB round-trips no longer run per hit. Time-based (not tag-based) eviction —
+  the denormalized cross-entity list doesn't fit `unstable_cache`'s static
+  per-id tag model. Journal:
+  [2026-06-05-home-peek-cache.md](../journal/2026-06-05-home-peek-cache.md).
+  [page.tsx](../../apps/web/src/app/page.tsx).
+- Verified **not** stale: the "Real-time spot updates" hero claim is backed by
+  `use-event-attendees.ts` realtime — left as-is.
+
+_Open after this pass: H-2, H-3, H-6 (prior). H-7 ✅ / H-8 ✅ / H-9 ✅._
+
+### 2026-06-05 — H-2 / H-3 / H-6 shipped (audit fully cleared)
+
+The three remaining open findings shipped in one bundle. Verified `pnpm
+typecheck && lint && test && build` (all green; only the pre-existing
+`set-state-in-effect` warnings in unrelated files). Journal:
+[2026-06-05-home-personalize-and-empty-state.md](../journal/2026-06-05-home-personalize-and-empty-state.md).
+
+- **H-2 ✅ (P3)** — hero CTA "Find events near me" → **"Find events"** (option a);
+  dropped the proximity promise the unscoped `/events` link never kept.
+- **H-3 ✅ (P3)** — the "Upcoming events" section is now always rendered; an empty
+  peek falls back to a shared `EmptyState` host nudge instead of vanishing.
+- **H-6 ✅ (P3, product call)** — signed-in players now lead with a compact "Your
+  upcoming events" peek (their RSVP'd events via `getAttendingEvents`, ≤3,
+  `EventCard`, "See all" → `/profile`); hidden when they have none. Viewer-scoped
+  read (outside the H-9 cache). A shared `toEventCardData` helper now feeds both
+  the public and personalized peeks.
+
+**The home-page-ux audit is now fully cleared** — every finding H-1…H-9 resolved
+(H-5 via persona-ux V-4). No open backlog.

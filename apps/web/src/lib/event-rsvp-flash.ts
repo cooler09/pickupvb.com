@@ -31,6 +31,12 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
   left: { tone: 'info', text: "You've been removed from this event." },
   notin: { tone: 'info', text: "You weren't signed up for this event." },
   full: { tone: 'error', text: 'Sorry — this event is full.' },
+  // ADR 0036 — capacity waitlist
+  waitlisted: {
+    tone: 'success',
+    text: "You're on the waitlist. We'll let you know if a spot opens up.",
+  },
+  left_waitlist: { tone: 'info', text: "You've left the waitlist." },
   cancel: { tone: 'info', text: 'Checkout cancelled. You can try again any time.' },
 
   // Auth states

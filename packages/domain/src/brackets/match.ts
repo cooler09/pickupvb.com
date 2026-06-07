@@ -10,8 +10,8 @@ export const MatchId = idConstructor<'MatchId'>();
  * participant identity (covers both roster `event_teams` and ad-hoc
  * `event_team_registrations`). Bracket matches store this for the
  * A/B/winner/work slots; persistence writes the `entry_*_id` columns on
- * `bracket_matches`. Legacy `team_*_id` columns stay nullable for
- * backwards compatibility but are no longer written.
+ * `bracket_matches`. (The legacy `team_*_id` columns were dropped in migration
+ * `20260813000000_drop_legacy_team_id_columns`.)
  */
 export type EntryId = Brand<string, 'EntryId'>;
 export const EntryId = idConstructor<'EntryId'>();
@@ -55,9 +55,9 @@ export interface Match {
    * round) when `BracketConfig.requireWorkTeam` is true; null otherwise
    * and for formats that don't have a natural idle slot. Hosts may
    * override per-match in the UI. See ADR 0018. Persisted as
-   * `bracket_matches.work_entry_id` (parallel to A/B/winner); the legacy
-   * `work_team_id` column stays nullable for backwards compatibility but
-   * is no longer written.
+   * `bracket_matches.work_entry_id` (parallel to A/B/winner). (The legacy
+   * `work_team_id` column was dropped in migration
+   * `20260813000000_drop_legacy_team_id_columns`.)
    */
   workTeamId: EntryId | null;
   status: MatchStatus;
@@ -97,6 +97,92 @@ export interface Match {
   readonly loserAdvancesToMatchId: MatchId | null;
   readonly loserAdvancesToSlot: AdvanceSlot | null;
   scheduledAt: Date | null;
+}
+
+/** Stage / global defaults needed to resolve a match's effective best-of. */
+export interface MatchLengthDefaults {
+  readonly bestOf: number;
+  readonly playoffBestOf: number | null;
+}
+
+/**
+ * Resolve a match's **effective** best-of: per-match override →
+ * playoff-stage default (for `final` matches) → global default. This is the
+ * same precedence {@link Bracket} applies internally before picking a winner,
+ * exported so the UI can show the matching number of set inputs and the
+ * correct "Best of N" label — otherwise a playoff match (or any per-match
+ * override) renders against the bracket-wide default and "doesn't adhere to
+ * the format" (ADR 0032).
+ */
+export function effectiveBestOf(
+  match: Pick<Match, 'bestOf' | 'bracketSide'>,
+  defaults: MatchLengthDefaults,
+): number {
+  if (match.bestOf !== null) return match.bestOf;
+  if (match.bracketSide === 'final' && defaults.playoffBestOf !== null) {
+    return defaults.playoffBestOf;
+  }
+  return defaults.bestOf;
+}
+
+/** Stage / global defaults needed to resolve a match's effective target score. */
+export interface MatchTargetDefaults {
+  readonly targetScore: number | null;
+  readonly playoffTargetScore: number | null;
+  /** Per-game pool/global targets (e.g. `[25, 25, 15]`). See {@link effectiveSetTargetScore}. */
+  readonly targetScores?: ReadonlyArray<number> | null;
+  /** Per-game playoff-stage targets. See {@link effectiveSetTargetScore}. */
+  readonly playoffTargetScores?: ReadonlyArray<number> | null;
+}
+
+/**
+ * Resolve a match's **effective** target score (the number a game is played to
+ * — informational, never enforced): per-match override → playoff-stage default
+ * (for `final` matches) → global default. Mirrors {@link effectiveBestOf}.
+ */
+export function effectiveTargetScore(
+  match: Pick<Match, 'targetScore' | 'bracketSide'>,
+  defaults: MatchTargetDefaults,
+): number | null {
+  if (match.targetScore !== null) return match.targetScore;
+  if (match.bracketSide === 'final' && defaults.playoffTargetScore !== null) {
+    return defaults.playoffTargetScore;
+  }
+  return defaults.targetScore;
+}
+
+/**
+ * Resolve the target score for a **specific game** (1-indexed `setNumber`)
+ * within a match — the per-game extension of {@link effectiveTargetScore} (e.g.
+ * a best-of-3 playoff to `[25, 25, 15]` answers `15` for game 3). Precedence:
+ *
+ *  1. per-match override (`match.targetScore`) — uniform across games, so it
+ *     wins for every set when set;
+ *  2. `final` matches consult the playoff per-game array;
+ *  3. otherwise the pool/global per-game array;
+ *  4. fall back to the single-value {@link effectiveTargetScore}.
+ *
+ * A game past the end of an array reuses the array's last entry (so a 4th set in
+ * a `[25, 25, 15]` config still reads 15). Informational, never enforced.
+ */
+export function effectiveSetTargetScore(
+  match: Pick<Match, 'targetScore' | 'bracketSide'>,
+  setNumber: number,
+  defaults: MatchTargetDefaults,
+): number | null {
+  if (match.targetScore !== null) return match.targetScore;
+  const fromArray = (arr: ReadonlyArray<number> | null | undefined): number | null => {
+    if (!arr || arr.length === 0) return null;
+    const idx = Math.min(Math.max(setNumber, 1), arr.length) - 1;
+    return arr[idx] ?? null;
+  };
+  if (match.bracketSide === 'final') {
+    const playoff = fromArray(defaults.playoffTargetScores);
+    if (playoff !== null) return playoff;
+  }
+  const pool = fromArray(defaults.targetScores);
+  if (pool !== null) return pool;
+  return effectiveTargetScore(match, defaults);
 }
 
 /**

@@ -30,6 +30,9 @@ import {
   SpotReleased,
   TeamRegistered,
   TeamWithdrawn,
+  WaitlistJoined,
+  WaitlistLeft,
+  WaitlistPromoted,
 } from './events.js';
 import { Location } from './location.js';
 import { assertCleanName, maskPublicText } from '../moderation/content-moderation.js';
@@ -302,6 +305,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     private _positionRoster: Map<EventPosition, number> | null,
     private _extensions: EventExtensions,
     private _divisions: Division[],
+    /** FIFO capacity waitlist — fixed-capacity open play only (ADR 0036). */
+    private _waitlist: UserId[],
   ) {
     super(id);
   }
@@ -365,6 +370,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       positionRoster,
       extensions,
       divisions,
+      [],
     );
     evt.assertRegistrationConfigValid();
     evt.raise(new EventCreated(evt.id));
@@ -407,6 +413,8 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
     positionRoster?: ReadonlyMap<EventPosition, number> | null;
     extensions?: Partial<EventExtensionsInput>;
     divisions?: ReadonlyArray<Division>;
+    /** FIFO capacity waitlist, ordered head-first (ADR 0036). */
+    waitlist?: ReadonlyArray<UserId>;
   }): VolleyballEvent {
     const attendeeEntries: Array<readonly [UserId, EventPosition | null]> = props.attendees.map(
       (a): readonly [UserId, EventPosition | null] =>
@@ -449,6 +457,7 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       roster,
       resolveExtensions(props.extensions, props.endsAt),
       (props.divisions ?? []).slice(),
+      (props.waitlist ?? []).slice(),
     );
   }
 
@@ -496,6 +505,15 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   /** Map of attendee → chosen position (null when the event isn't positional). */
   get attendees(): ReadonlyMap<UserId, EventPosition | null> {
     return this._attendees;
+  }
+  /** FIFO capacity waitlist, head-first (ADR 0036). Empty unless full. */
+  get waitlist(): ReadonlyArray<UserId> {
+    return this._waitlist;
+  }
+  /** 1-based queue position of a waitlisted user, or `null` if not queued. */
+  waitlistPosition(userId: UserId): number | null {
+    const idx = this._waitlist.indexOf(userId);
+    return idx === -1 ? null : idx + 1;
   }
   /** Configured per-position counts for open-play. `null` when not positional. */
   get positionRoster(): ReadonlyMap<EventPosition, number> | null {
@@ -689,7 +707,10 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
   }
 
   /**
-   * Remove an open-play signup.
+   * Remove an open-play signup. If the freed seat opens room and a capacity
+   * waitlist exists, the head of the queue is promoted into the roster in the
+   * same operation (ADR 0036) — so `save()` persists the leave + promotion
+   * atomically and the seat is never lost between them.
    *
    * @throws {NotFoundError} if the user is not currently signed up.
    */
@@ -698,6 +719,76 @@ export class VolleyballEvent extends AggregateRoot<EventId> {
       throw new NotFoundError('attendee', userId, 'User is not signed up for this event.');
     }
     this.raise(new SpotReleased(this.id, userId));
+    this.promoteFromWaitlist();
+  }
+
+  /**
+   * Join the capacity waitlist when the event is full. Fixed-capacity,
+   * non-positional open play only — unlimited/positional events have no queue,
+   * and the caller should `joinAsPlayer` directly when there's room.
+   *
+   * @throws {InvariantViolation} if the event isn't a queueable open play, isn't
+   *   open for signups, has started, or actually has room.
+   * @throws {ConflictError} if the user is already an attendee or already queued.
+   */
+  joinWaitlist(userId: UserId): void {
+    if (this.type !== EventType.OpenPlay) {
+      throw new InvariantViolation('Only open-play events have a capacity waitlist.');
+    }
+    if (this._positionRoster) {
+      throw new InvariantViolation('Positional events over-fill instead of queueing.');
+    }
+    if (this._status !== EventStatus.Published) {
+      throw new InvariantViolation('Event is not open for signups.');
+    }
+    if (this.hasStarted()) {
+      throw new InvariantViolation('Event has already started; signups are closed.');
+    }
+    if (!this._capacity || this._capacity.kind === 'unlimited') {
+      throw new InvariantViolation('This event has no capacity limit — join directly.');
+    }
+    if (this._attendees.has(userId)) {
+      throw new ConflictError('User has already joined this event.', { eventId: this.id, userId });
+    }
+    if (this._waitlist.includes(userId)) {
+      throw new ConflictError('User is already on the waitlist.', { eventId: this.id, userId });
+    }
+    if (this._capacity.hasRoom(this._attendees.size)) {
+      throw new InvariantViolation('Event has room — join directly instead of waitlisting.');
+    }
+    this._waitlist.push(userId);
+    this.raise(new WaitlistJoined(this.id, userId, this._waitlist.length));
+  }
+
+  /**
+   * Leave the capacity waitlist.
+   *
+   * @throws {NotFoundError} if the user is not on the waitlist.
+   */
+  leaveWaitlist(userId: UserId): void {
+    const idx = this._waitlist.indexOf(userId);
+    if (idx === -1) {
+      throw new NotFoundError('waitlist', userId, 'User is not on the waitlist.');
+    }
+    this._waitlist.splice(idx, 1);
+    this.raise(new WaitlistLeft(this.id, userId));
+  }
+
+  /**
+   * Promote queue heads into the roster while a freed seat leaves room. Normally
+   * promotes exactly one (one seat frees per `leave`); the loop also drains a
+   * backlog if the host raised capacity. Raises one `WaitlistPromoted` each.
+   */
+  private promoteFromWaitlist(): void {
+    while (
+      this._waitlist.length > 0 &&
+      this._capacity !== null &&
+      this._capacity.hasRoom(this._attendees.size)
+    ) {
+      const promoted = this._waitlist.shift()!;
+      this._attendees.set(promoted, null);
+      this.raise(new WaitlistPromoted(this.id, promoted, this.spotsRemaining));
+    }
   }
 
   /**

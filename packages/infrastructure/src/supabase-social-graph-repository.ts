@@ -134,9 +134,16 @@ export class SupabaseSocialGraphRepository implements SocialGraphQueries {
         'id, title, surface, type, starts_at, time_zone, city, region, host_id, attendee_count, hero_image_url',
       )
       .eq('visibility', 'public')
-      .gte('starts_at', filters.startsAfter.toISOString())
       .order('starts_at', { ascending: true })
       .limit(filters.limit ?? 60);
+    // Leagues are seasons: keep an in-progress league "upcoming" until its
+    // season ends (`ends_at`), not the season start. Mirrors the
+    // `search_events` RPC classification (migration 20260915000000). This
+    // `.or()` ANDs with the host/attendee `.or()` added below.
+    const startIso = filters.startsAfter.toISOString();
+    q = q.or(
+      `and(type.neq.league,starts_at.gte.${startIso}),and(type.eq.league,ends_at.gte.${startIso})`,
+    );
     if (filters.surface) q = q.eq('surface', filters.surface);
     if (filters.type) q = q.eq('type', filters.type);
 

@@ -6,6 +6,7 @@ import {
   type MatchKind,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { asJson } from './supabase-json.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -37,8 +38,8 @@ export class SupabaseLiveMatchScoreRepository implements LiveMatchScoreRepositor
     const { error } = await this.client.rpc('upsert_match_live_score', {
       p_match_id: matchId,
       p_kind: kind,
-      p_live_state: state,
-    } as never);
+      p_live_state: asJson(state),
+    });
     if (error) {
       if (error.code === '42501') {
         throw new UnauthorizedError('You can only score matches you host or captain.');
@@ -53,7 +54,7 @@ export class SupabaseLiveMatchScoreRepository implements LiveMatchScoreRepositor
   async clear(matchId: string): Promise<void> {
     const { error } = await this.client.rpc('clear_match_live_score', {
       p_match_id: matchId,
-    } as never);
+    });
     if (error) {
       if (error.code === '42501') {
         throw new UnauthorizedError('You can only clear matches you host or captain.');

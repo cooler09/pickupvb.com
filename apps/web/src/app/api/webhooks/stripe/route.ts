@@ -73,10 +73,13 @@ export async function POST(request: Request) {
   const admin = getAdminSupabase();
   const { data: insertedRows, error: insertErr } = await admin
     .from('stripe_webhook_events')
-    .upsert({ id: event.id, event_type: event.type } as never, {
-      onConflict: 'id',
-      ignoreDuplicates: true,
-    })
+    .upsert(
+      { id: event.id, event_type: event.type },
+      {
+        onConflict: 'id',
+        ignoreDuplicates: true,
+      },
+    )
     .select('id');
   if (insertErr) {
     await log.error('[stripe-webhook] insert log failed', insertErr, {
@@ -123,7 +126,7 @@ export async function POST(request: Request) {
 
   await admin
     .from('stripe_webhook_events')
-    .update({ processed_at: new Date().toISOString() } as never)
+    .update({ processed_at: new Date().toISOString() })
     .eq('id', event.id);
 
   return NextResponse.json({ ok: true });

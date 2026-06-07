@@ -14,12 +14,20 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/notifications/league-reminders",
+      "schedule": "*/30 * * * *"
+    },
+    {
       "path": "/api/notifications/outbox-purge",
       "schedule": "0 4 * * *"
     },
     {
       "path": "/api/account/execute-deletions",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/community-listings/auto-approve",
+      "schedule": "0 5 * * *"
     }
   ]
 }

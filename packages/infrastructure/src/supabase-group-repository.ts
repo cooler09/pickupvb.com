@@ -83,7 +83,7 @@ export class SupabaseGroupRepository implements GroupRepository {
       region: group.region,
       avatar_url: group.avatarUrl,
       created_by: group.createdBy,
-    } as never);
+    });
 
     if (error) {
       // 23505 = unique_violation on the slug.
@@ -104,7 +104,7 @@ export class SupabaseGroupRepository implements GroupRepository {
         region: group.region,
         avatar_url: group.avatarUrl,
         updated_at: new Date().toISOString(),
-      } as never)
+      })
       .eq('id', group.id);
 
     if (error) {
@@ -121,13 +121,13 @@ export class SupabaseGroupRepository implements GroupRepository {
     for (const m of diff.added) {
       const { error } = await this.client
         .from('group_members')
-        .insert({ group_id: group.id, user_id: m.userId, role: m.role } as never);
+        .insert({ group_id: group.id, user_id: m.userId, role: m.role });
       if (error) throw new Error(`Group.saveMembers insert failed: ${error.message}`);
     }
     for (const m of diff.roleChanged) {
       const { error } = await this.client
         .from('group_members')
-        .update({ role: m.role } as never)
+        .update({ role: m.role })
         .eq('group_id', group.id)
         .eq('user_id', m.userId);
       if (error) throw new Error(`Group.saveMembers role update failed: ${error.message}`);
@@ -145,12 +145,13 @@ export class SupabaseGroupRepository implements GroupRepository {
   async addFollowEdge(groupId: GroupId, userId: UserId): Promise<void> {
     // Idempotent: re-following an existing edge must not error. PK is
     // (group_id, user_id), so ignore the duplicate on conflict.
-    const { error } = await this.client
-      .from('group_followers')
-      .upsert({ group_id: groupId, user_id: userId } as never, {
+    const { error } = await this.client.from('group_followers').upsert(
+      { group_id: groupId, user_id: userId },
+      {
         onConflict: 'group_id,user_id',
         ignoreDuplicates: true,
-      });
+      },
+    );
     if (error) throw new Error(`addFollowEdge failed: ${error.message}`);
   }
 

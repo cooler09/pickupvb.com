@@ -1,15 +1,12 @@
 'use client';
 
-import { FormModal } from '@/components/form-modal';
-import { primaryButtonClass } from '@/components/primary-button';
-import { eventScope } from './bracket-action-binding';
 import { FormatPickerForm } from './format-picker-form';
-import { WalkInTeamForm } from './walk-in-team-form';
+import type { TeamLite } from './labels';
 
 export function NoBracketView(props: {
   eventId: string;
   divisionId: string;
-  teamCount: number;
+  registeredTeams: ReadonlyArray<TeamLite>;
   isHost: boolean;
 }) {
   if (!props.isHost) {
@@ -19,63 +16,24 @@ export function NoBracketView(props: {
       </p>
     );
   }
-  const ready = props.teamCount >= 2;
   return (
     <section className="border-border-base bg-fg/5 rounded-shape-sm space-y-4 border p-4">
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-fg text-lg font-semibold">Create bracket</h2>
-          <span
-            className={
-              'rounded-full px-2 py-0.5 text-xs font-medium ' +
-              (ready
-                ? 'bg-green-500/15 text-green-700 dark:text-green-300'
-                : 'bg-amber-500/15 text-amber-800 dark:text-amber-200')
-            }
-          >
-            {props.teamCount} team{props.teamCount === 1 ? '' : 's'} registered
-            {ready ? ' · ready' : ' · need ≥ 2'}
-          </span>
-        </div>
+      <div className="space-y-1">
+        <h2 className="text-fg text-lg font-semibold">Create bracket</h2>
         <p className="text-muted text-sm">
-          {ready
-            ? 'Pick a format below, then click Create bracket. You can change format (by resetting) before any matches are played.'
-            : 'You need at least 2 teams. Use “Add teams” to enter a team that registered another way, or wait for more registrations.'}
+          Walk through the steps — confirm teams, pick a format, set match length — then generate.
+          You can change the format (by resetting) before any matches are played.
         </p>
       </div>
+      {/* The stepper opens on a "Teams" step where the host confirms the
+          registered list and adds any walk-in / off-site teams, so the
+          previous standalone "Add teams" modal lives inside the form now. */}
       <FormatPickerForm
         eventId={props.eventId}
         divisionId={props.divisionId}
-        teamCount={props.teamCount}
+        teamCount={props.registeredTeams.length}
+        registeredTeams={props.registeredTeams}
       />
-      {/* Walk-in escape hatch lives in a modal so the host can register
-          walk-in teams without the format picker scrolling behind them.
-          The modal stays open across adds (see WalkInTeamForm) so a host
-          can enter a handful at check-in. When `!ready` the trigger is
-          promoted to a primary CTA since it's the unblocking action. */}
-      <div className="flex justify-start">
-        <FormModal
-          trigger={(open) => (
-            <button
-              type="button"
-              onClick={open}
-              className={
-                ready
-                  ? 'border-border-base text-fg/80 hover:bg-fg/5 rounded-md border border-dashed px-3 py-1.5 text-sm font-medium'
-                  : primaryButtonClass('sm')
-              }
-            >
-              + Add teams
-            </button>
-          )}
-          title="Add teams"
-          description="For teams not registered to this division. Add as many as you need — the modal stays open after each. You can edit rosters later from the event's team management page."
-        >
-          {(close) => (
-            <WalkInTeamForm scope={eventScope(props.eventId, props.divisionId)} onClose={close} />
-          )}
-        </FormModal>
-      </div>
     </section>
   );
 }

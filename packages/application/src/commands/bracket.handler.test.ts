@@ -4,6 +4,7 @@ import {
   DEFAULT_BRACKET_CONFIG,
   NotFoundError,
   UnauthorizedError,
+  ValidationError,
   type BracketId,
   type BracketRepository,
   type BracketTeamLite,
@@ -15,6 +16,8 @@ import {
   type MatchId,
 } from '@pickupvb/domain';
 import {
+  CreateBracketCommand,
+  CreateBracketHandler,
   EditMatchCommand,
   EditMatchHandler,
   PublishBracketCommand,
@@ -100,6 +103,7 @@ class FakeBracketRepo implements BracketRepository {
     this.saveCount += 1;
     throw new Error('save() bypasses RLS; captain-reachable writes must use saveAsMatchActor');
   }
+  async deleteBracket(): Promise<void> {}
   async saveAsMatchActor(bracket: Bracket, actorMatchId: MatchId): Promise<void> {
     this.actorCalls.push({ bracketId: bracket.id, actorMatchId: String(actorMatchId) });
   }
@@ -206,6 +210,7 @@ class HostBracketRepo implements BracketRepository {
   async saveAsMatchActor(): Promise<void> {
     throw new Error('host-gated structural edits must use save(), not saveAsMatchActor');
   }
+  async deleteBracket(): Promise<void> {}
   async listRegisteredTeams(): Promise<BracketTeamLite[]> {
     return [];
   }
@@ -220,6 +225,23 @@ class HostBracketRepo implements BracketRepository {
   }
   async addBracketTeams(): Promise<Array<{ entryId: string; name: string }>> {
     return [];
+  }
+}
+
+/** Host-path repo with no existing bracket and a configurable registered-team
+ *  count — drives the CreateBracketHandler precondition tests (TT-9). */
+class CountRepo extends HostBracketRepo {
+  constructor(private readonly teamCount: number) {
+    super(null);
+  }
+  override async listRegisteredTeams(): Promise<BracketTeamLite[]> {
+    return Array.from({ length: this.teamCount }, (_, i) => ({
+      teamId: null,
+      entryId: `e${i}`,
+      name: `Team ${i}`,
+      captainId: null,
+      forfeitedAt: null,
+    }));
   }
 }
 
@@ -274,6 +296,42 @@ describe('Host-gated structural handlers (ADR 0032)', () => {
     const m = repo.saved!.matches.find((x) => String(x.id) === String(matchId))!;
     expect(m.court).toBe('Court 7');
     expect(m.bestOf).toBe(3);
+  });
+
+  it('CreateBracketHandler rejects a double-elim field below the floor of 4', async () => {
+    const repo = new CountRepo(3);
+    await expect(
+      new CreateBracketHandler(hostEvents(), repo).execute(
+        new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'double_elimination'),
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.saveCount).toBe(0);
+  });
+
+  it('CreateBracketHandler accepts a non-power-of-two double-elim field (byes)', async () => {
+    // 6-team DE is now valid — the generator gives the top seeds R1 byes.
+    const repo = new CountRepo(6);
+    const { bracketId } = await new CreateBracketHandler(hostEvents(), repo).execute(
+      new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'double_elimination'),
+    );
+    expect(bracketId).toBe('b-new');
+    expect(repo.saveCount).toBe(1);
+    expect(repo.saved!.status).toBe('setup');
+  });
+
+  it('CreateBracketHandler rejects pool play under-configured for advance-per-pool (TT-16)', async () => {
+    // 5 teams, 2 pools advancing 3 each → needs 6; the floor (4) alone would
+    // have let it through.
+    const repo = new CountRepo(5);
+    await expect(
+      new CreateBracketHandler(hostEvents(), repo).execute(
+        new CreateBracketCommand(String(EVENT_ID), String(DIVISION_ID), HOST, 'pool_play_playoff', {
+          poolCount: 2,
+          advancePerPool: 3,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.saveCount).toBe(0);
   });
 
   it('SetPoolsHandler brands entry ids and assigns pools', async () => {

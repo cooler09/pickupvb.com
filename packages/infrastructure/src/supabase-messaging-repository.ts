@@ -18,6 +18,7 @@ import {
   type UserBlockRepository,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { asJson } from './supabase-json.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -79,7 +80,7 @@ export class SupabaseConversationRepository implements ConversationRepository {
         conversation_id: String(conversationId),
         user_id: String(userId),
         last_read_at: new Date().toISOString(),
-      } as never,
+      },
       { onConflict: 'conversation_id,user_id' },
     );
     // Advancing your own read cursor is best-effort. A platform admin can open a
@@ -161,8 +162,8 @@ export class SupabaseMessageRepository implements MessageRepository {
       conversation_id: String(message.conversationId),
       sender_id: String(message.senderId),
       body: message.body,
-      attachments: message.attachments,
-    } as never);
+      attachments: asJson(message.attachments),
+    });
     if (error) {
       if (error.code === RLS_DENIED) {
         throw new UnauthorizedError('You cannot post to this conversation.');
@@ -191,7 +192,7 @@ export class SupabaseMessageRepository implements MessageRepository {
         body: message.body,
         edited_at: message.editedAt ? message.editedAt.toISOString() : null,
         deleted_at: message.deletedAt ? message.deletedAt.toISOString() : null,
-      } as never)
+      })
       .eq('id', String(message.id));
     if (error) {
       if (error.code === RLS_DENIED) {
@@ -206,7 +207,7 @@ export class SupabaseMessageRepository implements MessageRepository {
       message_id: String(messageId),
       reporter_user_id: String(reporterId),
       reason,
-    } as never);
+    });
     if (error) {
       // Unique (message_id, reporter_user_id): re-reporting is an idempotent no-op.
       if (error.code === UNIQUE_VIOLATION) return;
@@ -358,12 +359,13 @@ export class SupabaseUserBlockRepository implements UserBlockRepository {
 
   async block(blockerId: UserId, blockedId: UserId): Promise<void> {
     // Idempotent: PK is (blocker_id, blocked_id), ignore the duplicate edge.
-    const { error } = await this.client
-      .from('user_blocks')
-      .upsert({ blocker_id: String(blockerId), blocked_id: String(blockedId) } as never, {
+    const { error } = await this.client.from('user_blocks').upsert(
+      { blocker_id: String(blockerId), blocked_id: String(blockedId) },
+      {
         onConflict: 'blocker_id,blocked_id',
         ignoreDuplicates: true,
-      });
+      },
+    );
     if (error) {
       if (error.code === RLS_DENIED) throw new UnauthorizedError('You cannot block this user.');
       throw new Error(`UserBlock.block failed: ${error.message}`);

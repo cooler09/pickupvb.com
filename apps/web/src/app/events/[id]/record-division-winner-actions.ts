@@ -5,6 +5,7 @@ import { GetEventDetailQuery } from '@pickupvb/application';
 import { handlers } from '@/lib/handlers';
 import { getViewer } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
+import type { TablesUpdate } from '@pickupvb/supabase';
 import { field } from '@/lib/form-data';
 import { redirectEventNotice } from '@/lib/server-redirects';
 
@@ -84,12 +85,12 @@ export async function recordDivisionPlacement(
   if (error || !data) redirectEventNotice(eventId, 'rsvp', 'winner_invalid');
   const entryId = (data as { id: string }).id;
 
-  const update: Record<string, unknown> = { [column]: entryId };
+  const update: TablesUpdate<'event_divisions'> = { [column]: entryId };
   if (place === 'winner') update.winner_recorded_at = new Date().toISOString();
 
   const { error: updErr } = await supabase
     .from('event_divisions')
-    .update(update as never)
+    .update(update)
     .eq('id', divisionId)
     .eq('event_id', eventId);
   if (updErr) redirectEventNotice(eventId, 'rsvp', 'winner_save_failed', updErr.message);
@@ -112,13 +113,13 @@ export async function clearDivisionPlacement(
   const column = PLACEMENT_COLUMN[place];
   if (!column) redirectEventNotice(eventId, 'rsvp', 'winner_invalid');
 
-  const update: Record<string, unknown> = { [column]: null };
+  const update: TablesUpdate<'event_divisions'> = { [column]: null };
   if (place === 'winner') update.winner_recorded_at = null;
 
   const supabase = await getServerSupabase();
   const { error: updErr } = await supabase
     .from('event_divisions')
-    .update(update as never)
+    .update(update)
     .eq('id', divisionId)
     .eq('event_id', eventId);
   if (updErr) redirectEventNotice(eventId, 'rsvp', 'winner_save_failed', updErr.message);

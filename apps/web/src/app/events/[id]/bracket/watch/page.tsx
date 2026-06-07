@@ -2,10 +2,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
-import { NotFoundError } from '@pickupvb/domain';
+import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
+import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
 import { BoardView, pickLatestMatchId } from '../_components/board-view';
 import { LatestMatchTracker } from '../_components/latest-match-tracker';
@@ -121,8 +122,11 @@ export default async function BracketWatchPage(props: {
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
   const [bracket, registeredTeams] = await Promise.all([
-    repositories.bracketRepo.findByDivisionId(selectedDivision.id as never),
-    repositories.bracketRepo.listRegisteredTeams(event.id as never, selectedDivision.id as never),
+    repositories.bracketRepo.findByDivisionId(DivisionId(selectedDivision.id)),
+    repositories.bracketRepo.listRegisteredTeams(
+      EventId(event.id),
+      DivisionId(selectedDivision.id),
+    ),
   ]);
 
   // Dual-keyed by both `entryId` and (when set) `teamId` — see page.tsx
@@ -147,6 +151,13 @@ export default async function BracketWatchPage(props: {
 
   return (
     <article className="mx-auto max-w-5xl space-y-6 p-4">
+      <BreadcrumbJsonLd
+        trail={[
+          { name: 'Events', path: '/events' },
+          { name: event.title, path: `/events/${event.id}` },
+          { name: 'Live bracket', path: `/events/${event.id}/bracket/watch` },
+        ]}
+      />
       <Link href={`/events/${event.id}`} className="text-primary text-sm hover:underline">
         {'← Back to event'}
       </Link>
@@ -233,6 +244,10 @@ export default async function BracketWatchPage(props: {
             teamById={teamById}
             bestOf={bracket.config.bestOf}
             targetScore={bracket.config.targetScore}
+            targetScores={bracket.config.targetScores}
+            playoffBestOf={bracket.config.playoffBestOf}
+            playoffTargetScore={bracket.config.playoffTargetScore}
+            playoffTargetScores={bracket.config.playoffTargetScores}
             isHost={false}
             viewerId={null}
             status={bracket.status}

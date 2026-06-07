@@ -16,7 +16,7 @@ import {
   OpenConversationCommand,
   ReportMessageCommand,
   SendMessageCommand,
-} from '../messages';
+} from '../messages/index';
 import {
   DeleteMessageHandler,
   EditMessageHandler,

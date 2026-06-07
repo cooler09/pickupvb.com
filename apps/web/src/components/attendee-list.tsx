@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { addFriend, removeFriend } from '@/app/friends/actions';
 import { setAttendeePaymentStatus } from '@/app/events/[id]/manage-payments-actions';
 import { SubmitButton } from '@/components/submit-button';
+import { neutralButtonClass, tonalButtonClass } from '@/components/primary-button';
 import { POSITION_LABEL } from '@/lib/enum-labels';
 
 type AttendeeProfile = {
@@ -159,8 +160,11 @@ export function AttendeeList({
                   <SubmitButton
                     className={
                       pay.status === 'paid'
-                        ? 'border-border-base text-fg/70 hover:bg-fg/5 rounded-md border px-2 py-1 text-xs disabled:opacity-50'
-                        : 'rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50'
+                        ? `${neutralButtonClass('sm')} tap-target`
+                        : // No M3 `success*` vocab yet (persona-ux H-3 documented gap), so the
+                          // "mark paid" affirmative keeps its emerald fill; tap-target lifts it
+                          // to the 44px touch target like its siblings.
+                          'tap-target rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50'
                     }
                     title={pay.status === 'paid' ? 'Mark as unpaid' : 'Mark as paid'}
                   >
@@ -173,7 +177,7 @@ export function AttendeeList({
               (isFriend ? (
                 <form action={removeFriend.bind(null, a.user_id, returnPath)}>
                   <SubmitButton
-                    className="border-border-base text-fg/70 hover:bg-fg/5 rounded-md border px-2 py-1 text-xs disabled:opacity-50"
+                    className={`${neutralButtonClass('sm')} tap-target`}
                     title={`Unfollow ${name}`}
                   >
                     ✓ Following
@@ -182,7 +186,7 @@ export function AttendeeList({
               ) : (
                 <form action={addFriend.bind(null, a.user_id, returnPath)}>
                   <SubmitButton
-                    className="bg-primary/10 text-primary hover:bg-primary/20 rounded-md px-2 py-1 text-xs font-medium disabled:opacity-50"
+                    className={`${tonalButtonClass('sm')} tap-target`}
                     title={`Follow ${name}`}
                   >
                     + Follow
@@ -192,7 +196,7 @@ export function AttendeeList({
             {!currentUserId && !isYou && (
               <Link
                 href={`/login?next=${encodeURIComponent(returnPath)}`}
-                className="border-border-base text-fg/70 hover:bg-fg/5 rounded-md border px-2 py-1 text-xs"
+                className={`${neutralButtonClass('sm')} tap-target`}
               >
                 Sign in to follow
               </Link>

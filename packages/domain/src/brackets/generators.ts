@@ -281,24 +281,35 @@ function emptyMatch(
 }
 
 /**
- * Generate a double-elimination bracket. v1 requires a power-of-two team
- * count (4, 8, 16, 32) so the losers bracket pairing stays clean. The
- * grand final is a single match (no bracket reset in v1) — the WB winner
- * faces the LB winner once.
+ * Generate a double-elimination bracket for any field of **4+ teams** — the
+ * count no longer has to be a power of two. When `N` isn't a power of two the
+ * top seeds receive **byes** in winners-round 1 (built against a
+ * `P = nextPow2(N)` skeleton); those byes propagate into the losers bracket: an
+ * LB match that would have been fed by a bye match's (non-existent) loser is
+ * pruned and its live feeder re-routed past it. The result is a clean DE graph
+ * where every surviving match has two real participants (or is an explicit R1
+ * bye). See {@link resolveLosersBracketByes}.
+ *
+ * The grand final is a **reset** final (true double elimination): the WB
+ * champion (0 losses) faces the LB champion (1 loss); if the LB champion wins,
+ * both have one loss and a deciding **reset** game is played. The reset match
+ * is created up-front and wired off the grand final, but the aggregate only
+ * activates it when the LB side wins the grand final — otherwise it voids the
+ * reset as a bye (see `Bracket.applyAdvancement`).
  *
  * Match layout:
  *   - Winners bracket: `bracketSide='winners'`, rounds 1..W (W = log2(P)).
- *   - Losers bracket:  `bracketSide='losers'`,  rounds 1..2(W-1) alternating
- *                      minor (odd) and major (even) rounds.
- *   - Grand final:     `bracketSide='final'`, round 1.
+ *   - Losers bracket:  `bracketSide='losers'`,  rounds 1..2(W-1) (post-prune).
+ *   - Grand final:     `bracketSide='final'`, round 2W (feeds the reset).
+ *   - Reset final:     `bracketSide='final'`, round 2W+1.
  *
  * Wiring:
  *   - WB winner → next WB round (or grand final from WB final).
  *   - WB loser  → corresponding LB match.
  *   - LB winner → next LB round (or grand final from LB final).
+ *   - GF winner → reset (conditionally, by the aggregate).
  *
- * @throws {ValidationError} if fewer than 4 seeds are supplied or the
- *   seed count is not a power of two (4, 8, 16, 32, …).
+ * @throws {ValidationError} if fewer than 4 seeds are supplied.
  */
 export function generateDoubleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFactory): Match[] {
   const N = seeds.length;
@@ -306,12 +317,6 @@ export function generateDoubleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
     throw new ValidationError('Double elimination requires at least 4 teams.', { teamCount: N });
   }
   const P = nextPow2(N);
-  if (P !== N) {
-    throw new ValidationError(
-      'Double elimination v1 requires a power-of-two team count (4, 8, 16, 32).',
-      { teamCount: N },
-    );
-  }
   const W = Math.log2(P);
 
   // ---- Build skeletons (no wiring yet) --------------------------------
@@ -337,7 +342,13 @@ export function generateDoubleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
     lb.push(arr);
   }
 
-  const grandFinal = emptyMatch(mkId(), 1, 1, 'final');
+  const grandFinal = emptyMatch(mkId(), 2 * W, 1, 'final');
+  const grandFinalReset = emptyMatch(mkId(), 2 * W + 1, 1, 'final');
+  // The GF feeds the reset via its winner edge — but the aggregate only places
+  // teams when the LB side wins; a WB-side win voids the reset. The slot here is
+  // nominal (the aggregate sets both reset slots explicitly).
+  grandFinal.advancesToMatchId = grandFinalReset.id;
+  grandFinal.advancesToSlot = 'b';
 
   // ---- Wire WB winners -------------------------------------------------
   for (let r = 0; r < W - 1; r++) {
@@ -418,16 +429,155 @@ export function generateDoubleElimination(seeds: ReadonlyArray<Seed>, mkId: IdFa
   const teamForSlot = new Map<number, EntryId>();
   for (const s of sorted) teamForSlot.set(s.seed, s.entryId);
   const wbR1 = wb[0]!;
+  const all: MutableMatch[] = [...wb.flat(), ...lb.flat(), grandFinal, grandFinalReset];
+  const byId = new Map(all.map((m) => [m.id, m]));
+  // Which WB-R1 slots hold a real seed (≤ N) — the base case for the bye
+  // propagation below. Phantom slots (seed > N) are byes.
+  const realSeedSlots = new Set<string>();
   for (let i = 0; i < wbR1.length; i++) {
     const slotA = slots[i * 2];
     const slotB = slots[i * 2 + 1];
     if (slotA === undefined || slotB === undefined) continue;
     const m = wbR1[i]!;
-    m.entryAId = teamForSlot.get(slotA) ?? null;
-    m.entryBId = teamForSlot.get(slotB) ?? null;
+    const teamA = teamForSlot.get(slotA) ?? null;
+    const teamB = teamForSlot.get(slotB) ?? null;
+    m.entryAId = teamA;
+    m.entryBId = teamB;
+    if (teamA) realSeedSlots.add(`${m.id}:a`);
+    if (teamB) realSeedSlots.add(`${m.id}:b`);
+    // A WB-R1 match with exactly one real team is a bye: auto-advance the
+    // present team into WB-R2 and drop no loser into the losers bracket.
+    const present = teamA && !teamB ? teamA : teamB && !teamA ? teamB : null;
+    if (present) {
+      m.status = 'bye';
+      m.winnerEntryId = present;
+      m.loserAdvancesToMatchId = null;
+      m.loserAdvancesToSlot = null;
+      if (m.advancesToMatchId && m.advancesToSlot) {
+        const dest = byId.get(m.advancesToMatchId);
+        if (dest) {
+          if (m.advancesToSlot === 'a') dest.entryAId = present;
+          else dest.entryBId = present;
+        }
+      }
+    } else if (!teamA && !teamB) {
+      // Phantom-vs-phantom — shouldn't happen for N > P/2 (every R1 match holds
+      // at least one real seed), but mark it a bye defensively.
+      m.status = 'bye';
+    }
   }
 
-  return [...wb.flat(), ...lb.flat(), grandFinal];
+  // Resolve the byes the WB R1 phantoms caused in the losers bracket: prune the
+  // LB matches that can never field two teams and re-route the live feeders.
+  const pruned = resolveLosersBracketByes(all, realSeedSlots);
+  return pruned;
+}
+
+/**
+ * Prune the losers-bracket matches made unplayable by winners-round-1 byes, and
+ * re-route the surviving feeders past them. Operates only on `bracketSide
+ * === 'losers'` matches (byes never reach the winners bracket beyond R1 nor the
+ * finals). Pure structural pass — mutates wiring on `all` and returns the
+ * surviving matches.
+ *
+ * The core is a structural "will this slot ever hold a real team?" propagation:
+ *  - a WB-R1 seed slot fills iff it holds a real seed (`realSeedSlots`);
+ *  - a slot fed by a **winner** edge fills iff its source is _alive_ (produces a
+ *    winner — i.e. has ≥ 1 filling slot);
+ *  - a slot fed by a **loser** edge fills iff its source is _real_ (produces a
+ *    loser — i.e. has 2 filling slots; a bye has none to drop).
+ *
+ * An LB match with two filling slots is real (kept); one → a **bye** (pruned,
+ * its live feeder re-pointed at the bye's winner-destination); zero → **dead**
+ * (removed). Byes are processed by descending round so a chain of byes collapses
+ * onto the first real downstream match.
+ */
+function resolveLosersBracketByes(
+  all: MutableMatch[],
+  realSeedSlots: ReadonlySet<string>,
+): MutableMatch[] {
+  // `fills(matchId, slot)` — does this slot ever receive a real team? Memoized;
+  // the feeder graph is a DAG (edges go strictly forward), so this terminates.
+  const memo = new Map<string, boolean>();
+  const originalFeeder = (
+    id: MatchId,
+    slot: 'a' | 'b',
+  ): { fromId: MatchId; kind: 'winner' | 'loser' } | null => {
+    for (const s of all) {
+      if (s.advancesToMatchId === id && s.advancesToSlot === slot) {
+        return { fromId: s.id, kind: 'winner' };
+      }
+      if (s.loserAdvancesToMatchId === id && s.loserAdvancesToSlot === slot) {
+        return { fromId: s.id, kind: 'loser' };
+      }
+    }
+    return null;
+  };
+  const fills = (id: MatchId, slot: 'a' | 'b'): boolean => {
+    const key = `${id}:${slot}`;
+    const cached = memo.get(key);
+    if (cached !== undefined) return cached;
+    memo.set(key, false); // defensive (DAG ⇒ never re-entered for the same key)
+    let result: boolean;
+    if (realSeedSlots.has(key)) {
+      result = true;
+    } else {
+      const src = originalFeeder(id, slot);
+      if (!src) result = false;
+      else if (src.kind === 'winner') result = producesWinner(src.fromId);
+      else result = producesLoser(src.fromId);
+    }
+    memo.set(key, result);
+    return result;
+  };
+  const producesWinner = (id: MatchId): boolean => fills(id, 'a') || fills(id, 'b');
+  const producesLoser = (id: MatchId): boolean => fills(id, 'a') && fills(id, 'b');
+
+  const deadIds = new Set<MatchId>();
+  const byeIds = new Set<MatchId>();
+  for (const m of all) {
+    if (m.bracketSide !== 'losers') continue;
+    const af = fills(m.id, 'a');
+    const bf = fills(m.id, 'b');
+    if (!af && !bf) deadIds.add(m.id);
+    else if (af !== bf) byeIds.add(m.id);
+  }
+
+  // Drop dead matches first (no live match points into a dead one).
+  let working = all.filter((m) => !deadIds.has(m.id));
+
+  // Find the match whose *current* edge feeds (id, slot) — re-pointing as we go
+  // means we must read live edges, not the original map.
+  const liveFeeder = (
+    id: MatchId,
+    slot: 'a' | 'b',
+  ): { match: MutableMatch; kind: 'winner' | 'loser' } | null => {
+    for (const s of working) {
+      if (s.advancesToMatchId === id && s.advancesToSlot === slot)
+        return { match: s, kind: 'winner' };
+      if (s.loserAdvancesToMatchId === id && s.loserAdvancesToSlot === slot) {
+        return { match: s, kind: 'loser' };
+      }
+    }
+    return null;
+  };
+
+  const byeMatches = working.filter((m) => byeIds.has(m.id)).sort((a, b) => b.round - a.round);
+  for (const m of byeMatches) {
+    const slot: 'a' | 'b' = fills(m.id, 'a') ? 'a' : 'b';
+    const feeder = liveFeeder(m.id, slot);
+    if (feeder) {
+      if (feeder.kind === 'winner') {
+        feeder.match.advancesToMatchId = m.advancesToMatchId;
+        feeder.match.advancesToSlot = m.advancesToSlot;
+      } else {
+        feeder.match.loserAdvancesToMatchId = m.advancesToMatchId;
+        feeder.match.loserAdvancesToSlot = m.advancesToSlot;
+      }
+    }
+  }
+  working = working.filter((m) => !byeIds.has(m.id));
+  return working;
 }
 
 // ---- Pool play -----------------------------------------------------------
@@ -555,10 +705,31 @@ export function generatePoolPlay(
     assignWorkTeam?: boolean;
     courtLabels?: ReadonlyArray<string>;
     courtsByPool?: Readonly<Record<string, ReadonlyArray<string>>>;
+    /**
+     * When set, every pool must field at least this many teams so the later
+     * playoff cross-seed can fill its bracket. Hand-assigned **uneven** pools
+     * (via `setPools`) can otherwise leave one pool too small even when the
+     * global team count is sufficient — the failure would surface late at
+     * `generatePlayoff` with a cryptic "missing position N". Validating here
+     * names the short pool at generate / Edit-pools time instead. See TT-16.
+     */
+    minAdvancePerPool?: number;
   },
   mkId: IdFactory,
 ): Match[] {
   const pools = poolsFromSeedsOrSnake(seeds, poolCount);
+  if (options.minAdvancePerPool != null && options.minAdvancePerPool > 0) {
+    for (const p of pools) {
+      if (p.length < options.minAdvancePerPool) {
+        throw new ValidationError(
+          `Pool ${p[0]?.pool ?? '?'} has ${p.length} team(s) but ${options.minAdvancePerPool} ` +
+            `must advance to the playoff. Move teams so every pool has at least ` +
+            `${options.minAdvancePerPool}, or lower advance-per-pool.`,
+          { pool: p[0]?.pool, size: p.length, advancePerPool: options.minAdvancePerPool },
+        );
+      }
+    }
+  }
   let targetGames: number | null = null;
   if (options.schedule === 'fixed_games') {
     const g = options.gamesPerTeam;

@@ -5,6 +5,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   AddLeagueScheduleMatchCommand,
+  ClearLeagueScheduleCommand,
+  GenerateLeagueScheduleCommand,
+  GetEventBracketMetaQuery,
   RecordLeagueMatchResultCommand,
   RemoveLeagueScheduleMatchCommand,
   UpdateLeagueScheduleMatchCommand,
@@ -16,10 +19,13 @@ import {
   NotFoundError,
   UnauthorizedError,
   ValidationError,
+  type DivisionId,
+  type EventId,
 } from '@pickupvb/domain';
-import { getMatchResultHandlers, handlers } from '@/lib/handlers';
+import { getMatchResultHandlers, handlers, repositories } from '@/lib/handlers';
 import { requireRealUser } from '@/lib/server-auth';
 import { field, fieldOrUndefined } from '@/lib/form-data';
+import { zonedWallClockToUtc } from '@/lib/timezone';
 
 /**
  * Server actions for the per-division league schedule. Mirror the
@@ -53,14 +59,29 @@ function classify(err: unknown): { code: string; msg: string } {
   return { code: 'error', msg: err instanceof Error ? err.message : String(err) };
 }
 
-function parseScheduledAt(raw: string | undefined): Date | null {
+function parseScheduledAt(raw: string | undefined, timeZone: string | null): Date | null {
   if (!raw) return null;
-  // `<input type="datetime-local">` produces `YYYY-MM-DDTHH:mm`. We treat
-  // the value as the host's local clock and let JS construct a Date in the
-  // server's TZ. Converting against the event's time zone is a follow-up;
-  // for now hosts see what they typed echoed back via `<LocalDateTime>`.
-  const d = new Date(raw);
-  return Number.isFinite(d.getTime()) ? d : null;
+  // `<input type="datetime-local">` produces `YYYY-MM-DDTHH:mm` with no zone —
+  // a venue-local wall-clock. Anchor it in the *event's* time zone so a host in
+  // another zone (or a UTC server) stores the instant they meant, not the same
+  // wall-clock reinterpreted in the server's zone. Falls back to UTC when the
+  // event has no time_zone (deterministic, matches the old server behaviour).
+  const d = zonedWallClockToUtc(raw, timeZone);
+  return d && Number.isFinite(d.getTime()) ? d : null;
+}
+
+/**
+ * The event's IANA time zone (or null). Read via the same meta query the
+ * schedule page uses, so the action and the page agree on the zone. Falls back
+ * to null (→ UTC wall-clock) if the read fails — never blocks the mutation.
+ */
+async function loadEventTimeZone(eventId: string): Promise<string | null> {
+  try {
+    const meta = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(eventId));
+    return meta.timeZone ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function parseScoreOrNull(raw: string | undefined): number | null | undefined {
@@ -92,7 +113,10 @@ function entryId(formData: FormData, name: string): string | null {
   return v && v !== 'tbd' ? v : null;
 }
 
-function matchInputFromForm(formData: FormData):
+function matchInputFromForm(
+  formData: FormData,
+  timeZone: string | null,
+):
   | {
       weekNumber: number;
       scheduledAt: Date;
@@ -105,7 +129,7 @@ function matchInputFromForm(formData: FormData):
   | { error: string } {
   const week = Number(field(formData, 'week'));
   if (!Number.isInteger(week) || week < 1) return { error: 'Week must be a positive integer.' };
-  const scheduledAt = parseScheduledAt(field(formData, 'scheduledAt'));
+  const scheduledAt = parseScheduledAt(field(formData, 'scheduledAt'), timeZone);
   if (!scheduledAt) return { error: 'Scheduled time is required.' };
   const status = parseStatus(fieldOrUndefined(formData, 'status'));
   return {
@@ -128,7 +152,7 @@ export async function addMatchFromForm(
   void returnPath;
   if (!eventId || !divisionId) return;
   const { user } = await requireRealUser();
-  const parsed = matchInputFromForm(formData);
+  const parsed = matchInputFromForm(formData, await loadEventTimeZone(eventId));
   if ('error' in parsed) {
     revalidate(eventId);
     back(eventId, divisionId, 'invalid', parsed.error);
@@ -146,6 +170,87 @@ export async function addMatchFromForm(
   back(eventId, divisionId, 'added');
 }
 
+export async function generateScheduleFromForm(
+  eventId: string,
+  divisionId: string,
+  returnPath: string,
+  formData: FormData,
+): Promise<void> {
+  void returnPath;
+  if (!eventId || !divisionId) return;
+  const { user } = await requireRealUser();
+
+  const firstMatchAt = parseScheduledAt(
+    field(formData, 'firstMatchAt'),
+    await loadEventTimeZone(eventId),
+  );
+  if (!firstMatchAt) {
+    revalidate(eventId);
+    back(eventId, divisionId, 'invalid', 'A first match date and time is required.');
+  }
+  const legs = fieldOrUndefined(formData, 'legs') === '2' ? 2 : 1;
+  const intervalRaw = Number(fieldOrUndefined(formData, 'intervalDays'));
+  const intervalDays = Number.isInteger(intervalRaw) && intervalRaw >= 1 ? intervalRaw : 7;
+  const courtsRaw = Number(fieldOrUndefined(formData, 'courts'));
+  const courtLabels =
+    Number.isInteger(courtsRaw) && courtsRaw >= 1
+      ? Array.from({ length: courtsRaw }, (_, i) => `Court ${i + 1}`)
+      : undefined;
+
+  let created = 0;
+  try {
+    // Entries are loaded here (route boundary) and passed in, keeping the
+    // handler free of an entries port — mirrors how the schedule page reads
+    // registered teams via the bracket repo.
+    const teams = await repositories.bracketRepo.listRegisteredTeams(
+      eventId as EventId,
+      divisionId as DivisionId,
+    );
+    const result = await handlers.generateLeagueSchedule.execute(
+      new GenerateLeagueScheduleCommand(
+        eventId,
+        divisionId,
+        user.id,
+        teams.map((t) => String(t.entryId)),
+        {
+          legs,
+          firstMatchAt,
+          intervalDays,
+          ...(courtLabels ? { courtLabels } : {}),
+        },
+      ),
+    );
+    created = result.created;
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'generated', `${created} matches`);
+}
+
+export async function clearScheduleFromForm(
+  eventId: string,
+  divisionId: string,
+  returnPath: string,
+): Promise<void> {
+  void returnPath;
+  if (!eventId || !divisionId) return;
+  const { user } = await requireRealUser();
+  try {
+    await handlers.clearLeagueSchedule.execute(
+      new ClearLeagueScheduleCommand(eventId, divisionId, user.id),
+    );
+  } catch (err) {
+    const { code, msg } = classify(err);
+    revalidate(eventId);
+    back(eventId, divisionId, code, msg);
+  }
+  revalidate(eventId);
+  back(eventId, divisionId, 'cleared');
+}
+
 export async function updateMatchFromForm(
   eventId: string,
   divisionId: string,
@@ -156,7 +261,7 @@ export async function updateMatchFromForm(
   void returnPath;
   if (!eventId || !divisionId || !matchId) return;
   const { user } = await requireRealUser();
-  const parsed = matchInputFromForm(formData);
+  const parsed = matchInputFromForm(formData, await loadEventTimeZone(eventId));
   if ('error' in parsed) {
     revalidate(eventId);
     back(eventId, divisionId, 'invalid', parsed.error);

@@ -48,3 +48,4 @@ supabase/.env
 packages/supabase/src/database.types.ts.tmp
 .vercel
 .env.prod
+fb-urls.txt

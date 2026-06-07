@@ -31,9 +31,12 @@ import {
   AddEventCoHostHandler,
   AddEventDivisionHandler,
   AddLeagueScheduleMatchHandler,
+  GenerateLeagueScheduleHandler,
+  ClearLeagueScheduleHandler,
   AddTeamMemberHandler,
   ClaimCommunityListingHandler,
   ApproveCommunityListingClaimHandler,
+  AutoApproveExpiredCommunityClaimsHandler,
   RejectCommunityListingClaimHandler,
   ClearLiveMatchScoreHandler,
   CastVoteHandler,
@@ -66,8 +69,10 @@ import {
   JoinEventAsFreeAgentHandler,
   JoinEventHandler,
   JoinEventWithPositionHandler,
+  JoinWaitlistHandler,
   LeaveEventAsFreeAgentHandler,
   LeaveEventHandler,
+  LeaveWaitlistHandler,
   MarkWalkInPaidCashHandler,
   RecordLeagueMatchResultHandler,
   RecordMatchResultHandler,
@@ -102,7 +107,16 @@ import {
   GenerateStandaloneBracketHandler,
   GenerateStandalonePlayoffHandler,
   ResetStandaloneBracketHandler,
+  ReopenStandaloneBracketHandler,
+  DeleteStandaloneBracketHandler,
   ReorderStandalonePoolMatchesHandler,
+  SeedStandalonePlayoffHandler,
+  PublishStandaloneBracketHandler,
+  SetStandalonePoolsHandler,
+  EditStandaloneMatchHandler,
+  AddStandaloneMatchHandler,
+  RemoveStandaloneMatchHandler,
+  ReplaceStandaloneEntryHandler,
   AddBracketTeamHandler,
   AddBracketTeamsHandler,
   SetTeamExtraMembersHandler,
@@ -215,6 +229,8 @@ export const handlers = {
   joinEvent: new JoinEventHandler(eventRepo, analytics),
   joinEventWithPosition: new JoinEventWithPositionHandler(eventRepo, analytics),
   leaveEvent: new LeaveEventHandler(eventRepo, analytics),
+  joinWaitlist: new JoinWaitlistHandler(eventRepo, analytics),
+  leaveWaitlist: new LeaveWaitlistHandler(eventRepo, analytics),
   joinEventAsFreeAgent: new JoinEventAsFreeAgentHandler(eventRepo, analytics),
   leaveEventAsFreeAgent: new LeaveEventAsFreeAgentHandler(eventRepo, analytics),
   searchEvents: new SearchEventsHandler(eventRepo),
@@ -270,8 +286,19 @@ export const handlers = {
   seedStandaloneBracket: new SeedStandaloneBracketHandler(bracketRepo, analytics),
   generateStandaloneBracket: new GenerateStandaloneBracketHandler(bracketRepo, analytics),
   generateStandalonePlayoff: new GenerateStandalonePlayoffHandler(bracketRepo, analytics),
+  seedStandalonePlayoff: new SeedStandalonePlayoffHandler(bracketRepo, analytics),
   resetStandaloneBracket: new ResetStandaloneBracketHandler(bracketRepo, analytics),
+  reopenStandaloneBracket: new ReopenStandaloneBracketHandler(bracketRepo, analytics),
+  deleteStandaloneBracket: new DeleteStandaloneBracketHandler(bracketRepo),
   reorderStandalonePoolMatches: new ReorderStandalonePoolMatchesHandler(bracketRepo, analytics),
+  // Standalone manual-edit suite (ADR 0032 / TT-11) — owner-gated structural
+  // edits to a draft / live standalone bracket, mirroring the event path.
+  publishStandaloneBracket: new PublishStandaloneBracketHandler(bracketRepo, analytics),
+  setStandalonePools: new SetStandalonePoolsHandler(bracketRepo, analytics),
+  editStandaloneMatch: new EditStandaloneMatchHandler(bracketRepo, analytics),
+  addStandaloneMatch: new AddStandaloneMatchHandler(bracketRepo, analytics),
+  removeStandaloneMatch: new RemoveStandaloneMatchHandler(bracketRepo, analytics),
+  replaceStandaloneEntry: new ReplaceStandaloneEntryHandler(bracketRepo, analytics),
   addBracketTeam: new AddBracketTeamHandler(bracketRepo),
   addBracketTeams: new AddBracketTeamsHandler(bracketRepo),
   // NOTE: the captain-reachable match-result writes (bracket record/reset,
@@ -281,6 +308,8 @@ export const handlers = {
   // service-role admin client, which would bypass that gate.
   // League schedule (per-division weekly slate)
   addLeagueScheduleMatch: new AddLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
+  generateLeagueSchedule: new GenerateLeagueScheduleHandler(eventRepo, leagueScheduleRepo),
+  clearLeagueSchedule: new ClearLeagueScheduleHandler(eventRepo, leagueScheduleRepo),
   updateLeagueScheduleMatch: new UpdateLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   removeLeagueScheduleMatch: new RemoveLeagueScheduleMatchHandler(eventRepo, leagueScheduleRepo),
   setLeagueTeamForfeited: new SetLeagueTeamForfeitedHandler(eventRepo),
@@ -302,6 +331,9 @@ export const handlers = {
   rejectCommunityListingClaim: new RejectCommunityListingClaimHandler(
     communityListingRepo,
     isPlatformAdmin,
+  ),
+  autoApproveExpiredCommunityClaims: new AutoApproveExpiredCommunityClaimsHandler(
+    communityListingRepo,
   ),
   searchCommunityListings: new SearchCommunityListingsHandler(communityListingRepo),
   getCommunityListingDetail: new GetCommunityListingDetailHandler(communityListingRepo),
@@ -537,7 +569,7 @@ export async function getGroupHandlers(): Promise<{
     const admin = getAdminSupabase();
     const { error } = await admin
       .from('groups')
-      .update({ deleted_at: new Date().toISOString() } as never)
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', groupId);
     if (error) throw new Error(`Group soft-delete failed: ${error.message}`);
   };

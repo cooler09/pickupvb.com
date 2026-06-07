@@ -1,8 +1,11 @@
 /**
  * Server component that emits a schema.org SportsOrganization JSON-LD blob
- * for search engines and AI crawlers. Inline `<script type="application/ld+json">`
- * is the canonical way to embed structured data in HTML.
+ * for search engines and AI crawlers. Rendered via the shared `JsonLd` emitter
+ * so user-controlled values (name, description) can't break out of the inline
+ * script (see `components/json-ld.tsx`).
  */
+import { JsonLd } from '@/components/json-ld';
+
 export function GroupJsonLd({
   slug,
   name,
@@ -41,11 +44,5 @@ export function GroupJsonLd({
       : {}),
   };
 
-  return (
-    <script
-      type="application/ld+json"
-      // schema.org JSON-LD; we control the values, no untrusted HTML.
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
-    />
-  );
+  return <JsonLd data={data} />;
 }

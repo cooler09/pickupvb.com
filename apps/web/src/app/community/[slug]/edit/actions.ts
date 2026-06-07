@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { ZodError } from 'zod';
 import { UpdateCommunityListingSchema } from '@pickupvb/types';
 import { UpdateCommunityListingCommand } from '@pickupvb/application';
@@ -11,6 +11,7 @@ import { field, fieldOrUndefined } from '@/lib/form-data';
 import { requireRealUser } from '@/lib/server-auth';
 import { geocodeAddress } from '@/lib/geocode';
 import { timeZoneForCoords } from '@/lib/timezone';
+import { communityListingCacheTag } from '@/lib/cache-tags';
 
 export type EditCommunityListingState = {
   error?: string;
@@ -134,6 +135,7 @@ export async function editCommunityListingAction(
     return { error: message };
   }
 
+  updateTag(communityListingCacheTag(slug));
   revalidatePath('/community');
   revalidatePath(`/community/${slug}`);
   redirect(`/community/${slug}?notice=updated`);

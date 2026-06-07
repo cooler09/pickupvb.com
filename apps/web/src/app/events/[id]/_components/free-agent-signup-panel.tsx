@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { SubmitButton } from '@/components/submit-button';
-import { primaryButtonClass } from '@/components/primary-button';
-import { joinAsFreeAgentFromForm, leaveAsFreeAgent } from '../free-agent-actions';
+import { primaryButtonClass, neutralButtonClass } from '@/components/primary-button';
+import { joinAsFreeAgentFromForm, leaveAsFreeAgent, pickUpFreeAgent } from '../free-agent-actions';
 
 export type FreeAgentEntry = {
   userId: string;
@@ -26,6 +26,9 @@ type Props = {
   isFreeAgent: boolean;
   viewerId: string | null;
   isRealUser: boolean;
+  /** True when the viewer captains a team registered in this event — gates the
+   * per-row "Pick up" button (the action re-checks the division server-side). */
+  viewerCanPickUp: boolean;
   returnPath: string;
   /** Result code from the server action, surfaced via `?fa=` query param. */
   resultCode?: string | undefined;
@@ -44,6 +47,17 @@ const RESULT_MESSAGES: Record<string, { tone: 'success' | 'error'; text: string 
   },
   signin: { tone: 'error', text: 'Log in to sign up.' },
   anon: { tone: 'error', text: 'Finish creating your account to sign up.' },
+  // Pickup outcomes (ADR-less free-agent pickup)
+  picked_up: {
+    tone: 'success',
+    text: 'Picked up! They have a pending invite to your team and are off the free-agent pool.',
+  },
+  fa_no_team: {
+    tone: 'error',
+    text: 'Register a team in that division before picking up a free agent.',
+  },
+  fa_already_member: { tone: 'error', text: 'That player is already on your roster.' },
+  forbidden: { tone: 'error', text: 'Only the team captain can pick up free agents.' },
   error: { tone: 'error', text: 'Something went wrong. Try again.' },
 };
 
@@ -59,10 +73,15 @@ export function FreeAgentSignupPanel({
   isFreeAgent,
   viewerId,
   isRealUser,
+  viewerCanPickUp,
   returnPath,
   resultCode,
 }: Props) {
   const result = resultCode ? RESULT_MESSAGES[resultCode] : undefined;
+  // A captain may pick up any agent that isn't themselves and has a division
+  // (legacy null-division rows can't be matched to a roster team).
+  const pickupFor = (f: FreeAgentEntry): boolean =>
+    viewerCanPickUp && !!f.divisionId && f.userId !== viewerId;
   // Only divisions that opted in can accept new signups. The grouping list
   // above still shows agents that previously signed up for now-opted-out
   // divisions; they're surfaced under their original bracket so captains
@@ -118,7 +137,12 @@ export function FreeAgentSignupPanel({
               ) : (
                 <ul className="space-y-2">
                   {group.agents.map((f) => (
-                    <FreeAgentRow key={f.userId} agent={f} />
+                    <FreeAgentRow
+                      key={f.userId}
+                      agent={f}
+                      eventId={eventId}
+                      canPickUp={pickupFor(f)}
+                    />
                   ))}
                 </ul>
               )}
@@ -127,7 +151,7 @@ export function FreeAgentSignupPanel({
         ) : (
           <ul className="space-y-2">
             {freeAgents.map((f) => (
-              <FreeAgentRow key={f.userId} agent={f} />
+              <FreeAgentRow key={f.userId} agent={f} eventId={eventId} canPickUp={pickupFor(f)} />
             ))}
           </ul>
         )}
@@ -210,11 +234,26 @@ export function FreeAgentSignupPanel({
   );
 }
 
-function FreeAgentRow({ agent }: { agent: FreeAgentEntry }) {
+function FreeAgentRow({
+  agent,
+  eventId,
+  canPickUp,
+}: {
+  agent: FreeAgentEntry;
+  eventId: string;
+  canPickUp: boolean;
+}) {
   return (
-    <li className="border-border-base bg-surface rounded-md border p-3">
-      <p className="text-fg text-sm font-semibold">{agent.profile.displayName}</p>
-      {agent.notes && <p className="text-muted mt-1 text-xs">{agent.notes}</p>}
+    <li className="border-border-base bg-surface flex items-start justify-between gap-3 rounded-md border p-3">
+      <div className="min-w-0">
+        <p className="text-fg text-sm font-semibold">{agent.profile.displayName}</p>
+        {agent.notes && <p className="text-muted mt-1 text-xs">{agent.notes}</p>}
+      </div>
+      {canPickUp && agent.divisionId && (
+        <form action={pickUpFreeAgent.bind(null, eventId, agent.divisionId, agent.userId)}>
+          <SubmitButton className={`${neutralButtonClass('sm')} shrink-0`}>Pick up</SubmitButton>
+        </form>
+      )}
     </li>
   );
 }

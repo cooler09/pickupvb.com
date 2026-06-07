@@ -7,6 +7,7 @@ import { field } from '@/lib/form-data';
 import { log } from '@/lib/log';
 import { consumeRateLimit, getClientIp, rateLimitKey } from '@/lib/rate-limit';
 import { getViewer } from '@/lib/server-auth';
+import type { TablesUpdate } from '@pickupvb/supabase';
 
 export type ClaimState = {
   error?: string;
@@ -67,15 +68,12 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
       await log.error('[claim] updateUser(metadata) failed', metaErr);
     }
 
-    const updates: Record<string, string> = {
+    const updates: TablesUpdate<'profiles'> = {
       display_name: [firstName, lastName].filter(Boolean).join(' '),
     };
     if (firstName) updates['first_name'] = firstName;
     if (lastName) updates['last_name'] = lastName;
-    await supabase
-      .from('profiles')
-      .update(updates as never)
-      .eq('id', user.id);
+    await supabase.from('profiles').update(updates).eq('id', user.id);
   }
 
   // Step 2: attach the email. Supabase sends a confirmation link; until the
@@ -85,9 +83,15 @@ export async function claimAccount(_prev: ClaimState, formData: FormData): Promi
   const h = await headers();
   const origin =
     h.get('origin') ?? (h.get('host') ? `https://${h.get('host')}` : 'http://localhost:3000');
-  const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(
-    '/reset-password?from=claim',
-  )}`;
+  // Thread the gate's `next` (e.g. /events/new) through the confirm →
+  // set-password chain so the user lands where they were headed. Same-origin
+  // relative only — reject `//evil.com` / `/\evil.com` (mirrors /auth/callback).
+  const next = field(formData, 'next');
+  const safeNext = next && /^\/(?![/\\])/.test(next) ? next : null;
+  const afterPassword = safeNext
+    ? `/reset-password?from=claim&next=${encodeURIComponent(safeNext)}`
+    : '/reset-password?from=claim';
+  const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(afterPassword)}`;
 
   // Rate-limit before the email send so an attacker can't replay this
   // form to spam a target with confirmation emails. Audit P2 #6.

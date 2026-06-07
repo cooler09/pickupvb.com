@@ -64,6 +64,9 @@ export interface NotificationOutboxPort {
 /** A claimed outbox row, handed to the worker for delivery. */
 export interface OutboxRecord {
   id: string;
+  /** Recipient user id — used by the worker to mint a per-user
+   * `List-Unsubscribe` token for non-transactional email. */
+  userId: string;
   channel: string;
   kind: string;
   toAddress: string;

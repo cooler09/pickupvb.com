@@ -18,6 +18,7 @@ import { isPricingLocked } from '@/lib/pricing-lock';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { SkillTier } from '@pickupvb/domain';
+import type { TablesUpdate } from '@pickupvb/supabase';
 import { handlers } from '@/lib/handlers';
 import { notify } from '@/lib/notify';
 
@@ -310,7 +311,7 @@ export async function editEventAction(
       time_zone: timeZone,
       ...extUpdate,
       updated_at: new Date().toISOString(),
-    } as never)
+    } as TablesUpdate<'events'>)
     .eq('id', eventId);
   if (updErr) return { error: `Update failed: ${updErr.message}` };
 
@@ -328,7 +329,7 @@ export async function editEventAction(
     if (Object.keys(divisionUpdate).length > 0) {
       const { error: divErr } = await admin
         .from('event_divisions')
-        .update(divisionUpdate as never)
+        .update(divisionUpdate as TablesUpdate<'event_divisions'>)
         .eq('id', curDiv.id);
       if (divErr) return { error: `Update failed: ${divErr.message}` };
     }
@@ -343,13 +344,13 @@ export async function editEventAction(
         host_absorbs_fee: newHostAbsorbsFee,
         pass_processing_fee_to_buyer: newPassProcessingFeeToBuyer,
         refund_window_hours: newRefundWindowHours,
-      } as never)
+      })
       .eq('id', eventId);
     if (priceErr) return { error: `Pricing update failed: ${priceErr.message}` };
     if (curDiv && newPriceCents !== null) {
       const { error: divPriceErr } = await admin
         .from('event_divisions')
-        .update({ price_cents: newPriceCents } as never)
+        .update({ price_cents: newPriceCents })
         .eq('id', curDiv.id);
       if (divPriceErr) {
         return { error: `Pricing update failed: ${divPriceErr.message}` };

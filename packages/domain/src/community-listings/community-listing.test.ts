@@ -86,6 +86,24 @@ describe('CommunityListing.create', () => {
       CommunityListing.create(createProps({ location: { ...LOCATION, city: '  ' } })),
     ).toThrow(InvariantViolation);
   });
+
+  it('keeps a text address with null coordinates (geocoding failed on import)', () => {
+    const loc = CommunityListing.create(
+      createProps({ location: { ...LOCATION, latitude: null, longitude: null } }),
+    ).location;
+    expect(loc?.city).toBe('Long Beach');
+    expect(loc?.addressLine).toBe('1 Main St');
+    expect(loc?.latitude).toBeNull();
+    expect(loc?.longitude).toBeNull();
+  });
+
+  it('drops a half-specified point — one coordinate without the other is no point', () => {
+    const loc = CommunityListing.create(
+      createProps({ location: { ...LOCATION, longitude: null } }),
+    ).location;
+    expect(loc?.latitude).toBeNull();
+    expect(loc?.longitude).toBeNull();
+  });
 });
 
 describe('CommunityListing claim flow', () => {

@@ -27,11 +27,15 @@ function SubmitBtn() {
   );
 }
 
-export default function ClaimForm() {
+export default function ClaimForm({ next }: { next?: string }) {
   const [state, formAction] = useFormState(claimAccount, initial);
   const errorRef = useAlertReveal(state, Boolean(state.error));
   return (
     <form action={formAction} className="space-y-3">
+      {/* Where to land after the email-confirm → set-password chain (e.g. the
+          /events/new host gate that sent the user here). Threaded through
+          emailRedirectTo by the action; honored by /reset-password. */}
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       {state.error && (
         <div ref={errorRef} tabIndex={-1} className="outline-none">
           <Alert variant="error">{state.error}</Alert>

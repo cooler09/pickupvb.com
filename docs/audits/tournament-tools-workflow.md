@@ -1,6 +1,40 @@
 # Tournament-tools workflow audit
 
-_Last updated: 2026-06-04_
+_Last updated: 2026-06-05_
+
+**Status update (2026-06-05) — bracket-tool deep-dive (standalone vs. division).**
+Full written audit of the bracket engine + both delivery surfaces (event/division
+under `/events/[id]/bracket`, standalone under `/brackets`), read through a
+correctness / parity / stale-data lens. Nine new findings **TT-9 … TT-17** below
+(**1 P1 · 3 P2 · 5 P3**). Headlines:
+
+- **TT-9 (P1) — ✅ FIXED 2026-06-05.** Double-elimination create/seed accepted team
+  counts the generator can't build (min-teams said 3, generator needs ≥4 **and** a
+  power of two); the failure only surfaced at Generate. Now enforced up-front via a
+  shared domain precondition. See the remediation log below.
+- **TT-10 (P2) — ✅ FIXED 2026-06-05.** A completed standalone bracket could never
+  be re-opened (no standalone reopen; the board's Re-open was event-only). Added an
+  owner-gated standalone reopen + surfaced the Re-open strip for standalone. See the
+  remediation log below.
+- **TT-11 (P2) — ✅ FIXED 2026-06-05.** Standalone brackets now have the full
+  division-path ADR-0032 draft → publish flow + live manual edits (per-match Edit,
+  Substitute, add/remove match, Edit pools). Auto-publish removed; the draft/edit
+  UI was parameterized on `BracketScope`. The flow change closed **TT-13 / TT-14 /
+  TT-15** as riders (LIVE/Final badge gating, `targetScore` on the standalone
+  board/watch, the `draft` status label). See the remediation log below.
+- **TT-12 (P2) — ✅ FIXED 2026-06-05.** The free-tier cap copy promised "delete your
+  bracket" but no delete path existed. Added an owner-gated delete (cascade) + a
+  danger-zone affordance on `/brackets/[id]`; the cap copy is now accurate. See the
+  remediation log below.
+
+**TT-13 / TT-14 / TT-15 / TT-16 / TT-17 — ✅ all FIXED 2026-06-05** (TT-13/14/15 as
+TT-11 riders; TT-16 per-pool feasibility + TT-17 DE grand-final disclosure as a
+final P3 pass). **The entire TT-9 … TT-17 bracket-audit backlog is now resolved
+in-tree.**
+
+The two prior P1s are landed in-tree (TT-7 scope-XOR fix migration
+`20260912000000` committed in `03ab610f`; TT-8 double-elim loser-advance in
+`bracket.ts` committed in `ac43501f`) — verify on the next deploy.
 
 **Status update (2026-06-04) — two P1 bracket bugs surfaced by the persona
 e2e run** (`standalone-bracket`, `persona-sofia-tournament`). Both are real
@@ -170,7 +204,407 @@ generalization (TT-2) should mirror it shape-for-shape.
 
 ---
 
+## Bracket-tool deep-dive (2026-06-05) — standalone vs. division
+
+Scope: the `Bracket` aggregate + generators, the event/division surface
+(`/events/[id]/bracket`), and the standalone surface (`/brackets`). Findings
+focus on **correctness, standalone↔division parity, and stale data** — distinct
+from the persona tie-back (TT-1…TT-6) above.
+
+### TT-9 — Double-elimination accepts team counts the generator can't build · **P1**
+
+The create-time gate and the generator disagree on what a valid double-elim
+field is, and nothing surfaces the gap until **Generate**:
+
+- `minTeamsForFormat('double_elimination')` returns **3**
+  ([enums.ts#L45-L56](../../packages/domain/src/brackets/enums.ts#L45-L56)), and the
+  format picker's `FORMATS` entry likewise advertises `minTeams: 3`
+  ([format-picker-form.tsx#L166-L173](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx#L166-L173)).
+- But `generateDoubleElimination` requires **N ≥ 4 _and_ N a power of two**
+  (4/8/16/32) — it throws `ValidationError` otherwise
+  ([generators.ts#L303-L314](../../packages/domain/src/brackets/generators.ts#L303-L314)).
+- `CreateBracketHandler` validates only against `minTeamsForFormat`
+  ([bracket.handler.ts#L253-L260](../../packages/application/src/commands/bracket.handler.ts#L253-L260)),
+  so a host can create + seed a DE bracket with 3, 5, 6, 7, 9–15 … teams and only
+  hit the wall at `generate()`, which redirects back with a cryptic "requires a
+  power-of-two team count".
+
+Impact splits by surface:
+
+- **Division:** registered team count is driven by registrations, so a
+  5/6/7-team division simply **cannot** run double-elim — the host is stuck at
+  Generate with no path except switching format (which needs a reset).
+- **Standalone:** worse — format is fixed at create, the free owner is at the
+  1-bracket cap, and there's **no delete** (TT-12), so a free user who picks DE
+  with 6 teams is hard-stuck. The standalone create page passes `teamCount={0}`
+  - `enforceMinTeams={false}`
+    ([new/page.tsx#L62-L67](../../apps/web/src/app/brackets/new/page.tsx#L62-L67)),
+    so there isn't even a min-team hint.
+
+**Fix:** (a) bump `minTeamsForFormat('double_elimination')` to **4** and sync the
+picker's `minTeams`; (b) add a power-of-two precondition surfaced at create **and**
+at the SetupView Generate gate — disable Generate and show "Double elimination
+needs 4, 8, 16, or 32 teams; you have N" (compute nearest pow2)
+([setup-view.tsx#L56-L80](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx#L56-L80));
+(c) have `CreateBracketHandler` validate against the generator's real precondition,
+not just a count. Longer-term, support non-power-of-two DE (byes in WB R1) so
+common counts work — that's the durable fix.
+
+### TT-10 — A completed standalone bracket can never be re-opened or edited (data dead-end) · **P2** · ✅ FIXED 2026-06-05
+
+There is no standalone reopen command/action, and the only Re-open affordance —
+`LiveHostTools` on the board — is gated `scope.kind === 'event'`
+([board-view.tsx#L191-L198](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx#L191-L198),
+[#L445-L477](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx#L445-L477)).
+Once a standalone bracket reaches `completed`, `recordResult` / `resetMatch`
+throw ("Bracket is not active." / "Cannot edit a completed bracket."
+[bracket.ts#L572](../../packages/domain/src/brackets/bracket.ts#L572),
+[#L619](../../packages/domain/src/brackets/bracket.ts#L619)) and the board hides
+Reset (active-only, [board-view.tsx#L170](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx#L170)).
+A mis-entered final that completes the bracket is then **frozen forever** — no
+correction, no undo. The domain already supports the fix (`Bracket.reopen()`,
+[bracket.ts#L404-L410](../../packages/domain/src/brackets/bracket.ts#L404-L410)); it's
+just unreachable from standalone.
+**Fix:** add an owner-gated `ReopenStandaloneBracketCommand` + handler +
+`reopenStandaloneBracket` action (mirror `ReopenBracketHandler`), and render a
+Re-open affordance for `scope.kind === 'standalone'` (un-gate the
+`LiveHostTools` reopen branch or add a standalone strip).
+
+### TT-11 — Standalone brackets lack the division path's draft + manual-edit tooling (parity gap) · **P2** · ✅ FIXED 2026-06-05
+
+The ADR-0032 manual-edit suite (publish/reopen/setPools/editMatch/addMatch/
+removeMatch/seedPlayoff/replaceEntry) exists **only** for event/division
+brackets ([bracket.handler.ts#L369-L538](../../packages/application/src/commands/bracket.handler.ts#L369-L538));
+the standalone handler set
+([standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts))
+has none of them. Consequences for a standalone owner:
+
+- **No draft stage.** Standalone `generate()` auto-publishes
+  ([standalone-bracket.handler.ts#L160-L168](../../packages/application/src/commands/standalone-bracket.handler.ts#L160-L168)),
+  so it jumps `setup → active` with no pre-publish review. `DraftWorkspace` is
+  hard-coupled to `eventId`/`divisionId`
+  ([draft-workspace.tsx#L34-L45](../../apps/web/src/app/events/[id]/bracket/_components/draft-workspace.tsx#L34-L45))
+  and never rendered for standalone (the standalone page has no `draft` branch —
+  [brackets/[id]/page.tsx#L109-L139](../../apps/web/src/app/brackets/[id]/page.tsx#L109-L139)).
+- **No live structural edits.** `canStructEdit`, the per-match `MatchEditor`
+  "Edit", and Substitute are all `scope.kind === 'event'`-gated
+  ([board-view.tsx#L83-L104](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx#L83-L104)).
+  A standalone owner can seed, generate, reset (while active), record/clear
+  results, and generate the playoff — nothing else.
+
+**Fix:** mirror the event manual-edit handlers as owner-gated standalone commands
+(reuse `loadOwnedBracket`), extend `bindBracketActions`
+([bracket-action-binding.ts#L59-L88](../../apps/web/src/app/events/[id]/bracket/_components/bracket-action-binding.ts#L59-L88))
+with the new standalone bindings, and un-gate the board affordances by switching
+the `scope.kind === 'event'` checks to "is the action bound for this scope".
+Parameterize `DraftWorkspace` on a `BracketScope` so standalone can render it. This
+is the deferred "Standalone (ADR 0025) draft/edit UI" — promote it from
+nice-to-have to a tracked P2 because TT-10 (the no-reopen dead-end) rides on it.
+
+### TT-12 — "Delete your bracket" is promised but unimplemented · **P2** · ✅ FIXED 2026-06-05
+
+The cap copy and its JSDoc both tell the user to "Finish or **delete** your
+current bracket"
+([standalone-bracket-cap.ts#L13-L24](../../apps/web/src/lib/standalone-bracket-cap.ts#L13-L24)),
+and the `/brackets/new` cap panel repeats it
+([new/page.tsx#L68-L84](../../apps/web/src/app/brackets/new/page.tsx#L68-L84)). But
+there is **no delete-bracket action anywhere** — a repo-wide search finds only
+`removeBracketMatch` (a single match, event-scope). Combined with TT-9 / TT-10, a
+free owner with a non-generatable or unwanted bracket cannot free their one slot
+short of upgrading to Pro.
+**Fix:** add an owner-gated `DeleteStandaloneBracketCommand` + handler + a
+"Delete bracket" affordance on `/brackets/[id]` (and the list), cascading
+`bracket_teams` / `bracket_seeds` / `bracket_matches` / `bracket_match_sets`.
+Until it ships, change the copy to stop promising deletion.
+
+### TT-13 — Standalone watch page hard-codes "● LIVE", never shows "Final" · **P3** · ✅ FIXED 2026-06-05 (TT-11 rider)
+
+`/brackets/[id]/watch` renders the `● LIVE` badge **unconditionally**, regardless
+of status ([watch/page.tsx#L74-L79](../../apps/web/src/app/brackets/[id]/watch/page.tsx#L74-L79)),
+so a completed standalone bracket still claims to be live. The event watch page
+gets this right — LIVE only when `status === 'active'`, a green "Final" badge on
+`completed`
+([events/[id]/bracket/watch/page.tsx#L163-L175](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx#L163-L175)).
+**Fix:** mirror the event gating on the standalone watch header.
+
+### TT-14 — Standalone board/watch never pass `targetScore` (configured "play-to" is invisible) · **P3** · ✅ FIXED 2026-06-05 (TT-11 rider)
+
+The ADR-0032 "play to N points" the owner configures is dropped on the standalone
+surfaces: both standalone `BoardView` calls omit `targetScore`
+([brackets/[id]/page.tsx#L126-L137](../../apps/web/src/app/brackets/[id]/page.tsx#L126-L137),
+[watch/page.tsx#L104-L115](../../apps/web/src/app/brackets/[id]/watch/page.tsx#L104-L115)),
+so `MatchCard` only shows a "to N" line when a **per-match** override is set
+([match-card.tsx#L62-L69](../../apps/web/src/app/events/[id]/bracket/_components/match-card.tsx#L62-L69)).
+The event path passes `bracket.config.targetScore`.
+**Fix:** pass `targetScore={bracket.config.targetScore}` in both standalone
+`BoardView` calls (and `teams={registeredTeams}` once standalone edit lands).
+
+### TT-15 — Status labels omit `draft` (latent until TT-11) · **P3** · ✅ FIXED 2026-06-05 (TT-11 rider)
+
+The `/brackets` list `STATUS_LABEL` map handles only setup/active/completed
+([brackets/page.tsx#L10-L14](../../apps/web/src/app/brackets/page.tsx#L10-L14)), and
+the standalone editor/watch status branches likewise have no `draft` case.
+Standalone auto-publishes today so it's latent, but the list already falls
+through to the raw `draft` string, and it becomes a visible gap the moment
+standalone draft (TT-11) lands.
+**Fix:** add `draft: 'Draft'` and a draft render branch wherever standalone
+status is shown — bundle with TT-11.
+
+### TT-16 — Pool-play create gate ignores `advancePerPool`; uneven pools can fail playoff generation · **P3** · ✅ FIXED 2026-06-05
+
+`CreateBracketHandler` checks only `minTeamsForFormat` (4 for pool play), not
+`poolCount * advancePerPool`
+([bracket.handler.ts#L253-L260](../../packages/application/src/commands/bracket.handler.ts#L253-L260)).
+`generate()` catches the **global** under-fill
+([bracket.ts#L348-L362](../../packages/domain/src/brackets/bracket.ts#L348-L362)) and
+the picker warns (`poolPlayUnderfilled`), so this is mostly defense-in-depth — but
+with **hand-assigned uneven pools** (`setPools`), one small pool with fewer than
+`advancePerPool` finishers makes `rankAcrossPools` throw "missing position N"
+([standings.ts#L158-L167](../../packages/domain/src/brackets/standings.ts#L158-L167))
+even when the global count passes.
+**Fix:** validate per-pool advance feasibility in `generatePlayoff` (and surface it
+at `setPools`/Edit-pools time) with a message naming the short pool; factor the
+config into the create handler's min-team check.
+
+### TT-17 (note) — Double-elimination grand final has no bracket reset · **P3 (documented limitation)** · ✅ DISCLOSED 2026-06-05
+
+The v1 grand final is a single match
+([generators.ts#L283-L293](../../packages/domain/src/brackets/generators.ts#L283-L293)):
+if the losers-bracket winner (one loss) beats the winners-bracket winner (zero
+losses), the WB team is eliminated on a **single** loss — not true double-elim,
+which would grant a reset game. Acceptable as a v1 limitation but currently
+undisclosed.
+**Fix:** disclose it in the format picker ("single grand final, no reset") and put
+"grand-final reset" on the roadmap. **✅ The reset grand final was implemented
+2026-06-05** (see the double-elim-parity remediation entry above), superseding this
+disclosure — the format card now describes the reset behavior instead.
+
+### Stale data / cleanup notes
+
+- **Legacy `team_*_id` / `work_team_id` columns** on `bracket_matches` /
+  `bracket_seeds` are kept nullable but "no longer written" post the 2026-12-04
+  entry-id cutover
+  ([match.ts#L8-L17](../../packages/domain/src/brackets/match.ts#L8-L17),
+  [supabase-bracket-repository.ts#L370-L406](../../packages/infrastructure/src/supabase-bracket-repository.ts#L370-L406)).
+  Candidate drop migration once the back-compat window closes.
+- **Prior P1s landed in-tree:** TT-7 scope-XOR fix
+  (`20260912000000_fix_save_bracket_standalone_scope_xor.sql`, committed
+  `03ab610f`) and TT-8 double-elim loser advancement (`bracket.ts`
+  `applyAdvancement` / `unwireAdvancement`, committed `ac43501f`). Verify both on
+  the next deploy and close TT-7/TT-8.
+
+---
+
 ## Remediation log
+
+### 2026-06-05 — Bracket polish bundle (deferred follow-ups)
+
+Cleared the small bracket follow-ups noted across the prior entries. Verify chain
+green (typecheck / lint / unit tests — domain 512 — / build). Narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-bracket-polish.md).
+
+- **Add-a-game on the live board.** The domain allowed `addMatch` while `active`
+  but the UI only exposed it in the draft workspace. Extracted the shared
+  [`AddMatchButton`](../../apps/web/src/app/events/[id]/bracket/_components/add-match-button.tsx)
+  and surfaced "+ Add game" per pool (pool play) and once (round robin) on the
+  active board for the host
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+- **Playoff re-seed UI (wired a dead handler).** `SeedPlayoffHandler` existed but
+  was unreachable — no action, no UI, no standalone twin. Added the event action,
+  a standalone `SeedStandalonePlayoff` command/handler, the binding, and a
+  [`ReseedPlayoffButton`](../../apps/web/src/app/events/[id]/bracket/_components/reseed-playoff-button.tsx)
+  (drag-reorder via the existing `SeedingList`) shown before any playoff match
+  starts. The current cross-seed order is recomputed (`rankAcrossPools`) to
+  pre-fill the picker. 2 domain tests added for `Bracket.seedPlayoff`.
+- **Spectator focus.** `pickLatestMatchId` now prefers a pending _deciding_ final
+  (the double-elim reset, or a championship awaiting both semifinalists) over the
+  last completed final.
+- **List delete.** A 2-step "Delete bracket" disclosure on each `/brackets` row
+  ([brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx)) — the detail-page
+  delete (TT-12) is no longer the only path.
+- **Stale-data note resolved.** The legacy `team_*_id` / `work_team_id` columns were
+  already dropped in
+  [20260813000000](../../supabase/migrations/20260813000000_drop_legacy_team_id_columns.sql);
+  the "drop candidate" follow-up was itself stale. Fixed the lingering "kept
+  nullable" comments in
+  [match.ts](../../packages/domain/src/brackets/match.ts) — no migration needed.
+
+### 2026-06-05 — Double-elim parity: non-power-of-two byes + reset grand final (roadmap items; supersedes the TT-9 pow2 guard + TT-17 disclosure)
+
+Implemented the two genuine generator limitations that TT-9 and TT-17 had been
+papering over. Verify chain green (typecheck / lint / unit tests — domain 510 — /
+build). Narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-double-elim-byes-reset-final.md).
+
+- **Non-power-of-two double elim.** `generateDoubleElimination` now builds for any
+  field of 4+: it lays out the `P = nextPow2(N)` skeleton, gives the top seeds
+  winners-round-1 byes, then a structural "will this slot ever hold a real team?"
+  propagation prunes the losers-bracket matches a bye starves and re-routes the
+  live feeders past them (`resolveLosersBracketByes` in
+  [generators.ts](../../packages/domain/src/brackets/generators.ts)). 5/6/7-team
+  fields now play cleanly through to a champion (domain tests).
+  **This supersedes TT-9's power-of-two precondition** — `validateTeamCountForFormat`
+  dropped the DE pow2 check (the floor of 4 stays); the format picker no longer
+  shows a pow2 shape gate.
+- **Reset grand final (true double elim).** The generator emits a second `final`
+  match (the reset) wired off the grand final; the aggregate activates it only
+  when the **losers-bracket** team wins the grand final (both then have one loss),
+  and voids it as a bye when the winners-bracket team wins
+  (`grandFinalResetFor` / `applyAdvancement` / `unwireAdvancement` in
+  [bracket.ts](../../packages/domain/src/brackets/bracket.ts)). The board renders
+  the reset only once it's populated
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+  **This supersedes TT-17** — the "single grand final (no bracket reset)"
+  disclosure was removed from the format card.
+- Backward compatible: a power-of-two field generates no byes (no pruning), and a
+  WB-team grand-final win voids the reset, so existing 4-/8-team behavior is
+  unchanged apart from the (conditional) reset match. 6 domain tests added
+  (byes playthrough for 5/6/7 teams; reset forced vs. voided; reset revert).
+
+### 2026-06-05 — TT-16 + TT-17: pool-play feasibility + DE grand-final disclosure (both P3)
+
+Closes the bracket-audit P3 backlog. Verify chain green (typecheck / lint / unit
+tests — domain 504, application 135 — / build). Narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-tt16-tt17-pool-feasibility-de-disclosure.md).
+
+- **TT-16 — per-pool advance feasibility.** The real bug was a **hand-assigned
+  uneven pool** (via `setPools`) leaving one pool with fewer than `advancePerPool`
+  teams even when the global count passed — surfacing late at `generatePlayoff`
+  as a cryptic "missing position N". Now caught at generate / Edit-pools time:
+  `generatePoolPlay` takes a `minAdvancePerPool` and throws a **pool-named**
+  `ValidationError`
+  ([generators.ts](../../packages/domain/src/brackets/generators.ts)), wired from
+  `Bracket.generate()`; `generatePlayoff` keeps a defense-in-depth pool-named
+  guard ([bracket.ts](../../packages/domain/src/brackets/bracket.ts)). The create
+  gate now factors the config in — `validateTeamCountForFormat` takes optional
+  `{ poolCount, advancePerPool }` and the create handler passes them, so an
+  under-configured pool field fails at **create**, not generate
+  ([enums.ts](../../packages/domain/src/brackets/enums.ts),
+  [bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)).
+  4 domain + 1 handler test added.
+- **TT-17 — DE grand-final disclosure.** The v1 single grand final (no bracket
+  reset) is now disclosed on the double-elimination format card
+  ([format-picker-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx)):
+  "Grand final is a single game (no bracket reset)." The reset itself stays a
+  roadmap item (a genuine generator change).
+
+### 2026-06-05 — TT-11: standalone draft + manual-edit parity (P2 fixed; closes TT-13/14/15)
+
+Standalone brackets now have the **full** ADR-0032 division-path flow:
+`generate → draft (review/edit) → Publish → active (live edits) → completed
+→ Re-open`. The standalone create flow changed from one-click-live to
+draft→publish (user-confirmed). Verify chain green (typecheck / lint / unit
+tests — standalone handler suite 15 → 22 — / build). Full narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-tt11-standalone-draft-edit-parity.md).
+
+- **No auto-publish.** `GenerateStandaloneBracketHandler` dropped the
+  `bracket.publish()` bridge, so generate lands in `draft`
+  ([standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts)).
+- **6 owner-gated manual-edit handlers** (publish / setPools / editMatch /
+  addMatch / removeMatch / replaceEntry), mirroring the event host-gated suite
+  via `loadOwnedBracket` and reusing the shared `buildMatchPatch` /
+  `buildAddMatchInput` (now exported from
+  [bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)),
+  wired in the composition root.
+- **6 standalone server actions** in
+  [brackets/actions.ts](../../apps/web/src/app/brackets/actions.ts), mirroring the
+  event `*FromForm` actions field-for-field.
+- **Scope-driven UI.** `BoundBracketActions` gained
+  publish/setPoolsFromForm/addMatchFromForm/editMatchFromForm/removeMatch/
+  replaceEntryFromForm for both scopes
+  ([bracket-action-binding.ts](../../apps/web/src/app/events/[id]/bracket/_components/bracket-action-binding.ts)).
+  `MatchEditor` + `DraftWorkspace` were parameterized on `BracketScope`
+  ([match-editor.tsx](../../apps/web/src/app/events/[id]/bracket/_components/match-editor.tsx),
+  [draft-workspace.tsx](../../apps/web/src/app/events/[id]/bracket/_components/draft-workspace.tsx)),
+  and the board's structural-edit gate dropped its `scope.kind === 'event'`
+  check — `LiveHostTools` / Substitute / per-match Edit now serve both scopes
+  ([board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+- **Standalone pages.** `/brackets/[id]` renders the `DraftWorkspace` on `draft`
+  and passes `teams` + `targetScore` to the board
+  ([page.tsx](../../apps/web/src/app/brackets/[id]/page.tsx)); the watch page
+  handles `draft` and gates the LIVE/Final badge
+  ([watch/page.tsx](../../apps/web/src/app/brackets/[id]/watch/page.tsx)); the
+  list labels `draft` ([brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx)).
+  These rider fixes close **TT-13** (badge), **TT-14** (`targetScore`), **TT-15**
+  (`draft` label).
+- **E2E + tests.** The standalone e2e helper now clicks Publish after generate
+  ([standalone-bracket.ts](../../apps/web/tests/e2e/_helpers/standalone-bracket.ts));
+  7 application cases added
+  ([standalone-bracket.handler.test.ts](../../packages/application/src/commands/standalone-bracket.handler.test.ts))
+  including the generate-lands-in-draft behavior change.
+
+Remaining bracket-audit backlog: **TT-16** (per-pool advance feasibility) and
+**TT-17** (DE grand-final reset) — both P3.
+
+### 2026-06-05 — TT-10 + TT-12: standalone reopen + delete (both P2 fixed)
+
+Closed the two standalone dead-ends. Verify chain green (typecheck / lint / unit
+tests / build; standalone handler suite 10 → 15). Full narrative:
+[journal 2026-06-05](../journal/2026-06-05-bundle-tt10-tt12-standalone-reopen-delete.md).
+
+- **TT-10 — standalone reopen.** New owner-gated `ReopenStandaloneBracketCommand` /
+  `ReopenStandaloneBracketHandler`
+  ([standalone-bracket.handler.ts](../../packages/application/src/commands/standalone-bracket.handler.ts))
+  - `reopenStandaloneBracket` action
+    ([brackets/actions.ts](../../apps/web/src/app/brackets/actions.ts)). The board's
+    completed-state "Re-open to edit" strip was extracted to a shared `ReopenStrip`
+    and is now rendered for `scope.kind === 'standalone'` too — driven by a new
+    `reopen` entry on `BoundBracketActions`
+    ([bracket-action-binding.ts](../../apps/web/src/app/events/[id]/bracket/_components/bracket-action-binding.ts),
+    [board-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)).
+    The event-only Substitute / per-match Edit stay event-scoped (that's TT-11).
+- **TT-12 — standalone delete.** New `deleteBracket` repository port
+  ([bracket-repository.ts](../../packages/domain/src/brackets/bracket-repository.ts),
+  [supabase-bracket-repository.ts](../../packages/infrastructure/src/supabase-bracket-repository.ts)
+  — a single `DELETE FROM event_brackets`; seeds / matches → sets / teams /
+  `match_live_scores` all FK-cascade), owner-gated
+  `DeleteStandaloneBracketCommand` / handler, and a `deleteStandaloneBracket`
+  action that redirects to `/brackets`. A two-step "Delete this bracket" danger
+  zone was added to the standalone workspace
+  ([brackets/[id]/page.tsx](../../apps/web/src/app/brackets/[id]/page.tsx)). The
+  cap copy's "Finish or delete your current bracket" is now accurate, and a free
+  owner stuck on a non-generatable bracket (TT-9 scenario) can free the slot.
+- **Tests.** 5 application cases added
+  ([standalone-bracket.handler.test.ts](../../packages/application/src/commands/standalone-bracket.handler.test.ts)):
+  reopen completed→active + non-owner reject; delete owned + non-owner reject +
+  unknown-bracket NotFound.
+
+Still open: **TT-11** (the broader standalone draft + manual-edit parity —
+per-match Edit, Substitute, add/remove match, Edit pools, playoff re-seed). TT-10
+unblocks the sharpest data-integrity case; TT-11 remains the larger build.
+
+### 2026-06-05 — TT-9: double-elimination team-count precondition (P1 fixed)
+
+The create/seed/generate stack now enforces the **full** double-elimination
+precondition (≥ 4 **and** a power of two) up-front, instead of letting it fail
+late inside the generator. One shared domain rule, surfaced at all three gates.
+Verify chain green (typecheck / lint / 657 unit tests / build).
+
+- **Domain — single source of truth.** `minTeamsForFormat('double_elimination')`
+  bumped 3 → **4**, and a new
+  [`validateTeamCountForFormat(format, teamCount)`](../../packages/domain/src/brackets/enums.ts)
+  returns `{ ok } | { ok: false; reason }` — the min floor plus the power-of-two
+  shape rule, with an actionable message ("you have 6 — drop to 4 or add 2 to reach
+  8"). Pinned by [enums.test.ts](../../packages/domain/src/brackets/enums.test.ts).
+- **Create handler.** `CreateBracketHandler` now validates registered teams against
+  `validateTeamCountForFormat`, not a bare count
+  ([bracket.handler.ts](../../packages/application/src/commands/bracket.handler.ts)).
+  Two cases added to
+  [bracket.handler.test.ts](../../packages/application/src/commands/bracket.handler.test.ts)
+  (rejects a 6-team DE before `save`; accepts an 8-team DE).
+- **Format picker.** Synced DE `minTeams` to 4 and added a shape-check that disables
+  Create + shows the reason when the registered field isn't a power of two
+  ([format-picker-form.tsx](../../apps/web/src/app/events/[id]/bracket/_components/format-picker-form.tsx)).
+  Standalone create (no teams yet) is unaffected — it enforces at the Generate gate.
+- **Setup Generate gate.** `SetupView` now gates Generate on
+  `validateTeamCountForFormat` and renders the reason — the common chokepoint that
+  also covers the **standalone** surface, whose create path doesn't enforce a count
+  ([setup-view.tsx](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)).
+
+~~Not yet addressed (roadmap): true non-power-of-two double-elim support (byes in
+WB R1)~~ — **✅ implemented 2026-06-05** (see the double-elim-parity remediation
+entry above); the TT-9 power-of-two precondition this fix added was superseded by
+that work. The floor of 4 remains.
 
 ### 2026-06-02 — bracket workflow redesign (ADR 0032, cross-reference)
 

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { notFound } from 'next/navigation';
 import { GetEventBracketMetaQuery } from '@pickupvb/application';
-import { NotFoundError } from '@pickupvb/domain';
+import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
 import { isPro } from '@/lib/pro';
@@ -64,8 +64,11 @@ export default async function BracketPage(props: {
   const focusParam = pickQuery(searchParams, 'focus') ?? null;
 
   const [bracket, registeredTeams] = await Promise.all([
-    repositories.bracketRepo.findByDivisionId(selectedDivision.id as never),
-    repositories.bracketRepo.listRegisteredTeams(event.id as never, selectedDivision.id as never),
+    repositories.bracketRepo.findByDivisionId(DivisionId(selectedDivision.id)),
+    repositories.bracketRepo.listRegisteredTeams(
+      EventId(event.id),
+      DivisionId(selectedDivision.id),
+    ),
   ]);
 
   // ADR 0023: live scoreboard scoring is a Pro-host perk, enabled for every
@@ -84,6 +87,11 @@ export default async function BracketPage(props: {
         format: bracket.format,
         bestOf: bracket.config.bestOf,
         targetScore: bracket.config.targetScore,
+        targetScores: bracket.config.targetScores,
+        playoffBestOf: bracket.config.playoffBestOf,
+        playoffTargetScore: bracket.config.playoffTargetScore,
+        playoffTargetScores: bracket.config.playoffTargetScores,
+        advancePerPool: bracket.config.advancePerPool,
         seeds: bracket.seeds.map((s) => ({ entryId: s.entryId, seed: s.seed, pool: s.pool })),
         matches: [...bracket.matches],
       }

@@ -29,7 +29,7 @@ import {
   assignCourtsAndSlots,
 } from './generators.js';
 import type { BracketId, Match, MatchId, MatchSet, Seed } from './match.js';
-import { determineWinner } from './match.js';
+import { determineWinner, effectiveBestOf } from './match.js';
 import { computePoolStandings, distinctPools, rankAcrossPools } from './standings.js';
 
 export interface BracketConfig {
@@ -43,6 +43,14 @@ export interface BracketConfig {
    */
   targetScore: number | null;
   /**
+   * Pool/global **per-game** target scores (e.g. `[25, 25, 15]` for a
+   * best-of-3 with a deciding game to 15). Index `i` is game `i + 1`; a match
+   * with more games than entries reuses the last entry. Informational, like
+   * {@link targetScore}. `null` ⇒ fall back to the single {@link targetScore}
+   * for every game. See ADR 0032.
+   */
+  targetScores: ReadonlyArray<number> | null;
+  /**
    * `pool_play_playoff` only: best-of for the playoff stage. `null` ⇒ fall
    * back to {@link bestOf}. Lets pool play be best-of-1 while the playoff is
    * best-of-3. See ADR 0032.
@@ -50,6 +58,12 @@ export interface BracketConfig {
   playoffBestOf: number | null;
   /** `pool_play_playoff` only: target score for the playoff stage. `null` ⇒ {@link targetScore}. */
   playoffTargetScore: number | null;
+  /**
+   * `pool_play_playoff` only: per-game target scores for the playoff stage
+   * (parallels {@link targetScores}). `null` ⇒ fall back to
+   * {@link playoffTargetScore}, then the pool resolution. See ADR 0032.
+   */
+  playoffTargetScores: ReadonlyArray<number> | null;
   /** Pool play only: number of pools (default 2). */
   poolCount: number;
   /** Pool play only: how many top teams from each pool advance (default 2). */
@@ -93,8 +107,10 @@ export const DEFAULT_BRACKET_CONFIG: BracketConfig = {
   bestOf: 3,
   byeStrategy: 'top_seeds',
   targetScore: null,
+  targetScores: null,
   playoffBestOf: null,
   playoffTargetScore: null,
+  playoffTargetScores: null,
   poolCount: 2,
   advancePerPool: 2,
   poolSchedule: 'round_robin',
@@ -242,6 +258,18 @@ export class Bracket extends AggregateRoot<BracketId> {
         });
       }
     }
+    for (const [k, arr] of [
+      ['targetScores', merged.targetScores],
+      ['playoffTargetScores', merged.playoffTargetScores],
+    ] as const) {
+      if (arr === null) continue;
+      if (arr.length === 0 || arr.some((v) => !Number.isInteger(v) || v < 1)) {
+        throw new ValidationError(
+          `${k} must be a non-empty array of positive integers when set; got ${JSON.stringify(arr)}.`,
+          { [k]: arr },
+        );
+      }
+    }
     return merged;
   }
 
@@ -369,6 +397,9 @@ export class Bracket extends AggregateRoot<BracketId> {
             assignWorkTeam: this._config.requireWorkTeam,
             courtLabels: this._config.courtLabels,
             courtsByPool: this._config.courtsByPool,
+            // Every pool must field ≥ advancePerPool teams so the playoff can
+            // cross-seed — catches a too-small hand-assigned pool here (TT-16).
+            minAdvancePerPool: advancePerPool,
           },
           idFactory,
         );
@@ -438,6 +469,20 @@ export class Bracket extends AggregateRoot<BracketId> {
     }
     const pools = distinctPools(poolMatches);
     const standingsByPool = pools.map((p) => computePoolStandings(this._matches, p));
+    // Per-pool feasibility (TT-16, defense-in-depth): every pool must field at
+    // least advancePerPool finishers, else the cross-seed can't fill the
+    // bracket. Name the short pool rather than letting rankAcrossPools throw the
+    // generic "missing position N". Normally already caught at generate() time.
+    pools.forEach((p, i) => {
+      const size = standingsByPool[i]?.length ?? 0;
+      if (size < this._config.advancePerPool) {
+        throw new ValidationError(
+          `Pool ${p} has only ${size} team(s); can't advance ${this._config.advancePerPool} ` +
+            `per pool. Lower advance-per-pool or rebalance the pools.`,
+          { pool: p, size, advancePerPool: this._config.advancePerPool },
+        );
+      }
+    });
     // Auto cross-seed: overall finish across pools (pool winners ranked above
     // runners-up, by record within a tier) → standard 1-vs-N bracket. The host
     // can override the result with `seedPlayoff`. See ADR 0032.
@@ -592,7 +637,7 @@ export class Bracket extends AggregateRoot<BracketId> {
       input.sets,
       match.entryAId,
       match.entryBId,
-      this.effectiveBestOf(match),
+      effectiveBestOf(match, this._config),
     );
 
     // Reverting an existing wired-forward result first.
@@ -804,22 +849,60 @@ export class Bracket extends AggregateRoot<BracketId> {
 
   // ---- Internals -------------------------------------------------------
 
-  /** Effective best-of for a match: per-match override → stage default → global. */
-  private effectiveBestOf(m: Match): number {
-    if (m.bestOf !== null) return m.bestOf;
-    if (m.bracketSide === 'final' && this._config.playoffBestOf !== null) {
-      return this._config.playoffBestOf;
-    }
-    return this._config.bestOf;
-  }
   private matchOrThrow(matchId: MatchId): Match {
     const m = this._matches.find((x) => x.id === matchId);
     if (!m) throw new NotFoundError('match', matchId);
     return m;
   }
 
+  /**
+   * When `match` is the double-elimination grand final — a `final` match whose
+   * winner edge points at another `final` match (the reset) — return that reset
+   * match; otherwise null. Guards on the format so a pool-play playoff (whose
+   * matches are all `bracketSide: 'final'`) never trips the reset logic.
+   */
+  private grandFinalResetFor(match: Match): Match | null {
+    if (this._format !== 'double_elimination') return null;
+    if (match.bracketSide !== 'final' || !match.advancesToMatchId) return null;
+    const target = this._matches.find((m) => m.id === match.advancesToMatchId);
+    return target && target.bracketSide === 'final' ? target : null;
+  }
+
+  /** Return the grand-final reset to a clean, unplayed-and-unvoided slate. */
+  private clearGrandFinalReset(reset: Match): void {
+    reset.entryAId = null;
+    reset.entryBId = null;
+    reset.sets = [];
+    reset.winnerEntryId = null;
+    reset.status = 'pending';
+  }
+
   private applyAdvancement(match: Match): void {
     if (!match.winnerEntryId) return;
+    // Double-elimination grand-final → reset. The grand final's winner edge
+    // points at the reset, but the reset is a *conditional* game: only the
+    // losers-bracket team (slot b) forces it. If the winners-bracket team
+    // (slot a) wins the grand final it has the title (the LB side now has two
+    // losses), so the reset is voided as a bye to let the bracket complete.
+    const gfReset = this.grandFinalResetFor(match);
+    if (gfReset) {
+      if (match.winnerEntryId === match.entryAId) {
+        // WB champion — void the reset.
+        gfReset.entryAId = null;
+        gfReset.entryBId = null;
+        gfReset.sets = [];
+        gfReset.winnerEntryId = null;
+        gfReset.status = 'bye';
+      } else {
+        // LB champion — both teams have one loss; play the deciding reset.
+        gfReset.entryAId = match.entryAId;
+        gfReset.entryBId = match.entryBId;
+        gfReset.sets = [];
+        gfReset.winnerEntryId = null;
+        gfReset.status = 'pending';
+      }
+      return;
+    }
     // Winner advances to its next match.
     if (match.advancesToMatchId && match.advancesToSlot) {
       const next = this._matches.find((m) => m.id === match.advancesToMatchId);
@@ -843,6 +926,13 @@ export class Bracket extends AggregateRoot<BracketId> {
   }
 
   private unwireAdvancement(match: Match): void {
+    // Double-elim grand final → reset: clearing the grand final's result fully
+    // resets the (conditional) reset game, not just one of its slots.
+    const directReset = this.grandFinalResetFor(match);
+    if (directReset) {
+      this.clearGrandFinalReset(directReset);
+      return;
+    }
     // Walk forward and clear every slot this match's result fed — the winner's
     // advancement AND (double elim) the loser's drop — cascading through any
     // downstream match whose own result consumed a now-removed team. Slots are
@@ -873,6 +963,14 @@ export class Bracket extends AggregateRoot<BracketId> {
         m.winnerEntryId = null;
         m.sets = [];
         m.status = 'pending';
+        // If the cleared match is the grand final, fully reset its reset game
+        // rather than pushing the generic forward edge (which would clear only
+        // one reset slot).
+        const cascadeReset = this.grandFinalResetFor(m);
+        if (cascadeReset) {
+          this.clearGrandFinalReset(cascadeReset);
+          continue;
+        }
         if (m.advancesToMatchId && m.advancesToSlot) {
           queue.push({ matchId: m.advancesToMatchId, slot: m.advancesToSlot });
         }

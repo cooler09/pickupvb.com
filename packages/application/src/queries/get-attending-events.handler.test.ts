@@ -6,7 +6,7 @@ import type {
   VolleyballEventSummary,
 } from '@pickupvb/domain';
 import { GetAttendingEventsHandler } from './event-queries.handler.js';
-import { GetAttendingEventsQuery } from '../messages.js';
+import { GetAttendingEventsQuery } from '../messages/index.js';
 
 type Call = { userId: string; opts?: { startsAfter?: Date; limit?: number } };
 

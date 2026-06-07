@@ -99,19 +99,30 @@ export async function loadHostOnboarding(
     eventsCreated: 0,
     publishedEventCount: 0,
     stripeChargesEnabled: inputs.stripeChargesEnabled,
+    firstRegistrationReceived: false,
   };
   try {
     const admin = getAdminSupabase();
-    const [created, published] = await Promise.all([
+    const [created, published, registrations] = await Promise.all([
       admin.from('events').select('id', { count: 'exact', head: true }).eq('host_id', userId),
       admin
         .from('events')
         .select('id', { count: 'exact', head: true })
         .eq('host_id', userId)
         .eq('status', 'published'),
+      // A *non-host* attendee on any of the host's events. `!inner` filters on
+      // the joined event's host_id; `neq user_id` drops the host's own RSVP so
+      // the payoff means a genuine external signup.
+      admin
+        .from('event_participants')
+        .select('id, events!inner(host_id)', { count: 'exact', head: true })
+        .eq('events.host_id', userId)
+        .eq('role', 'attendee')
+        .neq('user_id', userId),
     ]);
     snapshot.eventsCreated = created.count ?? 0;
     snapshot.publishedEventCount = published.count ?? 0;
+    snapshot.firstRegistrationReceived = (registrations.count ?? 0) >= 1;
   } catch {
     // Fail-quiet: keep the zeroed counts.
   }

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { RegistrationPaymentStatus, type EventTeamRegistrationId } from '@pickupvb/domain';
+import { RegistrationPaymentStatus, EventTeamRegistrationId } from '@pickupvb/domain';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { repositories } from '@/lib/handlers';
 import { log } from '@/lib/log';
@@ -39,7 +39,7 @@ export async function GET(
 
     const { eventTeamRegistrationRepo } = repositories;
     const registration = await eventTeamRegistrationRepo.findById(
-      meta.registration_id as never as EventTeamRegistrationId,
+      EventTeamRegistrationId(meta.registration_id),
     );
     if (!registration) return redirectBack();
 

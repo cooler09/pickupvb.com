@@ -1,4 +1,4 @@
-export * from './messages';
+export * from './messages/index';
 export * from './commands/create-event.handler';
 export * from './commands/join-event.handler';
 export * from './commands/co-host.handler';

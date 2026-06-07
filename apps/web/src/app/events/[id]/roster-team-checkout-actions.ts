@@ -9,7 +9,7 @@ import {
   PriceUnit,
   RegistrationPaymentStatus,
   TeamRegistrationMode,
-  type EventTeamPaymentId,
+  EventTeamPaymentId,
   type UserId,
 } from '@pickupvb/domain';
 import { isStripeConfigured } from '@/lib/stripe';
@@ -112,7 +112,7 @@ export async function startRosterTeamCheckout(eventId: string, teamId: string): 
   }
   if (!payment) {
     payment = EventTeamPayment.create({
-      id: crypto.randomUUID() as never as EventTeamPaymentId,
+      id: EventTeamPaymentId(crypto.randomUUID()),
       eventId,
       teamId,
       captainId: user.id as UserId,

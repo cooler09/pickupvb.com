@@ -77,7 +77,7 @@ export async function executeAccountDeletion(
       tertiary_position: null,
       deleted_at: new Date().toISOString(),
       deletion_reason: 'user_requested',
-    } as never)
+    })
     .eq('id', userId);
   if (scrubError) throw new Error(`profile scrub failed: ${scrubError.message}`);
 
@@ -89,7 +89,7 @@ export async function executeAccountDeletion(
     admin.from('notifications').delete().eq('user_id', userId),
     admin
       .from('notification_outbox')
-      .update({ status: 'cancelled' } as never)
+      .update({ status: 'cancelled' })
       .eq('user_id', userId)
       .eq('status', 'pending'),
   ]);

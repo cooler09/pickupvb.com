@@ -1,9 +1,17 @@
 'use client';
 
 import { useMemo } from 'react';
+import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
+import { clearScheduleFromForm } from '../actions';
 import { useEventManageCaps } from '../../_components/use-event-manage-caps';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
-import { AddMatchForm, MatchRow, type ScheduleMatchVm, type ScheduleTeam } from './match-row';
+import {
+  AddMatchForm,
+  GenerateScheduleForm,
+  MatchRow,
+  type ScheduleMatchVm,
+  type ScheduleTeam,
+} from './match-row';
 
 /**
  * Client island that owns the viewer-conditional schedule render so the
@@ -44,6 +52,21 @@ export function ScheduleWorkspace(props: {
 
   return (
     <>
+      {canManage && matches.length === 0 && teams.length >= 2 && (
+        // Empty slate: offer one-click round-robin generation. Hidden once
+        // matches exist — regenerating requires clearing first (the handler
+        // refuses to overwrite a non-empty slate).
+        <section className="space-y-2">
+          <h2 className="text-fg text-base font-semibold">Generate season schedule</h2>
+          <GenerateScheduleForm
+            eventId={eventId}
+            divisionId={divisionId}
+            returnPath={returnPath}
+            teamCount={teams.length}
+          />
+        </section>
+      )}
+
       {canManage && (
         <section className="space-y-2">
           <h2 className="text-fg text-base font-semibold">Add a match</h2>
@@ -85,6 +108,24 @@ export function ScheduleWorkspace(props: {
             ))}
           </div>
         </LiveScoresProvider>
+      )}
+
+      {canManage && matches.length > 0 && (
+        // Host counterpart to "generate": wipe the slate (re-enables generation).
+        // Destructive — confirms first because it also deletes recorded scores.
+        <form
+          action={clearScheduleFromForm.bind(null, eventId, divisionId, returnPath)}
+          className="pt-2"
+        >
+          <ConfirmSubmitButton
+            label="Clear schedule"
+            pendingLabel="Clearing…"
+            confirmTitle="Clear the entire schedule?"
+            confirmMessage="This deletes every match in this division, including any recorded scores. This cannot be undone."
+            confirmLabel="Clear schedule"
+            destructive
+          />
+        </form>
       )}
     </>
   );

@@ -9,15 +9,9 @@ import {
   primaryButtonClass,
   secondaryButtonClass,
 } from '@/components/primary-button';
-import {
-  addBracketMatchFromForm,
-  generateBracket,
-  publishBracket,
-  resetBracket,
-  setBracketPoolsFromForm,
-  movePoolMatchFromForm,
-} from '../actions';
-import { FORMAT_LABEL, type TeamLite } from './labels';
+import { AddMatchButton } from './add-match-button';
+import { bindBracketActions } from './bracket-action-binding';
+import { FORMAT_LABEL, type BracketScope, type TeamLite } from './labels';
 import { MatchEditor } from './match-editor';
 
 type SeedLite = { entryId: string; seed: number; pool: string | null };
@@ -28,12 +22,11 @@ type SeedLite = { entryId: string; seed: number; pool: string | null };
  * fully edit it — swap matchups, set court / match length, add or remove pool
  * games, move teams between pools — then **Publish** to go live.
  *
- * Event-scoped (the manual-edit handlers are event-only for now). Standalone
- * brackets skip the draft stage today, so this isn't wired for them.
+ * Scope-aware (TT-11): the manual-edit actions are bound via `bindBracketActions`
+ * so this renders for both event and standalone draft brackets.
  */
 export function DraftWorkspace(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   format: BracketFormat;
   /** Pool-stage / global default best-of (per-match overrides win). */
   bestOf: number;
@@ -43,10 +36,11 @@ export function DraftWorkspace(props: {
   teams: ReadonlyArray<TeamLite>;
   seeds: ReadonlyArray<SeedLite>;
 }) {
-  const { eventId, divisionId, matches, teams } = props;
-  const publish = publishBracket.bind(null, eventId, divisionId);
-  const regenerate = generateBracket.bind(null, eventId, divisionId);
-  const reset = resetBracket.bind(null, eventId, divisionId);
+  const { scope, matches, teams } = props;
+  const a = bindBracketActions(scope);
+  const publish = a.publish;
+  const regenerate = a.generate;
+  const reset = a.reset;
 
   const teamById = useMemo(() => {
     const m = new Map<string, TeamLite>();
@@ -95,8 +89,7 @@ export function DraftWorkspace(props: {
           </div>
         </div>
         <MatchEditor
-          eventId={eventId}
-          divisionId={divisionId}
+          scope={scope}
           match={{
             id: String(m.id),
             entryAId: m.entryAId,
@@ -151,13 +144,7 @@ export function DraftWorkspace(props: {
 
       {isPoolPlay ? (
         <>
-          <PoolsEditor
-            eventId={eventId}
-            divisionId={divisionId}
-            pools={pools}
-            seeds={props.seeds}
-            teamById={teamById}
-          />
+          <PoolsEditor scope={scope} pools={pools} seeds={props.seeds} teamById={teamById} />
           {pools.map((pool) => {
             const inPool = poolMatches
               .filter((m) => m.pool === pool)
@@ -172,8 +159,7 @@ export function DraftWorkspace(props: {
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-fg text-base font-semibold">Pool {pool}</h3>
                   <AddMatchButton
-                    eventId={eventId}
-                    divisionId={divisionId}
+                    scope={scope}
                     pool={pool}
                     teams={poolTeams.length > 0 ? poolTeams : teams}
                   />
@@ -182,8 +168,7 @@ export function DraftWorkspace(props: {
                   {inPool.map((m, i) => (
                     <div key={m.id} className="flex items-stretch gap-2">
                       <ReorderControls
-                        eventId={eventId}
-                        divisionId={divisionId}
+                        scope={scope}
                         pool={pool}
                         matchId={String(m.id)}
                         orderedIds={orderedIds}
@@ -202,11 +187,7 @@ export function DraftWorkspace(props: {
         <RoundsView
           matches={matches}
           renderMatchRow={renderMatchRow}
-          addMatch={
-            editableSchedule ? (
-              <AddMatchButton eventId={eventId} divisionId={divisionId} teams={teams} />
-            ) : null
-          }
+          addMatch={editableSchedule ? <AddMatchButton scope={scope} teams={teams} /> : null}
         />
       )}
     </section>
@@ -247,13 +228,12 @@ function RoundsView(props: {
 
 /** Bulk pool reassignment behind a modal: one select per team, one rebuild. */
 function PoolsEditor(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   pools: ReadonlyArray<string>;
   seeds: ReadonlyArray<SeedLite>;
   teamById: ReadonlyMap<string, TeamLite>;
 }) {
-  const action = setBracketPoolsFromForm.bind(null, props.eventId, props.divisionId);
+  const action = bindBracketActions(props.scope).setPoolsFromForm;
   // Offer the existing pools plus one fresh label so the host can split further.
   const nextLabel = String.fromCharCode(65 + props.pools.length);
   const poolOptions = [...props.pools, nextLabel];
@@ -310,77 +290,16 @@ function PoolsEditor(props: {
   );
 }
 
-function AddMatchButton(props: {
-  eventId: string;
-  divisionId: string;
-  pool?: string;
-  teams: ReadonlyArray<TeamLite>;
-}) {
-  const action = addBracketMatchFromForm.bind(null, props.eventId, props.divisionId);
-  return (
-    <FormModal
-      trigger={(open) => (
-        <button
-          type="button"
-          onClick={open}
-          className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border border-dashed px-2.5 py-1 text-xs font-medium"
-        >
-          + Add match
-        </button>
-      )}
-      title={props.pool ? `Add a match to Pool ${props.pool}` : 'Add a match'}
-      description="Pick the two teams. Useful for giving everyone an extra game; the same pairing can repeat."
-    >
-      {(close) => (
-        <form action={action} className="space-y-3">
-          {props.pool && <input type="hidden" name="pool" value={props.pool} />}
-          <AddTeamSelect name="entry_a" label="Team A" teams={props.teams} />
-          <AddTeamSelect name="entry_b" label="Team B" teams={props.teams} />
-          <ModalActions
-            dismissive={
-              <button type="button" onClick={close} className={neutralButtonClass('sm')}>
-                Cancel
-              </button>
-            }
-            confirming={<SubmitButton className={primaryButtonClass('sm')}>Add match</SubmitButton>}
-          />
-        </form>
-      )}
-    </FormModal>
-  );
-}
-
-function AddTeamSelect(props: { name: string; label: string; teams: ReadonlyArray<TeamLite> }) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-fg/80">{props.label}</span>
-      <select
-        name={props.name}
-        defaultValue="tbd"
-        className="border-border-base bg-bg rounded border px-2 py-1"
-      >
-        <option value="tbd">— TBD —</option>
-        {props.teams.map((t) => (
-          <option key={t.entryId} value={t.entryId}>
-            {t.name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-/** Up / down reorder for a pool match (reuses movePoolMatchFromForm — ADR 0018). */
+/** Up / down reorder for a pool match (reuses movePoolMatch — ADR 0018). */
 function ReorderControls(props: {
-  eventId: string;
-  divisionId: string;
+  scope: BracketScope;
   pool: string;
   matchId: string;
   orderedIds: ReadonlyArray<string>;
   canMoveUp: boolean;
   canMoveDown: boolean;
 }) {
-  const action = movePoolMatchFromForm.bind(null, props.eventId, props.divisionId, props.pool);
+  const action = bindBracketActions(props.scope).movePoolMatch(props.pool);
   const hidden = (
     <>
       {props.orderedIds.map((id) => (

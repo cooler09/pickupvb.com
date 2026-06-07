@@ -8,13 +8,15 @@ import type {
   OutboxRecord,
 } from '@pickupvb/domain';
 import type { createSupabaseAdminClient } from '@pickupvb/supabase';
+import { asJson } from './supabase-json.js';
 
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
-const CLAIM_COLUMNS = 'id, channel, kind, to_address, payload, attempts';
+const CLAIM_COLUMNS = 'id, user_id, channel, kind, to_address, payload, attempts';
 
 type OutboxRow = {
   id: string;
+  user_id: string;
   channel: string;
   kind: string;
   to_address: string;
@@ -80,8 +82,8 @@ export class SupabaseNotificationOutboxRepository
       title: notification.title,
       body: notification.body,
       href: notification.href,
-      data: notification.data,
-    } as never);
+      data: asJson(notification.data),
+    });
     if (error) throw new Error(`insertInApp failed: ${error.message}`);
   }
 
@@ -94,10 +96,10 @@ export class SupabaseNotificationOutboxRepository
       channel: message.channel,
       kind: message.kind,
       to_address: message.toAddress,
-      payload: message.payload,
+      payload: asJson(message.payload),
       ...(message.idempotencyKey ? { idempotency_key: message.idempotencyKey } : {}),
     }));
-    const { error } = await this.admin.from('notification_outbox').insert(rows as never);
+    const { error } = await this.admin.from('notification_outbox').insert(rows);
     if (error) throw new Error(`enqueue failed: ${error.message}`);
   }
 
@@ -108,7 +110,7 @@ export class SupabaseNotificationOutboxRepository
     // for the volumes we expect, the race is acceptable.
     const { data, error } = await this.admin
       .from('notification_outbox')
-      .update({ status: 'sending' } as never)
+      .update({ status: 'sending' })
       .eq('status', 'pending')
       .lte('scheduled_for', new Date().toISOString())
       .select(CLAIM_COLUMNS)
@@ -116,6 +118,7 @@ export class SupabaseNotificationOutboxRepository
     if (error) throw new Error(`claimBatch failed: ${error.message}`);
     return ((data as unknown as OutboxRow[] | null) ?? []).map((r) => ({
       id: r.id,
+      userId: r.user_id,
       channel: r.channel,
       kind: r.kind,
       toAddress: r.to_address,
@@ -131,7 +134,7 @@ export class SupabaseNotificationOutboxRepository
         status: 'sent',
         sent_at: new Date().toISOString(),
         ...(providerId ? { provider_id: providerId } : {}),
-      } as never)
+      })
       .eq('id', id);
     if (error) throw new Error(`markSent failed: ${error.message}`);
   }
@@ -139,7 +142,7 @@ export class SupabaseNotificationOutboxRepository
   async markSkipped(id: string, reason: string): Promise<void> {
     const { error } = await this.admin
       .from('notification_outbox')
-      .update({ status: 'skipped', last_error: reason } as never)
+      .update({ status: 'skipped', last_error: reason })
       .eq('id', id);
     if (error) throw new Error(`markSkipped failed: ${error.message}`);
   }
@@ -152,7 +155,7 @@ export class SupabaseNotificationOutboxRepository
         attempts: failure.attempts,
         last_error: failure.lastError,
         ...(failure.retryAt ? { scheduled_for: failure.retryAt } : {}),
-      } as never)
+      })
       .eq('id', id);
     if (error) throw new Error(`markFailed failed: ${error.message}`);
   }

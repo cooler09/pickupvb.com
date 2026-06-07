@@ -117,7 +117,7 @@ export async function refundAttendeeTicket(
     action: 'refunded',
     amount_cents: refundAmount ?? att.amount_paid_cents ?? 0,
     payment_intent_id: att.payment_intent_id,
-  } as never);
+  });
   if (auditErr) {
     await log.error('[refund] audit insert failed', auditErr, { eventId, userId });
   }

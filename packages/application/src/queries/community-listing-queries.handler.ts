@@ -4,7 +4,7 @@ import {
   type CommunityListingRepository,
   type CommunityListingSummary,
 } from '@pickupvb/domain';
-import { GetCommunityListingDetailQuery, SearchCommunityListingsQuery } from '../messages';
+import { GetCommunityListingDetailQuery, SearchCommunityListingsQuery } from '../messages/index';
 
 export class SearchCommunityListingsHandler {
   constructor(private readonly repo: CommunityListingRepository) {}
@@ -20,6 +20,7 @@ export class SearchCommunityListingsHandler {
       ...(filters.skillLevel ? { skillLevel: filters.skillLevel } : {}),
       ...(filters.startsAfter ? { startsAfter: filters.startsAfter } : {}),
       ...(filters.startsBefore ? { startsBefore: filters.startsBefore } : {}),
+      ...(filters.order ? { order: filters.order } : {}),
       ...(viewerId ? { viewerId } : {}),
       ...(filters.limit ? { limit: filters.limit } : {}),
       ...(filters.cursor ? { cursor: filters.cursor } : {}),

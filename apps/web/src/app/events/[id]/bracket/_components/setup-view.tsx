@@ -1,6 +1,6 @@
 'use client';
 
-import type { BracketFormat } from '@pickupvb/domain';
+import { validateTeamCountForFormat, type BracketFormat } from '@pickupvb/domain';
 import { primaryButtonClass } from '@/components/primary-button';
 import { FormModal } from '@/components/form-modal';
 import { SubmitButton } from '@/components/submit-button';
@@ -53,7 +53,12 @@ export function SetupView(props: {
     props.seeds.length -
     props.seeds.filter((s) => props.registeredTeams.some((t) => t.entryId === s.entryId)).length;
 
-  const canGenerate = orderedTeams.length >= 2;
+  // Format-aware readiness: gate Generate on each format's minimum (single 2,
+  // round-robin/double-elim 4, …) so the host — or standalone owner, whose
+  // create path doesn't enforce a count — sees the issue here instead of a late
+  // generator error.
+  const genCheck = validateTeamCountForFormat(props.bracketFormat, orderedTeams.length);
+  const canGenerate = genCheck.ok;
 
   return (
     <section className="space-y-4">
@@ -64,13 +69,18 @@ export function SetupView(props: {
       <div className="border-primary/40 bg-primary/5 rounded-shape-sm flex flex-wrap items-center justify-between gap-3 border p-4">
         <div className="space-y-0.5">
           <p className="text-fg text-sm font-semibold">
-            {canGenerate ? 'Ready to generate' : 'Add a team to continue'}
+            {canGenerate ? 'Ready to generate' : 'Not ready to generate'}
           </p>
           <p className="text-muted text-xs">
             Format:{' '}
             <span className="text-fg/80 font-medium">{FORMAT_LABEL[props.bracketFormat]}</span> ·{' '}
             {orderedTeams.length} team{orderedTeams.length === 1 ? '' : 's'} seeded
           </p>
+          {!genCheck.ok && (
+            <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+              {genCheck.reason}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <form action={a.generate}>
