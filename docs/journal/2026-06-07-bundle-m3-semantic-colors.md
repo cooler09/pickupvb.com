@@ -69,9 +69,15 @@ transparent)` with a solid `rgb(var(...))` fallback rule — verified in the
 - **Surface-container hierarchy (S2, still 0 usages)** — `md-surface-container*`
   / `md-outline*` / `md-on-surface-variant` for cards, panels, dividers. The
   judgment-heavy core of the original dark-mode finding; its own bundle.
-- **Scattered semantic palette** — danger panels (cancel/delete), status pills,
-  inline form-error `text-red-600`. Each can now reach for the roles; per-surface
-  reviewable diffs.
+- **Scattered semantic palette** — status pills, inline form-error
+  `text-red-600`, hand-rolled error _banners_. Each can now reach for the roles;
+  per-surface reviewable diffs. **Update (same day): the four
+  destructive-confirmation panels** (cancel-event, delete-team, delete-group,
+  account-delete) are done — panel chrome → `md-error`, plus account-delete's
+  amber/green → `md-warning`/`md-success` (first all-three-roles consumer
+  outside Alert/Toast). The remaining `border-red-200 bg-red-50` hits are form
+  error _banners_ that should adopt `<Alert variant="error">` — separate
+  follow-up. See the m3-alignment remediation log.
 - **No palette ratchet yet** — raw red/amber/emerald can't reach zero
   (decorative/team uses remain), so the lint lock waits until a _fully
   migratable_ sub-bucket exists.

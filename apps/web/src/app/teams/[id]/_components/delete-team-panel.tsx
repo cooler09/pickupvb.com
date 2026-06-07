@@ -2,7 +2,11 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
-import { errorButtonClass, errorOutlinedButtonClass } from '@/components/primary-button';
+import {
+  errorButtonClass,
+  errorOutlinedButtonClass,
+  errorTextButtonClass,
+} from '@/components/primary-button';
 import { deleteTeamAction } from '../delete-actions';
 import { useAlertReveal } from '@/components/use-alert-reveal';
 
@@ -20,9 +24,9 @@ export function DeleteTeamPanel({ teamId, teamName }: { teamId: string; teamName
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="rounded-shape-sm border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
-      <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">Delete team</h2>
-      <p className="mt-1 text-xs text-red-900/80 dark:text-red-200/80">
+    <div className="rounded-shape-sm border-md-error/30 bg-md-error-container border p-4">
+      <h2 className="text-md-on-error-container text-sm font-semibold">Delete team</h2>
+      <p className="text-md-on-error-container/80 mt-1 text-xs">
         Hides <strong>{teamName}</strong> from every public surface. Historical tournament
         registrations are retained, but the team page will 404 and the slug stays reserved. Upcoming
         registrations must be withdrawn first.
@@ -42,7 +46,7 @@ export function DeleteTeamPanel({ teamId, teamName }: { teamId: string; teamName
             <p
               ref={errorRef}
               tabIndex={-1}
-              className="text-sm text-red-700 outline-none dark:text-red-300"
+              className="text-md-error text-sm outline-none"
               role="alert"
             >
               {state.error}
@@ -53,7 +57,7 @@ export function DeleteTeamPanel({ teamId, teamName }: { teamId: string; teamName
             <button
               type="button"
               onClick={() => setConfirming(false)}
-              className="rounded-md px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/40"
+              className={errorTextButtonClass('sm')}
             >
               Keep team
             </button>

@@ -52,11 +52,13 @@
 > ([alert.tsx](../../apps/web/src/components/alert.tsx) +
 > [toast.tsx](../../apps/web/src/components/toast.tsx)) off raw red/amber/emerald
 > onto `bg-md-{error,warning,success}-container` — every `<Alert>`/`useToast`
-> is now dark-mode-correct (hand-rolled `dark:` forks deleted). Pattern in
-> [AGENTS.md #17](../../AGENTS.md). **Open:** surface-container hierarchy (still
-> 0 usages) + scattered raw palette on danger panels / pills / form-error text
-> (per-surface judgment — e.g. scoreboard red/green are _team_ colors — so no
-> codemod/ratchet). See the
+> is now dark-mode-correct (hand-rolled `dark:` forks deleted). Then the four
+> **destructive-confirmation panels** (cancel-event, delete-team, delete-group,
+> account-delete) followed — account-delete being the first all-three-roles
+> consumer outside Alert/Toast. Pattern in [AGENTS.md #17](../../AGENTS.md).
+> **Open:** surface-container hierarchy (still 0 usages) + hand-rolled form
+> **error banners** (→ `<Alert>`) + genuinely decorative palette (scoreboard
+> red/green are _team_ colors) — so no codemod/ratchet. See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
@@ -643,12 +645,17 @@ re-grade of the root cause.
 > red/amber/emerald onto `bg-md-{error,warning,success}-container` +
 > `text-md-on-*-container` — so **every `<Alert>` / `useToast` instance app-wide
 > is now dark-mode-correct** and the hand-rolled `dark:` forks are gone. Pattern
-> documented in [AGENTS.md #17](../../AGENTS.md). **Still open:** the
-> surface-container hierarchy (`md-surface-container*`, `md-outline*`,
-> `md-on-surface-variant`) remains at **0** usages, and the scattered raw
-> palette on danger panels / status pills / form-error text is untouched (it's
-> per-surface judgment — e.g. the scoreboard's red/green are _team_ colors, not
-> error/success — so no codemod, no ratchet yet). See the
+> documented in [AGENTS.md #17](../../AGENTS.md). **Then (same day) the four
+> destructive-confirmation panels** (cancel-event, delete-team, delete-group,
+> account-delete) moved onto `md-error`/`md-warning`/`md-success` —
+> account-delete is the first all-three-roles consumer outside Alert/Toast (see
+> the [danger-panels entry](#danger-zone-panels--error--warning--success-roles-2026-06-07)).
+> **Still open:** the surface-container hierarchy (`md-surface-container*`,
+> `md-outline*`, `md-on-surface-variant`) remains at **0** usages; hand-rolled
+> form **error banners** (forgot-password, community forms, new-event-form,
+> signup panels) should adopt `<Alert variant="error">`; and the genuinely
+> decorative palette (the scoreboard's red/green _team_ colors) stays raw by
+> design — so no codemod, no ratchet yet. See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 - **Where:** [globals.css#L68-L213](../../apps/web/src/app/globals.css#L68-L213)
@@ -1177,6 +1184,37 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Danger-zone panels → error / warning / success roles (2026-06-07)
+
+Continuation of S2, the same day. With the role families wired (previous
+entry), migrated the four **destructive-confirmation panels** off raw palette:
+
+- [cancel-event-panel.tsx](../../apps/web/src/app/events/[id]/edit/cancel-event-panel.tsx),
+  [delete-team-panel.tsx](../../apps/web/src/app/teams/[id]/_components/delete-team-panel.tsx),
+  [delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx)
+  — panel chrome `border-red-200 bg-red-50 … dark:bg-red-950/30` →
+  `border-md-error/30 bg-md-error-container`, heading/description →
+  `text-md-on-error-container`, inline error → `text-md-error`, the "Keep …"
+  dismiss → `errorTextButtonClass`, and (cancel-event) the trigger → the
+  shared `errorOutlinedButtonClass` + the reason textarea → `fieldInputClass`
+  / `fieldLabelClass`. The submit + (where present) trigger already used the
+  error-button vocabulary; this closed the panel chrome around them.
+- [account/delete/page.tsx](../../apps/web/src/app/profile/account/delete/page.tsx)
+  — the showcase: its **"Deletion scheduled"** panel was amber → `md-warning`,
+  its **"cancelled"** notice green → `md-success`, its confirm error
+  `text-red-600` → `text-md-error`. First real-world consumer of all three new
+  roles outside Alert/Toast — validates the warning/success containers in dark
+  mode by construction.
+
+Every hand-rolled `dark:` fork in these files is gone (the role tokens flip).
+Scope deliberately stops at the four delete/cancel panels — the other
+`border-red-200 bg-red-50` hits are form **error banners** (forgot-password,
+community/new + edit, new-event-form, signup panels) that should adopt
+`<Alert variant="error">` rather than role classes directly; that's a separate
+follow-up. Verify: 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web
+tests · 8/8 build · built-CSS confirms `text-md-on-warning-container` (+ `/90`
+alpha via `color-mix`) and the error/success utilities emit.
 
 ### Semantic color roles + Alert / Toast (2026-06-07)
 
