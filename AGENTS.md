@@ -974,3 +974,39 @@ Keep the weight (`font-bold` / `font-semibold`) and any `leading-*` /
 is judgment, not 1:1, so leave it until that migration lands (m3-alignment
 audit S0). Reference bundle: the 2026-06-07 type-scale sweep (120 sites →
 `text-{title,headline,display}-*`).
+
+### 17. Semantic surfaces use M3 role tokens — incl. custom `warning` / `success`
+
+A status surface (alert, toast, banner, status pill) paints with M3 **role
+tokens**, never raw palette (`bg-red-50`, `text-amber-900`, `dark:bg-emerald-950`).
+The role tokens already carry **light + dark** values in
+[globals.css](apps/web/src/app/globals.css), so the surface needs **no
+`dark:` variant** — that's the whole point (the recurring dark-mode contrast
+bugs came from hand-rolling per-theme palette guesses). The pattern, mirroring
+the M3 `error`-role button family in
+[primary-button.tsx](apps/web/src/components/primary-button.tsx)
+(`errorButtonClass` etc.):
+
+| Semantic | bg                        | text                           | border / ring          |
+| -------- | ------------------------- | ------------------------------ | ---------------------- |
+| error    | `bg-md-error-container`   | `text-md-on-error-container`   | `border-md-error/30`   |
+| warning  | `bg-md-warning-container` | `text-md-on-warning-container` | `border-md-warning/30` |
+| success  | `bg-md-success-container` | `text-md-on-success-container` | `border-md-success/30` |
+| info     | brand `primary` tint      | `text-primary`                 | `border-primary/30`    |
+
+`warning` and `success` are **custom semantic roles** (M3 ships neither) —
+seeded amber / emerald in [scripts/gen-palette.ts](scripts/gen-palette.ts) and
+emitted with the **same tones as `error`** (container = tone 90 light / 30
+dark; on-container = tone 10 / 90), so contrast is correct by construction.
+Regenerate via `pnpm tsx scripts/gen-palette.ts` if a seed changes. The
+canonical consumers are [alert.tsx](apps/web/src/components/alert.tsx) and
+[toast.tsx](apps/web/src/components/toast.tsx) — **route new status surfaces
+through `<Alert variant>` / `useToast`** rather than re-rolling the classes.
+`info` stays on brand tokens (it was never raw palette).
+
+**Caveat — not every red/green is semantic.** Decorative / functional colors
+(e.g. the scoreboard's red-vs-green **team** colors) are _not_ error/success
+and must **not** be remapped onto these roles. No lint ratchet yet for the same
+reason: raw `red`/`amber`/`emerald` can't be driven to zero (m3-alignment
+audit S2 — open). Reference bundle: the 2026-06-07 semantic-roles bundle
+(Alert + Toast).

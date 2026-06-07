@@ -44,6 +44,20 @@
 > Verify 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8
 > build · built-CSS confirms the utilities emit. See the
 > [remediation log](#type-scale--text-nxl-migrated--ratcheted-2026-06-07).
+>
+> **Also shipped 2026-06-07: semantic color roles — S2 started.** Added
+> custom `warning` (amber) + `success` (emerald) M3 roles
+> ([gen-palette.ts](../../scripts/gen-palette.ts) + globals.css, light+dark,
+> same tones as `error`) and migrated the two centralized status surfaces
+> ([alert.tsx](../../apps/web/src/components/alert.tsx) +
+> [toast.tsx](../../apps/web/src/components/toast.tsx)) off raw red/amber/emerald
+> onto `bg-md-{error,warning,success}-container` — every `<Alert>`/`useToast`
+> is now dark-mode-correct (hand-rolled `dark:` forks deleted). Pattern in
+> [AGENTS.md #17](../../AGENTS.md). **Open:** surface-container hierarchy (still
+> 0 usages) + scattered raw palette on danger panels / pills / form-error text
+> (per-surface judgment — e.g. scoreboard red/green are _team_ colors — so no
+> codemod/ratchet). See the
+> [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
 > first value-preserving shape migration + a lock-eliminated shape
@@ -617,7 +631,25 @@ re-grade of the root cause.
     scale won't be adopted, **delete L285-L327** rather than leave it
     implying a system.
 
-### S2 — Most M3 color roles are dead, incl. the surface-container hierarchy that motivated finding #1 🟡 P2
+### S2 — Most M3 color roles are dead, incl. the surface-container hierarchy that motivated finding #1 🟡 P2 (semantic roles started 2026-06-07; surface-container hierarchy still 0)
+
+> **Partially started 2026-06-07 — semantic surfaces (Alert + Toast).**
+> Added two **custom semantic roles** — `warning` (amber) + `success`
+> (emerald) — to [gen-palette.ts](../../scripts/gen-palette.ts) and
+> [globals.css](../../apps/web/src/app/globals.css) (light + dark, same tones
+> as `error`), then migrated the two centralized status surfaces
+> ([alert.tsx](../../apps/web/src/components/alert.tsx),
+> [toast.tsx](../../apps/web/src/components/toast.tsx)) off raw
+> red/amber/emerald onto `bg-md-{error,warning,success}-container` +
+> `text-md-on-*-container` — so **every `<Alert>` / `useToast` instance app-wide
+> is now dark-mode-correct** and the hand-rolled `dark:` forks are gone. Pattern
+> documented in [AGENTS.md #17](../../AGENTS.md). **Still open:** the
+> surface-container hierarchy (`md-surface-container*`, `md-outline*`,
+> `md-on-surface-variant`) remains at **0** usages, and the scattered raw
+> palette on danger panels / status pills / form-error text is untouched (it's
+> per-surface judgment — e.g. the scoreboard's red/green are _team_ colors, not
+> error/success — so no codemod, no ratchet yet). See the
+> [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 - **Where:** [globals.css#L68-L213](../../apps/web/src/app/globals.css#L68-L213)
   hand-declares **102 `--md-sys-color-*` custom properties** across
@@ -1145,6 +1177,62 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Semantic color roles + Alert / Toast (2026-06-07)
+
+First step on **S2**. M3 ships an `error` role (already used by the
+`errorButtonClass` family) but **no `warning`/`success`** — and 93% of the
+555 raw palette utils are the four semantic families: red 215 (error), amber
+161 (warning), emerald 85 + green 54 (success). This bundle adds the missing
+roles and migrates the two **centralized** status surfaces.
+
+**Foundation:**
+
+- [scripts/gen-palette.ts](../../scripts/gen-palette.ts) — added `warning`
+  (amber `#D97706`) + `success` (emerald `#059669`) seeds and their
+  role/on/container/on-container rows to `LIGHT_ROLES` + `DARK_ROLES` using the
+  **same M3 tones as `error`** (40/100/90/10 light · 80/20/30/90 dark), so the
+  new roles are contrast-safe by construction.
+- [globals.css](../../apps/web/src/app/globals.css) — pasted the generated
+  `--md-sys-color-{warning,success,…}` rows into both `:root` blocks (16 new
+  vars) and registered the 8 `--color-md-{warning,success}*` utilities in
+  `@theme inline`. Confirmed in the production build that the utilities emit —
+  incl. alpha borders via `color-mix(in oklab, …)` with a solid fallback — and
+  that each var carries both a light and a dark value.
+
+**Migration (centralized surfaces — every consumer fixed at once):**
+
+- [alert.tsx](../../apps/web/src/components/alert.tsx) +
+  [toast.tsx](../../apps/web/src/components/toast.tsx) — `error`/`warning`/
+  `success` variants (surface **and** the toast focus-ring map) swapped from
+  `bg-red-50 … dark:bg-red-950/40` to `bg-md-{role}-container
+text-md-on-{role}-container border-md-{role}/30`. The role tokens flip per
+  theme, so the hand-rolled `dark:` variants are **deleted**, not translated.
+  `info` left untouched — it was already on brand tokens (`primary/10`), not
+  raw palette, and `md-primary` is a different teal tone than brand `primary`.
+
+**Decisions:**
+
+- **Custom `warning`/`success` roles over reusing `tertiary`.** Tertiary is
+  the brand sand/gold; overloading it with "caution" semantics would muddy it,
+  and there's no spare role for "success" at all. Full custom roles mirror
+  `error` exactly and keep the semantic vocabulary legible.
+- **Centralized surfaces only; no codemod, no ratchet.** Unlike the type
+  scale, raw color is contextual — the scoreboard's red/green are _team_
+  colors, a danger panel's red is destructive-action chrome, a form's
+  `text-red-600` is an inline error. None map 1:1, so a blind sweep is unsafe
+  and the family can't reach zero to ratchet. Migrating `<Alert>`/`useToast`
+  (the two surfaces literally named "semantic notice") is the high-leverage,
+  low-risk cut; per-surface danger panels / status pills / form-error text are
+  deferred follow-ups that can now reach for the roles.
+
+**Findings updated:** S2 → 🟡 (semantic roles started; surface-container
+hierarchy + scattered palette still open).
+
+**Verify:** 15/15 typecheck · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings · 268 web tests + domain/application suites ·
+8/8 build · built-CSS confirms the new role utilities (container / on-container
+/ alpha border / ring) emit with light+dark values.
 
 ### Type scale — text-Nxl migrated + ratcheted (2026-06-07)
 

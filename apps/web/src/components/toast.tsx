@@ -143,31 +143,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// M3 container roles — bg = `{role}-container`, text = `on-{role}-container`.
+// The tokens carry light/dark values (globals.css), so the hand-rolled `dark:`
+// forks are gone. `warning`/`success` are the custom semantic roles from S2.
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
-  error:
-    'border-red-300 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/80 dark:text-red-100',
-  success:
-    'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/80 dark:text-emerald-100',
+  error: 'border-md-error/40 bg-md-error-container text-md-on-error-container',
+  success: 'border-md-success/40 bg-md-success-container text-md-on-success-container',
+  // info uses brand tokens (not raw palette) — left as-is; not an S2 target.
   info: 'border-primary/40 bg-primary/10 text-primary',
-  warning:
-    'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/80 dark:text-amber-100',
+  warning: 'border-md-warning/40 bg-md-warning-container text-md-on-warning-container',
 };
 
 // Per-variant focus-visible ring for the close + action buttons. The
 // previous `focus:ring-current` inherited the toast's foreground color,
 // which on info/warning surfaces did not reliably hit 3:1 against the
-// toast background (WCAG 2.4.11 Focus Appearance). Each ring below is
-// verified against both the light and dark variant backgrounds; the
-// offset color matches the toast background so the ring reads as a
-// solid outline rather than a halo bleeding into the page behind it.
+// toast background (WCAG 2.4.11 Focus Appearance). The role color
+// (`ring-md-{role}`, tone 40 light / tone 80 dark) contrasts against the
+// `{role}-container` background (tone 90 / tone 30) in both themes by
+// construction, and the offset matches that container so the ring reads as a
+// solid outline — so the light/dark fork collapses to one declaration.
 const VARIANT_RING_CLASSES: Record<ToastVariant, string> = {
-  error:
-    'focus-visible:ring-red-700 focus-visible:ring-offset-red-50 dark:focus-visible:ring-red-200 dark:focus-visible:ring-offset-red-950',
-  success:
-    'focus-visible:ring-emerald-700 focus-visible:ring-offset-emerald-50 dark:focus-visible:ring-emerald-200 dark:focus-visible:ring-offset-emerald-950',
+  error: 'focus-visible:ring-md-error focus-visible:ring-offset-md-error-container',
+  success: 'focus-visible:ring-md-success focus-visible:ring-offset-md-success-container',
   info: 'focus-visible:ring-primary focus-visible:ring-offset-surface',
-  warning:
-    'focus-visible:ring-amber-800 focus-visible:ring-offset-amber-50 dark:focus-visible:ring-amber-200 dark:focus-visible:ring-offset-amber-950',
+  warning: 'focus-visible:ring-md-warning focus-visible:ring-offset-md-warning-container',
 };
 
 function ToastItem({ toast: t, dismiss }: { toast: Toast; dismiss: (id: string) => void }) {
