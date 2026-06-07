@@ -46,7 +46,9 @@ re-audit (migrations `20260901000000` → `20260919000000` — profiles geo, bad
 walk-in roster teams on leagues, the capacity waitlist, room-message fan-out,
 media posts/votes, broadcast notifications, save-event/bracket RPCs). The
 2026-05-31 posture is intact; the new features mostly land sound RLS, but the
-sweep surfaced **four new findings** (one P1, one P2, two P3).
+sweep surfaced **four new findings** (one P1, one P2, two P3) — **all four fixed
+the same day** (2026-06-07); the two migrations are deploy-gated (CI applies on
+deploy). See the per-finding statuses + the remediation log.
 
 - **#16 (P1, data leak) — walk-in captain phone is REST-readable.** The
   account-less walk-in/ad-hoc team feature stores a freeform `captain_phone` on
@@ -72,10 +74,11 @@ sweep surfaced **four new findings** (one P1, one P2, two P3).
   extended: `media_posts` (the user's submitted clips — clearly portable
   content), `media_post_votes`, `media_post_reports`, `user_badges`, and
   `event_waitlist` are all missing. See #18.
-- **#19 (P3, retention) — `media_post_reports.reason` is freeform with no
-  purge.** Same class as the resolved P2 #8 (`community_listing_reports`): a
-  reporter's free text + `reporter_user_id` accumulate forever with no template
-  dropdown and no purge cron. See #19.
+- **#19 (P3, retention) — `media_post_reports` rows retained forever.**
+  `reporter_user_id` + `reason` accumulate with no TTL, same class as the
+  resolved P2 #8 (`community_listing_reports`). (The live report UI is a one-click
+  button that collects no `reason`, so the only real gap was retention, not
+  freeform collection — fixed by adding a 180-day purge, not a dropdown.) See #19.
 
 **Verified sound (no change needed):** `user_badges` (owner-only base SELECT +
 definer `user_badges_public` view filtering `hidden` + `deleted_at`),
@@ -351,7 +354,13 @@ event page) but it's still a real exposure.
   — the host types the account-less captain's phone here.
 
 **Category:** PII leak via public read path
-**Status:** open (filed 2026-06-07)
+**Status:** ✅ fixed (2026-06-07) — deploy-gated (CI applies the migration on
+deploy).
+[20260920000000_event_team_entries_captain_phone_grant.sql](../../supabase/migrations/20260920000000_event_team_entries_captain_phone_grant.sql)
+revokes the table-level SELECT from `anon`/`authenticated` and re-grants
+column-level SELECT on every column **except** `captain_phone`. Row policy +
+write grants untouched; both `captain_phone` readers run on the service-role
+admin client, so no app path breaks. See the remediation log.
 
 The walk-in / host-added team feature (ADR 0017 → ADR 0033, generalized to
 roster/league divisions in `20260909000000`) lets a host register a team that
@@ -410,7 +419,13 @@ Add a follow-up migration (never edit `20260731000000`).
   — geocodes the free-text `home_city` and writes the raw coords.
 
 **Category:** quasi-identifier / location exposure
-**Status:** open (filed 2026-06-07)
+**Status:** ✅ fixed (2026-06-07) — deploy-gated.
+[20260921000000_profiles_public_round_coords.sql](../../supabase/migrations/20260921000000_profiles_public_round_coords.sql)
+rebuilds `profiles_public` to round the published coords to 2 decimals (~1.1 km),
+cast back to `double precision` so the view column type (and generated types) are
+unchanged. Full precision stays on the owner-only base `profiles` row. The
+`share_location` opt-out remains a possible future hardening. See the remediation
+log.
 
 `profiles_geo` (players "near me", PL-5) geocodes a profile's `home_city` to
 lat/lng and exposes both columns on `profiles_public`, which is granted to
@@ -448,9 +463,13 @@ re-grant) per the existing pattern.
 
 ### 18. New user-data tables are absent from the GDPR data export
 
-**File:** [apps/web/src/app/api/account/export/route.ts#L37-L158](../../apps/web/src/app/api/account/export/route.ts#L37-L158)
+**File:** [apps/web/src/app/api/account/export/route.ts](../../apps/web/src/app/api/account/export/route.ts)
 **Category:** legal feature gap (Art. 20 portability)
-**Status:** open (filed 2026-06-07)
+**Status:** ✅ fixed (2026-06-07) — the export now reads `media_posts`,
+`media_post_votes`, `media_post_reports`, `user_badges`, and `event_waitlist`
+(each filtered to `uid` on the user-scoped client; every one has an owner/self
+RLS read path so the filter and policy agree), under the same throw-on-partial
+guard. See the remediation log.
 
 The export (P3 #12) covers a fixed 15-category list and predates several tables
 that store the caller's own data:
@@ -470,24 +489,30 @@ the filter and policy agree — matching the existing pattern). `media_posts` an
 `event_waitlist` read cleanly under their own RLS; `user_badges` SELECT-own is
 owner-scoped. Keep the throw-on-partial guard so a missing category fails loudly.
 
-### 19. `media_post_reports.reason` is freeform with no purge
+### 19. `media_post_reports` rows are retained indefinitely (no purge)
 
 **File:** [supabase/migrations/20260820000000_media_posts.sql#L67-L74](../../supabase/migrations/20260820000000_media_posts.sql#L67-L74)
 **Category:** user-supplied PII / retention
-**Status:** open (filed 2026-06-07)
+**Status:** ✅ fixed (2026-06-07).
 
-`media_post_reports.reason` is freeform text + `reporter_user_id`, retained
-indefinitely — the same shape as `community_listing_reports.reason`, which P2 #8
-resolved with a template dropdown + a 180-day purge. The media-report path has
-neither.
+`media_post_reports` (`reporter_user_id` + `reason`) accumulated forever with no
+TTL — the same retention shape as `community_listing_reports`, which P2 #8
+purges at 180 days. **Correction to the initial filing:** the live report UI is a
+one-click "Report" button
+([media-card.tsx#L181-L187](../../apps/web/src/app/events/%5Bid%5D/media/_components/media-card.tsx#L181-L187))
+that sends **no** `reason`, and the action already caps any future value at 500
+chars
+([media/actions.ts#L106-L107](../../apps/web/src/app/events/%5Bid%5D/media/actions.ts#L106-L107)).
+So there is no live freeform-collection path — a reason **dropdown was
+deliberately not added** (it would _start_ collecting reason text that isn't
+collected today, the opposite of data-minimization). The only live gap was
+retention.
 
-**Recommended fix:** mirror the P2 #8 remediation — front the report form with a
-reason dropdown (spam, inappropriate, off-topic, broken link, other) so freeform
-is the exception, truncate to 500 chars at the boundary, and add a
-`media_post_reports` older-than-180-days delete to the existing daily maintenance
-cron in
-[api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts)
-(where the `community_listing_reports` purge already lives).
+**Fix applied:** added a `media_post_reports` older-than-180-days delete to the
+daily maintenance cron in
+[api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts),
+alongside the existing `community_listing_reports` purge (same `cutoff180`,
+returned in the response as `media_reports`). See the remediation log.
 
 ### 13. Owner-only `profiles` RLS broke display cards in chat + media (regression)
 
@@ -858,6 +883,55 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-06-07 — #16 + #17 + #18 + #19 (post-audit feature-sweep bundle)
+
+All four findings from the 2026-06-07 re-audit fixed in one bundle. The two
+migrations are intentionally **type-neutral** (a column-grant change and a
+view-rebuild that casts coords back to `double precision`), so no `gen:types`
+hand-edit is needed and the app code is unaffected by them.
+
+- **#16 (P1) — walk-in `captain_phone` no longer REST-readable.**
+  [20260920000000_event_team_entries_captain_phone_grant.sql](../../supabase/migrations/20260920000000_event_team_entries_captain_phone_grant.sql):
+  `revoke select on public.event_team_entries from anon, authenticated`, then
+  re-`grant select (…12 safe columns…)` excluding `captain_phone`. The
+  permissive row policy (`using (deleted_at is null)`) and the
+  INSERT/UPDATE/DELETE grants are untouched, so captain self-signup and every
+  user-scoped read of the safe columns keep working. Verified both
+  `captain_phone` readers — `loadAdHocRowsCached`
+  ([event-detail-cache.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts))
+  and `SupabaseEventTeamRegistrationRepository` (which builds its own admin
+  client) — run on the service-role client, and no user-scoped read uses
+  `select('*')` on the table. Definer views (`events_view`,
+  `event_team_entry_members_public`) read the base table as their owner, so
+  they're unaffected. Deploy-gated.
+- **#17 (P2) — player coords rounded before publishing.**
+  [20260921000000_profiles_public_round_coords.sql](../../supabase/migrations/20260921000000_profiles_public_round_coords.sql)
+  rebuilds `profiles_public` (DROP+CREATE, re-grant, mirroring 20260901000000)
+  with `round(latitude::numeric, 2)::double precision` (~1.1 km). Full precision
+  stays on the owner-only base `profiles`. The directory's bounding-box filter +
+  JS haversine in
+  [supabase-profile-repository.ts#L143-L181](../../packages/infrastructure/src/supabase-profile-repository.ts#L143-L181)
+  tolerate the rounding (radii are ≥ a few km). Cast back to `double precision`
+  so the view column type — and the generated type — is unchanged. Deploy-gated.
+- **#18 (P3) — GDPR export extended.**
+  [api/account/export/route.ts](../../apps/web/src/app/api/account/export/route.ts)
+  now reads five more owner-scoped categories on the user-scoped client —
+  `media_posts` (submitter), `media_post_votes` (voter), `media_post_reports`
+  (reporter), `user_badges` (owner), `event_waitlist` (owner) — added to the
+  `Promise.all`, the throw-on-partial check, and the payload (`media_posts`,
+  `media_post_votes`, `media_post_reports`, `badges`, `event_waitlist`). Each has
+  an owner/self RLS read path, so the `uid` filter and the policy agree.
+- **#19 (P3) — media report retention.**
+  [api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts)
+  now also deletes `media_post_reports` older than 180 days (shared `cutoff180`,
+  surfaced as `media_reports` in the response), beside the existing
+  `community_listing_reports` purge. No reason dropdown — the live report UI is a
+  one-click button that collects no `reason`, so retention was the only gap.
+
+Verify quad: typecheck / lint / test / build (doc + export + cron are app code;
+the two migrations are reasoned-about-only per the migrations policy and applied
+by CI on deploy).
 
 ### 2026-05-31 — #14: chat retention (attachment orphan sweep + message scrub)
 

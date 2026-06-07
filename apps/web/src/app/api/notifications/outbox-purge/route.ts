@@ -5,9 +5,9 @@
  *    sent / skipped — 30 days  (enough for dispute lookups)
  *    failed         — 90 days  (enough for retry / incident investigation)
  *
- * 2. Listing report purge: deletes community_listing_reports rows older than
- *    180 days. The reporter user_id + freeform reason have no moderation
- *    value past the initial review window.
+ * 2. Report purge: deletes community_listing_reports AND media_post_reports rows
+ *    older than 180 days. The reporter user_id + reason have no moderation value
+ *    past the initial review window (privacy audit P2 #8 + #19).
  *
  * Schedule: once daily at 04:00 UTC (see vercel.json).
  */
@@ -41,17 +41,19 @@ export async function GET(request: Request): Promise<NextResponse> {
   const cutoff180 = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    // The notification_outbox purges go through the drain port; the
-    // community_listing_reports purge belongs to the community-listings
-    // subdomain (not the notification port) and stays a direct admin delete.
-    const [purgedTerminal, purgedFailed, { count: purgedReports }] = await Promise.all([
-      outbox.purgeTerminal(cutoff30),
-      outbox.purgeFailed(cutoff90),
-      admin
-        .from('community_listing_reports')
-        .delete({ count: 'exact' })
-        .lt('created_at', cutoff180),
-    ]);
+    // The notification_outbox purges go through the drain port; the report
+    // purges belong to their own subdomains (not the notification port) and stay
+    // direct admin deletes.
+    const [purgedTerminal, purgedFailed, { count: purgedReports }, { count: purgedMediaReports }] =
+      await Promise.all([
+        outbox.purgeTerminal(cutoff30),
+        outbox.purgeFailed(cutoff90),
+        admin
+          .from('community_listing_reports')
+          .delete({ count: 'exact' })
+          .lt('created_at', cutoff180),
+        admin.from('media_post_reports').delete({ count: 'exact' }).lt('created_at', cutoff180),
+      ]);
 
     return NextResponse.json({
       ok: true,
@@ -59,6 +61,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         outbox_terminal: purgedTerminal,
         outbox_failed: purgedFailed,
         listing_reports: purgedReports ?? 0,
+        media_reports: purgedMediaReports ?? 0,
       },
     });
   } catch (err) {
