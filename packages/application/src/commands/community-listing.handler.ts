@@ -176,11 +176,20 @@ export class ReportCommunityListingHandler {
     listingId,
     reporterUserId,
     reason,
-  }: ReportCommunityListingCommand): Promise<void> {
+  }: ReportCommunityListingCommand): Promise<{ autoHidden: boolean }> {
     // Confirm listing exists so callers get NotFound instead of a generic FK error.
     const listing = await this.repo.findById(listingId);
     if (!listing) throw new NotFoundError('CommunityListing', listingId);
+    const wasActive = listing.status === 'active';
     await this.repo.recordReport(listingId, reporterUserId, reason);
+    // recordReport fires a DB trigger that flips status active→hidden once
+    // reports cross the threshold. Re-read to detect *this* report's transition,
+    // so the caller can notify the submitter exactly once — and never for a
+    // report against an already-hidden listing. The threshold lives only in the
+    // trigger; we read the result rather than duplicate it here.
+    if (!wasActive) return { autoHidden: false };
+    const after = await this.repo.findById(listingId);
+    return { autoHidden: after?.status === 'hidden' };
   }
 }
 

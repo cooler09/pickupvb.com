@@ -21,6 +21,7 @@ import {
   resetMatch,
   setsToWin,
   swapSides,
+  undoLastSet,
   type ScoreboardConfig,
   type ScoreboardState,
   type TeamId,
@@ -208,6 +209,15 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
     setState(resetMatch(state.config, state.version));
   }, [state.config, state.version, setState, save]);
 
+  const onUndoSet = useCallback(() => {
+    // Recover from an accidental match-ending "Win set" tap: step back into the
+    // last set at its final score instead of wiping the whole match. The match
+    // is no longer decided, so the winner overlay closes and the scorer can
+    // shave a point and re-commit. Clear any stale save status too.
+    save.reset();
+    setState(undoLastSet(state));
+  }, [state, setState, save]);
+
   const onSwap = useCallback(() => {
     setState(swapSides(state));
   }, [state, setState]);
@@ -308,6 +318,7 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
           state={state}
           onNewGame={onNewGame}
           onResetMatch={onResetMatch}
+          onUndoSet={onUndoSet}
           {...(binding ? { bound: { save, returnPath: binding.returnPath } } : {})}
         />
       )}
@@ -642,12 +653,15 @@ function WinnerOverlay({
   state,
   onNewGame,
   onResetMatch,
+  onUndoSet,
   bound,
 }: {
   name: string;
   state: ScoreboardState;
   onNewGame: () => void;
   onResetMatch: () => void;
+  /** Step back into the last set to recover from an accidental match-ending tap. */
+  onUndoSet: () => void;
   /** Present when scoring a scheduled match — turns the overlay into the
    *  save-to-record moment instead of a Rematch / New game prompt. */
   bound?: { save: SaveToMatch; returnPath: string };
@@ -660,6 +674,9 @@ function WinnerOverlay({
     () => state.setHistory.map((h) => `${h.a}–${h.b}`).join(' · '),
     [state.setHistory],
   );
+  // Hide "Undo" once a bound result is recorded — the official record is the
+  // source of truth at that point (re-open from the host tools to amend).
+  const showUndo = state.setHistory.length > 0 && !bound?.save.saved;
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div
@@ -698,6 +715,15 @@ function WinnerOverlay({
               New game
             </button>
           </div>
+        )}
+        {showUndo && (
+          <button
+            type="button"
+            onClick={onUndoSet}
+            className="mt-4 text-xs font-medium text-black/50 underline underline-offset-2 hover:text-black/80"
+          >
+            Ended by mistake? Undo last set
+          </button>
         )}
       </div>
     </div>

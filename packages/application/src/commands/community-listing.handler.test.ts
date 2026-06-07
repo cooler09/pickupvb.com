@@ -12,8 +12,9 @@ import type { CreateCommunityListingDto } from '@pickupvb/types';
 import {
   AutoApproveExpiredCommunityClaimsHandler,
   CreateCommunityListingHandler,
+  ReportCommunityListingHandler,
 } from './community-listing.handler.js';
-import { CreateCommunityListingCommand } from '../messages/index.js';
+import { CreateCommunityListingCommand, ReportCommunityListingCommand } from '../messages/index.js';
 
 const DTO: CreateCommunityListingDto = {
   title: 'Saturday morning beach league',
@@ -128,5 +129,84 @@ describe('AutoApproveExpiredCommunityClaimsHandler', () => {
 
     expect(result).toEqual([]);
     expect(repo.saved).toHaveLength(0);
+  });
+});
+
+/**
+ * Models the `community_listings_after_report` DB trigger: each report
+ * increments the count, and an *active* listing crossing 3 reports auto-hides.
+ * `findById` returns the live snapshot the handler reads before + after
+ * `recordReport` to detect the transition.
+ */
+class FakeReportRepo {
+  reports = 0;
+  constructor(
+    private status: 'active' | 'hidden',
+    private reportCount: number,
+  ) {}
+  private snapshot(): CommunityListing {
+    return CommunityListing.fromPersistence({
+      id: CommunityListingId('listing-1'),
+      submitterUserId: UserId('submitter'),
+      title: 'Beach night',
+      description: '',
+      externalUrl: ExternalUrl.fromPersistence('https://example.com/e/1'),
+      externalHostName: null,
+      startsAt: new Date('2026-07-01T17:00:00.000Z'),
+      endsAt: null,
+      location: null,
+      timeZone: null,
+      surface: null,
+      format: null,
+      skillLevel: null,
+      status: this.status,
+      reportCount: this.reportCount,
+      claimedEventId: null,
+      claimedByUserId: null,
+      claimedAt: null,
+    });
+  }
+  async findById(): Promise<CommunityListing> {
+    return this.snapshot();
+  }
+  async recordReport(): Promise<void> {
+    this.reports += 1;
+    const next = this.reportCount + 1;
+    this.reportCount = next;
+    if (this.status === 'active' && next >= 3) this.status = 'hidden';
+  }
+}
+
+function reportHandlerFor(status: 'active' | 'hidden', reportCount: number) {
+  const repo = new FakeReportRepo(status, reportCount);
+  const handler = new ReportCommunityListingHandler(repo as unknown as CommunityListingRepository);
+  return { repo, handler };
+}
+
+describe('ReportCommunityListingHandler auto-hide detection', () => {
+  it('flags autoHidden when this report tips an active listing past the threshold', async () => {
+    const { repo, handler } = reportHandlerFor('active', 2);
+    const result = await handler.execute(
+      new ReportCommunityListingCommand('listing-1', 'reporter', null),
+    );
+    expect(repo.reports).toBe(1);
+    expect(result.autoHidden).toBe(true);
+  });
+
+  it('does not flag autoHidden for a report below the threshold', async () => {
+    const { handler } = reportHandlerFor('active', 0);
+    const result = await handler.execute(
+      new ReportCommunityListingCommand('listing-1', 'reporter', null),
+    );
+    expect(result.autoHidden).toBe(false);
+  });
+
+  it('does not re-notify on a report against an already-hidden listing', async () => {
+    const { repo, handler } = reportHandlerFor('hidden', 5);
+    const result = await handler.execute(
+      new ReportCommunityListingCommand('listing-1', 'reporter', null),
+    );
+    expect(repo.reports).toBe(1); // still records the report
+    expect(result.autoHidden).toBe(false);
   });
 });

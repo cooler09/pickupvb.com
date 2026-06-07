@@ -127,6 +127,34 @@ export function commitSet(
   };
 }
 
+/**
+ * Reverse the most recent {@link commitSet}: pop the last completed set, restore
+ * the in-progress score to that set's final tally, and decrement the winning
+ * side's set count. No-op when no set has been played.
+ *
+ * This is the "undo an accidental match-ending tap" recovery — after the
+ * deciding "Win set", the scorer is dropped back inside that set at its final
+ * score (e.g. 25–23) with the match no longer decided, free to shave a point and
+ * re-commit. The winning side is inferred from the stored set score: the
+ * scoreboard only ever commits the set-point side, which by definition leads
+ * (a strict win-by margin rules out a tie), so `a > b` ⇒ side A won the set.
+ */
+export function undoLastSet(s: LiveMatchScore, now: number = Date.now()): LiveMatchScore {
+  const last = s.setHistory[s.setHistory.length - 1];
+  if (!last) return s;
+  const wonByA = last.a > last.b;
+  return {
+    ...s,
+    setsA: wonByA ? Math.max(0, s.setsA - 1) : s.setsA,
+    setsB: wonByA ? s.setsB : Math.max(0, s.setsB - 1),
+    setHistory: s.setHistory.slice(0, -1),
+    scoreA: last.a,
+    scoreB: last.b,
+    version: s.version + 1,
+    updatedAt: now,
+  };
+}
+
 export function resetMatch(
   config: LiveMatchConfig,
   version: number,
