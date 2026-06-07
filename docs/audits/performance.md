@@ -29,17 +29,21 @@ write-up + recommended fixes in
 - **P3 #19** — the event-detail capacity-waitlist read is an avoidable third
   sequential wave on full open-play events.
 
-> **2026-06-07 follow-up:** **P2 #16 + P3 #18 + P3 #19 all shipped.** First the
-> two clean P3 wins (redundant `force-dynamic`; waitlist wave-fold), then the
-> P2 #16 community-ISR bundle — a cookie-free, `searchParams`-free server shell
-> with viewer chrome in a client island, reaching parity with the cacheable
-> `/teams/[id]` posture (one accepted soft-404 change for non-managers on
-> hidden/removed listings). See the
-> [P2 #16 remediation entry](#2026-06-07--p2-16-communityslug-isr-cacheable-shell)
-> · [P3 entry](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold)
-> · [journal](../journal/2026-06-07-bundle-community-detail-isr.md). **P3 #17**
-> (`/community` listing — same template as P2 #16) **and P3 #20** (stale anchors)
-> remain open.
+> **2026-06-07 follow-up:** **P2 #16 + P3 #17 + P3 #18 + P3 #19 all shipped** —
+> the whole community caching surface plus the two clean P3 wins. **P2 #16**:
+> `/community/[slug]` cookie-free server shell + viewer-chrome island (one soft-404
+> change for non-managers on hidden/removed). **P3 #17**: `/community` listing made
+> cookie-free (CDN-cacheable per-URL like `/players`) with the submitter's
+> auto-hidden-listing recovery path preserved via a new
+> `listHiddenBySubmitter` port + `<MyHiddenCommunityListings />` island (the
+> original finding missed that the search mixed in own-hidden listings). \*\*P3 #18
+>
+> - #19**: redundant `force-dynamic`; waitlist wave-fold. See the
+>   [P3 #17](#2026-06-07--p3-17-community-listing-cacheable--own-hidden-recovery)
+>   · [P2 #16](#2026-06-07--p2-16-communityslug-isr-cacheable-shell)
+>   · [P3 #18/#19](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold)
+>   entries + journals. **P3 #20\*\* (stale anchors) is the only open re-audit item;
+>   a moderation follow-up (notify submitter on auto-hide) was surfaced by P3 #17.
 
 **Status update (2026-05-31) — pagination sweep (unbounded UI lists):** a
 read-only scan for list views that render an entire result set with no paging,
@@ -678,6 +682,27 @@ to match the detail-page half of P1 #1 and the P2 #14 spectator-page grading.
 
 ### P3 #17 — `/community` listing is dynamic-per-request + fetches 120 rows uncached 🆕 2026-06-06
 
+**Status:** ✅ _Resolved 2026-06-07_ — dropped `getCurrentUser()` +
+`isPlatformAdmin` and passed `viewerId = null` to the (already admin-backed)
+search, so the listing render is now **cookie-free**: its response is shared
+per-URL across anonymous viewers (CDN-cacheable for 60s) instead of `private`.
+The route stays `ƒ` (it reads `searchParams` for filters/paging — that varies by
+URL, not by user), matching the cacheable `/players` posture. The "Submit a
+listing" CTA + admin import link moved into a `<CommunitySubmitActions />`
+client island. **Correction to this finding:** the search was _also_
+viewer-conditional in a way the original write-up missed — with `viewerId` it
+mixes in the submitter's own auto-hidden listings (the card badges them
+"Hidden — only you"), and auto-hide is a notification-less DB trigger, so that
+inline surface is the submitter's only path back to an auto-hidden listing.
+Dropping `viewerId` would silently strand them, so the recovery path was
+preserved via a `<MyHiddenCommunityListings />` client island backed by a new
+`CommunityListingRepository.listHiddenBySubmitter` port + a
+`getMyHiddenCommunityListings` server action (own-hidden moved from inline to a
+top recovery strip). No regression. Verified `pnpm typecheck && lint && test &&
+build` green. See the
+[2026-06-07 remediation log entry](#2026-06-07--p3-17-community-listing-cacheable--own-hidden-recovery)
+and [journal](../journal/2026-06-07-bundle-community-listing-isr.md).
+
 **Category:** Caching / over-fetch
 **Files:**
 
@@ -958,6 +983,32 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-06-07 — P3 #17: `/community` listing cacheable + own-hidden recovery
+
+Made the `/community` discovery feed cookie-free (CDN-cacheable per-URL across
+anonymous viewers, like `/players`) without regressing the submitter's only
+in-app path back to an auto-hidden listing.
+
+| Item                                         | Status   | Notes                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drop `cookies()` from the listing render     | ✅ Done  | [page.tsx](../../apps/web/src/app/community/page.tsx) — removed `getCurrentUser()` + `isPlatformAdmin`; `SearchCommunityListingsQuery` now gets `viewerId = null` (the search already ran on the admin-backed handler singleton, so it was the only cookie dependency). Added `export const revalidate = 60`. Route stays `ƒ` (reads `searchParams`) but the response is now shared, not `private`. |
+| CTA + admin link → client island             | ✅ Done  | [community-submit-actions.tsx](../../apps/web/src/app/community/_components/community-submit-actions.tsx) — resolves session client-side (`auth.getUser()` + own-profile `is_platform_admin`); defaults to the logged-out CTA (what the cached HTML shows).                                                                                                                                         |
+| Preserve own-hidden recovery (no regression) | ✅ Done  | New `CommunityListingRepository.listHiddenBySubmitter` port + impl, a `getMyHiddenCommunityListings` server action, and a `<MyHiddenCommunityListings />` client island (top recovery strip). Replaces the `viewerId`-mixes-in-own-hidden behavior the cacheable list drops. UX change: own-hidden moves inline → a labeled "Your hidden listings" section.                                         |
+| Finding correction                           | ⚠️ Noted | The original P3 #17 write-up said "the only viewer-conditional output is the CTA + admin link" — it missed the search's `viewerId`-own-hidden inclusion. The real fix had to preserve that, hence the recovery island.                                                                                                                                                                              |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, pre-existing warnings only; test 547 domain +
+145 application + 262 web; build 8/8).
+
+**Follow-up surfaced:** auto-hide (3 reports → `hidden`) is a DB trigger with
+**no notification** to the submitter — the `/community` recovery strip is the
+only signal. A submitter notification on auto-hide would be the durable fix and
+would let the recovery strip become optional. Not a perf item — filed here for
+visibility; belongs in the moderation/notifications backlog.
+
+See the [journal](../journal/2026-06-07-bundle-community-listing-isr.md) for the
+cookie-vs-searchParams cacheability calibration and the recovery-island decision.
 
 ### 2026-06-07 — P2 #16: `/community/[slug]` ISR-cacheable shell
 

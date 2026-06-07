@@ -4,12 +4,19 @@ import type { Metadata } from 'next/types';
 import { SearchCommunityListingsQuery } from '@pickupvb/application';
 import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
 import { handlers } from '@/lib/handlers';
-import { getCurrentUser } from '@/lib/server-auth';
-import { isPlatformAdmin } from '@/lib/admin';
 import { Pagination } from '@/components/pagination';
 import { NearMeButton } from '../events/near-me-button';
 import { LocationSearch } from '../events/location-search';
 import { CommunityListingCard } from './_components/community-listing-card';
+import { CommunitySubmitActions } from './_components/community-submit-actions';
+import { MyHiddenCommunityListings } from './_components/my-hidden-community-listings';
+
+// ISR: the public (viewer-`null`) list is identical for every logged-out visitor
+// + crawler, so it serves per-URL (filters/page live in `searchParams`) from the
+// edge for 60s. The page reads no `cookies()` — the "Submit"/admin CTA and the
+// submitter's own hidden-listing recovery strip resolve in client islands — so
+// the response is shared, not `private`. Performance audit P3 #17.
+export const revalidate = 60;
 
 const SURFACES = ['indoor', 'grass', 'sand'] as const;
 const FORMATS = ['sixes', 'quads', 'triples', 'doubles'] as const;
@@ -68,8 +75,6 @@ export default async function CommunityListingsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const searchParams = await props.searchParams;
-  const { user } = await getCurrentUser();
-  const admin = user ? await isPlatformAdmin(user.id) : false;
 
   const get = (k: string): string | undefined => {
     const v = searchParams[k];
@@ -98,8 +103,11 @@ export default async function CommunityListingsPage(props: {
   // old silent 60-row cap; if community volume ever exceeds FETCH_CAP per view,
   // swap to keyset paging (offset/count) in the repo — tracked in
   // docs/audits/community-listings.md CL-6.
+  // viewer-`null`: the cached list is the public view. A signed-in submitter's
+  // own hidden listings are surfaced separately by <MyHiddenCommunityListings />
+  // so the page stays cookie-free (P3 #17).
   const allListings = await handlers.searchCommunityListings.execute(
-    new SearchCommunityListingsQuery(user?.id ?? null, {
+    new SearchCommunityListingsQuery(null, {
       limit: FETCH_CAP,
       // Upcoming: soonest-first. Past: most-recent-first (order desc) so the
       // freshest history leads instead of the oldest archived event.
@@ -142,25 +150,7 @@ export default async function CommunityListingsPage(props: {
             hosting.
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          {user ? (
-            <Link href="/community/new" className={primaryButtonClass('md')}>
-              Submit a listing
-            </Link>
-          ) : (
-            <Link
-              href={{ pathname: '/login', query: { next: '/community/new' } }}
-              className={primaryButtonClass('md')}
-            >
-              Sign in to submit
-            </Link>
-          )}
-          {admin && (
-            <Link href="/admin/community-import" className="text-primary text-sm hover:underline">
-              Import listings (admin)
-            </Link>
-          )}
-        </div>
+        <CommunitySubmitActions />
       </div>
 
       <div className="border-border-base flex gap-1 border-b">
@@ -276,6 +266,8 @@ export default async function CommunityListingsPage(props: {
         Community listings link out to external sites. PickupVB doesn&rsquo;t verify or moderate the
         events themselves. RSVP and pay through the linked source.
       </p>
+
+      <MyHiddenCommunityListings />
 
       {listings.length === 0 ? (
         <p className="bg-highlight/30 text-muted rounded-md p-6 text-center">

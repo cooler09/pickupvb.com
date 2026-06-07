@@ -46,6 +46,13 @@ export interface CommunityListingRepository {
 
   // ---- Read side -------------------------------------------------------
   search(query: CommunityListingSearchQuery): Promise<CommunityListingSummary[]>;
+  /**
+   * The viewer's own `hidden` listings. Surfaced on the `/community` listing as
+   * the in-app recovery path for a listing auto-hidden by reports — auto-hide is
+   * a DB trigger with no notification, so without this the submitter has no way
+   * back to it once it drops off the public feed. Soonest start first.
+   */
+  listHiddenBySubmitter(userId: string): Promise<CommunityListingSummary[]>;
   getDetail(
     idOrSlug: string,
     viewerId: string | null,
