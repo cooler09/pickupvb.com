@@ -29,14 +29,17 @@ write-up + recommended fixes in
 - **P3 #19** — the event-detail capacity-waitlist read is an avoidable third
   sequential wave on full open-play events.
 
-> **2026-06-07 follow-up:** **P3 #18 + P3 #19 shipped** (the clean, low-risk
-> wins) — see the
-> [remediation log](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
-> P2 #16 (community ISR) is intentionally sequenced after as its own bundle:
-> it's a multi-piece change (manager-only hidden listings need a viewer read,
-> the `searchParams` notice, the claimed→event 301, interleaved viewer chrome),
-> closer in class to the deferred `/events/[id]` shell than a mechanical
-> refactor. P3 #17 + P3 #20 remain open.
+> **2026-06-07 follow-up:** **P2 #16 + P3 #18 + P3 #19 all shipped.** First the
+> two clean P3 wins (redundant `force-dynamic`; waitlist wave-fold), then the
+> P2 #16 community-ISR bundle — a cookie-free, `searchParams`-free server shell
+> with viewer chrome in a client island, reaching parity with the cacheable
+> `/teams/[id]` posture (one accepted soft-404 change for non-managers on
+> hidden/removed listings). See the
+> [P2 #16 remediation entry](#2026-06-07--p2-16-communityslug-isr-cacheable-shell)
+> · [P3 entry](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold)
+> · [journal](../journal/2026-06-07-bundle-community-detail-isr.md). **P3 #17**
+> (`/community` listing — same template as P2 #16) **and P3 #20** (stale anchors)
+> remain open.
 
 **Status update (2026-05-31) — pagination sweep (unbounded UI lists):** a
 read-only scan for list views that render an entire result set with no paging,
@@ -615,6 +618,24 @@ sort_order)`, `bracket_teams(bracket_id)`, `league_schedule_matches`
 
 ### P2 #16 — `/community/[slug]` reads `cookies()` for the whole render → anonymous spectators never hit ISR/CDN 🆕 2026-06-06
 
+**Status:** ✅ _Resolved 2026-06-07_ — applied the Bundle 25 ISR refactor. The
+page is now a cookie-free, `searchParams`-free server shell (`export const
+revalidate = 60`): viewer-conditional chrome moved into a
+`CommunityViewerProvider` client island (one `auth.getUser()`, then a
+`getCommunityViewerChrome` server action only for a real session), the `?notice=`
+banner into a `<Suspense>`'d `useSearchParams` client component, and the
+claimed→event 301 + a cookieless existence probe stay server-side on the admin
+client. Build confirms `/community/[slug]` now renders `ƒ` **identically to the
+proven-cacheable `/teams/[id]` / `/players/[id]` / `/groups/[id]`** (on-demand
+ISR, not the uncached `ƒ` it had while reading `cookies()`). One accepted
+behavior change: a non-manager hitting a **hidden/removed** listing now gets a
+200 "not available" notice instead of a hard 404 (genuinely-missing slugs still
+404; hidden/removed are `noindex`, so SEO-immaterial, and the action enforces the
+same RLS/status gate — no leak). Verified `pnpm typecheck && lint && test &&
+build` green. See the
+[2026-06-07 remediation log entry](#2026-06-07--p2-16-communityslug-isr-cacheable-shell)
+and [journal](../journal/2026-06-07-bundle-community-detail-isr.md).
+
 **Category:** Caching / revalidation
 **Files:**
 
@@ -937,6 +958,31 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-06-07 — P2 #16: `/community/[slug]` ISR-cacheable shell
+
+Applied the Bundle 25 (`/teams/[id]` / `/groups/[id]` / `/players/[id]`) ISR
+refactor to the new community-listing detail page. The page no longer reads
+`cookies()` or `searchParams`, so it leaves the truly-dynamic-`ƒ` (uncached)
+state and joins the on-demand-ISR-`ƒ` (cached) state its siblings are in.
+
+| Item                                                | Status   | Notes                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cookie-free / searchParams-free server shell        | ✅ Done  | [page.tsx](../../apps/web/src/app/community/%5Bslug%5D/page.tsx) rewritten: `revalidate = 60`; renders from `loadCommunityDetailPublic`; claimed→301 (admin-client slug resolve) + cookieless `communityListingExists` probe so missing slugs still 404 while hidden/removed fall to the manager island.                                                              |
+| Viewer-chrome client island (shared-fetch provider) | ✅ Done  | [community-viewer-chrome.tsx](../../apps/web/src/app/community/%5Bslug%5D/_components/community-viewer-chrome.tsx) — `CommunityViewerProvider` (one `auth.getUser()` + one `getCommunityViewerChrome` server action) feeds `CommunityViewerAlerts` (top) + `CommunityViewerActions` (bottom) via context, preserving the interleaved layout. Anon → no server action. |
+| Notice banner → client `useSearchParams` + Suspense | ✅ Done  | [community-notice-banner-client.tsx](../../apps/web/src/app/community/%5Bslug%5D/_components/community-notice-banner-client.tsx); page wraps it in `<Suspense fallback={null}>`.                                                                                                                                                                                      |
+| Shared presentational body                          | ✅ Done  | [community-listing-article.tsx](../../apps/web/src/app/community/%5Bslug%5D/_components/community-listing-article.tsx) — no directive, rendered server-side in the public shell and client-side in the manager (`CommunityRestrictedView`) path.                                                                                                                      |
+| Server action + loader split                        | ✅ Done  | New [community-viewer-actions.ts](../../apps/web/src/app/community/%5Bslug%5D/community-viewer-actions.ts) (`getCommunityViewerChrome`); `load-community-detail-page.ts` now exports `loadCommunityViewerChrome(slug, user)` (the page-model fn + claimed-redirect/notice/public branches were removed). `community-action-sections.tsx` marked `'use client'`.       |
+| Behavior change: hidden/removed non-manager view    | ⚠️ Noted | Was a hard 404; now a 200 "not available" notice (the page can't read the viewer server-side). Genuinely-missing slugs still 404. Hidden/removed are `noindex` → SEO-immaterial; the action enforces the same RLS/status gate (no leak).                                                                                                                              |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, pre-existing warnings only; test 262 web +
+145 application + domain; build 8/8). E2E community claim/report/manage specs not
+re-run (now hydration-gated; deploy-gated) — flagged as the remaining manual check.
+
+See the [journal](../journal/2026-06-07-bundle-community-detail-isr.md) for the
+`ƒ`-label-vs-actually-cached calibration, the provider-over-server-children
+decision, and the soft-404 tradeoff.
 
 ### 2026-06-07 — P3 #18 + P3 #19 (redundant force-dynamic / waitlist wave-fold)
 

@@ -1,26 +1,35 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { primaryButtonClass } from '@/components/primary-button';
+import { notFound, permanentRedirect } from 'next/navigation';
 import type { Metadata } from 'next/types';
-import { SURFACE_LABEL, FORMAT_LABEL, SKILL_LABEL } from '@/lib/enum-labels';
-import { LocalDateTime } from '@/components/local-datetime';
-import { getCurrentUser } from '@/lib/server-auth';
-import { externalLinkHref } from '@/lib/external-link';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
-import { loadCommunityDetailPublic } from './community-detail-cache';
-import { CommunityListingJsonLd } from './_components/community-listing-jsonld';
-import { CommunityNoticeBanner } from './_components/community-notice-banner';
 import {
-  ClaimSection,
-  ManageSection,
-  PendingClaimReview,
-  ReportSection,
-} from './_components/community-action-sections';
-import { loadCommunityDetailPage } from './_loaders/load-community-detail-page';
+  communityListingExists,
+  loadCommunityDetailPublic,
+  resolveClaimedEventTarget,
+} from './community-detail-cache';
+import { CommunityListingJsonLd } from './_components/community-listing-jsonld';
+import { CommunityListingArticle } from './_components/community-listing-article';
+import { CommunityNoticeBannerClient } from './_components/community-notice-banner-client';
+import {
+  CommunityRestrictedView,
+  CommunityViewerActions,
+  CommunityViewerAlerts,
+  CommunityViewerProvider,
+} from './_components/community-viewer-chrome';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+// ISR: the public (viewer-`null`) shell is identical for every logged-out
+// visitor + crawler, so serve it from the edge and refresh every 60s. The page
+// reads no `cookies()` or `searchParams` — viewer-conditional chrome resolves in
+// a client island (`CommunityViewerProvider`) and the `?notice=` flash banner in
+// a client `useSearchParams` component — so the route stays cacheable. Mutating
+// actions evict the data layer via `updateTag(communityListingCacheTag(slug))`.
+// Performance audit P2 #16.
+export const revalidate = 60;
 
 export async function generateMetadata(props: PageProps): Promise<Metadata> {
   const { slug } = await props.params;
@@ -49,21 +58,42 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
 
 export default async function CommunityListingDetailPage(props: PageProps) {
   const { slug } = await props.params;
-  const searchParams = await props.searchParams;
-  const { user } = await getCurrentUser();
-  const {
-    detail,
-    isIndexable,
-    notice,
-    place,
-    hostLabel,
-    showHiddenWarning,
-    pendingClaim,
-    viewerIsClaimant,
-    showClaimSection,
-    eligibleEvents,
-    claimableEvents,
-  } = await loadCommunityDetailPage(slug, searchParams, user);
+  const detail = await loadCommunityDetailPublic(slug);
+
+  // A claimed listing exists only to funnel visitors to the on-platform event it
+  // was linked to. Permanently redirect so old listing URLs — and any indexed
+  // copies — land on the event page instead of a dead-end pointing at the
+  // external site. Viewer-independent, and the slug is resolved on the admin
+  // client, so this stays cookie-free (and thus cacheable).
+  if (detail?.status === 'claimed' && detail.claimedEventId) {
+    permanentRedirect(`/events/${await resolveClaimedEventTarget(detail.claimedEventId)}`);
+  }
+
+  // The public (viewer-`null`) read returns `null` for both a genuinely-missing
+  // slug and a hidden/removed listing (only a manager may load those). Probe
+  // existence cookielessly: missing → a real 404; otherwise render the manager
+  // island, which resolves the viewer client-side and shows the listing to a
+  // manager (or a generic "not available" notice to everyone else).
+  if (!detail) {
+    if (!(await communityListingExists(slug))) notFound();
+    return (
+      <article className="mx-auto max-w-3xl space-y-6">
+        <nav className="text-muted text-sm">
+          <Link href="/community" className="hover:text-primary">
+            ← All community listings
+          </Link>
+        </nav>
+        <CommunityViewerProvider slug={slug}>
+          <Suspense fallback={null}>
+            <CommunityNoticeBannerClient />
+          </Suspense>
+          <CommunityRestrictedView />
+        </CommunityViewerProvider>
+      </article>
+    );
+  }
+
+  const isIndexable = detail.status === 'active' || detail.status === 'claim_pending';
 
   return (
     <article className="mx-auto max-w-3xl space-y-6">
@@ -90,114 +120,14 @@ export default async function CommunityListingDetailPage(props: PageProps) {
         </Link>
       </nav>
 
-      <CommunityNoticeBanner code={notice} />
-
-      {pendingClaim && detail.canManage && (
-        <PendingClaimReview detail={detail} pendingClaim={pendingClaim} />
-      )}
-
-      {viewerIsClaimant && !detail.canManage && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          Your claim is awaiting review by the original submitter or a platform admin. Until
-          it&rsquo;s approved, the listing still links to the external page.
-        </div>
-      )}
-
-      {showHiddenWarning && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          This listing is currently <strong>{detail.status}</strong> and not visible to the public.
-          {detail.reportCount > 0 && (
-            <>
-              {' '}
-              It received <strong>{detail.reportCount}</strong> report
-              {detail.reportCount === 1 ? '' : 's'}.
-            </>
-          )}
-        </div>
-      )}
-
-      <header className="space-y-2">
-        <p className="text-xs font-semibold tracking-wide text-amber-600 uppercase dark:text-amber-400">
-          Community listing
-        </p>
-        <h1 className="text-3xl font-bold">{detail.title}</h1>
-        <p className="text-muted text-sm">Submitted by {detail.submitter.displayName}</p>
-      </header>
-
-      <div className="border-border-base bg-surface rounded-shape-sm space-y-1 border p-4">
-        <p className="text-fg text-sm font-semibold">When</p>
-        <p className="text-sm">
-          <LocalDateTime iso={detail.startsAt} variant="eventDateLong" timeZone={detail.timeZone} />{' '}
-          at <LocalDateTime iso={detail.startsAt} variant="time" timeZone={detail.timeZone} />
-          {detail.endsAt && (
-            <>
-              {' '}
-              &ndash;{' '}
-              <LocalDateTime iso={detail.endsAt} variant="time" timeZone={detail.timeZone} />
-            </>
-          )}
-        </p>
-        {place && (
-          <>
-            <p className="text-fg mt-3 text-sm font-semibold">Where</p>
-            <p className="text-sm">{place}</p>
-          </>
-        )}
-        {(detail.surface || detail.format || detail.skillLevel) && (
-          <div className="mt-3 flex flex-wrap gap-1 text-[11px]">
-            {detail.surface && (
-              <span className="bg-fg/5 rounded px-1.5 py-0.5">
-                {SURFACE_LABEL[detail.surface] ?? detail.surface}
-              </span>
-            )}
-            {detail.format && (
-              <span className="bg-fg/5 rounded px-1.5 py-0.5">
-                {FORMAT_LABEL[detail.format] ?? detail.format}
-              </span>
-            )}
-            {detail.skillLevel && (
-              <span className="bg-fg/5 rounded px-1.5 py-0.5">
-                {SKILL_LABEL[detail.skillLevel] ?? detail.skillLevel}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {detail.description && (
-        <section className="space-y-2">
-          <h2 className="text-lg font-semibold">Details</h2>
-          <p className="text-fg/90 text-sm whitespace-pre-wrap">{detail.description}</p>
-        </section>
-      )}
-
-      <section className="border-primary/40 bg-primary/5 rounded-shape-sm space-y-3 border-2 p-4">
-        <p className="text-sm">
-          RSVP and full details are on the external site ({hostLabel}). PickupVB doesn&rsquo;t
-          handle signups for community listings.
-        </p>
-        <a
-          href={externalLinkHref(detail.externalUrl)}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className={`${primaryButtonClass('md')} gap-2`}
-        >
-          Open on {hostLabel} →
-        </a>
-        <p className="text-muted text-xs break-all">{detail.externalUrl}</p>
-      </section>
-
-      {showClaimSection && (
-        <ClaimSection
-          detail={detail}
-          eligibleEvents={eligibleEvents}
-          claimableEvents={claimableEvents}
-        />
-      )}
-
-      {user && !detail.canManage && detail.status === 'active' && <ReportSection detail={detail} />}
-
-      {detail.canManage && <ManageSection detail={detail} />}
+      <CommunityViewerProvider slug={detail.slug}>
+        <Suspense fallback={null}>
+          <CommunityNoticeBannerClient />
+        </Suspense>
+        <CommunityViewerAlerts />
+        <CommunityListingArticle detail={detail} />
+        <CommunityViewerActions />
+      </CommunityViewerProvider>
     </article>
   );
 }
