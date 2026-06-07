@@ -55,10 +55,13 @@
 > is now dark-mode-correct (hand-rolled `dark:` forks deleted). Then the four
 > **destructive-confirmation panels** (cancel-event, delete-team, delete-group,
 > account-delete) followed — account-delete being the first all-three-roles
-> consumer outside Alert/Toast. Pattern in [AGENTS.md #17](../../AGENTS.md).
-> **Open:** surface-container hierarchy (still 0 usages) + hand-rolled form
-> **error banners** (→ `<Alert>`) + genuinely decorative palette (scoreboard
-> red/green are _team_ colors) — so no codemod/ratchet. See the
+> consumer outside Alert/Toast. Then the ~8 hand-rolled form **error/notice
+> banners** were swapped for `<Alert variant>` (dedupe + delete their `dark:`
+> forks). **Net: raw palette 555 → 395.** Pattern in
+> [AGENTS.md #17](../../AGENTS.md). **Open:** surface-container hierarchy (still
+> 0 usages) + inline status pills / destructive text-links + genuinely
+> decorative palette (scoreboard red/green are _team_ colors) — so no
+> codemod/ratchet. See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
@@ -650,13 +653,19 @@ re-grade of the root cause.
 > account-delete) moved onto `md-error`/`md-warning`/`md-success` —
 > account-delete is the first all-three-roles consumer outside Alert/Toast (see
 > the [danger-panels entry](#danger-zone-panels--error--warning--success-roles-2026-06-07)).
-> **Still open:** the surface-container hierarchy (`md-surface-container*`,
-> `md-outline*`, `md-on-surface-variant`) remains at **0** usages; hand-rolled
-> form **error banners** (forgot-password, community forms, new-event-form,
-> signup panels) should adopt `<Alert variant="error">`; and the genuinely
-> decorative palette (the scoreboard's red/green _team_ colors) stays raw by
-> design — so no codemod, no ratchet yet. See the
-> [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
+> **Then the hand-rolled form error/notice banners** (forgot-password, both
+> community forms, new-event-form, the two signup panels, community-notice,
+> import-client) were swapped for `<Alert variant>` — dedupes ~8 copies, deletes
+> their `dark:` forks (see the
+> [error-banners entry](#errornotice-banners--alert-2026-06-07)). **Net: raw
+> palette 555 → 395.** **Still open:** the surface-container hierarchy
+> (`md-surface-container*`, `md-outline*`, `md-on-surface-variant`) remains at
+> **0** usages; inline status pills (payment `· Paid`/`· Pending`/`· Refunded`)
+>
+> - destructive text-links (`text-red-600` Withdraw/Leave) are a follow-up; and
+>   the genuinely decorative palette (the scoreboard's red/green _team_ colors)
+>   stays raw by design — so no codemod, no ratchet yet. See the
+>   [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 - **Where:** [globals.css#L68-L213](../../apps/web/src/app/globals.css#L68-L213)
   hand-declares **102 `--md-sys-color-*` custom properties** across
@@ -1184,6 +1193,43 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Error/notice banners → `<Alert>` (2026-06-07)
+
+Third S2 step, same day. The hand-rolled form **error/notice banners** —
+`<div role="alert" className="border-red-200 bg-red-50 … text-red-700">` and
+its tone-mapped success/warning siblings — were duplicated across ~8 files and
+each carried (or omitted) its own `dark:` fork. Replaced them with the
+centralized `<Alert variant>` (already on role tokens from the first S2 step),
+which dedupes the markup, deletes every `dark:` guess, and adds the icon +
+auto-`role` (error/warning → `alert`, else `status`).
+
+- **Simple submit-error banners → `<Alert variant="error">`**, wrapped in the
+  existing `useAlertReveal` ref'd `<div … className="outline-none">` (Alert
+  doesn't forward a ref — AGENTS.md pattern 15):
+  [forgot-password](../../apps/web/src/app/forgot-password/page.tsx),
+  [new-event-form](../../apps/web/src/app/events/new/new-event-form.tsx) (keeps
+  its `<ErrorActionLink>` child),
+  [community-listing-form](../../apps/web/src/app/community/new/community-listing-form.tsx),
+  [community-listing-edit-form](../../apps/web/src/app/community/[slug]/edit/community-listing-edit-form.tsx),
+  [import-client](../../apps/web/src/app/admin/community-import/import-client.tsx).
+- **Tone-mapped notices → `<Alert variant>`:**
+  [community-notice-banner](../../apps/web/src/app/community/[slug]/_components/community-notice-banner.tsx)
+  (`ok/warn/err` → `success/warning/error`, role preserved) and the two signup
+  result banners ([free-agent](../../apps/web/src/app/events/[id]/_components/free-agent-signup-panel.tsx),
+  [tournament](../../apps/web/src/app/events/[id]/_components/tournament-signup-panel.tsx),
+  `result.tone` → `success`/`error`).
+- **import-client result rows** (a dense list with links + sub-notes, not a
+  banner) were recolored in place instead of forced into per-row Alerts:
+  `border-md-success/30 bg-md-success-container` / `…-error-…`, amber sub-notes
+  → `text-md-warning`.
+
+Net: raw palette utils **555 → 395** across the three S2 bundles; `<Alert>`
+call sites ~35 → 51. **Out of scope (noted):** inline payment-status labels
+(`· Paid`/`· Pending`/`· Refunded`) and destructive **text-link** actions
+(`text-red-600 hover:underline` Withdraw/Leave) — those are status-pill /
+`errorTextButtonClass` follow-ups, not banners. Verify: 15/15 typecheck (forced
+web run, 0 cached) · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
 
 ### Danger-zone panels → error / warning / success roles (2026-06-07)
 

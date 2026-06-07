@@ -75,9 +75,14 @@ transparent)` with a solid `rgb(var(...))` fallback rule — verified in the
   destructive-confirmation panels** (cancel-event, delete-team, delete-group,
   account-delete) are done — panel chrome → `md-error`, plus account-delete's
   amber/green → `md-warning`/`md-success` (first all-three-roles consumer
-  outside Alert/Toast). The remaining `border-red-200 bg-red-50` hits are form
-  error _banners_ that should adopt `<Alert variant="error">` — separate
-  follow-up. See the m3-alignment remediation log.
+  outside Alert/Toast). **And (same day) the ~8 hand-rolled error/notice
+  _banners_** (forgot-password, both community forms, new-event-form,
+  community-notice, the two signup panels, import-client) were swapped for
+  `<Alert variant>` — wrapping the ref'd `useAlertReveal` div per pattern 15,
+  mapping tone→variant, recoloring import-client's dense result rows in place.
+  **Net raw palette 555 → 395.** See the m3-alignment remediation log. The
+  remaining red/amber/green is inline status pills + destructive text-links
+  (different category, follow-up).
 - **No palette ratchet yet** — raw red/amber/emerald can't reach zero
   (decorative/team uses remain), so the lint lock waits until a _fully
   migratable_ sub-bucket exists.

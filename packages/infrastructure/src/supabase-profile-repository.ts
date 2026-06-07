@@ -123,7 +123,15 @@ export class SupabaseProfileRepository implements ProfileQueries {
   constructor(private readonly client: SupabaseClient) {}
 
   async searchCards({ nameLike, limit }: ProfileSearchQuery): Promise<ProfileCard[]> {
-    let query = this.client.from('profiles_public').select(CARD_COLUMNS).limit(limit);
+    // Discovery read: only surface players who opted into discovery. Private
+    // players (`discoverable = false`) are excluded from the picker/typeahead so
+    // they can't be searched for or added to a team/group. Card-by-id lookups
+    // below stay unfiltered, so they still resolve on rosters/chips they're part of.
+    let query = this.client
+      .from('profiles_public')
+      .select(CARD_COLUMNS)
+      .eq('discoverable', true)
+      .limit(limit);
     if (nameLike) {
       query = query.ilike('display_name', `%${escapeLike(nameLike)}%`);
     }
@@ -144,6 +152,9 @@ export class SupabaseProfileRepository implements ProfileQueries {
     let query = this.client
       .from('profiles_public')
       .select(columns, { count: 'exact' })
+      // Discovery read: private players (`discoverable = false`) are kept out of
+      // the /players directory listing + count.
+      .eq('discoverable', true)
       .order('display_name', { ascending: true })
       .range(offset, offset + limit - 1);
     if (nameLike) {

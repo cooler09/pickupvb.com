@@ -1,3 +1,5 @@
+import { Alert } from '@/components/alert';
+
 /** Flash-param notice banner for community-listing actions (report / claim /
  *  hide / …). Renders nothing for an unknown or absent code. Extracted from
  *  community/[slug]/page.tsx (architecture audit P3-1). */
@@ -38,18 +40,10 @@ export function CommunityNoticeBanner({ code }: { code: string | undefined }): R
   };
   const m = messages[code];
   if (!m) return null;
-  const toneClass =
-    m.tone === 'ok'
-      ? 'border-green-200 bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-200'
-      : m.tone === 'warn'
-        ? 'border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'
-        : 'border-red-200 bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200';
+  const variant = m.tone === 'ok' ? 'success' : m.tone === 'warn' ? 'warning' : 'error';
   return (
-    <div
-      role={m.tone === 'err' ? 'alert' : 'status'}
-      className={`rounded-md border p-3 text-sm ${toneClass}`}
-    >
+    <Alert variant={variant} role={m.tone === 'err' ? 'alert' : 'status'}>
       {m.text}
-    </div>
+    </Alert>
   );
 }

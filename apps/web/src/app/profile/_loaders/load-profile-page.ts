@@ -41,6 +41,7 @@ type ProfileRow = {
   avatar_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
+  discoverable: boolean | null;
   primary_position: string | null;
   secondary_position: string | null;
   tertiary_position: string | null;
@@ -61,6 +62,7 @@ export type ProfileView = {
   avatar_url: string | null;
   auto_accept_team_invites: boolean;
   show_pro_badge: boolean;
+  discoverable: boolean;
   primary_position: string | null;
   secondary_position: string | null;
   tertiary_position: string | null;
@@ -151,7 +153,7 @@ export async function loadProfilePage(
   const { data } = await supabase
     .from('profiles')
     .select(
-      'handle, first_name, last_name, display_name, home_city, avatar_url, auto_accept_team_invites, show_pro_badge, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
+      'handle, first_name, last_name, display_name, home_city, avatar_url, auto_accept_team_invites, show_pro_badge, discoverable, primary_position, secondary_position, tertiary_position, instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url',
     )
     .eq('id', user.id)
     .maybeSingle();
@@ -166,6 +168,7 @@ export async function loadProfilePage(
     avatar_url: row?.avatar_url ?? null,
     auto_accept_team_invites: row?.auto_accept_team_invites ?? false,
     show_pro_badge: row?.show_pro_badge ?? true,
+    discoverable: row?.discoverable ?? true,
     primary_position: row?.primary_position ?? null,
     secondary_position: row?.secondary_position ?? null,
     tertiary_position: row?.tertiary_position ?? null,

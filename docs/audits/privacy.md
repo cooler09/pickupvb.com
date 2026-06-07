@@ -92,6 +92,23 @@ SET NULL). Account **deletion** covers the new tables via FK CASCADE to
 the gap is **export**, not deletion (#18). `media_posts` stores external
 `https://` URLs only (no uploads) — no storage-orphan retention gap.
 
+## 2026-06-07 — feature: private players (`discoverable` opt-out)
+
+Not an audit finding — a user-requested privacy control, logged here because it
+narrows the public surface. New `profiles.discoverable boolean not null default
+true` (migration `20260924000000_profiles_discoverable.sql`), surfaced as an
+"Appear in player search" profile toggle. When `false`, the player is excluded
+from the `/players` directory, the name-search typeahead, and the team/group
+"add member" pickers — the two discovery reads
+(`SupabaseProfileRepository.searchDirectory` / `searchCards`) gain
+`.eq('discoverable', true)`, and the team-add action hard-rejects a private
+invitee even by direct id. Deliberately **not** filtered: the card-by-id /
+by-handle lookups, so a private player still resolves on rosters / attendee
+chips / their own profile page (private = not discoverable, not hidden
+everywhere). `discoverable` is projected into `profiles_public` (so the anon
+directory can filter) but the view itself stays unfiltered. Narrative:
+[journal 2026-06-07-bundle-private-players](../journal/2026-06-07-bundle-private-players.md).
+
 ## 2026-05-31 re-audit — status update
 
 Re-ran the privacy review against the current tree. **Compliance posture from

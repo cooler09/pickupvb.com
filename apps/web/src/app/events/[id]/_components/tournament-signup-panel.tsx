@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
+import { Alert } from '@/components/alert';
 import { registerTeamFromForm, withdrawTeamFromForm } from '../team-signup-actions';
 import { startRosterTeamCheckout } from '../roster-team-checkout-actions';
 
@@ -110,16 +111,7 @@ export function TournamentSignupPanel({
       </header>
 
       {result && (
-        <div
-          role={result.tone === 'success' ? 'status' : 'alert'}
-          className={`rounded-md border p-3 text-sm ${
-            result.tone === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-red-200 bg-red-50 text-red-700'
-          }`}
-        >
-          {result.text}
-        </div>
+        <Alert variant={result.tone === 'success' ? 'success' : 'error'}>{result.text}</Alert>
       )}
 
       <div className="space-y-2">

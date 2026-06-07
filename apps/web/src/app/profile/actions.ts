@@ -53,6 +53,9 @@ export async function updateProfile(
   const displayNameInput = fieldOrNull(formData, 'display_name', 80);
   const autoAcceptTeamInvites = bool(formData, 'auto_accept_team_invites');
   const showProBadge = bool(formData, 'show_pro_badge');
+  // Discovery opt-in. The toggle defaults checked, so an unchecked box (absent
+  // from the FormData) ⇒ `false` ⇒ the player goes private.
+  const discoverable = bool(formData, 'discoverable');
   const primaryPosition = readPosition(formData, 'primary_position');
   const secondaryPosition = readPosition(formData, 'secondary_position');
   const tertiaryPosition = readPosition(formData, 'tertiary_position');
@@ -99,6 +102,7 @@ export async function updateProfile(
         },
         autoAcceptTeamInvites,
         showProBadge,
+        discoverable,
       }),
     );
   } catch (err) {
@@ -130,6 +134,10 @@ export async function updateProfile(
 
   revalidatePath('/profile');
   revalidatePath('/', 'layout');
+  // The players directory (and its name search) is a discovery surface that now
+  // reflects `discoverable` — and also shows the edited name/city/positions — so
+  // bust its ISR cache on every save rather than waiting out the 60s TTL.
+  revalidatePath('/players');
   return { error: null, success: true };
 }
 

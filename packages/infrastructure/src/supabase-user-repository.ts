@@ -12,7 +12,7 @@ const EDITABLE_COLUMNS =
   'id, display_name, first_name, last_name, home_city, handle, ' +
   'primary_position, secondary_position, tertiary_position, ' +
   'instagram_handle, tiktok_handle, twitter_handle, facebook_handle, youtube_handle, website_url, ' +
-  'auto_accept_team_invites, show_pro_badge, ' +
+  'auto_accept_team_invites, show_pro_badge, discoverable, ' +
   'theme_preference, hero_image_url, avatar_url, business_name, business_address, tax_id';
 
 type EditableRow = {
@@ -33,6 +33,7 @@ type EditableRow = {
   website_url: string | null;
   auto_accept_team_invites: boolean | null;
   show_pro_badge: boolean | null;
+  discoverable: boolean | null;
   theme_preference: string | null;
   hero_image_url: string | null;
   avatar_url: string | null;
@@ -88,6 +89,7 @@ export class SupabaseUserRepository implements UserRepository {
       },
       autoAcceptTeamInvites: row.auto_accept_team_invites ?? false,
       showProBadge: row.show_pro_badge ?? false,
+      discoverable: row.discoverable ?? true,
       themePreference: row.theme_preference ?? 'light',
       heroImageUrl: row.hero_image_url,
       avatarUrl: row.avatar_url,
@@ -119,6 +121,7 @@ export class SupabaseUserRepository implements UserRepository {
         website_url: user.socialHandles.website,
         auto_accept_team_invites: user.autoAcceptTeamInvites,
         show_pro_badge: user.showProBadge,
+        discoverable: user.discoverable,
         theme_preference: user.themePreference,
         hero_image_url: user.heroImageUrl,
         avatar_url: user.avatarUrl,

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
+import { Alert } from '@/components/alert';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { useAlertReveal } from '@/components/use-alert-reveal';
@@ -62,13 +63,8 @@ export default function ForgotPasswordPage() {
           </label>
 
           {error && (
-            <div
-              ref={errorRef}
-              tabIndex={-1}
-              role="alert"
-              className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
-            >
-              {error}
+            <div ref={errorRef} tabIndex={-1} className="outline-none">
+              <Alert variant="error">{error}</Alert>
             </div>
           )}
 
