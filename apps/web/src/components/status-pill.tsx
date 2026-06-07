@@ -15,8 +15,8 @@ export type StatusPillTone = 'primary' | 'success' | 'pending' | 'neutral';
 
 const TONE: Record<StatusPillTone, string> = {
   primary: 'border-primary/30 bg-primary/10 text-primary',
-  success: 'border-emerald-300 bg-emerald-50 text-emerald-800',
-  pending: 'border-amber-300 bg-amber-50 text-amber-900',
+  success: 'border-md-success/30 bg-md-success-container text-md-on-success-container',
+  pending: 'border-md-warning/30 bg-md-warning-container text-md-on-warning-container',
   neutral: 'border-border-base bg-fg/5 text-muted',
 };
 

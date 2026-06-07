@@ -62,11 +62,15 @@
 > were cool-cyan (off-brand) and the brand's warm-light/teal-dark scheme can't
 > come from one M3 neutral seed — so the surface/outline family was
 > **hand-authored** to match the brand (`surface-container` == brand card, exact
-> zero-change) + a reference adoption landed. Pattern in
-> [AGENTS.md #17](../../AGENTS.md). **Open:** the app-wide surface migration (now
-> unblocked — a visual-review bundle) + inline status pills / destructive
-> text-links + decorative palette (scoreboard red/green are _team_ colors). See
-> the
+> zero-change) + a reference adoption landed. Then the **centralized semantic
+> recipes** (`fieldErrorClass`/`FieldError`/`TextField` error, `StatusPill`, the
+> 3 duplicated payment-status maps, rsvp-flash error, the inline Paid/Pending/
+> Refunded labels) moved to role tokens — fixing dark-mode error text app-wide.
+> **Net: raw palette 555 → 350.** Pattern in [AGENTS.md #17](../../AGENTS.md).
+> **Open:** the app-wide surface migration (now unblocked — a visual-review
+> bundle) + destructive text-buttons (`text-red-600` Withdraw/Leave/Remove) +
+> hand-rolled notice boxes + bg-tinted status badges + decorative palette
+> (scoreboard red/green are _team_ colors). See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
@@ -1203,6 +1207,46 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Semantic recipes + payment-status pills → role tokens (2026-06-07)
+
+Fifth S2 step. Migrated the **centralized** semantic recipes (highest leverage
+— each fixes many downstream call sites at once, and notably fixes dark-mode
+error text, which was dark-red-on-dark before):
+
+- [field-styles.ts](../../apps/web/src/components/field-styles.ts)
+  `fieldErrorClass`, [field-error.tsx](../../apps/web/src/components/field-error.tsx)
+  default, and [text-field.tsx](../../apps/web/src/components/text-field.tsx)
+  (error chassis + supporting text): `text-red-600` / `border-red-600` →
+  `text-md-error` / `border-md-error`. These are THE form-error recipes —
+  every field error across the app is now theme-aware.
+- [status-pill.tsx](../../apps/web/src/components/status-pill.tsx) `success` /
+  `pending` tones + the three duplicated payment-status maps
+  ([teams-registered-section](../../apps/web/src/app/events/[id]/_components/teams-registered-section.tsx),
+  [host-ad-hoc-teams-panel](../../apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx),
+  [ad-hoc-team-signup-panel](../../apps/web/src/app/events/[id]/_components/ad-hoc-team-signup-panel.tsx),
+  `none/pending/paid` → amber/amber/emerald) → `bg-md-{warning,success}-container`
+  - `text-md-on-*-container`. `primary`/`neutral`/`refunded` tones stay on brand
+    tokens.
+- [event-rsvp-flash.ts](../../apps/web/src/lib/event-rsvp-flash.ts) error banner
+  → `bg-md-error-container` (success/info already on brand tokens).
+- [tournament-signup-panel.tsx](../../apps/web/src/app/events/[id]/_components/tournament-signup-panel.tsx)
+  inline `· Paid` / `· Payment pending` / `· Refunded` labels →
+  `text-md-{success,warning,error}` (plain role colours for inline text on a
+  surface — first consumers of `text-md-success`/`-warning`; confirmed emitting
+  in the built CSS).
+
+**Net: raw palette 395 → 350.** **Deferred (a clean next bundle):** the
+**destructive text-buttons** — `text-red-600 hover:underline` (Withdraw / Leave
+/ Remove, ~17 sites incl. the leftovers in the panels above) and the
+`hover:text-red-600` icon actions → `text-md-error`; plus the hand-rolled
+**notice boxes** not caught by the banner sweep (billing, media, community
+viewer-chrome, event-flash-banners, edit-event-form) and the bg-tinted
+**status badges** (`bg-amber-100` fundraiser/waitlist pills on event-card,
+attendee-list, event-meta) — each a per-surface recolor to role tokens. The
+bracket live/draft + scoreboard "saved" indicators are status-ish but
+borderline decorative; leave for the visual-review pass. Verify: 15/15
+typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
 
 ### Surface-container hierarchy — brand-matched ramps authored (2026-06-07)
 

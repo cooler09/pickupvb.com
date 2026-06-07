@@ -80,9 +80,14 @@ transparent)` with a solid `rgb(var(...))` fallback rule — verified in the
   community-notice, the two signup panels, import-client) were swapped for
   `<Alert variant>` — wrapping the ref'd `useAlertReveal` div per pattern 15,
   mapping tone→variant, recoloring import-client's dense result rows in place.
-  **Net raw palette 555 → 395.** See the m3-alignment remediation log. The
-  remaining red/amber/green is inline status pills + destructive text-links
-  (different category, follow-up).
+  **Net raw palette 555 → 395.** Then (same day) the **centralized semantic
+  recipes** — `fieldErrorClass` / `FieldError` / `TextField` error,
+  `StatusPill`, the 3 duplicated payment-status maps, `rsvp-flash` error, the
+  inline Paid/Pending/Refunded labels — moved to role tokens, fixing dark-mode
+  error text app-wide (was dark-red-on-dark). **Net 395 → 350.** See the
+  m3-alignment remediation log. Remaining: destructive text-buttons
+  (`text-red-600` Withdraw/Leave/Remove), hand-rolled notice boxes, bg-tinted
+  status badges — each a per-surface recolor follow-up.
 - **No palette ratchet yet** — raw red/amber/emerald can't reach zero
   (decorative/team uses remain), so the lint lock waits until a _fully
   migratable_ sub-bucket exists.

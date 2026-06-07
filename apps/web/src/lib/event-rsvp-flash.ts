@@ -211,6 +211,7 @@ export function rsvpBannerFor(
 
 export const RSVP_BANNER_CLASS: Record<RsvpBannerTone, string> = {
   success: 'rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary',
-  error: 'rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700',
+  error:
+    'rounded-md border border-md-error/30 bg-md-error-container px-4 py-2 text-sm text-md-on-error-container',
   info: 'rounded-md border border-border-base bg-highlight/30 px-4 py-2 text-sm text-fg/80',
 };

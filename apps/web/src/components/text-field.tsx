@@ -81,7 +81,7 @@ const chassisBase =
   'flex w-full items-center gap-2 rounded-md border bg-surface text-sm text-fg transition-colors focus-within:ring-2 focus-within:ring-offset-2';
 const chassisIdle =
   'border-border-base focus-within:border-md-primary focus-within:ring-md-primary';
-const chassisError = 'border-red-600 focus-within:border-red-600 focus-within:ring-red-600';
+const chassisError = 'border-md-error focus-within:border-md-error focus-within:ring-md-error';
 
 function inputPadding(hasLeading: boolean, hasTrailing: boolean): string {
   // The chassis owns the vertical padding so leading/trailing
@@ -177,7 +177,7 @@ export const TextField = forwardRef(function TextField(
           // role="alert" only when we're showing an error message —
           // helper copy shouldn't preempt the screen reader.
           {...(hasError ? { role: 'alert' } : {})}
-          className={`mt-1 text-xs ${hasError ? 'text-red-600' : 'text-muted'}`}
+          className={`mt-1 text-xs ${hasError ? 'text-md-error' : 'text-muted'}`}
         >
           {hasError ? errorMsg : supportingText}
         </p>

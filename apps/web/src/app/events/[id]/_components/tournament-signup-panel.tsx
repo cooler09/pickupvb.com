@@ -152,12 +152,12 @@ export function TournamentSignupPanel({
                     <p className="text-muted text-xs">
                       Captain: {t.captain?.displayName ?? 'Unknown'} · {t.memberCount} player
                       {t.memberCount === 1 ? '' : 's'}
-                      {owesPayment && isPaid && <span className="text-emerald-700"> · Paid</span>}
+                      {owesPayment && isPaid && <span className="text-md-success"> · Paid</span>}
                       {owesPayment && isPending && (
-                        <span className="text-amber-700"> · Payment pending</span>
+                        <span className="text-md-warning"> · Payment pending</span>
                       )}
                       {owesPayment && isRefunded && (
-                        <span className="text-red-700"> · Refunded</span>
+                        <span className="text-md-error"> · Refunded</span>
                       )}
                     </p>
                   </div>
