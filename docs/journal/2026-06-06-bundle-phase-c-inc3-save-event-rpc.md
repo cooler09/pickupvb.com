@@ -65,6 +65,38 @@ write in a SECURITY DEFINER RPC (or single transaction) for atomicity." See
   `event_status`, `registration_mode`, `format`, `gender`, `skill_tier`,
   `age_group`, `team_composition`, `team_registration_mode`, `price_unit`) exist.
 
+### Post-deploy verification — ✅ green on dev (2026-06-06)
+
+After deploy, the deploy-gate was cleared by running the e2e suite against
+`dev.pickupvb.com` (`bash apps/web/scripts/e2e.sh <spec>`; the migration applies
+via CI/CD). `save_event` exercised across **every** reconcile path with no 500s /
+RPC errors:
+
+- **create + edit + divisions** — `event-create-extended` smoke (18/18; the
+  free open-play create → edit → cancel flow = events upsert + default division +
+  status update).
+- **attendee insert into a full event** — the capacity-1 event showed
+  `Full · 1 signed up` after the contender joined.
+- **free agent** — `persona-tyler-free-agent` (free-agent reconcile).
+- **roster teams** — `persona-adam-captain` (team attach).
+- **waitlist insert + auto-promotion** — `persona-hannah-waitlist` (rewritten,
+  see below): full → "Join waitlist" → "You're #1 on the waitlist" → contender
+  leaves → Hannah auto-promoted onto the roster.
+
+**Side-fix:** `persona-hannah-waitlist.authed.spec.ts` was **stale** — it asserted
+the pre-ADR-0036 "full → `CapacityExceededError` rejection" behavior (its doc +
+`fixme`s claimed no `event_waitlist` table / promotion exists, false since the
+waitlist shipped). Rewrote it to the real lifecycle, refreshed the doc, dropped the
+now-covered auto-promotion `fixme` (kept the realtime one). Gotchas: the signup
+`<details>` collapses once a viewer is "in" (hiding "Leave event" / the "You're
+signed up" pill) → used the canonical `expandSignupSection()` helper for the leave
+and asserted the visible "You're in — view details" summary instead of the hidden
+pill. Green on dev.
+
+**vercel-logs note:** the Vercel CLI account lost team access and the personal-scope
+fallback returns no deployments, so `vercel logs`/`ls` can't read dev — use the e2e
+suite to verify deploys.
+
 ## Risks
 
 - **⚠️ The migration cannot be verified locally** (no Docker / local Supabase) and

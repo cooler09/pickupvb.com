@@ -1,5 +1,19 @@
 # Architecture audit — 2026-05-17
 
+> **Status update (2026-06-06, Phase C inc. 3 — `save_event` RPC: ✅ VERIFIED ON DEV; deploy-gate cleared).**
+> The deploy-gated `save_event` RPC was deployed and verified green against
+> `dev.pickupvb.com` via the e2e suite (`bash apps/web/scripts/e2e.sh`; the
+> migration applies via CI/CD). Confirmed across **every** reconcile path with no
+> 500s / RPC errors: create + edit + divisions (`event-create-extended` smoke
+> 18/18), attendee insert into a full capacity-1 event, free agent
+> (`persona-tyler`), roster teams (`persona-adam`), and the full waitlist
+> lifecycle — insert + **auto-promotion-on-leave** (`persona-hannah`). **P2-2 is
+> now fully done (no longer gated).** Side-fix: the stale
+> `persona-hannah-waitlist` spec (asserted the pre-ADR-0036 "full → rejected"
+> behavior; its doc/`fixme`s wrongly claimed no waitlist exists) was rewritten to
+> the real full → waitlist → auto-promote lifecycle and is green on dev. See the
+> [C3 journal](../journal/2026-06-06-bundle-phase-c-inc3-save-event-rpc.md#post-deploy-verification--green-on-dev-2026-06-06).
+>
 > **Status update (2026-06-06, Phase D — P3 cleanup: P3-2 RESOLVED, P3-1 PARTIAL).**
 > **P3-2 (`messages.ts` 761-LOC single-module) — RESOLVED.** Split into a
 > [`messages/`](../../packages/application/src/messages/) directory, one file per
