@@ -15,20 +15,14 @@ import { NextResponse } from 'next/server';
 import { SupabaseNotificationOutboxRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { log } from '@/lib/log';
+import { isCronAuthorized } from '@/lib/cron-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-async function authorized(request: Request): Promise<boolean> {
-  const secret = process.env['CRON_SECRET'];
-  if (!secret) return true;
-  const header = request.headers.get('authorization');
-  return header === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request): Promise<NextResponse> {
-  if (!(await authorized(request))) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 

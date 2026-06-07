@@ -6,6 +6,70 @@
 **Method:** read-only static review. Server actions, API routes, auth flows,
 RLS policies, third-party integrations, secrets handling, logging.
 
+**Status update (2026-06-07) — fresh re-audit (chat / media / badges / waitlist /
+GDPR surface):** read-only pass over the large feature surface added since the
+2026-05-30 re-audit — chat messaging, media posts, gamification badges, capacity
+waitlist, account deletion + GDPR export, host-added teams, live scoring, the new
+cron + data-export routes. Lens: authorization on write paths, admin-client (RLS
+bypass) usage, RLS column-pinning, route auth. **Headline: 2 P1 (one a confirmed
+un-applied regression) + 1 P2 worsened + 1 P2 new + 1 P3 new.** Full write-up:
+[§ Reevaluation — 2026-06-07](#reevaluation--2026-06-07).
+
+> **✅ Remediated same day (2026-06-07):** the two P1s and the cron fail-open were
+> fixed and verified (`pnpm typecheck && lint && test && build` green) — see the
+> [2026-06-07 remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+> **Still open: P2 #16** (RLS column-pinning — needs migrations) and **P3 #17**
+> (`/api/sentry-test`). The bullets below describe the findings as-found.
+
+- **P1 #12 is STILL OPEN — the 2026-05-30 recommended fix was never applied.**
+  Re-confirmed exploitable at HEAD: `addEventCoHost` / `add|update|removeEventDivision`
+  ([co-host-actions.ts#L48](../../apps/web/src/app/events/[id]/co-host-actions.ts#L48),
+  [division-actions.ts#L91](../../apps/web/src/app/events/[id]/division-actions.ts#L91))
+  still only `requireSession()` (any signed-in, incl. anonymous, user); the handlers
+  still carry the "authz lives at the DB layer (RLS)" comment with **no app-layer host
+  check** ([co-host.handler.ts](../../packages/application/src/commands/co-host.handler.ts),
+  [event-division.handler.ts](../../packages/application/src/commands/event-division.handler.ts));
+  and `eventRepo` is still `new SupabaseEventRepository()` with no client →
+  lazy service-role admin → RLS bypassed
+  ([handlers.ts#L166](../../apps/web/src/lib/handlers.ts#L166),
+  [supabase-event-repository.ts#L304-L313](../../packages/infrastructure/src/supabase-event-repository.ts#L304-L313)).
+  Any signed-in user self-adds as co-host of any event (privilege escalation into the
+  full host surface incl. attendee-PII CSV export) or adds/edits/**deletes** divisions
+  on any event (data loss).
+- **P1 #15 (new) — `GET /api/events/[id]` leaks any scoped / private / draft event,
+  unauthenticated.** The unclosed REST sibling of P1 #14:
+  [route.ts](../../apps/web/src/app/api/events/[id]/route.ts) → `GetEventByIdHandler`
+  reads via the admin client with **no viewer and no visibility gate** and returns full
+  detail including the **exact street address + latitude/longitude**, for any event id
+  regardless of `visibility` (`friends_of_host` / `invite_only`) or `status`
+  (draft/unpublished). The route has **no auth check at all**. The 2026-06-04 fix only
+  covered the page loader + `generateMetadata`. The endpoint is also unreferenced by the
+  frontend (stale-but-live surface).
+- **P2 #13 worsened — cron fail-open spread to 6 routes, still no shared helper.** The
+  `if (!secret) return true` pattern was copied verbatim into three new crons, including
+  the **destructive** `account/execute-deletions` (hard-deletes accounts after the grace
+  window), `community-listings/auto-approve`, and `badges/reconcile`.
+- **P2 #16 (new) — RLS `UPDATE` policies don't pin privileged columns.** Two instances
+  let a row's owner escalate via a direct PostgREST `PATCH`: `media_posts_update`
+  (self-set `featured=true` → bypasses the host-gated `feature_event_stream` RPC;
+  self-set `status='active'` → reverses report auto-hide) and `messages_update`
+  (`WITH CHECK` never re-validates `can_access_conversation`, doesn't pin
+  `conversation_id` / `deleted_at` → cross-room message injection + self-undelete of a
+  moderator-removed message). The app's own code paths are clean; the gap is the RLS
+  policy, reachable directly with the user's JWT.
+- **P3 #17 (new) — `/api/sentry-test` is publicly invokable** with no auth — anyone can
+  flood Sentry or force unhandled rejections (`?kind=unhandled`). Stale debug surface;
+  gate to non-prod or remove.
+
+Verified still-safe this pass: `pnpm audit --prod` reports **0 vulnerabilities**; the
+P1 #14 page + metadata visibility gate is present
+([load-event-detail.ts#L228-L268](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts#L228-L268));
+chat access helpers (`can_access_conversation` / `can_moderate_conversation`),
+`list_room_recipients` (service-role only), `event_waitlist` RLS, `set_user_badge_hidden`
+(owner-scoped), `feature_event_stream` (host-gated RPC), and the `awardEventBadge`
+`canManage` gate are all sound. SECURITY DEFINER hygiene is good — almost all new
+definers run `set search_path = ''` with schema-qualified refs.
+
 **Status update (2026-06-04) — scoped-event read leak (e2e-surfaced):** the
 persona e2e suite (`persona-olivia-social`) caught a **P1 privacy leak**, the
 read-side twin of P1 #12 / [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes).
@@ -390,6 +454,197 @@ not just trust the client.
 
 ---
 
+## Reevaluation — 2026-06-07
+
+Read-only re-audit against HEAD, graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = ship-blocking
+bug / data-loss / broken authz; P2 = next-sprint hardening; P3 = nice-to-have).
+Scope: the feature surface added since the 2026-05-30 re-audit — chat messaging
+(`conversations` / `messages` / `user_blocks`), media posts, gamification badges,
+the capacity waitlist, account deletion + GDPR export, host-added teams, live
+match scoring — plus the cron + data-export routes that grew alongside them.
+
+### What's solid (verified safe this pass)
+
+- **`pnpm audit --prod` → 0 vulnerabilities.** The P1 #0 / Bundle-2 dependency
+  posture holds.
+- **Chat access control** — `can_access_conversation` / `can_moderate_conversation`
+  / `is_blocked_pair` are SECURITY DEFINER, `search_path = ''`, schema-qualified,
+  and reused as the single gate by every chat RLS policy; `list_room_recipients`
+  is **service-role only** (revoked from `public`). DM creation gates on block +
+  anonymous + self-DM. `messages_insert` correctly enforces membership, non-anon,
+  and the bidirectional block check.
+- **`event_waitlist` RLS** — own-row select/insert/delete, host sees all; the
+  promote-on-leave side effect runs admin (app-authorized, pitfall #8). Sound.
+- **`set_user_badge_hidden`** is owner-scoped (`where user_id = auth.uid()`);
+  **`feature_event_stream`** is host-gated (`is_event_host`); **`awardEventBadge`**
+  self-authorizes via `canManage` and scopes deletes to `source='host'`.
+- **GDPR export** ([account/export](../../apps/web/src/app/api/account/export/route.ts))
+  runs entirely on the **user-scoped** client, every category filtered to the
+  caller's own id, and excludes the push `auth` secret — RLS is the safety net.
+- **P1 #14 page gate** is present (`load-event-detail.ts` + `generateMetadata`),
+  deploy-gated as recorded — but see **P1 #15** for the REST route it missed.
+
+---
+
+### P1 #12 — ✅ RESOLVED 2026-06-07 (was a re-confirmed still-open regression): co-host / division CRUD bypass authorization
+
+As-found, this was unchanged from 2026-05-30 except that it had survived two
+deploys without the fix landing. **Fixed 2026-06-07** at the server-action
+boundary (not the handler): `addEventCoHost` / `removeEventCoHost` and the three
+division actions now call `assertCanManage(eventId)`, which loads
+`GetEventDetailQuery.canManage` (host / co-host / group-owner-or-admin — the exact
+set the manage UI gates on) and rejects everyone else before the admin-backed
+handler runs. **Why the action boundary, not the handler** (a deviation from the
+original recommendation): `canManage` is computed in the web layer from co-host +
+group-membership data that the pure `@pickupvb/application` handler has no port
+for, and the in-repo precedent for host-gated admin-client writes
+(`record-division-winner-actions.ts`, `award-badge-actions.ts`,
+`edit/sponsor-actions.ts`, `edit/badge-actions.ts`) all gate at the action with
+`assertCanManage`. Matched that pattern. No action-level test was added — the
+events/[id] action directory has none and the four sibling gates are untested
+too; a future shared `requireEventManager` helper (DRY-ing all six copies) is the
+natural home for a unit test. See the
+[remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+
+---
+
+### P1 #15 — ✅ RESOLVED 2026-06-07: `GET /api/events/[id]` leaks any scoped / private / draft event, unauthenticated 🆕 2026-06-07
+
+> **✅ Resolved 2026-06-07** via fix option (1): the route file
+> `apps/web/src/app/api/events/[id]/route.ts` was **deleted** (it was unreferenced
+> by the frontend — the app drives event detail through the page loader + server
+> actions). The underlying `GetEventByIdHandler` is now unused by any route but
+> remains wired in `handlers.ts`; it is still **ungated** and must not be
+> re-exposed without a viewer/visibility gate. The orphaned `api/events`
+> (GET/POST), `api/events/[id]/join`, and `.../leave` routes were left in place
+> (authenticated, not leaking) pending confirmation there's no external API
+> consumer. See the
+> [remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+
+**Category:** Broken access control / PII disclosure
+**Files:**
+
+- [apps/web/src/app/api/events/[id]/route.ts](../../apps/web/src/app/api/events/[id]/route.ts) — `GET` calls `handlers.getEventById.execute(new GetEventByIdQuery(params.id))` with **no `requireUser()` and no viewer**.
+- [packages/application/src/queries/event-queries.handler.ts](../../packages/application/src/queries/event-queries.handler.ts) — `GetEventByIdHandler.execute({ id })` reads `repo.findById(id)` (admin client) and returns `title`, `description`, `rules`, `startsAt`, `attendeeCount`, and the full `location` block including `addressLine`, `latitude`, `longitude`. No `visibility` / `status` gate.
+
+**Issue:** This is the **unclosed REST sibling of P1 #14.** The 2026-06-04 fix
+gated the event-detail _page_ loader and `generateMetadata`, but this standalone
+JSON endpoint reads the same admin-client repo with no gate and **no
+authentication at all**. `GET /api/events/<id>` returns the full record for any
+event id — including `friends_of_host` / `friends_of_attendees` / `invite_only`
+events and **unpublished drafts** — to an anonymous, unauthenticated caller. The
+exposed `location.addressLine` + `latitude` + `longitude` make this a
+physical-location disclosure for private events, not just a metadata leak.
+
+**Why P1:** Production-exploitable, unauthenticated disclosure of private user
+data. Event UUIDs leak through share links, OG cards, and search; an attacker who
+has (or enumerates) one reads a scoped event's address and exact coordinates with
+a single unauthenticated GET. The endpoint is also **unreferenced by the frontend**
+(no `fetch` call anywhere in `apps/web/src`), so it's pure attack surface with no
+product value to weigh against removing it.
+
+**Fix (pick one):**
+
+1. **Delete the route** (and the now-orphaned `api/events/[id]/join`,
+   `.../leave`, and `api/events` GET/POST if they're equally unused — confirm no
+   external/mobile consumer first). Smallest surface.
+2. **Gate it like the page:** add `requireUser()` and thread the viewer id into a
+   visibility-aware query (delegate to the RLS-protected base `events` SELECT, the
+   same pattern `load-event-detail.ts` now uses), returning 404 for events the
+   viewer can't see. Anonymous callers get the static `published && (public |
+invite_only)` check.
+
+Either way, add a regression test (or e2e) asserting a `friends_of_host` event
+returns 404 from this endpoint for a non-friend / anonymous caller — the same
+shape as the `persona-olivia-social` spec that caught P1 #14.
+
+---
+
+### P2 #16 — RLS `UPDATE` policies don't pin privileged columns (owner can self-escalate via direct PostgREST) 🆕 2026-06-07
+
+**Category:** Broken authorization / RLS column scoping
+**Files:**
+
+- [supabase/migrations/20260820000000_media_posts.sql#L223-L234](../../supabase/migrations/20260820000000_media_posts.sql#L223-L234) — `media_posts_update` `WITH CHECK` is `submitter_user_id = auth.uid() OR is_event_host(...) OR is_platform_admin()` with no column restriction; `media_posts_insert#L214-L220` requires only `submitter_user_id = auth.uid()` (no event-membership check).
+- [supabase/migrations/20260824000000_chat_messaging.sql#L518-L527](../../supabase/migrations/20260824000000_chat_messaging.sql#L518-L527) — `messages_update` `USING`/`WITH CHECK` is `sender_id = auth.uid() OR can_moderate_conversation(...)`; it never re-asserts `can_access_conversation(conversation_id)` (unlike `messages_insert`) and doesn't pin `conversation_id` or `deleted_at`.
+
+**Issue:** Supabase grants table-level `UPDATE` to `authenticated` by default; RLS
+is the only gate, and an `UPDATE` policy that checks _who owns the row_ but not
+_which columns changed_ lets the owner mutate **privileged** columns the feature
+intends to be controlled elsewhere. Two concrete escalations, both reachable with
+the caller's own JWT via a direct `PATCH` to PostgREST (the app's own code paths
+are clean — `SupabaseMessageRepository.update` only writes `body`/`edited_at`/
+`deleted_at`, and featuring goes through the host-gated RPC — so this is invisible
+to the UI but live at the API):
+
+1. **media_posts — bypass host curation + reverse moderation.** Any user may
+   `INSERT` a `live_stream` media post pointed at **any event** (insert policy
+   doesn't check event membership), then `PATCH featured=true` — the
+   `media_posts_one_featured_stream` partial unique index only forbids _two_
+   featured streams, so if none is featured the attacker's video becomes the
+   host-promoted featured stream on someone else's event, despite
+   `feature_event_stream` being host-gated. Separately, a submitter whose post was
+   auto-hidden at 3 reports (or hidden by a host) can `PATCH status='active'` to
+   un-hide it.
+2. **messages — cross-room injection + un-delete.** A member of room A can `PATCH`
+   one of their own messages, setting `conversation_id` to room B (which they
+   cannot access); `WITH CHECK` passes on `sender_id` alone, the `broadcast_message`
+   trigger fans it out live to `chat:B`, and room-B members see a message from a
+   non-member. A sender can also `PATCH deleted_at=null` to resurrect a message a
+   moderator soft-deleted.
+
+**Why P2 (not P1):** conditional on an attacker hand-crafting PostgREST calls (no
+UI path), and the blast radius is content-integrity / moderation rather than PII
+or account takeover — but it's a genuine authorization bypass on write paths, the
+same class as pitfall #8, and the two surfaces are the app's primary UGC
+moderation story.
+
+**Fix:** RLS `WITH CHECK` can't compare to `OLD`, so pin privileged columns with a
+`BEFORE UPDATE` trigger (SECURITY DEFINER, `search_path=''`) that rejects changes
+to the protected columns unless the actor is the privileged party:
+
+- `media_posts`: reject a change to `featured` / `status` / `report_count` unless
+  `is_event_host(old.event_id) OR is_platform_admin()` (let the submitter still
+  edit `title` / `description` / `video_url`). Also add an event-membership /
+  host check to `media_posts_insert` if posting is meant to be scoped.
+- `messages`: reject any change to `conversation_id` (immutable); reject clearing
+  `deleted_at` unless `can_moderate_conversation(conversation_id)`. Equivalent:
+  route edits/soft-deletes through a SECURITY DEFINER RPC and drop the broad
+  table `UPDATE` grant.
+
+Add a regression test per surface (e.g. "submitter cannot self-feature",
+"sender cannot move a message across conversations").
+
+---
+
+### P3 #17 — `/api/sentry-test` is publicly invokable 🆕 2026-06-07
+
+**Category:** Stale debug surface / abuse
+**File:** [apps/web/src/app/api/sentry-test/route.ts](../../apps/web/src/app/api/sentry-test/route.ts)
+
+**Issue:** A `GET` endpoint that intentionally `throw`s, captures a Sentry message,
+or fires an unhandled rejection (`?kind=unhandled`) — with no auth. Anyone can hit
+it in a loop to inflate Sentry error volume / quota cost and pollute the error
+feed, and `?kind=unhandled` deliberately creates unhandled rejections in the
+serverless runtime. It's a debug helper that shouldn't be reachable in production.
+
+**Fix:** Return 404 when `NODE_ENV === 'production'` (or gate behind the same
+`CRON_SECRET`/admin check as the crons), or delete it — the Sentry integration is
+long since verified.
+
+**Stale-code note (informational):** while confirming P1 #15, the REST routes
+`api/events` (GET/POST), `api/events/[id]` (GET), `api/events/[id]/join`, and
+`.../leave` were found to have **no `fetch` references anywhere in
+`apps/web/src`** — the app drives all of this through server actions. The
+authenticated ones (`join` / `leave` / create) are not insecure, but they are
+unmonitored attack surface with no product consumer. Recommend confirming there's
+no external/mobile API consumer, then deleting them (closes P1 #15 for free) or
+documenting them as a supported public API with explicit auth + rate-limit
+expectations.
+
+---
+
 ## Reevaluation — 2026-05-30
 
 Read-only re-audit against HEAD, graded with the
@@ -416,6 +671,23 @@ captain check in the app layer before any admin write. Two paths did not.
 ---
 
 ### P1 #12 — Division CRUD + co-host add/remove bypass authorization (admin-client → RLS-bypass; privilege escalation + data loss) 🆕 2026-05-30
+
+> **✅ Resolved 2026-06-07.** Both server actions now gate on `assertCanManage(eventId)`
+> (the host / co-host / group-owner-or-admin `canManage` set, mirroring
+> `record-division-winner-actions.ts`) before invoking the handler; the handlers'
+> RLS-reliance comments were corrected to point at the action-boundary gate. See the
+> [remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+>
+> **🔴 As-found 2026-06-07 — was STILL OPEN; the 2026-05-30 fix was never applied.**
+> Re-verified exploitable at HEAD. Both server actions still only `requireSession()`,
+> both handlers still carry the unchanged "authz lives at the DB layer (RLS)" comment
+> with no app-layer host check, and `eventRepo = new SupabaseEventRepository()`
+> ([handlers.ts#L166](../../apps/web/src/lib/handlers.ts#L166)) still has no injected
+> client, so it lazily builds a **service-role** client and the RLS the comments rely on
+> never fires. The `mapErrorAndFlash` in
+> [co-host-actions.ts#L34](../../apps/web/src/app/events/[id]/co-host-actions.ts#L34)
+> even maps `UnauthorizedError` to a flash — but nothing on the path ever throws it.
+> This is the single highest-priority open item in this file.
 
 **Category:** Broken authorization / privilege escalation
 **Files:**
@@ -486,6 +758,27 @@ but the pattern is easy to re-introduce.
 ---
 
 ### P2 #13 — Cron routes fail _open_ when `CRON_SECRET` is unset 🆕 2026-05-30
+
+> **✅ Resolved 2026-06-07.** All seven routes (the six Vercel crons + the
+> pg_cron-triggered `badges/reconcile`) now call the shared
+> [`isCronAuthorized`](../../apps/web/src/lib/cron-auth.ts), which **fails closed in
+> production** (unset `CRON_SECRET` ⇒ only non-prod may run unauthenticated) and uses
+> a constant-time token compare. Regression test:
+> [cron-auth.test.ts](../../apps/web/src/lib/cron-auth.test.ts). See the
+> [remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+>
+> **🟠 As-found 2026-06-07 — was STILL OPEN and WORSE.** The fail-open guard was
+> copied verbatim into three crons added since: `account/execute-deletions`
+> ([route.ts#L22-L26](../../apps/web/src/app/api/account/execute-deletions/route.ts#L22-L26))
+> — **hard-deletes accounts** past the grace window —
+> `community-listings/auto-approve`
+> ([route.ts#L24-L28](../../apps/web/src/app/api/community-listings/auto-approve/route.ts#L24-L28)),
+> and `badges/reconcile`
+> ([route.ts#L27-L31](../../apps/web/src/app/api/badges/reconcile/route.ts#L27-L31)).
+> Six cron routes now share the same `if (!secret) return true` line; none has been
+> factored into the shared `lib/cron-auth.ts` helper the original finding recommended.
+> The destructive account-deletion endpoint raises the blast radius from "spam /
+> cost" to "mass account deletion" if `CRON_SECRET` is ever absent in prod.
 
 **Category:** Authentication / fail-safe defaults
 **Files:**
@@ -568,6 +861,25 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-06-07 — P1 #12 + P1 #15 + P2 #13 (authz + cron hardening)
+
+Three findings from the same-day re-audit, fixed in one bundle.
+
+| Item                                           | Status   | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1 #12** — co-host / division authz bypass   | ✅ Fixed | `assertCanManage(eventId)` added to both [co-host-actions.ts](../../apps/web/src/app/events/[id]/co-host-actions.ts) and [division-actions.ts](../../apps/web/src/app/events/[id]/division-actions.ts) — gates on `GetEventDetailQuery.canManage` (host / co-host / group-owner-or-admin) before the admin-backed handler runs. The five handlers' false "authz lives at RLS" comments were corrected to point at the action-boundary gate. Co-host gate throws `UnauthorizedError` (→ existing `?cohost=unauthorized` flash); division gate redirects to `?rsvp=forbidden` (mirrors `record-division-winner-actions.ts`). |
+| **P1 #15** — unauthenticated event-detail leak | ✅ Fixed | Deleted the unreferenced `api/events/[id]/route.ts`. `GetEventByIdHandler` is now route-less but still wired + ungated — flagged not to re-expose without a viewer gate.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **P2 #13** — cron fail-open                    | ✅ Fixed | New shared [`isCronAuthorized`](../../apps/web/src/lib/cron-auth.ts) — **fails closed in production** (unset `CRON_SECRET` ⇒ only non-prod runs unauthenticated) + constant-time compare. Wired into all 7 routes: `worker`, `reminders`, `league-reminders`, `outbox-purge`, `account/execute-deletions`, `community-listings/auto-approve`, `badges/reconcile`. New test [cron-auth.test.ts](../../apps/web/src/lib/cron-auth.test.ts) (5 cases incl. fail-closed-in-prod).                                                                                                                                              |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(268 web tests pass; lint 0 errors). Deleting the route left a stale
+`.next/types` validator → cleared `apps/web/.next` and rebuilt to regenerate.
+
+**Still open from the 2026-06-07 re-audit:** **P2 #16** (RLS `UPDATE`
+column-pinning on `media_posts` + `messages` — needs `BEFORE UPDATE` trigger
+migrations, deferred) and **P3 #17** (`/api/sentry-test` public — one-line
+`NODE_ENV` gate or delete).
 
 ### 2026-06-04 — scoped event-detail visibility gate (P1 #14)
 

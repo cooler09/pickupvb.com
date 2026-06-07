@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import { handlers } from '@/lib/handlers';
 import { notifyClaimApproved } from '@/lib/notify-community';
 import { log } from '@/lib/log';
+import { isCronAuthorized } from '@/lib/cron-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -21,14 +22,8 @@ export const maxDuration = 60;
 
 const AUTO_APPROVE_AFTER_DAYS = 7;
 
-async function authorized(request: Request): Promise<boolean> {
-  const secret = process.env['CRON_SECRET'];
-  if (!secret) return true; // dev fallback
-  return request.headers.get('authorization') === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request): Promise<NextResponse> {
-  if (!(await authorized(request))) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 

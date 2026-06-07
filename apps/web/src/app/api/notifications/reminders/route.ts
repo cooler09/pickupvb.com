@@ -23,6 +23,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient, type TablesUpdate } from '@pickupvb/supabase';
 import { notify } from '@/lib/notify';
 import { log } from '@/lib/log';
+import { isCronAuthorized } from '@/lib/cron-auth';
 import {
   runReminderSweep,
   type ReminderColumn,
@@ -73,15 +74,8 @@ function makeReminderPort(admin: ReturnType<typeof createSupabaseAdminClient>): 
   };
 }
 
-async function authorized(request: Request): Promise<boolean> {
-  const secret = process.env['CRON_SECRET'];
-  if (!secret) return true; // dev fallback
-  const header = request.headers.get('authorization');
-  return header === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request): Promise<NextResponse> {
-  if (!(await authorized(request))) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 

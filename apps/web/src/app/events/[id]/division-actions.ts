@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import {
   AddEventDivisionCommand,
+  GetEventDetailQuery,
   RemoveEventDivisionCommand,
   UpdateEventDivisionCommand,
 } from '@pickupvb/application';
@@ -13,14 +14,30 @@ import {
   type DivisionUpdateDto,
 } from '@pickupvb/types';
 import { handlers } from '@/lib/handlers';
-import { requireSession } from '@/lib/server-auth';
+import { getViewer } from '@/lib/server-auth';
+import { redirectEventNotice } from '@/lib/server-redirects';
 import { bool, field, fieldOrUndefined } from '@/lib/form-data';
 
 /**
  * Per ADR 0006 — server actions for division CRUD invoked by the host
- * divisions manager. Authorization is enforced by RLS on
- * `event_divisions`; we only re-check the session here.
+ * divisions manager.
+ *
+ * Authorization is enforced HERE: the handlers write through the shared
+ * `SupabaseEventRepository`, which runs on the service-role admin client (RLS
+ * bypassed — sanctioned for host-gated ops, AGENTS.md pitfall #8), so RLS on
+ * `event_divisions` never fires. `assertCanManage` gates on `canManage` — the
+ * host / co-host / group-owner-or-admin set the divisions manager UI exposes.
+ * (Security audit P1 #12.)
  */
+async function assertCanManage(eventId: string): Promise<string> {
+  const viewer = await getViewer();
+  if (!viewer || viewer.isAnonymous) redirectEventNotice(eventId, 'rsvp', 'forbidden');
+  const detail = await handlers.getEventDetail.execute(
+    new GetEventDetailQuery(eventId, viewer.user.id),
+  );
+  if (!detail.canManage) redirectEventNotice(eventId, 'rsvp', 'forbidden');
+  return viewer.user.id;
+}
 
 function parsePriceCents(usd: string | undefined): number | undefined {
   if (!usd) return undefined;
@@ -88,9 +105,9 @@ export async function addDivisionFromForm(
   formData: FormData,
 ): Promise<void> {
   if (!eventId) return;
-  const { user } = await requireSession();
+  const userId = await assertCanManage(eventId);
   const input = divisionInputFromForm(formData);
-  await handlers.addEventDivision.execute(new AddEventDivisionCommand(eventId, user.id, input));
+  await handlers.addEventDivision.execute(new AddEventDivisionCommand(eventId, userId, input));
   revalidatePath(returnPath);
 }
 
@@ -101,11 +118,11 @@ export async function updateDivisionFromForm(
   formData: FormData,
 ): Promise<void> {
   if (!eventId || !divisionId) return;
-  const { user } = await requireSession();
+  const userId = await assertCanManage(eventId);
   const input = divisionInputFromForm(formData);
   const updates: DivisionUpdateDto = DivisionUpdateSchema.parse(input);
   await handlers.updateEventDivision.execute(
-    new UpdateEventDivisionCommand(eventId, divisionId, user.id, updates),
+    new UpdateEventDivisionCommand(eventId, divisionId, userId, updates),
   );
   revalidatePath(returnPath);
 }
@@ -116,9 +133,9 @@ export async function removeDivision(
   returnPath: string,
 ): Promise<void> {
   if (!eventId || !divisionId) return;
-  const { user } = await requireSession();
+  const userId = await assertCanManage(eventId);
   await handlers.removeEventDivision.execute(
-    new RemoveEventDivisionCommand(eventId, divisionId, user.id),
+    new RemoveEventDivisionCommand(eventId, divisionId, userId),
   );
   revalidatePath(returnPath);
 }

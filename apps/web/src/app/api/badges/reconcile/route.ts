@@ -16,6 +16,7 @@ import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { ReconcileUserBadgesHandler } from '@pickupvb/application';
 import { SupabaseBadgeRepository } from '@pickupvb/infrastructure';
 import { log } from '@/lib/log';
+import { isCronAuthorized } from '@/lib/cron-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,12 +24,6 @@ export const maxDuration = 60;
 
 const LOOKBACK_DAYS = 7;
 const MAX_CANDIDATES_PER_RUN = 500;
-
-function authorized(request: Request): boolean {
-  const secret = process.env['CRON_SECRET'];
-  if (!secret) return true; // dev fallback
-  return request.headers.get('authorization') === `Bearer ${secret}`;
-}
 
 async function candidateUserIds(
   admin: ReturnType<typeof createSupabaseAdminClient>,
@@ -65,7 +60,7 @@ async function candidateUserIds(
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
-  if (!authorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 

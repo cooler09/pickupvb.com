@@ -1,5 +1,38 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Re-audit (2026-06-07) — the bleed continued; the shipped vocabulary
+> is going stale.** No fix bundle this round; static re-measure of
+> `apps/web/src` against the 2026-05-30 baseline. Two M3-styling commits
+> landed since (`324eb2d9 "m3 styles"`, `f3277588 "pure css animations"`)
+> — they migrated the **events surface** (host panels, RSVP panels,
+> event cards) onto button recipes + the shape scale, which is real
+> progress. But the **un-ratcheted categories grew**, exactly as the
+> 2026-05-30 "stop the bleed first" strategy warned, because the
+> color/type ratchets were deferred and never landed:
+>
+> | Category                           | 2026-05-30 | 2026-06-07 |    Δ | ratchet? |
+> | ---------------------------------- | ---------: | ---------: | ---: | -------- |
+> | raw palette utils (`text-red-600`) |        401 |        555 | +154 | **none** |
+> | `text-Nxl`                         |         77 |        120 |  +43 | **none** |
+> | `text-lg/sm/xs/base`               |       1181 |       1423 | +242 | **none** |
+> | raw `shadow-*`                     |         53 |         31 |  −22 | none     |
+> | `rounded-md`                       |        405 |        298 | −107 | none     |
+> | `rounded-shape-*` (adopted)        |        162 |        221 |  +59 | yes      |
+> | ad-hoc hovers                      |        132 |        104 |  −28 | none     |
+> | `shadow-elevation-*` (adopted)     |         12 |          6 |   −6 | —        |
+> | `state-layer` (adopted)            |         12 |         11 |   −1 | —        |
+> | `md-` color roles (adopted)        |         12 |         20 |   +8 | —        |
+> | M3 type-role usages (adopted)      |         39 |      **0** |    — | none     |
+>
+> (Palette/type counts use a slightly broader regex than the 2026-05-30
+> sweep, so treat the absolute palette numbers as ±, but the **direction
+> is robust**: every un-ratcheted growth category climbed, every
+> migrated/ratcheted category fell.) **Net: the events surface moved onto
+> M3; color and type went backwards.** New stale-vocabulary findings
+> **S1–S3** below; **#1 (color) and #2 (type) re-graded to P1-now** —
+> deferral has become unbounded growth. See
+> [Re-audit 2026-06-07](#re-audit-2026-06-07--the-bleed-continued--stale-token-inventory).
+
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
 > first value-preserving shape migration + a lock-eliminated shape
 > ratchet. **The 10-bundle arc (129–138) shipped every primitive and
@@ -481,6 +514,146 @@ discipline failure):
   BottomNav / FAB / TextField / BottomSheet / density exist for _new_
   work. Retrofitting 1,000+ legacy call sites is a separate, optional ROI
   question — not a prerequisite for the audit's purpose.
+
+---
+
+## Re-audit 2026-06-07 — the bleed continued + stale-token inventory
+
+Static re-measure 8 days after the 2026-05-30 reality-check. The
+headline isn't a new gap in the _system_ — it's that the system is now
+**measurably regressing**, and a large slice of the shipped M3
+vocabulary is **dead code that ships the implication of a design system
+the call sites ignore**. Three new stale-vocabulary findings, plus a
+re-grade of the root cause.
+
+### S0 — Root cause re-grade: the missing ratchets turned "deferred" into "growing" 🔴 P1
+
+- **Where:** [apps/web/eslint.config.mjs](../../apps/web/eslint.config.mjs#L50-L140)
+  carries `no-restricted-syntax` ratchets for exactly three categories —
+  raw `rounded-lg/xl/2xl` (Bundle 139), the hand-rolled primary-button
+  recipe (CC-1/CC-6), and local field-class strings (CC-2). There is
+  **no ratchet on raw palette colors, `text-Nxl`, `text-lg/sm/xs`, raw
+  `shadow-*`, or `rounded-md`** — the five highest-volume legacy
+  categories.
+- **Evidence:** in 8 days raw palette utils grew **401 → 555** (+154),
+  `text-Nxl` grew **77 → 120** (+43), `text-lg/sm/xs/base` grew **1181 →
+  1423** (+242). These categories grow 1:1 with feature work because
+  nothing stops a new `text-red-600` / `text-2xl` from landing. The
+  2026-05-30 strategy named this exact failure mode ("the legacy counts
+  _grow_ with every feature — a losing race, not a slow win") and the
+  re-measure confirms it.
+- **Why P1-now:** the original deferral rationale ("erroring breaks the
+  build, warning floods lint with ~900 entries") is real, but the cost of
+  _continuing_ to defer is now visible: the migration target moves away
+  faster than any bundle closes it. The audit's own conclusion — "stop the
+  bleed first" — was never executed for color/type.
+- **Fix (cheapest first):**
+  1. **Ratchet `text-Nxl` at `warn` today.** Only 120 sites (not 900) —
+     the warning list is a usable backlog, not a flood, and it stops the
+     +43/week growth immediately. Add to the existing
+     `no-restricted-syntax` block: `Literal`/`TemplateElement` selector
+     `(?:^|[\s:])text-(?:xl|[2-9]xl)(?![\w-])`.
+  2. **Then** schedule the color migration as a real bundle (it's the
+     dark-mode motivation, finding #1) and ratchet palette behind it.
+  3. Leave `text-lg/sm/xs` and `rounded-md` un-ratcheted until their
+     value-preserving codemod is scoped (1181 + 298 sites is a genuine
+     flood; the type-scale mapping is judgment, not 1:1).
+
+### S1 — The M3 type scale is dead code (0 of 15 roles adopted) 🟡 P2
+
+- **Where:** [globals.css#L285-L327](../../apps/web/src/app/globals.css#L285-L327)
+  defines all 15 M3 type roles inside `@theme inline` —
+  `--text-display-{lg,md,sm}`, `-headline-*`, `-title-*`, `-body-*`,
+  `-label-*`, each with its M3 `--line-height` and `--letter-spacing`
+  companion (~43 lines). **Zero call sites** use the generated
+  `text-display-lg … text-label-sm` utilities — `rg` across all of
+  `apps/web` returns 0 files. The 2026-05-30 audit recorded "39 type-role
+  usages"; the re-measure finds **0** (the 39 was counting the token
+  definitions, not adoption).
+- **Why it's stale:** Tailwind v4 JIT means the unused utilities don't
+  emit, so the byte cost is ~nil — but the **43 lines of token
+  definitions imply a type system is in force.** A contributor opening
+  `globals.css` reasonably assumes `text-title-lg` is the house style;
+  every heading around them is a hand-tuned `text-2xl font-bold`. That
+  false signal is the cost.
+- **Fix (this is the single cheapest M3 win on the board):** the type
+  scale carries **zero behavioral/dark-mode risk** — it's just font-size
+  - line-height. Adopt it on the highest-traffic headings (events list
+    hero, `/events/[id]` H1, group/team headers, marketing H1s) in one
+    value-mapping bundle: `text-3xl font-bold → text-headline-lg`,
+    `text-2xl → text-headline-sm`/`text-title-lg` (per role), pair with
+    S0's `text-Nxl` ratchet so it can't regress. If the team decides the
+    scale won't be adopted, **delete L285-L327** rather than leave it
+    implying a system.
+
+### S2 — Most M3 color roles are dead, incl. the surface-container hierarchy that motivated finding #1 🟡 P2
+
+- **Where:** [globals.css#L68-L213](../../apps/web/src/app/globals.css#L68-L213)
+  hand-declares **102 `--md-sys-color-*` custom properties** across
+  light/dark `:root` blocks. Adoption of the generated `md-` utilities,
+  measured across `apps/web/src`:
+
+  | Role family                                                  | usages |
+  | ------------------------------------------------------------ | -----: |
+  | `md-surface-container{,-low,-lowest,-high,-highest}` (5)     |  **0** |
+  | `md-on-surface-variant`, `md-outline`, `md-outline-variant`  |  **0** |
+  | `md-inverse-surface`, `md-inverse-on-surface`                |  **0** |
+  | `md-secondary-container`, `md-tertiary-container`, `-error-` |  **0** |
+  | `md-primary-container`, `md-on-primary-container`            |  1 + 1 |
+
+  Only the two primary-container roles are used, and only by the FAB
+  (`/events` — finding #10's single call site).
+
+- **Why it's stale _and_ a gap:** unlike the type scale, these are raw
+  `:root` declarations (not `@theme` utilities), so **all 102 ship to
+  every visitor** regardless of use (a few KB; ~1 KB gzip). More
+  important: **the surface-container hierarchy was the entire P1 #1
+  motivation** — "there is no canonical 'what color should a warning
+  surface be at tone 90 in dark mode'." That hierarchy now _exists_ and
+  is used **nowhere**, while the dark-mode-fragile raw palette it was
+  meant to replace grew to 555. The fix shipped; the disease was never
+  treated.
+- **Fix:** drive the color migration off the surfaces that already log
+  dark-mode contrast bugs (cross-ref [accessibility.md](accessibility.md)
+  / events-page-ux remediation): map `bg-{red,amber,emerald}-50` alert
+  surfaces → `bg-md-error-container` / `-tertiary-container` /
+  semantic success, `text-*-700/800` → the matching `-on-*-container`.
+  This is judgment work (raw red ≠ exactly `md-error`), so scope it as a
+  visual-review bundle, migrate per surface, then ratchet palette. Until
+  then the 102 tokens are a maintenance liability with one consumer.
+
+### S3 — Elevation scale never displaced raw shadows 🟢 P3
+
+- **Where:** [globals.css#L188-L213](../../apps/web/src/app/globals.css#L188-L213)
+  defines the M3 two-layer elevation scale (`--md-sys-elevation-0…5`,
+  light + dark). `shadow-elevation-*` is used in **6 sites across 5
+  files** — all of them the Radix primitives shipped in Bundles 132–136
+  (toast, dialog, nav-dropdown, bottom-nav, FAB). Application surfaces
+  (event cards, hero panels, host cards) still carry **31 raw
+  `shadow-sm/md/lg/xl`**.
+- **Why P3:** the elevation tokens are legitimately _consumed_ (by the
+  primitives), so they aren't dead — but the scale never became the
+  house shadow vocabulary, so raw `shadow-*` keeps getting chosen by feel
+  (P2 #5's original complaint). Lower priority than color/type because
+  the visual delta of a wrong shadow is smaller than a wrong dark-mode
+  color or heading size.
+- **Fix:** opportunistic only, per the 2026-05-30 strategy — M3's
+  key+ambient two-layer shadow is a deliberate restyle, not a 1:1
+  codemod. Fold the `shadow-*` → `shadow-elevation-*` mapping into the
+  same visual-review bundle as the color migration (S2) so cards get
+  their elevation and surface tone fixed in one reviewable pass.
+
+### What's healthy (not every signal is bad)
+
+- **Touch targets (#3), Radix primitives (#8/#9/#11/#12/#14), density
+  (#15), safe-area (#16), motion tokens (#6)** remain adopted/consumed —
+  the 53 `--md-sys-motion-*` tokens back the 4 primitive motion classes
+  and are correctly used.
+- **The events surface migrated this round** — `rounded-md` fell 405 →
+  298 (−107), raw `shadow-*` 53 → 31, ad-hoc hovers 132 → 104, driven by
+  the host-panel / RSVP-panel rewrites in `324eb2d9`. The pattern works
+  when a bundle is actually scheduled; the gap is that color/type never
+  got one.
 
 ---
 

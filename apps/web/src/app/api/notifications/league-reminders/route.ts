@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import { notify } from '@/lib/notify';
 import { log } from '@/lib/log';
+import { isCronAuthorized } from '@/lib/cron-auth';
 import {
   runLeagueReminderSweep,
   type DueFixture,
@@ -142,14 +143,8 @@ function makeLeagueReminderPort(admin: AdminClient): LeagueReminderPort {
   };
 }
 
-function authorized(request: Request): boolean {
-  const secret = process.env['CRON_SECRET'];
-  if (!secret) return true; // dev fallback
-  return request.headers.get('authorization') === `Bearer ${secret}`;
-}
-
 export async function GET(request: Request): Promise<NextResponse> {
-  if (!authorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const admin = createSupabaseAdminClient();

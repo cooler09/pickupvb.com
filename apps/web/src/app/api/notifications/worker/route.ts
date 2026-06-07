@@ -40,6 +40,7 @@ import { signUnsubscribeToken } from '@/lib/unsubscribe-token';
 import { APP_URL } from '@/lib/app-url';
 import { sendWebPush, type WebPushPayload } from '@/lib/web-push';
 import { log } from '@/lib/log';
+import { isCronAuthorized } from '@/lib/cron-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -53,13 +54,6 @@ const BACKOFF_MIN = [1, 5, 25, 120, 360] as const;
 // killed mid-row. See ADR 0026 — the DB kick is debounced, so one wake must
 // clear everything that's due, not just a single batch.
 const DRAIN_BUDGET_MS = 50_000;
-
-function isAuthorized(req: Request): boolean {
-  const secret = process.env['CRON_SECRET'];
-  if (!secret) return true; // unset in dev — allow
-  const header = req.headers.get('authorization');
-  return header === `Bearer ${secret}`;
-}
 
 async function processRow(
   outbox: NotificationOutboxDrainPort,
@@ -206,7 +200,7 @@ async function drainOneBatch(
 }
 
 export async function GET(req: Request): Promise<Response> {
-  if (!isAuthorized(req)) {
+  if (!isCronAuthorized(req)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
