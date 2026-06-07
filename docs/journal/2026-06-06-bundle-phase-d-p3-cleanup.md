@@ -66,9 +66,31 @@ pattern (verbatim moves, typecheck-clean, verify quad green):
   wirings); it was already the most-decomposed page (loader + 20+ `_components/`).
 
 With the earlier render-branch extraction (events/page 602 → 501, profile/page
-601 → 537), **all five flagged pages are decomposed → P3-1 resolved.** Optional
-polish remains: events/page + profile/page still assemble data inline and could
-take `_loaders/` too — low value (correct data assembly, not bloat).
+601 → 537), **all five flagged pages are decomposed → P3-1 resolved.**
+
+### Final polish (2026-06-06) — events/page + profile/page loaders
+
+The two pages that still assembled data inline were moved onto `_loaders/` too:
+
+- **events/page 501 → 180** — param-parse / friends / search+filter+sort /
+  community listings / counts / pagination **and** the `buildHref` /
+  `tabHref` / `buildRemoveHref` / `clearAllHref` builders → `_loaders/load-events-page.ts`
+  (the builders are returned as functions in the view model; the tab/chip
+  components that consume them are server components, so no RSC function-boundary
+  issue). The filters `<details>` trigger → `_components/event-filters-disclosure.tsx`
+  (reusing the now-exported `EventFilterFormProps`).
+- **profile/page 537 → 167** — the ~10-source hub fetch (badges reconcile +
+  profile + friend edges + hosted + attending + pro/admin/stripe + memberships +
+  videos + pending invites + onboarding) → `_loaders/load-profile-page.ts`
+  (returns one `ProfilePageModel`); the identity hero, quick-actions,
+  pending-invites, and the four paged sections (your-events / following /
+  hosting / videos) → `_components/profile-hub-sections.tsx` (section props typed
+  via `ProfilePageModel[...]` indexed access).
+
+**All five flagged pages are now ≤ ~200 LOC** except `events/[id]` (360 —
+irreducible composition: a 33-field view-model destructure + ~20 sub-component
+wirings; already had a loader + 20+ `_components/`). Verbatim moves,
+typecheck-clean, verify quad green.
 
 **Architecture initiative: the entire 2026-06-06 re-audit backlog is resolved**
 (No P1; P2-1/P2-2/P2-3 resolved — C3 `save_event` deployed + verified green on

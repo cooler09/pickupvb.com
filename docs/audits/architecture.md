@@ -14,11 +14,20 @@
 > the manage banner — the remainder is irreducible composition: a 33-field
 > view-model destructure + ~20 sub-component wirings). Verbatim moves,
 > typecheck-clean. Verify quad green (typecheck 15/15; lint 0 errors; test domain
-> 547 / application 145 / infra 53 / web 262; build 8/8); no DB change. Combined
-> with the earlier Phase D render-branch extraction (events/page 602 → 501,
-> profile/page 601 → 537), **all five flagged pages are decomposed.** Optional
-> remaining polish: events/page + profile/page still assemble their data inline
-> (could take `_loaders/` too) — low value, not bloat.
+> 547 / application 145 / infra 53 / web 262; build 8/8); no DB change.
+>
+> **Final polish (2026-06-06):** the two remaining inline-data pages also took
+> `_loaders/`: [events/page](../../apps/web/src/app/events/page.tsx) **501 → 180**
+> (param-parse/fetch/filter/sort/paginate + the href builders →
+> [`load-events-page.ts`](../../apps/web/src/app/events/_loaders/load-events-page.ts);
+> the filters `<details>` → `EventFiltersDisclosure`) and
+> [profile/page](../../apps/web/src/app/profile/page.tsx) **537 → 167**
+> (the ~10-source hub fetch →
+> [`load-profile-page.ts`](../../apps/web/src/app/profile/_loaders/load-profile-page.ts);
+> identity hero / quick-actions / pending-invites / your-events / following /
+> hosting / videos → [`profile-hub-sections.tsx`](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx)).
+> **All five flagged pages are now ≤ ~200 LOC** except events/[id] (360,
+> irreducible composition). Verify quad green.
 >
 > **Status update (2026-06-06, Phase C inc. 3 — `save_event` RPC: ✅ VERIFIED ON DEV; deploy-gate cleared).**
 > The deploy-gated `save_event` RPC was deployed and verified green against
@@ -1184,9 +1193,12 @@ delivery, division-scoped registration) are all intact at this HEAD.
 > (`SectionHeader` + `ActionTile`).
 > **Phase D follow-up (2026-06-06):** the three remaining pages decomposed via
 > `_loaders/` + `_components/` — community/[slug] 567 → 203, earnings 424 → 82,
-> events/[id] 424 → 360 (composition-bound). All five flagged pages decomposed;
-> verify quad green. Optional polish: events/page + profile/page still assemble
-> data inline (could take `_loaders/`) — low value. See the top-of-doc status block.
+> events/[id] 424 → 360 (composition-bound).
+> **Final polish (2026-06-06):** events/page 501 → 180 (`load-events-page.ts` +
+> `EventFiltersDisclosure`), profile/page 537 → 167 (`load-profile-page.ts` +
+> `profile-hub-sections.tsx`). **All five flagged pages ≤ ~200** except
+> events/[id] (360, irreducible composition). Verify quad green. See the
+> top-of-doc status block.
 
 - **Where:** [events/page.tsx](../../apps/web/src/app/events/page.tsx) **602**,
   [profile/page.tsx](../../apps/web/src/app/profile/page.tsx) **601**,

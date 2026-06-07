@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 
+/** Shared surface for the profile-hub cards (identity, your-events, following,
+ *  hosting, videos, privacy). */
+export const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
+
 /** Card section heading with an optional `(count)` and a right-aligned action
  *  link. Extracted from profile/page.tsx (architecture audit P3-1). */
 export function SectionHeader({
