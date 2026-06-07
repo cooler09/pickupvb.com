@@ -50,7 +50,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
             ← Payouts
           </Link>
         </div>
-        <h1 className="text-3xl font-bold">Pro Host</h1>
+        <h1 className="text-headline-lg font-bold">Pro Host</h1>
         <p className="text-muted">
           Upgrade for unlimited paid events, half the platform fee, saved templates, host analytics,
           sponsor slots, and more.
@@ -81,7 +81,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       )}
 
       <section className="border-border-base rounded-shape-sm border p-6">
-        <h2 className="text-xl font-semibold">What you get</h2>
+        <h2 className="text-title-lg font-semibold">What you get</h2>
         <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm">
           <li>
             <strong className="text-fg">Unlimited paid events.</strong> Free hosts are capped at 1
@@ -124,7 +124,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       {active && sub ? (
         <section className="rounded-shape-sm space-y-4 border border-emerald-300 bg-emerald-50/40 p-6">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-xl font-semibold">Pro {sub.plan ? `(${sub.plan})` : ''}</h2>
+            <h2 className="text-title-lg font-semibold">Pro {sub.plan ? `(${sub.plan})` : ''}</h2>
             <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white uppercase">
               {sub.status}
             </span>
@@ -151,7 +151,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <article className="border-border-base rounded-shape-sm space-y-3 border p-6">
             <h2 className="text-lg font-semibold">Monthly</h2>
-            <p className="text-3xl font-bold">
+            <p className="text-headline-lg font-bold">
               ${PRO_MONTHLY_PRICE_USD}
               <span className="text-muted text-base font-normal">/mo</span>
             </p>
@@ -172,7 +172,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
                 Save ${PRO_MONTHLY_PRICE_USD * 12 - PRO_YEARLY_PRICE_USD}
               </span>
             </h2>
-            <p className="text-3xl font-bold">
+            <p className="text-headline-lg font-bold">
               ${PRO_YEARLY_PRICE_USD}
               <span className="text-muted text-base font-normal">/yr</span>
             </p>

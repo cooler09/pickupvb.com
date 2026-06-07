@@ -28,7 +28,7 @@ export default async function MyBracketsPage() {
     <article className="mx-auto max-w-3xl space-y-6 p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-1">
-          <h1 className="text-fg text-2xl font-bold">My brackets</h1>
+          <h1 className="text-fg text-headline-sm font-bold">My brackets</h1>
           <p className="text-muted text-sm">
             Run a tournament bracket without hosting an event. Add teams by name, seed, and track
             results.

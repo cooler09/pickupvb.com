@@ -42,7 +42,7 @@ export function CommunityListingArticle({ detail }: { detail: CommunityListingDe
         <p className="text-xs font-semibold tracking-wide text-amber-600 uppercase dark:text-amber-400">
           Community listing
         </p>
-        <h1 className="text-3xl font-bold">{detail.title}</h1>
+        <h1 className="text-headline-lg font-bold">{detail.title}</h1>
         <p className="text-muted text-sm">Submitted by {detail.submitter.displayName}</p>
       </header>
 

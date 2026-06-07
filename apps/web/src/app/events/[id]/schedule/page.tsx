@@ -184,7 +184,7 @@ export default async function SchedulePage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">Schedule — {event.title}</h1>
+        <h1 className="text-fg text-headline-sm font-bold">Schedule — {event.title}</h1>
         <p className="text-muted text-sm">
           {teams.length} registered team{teams.length === 1 ? '' : 's'} · {matches.length} match
           {matches.length === 1 ? '' : 'es'} on the slate

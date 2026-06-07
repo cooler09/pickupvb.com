@@ -31,7 +31,7 @@ export default async function RotationRoomPage({
   return (
     <section className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">Court rotation</h1>
+        <h1 className="text-headline-sm font-bold">Court rotation</h1>
         <p className="text-muted text-sm">
           Winners stay on, losers rotate to the back. Share the link so everyone can report results.
         </p>

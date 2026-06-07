@@ -96,7 +96,7 @@ export default function RotationSetupPage() {
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
           Host tool · Free
         </p>
-        <h1 className="text-3xl font-bold">Court rotation queue</h1>
+        <h1 className="text-headline-lg font-bold">Court rotation queue</h1>
         <p className="text-muted text-sm">
           King-of-the-court for busy open gyms. Add your teams, and the tool tracks who&rsquo;s on
           each court and who&rsquo;s next — winners stay, losers rotate out. Share a link so
@@ -117,7 +117,7 @@ export default function RotationSetupPage() {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-fg text-xl font-semibold">FAQ</h2>
+        <h2 className="text-fg text-title-lg font-semibold">FAQ</h2>
         <dl className="space-y-3">
           {faqs.map((f) => (
             <div key={f.q} className="border-border-base rounded-md border p-3">

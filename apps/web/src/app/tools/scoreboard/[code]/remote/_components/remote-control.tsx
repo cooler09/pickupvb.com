@@ -121,7 +121,7 @@ export function RemoteControl({ code, initialConfig }: Props) {
             <p className="text-xs font-semibold tracking-widest text-emerald-600 uppercase">
               Match won
             </p>
-            <p className="mt-2 text-3xl font-bold">
+            <p className="text-headline-lg mt-2 font-bold">
               {winner === 'A' ? state.config.teamA : state.config.teamB}
             </p>
             <p className="mt-2 text-sm text-black/60">
@@ -164,13 +164,13 @@ function TeamRemote({
             Sets <span className="font-semibold tabular-nums">{sets}</span>
           </div>
         </div>
-        <div className="text-6xl font-bold tabular-nums">{score}</div>
+        <div className="text-display-lg font-bold tabular-nums">{score}</div>
       </div>
       <div className="grid flex-1 grid-cols-2 gap-3 p-4">
         <button
           type="button"
           onClick={onMinus}
-          className={`rounded-shape-md flex items-center justify-center border ${border} text-3xl font-bold`}
+          className={`rounded-shape-md flex items-center justify-center border ${border} text-headline-lg font-bold`}
           aria-label={`Subtract point from ${name}`}
         >
           −
@@ -178,7 +178,7 @@ function TeamRemote({
         <button
           type="button"
           onClick={onPlus}
-          className="rounded-shape-md flex items-center justify-center bg-emerald-500 text-3xl font-bold text-white"
+          className="rounded-shape-md text-headline-lg flex items-center justify-center bg-emerald-500 font-bold text-white"
           aria-label={`Add point to ${name}`}
         >
           +

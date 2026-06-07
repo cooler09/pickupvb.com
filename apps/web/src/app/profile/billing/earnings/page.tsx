@@ -36,7 +36,7 @@ export default async function EarningsPage(props: { searchParams: Promise<{ page
           ← Payouts
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-3xl font-bold">Earnings</h1>
+          <h1 className="text-headline-lg font-bold">Earnings</h1>
           {pro && (
             <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-semibold tracking-wide uppercase">
               Pro · {(feeRate * 100).toFixed(1)}% fee

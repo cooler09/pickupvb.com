@@ -174,7 +174,7 @@ export default async function BracketWatchPage(props: {
 
       <header className="space-y-1">
         <div className="flex items-center gap-2">
-          <h1 className="text-fg text-2xl font-bold">Live bracket — {event.title}</h1>
+          <h1 className="text-fg text-headline-sm font-bold">Live bracket — {event.title}</h1>
           {bracket?.status === 'active' && (
             <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
               ● LIVE

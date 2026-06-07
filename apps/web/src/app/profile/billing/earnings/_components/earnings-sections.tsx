@@ -40,7 +40,7 @@ export function EarningsTotals({
           <p className="text-muted text-xs font-semibold tracking-wide uppercase">
             {currentYear} estimated payout
           </p>
-          <p className="mt-1 text-2xl font-bold">{formatUsd(ytdTotals.estPayout)}</p>
+          <p className="text-headline-sm mt-1 font-bold">{formatUsd(ytdTotals.estPayout)}</p>
           <dl className="text-muted mt-2 space-y-0.5 text-xs">
             <div className="flex justify-between">
               <dt>Gross</dt>
@@ -60,7 +60,7 @@ export function EarningsTotals({
           <p className="text-muted text-xs font-semibold tracking-wide uppercase">
             All-time estimated payout
           </p>
-          <p className="mt-1 text-2xl font-bold">{formatUsd(allTimeTotals.estPayout)}</p>
+          <p className="text-headline-sm mt-1 font-bold">{formatUsd(allTimeTotals.estPayout)}</p>
           <dl className="text-muted mt-2 space-y-0.5 text-xs">
             <div className="flex justify-between">
               <dt>Gross</dt>

@@ -89,7 +89,7 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
   return (
     <header className="border-border-base bg-surface border-b">
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="text-primary text-xl font-bold">
+        <Link href="/" className="text-primary text-title-lg font-bold">
           PickupVB
         </Link>
 

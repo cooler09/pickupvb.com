@@ -321,7 +321,7 @@ function PageHeader() {
       <Link href={'/profile/billing' as Route} className="text-primary text-sm hover:underline">
         ← Payouts
       </Link>
-      <h1 className="text-fg text-3xl font-bold">Host analytics</h1>
+      <h1 className="text-fg text-headline-lg font-bold">Host analytics</h1>
       <p className="text-muted text-sm">
         Snapshot of hosted-event performance: fill rate, repeat attendees, and payment trend.
       </p>
@@ -333,7 +333,7 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint: 
   return (
     <div className="border-border-base bg-surface rounded-shape-sm border p-4">
       <p className="text-muted text-xs font-semibold tracking-wide uppercase">{label}</p>
-      <p className="text-fg mt-1 text-2xl font-bold">{value}</p>
+      <p className="text-fg text-headline-sm mt-1 font-bold">{value}</p>
       <p className="text-muted mt-1 text-xs">{hint}</p>
     </div>
   );

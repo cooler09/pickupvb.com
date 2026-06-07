@@ -42,7 +42,7 @@ export default async function NewStandaloneBracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">New bracket</h1>
+        <h1 className="text-fg text-headline-sm font-bold">New bracket</h1>
         <p className="text-muted text-sm">
           Pick a format. After creating it you{'’'}ll add your teams by name, seed them, then
           generate the bracket.

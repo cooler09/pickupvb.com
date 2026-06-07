@@ -441,7 +441,9 @@ function TeamPanel({
         className="group absolute inset-0 flex flex-col items-center justify-center outline-none focus-visible:ring-4 focus-visible:ring-current/70 focus-visible:ring-inset"
         aria-label={`Add point to ${name}`}
       >
-        <div className={`text-xl font-semibold tracking-wide sm:text-3xl ${subtle}`}>{name}</div>
+        <div className={`text-title-lg sm:text-headline-lg font-semibold tracking-wide ${subtle}`}>
+          {name}
+        </div>
         <div
           className="text-[28vh] leading-none font-bold tabular-nums select-none sm:text-[34vh]"
           style={{ fontVariantNumeric: 'tabular-nums' }}
@@ -692,7 +694,7 @@ function WinnerOverlay({
         >
           Match won
         </p>
-        <p id="scoreboard-winner-name" className="mt-2 text-4xl font-bold">
+        <p id="scoreboard-winner-name" className="text-display-sm mt-2 font-bold">
           {name}
         </p>
         {setSummary && <p className="mt-2 text-sm font-medium text-black/60">{setSummary}</p>}

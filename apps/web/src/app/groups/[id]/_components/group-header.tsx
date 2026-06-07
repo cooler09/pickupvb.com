@@ -44,13 +44,13 @@ export function GroupHeader({ group, stats, actions }: Props) {
         ) : (
           <span
             aria-hidden="true"
-            className="bg-primary/15 text-primary rounded-shape-sm flex h-20 w-20 shrink-0 items-center justify-center text-xl font-semibold"
+            className="bg-primary/15 text-primary rounded-shape-sm text-title-lg flex h-20 w-20 shrink-0 items-center justify-center font-semibold"
           >
             {group.name.slice(0, 2).toUpperCase()}
           </span>
         )}
         <div className="min-w-0 flex-1 space-y-1">
-          <h1 className="text-fg text-2xl font-bold">{group.name}</h1>
+          <h1 className="text-fg text-headline-sm font-bold">{group.name}</h1>
           <p className="text-muted text-xs">@{group.slug}</p>
           {place && <p className="text-muted text-sm">{place}</p>}
           <p className="text-muted pt-1 text-xs">

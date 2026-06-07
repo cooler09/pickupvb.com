@@ -32,6 +32,18 @@
 > **S1–S3** below; **#1 (color) and #2 (type) re-graded to P1-now** —
 > deferral has become unbounded growth. See
 > [Re-audit 2026-06-07](#re-audit-2026-06-07--the-bleed-continued--stale-token-inventory).
+>
+> **Shipped same day (2026-06-07): type-scale bundle — S1 closed, S0
+> half-closed.** All 120 raw `text-Nxl` migrated to the M3 type scale
+> (`text-2xl→headline-sm` exact zero-change; `xl→title-lg`,
+> `3xl→headline-lg`, `4xl→display-sm`, …) and the family locked at `error`;
+> type-role adoption 0 → 120, the dead type tokens are now live, mapping
+> documented in [AGENTS.md pattern 16](../../AGENTS.md). The `text-{sm,lg,xs}`
+> body scale + palette + `shadow-*` + `rounded-md` ratchets stay open
+> (judgment migrations; palette/dark-mode is the next highest-value bundle).
+> Verify 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8
+> build · built-CSS confirms the utilities emit. See the
+> [remediation log](#type-scale--text-nxl-migrated--ratcheted-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
 > first value-preserving shape migration + a lock-eliminated shape
@@ -526,7 +538,19 @@ vocabulary is **dead code that ships the implication of a design system
 the call sites ignore**. Three new stale-vocabulary findings, plus a
 re-grade of the root cause.
 
-### S0 — Root cause re-grade: the missing ratchets turned "deferred" into "growing" 🔴 P1
+### S0 — Root cause re-grade: the missing ratchets turned "deferred" into "growing" 🟡 P1 (text-Nxl closed 2026-06-07; palette/shadow/rounded-md open)
+
+> **Partially resolved 2026-06-07.** The `text-Nxl` family is migrated to
+> type roles and locked at `error` (see S1). Implementation note: a `warn`
+> ratchet (the original recommendation) turned out to be infeasible —
+> ESLint flat config can't run one rule at two severities, and a second
+> `no-restricted-syntax` object replaces rather than merges, so a `warn`
+> rule would have downgraded the existing `error` locks. The repo's proven
+> path (Bundle 139) — migrate-the-bucket-to-zero, then `error`-ratchet it —
+> applied cleanly: 120 sites is bounded, so the whole family went to zero
+> in one pass. **Still open:** raw palette (555), `shadow-*` (31),
+> `rounded-md` (298) — those keep `error`-ratcheting-behind-migration as the
+> plan; palette is the highest-value (dark mode, S2).
 
 - **Where:** [apps/web/eslint.config.mjs](../../apps/web/eslint.config.mjs#L50-L140)
   carries `no-restricted-syntax` ratchets for exactly three categories —
@@ -559,7 +583,14 @@ re-grade of the root cause.
      value-preserving codemod is scoped (1181 + 298 sites is a genuine
      flood; the type-scale mapping is judgment, not 1:1).
 
-### S1 — The M3 type scale is dead code (0 of 15 roles adopted) 🟡 P2
+### S1 — The M3 type scale is dead code (0 of 15 roles adopted) 🟢 Resolved (2026-06-07)
+
+> **Resolved 2026-06-07.** All 120 raw `text-Nxl` sites migrated to type
+> roles and the family is ratcheted at `error`. Adoption 0 → 120, the dead
+> tokens are now live, and the mapping is documented in
+> [AGENTS.md pattern 16](../../AGENTS.md). The `text-{sm,lg,xs,base}`
+> body-text scale stays deferred (S0 — judgment mapping, 1423 sites). See
+> the [remediation-log entry](#type-scale--text-nxl-migrated--ratcheted-2026-06-07).
 
 - **Where:** [globals.css#L285-L327](../../apps/web/src/app/globals.css#L285-L327)
   defines all 15 M3 type roles inside `@theme inline` —
@@ -1114,6 +1145,53 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Type scale — text-Nxl migrated + ratcheted (2026-06-07)
+
+Closes **S1** and the `text-Nxl` half of **S0** from the 2026-06-07 re-audit.
+The M3 type scale shipped in Bundle 129 but sat at **0/15 roles adopted**
+while raw `text-Nxl` grew 77 → 120 for lack of a guard. This bundle migrates
+the whole `text-Nxl` family to type roles and locks it.
+
+**Migration (120 sites → type roles):**
+
+- `text-2xl → text-headline-sm` — **exact, zero visual change** (both
+  24 px / 32 px, no tracking). 55 sites; codemodded (`\btext-2xl\b`,
+  null-delimited `xargs` + `perl`), incl. the one `sm:text-2xl`. This is the
+  spine — most of these were already section headers (h2/h3).
+- `text-xl → text-title-lg` (20→22 px), `text-3xl → text-headline-lg`
+  (30→32 px, the canonical page-title role — ~28 page `<h1>`s were a uniform
+  `text-3xl font-bold`), `text-4xl → text-display-sm` (36 px, exact size),
+  `text-5xl → text-display-md` (48→45), `text-6xl → text-display-lg` (60→57).
+  Small intended size refinements (≤2–3 px); the home hero's responsive
+  `text-4xl … md:text-5xl` became `text-display-sm … md:text-display-md`.
+- Verified the utilities emit real CSS in the production build —
+  `.text-headline-sm{font-size:1.5rem;line-height:var(--tw-leading,2rem)}` —
+  so any heading carrying an explicit `leading-*` still overrides the role's
+  line-height. (The type roles had never been used, so Tailwind had never had
+  to emit them; this confirms the `@theme inline` block actually generates
+  utilities, not just dead `:root` vars.)
+
+**Ratchet:** added two `no-restricted-syntax` selectors (Literal +
+TemplateElement) to [eslint.config.mjs](../../apps/web/eslint.config.mjs)
+matching `text-(xl|[2-9]xl)` as a whole token after a start/space/colon
+boundary — so `text-display-lg`, `text-headline-sm`, `text-title-lg` and the
+un-ratcheted `text-{sm,lg,xs,base}` are not false-positives. Lock-eliminated
+only (the family is at 0), `error` severity, same shape as Bundle 139's shape
+lock. Convention documented in [AGENTS.md pattern 16](../../AGENTS.md).
+
+**Deliberately not done:** the `text-{sm,lg,xs,base}` body-text scale (1423
+sites — a genuine flood, and the role mapping is judgment not 1:1), and the
+palette / `shadow-*` / `rounded-md` ratchets (S0, S2, S3 — still
+ratchet-behind-migration; palette/dark-mode is the next highest-value bundle).
+
+**Findings updated:** S1 → 🟢 Resolved; S0 → 🟡 (text-Nxl closed,
+palette/shadow/rounded-md open).
+
+**Verify:** 15/15 typecheck · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings · 268 web tests + domain/application suites ·
+8/8 build. Built-CSS grep confirms the type-role utilities emit font-size +
+line-height.
 
 ### Bundle 139 — Adoption reality-check + value-preserving shape migration (2026-05-30)
 

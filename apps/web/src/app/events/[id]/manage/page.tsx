@@ -98,7 +98,7 @@ export default async function ManageEventPage(props: { params: Promise<{ id: str
 
       <header className="space-y-1">
         <p className="text-muted text-xs font-semibold tracking-wide uppercase">Manage event</p>
-        <h1 className="text-fg text-3xl font-bold">{event.title}</h1>
+        <h1 className="text-fg text-headline-lg font-bold">{event.title}</h1>
         <p className="text-muted text-sm">
           <LocalDateTime iso={event.startsAt} variant="eventDateLong" timeZone={event.timeZone} /> ·{' '}
           {event.location.city}, {event.location.region}

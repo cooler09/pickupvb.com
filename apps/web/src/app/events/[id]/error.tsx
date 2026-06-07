@@ -21,7 +21,7 @@ export default function EventDetailError({
 
   return (
     <div className="mx-auto max-w-md space-y-4 py-12 text-center">
-      <h1 className="text-fg text-2xl font-semibold">We hit a snag loading this event.</h1>
+      <h1 className="text-fg text-headline-sm font-semibold">We hit a snag loading this event.</h1>
       <p className="text-muted text-sm">
         The error has been reported. You can try again or head back to the events list.
       </p>

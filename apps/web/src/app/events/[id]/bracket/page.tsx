@@ -121,7 +121,7 @@ export default async function BracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">Bracket — {event.title}</h1>
+        <h1 className="text-fg text-headline-sm font-bold">Bracket — {event.title}</h1>
         {divisionSummary && <p className="text-fg/80 text-sm">{divisionSummary}</p>}
         <p className="text-muted text-sm">
           {registeredTeams.length} registered team

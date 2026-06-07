@@ -36,7 +36,7 @@ export default async function FriendsPage(props: { searchParams: Promise<{ page?
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
       <header>
-        <h1 className="text-2xl font-bold">Following</h1>
+        <h1 className="text-headline-sm font-bold">Following</h1>
         <p className="text-muted text-sm">
           Players you follow show up in your activity feed and friend filters.
         </p>

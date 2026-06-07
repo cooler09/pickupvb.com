@@ -121,7 +121,7 @@ export default async function HomePage(props: {
         <section className="space-y-4">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-bold">Your upcoming events</h2>
+              <h2 className="text-headline-sm font-bold">Your upcoming events</h2>
               <p className="text-muted text-sm">Events you&apos;re signed up for.</p>
             </div>
             <Link
@@ -142,7 +142,7 @@ export default async function HomePage(props: {
       {/* ── Hero ────────────────────────────────────────────────── */}
       <section className="grid gap-10 md:grid-cols-2 md:items-center">
         <div className="space-y-6">
-          <h1 className="text-4xl leading-tight font-bold md:text-5xl">
+          <h1 className="text-display-sm md:text-display-md leading-tight font-bold">
             Find your next <span className="text-primary">volleyball</span> game.
           </h1>
           <p className="text-fg/80 text-lg">
@@ -203,7 +203,7 @@ export default async function HomePage(props: {
           <>
             <div className="flex items-end justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-bold">Upcoming events</h2>
+                <h2 className="text-headline-sm font-bold">Upcoming events</h2>
                 <p className="text-muted text-sm">A peek at what&apos;s on the schedule.</p>
               </div>
               <Link href="/events" className="text-primary text-sm font-medium hover:underline">
@@ -230,7 +230,7 @@ export default async function HomePage(props: {
 
       {/* ── What you can do ─────────────────────────────────────── */}
       <section className="space-y-4">
-        <h2 className="text-2xl font-bold">What you can do here</h2>
+        <h2 className="text-headline-sm font-bold">What you can do here</h2>
         <div className="grid gap-3 md:grid-cols-3">
           <ValueCard
             icon="volleyball"
@@ -261,7 +261,7 @@ export default async function HomePage(props: {
         <section className="space-y-4">
           <div className="flex items-end justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-bold">Groups &amp; organizations</h2>
+              <h2 className="text-headline-sm font-bold">Groups &amp; organizations</h2>
               <p className="text-muted text-sm">Clubs, leagues, and crews on PickupVB.</p>
             </div>
             <Link
@@ -283,7 +283,7 @@ export default async function HomePage(props: {
       <section className="border-border-base bg-surface rounded-shape-lg border p-6 md:p-8">
         <div className="grid gap-6 md:grid-cols-[2fr,1fr] md:items-center">
           <div className="space-y-3">
-            <h2 className="text-2xl font-bold">Running a league or club?</h2>
+            <h2 className="text-headline-sm font-bold">Running a league or club?</h2>
             <p className="text-fg/80">
               PickupVB gives you everything to run open play, leagues, and tournaments — signups,
               capacity limits, online payments with payout to your bank, broadcasts, and printable
@@ -333,7 +333,7 @@ export default async function HomePage(props: {
       {/* ── Footer CTA for guests ───────────────────────────────── */}
       {!user && (
         <section className="from-primary/10 to-highlight/20 rounded-shape-lg bg-gradient-to-br p-6 text-center md:p-8">
-          <h2 className="text-2xl font-bold">Ready to play?</h2>
+          <h2 className="text-headline-sm font-bold">Ready to play?</h2>
           <p className="text-fg/80 mx-auto mt-2 max-w-xl">
             Create a free account to RSVP, follow players, save events, and host your own.
           </p>

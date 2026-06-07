@@ -942,3 +942,35 @@ active)` and attach the returned ref + `tabIndex={-1}` + `outline-none` to
   the reference bundle. **Skip** server-rendered flash banners (rendered from
   `searchParams` after a redirect — no client state to key off; scroll already
   resets to top), per-field errors, and chat composers (own scroll behavior).
+
+### 16. Headings use the M3 type scale — don't hand-roll `text-Nxl`
+
+Heading / title font sizes come from the M3 type-scale utilities, not raw
+Tailwind size steps. A `no-restricted-syntax` ratchet in
+[apps/web/eslint.config.mjs](apps/web/eslint.config.mjs) errors on any raw
+`text-xl` / `text-2xl` / … / `text-9xl` (m3-alignment audit S1, 2026-06-07 —
+the family was migrated to roles and locked so it can't regress). The scale
+is defined in [globals.css](apps/web/src/app/globals.css) (`@theme inline`,
+the `--text-{display,headline,title,body,label}-*` block) and generates
+`text-headline-lg`, `text-display-sm`, … utilities (font-size **and**
+line-height; an explicit `leading-*` still overrides via
+`line-height: var(--tw-leading, …)`).
+
+The mapping the migration used — match it when adding a heading:
+
+| Raw (forbidden) | M3 role            | px (size/lh) | Typical use                   |
+| --------------- | ------------------ | ------------ | ----------------------------- |
+| `text-xl`       | `text-title-lg`    | 22 / 28      | card / section subtitle       |
+| `text-2xl`      | `text-headline-sm` | 24 / 32      | section header (h2/h3)        |
+| `text-3xl`      | `text-headline-lg` | 32 / 40      | **page title (h1)**           |
+| `text-4xl`      | `text-display-sm`  | 36 / 44      | marketing hero h1             |
+| `text-5xl`      | `text-display-md`  | 45 / 52      | large hero (responsive `md:`) |
+| `text-6xl`      | `text-display-lg`  | 57 / 64      | XL hero                       |
+
+Keep the weight (`font-bold` / `font-semibold`) and any `leading-*` /
+`tracking-*` alongside the role class — the role only sets size + line-height
+(+ tracking on body/label/display-lg). Body/caption text (`text-sm`,
+`text-lg`, `text-xs`, `text-base`) is **not** ratcheted yet — its role mapping
+is judgment, not 1:1, so leave it until that migration lands (m3-alignment
+audit S0). Reference bundle: the 2026-06-07 type-scale sweep (120 sites →
+`text-{title,headline,display}-*`).

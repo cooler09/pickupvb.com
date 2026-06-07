@@ -45,7 +45,7 @@ export function ProfileIdentityHero({
         ) : (
           <div
             aria-hidden
-            className="bg-primary/15 text-primary flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold sm:h-20 sm:w-20 sm:text-2xl"
+            className="bg-primary/15 text-primary text-title-lg sm:text-headline-sm flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-semibold sm:h-20 sm:w-20"
           >
             {displayInitials}
           </div>
@@ -53,7 +53,7 @@ export function ProfileIdentityHero({
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-muted text-xs font-semibold tracking-wide uppercase">Your profile</p>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-bold">{profile.display_name}</h1>
+            <h1 className="text-headline-sm truncate font-bold">{profile.display_name}</h1>
             {viewerIsAdmin && <AdminBadge />}
             {viewerIsPro && <ProBadge asLink />}
           </div>

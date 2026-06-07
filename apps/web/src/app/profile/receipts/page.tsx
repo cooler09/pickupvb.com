@@ -149,7 +149,7 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
         <Link href={'/profile' as Route} className="text-primary text-sm hover:underline">
           ← Profile
         </Link>
-        <h1 className="text-3xl font-bold">Receipts</h1>
+        <h1 className="text-headline-lg font-bold">Receipts</h1>
         <p className="text-muted text-sm">
           Every online payment you&apos;ve made for an event signup. Keep these for expense reports
           and tax records.
@@ -168,13 +168,13 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
               <p className="text-muted text-xs font-semibold tracking-wide uppercase">
                 {currentYear} total
               </p>
-              <p className="mt-1 text-2xl font-bold">{formatUsd(ytdNet)}</p>
+              <p className="text-headline-sm mt-1 font-bold">{formatUsd(ytdNet)}</p>
             </div>
             <div className="border-border-base bg-surface rounded-shape-sm border p-4">
               <p className="text-muted text-xs font-semibold tracking-wide uppercase">
                 All-time total
               </p>
-              <p className="mt-1 text-2xl font-bold">{formatUsd(totalNet)}</p>
+              <p className="text-headline-sm mt-1 font-bold">{formatUsd(totalNet)}</p>
             </div>
           </div>
 

@@ -38,7 +38,7 @@ export default async function DeleteAccountPage(props: {
         <Link href={'/profile' as Route} className="text-primary text-sm hover:underline">
           ← Back to profile
         </Link>
-        <h1 className="text-2xl font-bold">Delete account</h1>
+        <h1 className="text-headline-sm font-bold">Delete account</h1>
       </header>
 
       {status === 'cancelled' && !active && (

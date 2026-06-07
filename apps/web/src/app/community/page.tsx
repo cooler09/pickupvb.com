@@ -143,7 +143,7 @@ export default async function CommunityListingsPage(props: {
     <section className="space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold">Community listings</h1>
+          <h1 className="text-headline-lg font-bold">Community listings</h1>
           <p className="text-muted mt-1 max-w-2xl text-sm">
             Volleyball events shared by other players — Facebook posts, Meetup groups, and other
             links from around the web. Anyone can submit a listing for an event they&rsquo;re not

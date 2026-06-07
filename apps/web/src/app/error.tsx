@@ -25,7 +25,7 @@ export default function RootError({
 
   return (
     <div className="mx-auto max-w-md space-y-4 py-12 text-center">
-      <h1 className="text-fg text-2xl font-semibold">Something went wrong.</h1>
+      <h1 className="text-fg text-headline-sm font-semibold">Something went wrong.</h1>
       <p className="text-muted text-sm">
         The error has been reported. You can try again, head home, or file a bug if it keeps
         happening.

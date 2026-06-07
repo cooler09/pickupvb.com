@@ -121,14 +121,14 @@ export default async function PlayerProfilePage(props: {
           ) : (
             <span
               aria-hidden="true"
-              className="bg-primary/15 text-primary flex h-20 w-20 shrink-0 items-center justify-center rounded-full text-xl font-semibold"
+              className="bg-primary/15 text-primary text-title-lg flex h-20 w-20 shrink-0 items-center justify-center rounded-full font-semibold"
             >
               {initialsOf(profile)}
             </span>
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-fg truncate text-2xl font-bold">{name}</h1>
+              <h1 className="text-fg text-headline-sm truncate font-bold">{name}</h1>
               {isAdmin && <AdminBadge />}
               {isProHost && <ProBadge />}
             </div>

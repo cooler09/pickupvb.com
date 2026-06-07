@@ -27,7 +27,7 @@ export default async function EditGroupPage(props: { params: Promise<{ id: strin
   return (
     <section className="mx-auto max-w-xl space-y-6 py-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">Edit {group.name}</h1>
+        <h1 className="text-headline-sm font-bold">Edit {group.name}</h1>
       </header>
       <EditGroupForm group={group} />
       <GroupAvatarPanel

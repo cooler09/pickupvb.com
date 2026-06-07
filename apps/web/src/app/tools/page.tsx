@@ -110,7 +110,7 @@ export default function ToolsPage() {
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
           Free · No account
         </p>
-        <h1 className="text-3xl font-bold">Host tools</h1>
+        <h1 className="text-headline-lg font-bold">Host tools</h1>
         <p className="text-muted">
           Generic, host-controlled utilities for running your event smoothly — built for volleyball,
           handy for any sport. No signup, no install.

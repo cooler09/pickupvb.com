@@ -100,7 +100,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
         <Link href={'/profile' as Route} className="text-primary text-sm hover:underline">
           ← Profile
         </Link>
-        <h1 className="text-fg text-3xl font-bold">Payouts</h1>
+        <h1 className="text-fg text-headline-lg font-bold">Payouts</h1>
         <p className="text-muted text-sm">
           Connect Stripe to sell tickets or accept tips on your events. Free pickups don&apos;t need
           this.

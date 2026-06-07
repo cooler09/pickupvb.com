@@ -66,7 +66,7 @@ export function PaidTicketPanel({
             <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">
               Pay in person
             </h2>
-            <p className="text-fg mt-1 text-2xl font-bold">{formatUsd(ticketCents)}</p>
+            <p className="text-fg text-headline-sm mt-1 font-bold">{formatUsd(ticketCents)}</p>
             <p className="text-muted text-xs">
               Cash, Venmo, etc. — settle up with the host at the event.
             </p>
@@ -74,7 +74,7 @@ export function PaidTicketPanel({
         ) : (
           <>
             <h2 className="text-muted text-xs font-semibold tracking-wide uppercase">Pay online</h2>
-            <p className="text-fg mt-1 text-2xl font-bold">{formatUsd(total)}</p>
+            <p className="text-fg text-headline-sm mt-1 font-bold">{formatUsd(total)}</p>
             {platformFeeCents > 0 || processingFeeCents > 0 ? (
               <p className="text-muted text-xs">
                 {formatUsd(ticketCents)} to the host
