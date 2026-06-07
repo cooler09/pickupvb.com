@@ -7,6 +7,29 @@ traces. Latency estimates are educated guesses; treat them as relative,
 not absolute. Confirm with Vercel Analytics + Supabase slow-query log
 before/after each fix.
 
+> **Note — historical file anchors (P3 #20, 2026-06-07).** Resolved findings
+> dated **before 2026-06-06** cite
+> [`apps/web/src/app/events/[id]/page.tsx`](../../apps/web/src/app/events/%5Bid%5D/page.tsx)
+> line numbers (`#L72` / `#L115` / `#L120` / `#L140` / `#L340` / `#L511`, …)
+> that **no longer resolve** — the event-detail page was decomposed (now ~360
+> LOC) and its logic relocated. Judge those anchors by the symbol they name, not
+> the line. Where the cited code lives now:
+>
+> - `Date.now()` / `hasStarted` reads and the narrowed per-attendee
+>   `event_attendees` / payment-status selects → the event-detail loaders in
+>   [`_loaders/load-event-detail.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+>   (`renderNowMs()`, `loadAttendeePayments`, `loadViewerPaymentStatus`) and
+>   [`_loaders/event-detail-cache.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts).
+> - The infra `getDetail()` read model → the per-concern loaders under
+>   [`packages/infrastructure/src/event-detail/`](../../packages/infrastructure/src/event-detail/).
+> - `isPro()` memoization → [`apps/web/src/lib/pro.ts`](../../apps/web/src/lib/pro.ts) (unchanged).
+> - The application `messages.ts` split (architecture P3-2) moved query/command
+>   classes into [`packages/application/src/messages/`](../../packages/application/src/messages/);
+>   the `/profile` + `/profile/billing/earnings` diets moved data orchestration
+>   into their `_loaders/`. These anchors are **historical** (the findings are
+>   resolved) — they're left in place as the record of where the issue was, not a
+>   live pointer. New findings must use current `path#Lstart-Lend` anchors.
+
 **Status update (2026-06-06) — fresh re-audit (202 commits since 05-31):**
 read-only pass over the large feature surface added since the last audit —
 standalone brackets (ADR 0025), chat messaging, capacity waitlist, free-agent
@@ -29,21 +52,29 @@ write-up + recommended fixes in
 - **P3 #19** — the event-detail capacity-waitlist read is an avoidable third
   sequential wave on full open-play events.
 
-> **2026-06-07 follow-up:** **P2 #16 + P3 #17 + P3 #18 + P3 #19 all shipped** —
-> the whole community caching surface plus the two clean P3 wins. **P2 #16**:
-> `/community/[slug]` cookie-free server shell + viewer-chrome island (one soft-404
-> change for non-managers on hidden/removed). **P3 #17**: `/community` listing made
-> cookie-free (CDN-cacheable per-URL like `/players`) with the submitter's
-> auto-hidden-listing recovery path preserved via a new
-> `listHiddenBySubmitter` port + `<MyHiddenCommunityListings />` island (the
-> original finding missed that the search mixed in own-hidden listings). \*\*P3 #18
+> **2026-06-07 follow-up — the entire 2026-06-06 re-audit backlog is closed
+> (1 P2 + 4 P3 all resolved).**
 >
-> - #19**: redundant `force-dynamic`; waitlist wave-fold. See the
->   [P3 #17](#2026-06-07--p3-17-community-listing-cacheable--own-hidden-recovery)
->   · [P2 #16](#2026-06-07--p2-16-communityslug-isr-cacheable-shell)
->   · [P3 #18/#19](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold)
->   entries + journals. **P3 #20\*\* (stale anchors) is the only open re-audit item;
->   a moderation follow-up (notify submitter on auto-hide) was surfaced by P3 #17.
+> - **P2 #16** — `/community/[slug]` cookie-free server shell + viewer-chrome
+>   island (one accepted soft-404 change for non-managers on hidden/removed).
+> - **P3 #17** — `/community` listing made cookie-free (CDN-cacheable per-URL
+>   like `/players`); the submitter's auto-hidden-listing recovery path preserved
+>   via a new `listHiddenBySubmitter` port + `<MyHiddenCommunityListings />`
+>   island (the original finding missed that the search mixed in own-hidden
+>   listings). Surfaced a moderation follow-up: notify the submitter on auto-hide.
+> - **P3 #18 / #19** — dropped redundant `force-dynamic` from `/brackets` +
+>   `/brackets/[id]`; folded the event-detail waitlist read into wave 1.
+> - **P3 #20** — added the historical-anchors note (this header) for the stale
+>   `events/[id]/page.tsx` links in resolved findings.
+>
+> Entries:
+> [P3 #20](#2026-06-07--p3-20-historical-file-anchors-note) ·
+> [P3 #17](#2026-06-07--p3-17-community-listing-cacheable--own-hidden-recovery) ·
+> [P2 #16](#2026-06-07--p2-16-communityslug-isr-cacheable-shell) ·
+> [P3 #18/#19](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
+> The standing open items are the older deferrals (the `/events` + `/events/[id]`
+> full ISR shells under P1 #1, and the migration-gated discovery-feed paging),
+> not re-audit findings.
 
 **Status update (2026-05-31) — pagination sweep (unbounded UI lists):** a
 read-only scan for list views that render an entire result set with no paging,
@@ -799,6 +830,17 @@ change.
 
 ### P3 #20 — Existing audit's file/line anchors went stale after the post-05-31 refactors 🆕 2026-06-06
 
+**Status:** ✅ _Resolved 2026-06-07_ — added the
+[**historical file anchors** note](#performance-audit) in the document header
+(the blockquote under the scope paragraph). It flags that resolved findings
+predating 2026-06-06 cite `events/[id]/page.tsx` line numbers that no longer
+resolve, and maps each piece of relocated code to its current home
+(`_loaders/load-event-detail.ts` + `event-detail-cache.ts`, the infra
+`event-detail/` loaders, `lib/pro.ts`, `application/src/messages/`). The
+individual anchors are left in place as the historical record (repointing ~8
+links in resolved findings to fresh line numbers just re-stales). New findings
+must use current `path#Lstart-Lend` anchors.
+
 **Category:** Documentation hygiene (stale references)
 **Where:** the "Files" anchors in the **already-resolved** P1 #0 / P1 #4 / P2 #8
 / P3 #12 findings above.
@@ -983,6 +1025,20 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-06-07 — P3 #20: historical file-anchors note
+
+Doc-hygiene close-out of the 2026-06-06 re-audit. The `events/[id]/page.tsx`
+line anchors in the resolved P1 #0 / P1 #1 / P1 #4 / P2 #8 / P3 #12 findings
+went stale when the page decomposed (500-ish → 360 LOC) and its logic moved into
+`_loaders/`. Rather than repoint ~8 links in resolved findings to fresh line
+numbers (which re-stale on the next refactor), added a single durable
+[historical-anchors note](#performance-audit) to the document header mapping each
+relocated piece to its current home (event-detail `_loaders/`, the infra
+`event-detail/` loaders, `lib/pro.ts`, `application/src/messages/`). The stale
+anchors stay in place as the historical record; new findings use current
+`path#Lstart-Lend` anchors. No code change. **This closes every finding from the
+2026-06-06 re-audit.**
 
 ### 2026-06-07 — P3 #17: `/community` listing cacheable + own-hidden recovery
 
