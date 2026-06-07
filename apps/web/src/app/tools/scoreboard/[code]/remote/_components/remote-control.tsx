@@ -118,7 +118,7 @@ export function RemoteControl({ code, initialConfig }: Props) {
       {winner && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
           <div className="rounded-shape-md bg-white p-6 text-center text-black shadow-xl">
-            <p className="text-xs font-semibold tracking-widest text-emerald-600 uppercase">
+            <p className="text-md-success text-xs font-semibold tracking-widest uppercase">
               Match won
             </p>
             <p className="text-headline-lg mt-2 font-bold">

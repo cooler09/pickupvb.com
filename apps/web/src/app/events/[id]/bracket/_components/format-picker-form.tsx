@@ -521,7 +521,7 @@ export function FormatPickerForm(props: {
               </p>
             )}
             {enforceMin && teams.length < 2 && (
-              <p className="mt-2 text-xs text-amber-700 dark:text-amber-300" role="status">
+              <p className="text-md-warning mt-2 text-xs" role="status">
                 You need at least 2 teams to build a bracket.
               </p>
             )}

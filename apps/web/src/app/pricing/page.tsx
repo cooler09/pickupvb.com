@@ -163,7 +163,7 @@ export default async function PricingPage() {
                 >
                   Manage subscription ↗
                 </OpenInNewTabButton>
-                <p className="text-center text-xs text-emerald-700">
+                <p className="text-md-success text-center text-xs">
                   You&apos;re on Pro — thanks for supporting PickupVB.
                 </p>
               </>

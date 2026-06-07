@@ -690,7 +690,7 @@ function WinnerOverlay({
       >
         <p
           id="scoreboard-winner-eyebrow"
-          className="text-xs font-semibold tracking-widest text-emerald-600 uppercase"
+          className="text-md-success text-xs font-semibold tracking-widest uppercase"
         >
           Match won
         </p>
@@ -750,7 +750,7 @@ function BoundWinnerActions({
   if (saved) {
     return (
       <div className="mt-6 flex flex-col items-center gap-3">
-        <p className="text-sm font-semibold text-emerald-600">Saved to match ✓</p>
+        <p className="text-md-success text-sm font-semibold">Saved to match ✓</p>
         <Link
           href={bound.returnPath as Route}
           className="rounded-md bg-black px-5 py-2 text-sm font-semibold text-white"

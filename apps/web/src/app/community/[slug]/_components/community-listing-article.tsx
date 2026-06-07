@@ -39,7 +39,7 @@ export function CommunityListingArticle({ detail }: { detail: CommunityListingDe
   return (
     <>
       <header className="space-y-2">
-        <p className="text-xs font-semibold tracking-wide text-amber-600 uppercase dark:text-amber-400">
+        <p className="text-md-warning text-xs font-semibold tracking-wide uppercase">
           Community listing
         </p>
         <h1 className="text-headline-lg font-bold">{detail.title}</h1>

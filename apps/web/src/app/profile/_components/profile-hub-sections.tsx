@@ -113,10 +113,10 @@ export function PendingInvitesSection({ invites }: { invites: Model['pendingInvi
   return (
     <section className="rounded-shape-sm space-y-3 border border-amber-500/40 bg-amber-500/5 p-5">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
+        <h2 className="text-md-warning text-sm font-semibold tracking-wide uppercase">
           Pending team invites
         </h2>
-        <span className="text-xs text-amber-700 dark:text-amber-400">{invites.length} waiting</span>
+        <span className="text-md-warning text-xs">{invites.length} waiting</span>
       </div>
       <ul className="space-y-2">
         {invites.map((t) => (

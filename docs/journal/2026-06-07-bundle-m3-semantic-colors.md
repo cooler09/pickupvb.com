@@ -87,9 +87,14 @@ transparent)` with a solid `rgb(var(...))` fallback rule — verified in the
   error text app-wide (was dark-red-on-dark). **Net 395 → 350.** Then every
   **destructive text-button + inline error** (`text-red-600` Withdraw/Leave/
   Remove + `role=alert` error `<p>`s, 29 sites) → `text-md-error` via a
-  token-safe global codemod (`text-red-600` is never a bg-badge). **Net 350 → 305.** See the m3-alignment remediation log. Remaining: hand-rolled notice
-  boxes, bg-tinted status badges, green/amber inline success/warning text (the
-  symmetric counterpart) — each a per-surface recolor follow-up.
+  token-safe global codemod (`text-red-600` is never a bg-badge). **Net 350 → 305.** Then the symmetric counterpart — **inline success/warning text**
+  (`text-emerald-700` "saved"/template/scoreboard → `text-md-success`,
+  `text-amber-700` labels/counts → `text-md-warning`, 12 files) — via exact
+  full-className subs (green/amber _shares_ shades with bg-badges, so no blanket
+  codemod; only the 12 inline files changed, zero badges). **Net 305 → 277**;
+  inline semantic-text migration now complete (red+green+amber). See the
+  m3-alignment remediation log. Remaining: bg-tinted status badges (the bulk),
+  hand-rolled notice boxes (→ `<Alert>`) — each a per-surface recolor follow-up.
 - **No palette ratchet yet** — raw red/amber/emerald can't reach zero
   (decorative/team uses remain), so the lint lock waits until a _fully
   migratable_ sub-bucket exists.

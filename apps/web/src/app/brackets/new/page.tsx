@@ -52,7 +52,7 @@ export default async function NewStandaloneBracketPage(props: {
       {notice && notice.tone === 'error' && (
         <div
           role="alert"
-          className="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300"
+          className="text-md-error rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm"
         >
           {notice.text}
           {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}

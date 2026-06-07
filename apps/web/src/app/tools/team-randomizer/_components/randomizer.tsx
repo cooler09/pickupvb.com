@@ -277,14 +277,12 @@ export function TeamRandomizer({
                       : `Save ${teams.length} team${teams.length === 1 ? '' : 's'} as ad-hoc teams`}
                   </button>
                   {saveResult?.ok ? (
-                    <p className="text-sm text-green-700 dark:text-green-300">
+                    <p className="text-md-success text-sm">
                       Created {saveResult.created} team{saveResult.created === 1 ? '' : 's'} on the
                       event. They’ll appear in the bracket’s registered teams.
                     </p>
                   ) : saveResult ? (
-                    <p className="text-sm text-red-700 dark:text-red-300">
-                      {saveError(saveResult)}
-                    </p>
+                    <p className="text-md-error text-sm">{saveError(saveResult)}</p>
                   ) : null}
                 </>
               )}

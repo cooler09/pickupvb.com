@@ -196,9 +196,7 @@ function SeedingForm(props: {
       <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 select-none">
         {props.seedingSaved ? (
           <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-              ✓ Seeding saved
-            </span>
+            <span className="text-md-success text-sm font-semibold">✓ Seeding saved</span>
             <span className="text-muted text-xs">
               {count} team{count === 1 ? '' : 's'} · nothing more to do here
             </span>

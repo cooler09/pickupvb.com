@@ -67,11 +67,14 @@
 > 3 duplicated payment-status maps, rsvp-flash error, the inline Paid/Pending/
 > Refunded labels) moved to role tokens — fixing dark-mode error text app-wide.
 > Then every **destructive text-button + inline error** (`text-red-600`
-> Withdraw/Leave/Remove + `role=alert` error `<p>`s, 29 sites) → `text-md-error`.
-> **Net: raw palette 555 → 305.** Pattern in [AGENTS.md #17](../../AGENTS.md).
+> Withdraw/Leave/Remove + `role=alert` error `<p>`s, 29 sites) → `text-md-error`,
+> and its symmetric counterpart — the **inline success/warning text**
+> (`text-emerald-700` "saved" → `text-md-success`, `text-amber-700` labels →
+> `text-md-warning`, 12 files) — completing the inline semantic-text migration.
+> **Net: raw palette 555 → 277.** Pattern in [AGENTS.md #17](../../AGENTS.md).
 > **Open:** the app-wide surface migration (now unblocked — a visual-review
-> bundle) + hand-rolled notice boxes + bg-tinted status badges + green/amber
-> inline success/warning text + decorative palette (scoreboard red/green are
+> bundle) + bg-tinted status badges (the bulk of what's left) + hand-rolled
+> notice boxes (→ `<Alert>`) + decorative palette (scoreboard red/green are
 > _team_ colors). See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
@@ -1209,6 +1212,41 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Inline success/warning text → `text-md-success` / `text-md-warning` (2026-06-07)
+
+Seventh S2 step — the **symmetric counterpart** to the red destructive sweep,
+completing the inline semantic-text migration (red + green + amber now all on
+role tokens). Recolored the bare inline status text (no `bg-`) across 12 files:
+
+- **green/emerald success** → `text-md-success`: "✓ Template saved"
+  (templates-section), "Video added" (add-profile-video), the pricing ✓ note,
+  setup-view's ✓ status, the scoreboard "Saved to match ✓" + serving labels
+  (remote-control, scoreboard-view), and the seeding / team-randomizer success
+  results.
+- **amber warning** → `text-md-warning`: profile-hub "Team invites" heading +
+  count, the mobile-menu invite count, community-article label, format-picker's
+  `role=status` caution.
+- **red failure siblings** in the seeding / randomizer result lists
+  (`text-sm text-red-700` next to the green success) → `text-md-error`.
+
+Unlike the red `text-red-600` sweep, the inline green/amber **shares shades
+with bg-badges** (a `text-emerald-700` status badge vs inline success text), so
+a blanket codemod was unsafe. Instead used **exact full-className**
+replacements — each inline site's string differs from the badge variant (badges
+carry `bg-…` + a different `dark:` shade), verified by the changed-file list
+(only the 12 inline-text files; **zero** badge/status-map files touched). Dark
+companions (`dark:text-emerald-400` etc.) dropped — the role flips per theme.
+`text-md-success` 7→10, `text-md-warning` 7→8.
+
+**Net: raw palette 305 → 277.** **Still open:** bg-tinted **status badges**
+(`bg-emerald-500/15`/`bg-amber-500/15`/`bg-red-500/10` paid/role/live-draft
+pills + status maps in billing, members-section, signup-section, team-card,
+bracket/schedule pages — ~73 green + ~90 amber utils, the bulk of what's left);
+hand-rolled **notice boxes** (billing/media/community-viewer-chrome/
+event-flash-banners/edit-event-form) → `<Alert>` or container roles; and the
+unblocked app-wide surface migration. Verify: 15/15 typecheck · lint 0 err / 3
+pre-existing · 268 web tests · 8/8 build.
 
 ### Destructive text-buttons + inline error text → `text-md-error` (2026-06-07)
 
