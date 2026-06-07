@@ -21,8 +21,6 @@ import {
   type TeamLite,
 } from '@/app/events/[id]/bracket/_components/labels';
 
-export const dynamic = 'force-dynamic';
-
 function pickQuery(
   sp: Record<string, string | string[] | undefined> | undefined,
   key: string,

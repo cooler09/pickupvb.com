@@ -8,8 +8,6 @@ import { UserId } from '@pickupvb/domain';
 import { FORMAT_LABEL } from '@/app/events/[id]/bracket/_components/labels';
 import { deleteStandaloneBracket } from './actions';
 
-export const dynamic = 'force-dynamic';
-
 const STATUS_LABEL: Record<string, string> = {
   setup: 'Setting up',
   draft: 'Draft',

@@ -29,6 +29,15 @@ write-up + recommended fixes in
 - **P3 #19** — the event-detail capacity-waitlist read is an avoidable third
   sequential wave on full open-play events.
 
+> **2026-06-07 follow-up:** **P3 #18 + P3 #19 shipped** (the clean, low-risk
+> wins) — see the
+> [remediation log](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
+> P2 #16 (community ISR) is intentionally sequenced after as its own bundle:
+> it's a multi-piece change (manager-only hidden listings need a viewer read,
+> the `searchParams` notice, the claimed→event 301, interleaved viewer chrome),
+> closer in class to the deferred `/events/[id]` shell than a mechanical
+> refactor. P3 #17 + P3 #20 remain open.
+
 **Status update (2026-05-31) — pagination sweep (unbounded UI lists):** a
 read-only scan for list views that render an entire result set with no paging,
 prompted by the `/profile` Hosting section. Found and **fixed 6 P2 list views**,
@@ -677,6 +686,13 @@ fetches its own session (mirrors `<NewGroupButton />`). Track alongside the
 
 ### P3 #18 — Standalone bracket owner pages carry redundant `force-dynamic` 🆕 2026-06-06
 
+**Status:** ✅ _Resolved 2026-06-07_ — dropped the `export const dynamic =
+'force-dynamic'` line from both pages. They stay `ƒ` (server-rendered on demand)
+because each reads `cookies()` unconditionally (`requireRealUser` /
+`getViewer`), so the flag was a no-op — same outcome as the resolved P1 #2.
+Verified `pnpm typecheck && lint && test && build` green. See the
+[2026-06-07 remediation log entry](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
+
 **Category:** Caching / revalidation (clarity)
 **Files:**
 
@@ -700,6 +716,14 @@ aren't public, but the flag should still go.)
 ---
 
 ### P3 #19 — Event-detail capacity-waitlist read is an avoidable third sequential wave 🆕 2026-06-06
+
+**Status:** ✅ _Resolved 2026-06-07_ — extracted a `loadWaitlist(event, user)`
+helper that internally applies the `open_play && !positionRoster &&
+spotsRemaining === 0` gate (resolving `{ waitlistCount: 0, viewerWaitlistPosition:
+null }` otherwise) and folded it into the wave-1 `Promise.all`. The serial
+round-trip on full open-play renders is gone; behavior is unchanged (same gate,
+same best-effort `catch`). Verified `pnpm typecheck && lint && test && build`
+green. See the [2026-06-07 remediation log entry](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
 
 **Category:** Sequential await / extra RTT
 **File:**
@@ -913,6 +937,23 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-06-07 — P3 #18 + P3 #19 (redundant force-dynamic / waitlist wave-fold)
+
+The two clean, self-contained wins from the 2026-06-06 re-audit. P2 #16
+(community ISR) deliberately sequenced after — it's a multi-piece bundle
+(manager-only hidden listings need a viewer read, `searchParams` notice, the
+claimed→event 301, interleaved viewer chrome), closer to the deferred
+`/events/[id]` shell than a mechanical refactor.
+
+| Item                                  | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P3 #18 drop redundant `force-dynamic` | ✅ Done | Removed `export const dynamic = 'force-dynamic'` from [brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx) + [brackets/[id]/page.tsx](../../apps/web/src/app/brackets/%5Bid%5D/page.tsx). Both read `cookies()` unconditionally (`requireRealUser` / `getViewer`), so they stay `ƒ` — the flag was a no-op (same as the resolved P1 #2). Build route table unchanged; the public `/brackets/[id]/watch` was already correctly ISR'd and untouched.                   |
+| P3 #19 fold waitlist read into wave 1 | ✅ Done | Extracted `loadWaitlist(event, user)` in [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts) — internal `open_play && !positionRoster && spotsRemaining === 0` gate, empty-shape fallback, best-effort `catch` — and added it to the wave-1 `Promise.all`. Removes the serial RTT on full open-play event renders; the gate + behavior are identical, so non-full / roster / non-open-play events still issue zero waitlist queries. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, 3 pre-existing warnings in untouched files; test
+262 web + domain/application; build 8/8).
 
 ### 2026-05-31 — Pagination sweep (unbounded UI lists)
 
