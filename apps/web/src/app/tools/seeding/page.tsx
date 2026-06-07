@@ -119,7 +119,7 @@ export default async function SeedingPage(props: {
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
           Host tool · Free
         </p>
-        <h1 className="text-3xl font-bold">Seeding generator</h1>
+        <h1 className="text-headline-lg font-bold">Seeding generator</h1>
         <p className="text-muted text-sm">
           Paste your teams and seed them for a bracket — ranked by rating or a random draw — then
           optionally snake them into balanced pools. Nothing is saved.
@@ -139,7 +139,7 @@ export default async function SeedingPage(props: {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-fg text-xl font-semibold">FAQ</h2>
+        <h2 className="text-fg text-title-lg font-semibold">FAQ</h2>
         <dl className="space-y-3">
           {faqs.map((f) => (
             <div key={f.q} className="border-border-base rounded-md border p-3">

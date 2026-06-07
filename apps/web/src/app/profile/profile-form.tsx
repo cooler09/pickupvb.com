@@ -18,6 +18,7 @@ type Profile = {
   home_city: string | null;
   auto_accept_team_invites: boolean;
   show_pro_badge: boolean;
+  discoverable: boolean;
   primary_position: string | null;
   secondary_position: string | null;
   tertiary_position: string | null;
@@ -282,6 +283,12 @@ export function ProfileForm({
 
       <Section title="Preferences">
         <div className="grid gap-3 sm:grid-cols-2">
+          <ToggleCard
+            name="discoverable"
+            title="Appear in player search"
+            description="Let captains find and add you to teams, and list you in the players directory. Turn this off to stay private — you can still join events and create your own teams."
+            defaultChecked={profile.discoverable}
+          />
           <ToggleCard
             name="auto_accept_team_invites"
             title="Auto-accept team invites"

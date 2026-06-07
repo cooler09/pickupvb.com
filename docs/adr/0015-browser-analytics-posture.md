@@ -5,7 +5,7 @@
 - **Supersedes (in part):** the Bundle 82 stance that "PostHog captures
   happen server-side only, so no third-party tracking script runs in
   your browser" (recorded in
-  [docs/journal/2026-05-24-bundle-82.md](../journal/2026-05-24-bundle-82.md)
+  [docs/journal/2026-05-digest.md#bundle-82](../journal/2026-05-digest.md#bundle-82)
   and the original privacy policy §5).
 
 ## Context
@@ -145,7 +145,7 @@ hash, computed server-side per request.
 
 ## Reference
 
-- Bundle: see `docs/journal/2026-05-27-bundle-102.md` (this ADR is
+- Bundle: see `docs/journal/2026-05-digest.md#bundle-102` (this ADR is
   authored alongside it).
 - Test: [apps/web/src/components/posthog-provider.test.ts](../../apps/web/src/components/posthog-provider.test.ts).
 - Audit context: [docs/audits/analytics.md](../audits/analytics.md)

@@ -4,6 +4,7 @@ import { useState, useTransition, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+import { Alert } from '@/components/alert';
 import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
@@ -87,13 +88,8 @@ export default function ImportClient() {
   return (
     <div className="space-y-6">
       {error && (
-        <div
-          ref={errorRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
-        >
-          {error}
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{error}</Alert>
         </div>
       )}
 
@@ -106,7 +102,9 @@ export default function ImportClient() {
               <li
                 key={i}
                 className={`rounded-md border p-3 text-sm ${
-                  r.ok ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+                  r.ok
+                    ? 'border-md-success/30 bg-md-success-container'
+                    : 'border-md-error/30 bg-md-error-container'
                 }`}
               >
                 <span className="font-medium">{r.title}</span>
@@ -117,20 +115,20 @@ export default function ImportClient() {
                       view
                     </Link>
                     {!r.geocoded && (
-                      <span className="mt-1 block text-xs text-amber-700">
+                      <span className="text-md-warning mt-1 block text-xs">
                         Saved with the address as text — it didn&rsquo;t geocode, so it won&rsquo;t
                         show on the map or in distance search until coordinates are added.
                       </span>
                     )}
                     {r.hidden && (
-                      <span className="mt-1 block text-xs text-amber-700">
+                      <span className="text-md-warning mt-1 block text-xs">
                         This listing is currently <strong>hidden</strong> (it was hidden before this
                         update) — it won&rsquo;t appear publicly until you un-hide it from its page.
                       </span>
                     )}
                   </>
                 ) : (
-                  <span className="text-red-700"> — {r.error}</span>
+                  <span className="text-md-on-error-container"> — {r.error}</span>
                 )}
               </li>
             ))}
@@ -271,7 +269,7 @@ function DraftCard({
         <button
           type="button"
           onClick={onRemove}
-          className="text-muted mt-7 shrink-0 text-sm hover:text-red-600"
+          className="text-muted hover:text-md-error mt-7 shrink-0 text-sm"
         >
           Remove
         </button>

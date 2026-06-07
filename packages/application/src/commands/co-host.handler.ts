@@ -3,14 +3,14 @@ import { ValidationError } from '@pickupvb/domain';
 import { AddEventCoHostCommand, RemoveEventCoHostCommand } from '../messages/index.js';
 
 /**
- * Authorization for co-host changes lives at the DB layer (RLS on
- * `event_co_hosts`): only the event host or owner/admin of the host group
- * can insert/delete. We intentionally don't duplicate that check here — the
- * repo will throw with a Postgres permission error if the requester isn't
- * authorized, which surfaces as a generic failure to the UI.
+ * Authorization is enforced at the server-action boundary
+ * (`assertCanManage` in co-host-actions.ts), NOT here: the shared
+ * `SupabaseEventRepository` these handlers write through runs on the
+ * service-role admin client, so the `event_co_hosts` RLS policies never fire
+ * (AGENTS.md pitfall #8 — admin client bypasses RLS). Do not re-delegate
+ * authorization to RLS from this layer. (Security audit P1 #12.)
  *
- * `requesterId` is still passed through to populate `event_co_hosts.added_by`
- * for audit purposes.
+ * `requesterId` is passed through to populate `event_co_hosts.added_by`.
  */
 export class AddEventCoHostHandler {
   constructor(private readonly repo: EventMembershipStore) {}

@@ -414,6 +414,52 @@ export class SupabaseCommunityListingRepository implements CommunityListingRepos
     }));
   }
 
+  async listHiddenBySubmitter(userId: string): Promise<CommunityListingSummary[]> {
+    const { data, error } = await this.table('community_listings')
+      .select(
+        'id, slug, short_code, title, external_url, external_host_name, starts_at, ends_at, time_zone, city, region, surface, format, skill_level, status',
+      )
+      .eq('submitter_user_id', userId)
+      .eq('status', 'hidden')
+      .order('starts_at', { ascending: true });
+    if (error) throw new Error(`CommunityListing.listHiddenBySubmitter failed: ${error.message}`);
+    type Row = {
+      id: string;
+      slug: string;
+      short_code: string;
+      title: string;
+      external_url: string;
+      external_host_name: string | null;
+      starts_at: string;
+      ends_at: string | null;
+      time_zone: string | null;
+      city: string | null;
+      region: string | null;
+      surface: CommunityListingSummary['surface'];
+      format: CommunityListingSummary['format'];
+      skill_level: CommunityListingSummary['skillLevel'];
+      status: CommunityListingSummary['status'];
+    };
+    return ((data ?? []) as unknown as Row[]).map((r) => ({
+      id: r.id,
+      slug: r.slug,
+      shortCode: r.short_code,
+      title: r.title,
+      externalUrl: r.external_url,
+      externalHostName: r.external_host_name,
+      startsAt: new Date(r.starts_at),
+      endsAt: r.ends_at ? new Date(r.ends_at) : null,
+      timeZone: r.time_zone,
+      city: r.city,
+      region: r.region,
+      surface: r.surface,
+      format: r.format,
+      skillLevel: r.skill_level,
+      status: r.status,
+      distanceKm: null,
+    }));
+  }
+
   async getDetail(
     idOrSlug: string,
     viewerId: string | null,

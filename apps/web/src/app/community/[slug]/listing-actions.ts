@@ -15,7 +15,11 @@ import { ConflictError, NotFoundError, UnauthorizedError } from '@pickupvb/domai
 import { handlers } from '@/lib/handlers';
 import { field } from '@/lib/form-data';
 import { requireRealUser } from '@/lib/server-auth';
-import { notifyClaimApproved, notifyClaimPending } from '@/lib/notify-community';
+import {
+  notifyClaimApproved,
+  notifyClaimPending,
+  notifyListingAutoHidden,
+} from '@/lib/notify-community';
 import { communityListingCacheTag } from '@/lib/cache-tags';
 
 /**
@@ -46,15 +50,21 @@ export async function reportListing(
 ): Promise<void> {
   const { user } = await requireRealUser(`/community/${slug}`);
   const truncatedReason = reason ? reason.slice(0, 500) : null;
+  let autoHidden = false;
   try {
-    await handlers.reportCommunityListing.execute(
+    const result = await handlers.reportCommunityListing.execute(
       new ReportCommunityListingCommand(listingId, user.id, truncatedReason),
     );
+    autoHidden = result.autoHidden;
   } catch (err) {
     if (err instanceof ConflictError) back(slug, 'already');
     if (err instanceof NotFoundError) back(slug, 'notfound');
     throw err;
   }
+  // If this report tipped the listing past the report threshold and the DB
+  // trigger auto-hid it, tell the submitter — it's their only signal, and the
+  // ping deep-links them to review / unhide. Best-effort; never blocks the flow.
+  if (autoHidden) await notifyListingAutoHidden(listingId);
   updateTag(communityListingCacheTag(slug));
   revalidatePath(`/community/${slug}`);
   back(slug, 'reported');

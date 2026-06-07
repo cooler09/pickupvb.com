@@ -23,7 +23,7 @@ export function MyGroupsSection({ groups }: Props) {
   return (
     <section className="space-y-4">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-xl font-bold">
+        <h2 className="text-title-lg font-bold">
           Groups <span className="text-muted text-sm font-normal">({groups.length})</span>
         </h2>
         <Link href="/groups/new" className="text-primary text-sm font-medium hover:underline">

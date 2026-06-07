@@ -50,7 +50,7 @@ export default async function LeavingPage(props: { searchParams: SearchParams })
   if (!parsed || !isHttp) {
     return (
       <main className="mx-auto max-w-md space-y-6 px-4 py-12 text-center">
-        <h1 className="text-fg text-2xl font-bold">Bad link</h1>
+        <h1 className="text-fg text-headline-sm font-bold">Bad link</h1>
         <p className="text-muted text-sm">
           That link is missing or malformed. Head back and try again.
         </p>
@@ -70,7 +70,7 @@ export default async function LeavingPage(props: { searchParams: SearchParams })
   return (
     <main className="mx-auto max-w-md space-y-6 px-4 py-12">
       <header className="space-y-2 text-center">
-        <h1 className="text-fg text-2xl font-bold">You&rsquo;re leaving PickupVB</h1>
+        <h1 className="text-fg text-headline-sm font-bold">You&rsquo;re leaving PickupVB</h1>
         <p className="text-muted text-sm">
           This link goes to a site we don&rsquo;t control. Check the destination before continuing.
         </p>

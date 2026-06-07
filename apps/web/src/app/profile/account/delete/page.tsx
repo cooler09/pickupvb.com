@@ -12,7 +12,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
+const cardClass = 'border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6';
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -38,24 +38,22 @@ export default async function DeleteAccountPage(props: {
         <Link href={'/profile' as Route} className="text-primary text-sm hover:underline">
           ← Back to profile
         </Link>
-        <h1 className="text-2xl font-bold">Delete account</h1>
+        <h1 className="text-headline-sm font-bold">Delete account</h1>
       </header>
 
       {status === 'cancelled' && !active && (
         <p
           role="status"
-          className="rounded-shape-sm border border-green-300 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-200"
+          className="rounded-shape-sm border-md-success/30 bg-md-success-container text-md-on-success-container border p-3 text-sm"
         >
           Your account deletion was cancelled. Nothing was removed.
         </p>
       )}
 
       {active ? (
-        <section className="rounded-shape-sm border border-amber-300 bg-amber-50 p-5 dark:border-amber-900/50 dark:bg-amber-950/30">
-          <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-            Deletion scheduled
-          </h2>
-          <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">
+        <section className="rounded-shape-sm border-md-warning/30 bg-md-warning-container border p-5">
+          <h2 className="text-md-on-warning-container text-sm font-semibold">Deletion scheduled</h2>
+          <p className="text-md-on-warning-container/90 mt-1 text-sm">
             Your account and personal data are scheduled to be{' '}
             <strong>permanently deleted on {formatDate(active.scheduledFor)}</strong>. Nothing is
             removed until then — you can cancel any time before that date.
@@ -72,7 +70,7 @@ export default async function DeleteAccountPage(props: {
       ) : (
         <section className={cardClass}>
           <h2 className="text-lg font-bold">Permanently delete your account</h2>
-          <div className="text-muted mt-2 space-y-2 text-sm">
+          <div className="text-md-on-surface-variant mt-2 space-y-2 text-sm">
             <p>
               This schedules your account for permanent deletion after a{' '}
               <strong>30-day grace period</strong>. You can cancel any time before then. When it
@@ -94,7 +92,7 @@ export default async function DeleteAccountPage(props: {
           </div>
 
           {error === 'confirm' && (
-            <p role="alert" className="mt-3 text-sm text-red-600">
+            <p role="alert" className="text-md-error mt-3 text-sm">
               Type <strong>DELETE</strong> exactly to confirm.
             </p>
           )}

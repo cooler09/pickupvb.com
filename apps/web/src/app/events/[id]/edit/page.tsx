@@ -115,7 +115,7 @@ export default async function EditEventPage(props: {
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-3xl font-bold">Edit event</h1>
+        <h1 className="text-headline-lg font-bold">Edit event</h1>
         <p className="text-muted text-sm">
           Update details for <span className="font-medium">{event.title}</span>.
         </p>

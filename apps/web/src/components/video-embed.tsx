@@ -85,7 +85,7 @@ export function VideoEmbed({
       rel="noopener noreferrer"
       className="border-border-base hover:bg-fg/5 rounded-shape-sm flex aspect-video w-full flex-col items-center justify-center gap-1 border text-center"
     >
-      <span aria-hidden="true" className="text-3xl">
+      <span aria-hidden="true" className="text-headline-lg">
         ▶
       </span>
       <span className="text-fg text-sm font-medium">Watch on {label}</span>

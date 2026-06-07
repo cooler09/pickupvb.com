@@ -182,7 +182,8 @@ export type AdHocRegPublicRow = {
  * Public cached snapshot — reads only from narrow public surfaces so no PII
  * (email, user_id) enters the shared cache.
  *
- * - Registrations from `event_team_entries` (RLS: `using (true)`)
+ * - Registrations from `event_team_entries` (row policy `using (deleted_at is
+ *   null)`; `captain_phone` is not granted to anon/authenticated — privacy #16)
  * - Members from `event_team_entry_members_public` view
  * - Captain names from `profiles_public` (via `ProfileQueries.findCardsByIds`)
  *

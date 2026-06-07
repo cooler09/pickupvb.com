@@ -42,6 +42,37 @@ export async function loadCommunityDetailPublic(
   return cached ? reviveDates(cached) : null;
 }
 
+/**
+ * Resolve the target path for a claimed listing's 301 redirect — the linked
+ * event's slug, falling back to its id (the `/events` route accepts either).
+ * Reads on the admin client so the page boundary can issue the redirect without
+ * touching `cookies()` (which would force the route dynamic — P2 #16).
+ */
+export async function resolveClaimedEventTarget(eventId: string): Promise<string> {
+  const { getAdminSupabase } = await import('@/lib/supabase-admin');
+  const { data } = await getAdminSupabase()
+    .from('events')
+    .select('slug')
+    .eq('id', eventId)
+    .maybeSingle();
+  return (data as { slug?: string | null } | null)?.slug ?? eventId;
+}
+
+/**
+ * Does a listing with this slug exist at all? A cookieless existence probe for
+ * the page's null-public branch, so a genuinely-missing slug still 404s while a
+ * hidden/removed listing (which the public read also returns as `null`) falls
+ * through to the manager island. Admin client → no `cookies()`.
+ */
+export async function communityListingExists(slug: string): Promise<boolean> {
+  const { getAdminSupabase } = await import('@/lib/supabase-admin');
+  const { count } = await getAdminSupabase()
+    .from('community_listings')
+    .select('id', { head: true, count: 'exact' })
+    .eq('slug', slug);
+  return (count ?? 0) > 0;
+}
+
 /** Re-hydrate every `Date` field `unstable_cache` flattened to a string. */
 function reviveDates(m: CommunityListingDetailReadModel): CommunityListingDetailReadModel {
   const toDate = (v: unknown): Date => new Date(v as string);

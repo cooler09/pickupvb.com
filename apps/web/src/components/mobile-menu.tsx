@@ -187,7 +187,7 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
                   >
                     <span className="flex items-center gap-2">
                       Team invites
-                      <span className="text-xs font-normal text-amber-700">
+                      <span className="text-md-warning text-xs font-normal">
                         {pendingTeamInvites === 1 ? '1 pending' : `${pendingTeamInvites} pending`}
                       </span>
                     </span>

@@ -51,7 +51,7 @@ export default async function GroupsIndexPage(props: {
     <div className="mx-auto max-w-3xl space-y-6 py-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-headline-sm font-bold">
             Groups & organizations{' '}
             <span className="text-muted text-base font-normal">· {total}</span>
           </h1>

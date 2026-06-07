@@ -81,7 +81,7 @@ export default async function NewEventPage(props: {
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-3xl font-bold">Host an event</h1>
+        <h1 className="text-headline-lg font-bold">Host an event</h1>
         <p className="text-muted text-sm">
           Set up your pickup session, tournament, or league. You can edit any of this later.
         </p>

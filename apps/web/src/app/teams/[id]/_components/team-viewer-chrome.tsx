@@ -111,7 +111,7 @@ export function TeamViewerChrome({
                 >
                   <span className="truncate text-sm">{name}</span>
                   <form action={removeMemberFromForm.bind(null, teamId, m.userId, returnPath)}>
-                    <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+                    <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
                       {isPending ? 'Cancel' : 'Remove'}
                     </SubmitButton>
                   </form>

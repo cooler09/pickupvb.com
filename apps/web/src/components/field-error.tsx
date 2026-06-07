@@ -31,7 +31,7 @@ export function fieldA11y(
 export function FieldError({
   name,
   errors,
-  className = 'mt-1 text-xs text-red-600',
+  className = 'mt-1 text-xs text-md-error',
 }: {
   name: string;
   errors: Record<string, string> | undefined;

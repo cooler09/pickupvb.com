@@ -82,7 +82,7 @@ export function NavDropdown({ label, items, hasIndicator, indicatorLabel }: Prop
           align="start"
           sideOffset={8}
           aria-label={label}
-          className="md-menu-motion border-border-base bg-surface text-fg shadow-elevation-2 z-50 min-w-[12rem] overflow-hidden rounded-md border py-1"
+          className="md-menu-motion border-border-base bg-md-surface-container-high text-fg shadow-elevation-2 z-50 min-w-[12rem] overflow-hidden rounded-md border py-1"
         >
           {items.map((item) => (
             <RadixDropdownMenu.Item key={item.href} asChild>

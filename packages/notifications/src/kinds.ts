@@ -32,6 +32,7 @@ export type NotificationKind =
   | 'chat.message.received'
   | 'community.claim.pending'
   | 'community.claim.approved'
+  | 'community.listing.auto_hidden'
   | 'account.deletion.requested'
   | 'account.deletion.cancelled';
 
@@ -71,6 +72,11 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   // would otherwise redirect their listing without their knowledge).
   'community.claim.pending': 'transactional',
   'community.claim.approved': 'transactional',
+  // The submitter's listing was auto-hidden by reports — a moderation action on
+  // their own content they must be told about (it's the only signal; auto-hide
+  // is otherwise silent) and can act on (unhide). Transactional so it's never
+  // disabled away.
+  'community.listing.auto_hidden': 'transactional',
   'account.deletion.requested': 'transactional',
   'account.deletion.cancelled': 'transactional',
 };
@@ -100,6 +106,9 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   // bell-only (informational, no email-worthy action).
   'community.claim.pending': ['email', 'in_app'],
   'community.claim.approved': ['in_app'],
+  // Email + bell so the submitter actually sees it — the listing has already
+  // dropped off the public feed, so the bell alone could go unnoticed.
+  'community.listing.auto_hidden': ['email', 'in_app'],
   'account.deletion.requested': ['email', 'in_app'],
   'account.deletion.cancelled': ['email', 'in_app'],
 };
@@ -217,6 +226,13 @@ export type NotificationPayloadMap = {
   'community.claim.approved': {
     listingSlug: string;
     listingTitle: string;
+  };
+  'community.listing.auto_hidden': {
+    /** Slug of the hidden listing (drives the review/unhide href). */
+    listingSlug: string;
+    listingTitle: string;
+    /** How many reports the listing had when it was hidden. */
+    reportCount: number;
   };
   'account.deletion.requested': {
     /** ISO date the account is scheduled to be permanently deleted. */

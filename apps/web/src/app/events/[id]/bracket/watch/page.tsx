@@ -5,6 +5,7 @@ import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
+import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
@@ -31,6 +32,11 @@ export async function generateMetadata(props: {
   const { id } = await props.params;
   const sp = await props.searchParams;
   const divisionParam = pickQuery(sp, 'division') ?? null;
+  // Don't leak a scoped/unpublished event's title into <head>/OG — emit a
+  // generic title unless the event is anon-visible (security audit P1 #14).
+  if (!(await isEventPubliclyVisible(id))) {
+    return { title: 'Live bracket — PickupVB' };
+  }
   try {
     const event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(id));
     const division =
@@ -87,6 +93,10 @@ export default async function BracketWatchPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
+
+  // Gate scoped/unpublished events: getBracketMeta reads on the admin client
+  // (RLS-bypassed), so re-assert visibility before exposing title/structure.
+  await assertEventVisibleOrNotFound(params.id);
 
   let event;
   try {
@@ -164,7 +174,7 @@ export default async function BracketWatchPage(props: {
 
       <header className="space-y-1">
         <div className="flex items-center gap-2">
-          <h1 className="text-fg text-2xl font-bold">Live bracket — {event.title}</h1>
+          <h1 className="text-fg text-headline-sm font-bold">Live bracket — {event.title}</h1>
           {bracket?.status === 'active' && (
             <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
               ● LIVE

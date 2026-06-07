@@ -64,9 +64,18 @@ type Props = {
 };
 
 const PAYMENT_PILL: Record<HostAdHocTeamRow['paymentStatus'], { label: string; cls: string }> = {
-  none: { label: 'Unpaid', cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-  pending: { label: 'Pending', cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-  paid: { label: 'Paid', cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+  none: {
+    label: 'Unpaid',
+    cls: 'border-md-warning/30 bg-md-warning-container text-md-on-warning-container',
+  },
+  pending: {
+    label: 'Pending',
+    cls: 'border-md-warning/30 bg-md-warning-container text-md-on-warning-container',
+  },
+  paid: {
+    label: 'Paid',
+    cls: 'border-md-success/30 bg-md-success-container text-md-on-success-container',
+  },
   refunded: { label: 'Refunded', cls: 'border-border-base bg-fg/5 text-muted' },
 };
 
@@ -329,7 +338,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                         returnPath,
                       )}
                     >
-                      <SubmitButton className="rounded-md border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
+                      <SubmitButton className="border-md-error/40 text-md-error hover:bg-md-error/10 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50">
                         Remove team
                       </SubmitButton>
                     </form>

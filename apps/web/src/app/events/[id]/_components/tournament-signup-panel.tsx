@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
 import { SubmitButton } from '@/components/submit-button';
+import { Alert } from '@/components/alert';
 import { registerTeamFromForm, withdrawTeamFromForm } from '../team-signup-actions';
 import { startRosterTeamCheckout } from '../roster-team-checkout-actions';
 
@@ -110,16 +111,7 @@ export function TournamentSignupPanel({
       </header>
 
       {result && (
-        <div
-          role={result.tone === 'success' ? 'status' : 'alert'}
-          className={`rounded-md border p-3 text-sm ${
-            result.tone === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-red-200 bg-red-50 text-red-700'
-          }`}
-        >
-          {result.text}
-        </div>
+        <Alert variant={result.tone === 'success' ? 'success' : 'error'}>{result.text}</Alert>
       )}
 
       <div className="space-y-2">
@@ -160,12 +152,12 @@ export function TournamentSignupPanel({
                     <p className="text-muted text-xs">
                       Captain: {t.captain?.displayName ?? 'Unknown'} · {t.memberCount} player
                       {t.memberCount === 1 ? '' : 's'}
-                      {owesPayment && isPaid && <span className="text-emerald-700"> · Paid</span>}
+                      {owesPayment && isPaid && <span className="text-md-success"> · Paid</span>}
                       {owesPayment && isPending && (
-                        <span className="text-amber-700"> · Payment pending</span>
+                        <span className="text-md-warning"> · Payment pending</span>
                       )}
                       {owesPayment && isRefunded && (
-                        <span className="text-red-700"> · Refunded</span>
+                        <span className="text-md-error"> · Refunded</span>
                       )}
                     </p>
                   </div>
@@ -179,7 +171,7 @@ export function TournamentSignupPanel({
                     )}
                     {viewerIsCaptain && (
                       <form action={withdrawTeamFromForm.bind(null, eventId, t.teamId, returnPath)}>
-                        <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+                        <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
                           Withdraw
                         </SubmitButton>
                       </form>

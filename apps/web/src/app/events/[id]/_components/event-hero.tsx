@@ -107,7 +107,7 @@ export function EventHero({
         </div>
       </div>
 
-      <h1 className="text-fg text-3xl font-bold">{title}</h1>
+      <h1 className="text-fg text-headline-lg font-bold">{title}</h1>
 
       {/* Row 3 — meta sub-line. Date and location are the two highest-
           signal facts; spots and the closing-soon pill ride along when

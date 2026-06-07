@@ -10,7 +10,7 @@ export function CommunityRail({ listings }: { listings: ReadonlyArray<CommunityL
     <section className="border-border-base space-y-3 border-t pt-6">
       <div className="flex items-end justify-between gap-2">
         <div>
-          <h2 className="text-xl font-semibold">From the community</h2>
+          <h2 className="text-title-lg font-semibold">From the community</h2>
           <p className="text-muted text-sm">
             Events posted by players that aren&rsquo;t hosted on PickupVB. RSVP at the linked
             source.

@@ -16,7 +16,7 @@ export default async function CommunityImportPage() {
   return (
     <section className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Import community listings</h1>
+        <h1 className="text-headline-lg font-bold">Import community listings</h1>
         <p className="text-muted mt-1 text-sm">
           Admin-only. Generate a listings JSON file with the{' '}
           <code className="bg-fg/5 rounded px-1">facebook-events-import</code> Claude Code skill,

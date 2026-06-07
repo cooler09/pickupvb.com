@@ -21,6 +21,7 @@ import {
   resetMatch,
   setsToWin,
   swapSides,
+  undoLastSet,
   type ScoreboardConfig,
   type ScoreboardState,
   type TeamId,
@@ -180,6 +181,11 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
   const setPointA = isSetWon(state, 'A');
   const setPointB = isSetWon(state, 'B');
 
+  // Single source of truth for the "save this live score into the official
+  // record" action, shared by the bottom status bar and the winner overlay so
+  // they never disagree on pending/saved/error (ADR 0023 Phase 4).
+  const save = useSaveToMatch(binding, state);
+
   const onPoint = useCallback(
     (team: TeamId, delta: 1 | -1) => {
       if (winner) return;
@@ -196,8 +202,21 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
   );
 
   const onResetMatch = useCallback(() => {
+    // Starting the match over (the bound overlay's "Re-score", or "Reset match"
+    // on the free tool) abandons any saved result, so clear the saved/error
+    // badge — otherwise the status bar keeps reading "Saved ✓" while re-scoring.
+    save.reset();
     setState(resetMatch(state.config, state.version));
-  }, [state.config, state.version, setState]);
+  }, [state.config, state.version, setState, save]);
+
+  const onUndoSet = useCallback(() => {
+    // Recover from an accidental match-ending "Win set" tap: step back into the
+    // last set at its final score instead of wiping the whole match. The match
+    // is no longer decided, so the winner overlay closes and the scorer can
+    // shave a point and re-commit. Clear any stale save status too.
+    save.reset();
+    setState(undoLastSet(state));
+  }, [state, setState, save]);
 
   const onSwap = useCallback(() => {
     setState(swapSides(state));
@@ -276,7 +295,13 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
       </div>
 
       {binding && (
-        <SaveToMatchBar binding={binding} state={state} border={border} subtle={subtle} />
+        <SaveToMatchBar
+          state={state}
+          save={save}
+          returnPath={binding.returnPath}
+          border={border}
+          subtle={subtle}
+        />
       )}
 
       <BottomBar
@@ -290,8 +315,11 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
       {winner && (
         <WinnerOverlay
           name={winner === 'A' ? state.config.teamA : state.config.teamB}
+          state={state}
           onNewGame={onNewGame}
           onResetMatch={onResetMatch}
+          onUndoSet={onUndoSet}
+          {...(binding ? { bound: { save, returnPath: binding.returnPath } } : {})}
         />
       )}
 
@@ -413,7 +441,9 @@ function TeamPanel({
         className="group absolute inset-0 flex flex-col items-center justify-center outline-none focus-visible:ring-4 focus-visible:ring-current/70 focus-visible:ring-inset"
         aria-label={`Add point to ${name}`}
       >
-        <div className={`text-xl font-semibold tracking-wide sm:text-3xl ${subtle}`}>{name}</div>
+        <div className={`text-title-lg sm:text-headline-lg font-semibold tracking-wide ${subtle}`}>
+          {name}
+        </div>
         <div
           className="text-[28vh] leading-none font-bold tabular-nums select-none sm:text-[34vh]"
           style={{ fontVariantNumeric: 'tabular-nums' }}
@@ -468,23 +498,27 @@ const REASON_TEXT: Record<FinalizeReason, string> = {
   error: 'Something went wrong saving the result.',
 };
 
-function SaveToMatchBar({
-  binding,
-  state,
-  border,
-  subtle,
-}: {
-  binding: MatchBinding;
-  state: ScoreboardState;
-  border: string;
-  subtle: string;
-}) {
+/** Lifted save state so the status bar and the winner overlay stay in sync. */
+type SaveToMatch = {
+  pending: boolean;
+  saved: boolean;
+  error: string | null;
+  onSave: () => void;
+  reset: () => void;
+};
+
+/**
+ * Drives the "finalize this live score into the official record" action
+ * (ADR 0023 Phase 4). Inert when the scoreboard isn't bound to a match —
+ * `onSave` no-ops — so it can be called unconditionally from `ScoreboardView`.
+ */
+function useSaveToMatch(binding: MatchBinding | undefined, state: ScoreboardState): SaveToMatch {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const winner = matchWinner(state);
 
   const onSave = useCallback(() => {
+    if (!binding) return;
     setError(null);
     setSaved(false);
     startTransition(async () => {
@@ -497,6 +531,30 @@ function SaveToMatchBar({
       }
     });
   }, [binding, state]);
+
+  const reset = useCallback(() => {
+    setSaved(false);
+    setError(null);
+  }, []);
+
+  return { pending, saved, error, onSave, reset };
+}
+
+function SaveToMatchBar({
+  state,
+  save,
+  returnPath,
+  border,
+  subtle,
+}: {
+  state: ScoreboardState;
+  save: SaveToMatch;
+  returnPath: string;
+  border: string;
+  subtle: string;
+}) {
+  const { pending, saved, error, onSave } = save;
+  const winner = matchWinner(state);
 
   return (
     <div
@@ -518,7 +576,7 @@ function SaveToMatchBar({
         {saved ? (
           <>
             <span className="text-sm font-medium text-emerald-500">Saved ✓</span>
-            <Link href={binding.returnPath as Route} className={`text-sm underline ${subtle}`}>
+            <Link href={returnPath as Route} className={`text-sm underline ${subtle}`}>
               Back to event
             </Link>
           </>
@@ -528,7 +586,11 @@ function SaveToMatchBar({
             <button
               type="button"
               onClick={onSave}
-              disabled={pending}
+              // Only enable once the match is decided — saving an undecided
+              // score is rejected by the record RPC ("not ready"). The winner
+              // overlay is the primary save surface; this bar is the live
+              // status + a fallback once it's dismissed.
+              disabled={pending || !winner}
               className="rounded-md bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
             >
               {pending ? 'Saving…' : 'Save final to match'}
@@ -590,17 +652,33 @@ function BottomBar({
 
 function WinnerOverlay({
   name,
+  state,
   onNewGame,
   onResetMatch,
+  onUndoSet,
+  bound,
 }: {
   name: string;
+  state: ScoreboardState;
   onNewGame: () => void;
   onResetMatch: () => void;
+  /** Step back into the last set to recover from an accidental match-ending tap. */
+  onUndoSet: () => void;
+  /** Present when scoring a scheduled match — turns the overlay into the
+   *  save-to-record moment instead of a Rematch / New game prompt. */
+  bound?: { save: SaveToMatch; returnPath: string };
 }) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   // No `onEscape`: the match is over, so the overlay has no dismiss — the user
-  // chooses Rematch or New game. Focus is moved in and trapped between them.
+  // chooses an action. Focus is moved in and trapped between them.
   useDialogFocusTrap(panelRef);
+  const setSummary = useMemo(
+    () => state.setHistory.map((h) => `${h.a}–${h.b}`).join(' · '),
+    [state.setHistory],
+  );
+  // Hide "Undo" once a bound result is recorded — the official record is the
+  // source of truth at that point (re-open from the host tools to amend).
+  const showUndo = state.setHistory.length > 0 && !bound?.save.saved;
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div
@@ -612,29 +690,96 @@ function WinnerOverlay({
       >
         <p
           id="scoreboard-winner-eyebrow"
-          className="text-xs font-semibold tracking-widest text-emerald-600 uppercase"
+          className="text-md-success text-xs font-semibold tracking-widest uppercase"
         >
           Match won
         </p>
-        <p id="scoreboard-winner-name" className="mt-2 text-4xl font-bold">
+        <p id="scoreboard-winner-name" className="text-display-sm mt-2 font-bold">
           {name}
         </p>
-        <div className="mt-6 flex justify-center gap-3">
+        {setSummary && <p className="mt-2 text-sm font-medium text-black/60">{setSummary}</p>}
+        {bound ? (
+          <BoundWinnerActions bound={bound} onResetMatch={onResetMatch} />
+        ) : (
+          <div className="mt-6 flex justify-center gap-3">
+            <button
+              type="button"
+              onClick={onResetMatch}
+              className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium"
+            >
+              Rematch
+            </button>
+            <button
+              type="button"
+              onClick={onNewGame}
+              className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
+            >
+              New game
+            </button>
+          </div>
+        )}
+        {showUndo && (
           <button
             type="button"
-            onClick={onResetMatch}
-            className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium"
+            onClick={onUndoSet}
+            className="mt-4 text-xs font-medium text-black/50 underline underline-offset-2 hover:text-black/80"
           >
-            Rematch
+            Ended by mistake? Undo last set
           </button>
-          <button
-            type="button"
-            onClick={onNewGame}
-            className="rounded-md bg-black px-4 py-2 text-sm font-semibold text-white"
-          >
-            New game
-          </button>
-        </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Winner-overlay actions when bound to a scheduled match. The completion moment
+ * *is* the save moment, so the primary CTA records the result back to the
+ * bracket / schedule (ADR 0023 Phase 4) — replacing the free tool's irrelevant
+ * Rematch / New game. "Re-score" resets for a mis-tapped result; once saved, the
+ * host is offered a link back to the event.
+ */
+function BoundWinnerActions({
+  bound,
+  onResetMatch,
+}: {
+  bound: { save: SaveToMatch; returnPath: string };
+  onResetMatch: () => void;
+}) {
+  const { pending, saved, error, onSave } = bound.save;
+  if (saved) {
+    return (
+      <div className="mt-6 flex flex-col items-center gap-3">
+        <p className="text-md-success text-sm font-semibold">Saved to match ✓</p>
+        <Link
+          href={bound.returnPath as Route}
+          className="rounded-md bg-black px-5 py-2 text-sm font-semibold text-white"
+        >
+          Back to event
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 flex flex-col items-center gap-3">
+      {error && <p className="text-md-error max-w-xs text-xs">{error}</p>}
+      <div className="flex justify-center gap-3">
+        <button
+          type="button"
+          onClick={onResetMatch}
+          disabled={pending}
+          className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium disabled:opacity-50"
+        >
+          Re-score
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={pending}
+          className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
+        >
+          {pending ? 'Saving…' : 'Save final to match'}
+        </button>
       </div>
     </div>
   );

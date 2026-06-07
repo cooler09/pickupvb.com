@@ -296,6 +296,7 @@ export async function loadEventDetail(
     leagueTeamsByDivision,
     mediaSummary,
     eventBadges,
+    waitlist,
   ] = await Promise.all([
     loadEventPricingCached(event.id),
     event.canManage && user
@@ -318,6 +319,7 @@ export async function loadEventDetail(
     loadLeagueTeamsByDivision(event),
     loadEventMediaSummaryCached(event.id),
     loadEventBadgesCached(event.id),
+    loadWaitlist(event, user),
   ]);
 
   const paid = isPaidEvent(pricing);
@@ -355,31 +357,9 @@ export async function loadEventDetail(
     ? (event.attendees.find((a) => a.userId === user.id)?.position ?? null)
     : null;
 
-  // Capacity waitlist (ADR 0036): the queue length + the viewer's 1-based place.
-  // Read on the admin client — event_waitlist RLS is owner-or-host, which hides
-  // the ordering a queued non-host viewer needs to compute their position; only
-  // the aggregate count + the viewer's own slot are surfaced. Gated to a *full*
-  // fixed-capacity open play so non-full events pay no extra query.
-  let waitlistCount = 0;
-  let viewerWaitlistPosition: number | null = null;
-  if (event.type === 'open_play' && !event.positionRoster && event.spotsRemaining === 0) {
-    try {
-      const { getAdminSupabase } = await import('@/lib/supabase-admin');
-      const { data: wl } = await getAdminSupabase()
-        .from('event_waitlist')
-        .select('user_id')
-        .eq('event_id', event.id)
-        .order('created_at', { ascending: true });
-      const rows = (wl as { user_id: string }[] | null) ?? [];
-      waitlistCount = rows.length;
-      if (user) {
-        const idx = rows.findIndex((r) => r.user_id === user.id);
-        viewerWaitlistPosition = idx === -1 ? null : idx + 1;
-      }
-    } catch {
-      // best-effort — the waitlist UI simply hides if this read fails.
-    }
-  }
+  // Capacity waitlist (ADR 0036): loaded in wave 1 (gated to a full
+  // fixed-capacity open play). See loadWaitlist.
+  const { waitlistCount, viewerWaitlistPosition } = waitlist;
 
   const priceLabel =
     event.divisions.length > 1
@@ -675,6 +655,39 @@ async function loadViewerPaymentStatus(
   const raw = (row as { payment?: { payment_status?: string } | null } | null)?.payment
     ?.payment_status;
   return raw === 'paid' || raw === 'pending' || raw === 'none' ? raw : undefined;
+}
+
+/**
+ * Capacity waitlist (ADR 0036): the queue length + the viewer's 1-based place.
+ * Read on the admin client — `event_waitlist` RLS is owner-or-host, which hides
+ * the ordering a queued non-host viewer needs to compute their position; only
+ * the aggregate count + the viewer's own slot are surfaced. Gated to a *full*
+ * fixed-capacity open play so non-full events pay no extra query. Folded into
+ * wave 1 (it depends only on `event`, not on either wave's results — performance
+ * audit P3 #19). Best-effort: resolves to the empty shape on any read failure,
+ * so the waitlist UI simply hides.
+ */
+async function loadWaitlist(
+  event: EventDetailReadModel,
+  user: ViewerSession['user'] | null,
+): Promise<{ waitlistCount: number; viewerWaitlistPosition: number | null }> {
+  const empty = { waitlistCount: 0, viewerWaitlistPosition: null };
+  if (!(event.type === 'open_play' && !event.positionRoster && event.spotsRemaining === 0)) {
+    return empty;
+  }
+  try {
+    const { getAdminSupabase } = await import('@/lib/supabase-admin');
+    const { data: wl } = await getAdminSupabase()
+      .from('event_waitlist')
+      .select('user_id')
+      .eq('event_id', event.id)
+      .order('created_at', { ascending: true });
+    const rows = (wl as { user_id: string }[] | null) ?? [];
+    const idx = user ? rows.findIndex((r) => r.user_id === user.id) : -1;
+    return { waitlistCount: rows.length, viewerWaitlistPosition: idx === -1 ? null : idx + 1 };
+  } catch {
+    return empty;
+  }
 }
 
 // -----------------------------------------------------------------------------

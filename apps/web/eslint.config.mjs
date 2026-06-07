@@ -60,6 +60,33 @@ const config = [
           message:
             'Use the M3 shape scale (rounded-shape-sm/md/lg) instead of raw rounded-lg/xl/2xl in template literals. Eliminated in Bundle 139 — see docs/audits/m3-alignment.md P2 #7.',
         },
+        // M3 type-scale ratchet (docs/audits/m3-alignment.md S1, 2026-06-07).
+        //
+        // The re-audit found the M3 type scale shipped in Bundle 129 but sat at
+        // 0/15 roles adopted while raw `text-Nxl` GREW (77→120 in 8 days) for
+        // lack of a guard. This bundle migrated every raw `text-Nxl` to a type
+        // role and locks the now-eliminated family so it can't regress:
+        //   text-xl→title-lg · text-2xl→headline-sm (exact 24/32) ·
+        //   text-3xl→headline-lg · text-4xl→display-sm · text-5xl→display-md ·
+        //   text-6xl→display-lg.
+        // Lock-eliminated only (the family is at 0). Matches `text-xl` and
+        // `text-{2..9}xl` as a whole token after a start/space/variant-colon
+        // boundary, so `text-display-lg`, `text-headline-sm`, `text-title-lg`,
+        // and the un-ratcheted `text-{sm,lg,xs,base}` are not false-positives.
+        //
+        // Intentionally NOT forbidden: `text-lg`/`text-sm`/`text-xs`/`text-base`
+        // (1423 sites — a genuine flood; their type-role mapping is judgment,
+        // not a 1:1, so their ratchet lands WITH that migration, not before).
+        {
+          selector: 'Literal[value=/(?:^|[\\s:])text-(?:xl|[2-9]xl)(?![\\w-])/]',
+          message:
+            'Use the M3 type scale (text-title-lg / text-headline-{sm,md,lg} / text-display-{sm,md,lg}) instead of raw text-xl/2xl/3xl/…. Eliminated 2026-06-07 — see docs/audits/m3-alignment.md S1.',
+        },
+        {
+          selector: 'TemplateElement[value.cooked=/(?:^|[\\s:])text-(?:xl|[2-9]xl)(?![\\w-])/]',
+          message:
+            'Use the M3 type scale (text-title-lg / text-headline-* / text-display-*) instead of raw text-Nxl in template literals. Eliminated 2026-06-07 — see docs/audits/m3-alignment.md S1.',
+        },
         // Field-vocabulary ratchet (docs/audits/persona-ux.md CC-2, Bundle
         // 2026-05-31b). Bundle 2 collapsed 17 forked local
         // `const inputClass`/`labelClass`/`selectClass = '…tailwind…'`

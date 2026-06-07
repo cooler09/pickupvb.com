@@ -20,6 +20,7 @@ export {
   isSetWon,
   increment,
   commitSet,
+  undoLastSet,
   resetMatch,
   swapSides,
 } from '@pickupvb/domain';

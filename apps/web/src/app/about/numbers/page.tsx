@@ -122,7 +122,7 @@ export default async function NumbersPage() {
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
       <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight">PickupVB by the numbers</h1>
+        <h1 className="text-headline-lg font-semibold tracking-tight">PickupVB by the numbers</h1>
         <p className="text-muted-foreground mt-2 text-sm">
           Rolling 12-week totals across published public events. Updated every 30 minutes. Sponsors
           and press —{' '}
@@ -154,7 +154,7 @@ export default async function NumbersPage() {
 
           {perMetro.length > 0 && (
             <section aria-label="By city">
-              <h2 className="mb-3 text-xl font-medium">By city</h2>
+              <h2 className="text-title-lg mb-3 font-medium">By city</h2>
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/40 text-left">
@@ -205,7 +205,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-card rounded-md border p-4">
       <div className="text-muted-foreground text-xs tracking-wide uppercase">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+      <div className="text-headline-sm mt-1 font-semibold tabular-nums">{value}</div>
     </div>
   );
 }

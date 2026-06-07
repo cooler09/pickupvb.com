@@ -63,7 +63,7 @@ export default async function GroupMembersPage(props: {
         <Link href={`/groups/${group.slug}`} className="text-primary text-sm hover:underline">
           ← Back to {group.name}
         </Link>
-        <h1 className="text-2xl font-bold">Manage members</h1>
+        <h1 className="text-headline-sm font-bold">Manage members</h1>
       </header>
 
       <AddMemberForm

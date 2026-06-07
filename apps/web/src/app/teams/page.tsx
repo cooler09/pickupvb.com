@@ -56,7 +56,7 @@ export default async function TeamsIndexPage(props: {
     <div className="mx-auto max-w-3xl space-y-8 py-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Teams</h1>
+          <h1 className="text-headline-sm font-bold">Teams</h1>
           <p className="text-muted text-sm">
             Build a roster once, then sign up for tournaments together.
           </p>

@@ -8,6 +8,7 @@ import type Stripe from 'stripe';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { mirrorStripeAccountUpdate } from '@/lib/host-stripe-account';
 import { analytics } from '@/lib/handlers';
+import { recordAuditEvent } from '@/lib/audit-log';
 import { notify } from '@/lib/notify';
 
 /**
@@ -25,21 +26,37 @@ export async function handleAccountUpdated(account: Stripe.Account): Promise<voi
   // Repo returns false (no row) silently — host hasn't onboarded through
   // our flow yet, so there's nothing to mirror.
 
-  // Fire host_payout_setup_completed whenever the account is currently
-  // charges-enabled. Stripe re-sends account.updated on every change
-  // (re-verification, capability shifts), so PostHog will see repeats —
-  // dashboards filter to first occurrence per actor. Acceptable for now;
-  // tightening to first-transition would require comparing prior mirror
-  // state (deferred).
-  if (account.charges_enabled) {
-    const admin = getAdminSupabase();
-    const { data } = await admin
-      .from('host_stripe_accounts')
-      .select('user_id')
-      .eq('stripe_account_id', account.id)
-      .maybeSingle();
-    const hostId = (data as { user_id: string } | null)?.user_id ?? null;
-    if (hostId) {
+  // Resolve the host once — both the audit trail and analytics key on it.
+  const admin = getAdminSupabase();
+  const { data } = await admin
+    .from('host_stripe_accounts')
+    .select('user_id')
+    .eq('stripe_account_id', account.id)
+    .maybeSingle();
+  const hostId = (data as { user_id: string } | null)?.user_id ?? null;
+
+  if (hostId) {
+    // Audit trail of Connect account state mirrors (security audit P3 #8).
+    // System-driven (webhook), so there's no actor; the host is the target.
+    await recordAuditEvent({
+      action: 'host_stripe.account_updated',
+      entityType: 'host_stripe_account',
+      entityId: account.id,
+      targetUserId: hostId,
+      metadata: {
+        chargesEnabled: account.charges_enabled,
+        payoutsEnabled: account.payouts_enabled,
+        detailsSubmitted: account.details_submitted,
+      },
+    });
+
+    // Fire host_payout_setup_completed whenever the account is currently
+    // charges-enabled. Stripe re-sends account.updated on every change
+    // (re-verification, capability shifts), so PostHog will see repeats —
+    // dashboards filter to first occurrence per actor. Acceptable for now;
+    // tightening to first-transition would require comparing prior mirror
+    // state (deferred).
+    if (account.charges_enabled) {
       analytics.capture({ name: 'host_payout_setup_completed', props: { hostId } }, hostId);
     }
   }

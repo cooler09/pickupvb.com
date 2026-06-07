@@ -1,5 +1,86 @@
 # Material Design 3 alignment — 2026-05-28
 
+> **Re-audit (2026-06-07) — the bleed continued; the shipped vocabulary
+> is going stale.** No fix bundle this round; static re-measure of
+> `apps/web/src` against the 2026-05-30 baseline. Two M3-styling commits
+> landed since (`324eb2d9 "m3 styles"`, `f3277588 "pure css animations"`)
+> — they migrated the **events surface** (host panels, RSVP panels,
+> event cards) onto button recipes + the shape scale, which is real
+> progress. But the **un-ratcheted categories grew**, exactly as the
+> 2026-05-30 "stop the bleed first" strategy warned, because the
+> color/type ratchets were deferred and never landed:
+>
+> | Category                           | 2026-05-30 | 2026-06-07 |    Δ | ratchet? |
+> | ---------------------------------- | ---------: | ---------: | ---: | -------- |
+> | raw palette utils (`text-red-600`) |        401 |        555 | +154 | **none** |
+> | `text-Nxl`                         |         77 |        120 |  +43 | **none** |
+> | `text-lg/sm/xs/base`               |       1181 |       1423 | +242 | **none** |
+> | raw `shadow-*`                     |         53 |         31 |  −22 | none     |
+> | `rounded-md`                       |        405 |        298 | −107 | none     |
+> | `rounded-shape-*` (adopted)        |        162 |        221 |  +59 | yes      |
+> | ad-hoc hovers                      |        132 |        104 |  −28 | none     |
+> | `shadow-elevation-*` (adopted)     |         12 |          6 |   −6 | —        |
+> | `state-layer` (adopted)            |         12 |         11 |   −1 | —        |
+> | `md-` color roles (adopted)        |         12 |         20 |   +8 | —        |
+> | M3 type-role usages (adopted)      |         39 |      **0** |    — | none     |
+>
+> (Palette/type counts use a slightly broader regex than the 2026-05-30
+> sweep, so treat the absolute palette numbers as ±, but the **direction
+> is robust**: every un-ratcheted growth category climbed, every
+> migrated/ratcheted category fell.) **Net: the events surface moved onto
+> M3; color and type went backwards.** New stale-vocabulary findings
+> **S1–S3** below; **#1 (color) and #2 (type) re-graded to P1-now** —
+> deferral has become unbounded growth. See
+> [Re-audit 2026-06-07](#re-audit-2026-06-07--the-bleed-continued--stale-token-inventory).
+>
+> **Shipped same day (2026-06-07): type-scale bundle — S1 closed, S0
+> half-closed.** All 120 raw `text-Nxl` migrated to the M3 type scale
+> (`text-2xl→headline-sm` exact zero-change; `xl→title-lg`,
+> `3xl→headline-lg`, `4xl→display-sm`, …) and the family locked at `error`;
+> type-role adoption 0 → 120, the dead type tokens are now live, mapping
+> documented in [AGENTS.md pattern 16](../../AGENTS.md). The `text-{sm,lg,xs}`
+> body scale + palette + `shadow-*` + `rounded-md` ratchets stay open
+> (judgment migrations; palette/dark-mode is the next highest-value bundle).
+> Verify 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8
+> build · built-CSS confirms the utilities emit. See the
+> [remediation log](#type-scale--text-nxl-migrated--ratcheted-2026-06-07).
+>
+> **Also shipped 2026-06-07: semantic color roles — S2 started.** Added
+> custom `warning` (amber) + `success` (emerald) M3 roles
+> ([gen-palette.ts](../../scripts/gen-palette.ts) + globals.css, light+dark,
+> same tones as `error`) and migrated the two centralized status surfaces
+> ([alert.tsx](../../apps/web/src/components/alert.tsx) +
+> [toast.tsx](../../apps/web/src/components/toast.tsx)) off raw red/amber/emerald
+> onto `bg-md-{error,warning,success}-container` — every `<Alert>`/`useToast`
+> is now dark-mode-correct (hand-rolled `dark:` forks deleted). Then the four
+> **destructive-confirmation panels** (cancel-event, delete-team, delete-group,
+> account-delete) followed — account-delete being the first all-three-roles
+> consumer outside Alert/Toast. Then the ~8 hand-rolled form **error/notice
+> banners** were swapped for `<Alert variant>` (dedupe + delete their `dark:`
+> forks). **Net: raw palette 555 → 395.** Finally, the **surface-container
+> hierarchy** was unblocked: it sat at 0 usages because the generated surfaces
+> were cool-cyan (off-brand) and the brand's warm-light/teal-dark scheme can't
+> come from one M3 neutral seed — so the surface/outline family was
+> **hand-authored** to match the brand (`surface-container` == brand card, exact
+> zero-change) + a reference adoption landed. Then the **centralized semantic
+> recipes** (`fieldErrorClass`/`FieldError`/`TextField` error, `StatusPill`, the
+> 3 duplicated payment-status maps, rsvp-flash error, the inline Paid/Pending/
+> Refunded labels) moved to role tokens — fixing dark-mode error text app-wide.
+> Then every **destructive text-button + inline error** (`text-red-600`
+> Withdraw/Leave/Remove + `role=alert` error `<p>`s, 29 sites) → `text-md-error`,
+> and its symmetric counterpart — the **inline success/warning text**
+> (`text-emerald-700` "saved" → `text-md-success`, `text-amber-700` labels →
+> `text-md-warning`, 12 files) — completing the inline semantic-text migration.
+> **Net: raw palette 555 → 277.** Then the hand-rolled **warning/success notice
+> panels** (community claim/hidden, billing, edit-event locks, the Pro section,
+> the tip-thanks flash) → container roles (`bg-md-warning-container` / `*/5`
+> tints), **555 → 227.** Pattern in [AGENTS.md #17](../../AGENTS.md).
+> **Open — the visual-review remainder:** bg-tinted **status badges** (mixed
+> semantics + pale-pill-on-dark behavior), the **app-wide surface migration**,
+> and decorative palette (scoreboard red/green are _team_ colors). These want
+> eyes on the running app, not more blind recolors. See the
+> [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
+
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
 > first value-preserving shape migration + a lock-eliminated shape
 > ratchet. **The 10-bundle arc (129–138) shipped every primitive and
@@ -38,7 +119,7 @@
 > breaks the build, warning now floods lint with ~900 entries and buries
 > the 3 real pre-existing warnings. Verify 15/15 typecheck · lint 3
 > pre-existing warnings · 179+50 tests · 8/8 build. See
-> [Bundle 139 journal](../journal/2026-05-30-bundle-139.md).
+> [Bundle 139 journal](../journal/2026-05-digest.md#bundle-139).
 
 > **Status update (2026-05-28, Bundle 138):** System theme mode shipped
 > — **P3 #19 closed.** Three-way preference (`light | dark | system`)
@@ -68,7 +149,7 @@
 > exploration, #21 Switch primitive, #22 Chip primitive, #18 data-table
 > primitive) stay opportunistic per their original guidance. Verify
 > 15/15 typecheck · lint 3 pre-existing warnings · 179+50 tests · 8/8
-> build. See [Bundle 138 journal](../journal/2026-05-28-bundle-138.md).
+> build. See [Bundle 138 journal](../journal/2026-05-digest.md#bundle-138).
 
 > **Status update (2026-05-28, Bundle 137):** Density scale shipped
 > — **P2 #15 vocabulary + reference call sites shipped** (responsive
@@ -93,7 +174,7 @@
 > primitive (P3 #18) explicitly deferred "until a third table
 > appears," per the original audit guidance. Verify 15/15 typecheck
 > · lint 3 pre-existing warnings · 179+50 tests · 8/8 build. See
-> [Bundle 137 journal](../journal/2026-05-28-bundle-137.md).
+> [Bundle 137 journal](../journal/2026-05-digest.md#bundle-137).
 
 > **Status update (2026-05-28, Bundle 136):** Dropdown menu on Radix
 > shipped — **P2 #12 closed** for `<NavDropdown>` (the one Menu-style
@@ -125,7 +206,7 @@
 >   panel and remaining `<details>` disclosures are content panels
 >   (richer than a menu), not Menu-pattern targets — deferred. Verify
 >   15/15 typecheck · lint 3 pre-existing warnings · 179+50 tests ·
->   8/8 build. See [Bundle 136 journal](../journal/2026-05-28-bundle-136.md).
+>   8/8 build. See [Bundle 136 journal](../journal/2026-05-digest.md#bundle-136).
 
 > **Status update (2026-05-28, Bundle 135):** TextField primitive
 > shipped — **P2 #13 primitive + reference call site shipped**
@@ -150,7 +231,7 @@
 > `<input>` + `<FieldError>` call sites keep working untouched per
 > the audit's surface-by-surface migration plan. Verify 15/15
 > typecheck · lint 3 pre-existing warnings · 179+50 tests · 8/8
-> build. See [Bundle 135 journal](../journal/2026-05-28-bundle-135.md).
+> build. See [Bundle 135 journal](../journal/2026-05-digest.md#bundle-135).
 
 > **Status update (2026-05-28, Bundle 134):** Dialog + BottomSheet
 > shipped — **P2 #9 closed** and **P2 #14 closed**.
@@ -181,7 +262,7 @@
 > `RadixDialog.Close` carries `tap-target` + `state-layer` (Bundles
 > 130/131). Verify 15/15 typecheck · lint 3 pre-existing warnings ·
 > 179+50 tests · 8/8 build. See
-> [Bundle 134 journal](../journal/2026-05-28-bundle-134.md).
+> [Bundle 134 journal](../journal/2026-05-digest.md#bundle-134).
 
 > **Status update (2026-05-28, Bundle 133):** BottomNav + FAB primitive
 > shipped — **P2 #11 closed**; **P2 #10 primitive + reference call site
@@ -210,7 +291,7 @@
 > [events/page.tsx](../../apps/web/src/app/events/page.tsx) renders
 > the FAB for signed-in viewers with `href="/events/new"` /
 > `label="Host an event"`. Verify 15/15 typecheck · lint 3 pre-existing
-> warnings · 179+50 tests · 8/8 build. See [Bundle 133 journal](../journal/2026-05-28-bundle-133.md).
+> warnings · 179+50 tests · 8/8 build. See [Bundle 133 journal](../journal/2026-05-digest.md#bundle-133).
 
 > **Status update (2026-05-28, Bundle 132):** Radix Toast shipped —
 > **P2 #8 closed**. [toast.tsx](../../apps/web/src/components/toast.tsx)
@@ -236,7 +317,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > (Bundle 130) preserved on Close + Action buttons. Radix convention
 > documented in [AGENTS.md](../../AGENTS.md#ui-primitives--radix-ui).
 > Verify 15/15 typecheck · lint warnings only · 179+50 tests · 8/8
-> build. See [Bundle 132 journal](../journal/2026-05-28-bundle-132.md).
+> build. See [Bundle 132 journal](../journal/2026-05-digest.md#bundle-132).
 
 > **Status update (2026-05-28, Bundle 131):** State layers + button
 > vocabulary shipped — vocabulary half of P2 #4 closed. New
@@ -255,7 +336,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > `hover:bg-fg/5` on nav items, `<details>` triggers, list rows,
 > etc.) stays open and is drawn down by the per-component bundles.
 > Verify 15/15 typecheck · lint warnings only · 179+50 tests · 8/8
-> build. See [Bundle 131 journal](../journal/2026-05-28-bundle-131.md).
+> build. See [Bundle 131 journal](../journal/2026-05-digest.md#bundle-131).
 
 > **Status update (2026-05-28, Bundle 130):** Touch-targets sweep
 > shipped — P1 #3 closed. New `tap-target` Tailwind 4 `@utility`
@@ -267,7 +348,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > bracket board move-earlier/later, walk-in player remove. Visual change
 > is intentionally minimal — only the **hit area** grows. Verify 15/15
 > typecheck · lint warnings only · 179+50 tests · 8/8 build. See
-> [Bundle 130 journal](../journal/2026-05-28-bundle-130.md).
+> [Bundle 130 journal](../journal/2026-05-digest.md#bundle-130).
 
 > **Status update (2026-05-28, Bundle 129):** Tokens bundle shipped —
 > the **vocabulary half** of P1 #1 (color roles), P1 #2 (type scale),
@@ -290,7 +371,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > `text-headline-md`, `pt-safe`/`pb-safe`/…) ready for opt-in migration
 > in Bundles 2 onward. Per-finding headers flipped to **🟡 Tokens
 > shipped** — the call-site migration half remains open.
-> See [Bundle 129 journal](../journal/2026-05-28-bundle-129.md) and the
+> See [Bundle 129 journal](../journal/2026-05-digest.md#bundle-129) and the
 > [Remediation log](#remediation-log).
 
 > **Status (2026-05-28):** New audit. Driven by the observation that
@@ -481,6 +562,199 @@ discipline failure):
   BottomNav / FAB / TextField / BottomSheet / density exist for _new_
   work. Retrofitting 1,000+ legacy call sites is a separate, optional ROI
   question — not a prerequisite for the audit's purpose.
+
+---
+
+## Re-audit 2026-06-07 — the bleed continued + stale-token inventory
+
+Static re-measure 8 days after the 2026-05-30 reality-check. The
+headline isn't a new gap in the _system_ — it's that the system is now
+**measurably regressing**, and a large slice of the shipped M3
+vocabulary is **dead code that ships the implication of a design system
+the call sites ignore**. Three new stale-vocabulary findings, plus a
+re-grade of the root cause.
+
+### S0 — Root cause re-grade: the missing ratchets turned "deferred" into "growing" 🟡 P1 (text-Nxl closed 2026-06-07; palette/shadow/rounded-md open)
+
+> **Partially resolved 2026-06-07.** The `text-Nxl` family is migrated to
+> type roles and locked at `error` (see S1). Implementation note: a `warn`
+> ratchet (the original recommendation) turned out to be infeasible —
+> ESLint flat config can't run one rule at two severities, and a second
+> `no-restricted-syntax` object replaces rather than merges, so a `warn`
+> rule would have downgraded the existing `error` locks. The repo's proven
+> path (Bundle 139) — migrate-the-bucket-to-zero, then `error`-ratchet it —
+> applied cleanly: 120 sites is bounded, so the whole family went to zero
+> in one pass. **Still open:** raw palette (555), `shadow-*` (31),
+> `rounded-md` (298) — those keep `error`-ratcheting-behind-migration as the
+> plan; palette is the highest-value (dark mode, S2).
+
+- **Where:** [apps/web/eslint.config.mjs](../../apps/web/eslint.config.mjs#L50-L140)
+  carries `no-restricted-syntax` ratchets for exactly three categories —
+  raw `rounded-lg/xl/2xl` (Bundle 139), the hand-rolled primary-button
+  recipe (CC-1/CC-6), and local field-class strings (CC-2). There is
+  **no ratchet on raw palette colors, `text-Nxl`, `text-lg/sm/xs`, raw
+  `shadow-*`, or `rounded-md`** — the five highest-volume legacy
+  categories.
+- **Evidence:** in 8 days raw palette utils grew **401 → 555** (+154),
+  `text-Nxl` grew **77 → 120** (+43), `text-lg/sm/xs/base` grew **1181 →
+  1423** (+242). These categories grow 1:1 with feature work because
+  nothing stops a new `text-red-600` / `text-2xl` from landing. The
+  2026-05-30 strategy named this exact failure mode ("the legacy counts
+  _grow_ with every feature — a losing race, not a slow win") and the
+  re-measure confirms it.
+- **Why P1-now:** the original deferral rationale ("erroring breaks the
+  build, warning floods lint with ~900 entries") is real, but the cost of
+  _continuing_ to defer is now visible: the migration target moves away
+  faster than any bundle closes it. The audit's own conclusion — "stop the
+  bleed first" — was never executed for color/type.
+- **Fix (cheapest first):**
+  1. **Ratchet `text-Nxl` at `warn` today.** Only 120 sites (not 900) —
+     the warning list is a usable backlog, not a flood, and it stops the
+     +43/week growth immediately. Add to the existing
+     `no-restricted-syntax` block: `Literal`/`TemplateElement` selector
+     `(?:^|[\s:])text-(?:xl|[2-9]xl)(?![\w-])`.
+  2. **Then** schedule the color migration as a real bundle (it's the
+     dark-mode motivation, finding #1) and ratchet palette behind it.
+  3. Leave `text-lg/sm/xs` and `rounded-md` un-ratcheted until their
+     value-preserving codemod is scoped (1181 + 298 sites is a genuine
+     flood; the type-scale mapping is judgment, not 1:1).
+
+### S1 — The M3 type scale is dead code (0 of 15 roles adopted) 🟢 Resolved (2026-06-07)
+
+> **Resolved 2026-06-07.** All 120 raw `text-Nxl` sites migrated to type
+> roles and the family is ratcheted at `error`. Adoption 0 → 120, the dead
+> tokens are now live, and the mapping is documented in
+> [AGENTS.md pattern 16](../../AGENTS.md). The `text-{sm,lg,xs,base}`
+> body-text scale stays deferred (S0 — judgment mapping, 1423 sites). See
+> the [remediation-log entry](#type-scale--text-nxl-migrated--ratcheted-2026-06-07).
+
+- **Where:** [globals.css#L285-L327](../../apps/web/src/app/globals.css#L285-L327)
+  defines all 15 M3 type roles inside `@theme inline` —
+  `--text-display-{lg,md,sm}`, `-headline-*`, `-title-*`, `-body-*`,
+  `-label-*`, each with its M3 `--line-height` and `--letter-spacing`
+  companion (~43 lines). **Zero call sites** use the generated
+  `text-display-lg … text-label-sm` utilities — `rg` across all of
+  `apps/web` returns 0 files. The 2026-05-30 audit recorded "39 type-role
+  usages"; the re-measure finds **0** (the 39 was counting the token
+  definitions, not adoption).
+- **Why it's stale:** Tailwind v4 JIT means the unused utilities don't
+  emit, so the byte cost is ~nil — but the **43 lines of token
+  definitions imply a type system is in force.** A contributor opening
+  `globals.css` reasonably assumes `text-title-lg` is the house style;
+  every heading around them is a hand-tuned `text-2xl font-bold`. That
+  false signal is the cost.
+- **Fix (this is the single cheapest M3 win on the board):** the type
+  scale carries **zero behavioral/dark-mode risk** — it's just font-size
+  - line-height. Adopt it on the highest-traffic headings (events list
+    hero, `/events/[id]` H1, group/team headers, marketing H1s) in one
+    value-mapping bundle: `text-3xl font-bold → text-headline-lg`,
+    `text-2xl → text-headline-sm`/`text-title-lg` (per role), pair with
+    S0's `text-Nxl` ratchet so it can't regress. If the team decides the
+    scale won't be adopted, **delete L285-L327** rather than leave it
+    implying a system.
+
+### S2 — Most M3 color roles are dead, incl. the surface-container hierarchy that motivated finding #1 🟡 P2 (semantic roles started 2026-06-07; surface-container hierarchy still 0)
+
+> **Partially started 2026-06-07 — semantic surfaces (Alert + Toast).**
+> Added two **custom semantic roles** — `warning` (amber) + `success`
+> (emerald) — to [gen-palette.ts](../../scripts/gen-palette.ts) and
+> [globals.css](../../apps/web/src/app/globals.css) (light + dark, same tones
+> as `error`), then migrated the two centralized status surfaces
+> ([alert.tsx](../../apps/web/src/components/alert.tsx),
+> [toast.tsx](../../apps/web/src/components/toast.tsx)) off raw
+> red/amber/emerald onto `bg-md-{error,warning,success}-container` +
+> `text-md-on-*-container` — so **every `<Alert>` / `useToast` instance app-wide
+> is now dark-mode-correct** and the hand-rolled `dark:` forks are gone. Pattern
+> documented in [AGENTS.md #17](../../AGENTS.md). **Then (same day) the four
+> destructive-confirmation panels** (cancel-event, delete-team, delete-group,
+> account-delete) moved onto `md-error`/`md-warning`/`md-success` —
+> account-delete is the first all-three-roles consumer outside Alert/Toast (see
+> the [danger-panels entry](#danger-zone-panels--error--warning--success-roles-2026-06-07)).
+> **Then the hand-rolled form error/notice banners** (forgot-password, both
+> community forms, new-event-form, the two signup panels, community-notice,
+> import-client) were swapped for `<Alert variant>` — dedupes ~8 copies, deletes
+> their `dark:` forks (see the
+> [error-banners entry](#errornotice-banners--alert-2026-06-07)). **Net: raw
+> palette 555 → 395.** **Then the surface-container hierarchy was unblocked:**
+> the finding wasn't neglect — the generated surface roles were cool-cyan
+> (off-brand) and the brand's warm-light/teal-dark scheme can't come from one M3
+> neutral seed, so the surface/outline family was **hand-authored** to match the
+> brand (warm ramp light, teal ramp dark, `surface-container` == brand card) and
+> a zero-change reference adoption landed (account card + dialog/menu). See the
+> [surface entry](#surface-container-hierarchy--brand-matched-ramps-authored-2026-06-07).
+> **Still open:** the app-wide surface migration (now unblocked — assign
+> elevation levels per surface, a visual-review bundle); inline status pills
+> (payment `· Paid`/`· Pending`/`· Refunded`) + destructive text-links
+> (`text-red-600` Withdraw/Leave); and the genuinely decorative palette (the
+> scoreboard's red/green _team_ colors) stays raw by design. See the
+> [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
+
+- **Where:** [globals.css#L68-L213](../../apps/web/src/app/globals.css#L68-L213)
+  hand-declares **102 `--md-sys-color-*` custom properties** across
+  light/dark `:root` blocks. Adoption of the generated `md-` utilities,
+  measured across `apps/web/src`:
+
+  | Role family                                                  | usages |
+  | ------------------------------------------------------------ | -----: |
+  | `md-surface-container{,-low,-lowest,-high,-highest}` (5)     |  **0** |
+  | `md-on-surface-variant`, `md-outline`, `md-outline-variant`  |  **0** |
+  | `md-inverse-surface`, `md-inverse-on-surface`                |  **0** |
+  | `md-secondary-container`, `md-tertiary-container`, `-error-` |  **0** |
+  | `md-primary-container`, `md-on-primary-container`            |  1 + 1 |
+
+  Only the two primary-container roles are used, and only by the FAB
+  (`/events` — finding #10's single call site).
+
+- **Why it's stale _and_ a gap:** unlike the type scale, these are raw
+  `:root` declarations (not `@theme` utilities), so **all 102 ship to
+  every visitor** regardless of use (a few KB; ~1 KB gzip). More
+  important: **the surface-container hierarchy was the entire P1 #1
+  motivation** — "there is no canonical 'what color should a warning
+  surface be at tone 90 in dark mode'." That hierarchy now _exists_ and
+  is used **nowhere**, while the dark-mode-fragile raw palette it was
+  meant to replace grew to 555. The fix shipped; the disease was never
+  treated.
+- **Fix:** drive the color migration off the surfaces that already log
+  dark-mode contrast bugs (cross-ref [accessibility.md](accessibility.md)
+  / events-page-ux remediation): map `bg-{red,amber,emerald}-50` alert
+  surfaces → `bg-md-error-container` / `-tertiary-container` /
+  semantic success, `text-*-700/800` → the matching `-on-*-container`.
+  This is judgment work (raw red ≠ exactly `md-error`), so scope it as a
+  visual-review bundle, migrate per surface, then ratchet palette. Until
+  then the 102 tokens are a maintenance liability with one consumer.
+
+### S3 — Elevation scale never displaced raw shadows 🟢 P3
+
+- **Where:** [globals.css#L188-L213](../../apps/web/src/app/globals.css#L188-L213)
+  defines the M3 two-layer elevation scale (`--md-sys-elevation-0…5`,
+  light + dark). `shadow-elevation-*` is used in **6 sites across 5
+  files** — all of them the Radix primitives shipped in Bundles 132–136
+  (toast, dialog, nav-dropdown, bottom-nav, FAB). Application surfaces
+  (event cards, hero panels, host cards) still carry **31 raw
+  `shadow-sm/md/lg/xl`**.
+- **Why P3:** the elevation tokens are legitimately _consumed_ (by the
+  primitives), so they aren't dead — but the scale never became the
+  house shadow vocabulary, so raw `shadow-*` keeps getting chosen by feel
+  (P2 #5's original complaint). Lower priority than color/type because
+  the visual delta of a wrong shadow is smaller than a wrong dark-mode
+  color or heading size.
+- **Fix:** opportunistic only, per the 2026-05-30 strategy — M3's
+  key+ambient two-layer shadow is a deliberate restyle, not a 1:1
+  codemod. Fold the `shadow-*` → `shadow-elevation-*` mapping into the
+  same visual-review bundle as the color migration (S2) so cards get
+  their elevation and surface tone fixed in one reviewable pass.
+
+### What's healthy (not every signal is bad)
+
+- **Touch targets (#3), Radix primitives (#8/#9/#11/#12/#14), density
+  (#15), safe-area (#16), motion tokens (#6)** remain adopted/consumed —
+  the 53 `--md-sys-motion-*` tokens back the 4 primitive motion classes
+  and are correctly used.
+- **The events surface migrated this round** — `rounded-md` fell 405 →
+  298 (−107), raw `shadow-*` 53 → 31, ad-hoc hovers 132 → 104, driven by
+  the host-panel / RSVP-panel rewrites in `324eb2d9`. The pattern works
+  when a bundle is actually scheduled; the gap is that color/type never
+  got one.
 
 ---
 
@@ -942,6 +1216,390 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 
 ## Remediation log
 
+### Hand-rolled notice boxes → warning/success container roles (2026-06-07)
+
+Eighth S2 step. Migrated the hand-rolled **warning / success notice panels**
+(the larger info boxes the `<Alert>` banner sweep didn't cover) off raw
+amber/emerald onto the container roles — consistent with the danger-panels
+treatment, and notices _should_ tone with the theme:
+
+- **amber warning panels** → `border-md-warning/30 bg-md-warning-container` +
+  `text-md-on-warning-container` (drop `dark:` forks):
+  [community-action-sections](../../apps/web/src/app/community/[slug]/_components/community-action-sections.tsx)
+  (pending-claim), [community-viewer-chrome](../../apps/web/src/app/community/[slug]/_components/community-viewer-chrome.tsx)
+  ×2 (claim-awaiting-review), [my-hidden-community-listings](../../apps/web/src/app/community/_components/my-hidden-community-listings.tsx),
+  [edit-event-form](../../apps/web/src/app/events/[id]/edit/edit-event-form.tsx)
+  ×2 (pricing/payment locked).
+- **emerald success panels** → `bg-md-success-container` /
+  `text-md-on-success-container`:
+  [billing/pro](../../apps/web/src/app/profile/billing/pro/page.tsx) ×2
+  (subscription-activating + the "Pro" section).
+- **subtle tints kept as tints** (not container): the `bg-amber-500/{5,10}`
+  boxes ([billing](../../apps/web/src/app/profile/billing/page.tsx) anon-payout,
+  [profile-hub](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx)
+  team-invites, [setup-view](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)
+  seed-changes) → `bg-md-warning/{5,10}` + `text-md-warning`, preserving the
+  understated look. (Rule: solid `-50` → container; `/5`–`/10` tint → role-at-alpha.)
+- [event-flash-banners](../../apps/web/src/app/events/[id]/_components/event-flash-banners.tsx)
+  tip-thanks box → `<Alert variant="success">` (the file already used `<Alert>`
+  for its sibling flash).
+
+**Net: raw palette 277 → 227.** Confirmed the new alpha utilities
+(`bg-md-warning/5`, `bg-md-success-container/40`, …) emit via `color-mix`.
+**Still open — these are the visual-review remainder:** bg-tinted **status
+badges** (`bg-emerald-500/15`/`bg-amber-500/15`/`bg-red-500/10` paid/role/
+live-draft pills + subscription status maps in billing, members-section,
+signup-section, team-card, bracket/schedule, event-card waitlist/fundraiser) —
+mixed semantics (owner/fundraiser/draft aren't error/warning/success) and a
+dark-mode visual change (pale pills that pop on dark → theme-flipping
+containers), so they want eyes on the app; the **app-wide surface migration**;
+and decorative palette (scoreboard team red/green, violet "added-by-host" tag).
+Verify: 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
+
+### Inline success/warning text → `text-md-success` / `text-md-warning` (2026-06-07)
+
+Seventh S2 step — the **symmetric counterpart** to the red destructive sweep,
+completing the inline semantic-text migration (red + green + amber now all on
+role tokens). Recolored the bare inline status text (no `bg-`) across 12 files:
+
+- **green/emerald success** → `text-md-success`: "✓ Template saved"
+  (templates-section), "Video added" (add-profile-video), the pricing ✓ note,
+  setup-view's ✓ status, the scoreboard "Saved to match ✓" + serving labels
+  (remote-control, scoreboard-view), and the seeding / team-randomizer success
+  results.
+- **amber warning** → `text-md-warning`: profile-hub "Team invites" heading +
+  count, the mobile-menu invite count, community-article label, format-picker's
+  `role=status` caution.
+- **red failure siblings** in the seeding / randomizer result lists
+  (`text-sm text-red-700` next to the green success) → `text-md-error`.
+
+Unlike the red `text-red-600` sweep, the inline green/amber **shares shades
+with bg-badges** (a `text-emerald-700` status badge vs inline success text), so
+a blanket codemod was unsafe. Instead used **exact full-className**
+replacements — each inline site's string differs from the badge variant (badges
+carry `bg-…` + a different `dark:` shade), verified by the changed-file list
+(only the 12 inline-text files; **zero** badge/status-map files touched). Dark
+companions (`dark:text-emerald-400` etc.) dropped — the role flips per theme.
+`text-md-success` 7→10, `text-md-warning` 7→8.
+
+**Net: raw palette 305 → 277.** **Still open:** bg-tinted **status badges**
+(`bg-emerald-500/15`/`bg-amber-500/15`/`bg-red-500/10` paid/role/live-draft
+pills + status maps in billing, members-section, signup-section, team-card,
+bracket/schedule pages — ~73 green + ~90 amber utils, the bulk of what's left);
+hand-rolled **notice boxes** (billing/media/community-viewer-chrome/
+event-flash-banners/edit-event-form) → `<Alert>` or container roles; and the
+unblocked app-wide surface migration. Verify: 15/15 typecheck · lint 0 err / 3
+pre-existing · 268 web tests · 8/8 build.
+
+### Destructive text-buttons + inline error text → `text-md-error` (2026-06-07)
+
+Sixth S2 step. Recolored every `text-red-600` (29 sites) → `text-md-error`
+across ~18 files, plus dropped the now-orphaned `dark:text-red-400` companions
+(7 sites) — the role token flips per theme, so the dark fork is redundant.
+Two clean categories, one migration:
+
+- **Destructive text-buttons / links** — `text-red-600 hover:underline`
+  (Withdraw / Leave / Remove me from pool / delete-division / remove-member,
+  in the signup panels, team-member-row, team-viewer-chrome, divisions-repeater,
+  my-videos, profile) and `hover:text-red-600` icon actions (conversation-view
+  delete-message, block-control, import-client, hosts-section).
+- **Hand-rolled inline error text** — `text-red-600` on `<p role="alert">`
+  (format-picker-form ×5, setup-view, scoreboard-view, push-test/-subscribe,
+  conversation-view) — now consistent with `fieldErrorClass` from the prior
+  bundle.
+
+Done via a token-safe global codemod (`\btext-red-600\b` is **never** a
+bg-badge — badges use `text-red-700`+`dark:text-red-300`, left untouched), plus
+two per-site bordered destructive buttons recolored by hand:
+[host-ad-hoc-teams-panel](../../apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx)
+remove (`border-red-300 … text-red-700 hover:bg-red-50` → `border-md-error/40 …
+text-md-error hover:bg-md-error/10`) and
+[board-view](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)
+"Reset bracket" disclosure (`border-red-500/40 … bg-red-500/5` → `border-md-error/…
+bg-md-error/5`). `text-md-error` adoption 6 → 42.
+
+**Net: raw palette 350 → 305.** **Still open:** hand-rolled notice boxes
+(billing/media/community-viewer-chrome/event-flash-banners/edit-event-form →
+`<Alert>` or container roles), bg-tinted status badges (`bg-amber-100`/
+`bg-red-500/15` fundraiser/waitlist/status pills), the green/amber inline
+_success/warning_ text (the symmetric counterpart to this red sweep —
+`text-emerald-700` "saved" etc.), and the unblocked app-wide surface migration.
+Verify: 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
+
+### Semantic recipes + payment-status pills → role tokens (2026-06-07)
+
+Fifth S2 step. Migrated the **centralized** semantic recipes (highest leverage
+— each fixes many downstream call sites at once, and notably fixes dark-mode
+error text, which was dark-red-on-dark before):
+
+- [field-styles.ts](../../apps/web/src/components/field-styles.ts)
+  `fieldErrorClass`, [field-error.tsx](../../apps/web/src/components/field-error.tsx)
+  default, and [text-field.tsx](../../apps/web/src/components/text-field.tsx)
+  (error chassis + supporting text): `text-red-600` / `border-red-600` →
+  `text-md-error` / `border-md-error`. These are THE form-error recipes —
+  every field error across the app is now theme-aware.
+- [status-pill.tsx](../../apps/web/src/components/status-pill.tsx) `success` /
+  `pending` tones + the three duplicated payment-status maps
+  ([teams-registered-section](../../apps/web/src/app/events/[id]/_components/teams-registered-section.tsx),
+  [host-ad-hoc-teams-panel](../../apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx),
+  [ad-hoc-team-signup-panel](../../apps/web/src/app/events/[id]/_components/ad-hoc-team-signup-panel.tsx),
+  `none/pending/paid` → amber/amber/emerald) → `bg-md-{warning,success}-container`
+  - `text-md-on-*-container`. `primary`/`neutral`/`refunded` tones stay on brand
+    tokens.
+- [event-rsvp-flash.ts](../../apps/web/src/lib/event-rsvp-flash.ts) error banner
+  → `bg-md-error-container` (success/info already on brand tokens).
+- [tournament-signup-panel.tsx](../../apps/web/src/app/events/[id]/_components/tournament-signup-panel.tsx)
+  inline `· Paid` / `· Payment pending` / `· Refunded` labels →
+  `text-md-{success,warning,error}` (plain role colours for inline text on a
+  surface — first consumers of `text-md-success`/`-warning`; confirmed emitting
+  in the built CSS).
+
+**Net: raw palette 395 → 350.** **Deferred (a clean next bundle):** the
+**destructive text-buttons** — `text-red-600 hover:underline` (Withdraw / Leave
+/ Remove, ~17 sites incl. the leftovers in the panels above) and the
+`hover:text-red-600` icon actions → `text-md-error`; plus the hand-rolled
+**notice boxes** not caught by the banner sweep (billing, media, community
+viewer-chrome, event-flash-banners, edit-event-form) and the bg-tinted
+**status badges** (`bg-amber-100` fundraiser/waitlist pills on event-card,
+attendee-list, event-meta) — each a per-surface recolor to role tokens. The
+bracket live/draft + scoreboard "saved" indicators are status-ish but
+borderline decorative; leave for the visual-review pass. Verify: 15/15
+typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
+
+### Surface-container hierarchy — brand-matched ramps authored (2026-06-07)
+
+Fourth S2 step. Investigating why the surface-container hierarchy sat at **0
+usages** surfaced a real blocker, not neglect:
+
+- **The generated values were off-brand.** Seeded from `neutral: '#183334'`
+  (deep teal), the M3 surface roles came out **cool cyan** (`surface` light =
+  `228 254 255`), but the brand uses **warm** light surfaces (`#F9EBD9` /
+  `#EBD6D7`). Adopting `bg-md-surface-container*` as-is would have recolored
+  every card warm → cyan.
+- **The brand's scheme isn't expressible as one M3 neutral palette.** The brand
+  hue-**flips** between themes — warm sand in light, **teal** in dark
+  (`#0E2A2C` / `#1B3F42`). A single neutral tonal palette is one hue, so it
+  physically can't produce warm-light + teal-dark. The surface family therefore
+  **cannot be generated** — it must be hand-authored.
+
+**Fix — hand-authored brand-matched ramps** in
+[globals.css](../../apps/web/src/app/globals.css) (replacing the cool-cyan
+generated block in both `:root` themes), anchored so **`surface-container` ==
+the brand card colour** (`#EBD6D7` light / `#1B3F42` dark) and the other steps
+ramp lighter/darker around it:
+
+| role                      | light (warm)              | dark (teal)               |
+| ------------------------- | ------------------------- | ------------------------- |
+| surface (page)            | 249 235 217               | 14 42 44                  |
+| surface-container-lowest  | 255 250 244               | 9 30 32                   |
+| surface-container-low     | 242 225 216               | 18 48 50                  |
+| **surface-container**     | **235 214 215**           | **27 63 66**              |
+| surface-container-high    | 228 205 206               | 33 71 74                  |
+| surface-container-highest | 221 196 197               | 40 80 83                  |
+| on-surface(-variant)      | 24 51 52 / 85 95 96       | 249 235 217 / 159 191 190 |
+| outline / -variant        | 140 126 122 / 219 205 203 | 122 140 140 / 42 85 87    |
+
+Because `surface-container` and the brand `--tw-color-surface` resolve to the
+**identical RGB** (verified in the built CSS), and `on-surface-variant` ==
+`--tw-color-muted` exactly, the reference swaps below are **zero visual
+change**. [gen-palette.ts](../../scripts/gen-palette.ts) got a ⚠️ header: it
+still emits cool-cyan neutral rows, but those must **not** be pasted over the
+hand-authored block (only the chroma roles are regenerable).
+
+**Reference adoption** (makes the dormant tokens live + demonstrates the ramp):
+
+- [account/delete](../../apps/web/src/app/profile/account/delete/page.tsx) base
+  card → `bg-md-surface-container` + `text-md-on-surface-variant` (both **exact
+  zero-change**).
+- [form-modal](../../apps/web/src/components/form-modal.tsx) (dialog) +
+  [nav-dropdown](../../apps/web/src/components/nav-dropdown.tsx) (menu) — the
+  canonical **elevated** surfaces → `bg-md-surface-container-high` (a few RGB
+  units more elevated than the base card, the correct M3 direction; a small
+  delta worth an eyeball in both themes).
+
+**Recommended level map for the future app-wide adoption** (its own
+visual-review bundle): page = `surface`; base card / panel = `surface-container`;
+raised card / dialog / menu / popover = `surface-container-high`; nested
+emphasis = `surface-container-highest`; `border-border-base` →
+`border-md-outline-variant` (light gains a faint visible hairline — an
+intentional change to verify); `text-muted` → `text-md-on-surface-variant`.
+
+**Findings updated:** S2 → 🟡 (surface tokens now brand-correct + ready; the
+app-wide surface migration remains, but is no longer blocked). Verify: 15/15
+typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build · built-CSS
+confirms the warm/teal ramps ship and `surface-container` == brand surface.
+
+### Error/notice banners → `<Alert>` (2026-06-07)
+
+Third S2 step, same day. The hand-rolled form **error/notice banners** —
+`<div role="alert" className="border-red-200 bg-red-50 … text-red-700">` and
+its tone-mapped success/warning siblings — were duplicated across ~8 files and
+each carried (or omitted) its own `dark:` fork. Replaced them with the
+centralized `<Alert variant>` (already on role tokens from the first S2 step),
+which dedupes the markup, deletes every `dark:` guess, and adds the icon +
+auto-`role` (error/warning → `alert`, else `status`).
+
+- **Simple submit-error banners → `<Alert variant="error">`**, wrapped in the
+  existing `useAlertReveal` ref'd `<div … className="outline-none">` (Alert
+  doesn't forward a ref — AGENTS.md pattern 15):
+  [forgot-password](../../apps/web/src/app/forgot-password/page.tsx),
+  [new-event-form](../../apps/web/src/app/events/new/new-event-form.tsx) (keeps
+  its `<ErrorActionLink>` child),
+  [community-listing-form](../../apps/web/src/app/community/new/community-listing-form.tsx),
+  [community-listing-edit-form](../../apps/web/src/app/community/[slug]/edit/community-listing-edit-form.tsx),
+  [import-client](../../apps/web/src/app/admin/community-import/import-client.tsx).
+- **Tone-mapped notices → `<Alert variant>`:**
+  [community-notice-banner](../../apps/web/src/app/community/[slug]/_components/community-notice-banner.tsx)
+  (`ok/warn/err` → `success/warning/error`, role preserved) and the two signup
+  result banners ([free-agent](../../apps/web/src/app/events/[id]/_components/free-agent-signup-panel.tsx),
+  [tournament](../../apps/web/src/app/events/[id]/_components/tournament-signup-panel.tsx),
+  `result.tone` → `success`/`error`).
+- **import-client result rows** (a dense list with links + sub-notes, not a
+  banner) were recolored in place instead of forced into per-row Alerts:
+  `border-md-success/30 bg-md-success-container` / `…-error-…`, amber sub-notes
+  → `text-md-warning`.
+
+Net: raw palette utils **555 → 395** across the three S2 bundles; `<Alert>`
+call sites ~35 → 51. **Out of scope (noted):** inline payment-status labels
+(`· Paid`/`· Pending`/`· Refunded`) and destructive **text-link** actions
+(`text-red-600 hover:underline` Withdraw/Leave) — those are status-pill /
+`errorTextButtonClass` follow-ups, not banners. Verify: 15/15 typecheck (forced
+web run, 0 cached) · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
+
+### Danger-zone panels → error / warning / success roles (2026-06-07)
+
+Continuation of S2, the same day. With the role families wired (previous
+entry), migrated the four **destructive-confirmation panels** off raw palette:
+
+- [cancel-event-panel.tsx](../../apps/web/src/app/events/[id]/edit/cancel-event-panel.tsx),
+  [delete-team-panel.tsx](../../apps/web/src/app/teams/[id]/_components/delete-team-panel.tsx),
+  [delete-group-panel.tsx](../../apps/web/src/app/groups/[id]/edit/delete-group-panel.tsx)
+  — panel chrome `border-red-200 bg-red-50 … dark:bg-red-950/30` →
+  `border-md-error/30 bg-md-error-container`, heading/description →
+  `text-md-on-error-container`, inline error → `text-md-error`, the "Keep …"
+  dismiss → `errorTextButtonClass`, and (cancel-event) the trigger → the
+  shared `errorOutlinedButtonClass` + the reason textarea → `fieldInputClass`
+  / `fieldLabelClass`. The submit + (where present) trigger already used the
+  error-button vocabulary; this closed the panel chrome around them.
+- [account/delete/page.tsx](../../apps/web/src/app/profile/account/delete/page.tsx)
+  — the showcase: its **"Deletion scheduled"** panel was amber → `md-warning`,
+  its **"cancelled"** notice green → `md-success`, its confirm error
+  `text-red-600` → `text-md-error`. First real-world consumer of all three new
+  roles outside Alert/Toast — validates the warning/success containers in dark
+  mode by construction.
+
+Every hand-rolled `dark:` fork in these files is gone (the role tokens flip).
+Scope deliberately stops at the four delete/cancel panels — the other
+`border-red-200 bg-red-50` hits are form **error banners** (forgot-password,
+community/new + edit, new-event-form, signup panels) that should adopt
+`<Alert variant="error">` rather than role classes directly; that's a separate
+follow-up. Verify: 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web
+tests · 8/8 build · built-CSS confirms `text-md-on-warning-container` (+ `/90`
+alpha via `color-mix`) and the error/success utilities emit.
+
+### Semantic color roles + Alert / Toast (2026-06-07)
+
+First step on **S2**. M3 ships an `error` role (already used by the
+`errorButtonClass` family) but **no `warning`/`success`** — and 93% of the
+555 raw palette utils are the four semantic families: red 215 (error), amber
+161 (warning), emerald 85 + green 54 (success). This bundle adds the missing
+roles and migrates the two **centralized** status surfaces.
+
+**Foundation:**
+
+- [scripts/gen-palette.ts](../../scripts/gen-palette.ts) — added `warning`
+  (amber `#D97706`) + `success` (emerald `#059669`) seeds and their
+  role/on/container/on-container rows to `LIGHT_ROLES` + `DARK_ROLES` using the
+  **same M3 tones as `error`** (40/100/90/10 light · 80/20/30/90 dark), so the
+  new roles are contrast-safe by construction.
+- [globals.css](../../apps/web/src/app/globals.css) — pasted the generated
+  `--md-sys-color-{warning,success,…}` rows into both `:root` blocks (16 new
+  vars) and registered the 8 `--color-md-{warning,success}*` utilities in
+  `@theme inline`. Confirmed in the production build that the utilities emit —
+  incl. alpha borders via `color-mix(in oklab, …)` with a solid fallback — and
+  that each var carries both a light and a dark value.
+
+**Migration (centralized surfaces — every consumer fixed at once):**
+
+- [alert.tsx](../../apps/web/src/components/alert.tsx) +
+  [toast.tsx](../../apps/web/src/components/toast.tsx) — `error`/`warning`/
+  `success` variants (surface **and** the toast focus-ring map) swapped from
+  `bg-red-50 … dark:bg-red-950/40` to `bg-md-{role}-container
+text-md-on-{role}-container border-md-{role}/30`. The role tokens flip per
+  theme, so the hand-rolled `dark:` variants are **deleted**, not translated.
+  `info` left untouched — it was already on brand tokens (`primary/10`), not
+  raw palette, and `md-primary` is a different teal tone than brand `primary`.
+
+**Decisions:**
+
+- **Custom `warning`/`success` roles over reusing `tertiary`.** Tertiary is
+  the brand sand/gold; overloading it with "caution" semantics would muddy it,
+  and there's no spare role for "success" at all. Full custom roles mirror
+  `error` exactly and keep the semantic vocabulary legible.
+- **Centralized surfaces only; no codemod, no ratchet.** Unlike the type
+  scale, raw color is contextual — the scoreboard's red/green are _team_
+  colors, a danger panel's red is destructive-action chrome, a form's
+  `text-red-600` is an inline error. None map 1:1, so a blind sweep is unsafe
+  and the family can't reach zero to ratchet. Migrating `<Alert>`/`useToast`
+  (the two surfaces literally named "semantic notice") is the high-leverage,
+  low-risk cut; per-surface danger panels / status pills / form-error text are
+  deferred follow-ups that can now reach for the roles.
+
+**Findings updated:** S2 → 🟡 (semantic roles started; surface-container
+hierarchy + scattered palette still open).
+
+**Verify:** 15/15 typecheck · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings · 268 web tests + domain/application suites ·
+8/8 build · built-CSS confirms the new role utilities (container / on-container
+/ alpha border / ring) emit with light+dark values.
+
+### Type scale — text-Nxl migrated + ratcheted (2026-06-07)
+
+Closes **S1** and the `text-Nxl` half of **S0** from the 2026-06-07 re-audit.
+The M3 type scale shipped in Bundle 129 but sat at **0/15 roles adopted**
+while raw `text-Nxl` grew 77 → 120 for lack of a guard. This bundle migrates
+the whole `text-Nxl` family to type roles and locks it.
+
+**Migration (120 sites → type roles):**
+
+- `text-2xl → text-headline-sm` — **exact, zero visual change** (both
+  24 px / 32 px, no tracking). 55 sites; codemodded (`\btext-2xl\b`,
+  null-delimited `xargs` + `perl`), incl. the one `sm:text-2xl`. This is the
+  spine — most of these were already section headers (h2/h3).
+- `text-xl → text-title-lg` (20→22 px), `text-3xl → text-headline-lg`
+  (30→32 px, the canonical page-title role — ~28 page `<h1>`s were a uniform
+  `text-3xl font-bold`), `text-4xl → text-display-sm` (36 px, exact size),
+  `text-5xl → text-display-md` (48→45), `text-6xl → text-display-lg` (60→57).
+  Small intended size refinements (≤2–3 px); the home hero's responsive
+  `text-4xl … md:text-5xl` became `text-display-sm … md:text-display-md`.
+- Verified the utilities emit real CSS in the production build —
+  `.text-headline-sm{font-size:1.5rem;line-height:var(--tw-leading,2rem)}` —
+  so any heading carrying an explicit `leading-*` still overrides the role's
+  line-height. (The type roles had never been used, so Tailwind had never had
+  to emit them; this confirms the `@theme inline` block actually generates
+  utilities, not just dead `:root` vars.)
+
+**Ratchet:** added two `no-restricted-syntax` selectors (Literal +
+TemplateElement) to [eslint.config.mjs](../../apps/web/eslint.config.mjs)
+matching `text-(xl|[2-9]xl)` as a whole token after a start/space/colon
+boundary — so `text-display-lg`, `text-headline-sm`, `text-title-lg` and the
+un-ratcheted `text-{sm,lg,xs,base}` are not false-positives. Lock-eliminated
+only (the family is at 0), `error` severity, same shape as Bundle 139's shape
+lock. Convention documented in [AGENTS.md pattern 16](../../AGENTS.md).
+
+**Deliberately not done:** the `text-{sm,lg,xs,base}` body-text scale (1423
+sites — a genuine flood, and the role mapping is judgment not 1:1), and the
+palette / `shadow-*` / `rounded-md` ratchets (S0, S2, S3 — still
+ratchet-behind-migration; palette/dark-mode is the next highest-value bundle).
+
+**Findings updated:** S1 → 🟢 Resolved; S0 → 🟡 (text-Nxl closed,
+palette/shadow/rounded-md open).
+
+**Verify:** 15/15 typecheck · lint 0 errors / 3 pre-existing
+`set-state-in-effect` warnings · 268 web tests + domain/application suites ·
+8/8 build. Built-CSS grep confirms the type-role utilities emit font-size +
+line-height.
+
 ### Bundle 139 — Adoption reality-check + value-preserving shape migration (2026-05-30)
 
 Re-audit of the call sites after the 129–138 arc. The arc shipped every
@@ -1313,7 +1971,7 @@ required maxLength={80} />`. The format `<select>` stays on the
   surface-by-surface; one reference call site + the primitive is
   the right cut. Each form migration is a small reviewable diff.
 
-**Follow-ups deferred** (tracked in [Bundle 135 journal](../journal/2026-05-28-bundle-135.md)):
+**Follow-ups deferred** (tracked in [Bundle 135 journal](../journal/2026-05-digest.md#bundle-135)):
 
 - **SelectField primitive** — needs a separate bundle. Open
   question: wrap native `<select>` for accessibility + form-data
@@ -1419,7 +2077,7 @@ Closes **P2 #9** (Dialog primitive lacks M3 affordances) and **P2 #14**
   an option; Radix Dialog alone covers the visual + a11y story.
   Touch-drag dismiss is a follow-up if real usage demands it.
 
-**Follow-ups deferred** (tracked in [Bundle 134 journal](../journal/2026-05-28-bundle-134.md)):
+**Follow-ups deferred** (tracked in [Bundle 134 journal](../journal/2026-05-digest.md#bundle-134)):
 
 - Migrate the two existing `ModalFooter` call sites to
   `<ModalActions>` once a real change touches those forms (cheap
@@ -1517,7 +2175,7 @@ shadow-elevation-3 hover:shadow-elevation-4`. Positioned
   but needs a small client-state subscription so the count stays
   fresh without a reload — deferred to keep this bundle tight.
 
-**Follow-ups deferred** (tracked in [Bundle 133 journal](../journal/2026-05-28-bundle-133.md)):
+**Follow-ups deferred** (tracked in [Bundle 133 journal](../journal/2026-05-digest.md#bundle-133)):
 
 - Multi-page FAB rollout: `/events/[id]` host view, `/groups`,
   `/groups/[id]` admin view, `/teams`, `/teams/[slug]` captain view

@@ -33,7 +33,7 @@ export default async function NotificationsPrefsPage() {
         <Link href={'/profile' as Route} className="text-primary text-sm hover:underline">
           ← Profile
         </Link>
-        <h1 className="text-3xl font-bold">Notifications</h1>
+        <h1 className="text-headline-lg font-bold">Notifications</h1>
         <p className="text-muted text-sm">
           Choose how we reach you. Receipts and other transactional messages always go out by email
           regardless of these settings.

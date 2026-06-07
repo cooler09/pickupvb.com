@@ -2,7 +2,7 @@
 
 First-party product analytics for pickupvb. Shipped in Bundle 75
 (see [docs/audits/analytics.md](audits/analytics.md) and
-[docs/journal/2026-05-24-bundle-75.md](journal/2026-05-24-bundle-75.md)).
+[docs/journal/2026-05-digest.md#bundle-75](journal/2026-05-digest.md#bundle-75)).
 
 The adapter is hexagonal: domain owns the
 [AnalyticsPort](../packages/domain/src/shared/analytics-port.ts), and

@@ -220,4 +220,4 @@ keeps it open — but no UI is wired.
 - [ADR 0016 — Team registration mode is per-division](0016-per-division-team-registration-mode.md)
 - [Registration workflow audit — R4](../audits/registration-workflow.md#r4-p2--walk-ins-are-not-a-first-class-registration-type)
 - Migration: [supabase/migrations/20260712000000_walk_in_registrations.sql](../../supabase/migrations/20260712000000_walk_in_registrations.sql)
-- Bundle 120 journal: [docs/journal/2026-05-27-bundle-120.md](../journal/2026-05-27-bundle-120.md)
+- Bundle 120 journal: [docs/journal/2026-05-digest.md#bundle-120](../journal/2026-05-digest.md#bundle-120)

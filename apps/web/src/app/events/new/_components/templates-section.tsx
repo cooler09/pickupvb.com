@@ -80,7 +80,7 @@ export default function TemplatesSection({
           page and closes the modal, so the confirmation has to live on the
           form. */}
       {templateStatus === 'saved' && (
-        <span className="text-sm text-emerald-700 dark:text-emerald-400">✓ Template saved</span>
+        <span className="text-md-success text-sm">✓ Template saved</span>
       )}
       {templateStatus === 'error' && (
         <span className="text-destructive text-sm">Could not save template</span>

@@ -33,7 +33,7 @@ export default async function ClaimPage({
   return (
     <div className="mx-auto max-w-md space-y-6 py-6">
       <div>
-        <h1 className="text-fg text-2xl font-bold">Finish creating your account</h1>
+        <h1 className="text-fg text-headline-sm font-bold">Finish creating your account</h1>
         <p className="text-muted mt-1 text-sm">
           Add an email and password to keep your signups and access them from any device. All your
           existing signups will carry over.

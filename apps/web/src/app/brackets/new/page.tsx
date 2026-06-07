@@ -42,7 +42,7 @@ export default async function NewStandaloneBracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">New bracket</h1>
+        <h1 className="text-fg text-headline-sm font-bold">New bracket</h1>
         <p className="text-muted text-sm">
           Pick a format. After creating it you{'’'}ll add your teams by name, seed them, then
           generate the bracket.
@@ -52,7 +52,7 @@ export default async function NewStandaloneBracketPage(props: {
       {notice && notice.tone === 'error' && (
         <div
           role="alert"
-          className="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300"
+          className="text-md-error rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm"
         >
           {notice.text}
           {noticeMsg && <span className="ml-1 opacity-80">— {noticeMsg}</span>}

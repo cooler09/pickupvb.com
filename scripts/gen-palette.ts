@@ -6,6 +6,15 @@
  * paste the printed CSS into [apps/web/src/app/globals.css] under the
  * "M3 color roles" block.
  *
+ * ⚠️  The CHROMA roles only (primary / secondary / tertiary / error / warning /
+ * success + their on-/container pairs) should be pasted. The SURFACE / NEUTRAL
+ * family (`background`, `surface`, `surface-variant`, `surface-container-*`,
+ * `on-surface*`, `outline*`, `inverse-*`) is **hand-authored** in globals.css,
+ * because the brand uses warm surfaces in light + teal surfaces in dark — a
+ * hue-flip a single neutral tonal palette can't produce. This script still
+ * emits cool-cyan neutral rows from the `#183334` seed; do NOT copy them over
+ * the hand-authored block. See docs/audits/m3-alignment.md S2.
+ *
  * Why a one-shot script instead of a build-time codegen: the brand seeds
  * change once a year at most, so generating on every build adds latency
  * + a runtime / build-time dependency for no reason. Keep the script in
@@ -23,6 +32,12 @@ const SEEDS = {
   neutral: '#183334', // deep teal-gray (used to seed surfaces)
   neutralVariant: '#555F60', // muted
   error: '#DC2626', // red-600 (matches existing aria-invalid styling)
+  // Custom semantic roles — M3 ships no warning/success role, but ~44% of the
+  // app's raw palette was amber (caution) + emerald/green (positive). Seeded so
+  // the generated container/on-container tones match the old hand-rolled
+  // amber-50/900 + emerald-50/800 alert surfaces. See m3-alignment.md S2.
+  warning: '#D97706', // amber-600
+  success: '#059669', // emerald-600
 } as const;
 
 type RoleKey = keyof typeof SEEDS;
@@ -49,6 +64,8 @@ const palettes: Record<RoleKey, TonalPalette> = {
   neutral: tonalFromHex(SEEDS.neutral),
   neutralVariant: tonalFromHex(SEEDS.neutralVariant),
   error: tonalFromHex(SEEDS.error),
+  warning: tonalFromHex(SEEDS.warning),
+  success: tonalFromHex(SEEDS.success),
 };
 
 /**
@@ -72,6 +89,14 @@ const LIGHT_ROLES: Array<[role: string, palette: RoleKey, tone: number]> = [
   ['on-error', 'error', 100],
   ['error-container', 'error', 90],
   ['on-error-container', 'error', 10],
+  ['warning', 'warning', 40],
+  ['on-warning', 'warning', 100],
+  ['warning-container', 'warning', 90],
+  ['on-warning-container', 'warning', 10],
+  ['success', 'success', 40],
+  ['on-success', 'success', 100],
+  ['success-container', 'success', 90],
+  ['on-success-container', 'success', 10],
   ['background', 'neutral', 98],
   ['on-background', 'neutral', 10],
   ['surface', 'neutral', 98],
@@ -109,6 +134,14 @@ const DARK_ROLES: Array<[role: string, palette: RoleKey, tone: number]> = [
   ['on-error', 'error', 20],
   ['error-container', 'error', 30],
   ['on-error-container', 'error', 90],
+  ['warning', 'warning', 80],
+  ['on-warning', 'warning', 20],
+  ['warning-container', 'warning', 30],
+  ['on-warning-container', 'warning', 90],
+  ['success', 'success', 80],
+  ['on-success', 'success', 20],
+  ['success-container', 'success', 30],
+  ['on-success-container', 'success', 90],
   ['background', 'neutral', 6],
   ['on-background', 'neutral', 90],
   ['surface', 'neutral', 6],

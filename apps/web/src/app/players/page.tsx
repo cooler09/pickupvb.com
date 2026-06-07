@@ -76,7 +76,7 @@ export default async function PlayersIndexPage(props: {
   return (
     <div className="mx-auto max-w-4xl space-y-6 py-4">
       <header>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-headline-sm font-bold">
           Players <span className="text-muted text-base font-normal">· {total}</span>
         </h1>
         <p className="text-muted text-sm">

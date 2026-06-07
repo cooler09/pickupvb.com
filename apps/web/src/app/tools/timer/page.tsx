@@ -96,7 +96,7 @@ export default function TimerSetupPage() {
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
           Host tool · Free
         </p>
-        <h1 className="text-3xl font-bold">Match timer</h1>
+        <h1 className="text-headline-lg font-bold">Match timer</h1>
         <p className="text-muted text-sm">
           A full-screen countdown you can share to every court. Set a duration, hit start, and every
           device on the link stays in sync. Nothing is saved on our servers.
@@ -116,7 +116,7 @@ export default function TimerSetupPage() {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-fg text-xl font-semibold">FAQ</h2>
+        <h2 className="text-fg text-title-lg font-semibold">FAQ</h2>
         <dl className="space-y-3">
           {faqs.map((f) => (
             <div key={f.q} className="border-border-base rounded-md border p-3">

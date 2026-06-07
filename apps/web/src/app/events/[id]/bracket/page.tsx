@@ -5,6 +5,7 @@ import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
+import { assertEventVisibleOrNotFound } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BracketWorkspace } from './_components/bracket-workspace';
 import { NOTICE_LABEL } from './_components/labels';
@@ -29,6 +30,10 @@ export default async function BracketPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
+
+  // Gate scoped/unpublished events: getBracketMeta reads on the admin client
+  // (RLS-bypassed), so re-assert visibility before exposing title/structure.
+  await assertEventVisibleOrNotFound(params.id);
 
   let event;
   try {
@@ -116,7 +121,7 @@ export default async function BracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">Bracket — {event.title}</h1>
+        <h1 className="text-fg text-headline-sm font-bold">Bracket — {event.title}</h1>
         {divisionSummary && <p className="text-fg/80 text-sm">{divisionSummary}</p>}
         <p className="text-muted text-sm">
           {registeredTeams.length} registered team

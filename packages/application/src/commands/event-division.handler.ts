@@ -18,11 +18,13 @@ import {
 } from '../messages/index';
 
 /**
- * Authorization for division mutations lives at the DB layer (RLS on
- * `event_divisions`): only the event host or owner/admin of the primary
- * host group can insert/update/delete. We intentionally don't duplicate
- * that check here — the repo will throw with a Postgres permission error
- * if the requester isn't authorized.
+ * Authorization is enforced at the server-action boundary
+ * (`assertCanManage` in division-actions.ts), NOT here: the shared
+ * `SupabaseEventRepository.save()` these handlers call runs on the
+ * service-role admin client (the `save_event` RPC is INVOKER but the
+ * production adapter calls it as service role), so the `event_divisions` RLS
+ * policies never fire (AGENTS.md pitfall #8). Do not re-delegate authorization
+ * to RLS from this layer. (Security audit P1 #12.)
  *
  * `requesterId` is reserved for future audit columns.
  */

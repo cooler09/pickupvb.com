@@ -76,12 +76,12 @@ export default async function ConversationPage(props: { params: Promise<{ id: st
           {otherCard ? (
             <Link
               href={`/players/${otherCard.handle}` as Route}
-              className="truncate text-xl font-bold hover:underline"
+              className="text-title-lg truncate font-bold hover:underline"
             >
               {heading}
             </Link>
           ) : (
-            <h1 className="truncate text-xl font-bold">{heading}</h1>
+            <h1 className="text-title-lg truncate font-bold">{heading}</h1>
           )}
           {conv.kind === 'dm' && otherCard && (
             <BlockControl otherUserId={otherCard.id} initiallyBlocked={initiallyBlocked} />

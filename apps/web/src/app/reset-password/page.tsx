@@ -67,7 +67,7 @@ export default function ResetPasswordPage() {
   if (!authed) {
     return (
       <div className="mx-auto max-w-sm space-y-4 py-8">
-        <h1 className="text-2xl font-bold">Reset link expired</h1>
+        <h1 className="text-headline-sm font-bold">Reset link expired</h1>
         <p className="text-fg/70 text-sm">
           This password-reset link is no longer valid. Request a new one to continue.
         </p>
@@ -81,7 +81,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="mx-auto max-w-sm space-y-6 py-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold">Choose a new password</h1>
+        <h1 className="text-headline-sm font-bold">Choose a new password</h1>
         <p className="text-fg/70 text-sm">Pick something at least 8 characters long.</p>
       </div>
 

@@ -14,7 +14,7 @@ export default async function StandingsRoomPage({ params }: { params: Promise<{ 
   return (
     <section className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">Standings</h1>
+        <h1 className="text-headline-sm font-bold">Standings</h1>
         <p className="text-muted text-sm">
           Record results and the table sorts itself. Share the link so everyone can update it.
         </p>

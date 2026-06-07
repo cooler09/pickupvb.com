@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
  *
  * GDPR Art. 20 / CCPA portability — a single machine-readable JSON file with the
  * authenticated user's own data across every table that stores it (privacy audit
- * P3 #12, incl. the chat surface from #15).
+ * P3 #12, incl. the chat surface from #15 and the media/badges/waitlist surface
+ * from #18).
  *
  * Runs on the **user-scoped** client so RLS is the safety net: every category is
  * filtered to the caller's own id, and there is no admin / RLS-bypass. Each table
@@ -50,6 +51,11 @@ export async function GET(): Promise<NextResponse> {
       conversations,
       messages,
       blocks,
+      mediaPosts,
+      mediaVotes,
+      mediaReports,
+      badges,
+      waitlist,
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
       supabase
@@ -109,6 +115,31 @@ export async function GET(): Promise<NextResponse> {
         .eq('sender_id', uid)
         .order('created_at', { ascending: true }),
       supabase.from('user_blocks').select('blocked_id, created_at').eq('blocker_id', uid),
+      supabase
+        .from('media_posts')
+        .select(
+          'id, short_code, event_id, kind, provider, video_url, title, description, status, featured, created_at',
+        )
+        .eq('submitter_user_id', uid)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('media_post_votes')
+        .select('id, event_id, post_id, category, created_at')
+        .eq('voter_user_id', uid),
+      supabase
+        .from('media_post_reports')
+        .select('id, post_id, reason, created_at')
+        .eq('reporter_user_id', uid),
+      supabase
+        .from('user_badges')
+        .select('badge_key, source, context, hidden, awarded_at')
+        .eq('user_id', uid)
+        .order('awarded_at', { ascending: true }),
+      supabase
+        .from('event_waitlist')
+        .select('event_id, created_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: true }),
     ]);
 
     // A GDPR export that silently drops a category is worse than one that fails
@@ -130,6 +161,11 @@ export async function GET(): Promise<NextResponse> {
       conversations,
       messages,
       blocks,
+      mediaPosts,
+      mediaVotes,
+      mediaReports,
+      badges,
+      waitlist,
     };
     for (const [label, res] of Object.entries(parts)) {
       if (res.error) throw new Error(`${label}: ${res.error.message}`);
@@ -155,6 +191,11 @@ export async function GET(): Promise<NextResponse> {
       chat_conversations: conversations.data ?? [],
       chat_messages_sent: messages.data ?? [],
       user_blocks: blocks.data ?? [],
+      media_posts: mediaPosts.data ?? [],
+      media_post_votes: mediaVotes.data ?? [],
+      media_post_reports: mediaReports.data ?? [],
+      badges: badges.data ?? [],
+      event_waitlist: waitlist.data ?? [],
     };
 
     return new NextResponse(JSON.stringify(payload, null, 2), {

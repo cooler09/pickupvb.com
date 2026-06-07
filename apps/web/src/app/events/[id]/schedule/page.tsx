@@ -9,6 +9,7 @@ import {
   type EventId,
 } from '@pickupvb/domain';
 import { handlers, repositories } from '@/lib/handlers';
+import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { ScheduleWorkspace } from './_components/schedule-workspace';
@@ -34,6 +35,11 @@ export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await props.params;
+  // Don't leak a scoped/unpublished event's title into <head>/OG — emit a
+  // generic title unless the event is anon-visible (security audit P1 #14).
+  if (!(await isEventPubliclyVisible(id))) {
+    return { title: 'Schedule — PickupVB' };
+  }
   try {
     const event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(id));
     const title = `Schedule — ${event.title} · PickupVB`;
@@ -72,6 +78,10 @@ export default async function SchedulePage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
+
+  // Gate scoped/unpublished events: getBracketMeta reads on the admin client
+  // (RLS-bypassed), so re-assert visibility before exposing title/structure.
+  await assertEventVisibleOrNotFound(params.id);
 
   let event;
   try {
@@ -174,7 +184,7 @@ export default async function SchedulePage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">Schedule — {event.title}</h1>
+        <h1 className="text-fg text-headline-sm font-bold">Schedule — {event.title}</h1>
         <p className="text-muted text-sm">
           {teams.length} registered team{teams.length === 1 ? '' : 's'} · {matches.length} match
           {matches.length === 1 ? '' : 'es'} on the slate

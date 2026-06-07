@@ -1,11 +1,9 @@
-import { notFound, permanentRedirect } from 'next/navigation';
 import { GetCommunityListingDetailQuery } from '@pickupvb/application';
 import { NotFoundError, type CommunityListingDetailReadModel } from '@pickupvb/domain';
 import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { handlers } from '@/lib/handlers';
 import { getServerSupabase } from '@/lib/supabase';
 import { loadVisibleHostedEvents } from '@/components/hosted-events-list';
-import { loadCommunityDetailPublic } from '../community-detail-cache';
 
 export type HostedEvent = Awaited<ReturnType<typeof loadVisibleHostedEvents>>[number];
 
@@ -17,17 +15,16 @@ export type PendingClaim = {
   claimantName: string;
 };
 
-/** Everything the community-listing detail page needs to render, assembled in
- *  one place (architecture audit P3-1 — data orchestration out of the page). */
-export type CommunityDetailPageModel = {
+/** The viewer-conditional chrome a community-listing detail page renders, all
+ *  assembled in one place. Fetched client-side via the `getCommunityViewerChrome`
+ *  server action so the page shell itself stays cookie-free and ISR-cacheable
+ *  (performance audit P2 #16). `null` means the viewer can't see the listing. */
+export type CommunityViewerChromeModel = {
+  /** Viewer-scoped read (canManage / isPlatformAdmin / hasReported / reportCount). */
   detail: CommunityListingDetailReadModel;
-  isIndexable: boolean;
-  notice: string | undefined;
-  place: string | null;
-  hostLabel: string;
-  showHiddenWarning: boolean;
   pendingClaim: PendingClaim | null;
   viewerIsClaimant: boolean;
+  showHiddenWarning: boolean;
   showClaimSection: boolean;
   /** Hosted events on the same day + city as the listing (claim dropdown). */
   eligibleEvents: HostedEvent[];
@@ -37,7 +34,7 @@ export type CommunityDetailPageModel = {
 
 async function loadDetail(
   slug: string,
-  viewerId: string | null,
+  viewerId: string,
 ): Promise<CommunityListingDetailReadModel | null> {
   try {
     return await handlers.getCommunityListingDetail.execute(
@@ -46,15 +43,6 @@ async function loadDetail(
   } catch (err) {
     if (err instanceof NotFoundError) return null;
     throw err;
-  }
-}
-
-function externalHostFromUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.hostname.replace(/^www\./, '');
-  } catch {
-    return url;
   }
 }
 
@@ -77,55 +65,19 @@ function formatDayKey(d: Date, timeZone: string): string {
   }
 }
 
-export async function loadCommunityDetailPage(
+/**
+ * Viewer-scoped chrome for a community listing. Runs in the
+ * `getCommunityViewerChrome` server action (cookies available), so it may read
+ * the viewer-aware detail + the viewer's hosted events. Returns `null` when the
+ * listing isn't visible to this viewer (e.g. a non-manager hitting a hidden /
+ * removed listing) so the client renders a generic "not available" state.
+ */
+export async function loadCommunityViewerChrome(
   slug: string,
-  searchParams: Record<string, string | string[] | undefined>,
-  user: { id: string } | null,
-): Promise<CommunityDetailPageModel> {
-  // Anonymous viewers (and crawlers) read the shared 60s-cached public model;
-  // logged-in viewers get a fresh viewer-scoped read (canManage / hasReported /
-  // own-hidden). See community-detail-cache.ts (audit CL-12).
-  const detail = user ? await loadDetail(slug, user.id) : await loadCommunityDetailPublic(slug);
-  if (!detail) notFound();
-
-  // A claimed listing exists only to funnel visitors to the on-platform event
-  // it was linked to (the whole point of the claim flow). Permanently redirect
-  // to that event so old listing URLs — and any search-indexed copies — land on
-  // the event page instead of a dead-end community page still pointing at the
-  // external site. The FK is `on delete set null`, so a non-null
-  // `claimedEventId` here means the event still exists; resolve its slug (fall
-  // back to the id, which the events route also accepts).
-  if (detail.status === 'claimed' && detail.claimedEventId) {
-    const sb = await getServerSupabase();
-    const { data: ev } = await sb
-      .from('events')
-      .select('slug')
-      .eq('id', detail.claimedEventId)
-      .maybeSingle();
-    const target = (ev as { slug?: string | null } | null)?.slug ?? detail.claimedEventId;
-    permanentRedirect(`/events/${target}`);
-  }
-
-  // Only emit structured data on the indexable statuses (matches the
-  // `generateMetadata` noindex guard) so hidden/removed/claimed listings don't
-  // advertise rich-result signals.
-  const isIndexable = detail.status === 'active' || detail.status === 'claim_pending';
-
-  const notice = Array.isArray(searchParams['notice'])
-    ? searchParams['notice'][0]
-    : searchParams['notice'];
-
-  const place = detail.location
-    ? [
-        detail.location.addressLine,
-        detail.location.city,
-        detail.location.region,
-        detail.location.postalCode,
-      ]
-        .filter(Boolean)
-        .join(', ')
-    : null;
-  const hostLabel = detail.externalHostName ?? externalHostFromUrl(detail.externalUrl);
+  user: { id: string },
+): Promise<CommunityViewerChromeModel | null> {
+  const detail = await loadDetail(slug, user.id);
+  if (!detail) return null;
 
   const showHiddenWarning =
     (detail.status === 'hidden' || detail.status === 'removed') && detail.canManage;
@@ -150,14 +102,12 @@ export async function loadCommunityDetailPage(
     };
   }
 
-  const viewerIsClaimant =
-    !!user && detail.status === 'claim_pending' && user.id === detail.claimedByUserId;
+  const viewerIsClaimant = detail.status === 'claim_pending' && user.id === detail.claimedByUserId;
 
   // For the claim section: surface the viewer's upcoming hosted events so they
   // can pick one from a dropdown instead of pasting a UUID. Only load when the
-  // section will actually render (logged-in, active listing, not already
-  // manageable by viewer).
-  const showClaimSection = !!user && detail.status === 'active' && !detail.canManage;
+  // section will actually render (active listing, not already manageable).
+  const showClaimSection = detail.status === 'active' && !detail.canManage;
   const claimableEvents = showClaimSection
     ? await loadVisibleHostedEvents(await getServerSupabase(), user.id, {
         startsAfter: new Date(),
@@ -183,13 +133,9 @@ export async function loadCommunityDetailPage(
 
   return {
     detail,
-    isIndexable,
-    notice,
-    place,
-    hostLabel,
-    showHiddenWarning,
     pendingClaim,
     viewerIsClaimant,
+    showHiddenWarning,
     showClaimSection,
     eligibleEvents,
     claimableEvents,

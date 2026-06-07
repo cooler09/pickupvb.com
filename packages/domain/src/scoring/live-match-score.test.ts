@@ -9,6 +9,7 @@ import {
   resetMatch,
   setsToWin,
   swapSides,
+  undoLastSet,
   type LiveMatchConfig,
   type LiveMatchScore,
 } from './live-match-score.js';
@@ -101,6 +102,61 @@ describe('commitSet', () => {
     expect(next.scoreB).toBe(0);
     expect(next.version).toBe(1);
     expect(next.updatedAt).toBe(T1);
+  });
+});
+
+describe('undoLastSet', () => {
+  it('reverses the deciding commitSet so an accidental match win is no longer decided', () => {
+    // best-of-1: a single committed set ends the match. Undo must drop the
+    // match back into that set at its final score so the scorer can correct it.
+    const decided: LiveMatchScore = {
+      ...createLiveMatchScore(config({ bestOf: 1 }), T0),
+      setsA: 1,
+      setHistory: [{ a: 25, b: 23 }],
+    };
+    expect(matchWinner(decided)).toBe('A');
+    const next = undoLastSet(decided, T1);
+    expect(matchWinner(next)).toBeNull();
+    expect(next.setsA).toBe(0);
+    expect(next.setHistory).toEqual([]);
+    expect(next.scoreA).toBe(25);
+    expect(next.scoreB).toBe(23);
+    expect(next.version).toBe(1);
+    expect(next.updatedAt).toBe(T1);
+  });
+
+  it('decrements the side that actually won the popped set (inferred from the score)', () => {
+    const s: LiveMatchScore = {
+      ...createLiveMatchScore(config({ bestOf: 3 })),
+      setsA: 1,
+      setsB: 1,
+      setHistory: [
+        { a: 25, b: 20 },
+        { a: 22, b: 25 },
+      ],
+    };
+    const next = undoLastSet(s, T1);
+    expect(next.setsA).toBe(1);
+    expect(next.setsB).toBe(0);
+    expect(next.setHistory).toEqual([{ a: 25, b: 20 }]);
+    expect(next.scoreA).toBe(22);
+    expect(next.scoreB).toBe(25);
+  });
+
+  it('is a no-op when no set has been played', () => {
+    const s = createLiveMatchScore(config(), T0);
+    expect(undoLastSet(s, T1)).toBe(s);
+  });
+
+  it('does not mutate the input state', () => {
+    const s: LiveMatchScore = {
+      ...createLiveMatchScore(config(), T0),
+      setsA: 1,
+      setHistory: [{ a: 25, b: 23 }],
+    };
+    undoLastSet(s, T1);
+    expect(s.setsA).toBe(1);
+    expect(s.setHistory).toEqual([{ a: 25, b: 23 }]);
   });
 });
 

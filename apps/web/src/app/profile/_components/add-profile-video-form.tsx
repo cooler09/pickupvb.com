@@ -60,7 +60,7 @@ export function AddProfileVideoForm() {
               {state.error}
             </p>
           )}
-          {state.ok && <p className="text-sm text-green-600">Video added to your profile.</p>}
+          {state.ok && <p className="text-md-success text-sm">Video added to your profile.</p>}
         </div>
       )}
       <div className="flex items-center gap-3">

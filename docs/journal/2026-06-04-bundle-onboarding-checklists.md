@@ -2,7 +2,7 @@
 
 ## Context
 
-Graduates **B1 + B2** from the [user-onboarding idea backlog](../user-onboarding.md)
+Graduates **B1 + B2** from the [user-onboarding idea backlog](../feature-education.md)
 into a built feature — the backlog's stated recommended starting point. The only
 onboarding scaffolding before this was the PR-3 "Get started" card
 ([profile-onboarding journal](2026-06-01-profile-onboarding.md)): a static,
@@ -82,4 +82,4 @@ profile-hub surface:
 - **Host "first registration" payoff step** — a 3rd required host step needs a
   participants-across-the-host's-events count (cleaner as the Phase-2 RPC).
 - **E1 empty-state teaching** + richer step copy / GIFs remain open in the
-  [backlog](../user-onboarding.md).
+  [backlog](../feature-education.md).

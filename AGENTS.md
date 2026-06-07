@@ -4,6 +4,8 @@ Conventions and gotchas for AI coding agents working in this repo. Read this
 before making changes. Related reading:
 
 - [README.md](README.md) — human setup docs.
+- [docs/README.md](docs/README.md) — map of the whole `docs/` tree (reference
+  docs, ADRs, audits, journal) — start here to find a doc.
 - [packages/domain/README.md](packages/domain/README.md) — how the domain layer
   is organized and how to extend an aggregate.
 - [docs/adr/](docs/adr/) — architecture decision records (why hexagonal, why
@@ -46,7 +48,12 @@ conventions in [docs/audits/README.md](docs/audits/README.md):
   fixes land. Create a new file under `docs/audits/` only if the topic
   doesn't fit an existing one (use the existing files as a template).
 - **Update the index table** in [docs/audits/README.md](docs/audits/README.md)
-  with the new date and status.
+  with the new date and a **one-line** status. The index Status column is a
+  scannable summary only — open backlog (counts) or `✅ closed` + date; the full
+  narrative lives at the **top of the audit file**, not in the table. (Pasting
+  status blocks into the table once ballooned it to 825 KB / un-openable —
+  collapsed 2026-06-07.) Lead each audit file with its **current** status and
+  keep historical status-update blocks in the file's remediation log below.
 - An ad-hoc chat-only summary is fine for a quick sanity scan, but **call
   that out explicitly** ("quick scan, not a full audit") and offer to write
   it up into the relevant audit file.
@@ -57,7 +64,11 @@ Audits record **what** is broken; the journal records **why** a change was
 made and **how** the codebase reached its current state. After shipping a
 non-trivial bundle of changes, write a dated entry under
 [docs/journal/](docs/journal/). See
-[docs/journal/README.md](docs/journal/README.md) for the format.
+[docs/journal/README.md](docs/journal/README.md) for the format and
+[docs/journal/INDEX.md](docs/journal/INDEX.md) to navigate. Closed months are
+condensed into a single `YYYY-MM-digest.md` (one anchored section per bundle,
+citations rewritten to `…-digest.md#<slug>`); the current month stays as
+individual entries — see the README's digest convention.
 
 Use the journal for:
 
@@ -942,3 +953,93 @@ active)` and attach the returned ref + `tabIndex={-1}` + `outline-none` to
   the reference bundle. **Skip** server-rendered flash banners (rendered from
   `searchParams` after a redirect — no client state to key off; scroll already
   resets to top), per-field errors, and chat composers (own scroll behavior).
+
+### 16. Headings use the M3 type scale — don't hand-roll `text-Nxl`
+
+Heading / title font sizes come from the M3 type-scale utilities, not raw
+Tailwind size steps. A `no-restricted-syntax` ratchet in
+[apps/web/eslint.config.mjs](apps/web/eslint.config.mjs) errors on any raw
+`text-xl` / `text-2xl` / … / `text-9xl` (m3-alignment audit S1, 2026-06-07 —
+the family was migrated to roles and locked so it can't regress). The scale
+is defined in [globals.css](apps/web/src/app/globals.css) (`@theme inline`,
+the `--text-{display,headline,title,body,label}-*` block) and generates
+`text-headline-lg`, `text-display-sm`, … utilities (font-size **and**
+line-height; an explicit `leading-*` still overrides via
+`line-height: var(--tw-leading, …)`).
+
+The mapping the migration used — match it when adding a heading:
+
+| Raw (forbidden) | M3 role            | px (size/lh) | Typical use                   |
+| --------------- | ------------------ | ------------ | ----------------------------- |
+| `text-xl`       | `text-title-lg`    | 22 / 28      | card / section subtitle       |
+| `text-2xl`      | `text-headline-sm` | 24 / 32      | section header (h2/h3)        |
+| `text-3xl`      | `text-headline-lg` | 32 / 40      | **page title (h1)**           |
+| `text-4xl`      | `text-display-sm`  | 36 / 44      | marketing hero h1             |
+| `text-5xl`      | `text-display-md`  | 45 / 52      | large hero (responsive `md:`) |
+| `text-6xl`      | `text-display-lg`  | 57 / 64      | XL hero                       |
+
+Keep the weight (`font-bold` / `font-semibold`) and any `leading-*` /
+`tracking-*` alongside the role class — the role only sets size + line-height
+(+ tracking on body/label/display-lg). Body/caption text (`text-sm`,
+`text-lg`, `text-xs`, `text-base`) is **not** ratcheted yet — its role mapping
+is judgment, not 1:1, so leave it until that migration lands (m3-alignment
+audit S0). Reference bundle: the 2026-06-07 type-scale sweep (120 sites →
+`text-{title,headline,display}-*`).
+
+### 17. Semantic surfaces use M3 role tokens — incl. custom `warning` / `success`
+
+A status surface (alert, toast, banner, status pill) paints with M3 **role
+tokens**, never raw palette (`bg-red-50`, `text-amber-900`, `dark:bg-emerald-950`).
+The role tokens already carry **light + dark** values in
+[globals.css](apps/web/src/app/globals.css), so the surface needs **no
+`dark:` variant** — that's the whole point (the recurring dark-mode contrast
+bugs came from hand-rolling per-theme palette guesses). The pattern, mirroring
+the M3 `error`-role button family in
+[primary-button.tsx](apps/web/src/components/primary-button.tsx)
+(`errorButtonClass` etc.):
+
+| Semantic | bg                        | text                           | border / ring          |
+| -------- | ------------------------- | ------------------------------ | ---------------------- |
+| error    | `bg-md-error-container`   | `text-md-on-error-container`   | `border-md-error/30`   |
+| warning  | `bg-md-warning-container` | `text-md-on-warning-container` | `border-md-warning/30` |
+| success  | `bg-md-success-container` | `text-md-on-success-container` | `border-md-success/30` |
+| info     | brand `primary` tint      | `text-primary`                 | `border-primary/30`    |
+
+`warning` and `success` are **custom semantic roles** (M3 ships neither) —
+seeded amber / emerald in [scripts/gen-palette.ts](scripts/gen-palette.ts) and
+emitted with the **same tones as `error`** (container = tone 90 light / 30
+dark; on-container = tone 10 / 90), so contrast is correct by construction.
+Regenerate via `pnpm tsx scripts/gen-palette.ts` if a seed changes. The
+canonical consumers are [alert.tsx](apps/web/src/components/alert.tsx) and
+[toast.tsx](apps/web/src/components/toast.tsx) — **route new status surfaces
+through `<Alert variant>` / `useToast`** rather than re-rolling the classes.
+`info` stays on brand tokens (it was never raw palette).
+
+**Caveat — not every red/green is semantic.** Decorative / functional colors
+(e.g. the scoreboard's red-vs-green **team** colors) are _not_ error/success
+and must **not** be remapped onto these roles. No lint ratchet yet for the same
+reason: raw `red`/`amber`/`emerald` can't be driven to zero (m3-alignment
+audit S2 — open). Reference bundle: the 2026-06-07 semantic-roles bundle
+(Alert + Toast).
+
+**Surfaces — the M3 surface family is HAND-AUTHORED, not generated.** The brand
+hue-flips between themes (warm sand surfaces in light, teal in dark), which a
+single M3 neutral tonal palette can't produce, so the
+`--md-sys-color-{surface,surface-variant,surface-container-*,on-surface,on-surface-variant,outline,outline-variant,background}`
+block in [globals.css](apps/web/src/app/globals.css) is authored by hand (a warm
+ramp for light, a teal ramp for dark). **`gen-palette.ts` still emits cool-cyan
+neutral rows from the `#183334` seed — never paste them over the hand-authored
+block** (only the chroma roles regenerate). `surface-container` is anchored to
+equal the brand `--tw-color-surface` exactly, so `bg-surface` →
+`bg-md-surface-container` is a **zero-change** migration; `on-surface-variant`
+== `--tw-color-muted` likewise. When elevating a surface, step UP the ramp —
+the recommended level map: page = `surface`; base card/panel =
+`surface-container`; raised card / dialog / menu / popover =
+`surface-container-high`; nested emphasis = `surface-container-highest`. The
+hierarchy gives elevation via _tone_ (M3's dark-mode model), so prefer it over
+piling on `shadow-*`. The app-wide `bg-surface`/`border-border-base`/`text-muted`
+→ surface-role migration is open (m3-alignment S2) and is a visual-review
+bundle — it's no longer blocked, but `border-border-base` →
+`border-md-outline-variant` adds a faint visible hairline in light mode, so
+verify in both themes. Reference: the 2026-06-07 surface-ramp bundle (account
+card + dialog/menu).

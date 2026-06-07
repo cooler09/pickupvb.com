@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { primaryButtonClass } from '@/components/primary-button';
+import { Alert } from '@/components/alert';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
@@ -92,13 +93,8 @@ export default function EditCommunityListingForm({ initial }: { initial: EditFor
   return (
     <form action={formAction} className="space-y-6 pb-24 sm:pb-0">
       {state.error && (
-        <div
-          ref={errorRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
-        >
-          {state.error}
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">{state.error}</Alert>
         </div>
       )}
 

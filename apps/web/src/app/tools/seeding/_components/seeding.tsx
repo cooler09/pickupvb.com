@@ -276,13 +276,11 @@ export function SeedingTool({
                     {applying ? 'Applying…' : 'Apply seed order to bracket'}
                   </button>
                   {applyResult?.ok ? (
-                    <p className="text-sm text-green-700 dark:text-green-300">
+                    <p className="text-md-success text-sm">
                       Seed order applied. Head back to the bracket to generate it.
                     </p>
                   ) : applyResult ? (
-                    <p className="text-sm text-red-700 dark:text-red-300">
-                      {applyError(applyResult)}
-                    </p>
+                    <p className="text-md-error text-sm">{applyError(applyResult)}</p>
                   ) : null}
                 </>
               )}

@@ -105,9 +105,18 @@ function formatUsd(cents: number | null): string {
 
 const PAYMENT_PILL: Record<AdHocTeamRegistration['paymentStatus'], { label: string; cls: string }> =
   {
-    none: { label: 'Unpaid', cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-    pending: { label: 'Pending', cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-    paid: { label: 'Paid', cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+    none: {
+      label: 'Unpaid',
+      cls: 'border-md-warning/30 bg-md-warning-container text-md-on-warning-container',
+    },
+    pending: {
+      label: 'Pending',
+      cls: 'border-md-warning/30 bg-md-warning-container text-md-on-warning-container',
+    },
+    paid: {
+      label: 'Paid',
+      cls: 'border-md-success/30 bg-md-success-container text-md-on-success-container',
+    },
     refunded: { label: 'Refunded', cls: 'border-border-base bg-fg/5 text-muted' },
   };
 
@@ -489,7 +498,7 @@ function CaptainRegistrationCard({
                     returnPath,
                   )}
                 >
-                  <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+                  <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
                     Remove
                   </SubmitButton>
                 </form>
@@ -540,7 +549,7 @@ function CaptainRegistrationCard({
         )}
         {!isPaid && (
           <form action={withdrawAdHocTeamFromForm.bind(null, eventId, registration.id, returnPath)}>
-            <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+            <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
               Withdraw team
             </SubmitButton>
           </form>

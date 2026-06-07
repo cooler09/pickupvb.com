@@ -2,7 +2,12 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 import { useState } from 'react';
-import { errorButtonClass } from '@/components/primary-button';
+import {
+  errorButtonClass,
+  errorOutlinedButtonClass,
+  errorTextButtonClass,
+} from '@/components/primary-button';
+import { fieldInputClass, fieldLabelClass } from '@/components/field-styles';
 import { cancelEventAction } from './cancel-actions';
 import { useAlertReveal } from '@/components/use-alert-reveal';
 
@@ -24,9 +29,9 @@ export function CancelEventPanel({
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="rounded-shape-sm border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/30">
-      <h2 className="text-sm font-semibold text-red-900 dark:text-red-200">Cancel event</h2>
-      <p className="mt-1 text-xs text-red-900/80 dark:text-red-200/80">
+    <div className="rounded-shape-sm border-md-error/30 bg-md-error-container border p-4">
+      <h2 className="text-md-on-error-container text-sm font-semibold">Cancel event</h2>
+      <p className="text-md-on-error-container/80 mt-1 text-xs">
         Marks the event cancelled, refunds all paid attendees ({paidAttendeeCount} of{' '}
         {attendeeCount}), and emails everyone who signed up.
       </p>
@@ -35,17 +40,14 @@ export function CancelEventPanel({
         <button
           type="button"
           onClick={() => setConfirming(true)}
-          className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-900/40"
+          className={`${errorOutlinedButtonClass('sm')} mt-3`}
         >
           Cancel event…
         </button>
       ) : (
         <form action={formAction} className="mt-3 space-y-3">
           <div>
-            <label
-              htmlFor="cancel-reason"
-              className="mb-1 block text-xs font-medium text-red-900 dark:text-red-200"
-            >
+            <label htmlFor="cancel-reason" className={fieldLabelClass}>
               Reason (shown to attendees, optional)
             </label>
             <textarea
@@ -54,14 +56,14 @@ export function CancelEventPanel({
               rows={3}
               maxLength={500}
               placeholder="Weather, low signups, venue conflict…"
-              className="w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm dark:border-red-800 dark:bg-red-950/40"
+              className={fieldInputClass}
             />
           </div>
           {state.error && (
             <p
               ref={errorRef}
               tabIndex={-1}
-              className="text-sm text-red-700 outline-none dark:text-red-300"
+              className="text-md-error text-sm outline-none"
               role="alert"
             >
               {state.error}
@@ -72,7 +74,7 @@ export function CancelEventPanel({
             <button
               type="button"
               onClick={() => setConfirming(false)}
-              className="rounded-md px-3 py-1.5 text-sm text-red-700 hover:bg-red-100 dark:text-red-200 dark:hover:bg-red-900/40"
+              className={errorTextButtonClass('sm')}
             >
               Keep event
             </button>

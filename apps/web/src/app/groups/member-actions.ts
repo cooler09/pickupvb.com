@@ -9,6 +9,7 @@ import {
 import { DomainError } from '@pickupvb/domain';
 import { requireSession } from '@/lib/server-auth';
 import { getGroupHandlers } from '@/lib/handlers';
+import { recordAuditEvent } from '@/lib/audit-log';
 
 type Role = 'owner' | 'admin' | 'member';
 
@@ -40,6 +41,14 @@ export async function addGroupMember(
   await runMemberOp(async () => {
     const { addGroupMember: handler } = await getGroupHandlers();
     await handler.execute(new AddGroupMemberCommand(groupId, user.id, userId, role));
+    await recordAuditEvent({
+      action: 'group_member.added',
+      entityType: 'group',
+      entityId: groupId,
+      actorUserId: user.id,
+      targetUserId: userId,
+      metadata: { role },
+    });
   }, returnPath);
 }
 
@@ -53,6 +62,13 @@ export async function removeGroupMember(
   await runMemberOp(async () => {
     const { removeGroupMember: handler } = await getGroupHandlers();
     await handler.execute(new RemoveGroupMemberCommand(groupId, user.id, userId));
+    await recordAuditEvent({
+      action: 'group_member.removed',
+      entityType: 'group',
+      entityId: groupId,
+      actorUserId: user.id,
+      targetUserId: userId,
+    });
   }, returnPath);
 }
 
@@ -67,5 +83,13 @@ export async function changeGroupMemberRole(
   await runMemberOp(async () => {
     const { changeGroupMemberRole: handler } = await getGroupHandlers();
     await handler.execute(new ChangeGroupMemberRoleCommand(groupId, user.id, userId, role));
+    await recordAuditEvent({
+      action: 'group_member.role_changed',
+      entityType: 'group',
+      entityId: groupId,
+      actorUserId: user.id,
+      targetUserId: userId,
+      metadata: { role },
+    });
   }, returnPath);
 }

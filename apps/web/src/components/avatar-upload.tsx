@@ -126,7 +126,7 @@ export function AvatarUpload({
         ) : (
           <div
             aria-hidden
-            className={`bg-primary/15 text-primary flex h-20 w-20 items-center justify-center ${roundedClass} text-2xl font-semibold`}
+            className={`bg-primary/15 text-primary flex h-20 w-20 items-center justify-center ${roundedClass} text-headline-sm font-semibold`}
           >
             {initials}
           </div>

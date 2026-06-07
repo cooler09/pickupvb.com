@@ -73,7 +73,7 @@ export default async function StandaloneBracketWatchPage(props: {
     <article className="mx-auto max-w-5xl space-y-6 p-4">
       <header className="space-y-1">
         <div className="flex items-center gap-2">
-          <h1 className="text-fg text-2xl font-bold">Live bracket</h1>
+          <h1 className="text-fg text-headline-sm font-bold">Live bracket</h1>
           {bracket.status === 'active' && (
             <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
               ● LIVE

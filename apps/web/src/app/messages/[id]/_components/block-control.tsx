@@ -33,7 +33,7 @@ export function BlockControl({
       type="button"
       onClick={toggle}
       disabled={pending}
-      className="text-muted shrink-0 text-xs hover:text-red-600 disabled:opacity-50"
+      className="text-muted hover:text-md-error shrink-0 text-xs disabled:opacity-50"
     >
       {blocked ? 'Unblock' : 'Block'}
     </button>

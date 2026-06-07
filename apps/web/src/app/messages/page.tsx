@@ -52,7 +52,7 @@ export default async function MessagesPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-bold">Messages</h1>
+        <h1 className="text-headline-sm font-bold">Messages</h1>
         <p className="text-muted text-sm">Your team, event, and group conversations.</p>
       </header>
 

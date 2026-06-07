@@ -19,9 +19,18 @@ type Props = {
 
 const PAYMENT_PILL: Record<AdHocTeamPublicEntry['paymentStatus'], { label: string; cls: string }> =
   {
-    none: { label: 'Unpaid', cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-    pending: { label: 'Pending', cls: 'border-amber-200 bg-amber-50 text-amber-800' },
-    paid: { label: 'Paid', cls: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+    none: {
+      label: 'Unpaid',
+      cls: 'border-md-warning/30 bg-md-warning-container text-md-on-warning-container',
+    },
+    pending: {
+      label: 'Pending',
+      cls: 'border-md-warning/30 bg-md-warning-container text-md-on-warning-container',
+    },
+    paid: {
+      label: 'Paid',
+      cls: 'border-md-success/30 bg-md-success-container text-md-on-success-container',
+    },
     refunded: { label: 'Refunded', cls: 'border-border-base bg-fg/5 text-muted' },
   };
 

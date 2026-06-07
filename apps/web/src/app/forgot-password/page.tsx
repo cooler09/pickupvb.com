@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { primaryButtonClass } from '@/components/primary-button';
+import { Alert } from '@/components/alert';
 import Link from 'next/link';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import { useAlertReveal } from '@/components/use-alert-reveal';
@@ -32,7 +33,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="mx-auto max-w-sm space-y-6 py-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold">Reset your password</h1>
+        <h1 className="text-headline-sm font-bold">Reset your password</h1>
         <p className="text-fg/70 text-sm">
           Enter the email associated with your account and we&apos;ll send you a link to set a new
           password.
@@ -62,13 +63,8 @@ export default function ForgotPasswordPage() {
           </label>
 
           {error && (
-            <div
-              ref={errorRef}
-              tabIndex={-1}
-              role="alert"
-              className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
-            >
-              {error}
+            <div ref={errorRef} tabIndex={-1} className="outline-none">
+              <Alert variant="error">{error}</Alert>
             </div>
           )}
 

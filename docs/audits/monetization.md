@@ -442,7 +442,7 @@ pricing page already wants to make.
 > new events; existing rows backfilled `false`. Three checkout-action
 > paths emit a "Processing fee" line; create + edit forms expose the
 > toggle (gated by `host_absorbs_fee` and by `isPricingLocked`).
-> See [docs/journal/2026-05-24-bundle-83.md](../journal/2026-05-24-bundle-83.md).
+> See [docs/journal/2026-05-digest.md#bundle-83](../journal/2026-05-digest.md#bundle-83).
 
 **File:** [apps/web/src/lib/event-pricing.ts](../../apps/web/src/lib/event-pricing.ts),
 [apps/web/src/lib/checkout-session.ts](../../apps/web/src/lib/checkout-session.ts).
@@ -485,7 +485,7 @@ host-trust signal we can ship cheaply.
 > records the $10/mo / 50% fee discount / 1-paid-event-per-30d /
 > 14-day-trial decisions with rationale, rejected alternatives,
 > and explicit success-criteria triggers for revisiting. Journal
-> entry: [docs/journal/2026-05-27-bundle-98.md](../journal/2026-05-27-bundle-98.md).
+> entry: [docs/journal/2026-05-digest.md#bundle-98](../journal/2026-05-digest.md#bundle-98).
 
 **File:** [docs/adr/](../adr/) — no `0NNN-pro-tier.md`;
 [docs/journal/](../journal/) — no monetization rationale entry.
@@ -852,7 +852,7 @@ hosts get fee discount + sponsor slot).
   between `EventFlashBanners` and `HeroImage`. Closes the last
   P2 item that wasn't either shipped or deferred-on-trigger.
   Verify gate (typecheck + lint + test + build) green. Journal:
-  [docs/journal/2026-05-27-bundle-100.md](../journal/2026-05-27-bundle-100.md).
+  [docs/journal/2026-05-digest.md#bundle-100](../journal/2026-05-digest.md#bundle-100).
 
 - **2026-05-27 — Bundle 99** — **P1 #1 sub-item #4 — invite-only /
   private events.** Closes P1 #1 overall. Four changes in one
@@ -880,7 +880,7 @@ hosts get fee discount + sponsor slot).
   advertised this perk; copy now matches behavior. Verify gate
   (typecheck + lint + test + build) green; 6 new unit tests.
   Journal:
-  [docs/journal/2026-05-27-bundle-99.md](../journal/2026-05-27-bundle-99.md).
+  [docs/journal/2026-05-digest.md#bundle-99](../journal/2026-05-digest.md#bundle-99).
 
 - **2026-05-27 — Bundle 98** — Three P1/P2 closeouts in one bundle:
   (1) **P1 #1 sub-item #3 — custom refund policy gating.**
@@ -899,7 +899,7 @@ hosts get fee discount + sponsor slot).
   records the $10/mo, 50% fee discount, 1-paid-event-per-30d,
   14-day-trial decisions with success criteria and rejected
   alternatives. Journal:
-  [docs/journal/2026-05-27-bundle-98.md](../journal/2026-05-27-bundle-98.md).
+  [docs/journal/2026-05-digest.md#bundle-98](../journal/2026-05-digest.md#bundle-98).
   Verify gate (typecheck + lint + test + build) green. The only
   remaining P1 #1 sub-item is invite-only / private events.
 
@@ -910,7 +910,7 @@ hosts get fee discount + sponsor slot).
   rates > 100%; (3) analytics page early-returns for non-Pro users,
   skipping all DB queries; (4) merged duplicate import in sponsor-actions.ts;
   (5) removed spurious `as never` upsert casts in both action files.
-  Validation gate cleared. See [docs/journal/2026-05-24-bundle-88.md](../journal/2026-05-24-bundle-88.md).
+  Validation gate cleared. See [docs/journal/2026-05-digest.md#bundle-88](../journal/2026-05-digest.md#bundle-88).
 
 - **2026-05-24 — Validation gate requested** — Pause feature expansion and
   run an **Opas audit** for Bundles 84–87 after the 8pm EST rate-limit
@@ -933,11 +933,11 @@ hosts get fee discount + sponsor slot).
   item when set; create + edit forms expose the toggle. Hosts now
   receive the full advertised ticket + service-fee subtotal on
   payout instead of silently absorbing Stripe's ~2.9% + 30¢. See
-  [docs/journal/2026-05-24-bundle-83.md](../journal/2026-05-24-bundle-83.md).
+  [docs/journal/2026-05-digest.md#bundle-83](../journal/2026-05-digest.md#bundle-83).
 - **2026-05-24 — Bundle 84** — P2 #4 v1 core shipped.
   `event_sponsors` table + RLS, Pro-gated host sponsor authoring on
   event edit, attendee-side sponsor block render on event detail.
-  See [docs/journal/2026-05-24-bundle-84.md](../journal/2026-05-24-bundle-84.md).
+  See [docs/journal/2026-05-digest.md#bundle-84](../journal/2026-05-digest.md#bundle-84).
 - **2026-05-24 — Bundle 85** — P2 #4 follow-up shipped.
   Added free-tier one-time a-la-carte sponsor unlock checkout,
   Stripe webhook fulfillment for sponsor payments, and sponsor payment

@@ -100,7 +100,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
         <Link href={'/profile' as Route} className="text-primary text-sm hover:underline">
           ← Profile
         </Link>
-        <h1 className="text-fg text-3xl font-bold">Payouts</h1>
+        <h1 className="text-fg text-headline-lg font-bold">Payouts</h1>
         <p className="text-muted text-sm">
           Connect Stripe to sell tickets or accept tips on your events. Free pickups don&apos;t need
           this.
@@ -117,7 +117,7 @@ export default async function BillingPage(props: { searchParams: SearchParams })
       )}
 
       {sp.error === 'anonymous' && (
-        <div className="rounded-shape-sm border border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-800 dark:text-amber-200">
+        <div className="rounded-shape-sm border-md-warning/40 bg-md-warning/5 text-md-warning border p-4 text-sm">
           You need a permanent account (with email) to receive payouts. Finish claiming your account
           first.
         </div>

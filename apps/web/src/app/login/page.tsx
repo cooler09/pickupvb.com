@@ -74,7 +74,9 @@ function LoginForm() {
   return (
     <div className="mx-auto max-w-sm space-y-6 py-8">
       <div className="space-y-2">
-        <h1 className="text-2xl font-bold">{signUp ? 'Create your account' : 'Welcome back'}</h1>
+        <h1 className="text-headline-sm font-bold">
+          {signUp ? 'Create your account' : 'Welcome back'}
+        </h1>
         <p className="text-fg/70 text-sm">
           {signUp
             ? 'Find pickup games, run tournaments, build your team.'

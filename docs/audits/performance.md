@@ -7,6 +7,75 @@ traces. Latency estimates are educated guesses; treat them as relative,
 not absolute. Confirm with Vercel Analytics + Supabase slow-query log
 before/after each fix.
 
+> **Note — historical file anchors (P3 #20, 2026-06-07).** Resolved findings
+> dated **before 2026-06-06** cite
+> [`apps/web/src/app/events/[id]/page.tsx`](../../apps/web/src/app/events/%5Bid%5D/page.tsx)
+> line numbers (`#L72` / `#L115` / `#L120` / `#L140` / `#L340` / `#L511`, …)
+> that **no longer resolve** — the event-detail page was decomposed (now ~360
+> LOC) and its logic relocated. Judge those anchors by the symbol they name, not
+> the line. Where the cited code lives now:
+>
+> - `Date.now()` / `hasStarted` reads and the narrowed per-attendee
+>   `event_attendees` / payment-status selects → the event-detail loaders in
+>   [`_loaders/load-event-detail.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+>   (`renderNowMs()`, `loadAttendeePayments`, `loadViewerPaymentStatus`) and
+>   [`_loaders/event-detail-cache.ts`](../../apps/web/src/app/events/%5Bid%5D/_loaders/event-detail-cache.ts).
+> - The infra `getDetail()` read model → the per-concern loaders under
+>   [`packages/infrastructure/src/event-detail/`](../../packages/infrastructure/src/event-detail/).
+> - `isPro()` memoization → [`apps/web/src/lib/pro.ts`](../../apps/web/src/lib/pro.ts) (unchanged).
+> - The application `messages.ts` split (architecture P3-2) moved query/command
+>   classes into [`packages/application/src/messages/`](../../packages/application/src/messages/);
+>   the `/profile` + `/profile/billing/earnings` diets moved data orchestration
+>   into their `_loaders/`. These anchors are **historical** (the findings are
+>   resolved) — they're left in place as the record of where the issue was, not a
+>   live pointer. New findings must use current `path#Lstart-Lend` anchors.
+
+**Status update (2026-06-06) — fresh re-audit (202 commits since 05-31):**
+read-only pass over the large feature surface added since the last audit —
+standalone brackets (ADR 0025), chat messaging, capacity waitlist, free-agent
+pickup, leagues container-model, community listings, badges/gamification,
+account deletion, and the atomic `save_event` RPC. **The new code is mostly
+well-built for performance** (full index coverage on every new table, batched
+`.in(...)` reads with no N+1, cursor-paginated chat threads, a fully-batched
+league-reminder cron, a correctly-ISR'd standalone-bracket watch page, and the
+multi-write→single-transaction `save_event` RPC). Opened **1 P2 + 4 P3**, all
+caching-posture / over-fetch / hygiene items — no new bugs or data-loss. Full
+write-up + recommended fixes in
+[§ Reevaluation — 2026-06-06](#reevaluation--2026-06-06). Headlines:
+
+- **P2 #16** — the new public `/community/[slug]` listing page reads
+  `cookies()` for the whole render, so anonymous spectators/crawlers never hit
+  ISR/CDN despite the `unstable_cache` data layer behind it (same partial state
+  as `/events/[id]`). Highest-value new SEO/share target.
+- **P3 #18** — `/brackets` + `/brackets/[id]` carry redundant `force-dynamic`
+  (already dynamic via `cookies()` — a no-op, like the resolved P1 #2).
+- **P3 #19** — the event-detail capacity-waitlist read is an avoidable third
+  sequential wave on full open-play events.
+
+> **2026-06-07 follow-up — the entire 2026-06-06 re-audit backlog is closed
+> (1 P2 + 4 P3 all resolved).**
+>
+> - **P2 #16** — `/community/[slug]` cookie-free server shell + viewer-chrome
+>   island (one accepted soft-404 change for non-managers on hidden/removed).
+> - **P3 #17** — `/community` listing made cookie-free (CDN-cacheable per-URL
+>   like `/players`); the submitter's auto-hidden-listing recovery path preserved
+>   via a new `listHiddenBySubmitter` port + `<MyHiddenCommunityListings />`
+>   island (the original finding missed that the search mixed in own-hidden
+>   listings). Surfaced a moderation follow-up: notify the submitter on auto-hide.
+> - **P3 #18 / #19** — dropped redundant `force-dynamic` from `/brackets` +
+>   `/brackets/[id]`; folded the event-detail waitlist read into wave 1.
+> - **P3 #20** — added the historical-anchors note (this header) for the stale
+>   `events/[id]/page.tsx` links in resolved findings.
+>
+> Entries:
+> [P3 #20](#2026-06-07--p3-20-historical-file-anchors-note) ·
+> [P3 #17](#2026-06-07--p3-17-community-listing-cacheable--own-hidden-recovery) ·
+> [P2 #16](#2026-06-07--p2-16-communityslug-isr-cacheable-shell) ·
+> [P3 #18/#19](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
+> The standing open items are the older deferrals (the `/events` + `/events/[id]`
+> full ISR shells under P1 #1, and the migration-gated discovery-feed paging),
+> not re-audit findings.
+
 **Status update (2026-05-31) — pagination sweep (unbounded UI lists):** a
 read-only scan for list views that render an entire result set with no paging,
 prompted by the `/profile` Hosting section. Found and **fixed 6 P2 list views**,
@@ -23,7 +92,7 @@ inbox cap, the `/events` + `/community` discovery-feed caps) are **deferred** �
 both need a production RPC migration, and the feeds also need a feed-vs-directory
 product call. Full write-up:
 [Remediation log](#2026-05-31--pagination-sweep-unbounded-ui-lists) ·
-[journal](../journal/2026-05-31-pagination-sweep.md).
+[journal](../journal/2026-05-digest.md#pagination-sweep).
 
 **Status update (2026-05-31) — P2 #14 + P3 #15 resolved:** the two open
 spectator-page items from the 2026-05-30 re-audit are shipped.
@@ -38,7 +107,7 @@ query. Full-route CDN caching stays bounded by the `division` searchParam (the
 same constraint `/watch` has) — left as a deferred follow-up. Full write-up:
 [Remediation log](#2026-05-31--bracket--schedule-cacheable-spectator-pages-p2-14--p3-15)
 
-- [journal](../journal/2026-05-31-bracket-schedule-cacheable.md).
+- [journal](../journal/2026-05-digest.md#bracket-schedule-cacheable).
 
 **Status update (2026-05-30) — fresh re-audit:** read-only pass over the
 feature surface added since the 2026-05-17 audit (brackets, leagues, event
@@ -70,7 +139,7 @@ viewers still fetch the viewer-aware read model but skip ~4 side-loads.
 The full structural ISR refactor of `/events/[id]` (lifting RSVP / manage
 / flash-banner chrome out of the page render) remains deferred — see the
 [Bundle 26 remediation log entry](#2026-05-22--bundle-26-eventsid-viewer-independent-cache-layer)
-and [journal](../journal/2026-05-22-bundle-26.md). P1 #1 status: 3 of 5
+and [journal](../journal/2026-05-digest.md#bundle-26). P1 #1 status: 3 of 5
 target detail pages fully ISR, 1 (`/events/[id]`) partial, 1 (`/events`)
 still deferred pending friends/following split.
 
@@ -100,7 +169,7 @@ fewer page-level RTTs per event detail render. Closes the page-level
 portion of P1 #4. The infrastructure `getDetail()` repository method
 still issues two parallel rounds totalling ~17 queries; reducing _that_
 query count needs JOINs against co-host profiles + team captains and is
-left as a follow-up. See the [Bundle 9 journal](../journal/2026-05-24-bundle-9.md).
+left as a follow-up. See the [Bundle 9 journal](../journal/2026-05-digest.md#bundle-9).
 
 **Status update (2026-05-24, Bundle 10):** Infrastructure `getDetail()`
 JOIN consolidation shipped. Co-host detail (profiles + groups) now
@@ -112,7 +181,7 @@ removed from wave 2 (`coHostUsersRes`, `coHostGroupsRes`,
 the page _and_ infrastructure level. Remaining sub-wave (viewer
 captained-team member counts) is a small leaf still open; aggregating
 it via a PostgREST `count` projection is a future micro-optimization.
-See the [Bundle 10 journal](../journal/2026-05-24-bundle-10.md).
+See the [Bundle 10 journal](../journal/2026-05-digest.md#bundle-10).
 
 **Status update (2026-05-24, Bundle 11):** Three small wins shipped to
 close out the easier P2/P3 items, plus a CI/Sentry build fix.
@@ -141,7 +210,7 @@ Received undefined` because the Sentry plugin was wrapped
   `nextConfig` is exported. Local build was masking the issue because
   `silent: !process.env.CI` suppresses plugin errors outside CI.
 
-See the [Bundle 11 journal](../journal/2026-05-24-bundle-11.md) for the
+See the [Bundle 11 journal](../journal/2026-05-digest.md#bundle-11) for the
 full rationale and the CI-vs-local asymmetry lesson.
 
 **Status update (2026-05-24, Bundle 12):** Three more small wins shipped
@@ -161,7 +230,7 @@ stale-while-revalidate=86400`. All four `opengraph-image.tsx` routes
   inherit the header, so the unfurler thundering-herd on share lands on
   Vercel's edge cache instead of Supabase.
 
-See the [Bundle 12 journal](../journal/2026-05-24-bundle-12.md).
+See the [Bundle 12 journal](../journal/2026-05-digest.md#bundle-12).
 
 **Status update (2026-05-22, Bundle 25):** Three more public pages now
 ISR-cacheable for anonymous traffic — `/teams/[id]`, `/groups/[id]`, and
@@ -173,7 +242,7 @@ into a single client island per page. Shared loaders
 (`loadVisibleHostedEvents`, `loadVisibleGroupHostedEvents`) accept either
 client now. `/events` and `/events/[id]` remain deferred — RSVP /
 co-host / following overlay needs a wider split. See the
-[Bundle 25 journal](../journal/2026-05-22-bundle-25.md).
+[Bundle 25 journal](../journal/2026-05-digest.md#bundle-25).
 
 **Status update (2026-05-24, Bundle 13a):** Listings-Suspense refactor
 landed for three of the four listing pages — `/players`, `/groups`, and
@@ -185,7 +254,7 @@ sections) moved into client components that fetch their own session via
 `createSupabaseBrowserClient()` after hydration. `/events` plus all
 `/[id]` detail pages are deferred to a follow-up bundle because the
 friends / following / RSVP overlay is wider in scope. See the
-[Bundle 13a journal](../journal/2026-05-24-bundle-13a.md).
+[Bundle 13a journal](../journal/2026-05-digest.md#bundle-13a).
 
 ---
 
@@ -529,6 +598,275 @@ grows.
 
 ---
 
+## Reevaluation — 2026-06-06
+
+Read-only re-audit against HEAD, graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = bug /
+data-loss / broken behavior; P2 = important hardening/quality; P3 =
+nice-to-have). Scope: the ~202-commit feature surface added since the
+2026-05-31 pass — **standalone brackets** (ADR 0025), **chat messaging**
+(ADR 0028), **capacity waitlist** (ADR 0036), **free-agent pickup**,
+**leagues** container-model, **community listings**, **badges /
+gamification** (ADR 0031), **account deletion**, and the **atomic
+`save_event` RPC**. No profiling; latency/cost notes are static-analysis
+estimates.
+
+### What's well-built (no findings)
+
+The new surface is, on the whole, performance-clean — the recurring smells from
+the 2026-05 audits (N+1 fan-out, missing indexes, sequential awaits, unbounded
+loads) are largely absent:
+
+- **Index coverage on every new table.** `media_posts(event_id, kind)`,
+  `conversations(last_message_at desc)`, `messages(conversation_id, created_at
+desc)`, `conversation_participants(user_id)`, `event_waitlist(event_id,
+created_at)` (FIFO), `user_badges(user_id)`, `event_badges(event_id,
+sort_order)`, `bracket_teams(bracket_id)`, `league_schedule_matches`
+  home/away entry-id + reminder indexes — all the hot read columns are covered.
+- **Chat is N+1-free.** `loadSenderCards` collects ids and does one
+  `profiles_public in(...)` merge-in-JS
+  ([supabase-messaging-repository.ts#L284](../../packages/infrastructure/src/supabase-messaging-repository.ts#L284));
+  the DM thread pages with a cursor (`PAGE_SIZE = 30`, `limit+1` has-more probe,
+  `nextBefore`) at
+  [messages/[id]/page.tsx#L52](../../apps/web/src/app/messages/%5Bid%5D/page.tsx#L52);
+  liveness uses Supabase realtime, not polling.
+- **League-reminder cron is fully batched.** `findDueFixtures` does five set
+  reads (`.in(...)` on divisions → events → entries → team_members) and assembles
+  in memory — no per-fixture query
+  ([league-reminders/route.ts#L42-L132](../../apps/web/src/app/api/notifications/league-reminders/route.ts#L42-L132)).
+- **`save_event` RPC collapses the aggregate save** (event + divisions + child
+  reconciliation) into one transaction, replacing the old multi-write path
+  ([supabase-event-repository.ts#L497-L500](../../packages/infrastructure/src/supabase-event-repository.ts#L497-L500),
+  migration `20260919000000_save_event_rpc.sql`) — a correctness **and** a
+  round-trip win.
+- **Standalone-bracket watch page is correctly ISR'd** (`revalidate = 15`, no
+  `force-dynamic`, no `cookies()` — realtime refresher for liveness), the shape
+  P2 #14 prescribes
+  ([brackets/[id]/watch/page.tsx#L25](../../apps/web/src/app/brackets/%5Bid%5D/watch/page.tsx#L25)).
+- **Badge reads are single-query + ISR-cacheable.** `players/[id]` reads the
+  trophy case from the anon-granted `user_badges_public` view inside its
+  `Promise.all`
+  ([players/[id]/page.tsx#L80-L91](../../apps/web/src/app/players/%5Bid%5D/page.tsx#L80-L91));
+  event-detail badges/media load via `unstable_cache` helpers in wave 1.
+
+---
+
+### P2 #16 — `/community/[slug]` reads `cookies()` for the whole render → anonymous spectators never hit ISR/CDN 🆕 2026-06-06
+
+**Status:** ✅ _Resolved 2026-06-07_ — applied the Bundle 25 ISR refactor. The
+page is now a cookie-free, `searchParams`-free server shell (`export const
+revalidate = 60`): viewer-conditional chrome moved into a
+`CommunityViewerProvider` client island (one `auth.getUser()`, then a
+`getCommunityViewerChrome` server action only for a real session), the `?notice=`
+banner into a `<Suspense>`'d `useSearchParams` client component, and the
+claimed→event 301 + a cookieless existence probe stay server-side on the admin
+client. Build confirms `/community/[slug]` now renders `ƒ` **identically to the
+proven-cacheable `/teams/[id]` / `/players/[id]` / `/groups/[id]`** (on-demand
+ISR, not the uncached `ƒ` it had while reading `cookies()`). One accepted
+behavior change: a non-manager hitting a **hidden/removed** listing now gets a
+200 "not available" notice instead of a hard 404 (genuinely-missing slugs still
+404; hidden/removed are `noindex`, so SEO-immaterial, and the action enforces the
+same RLS/status gate — no leak). Verified `pnpm typecheck && lint && test &&
+build` green. See the
+[2026-06-07 remediation log entry](#2026-06-07--p2-16-communityslug-isr-cacheable-shell)
+and [journal](../journal/2026-06-07-bundle-community-detail-isr.md).
+
+**Category:** Caching / revalidation
+**Files:**
+
+- [apps/web/src/app/community/[slug]/page.tsx#L50-L66](../../apps/web/src/app/community/%5Bslug%5D/page.tsx) — `getCurrentUser()` at L53 (reads `cookies()`), then `loadCommunityDetailPage(slug, searchParams, user)`.
+- Data layer (already cached): [community-detail-cache.ts](../../apps/web/src/app/community/%5Bslug%5D/community-detail-cache.ts) — `loadCommunityDetailPublic` wraps the viewer-`null` read in `unstable_cache` (60s, `communityListingCacheTag`); the loader correctly routes anon viewers to it ([load-community-detail-page.ts#L88](../../apps/web/src/app/community/%5Bslug%5D/_loaders/load-community-detail-page.ts#L88)).
+- Contrast (already correct): [brackets/[id]/watch/page.tsx#L25](../../apps/web/src/app/brackets/%5Bid%5D/watch/page.tsx#L25).
+
+**Issue:** A community listing detail page is inherently public,
+viewer-independent spectator content — it emits a canonical URL, OpenGraph
+tags, and `CommunityListingJsonLd` structured data, i.e. it's explicitly built
+as an SEO/share target. The **data** read is already cached (anon viewers serve
+from `unstable_cache` with no Supabase round-trip), but the page unconditionally
+calls `getCurrentUser()`, so Next 16 auto-marks the route dynamic and **every
+anonymous render is a full origin render** — the `unstable_cache` win is real
+but the page shell itself is never CDN/ISR-cached. This is the same "data cached,
+shell not" partial state `/events/[id]` is parked in (Bundle 26), now re-created
+on a brand-new public page.
+
+**Why P2:** Pure caching/cost regression (not broken behavior) on a public
+read path that's specifically optimized for crawlers + share unfurls. Graded P2
+to match the detail-page half of P1 #1 and the P2 #14 spectator-page grading.
+
+**Fix:** Apply the Bundle 25 ISR refactor:
+
+1. Drop `getCurrentUser()` from the page; render the public shell from
+   `loadCommunityDetailPublic(slug)` and add `export const revalidate = 60`.
+2. Lift the viewer-conditional sections — `PendingClaimReview`, the claimant
+   "awaiting review" banner, `ClaimSection`, `ReportSection`, `ManageSection`,
+   and the `showHiddenWarning` panel — into a single `'use client'`
+   viewer-chrome island that resolves the viewer client-side (the
+   `<TeamViewerChrome />` pattern). The claimed-listing `permanentRedirect` and
+   the claim-eligibility `loadVisibleHostedEvents` calls are viewer-scoped, so
+   they move into the island (or a nested dynamic segment) too.
+3. Liveness: the listing's mutating actions already evict via
+   `updateTag(communityListingCacheTag(slug))`, so tag eviction keeps the cached
+   shell current; the 60s `revalidate` is the backstop for the slug-less
+   auto-approve cron writer (already documented in `community-detail-cache.ts`).
+
+---
+
+### P3 #17 — `/community` listing is dynamic-per-request + fetches 120 rows uncached 🆕 2026-06-06
+
+**Status:** ✅ _Resolved 2026-06-07_ — dropped `getCurrentUser()` +
+`isPlatformAdmin` and passed `viewerId = null` to the (already admin-backed)
+search, so the listing render is now **cookie-free**: its response is shared
+per-URL across anonymous viewers (CDN-cacheable for 60s) instead of `private`.
+The route stays `ƒ` (it reads `searchParams` for filters/paging — that varies by
+URL, not by user), matching the cacheable `/players` posture. The "Submit a
+listing" CTA + admin import link moved into a `<CommunitySubmitActions />`
+client island. **Correction to this finding:** the search was _also_
+viewer-conditional in a way the original write-up missed — with `viewerId` it
+mixes in the submitter's own auto-hidden listings (the card badges them
+"Hidden — only you"), and auto-hide is a notification-less DB trigger, so that
+inline surface is the submitter's only path back to an auto-hidden listing.
+Dropping `viewerId` would silently strand them, so the recovery path was
+preserved via a `<MyHiddenCommunityListings />` client island backed by a new
+`CommunityListingRepository.listHiddenBySubmitter` port + a
+`getMyHiddenCommunityListings` server action (own-hidden moved from inline to a
+top recovery strip). No regression. Verified `pnpm typecheck && lint && test &&
+build` green. See the
+[2026-06-07 remediation log entry](#2026-06-07--p3-17-community-listing-cacheable--own-hidden-recovery)
+and [journal](../journal/2026-06-07-bundle-community-listing-isr.md).
+
+**Category:** Caching / over-fetch
+**Files:**
+
+- [apps/web/src/app/community/page.tsx#L71](../../apps/web/src/app/community/page.tsx#L71) — `getCurrentUser()` + `isPlatformAdmin` at L72.
+- [apps/web/src/app/community/page.tsx#L101-L114](../../apps/web/src/app/community/page.tsx#L101) — `FETCH_CAP = 120` rows fetched, then `slice` to `PER_PAGE = 24`.
+
+**Issue:** The public `/community` discovery feed (canonical + OpenGraph,
+indexable) is dynamic on every request because it reads `cookies()` via
+`getCurrentUser()` — the only viewer-conditional output is the "Submit a
+listing" CTA (signed-in vs sign-in link) and the admin import link. Each
+dynamic render also fetches up to 120 rows to display 24 (the documented
+in-memory-slice pattern #12). This is the **same deferred class as `/events`**
+(still-open half of P1 #1): a public listing page that can't be cached until the
+viewer CTA is split into an island.
+
+**Why P3:** Caching/over-fetch on a listing page, not broken behavior; matches
+the `/events` deferral grade. The 120-row fetch is bounded (pattern #12) and
+only bites once volume exceeds the cap.
+
+**Fix:** Same shape as the deferred `/events` fix — render the list from
+`createSupabaseAnonClient()` + `export const revalidate = 60`, and lift the
+"Submit a listing" CTA + admin import link into a `'use client'` island that
+fetches its own session (mirrors `<NewGroupButton />`). Track alongside the
+`/events` ISR follow-up — both want the same friends/CTA-island split.
+
+---
+
+### P3 #18 — Standalone bracket owner pages carry redundant `force-dynamic` 🆕 2026-06-06
+
+**Status:** ✅ _Resolved 2026-06-07_ — dropped the `export const dynamic =
+'force-dynamic'` line from both pages. They stay `ƒ` (server-rendered on demand)
+because each reads `cookies()` unconditionally (`requireRealUser` /
+`getViewer`), so the flag was a no-op — same outcome as the resolved P1 #2.
+Verified `pnpm typecheck && lint && test && build` green. See the
+[2026-06-07 remediation log entry](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
+
+**Category:** Caching / revalidation (clarity)
+**Files:**
+
+- [apps/web/src/app/brackets/page.tsx#L11](../../apps/web/src/app/brackets/page.tsx#L11) — `export const dynamic = 'force-dynamic'`; the page calls `requireRealUser('/brackets')` (reads `cookies()`).
+- [apps/web/src/app/brackets/[id]/page.tsx#L24](../../apps/web/src/app/brackets/%5Bid%5D/page.tsx#L24) — same flag; the page calls `getViewer()` and `redirect`s non-owners to `/watch`.
+
+**Issue:** Both pages are owner-only/private surfaces that already read
+`cookies()`, so Next renders them dynamically regardless — the
+`force-dynamic` flag is a redundant no-op. This is the exact pattern the
+resolved P1 #2 cleaned up on the profile pages: harmless, but it makes the
+codebase's caching story dishonest (a reader can't tell the flag does nothing).
+The public spectator sibling (`/brackets/[id]/watch`) is already correct.
+
+**Why P3:** No behavior change; clarity/hygiene only.
+
+**Fix:** Delete the `export const dynamic = 'force-dynamic'` line from both
+pages. They stay dynamic via `cookies()`; the line was never doing anything.
+(Pairs with the AGENTS.md "No `force-dynamic` on public pages" rule — these
+aren't public, but the flag should still go.)
+
+---
+
+### P3 #19 — Event-detail capacity-waitlist read is an avoidable third sequential wave 🆕 2026-06-06
+
+**Status:** ✅ _Resolved 2026-06-07_ — extracted a `loadWaitlist(event, user)`
+helper that internally applies the `open_play && !positionRoster &&
+spotsRemaining === 0` gate (resolving `{ waitlistCount: 0, viewerWaitlistPosition:
+null }` otherwise) and folded it into the wave-1 `Promise.all`. The serial
+round-trip on full open-play renders is gone; behavior is unchanged (same gate,
+same best-effort `catch`). Verified `pnpm typecheck && lint && test && build`
+green. See the [2026-06-07 remediation log entry](#2026-06-07--p3-18--p3-19-redundant-force-dynamic--waitlist-wave-fold).
+
+**Category:** Sequential await / extra RTT
+**File:**
+
+- [apps/web/src/app/events/[id]/\_loaders/load-event-detail.ts#L363-L382](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L363-L382)
+
+**Issue:** The capacity-waitlist read (queue length + viewer's place) runs as a
+standalone `await` **after** wave 1 (#L299) and wave 2 (#L328). It depends only
+on `event` (resolved before wave 1) and on nothing either wave produces, so it
+adds one avoidable round-trip to the event-detail render. It is tightly gated —
+only fires for a **full** fixed-capacity open play (`type === 'open_play' &&
+!positionRoster && spotsRemaining === 0`) — so the common case pays nothing,
+but on exactly the high-fanout "event is full, everyone's refreshing" view it
+serializes one extra RTT.
+
+**Why P3:** Micro-optimization on a gated path; cost only materializes on full
+open-play events.
+
+**Fix:** Fold the gated read into the wave-1 `Promise.all` — extract a
+`loadWaitlist(event, user)` helper that internally applies the
+`open_play && !positionRoster && spotsRemaining === 0` gate and resolves
+`{ waitlistCount: 0, viewerWaitlistPosition: null }` otherwise, then add it as a
+wave-1 entry. Removes the serial RTT on full-event renders with no behavior
+change.
+
+---
+
+### P3 #20 — Existing audit's file/line anchors went stale after the post-05-31 refactors 🆕 2026-06-06
+
+**Status:** ✅ _Resolved 2026-06-07_ — added the
+[**historical file anchors** note](#performance-audit) in the document header
+(the blockquote under the scope paragraph). It flags that resolved findings
+predating 2026-06-06 cite `events/[id]/page.tsx` line numbers that no longer
+resolve, and maps each piece of relocated code to its current home
+(`_loaders/load-event-detail.ts` + `event-detail-cache.ts`, the infra
+`event-detail/` loaders, `lib/pro.ts`, `application/src/messages/`). The
+individual anchors are left in place as the historical record (repointing ~8
+links in resolved findings to fresh line numbers just re-stales). New findings
+must use current `path#Lstart-Lend` anchors.
+
+**Category:** Documentation hygiene (stale references)
+**Where:** the "Files" anchors in the **already-resolved** P1 #0 / P1 #4 / P2 #8
+/ P3 #12 findings above.
+
+**Issue:** The 2026-05 findings cite `events/[id]/page.tsx` line numbers
+(`#L72`, `#L115`, `#L120`, `#L140`, `#L340`) that no longer point at the cited
+code. Since then the event-detail page was decomposed (now 360 LOC), and the
+relevant logic moved: the `Date.now()`/`hasStarted` reads are now lifted to
+[load-event-detail.ts#L273-L277](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L273-L277)
+via `renderNowMs()`; the narrowed payment-status selects live in the `_loaders`
+
+- `event-detail-cache.ts`; the infra `getDetail()` was split into
+  `event-detail/` loaders (commit `68e80ff1`); and the application `messages.ts`
+  was split per-subdomain (architecture audit P3-2). The findings are all ✅
+  resolved, so this is purely a navigation hazard for a future reader, not a
+  regression.
+
+**Why P3:** Documentation only; the underlying fixes are live.
+
+**Fix:** When these sections are next edited, repoint the anchors to the
+loader/cache files (or add a one-line "anchors historical — code relocated by
+the 2026-06 decomposition" note). Not worth a standalone edit pass for resolved
+findings.
+
+---
+
 ## Reevaluation — 2026-05-30
 
 Read-only re-audit against HEAD, graded with the
@@ -688,6 +1026,94 @@ log.
 
 ## Remediation log
 
+### 2026-06-07 — P3 #20: historical file-anchors note
+
+Doc-hygiene close-out of the 2026-06-06 re-audit. The `events/[id]/page.tsx`
+line anchors in the resolved P1 #0 / P1 #1 / P1 #4 / P2 #8 / P3 #12 findings
+went stale when the page decomposed (500-ish → 360 LOC) and its logic moved into
+`_loaders/`. Rather than repoint ~8 links in resolved findings to fresh line
+numbers (which re-stale on the next refactor), added a single durable
+[historical-anchors note](#performance-audit) to the document header mapping each
+relocated piece to its current home (event-detail `_loaders/`, the infra
+`event-detail/` loaders, `lib/pro.ts`, `application/src/messages/`). The stale
+anchors stay in place as the historical record; new findings use current
+`path#Lstart-Lend` anchors. No code change. **This closes every finding from the
+2026-06-06 re-audit.**
+
+### 2026-06-07 — P3 #17: `/community` listing cacheable + own-hidden recovery
+
+Made the `/community` discovery feed cookie-free (CDN-cacheable per-URL across
+anonymous viewers, like `/players`) without regressing the submitter's only
+in-app path back to an auto-hidden listing.
+
+| Item                                         | Status   | Notes                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drop `cookies()` from the listing render     | ✅ Done  | [page.tsx](../../apps/web/src/app/community/page.tsx) — removed `getCurrentUser()` + `isPlatformAdmin`; `SearchCommunityListingsQuery` now gets `viewerId = null` (the search already ran on the admin-backed handler singleton, so it was the only cookie dependency). Added `export const revalidate = 60`. Route stays `ƒ` (reads `searchParams`) but the response is now shared, not `private`. |
+| CTA + admin link → client island             | ✅ Done  | [community-submit-actions.tsx](../../apps/web/src/app/community/_components/community-submit-actions.tsx) — resolves session client-side (`auth.getUser()` + own-profile `is_platform_admin`); defaults to the logged-out CTA (what the cached HTML shows).                                                                                                                                         |
+| Preserve own-hidden recovery (no regression) | ✅ Done  | New `CommunityListingRepository.listHiddenBySubmitter` port + impl, a `getMyHiddenCommunityListings` server action, and a `<MyHiddenCommunityListings />` client island (top recovery strip). Replaces the `viewerId`-mixes-in-own-hidden behavior the cacheable list drops. UX change: own-hidden moves inline → a labeled "Your hidden listings" section.                                         |
+| Finding correction                           | ⚠️ Noted | The original P3 #17 write-up said "the only viewer-conditional output is the CTA + admin link" — it missed the search's `viewerId`-own-hidden inclusion. The real fix had to preserve that, hence the recovery island.                                                                                                                                                                              |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, pre-existing warnings only; test 547 domain +
+145 application + 262 web; build 8/8).
+
+**Follow-up surfaced — ✅ implemented 2026-06-07:** auto-hide (3 reports →
+`hidden`) was a DB trigger with **no notification** to the submitter — the
+`/community` recovery strip was the only signal. Now closed: a new
+`community.listing.auto_hidden` notification (transactional, email + bell) pings
+the submitter when their listing crosses the threshold, deep-linked to
+review/unhide. The report handler returns `{ autoHidden }` (detected via a
+post-report status re-read) and the report action fires
+`notifyListingAutoHidden` only on the transition. See the
+[auto-hide notification journal](../journal/2026-06-07-bundle-community-auto-hide-notification.md).
+(The recovery strip stays as the in-list affordance; the notification is the
+push signal.)
+
+See the [journal](../journal/2026-06-07-bundle-community-listing-isr.md) for the
+cookie-vs-searchParams cacheability calibration and the recovery-island decision.
+
+### 2026-06-07 — P2 #16: `/community/[slug]` ISR-cacheable shell
+
+Applied the Bundle 25 (`/teams/[id]` / `/groups/[id]` / `/players/[id]`) ISR
+refactor to the new community-listing detail page. The page no longer reads
+`cookies()` or `searchParams`, so it leaves the truly-dynamic-`ƒ` (uncached)
+state and joins the on-demand-ISR-`ƒ` (cached) state its siblings are in.
+
+| Item                                                | Status   | Notes                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cookie-free / searchParams-free server shell        | ✅ Done  | [page.tsx](../../apps/web/src/app/community/%5Bslug%5D/page.tsx) rewritten: `revalidate = 60`; renders from `loadCommunityDetailPublic`; claimed→301 (admin-client slug resolve) + cookieless `communityListingExists` probe so missing slugs still 404 while hidden/removed fall to the manager island.                                                              |
+| Viewer-chrome client island (shared-fetch provider) | ✅ Done  | [community-viewer-chrome.tsx](../../apps/web/src/app/community/%5Bslug%5D/_components/community-viewer-chrome.tsx) — `CommunityViewerProvider` (one `auth.getUser()` + one `getCommunityViewerChrome` server action) feeds `CommunityViewerAlerts` (top) + `CommunityViewerActions` (bottom) via context, preserving the interleaved layout. Anon → no server action. |
+| Notice banner → client `useSearchParams` + Suspense | ✅ Done  | [community-notice-banner-client.tsx](../../apps/web/src/app/community/%5Bslug%5D/_components/community-notice-banner-client.tsx); page wraps it in `<Suspense fallback={null}>`.                                                                                                                                                                                      |
+| Shared presentational body                          | ✅ Done  | [community-listing-article.tsx](../../apps/web/src/app/community/%5Bslug%5D/_components/community-listing-article.tsx) — no directive, rendered server-side in the public shell and client-side in the manager (`CommunityRestrictedView`) path.                                                                                                                      |
+| Server action + loader split                        | ✅ Done  | New [community-viewer-actions.ts](../../apps/web/src/app/community/%5Bslug%5D/community-viewer-actions.ts) (`getCommunityViewerChrome`); `load-community-detail-page.ts` now exports `loadCommunityViewerChrome(slug, user)` (the page-model fn + claimed-redirect/notice/public branches were removed). `community-action-sections.tsx` marked `'use client'`.       |
+| Behavior change: hidden/removed non-manager view    | ⚠️ Noted | Was a hard 404; now a 200 "not available" notice (the page can't read the viewer server-side). Genuinely-missing slugs still 404. Hidden/removed are `noindex` → SEO-immaterial; the action enforces the same RLS/status gate (no leak).                                                                                                                              |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, pre-existing warnings only; test 262 web +
+145 application + domain; build 8/8). E2E community claim/report/manage specs not
+re-run (now hydration-gated; deploy-gated) — flagged as the remaining manual check.
+
+See the [journal](../journal/2026-06-07-bundle-community-detail-isr.md) for the
+`ƒ`-label-vs-actually-cached calibration, the provider-over-server-children
+decision, and the soft-404 tradeoff.
+
+### 2026-06-07 — P3 #18 + P3 #19 (redundant force-dynamic / waitlist wave-fold)
+
+The two clean, self-contained wins from the 2026-06-06 re-audit. P2 #16
+(community ISR) deliberately sequenced after — it's a multi-piece bundle
+(manager-only hidden listings need a viewer read, `searchParams` notice, the
+claimed→event 301, interleaved viewer chrome), closer to the deferred
+`/events/[id]` shell than a mechanical refactor.
+
+| Item                                  | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P3 #18 drop redundant `force-dynamic` | ✅ Done | Removed `export const dynamic = 'force-dynamic'` from [brackets/page.tsx](../../apps/web/src/app/brackets/page.tsx) + [brackets/[id]/page.tsx](../../apps/web/src/app/brackets/%5Bid%5D/page.tsx). Both read `cookies()` unconditionally (`requireRealUser` / `getViewer`), so they stay `ƒ` — the flag was a no-op (same as the resolved P1 #2). Build route table unchanged; the public `/brackets/[id]/watch` was already correctly ISR'd and untouched.                   |
+| P3 #19 fold waitlist read into wave 1 | ✅ Done | Extracted `loadWaitlist(event, user)` in [load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts) — internal `open_play && !positionRoster && spotsRemaining === 0` gate, empty-shape fallback, best-effort `catch` — and added it to the wave-1 `Promise.all`. Removes the serial RTT on full open-play event renders; the gate + behavior are identical, so non-full / roster / non-open-play events still issue zero waitlist queries. |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, 3 pre-existing warnings in untouched files; test
+262 web + domain/application; build 8/8).
+
 ### 2026-05-31 — Pagination sweep (unbounded UI lists)
 
 Scan for UI list views that render a full result set with no pagination. Each
@@ -713,7 +1139,7 @@ where bounded in practice.
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
-See [Bundle journal](../journal/2026-05-31-pagination-sweep.md) for the
+See [Bundle journal](../journal/2026-05-digest.md#pagination-sweep) for the
 in-memory-slice-vs-`.range()` decision, the attendee server-component
 constraint, and why the friends fix skipped the domain port.
 
@@ -731,7 +1157,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 E2E (bracket Playwright specs against dev) not yet re-run — flagged as the
 remaining manual check.
 
-See [Bundle journal](../journal/2026-05-31-bracket-schedule-cacheable.md) for
+See [Bundle journal](../journal/2026-05-digest.md#bracket-schedule-cacheable) for
 the admin-client cacheability finding, the `canManage`-vs-`is_event_host`
 decision, and the searchParams caching constraint.
 
@@ -745,7 +1171,7 @@ decision, and the searchParams caching constraint.
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
-See [Bundle 26 journal](../journal/2026-05-22-bundle-26.md) for the
+See [Bundle 26 journal](../journal/2026-05-digest.md#bundle-26) for the
 pragmatic-vs-structural decision, the admin-client cache-safety rationale,
 and the tradeoffs accepted (60 s anonymous staleness; no per-action tag
 invalidation; viewer-aware chrome still inside the dynamic render).
@@ -762,7 +1188,7 @@ invalidation; viewer-aware chrome still inside the dynamic render).
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
-See [Bundle 25 journal](../journal/2026-05-22-bundle-25.md) for the
+See [Bundle 25 journal](../journal/2026-05-digest.md#bundle-25) for the
 slot-pattern decision, the anon-only public events tradeoff, and the
 single-island-per-page rationale.
 
@@ -824,7 +1250,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 | P1 #0 `react-hooks/set-state-in-effect` (hydration-mount flags) | ✅ Done      | Extracted [use-is-mounted.ts](../../apps/web/src/lib/use-is-mounted.ts) (`useSyncExternalStore`-based). Migrated `local-datetime`, `datetime-picker`, `share-link`; `mobile-menu` pathname-effect ref-guarded. |
 | P1 #0 `react-hooks/set-state-in-effect` (debounce-fetch)        | 🟡 Annotated | `address-autocomplete` + `user-picker` use per-line `eslint-disable` with rationale — no cleaner primitive for debounce-then-display flows.                                                                    |
 
-See [Bundle 2 journal](../journal/2026-05-22-bundle-2.md) for rationale.
+See [Bundle 2 journal](../journal/2026-05-digest.md#bundle-2) for rationale.
 
 ### 2026-05-22 — Quick-win bundle landed
 

@@ -119,7 +119,7 @@ export default async function TeamRandomizerPage(props: {
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
           Host tool · Free
         </p>
-        <h1 className="text-3xl font-bold">Team randomizer</h1>
+        <h1 className="text-headline-lg font-bold">Team randomizer</h1>
         <p className="text-muted text-sm">
           Paste your roster and split everyone into fair teams in one tap. Add a skill rating after
           a name to balance by ability. Nothing is saved — the roster stays in your browser.
@@ -141,7 +141,7 @@ export default async function TeamRandomizerPage(props: {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-fg text-xl font-semibold">FAQ</h2>
+        <h2 className="text-fg text-title-lg font-semibold">FAQ</h2>
         <dl className="space-y-3">
           {faqs.map((f) => (
             <div key={f.q} className="border-border-base rounded-md border p-3">

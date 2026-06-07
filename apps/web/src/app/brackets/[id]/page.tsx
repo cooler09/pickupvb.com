@@ -21,8 +21,6 @@ import {
   type TeamLite,
 } from '@/app/events/[id]/bracket/_components/labels';
 
-export const dynamic = 'force-dynamic';
-
 function pickQuery(
   sp: Record<string, string | string[] | undefined> | undefined,
   key: string,
@@ -78,7 +76,7 @@ export default async function StandaloneBracketPage(props: {
       </Link>
 
       <header className="space-y-1">
-        <h1 className="text-fg text-2xl font-bold">Bracket</h1>
+        <h1 className="text-fg text-headline-sm font-bold">Bracket</h1>
         <p className="text-fg/80 text-sm">{FORMAT_LABEL[bracket.format]}</p>
         <p className="text-muted text-sm">
           {registeredTeams.length} team{registeredTeams.length === 1 ? '' : 's'}

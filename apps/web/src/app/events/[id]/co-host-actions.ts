@@ -2,7 +2,11 @@
 
 import { revalidatePath, updateTag } from 'next/cache';
 import { eventCacheTag } from '@/lib/cache-tags';
-import { AddEventCoHostCommand, RemoveEventCoHostCommand } from '@pickupvb/application';
+import {
+  AddEventCoHostCommand,
+  GetEventDetailQuery,
+  RemoveEventCoHostCommand,
+} from '@pickupvb/application';
 import {
   ConflictError,
   DomainError,
@@ -12,7 +16,8 @@ import {
 } from '@pickupvb/domain';
 import { handlers } from '@/lib/handlers';
 import { redirectEventNotice } from '@/lib/server-redirects';
-import { requireSession } from '@/lib/server-auth';
+import { getViewer } from '@/lib/server-auth';
+import { recordAuditEvent } from '@/lib/audit-log';
 
 /**
  * Server action wrappers around AddEventCoHostCommand / RemoveEventCoHostCommand
@@ -39,15 +44,46 @@ function mapErrorAndFlash(eventId: string, err: unknown): never {
   throw err;
 }
 
+/**
+ * Co-host add/remove is a host-manager operation. The handler and the
+ * `SupabaseEventRepository` it writes through run on the service-role admin
+ * client (RLS bypassed — sanctioned for host-gated ops, AGENTS.md pitfall #8),
+ * so authorization MUST be enforced here, not delegated to RLS. `canManage` is
+ * the same host / co-host / group-owner-or-admin set the manage UI gates on.
+ * Throws `UnauthorizedError` so the surrounding `mapErrorAndFlash` renders the
+ * `?cohost=unauthorized` flash. (Security audit P1 #12.)
+ */
+async function assertCanManage(eventId: string): Promise<string> {
+  const viewer = await getViewer();
+  if (!viewer || viewer.isAnonymous) {
+    throw new UnauthorizedError('You must be signed in as a host to manage co-hosts.');
+  }
+  const detail = await handlers.getEventDetail.execute(
+    new GetEventDetailQuery(eventId, viewer.user.id),
+  );
+  if (!detail.canManage) {
+    throw new UnauthorizedError('Only an event host can manage co-hosts.');
+  }
+  return viewer.user.id;
+}
+
 export async function addEventCoHost(
   eventId: string,
   party: { userId?: string; groupId?: string },
   returnPath?: string,
 ): Promise<void> {
   if (!eventId || (!party.userId && !party.groupId)) return;
-  const { user } = await requireSession();
   try {
-    await handlers.addEventCoHost.execute(new AddEventCoHostCommand(eventId, party, user.id));
+    const userId = await assertCanManage(eventId);
+    await handlers.addEventCoHost.execute(new AddEventCoHostCommand(eventId, party, userId));
+    await recordAuditEvent({
+      action: 'event.co_host_added',
+      entityType: 'event',
+      entityId: eventId,
+      actorUserId: userId,
+      targetUserId: party.userId ?? null,
+      ...(party.groupId ? { metadata: { groupId: party.groupId } } : {}),
+    });
   } catch (err) {
     mapErrorAndFlash(eventId, err);
   }
@@ -64,9 +100,17 @@ export async function removeEventCoHost(
   returnPath?: string,
 ): Promise<void> {
   if (!eventId) return;
-  const { user } = await requireSession();
   try {
-    await handlers.removeEventCoHost.execute(new RemoveEventCoHostCommand(eventId, party, user.id));
+    const userId = await assertCanManage(eventId);
+    await handlers.removeEventCoHost.execute(new RemoveEventCoHostCommand(eventId, party, userId));
+    await recordAuditEvent({
+      action: 'event.co_host_removed',
+      entityType: 'event',
+      entityId: eventId,
+      actorUserId: userId,
+      targetUserId: party.userId ?? null,
+      ...(party.groupId ? { metadata: { groupId: party.groupId } } : {}),
+    });
   } catch (err) {
     mapErrorAndFlash(eventId, err);
   }

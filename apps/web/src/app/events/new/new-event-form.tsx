@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import type { Suggestion } from '@/components/address-autocomplete';
 import { ErrorActionLink } from '@/components/error-action-link';
+import { Alert } from '@/components/alert';
 import { useAlertReveal } from '@/components/use-alert-reveal';
 import { createEventAction, type CreateEventState } from './actions';
 import { chk, SubmitButton, val, type CapacityKind } from './_components/form-primitives';
@@ -151,14 +152,11 @@ export default function NewEventForm({
   return (
     <form ref={formRef} action={formAction} className="space-y-6 pb-24">
       {state.error && (
-        <div
-          ref={errorRef}
-          tabIndex={-1}
-          role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 outline-none"
-        >
-          {state.error}
-          <ErrorActionLink action={state.errorAction} />
+        <div ref={errorRef} tabIndex={-1} className="outline-none">
+          <Alert variant="error">
+            {state.error}
+            <ErrorActionLink action={state.errorAction} />
+          </Alert>
         </div>
       )}
 

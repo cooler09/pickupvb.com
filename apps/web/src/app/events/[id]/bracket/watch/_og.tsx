@@ -2,6 +2,7 @@ import { DivisionId, EventId, type BracketFormat, type Match } from '@pickupvb/d
 import { GetEventDetailQuery } from '@pickupvb/application';
 import { brandOgImage } from '@/lib/og-image';
 import { handlers, repositories } from '@/lib/handlers';
+import { isEventPubliclyVisible } from '@/lib/event-visibility';
 
 /**
  * Shared renderer for the bracket spectator OG card. Used by both the
@@ -21,6 +22,15 @@ export async function renderBracketWatchOg(
   divisionIdHint?: string | null,
 ): Promise<ReturnType<typeof brandOgImage>> {
   try {
+    // Don't render a scoped/unpublished event's title into a shareable card —
+    // the OG routes are directly hittable (security audit P1 #14 follow-up).
+    if (!(await isEventPubliclyVisible(eventId))) {
+      return brandOgImage({
+        eyebrow: 'Live bracket',
+        title: 'Tournament bracket',
+        meta: 'pickupvb.com',
+      });
+    }
     const event = await handlers.getEventDetail.execute(new GetEventDetailQuery(eventId, null));
     if (event.type !== 'tournament' || event.divisions.length === 0) {
       return brandOgImage({

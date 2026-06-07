@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { SubmitButton } from '@/components/submit-button';
 import { primaryButtonClass, neutralButtonClass } from '@/components/primary-button';
+import { Alert } from '@/components/alert';
 import { joinAsFreeAgentFromForm, leaveAsFreeAgent, pickUpFreeAgent } from '../free-agent-actions';
 
 export type FreeAgentEntry = {
@@ -98,16 +99,7 @@ export function FreeAgentSignupPanel({
       </header>
 
       {result && (
-        <div
-          role={result.tone === 'success' ? 'status' : 'alert'}
-          className={`rounded-md border p-3 text-sm ${
-            result.tone === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-red-200 bg-red-50 text-red-700'
-          }`}
-        >
-          {result.text}
-        </div>
+        <Alert variant={result.tone === 'success' ? 'success' : 'error'}>{result.text}</Alert>
       )}
 
       <div className="space-y-4">
@@ -183,7 +175,7 @@ export function FreeAgentSignupPanel({
 
       {viewerId && isRealUser && isFreeAgent && (
         <form action={leaveAsFreeAgent.bind(null, eventId)}>
-          <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+          <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
             Remove me from the free-agent pool
           </SubmitButton>
         </form>

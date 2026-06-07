@@ -122,7 +122,7 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
           ← Back to teams
         </Link>
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold">{team.name}</h1>
+          <h1 className="text-headline-sm font-bold">{team.name}</h1>
           <ShareLink path={`/teams/${team.slug}`} title={team.name} />
         </div>
         <p className="text-muted text-sm">

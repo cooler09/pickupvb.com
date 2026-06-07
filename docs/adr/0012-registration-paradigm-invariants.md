@@ -12,7 +12,7 @@
 - **Amended by:** Bundle 121 (2026-05-27) — Rules 2 & 3's `price_unit`
   clauses are skipped when `price_cents <= 0`. Composition halves of those
   rules and Rule 4 are unchanged. See [Free-division exemption](#free-division-exemption-2026-05-27-bundle-121)
-  below and [docs/journal/2026-05-27-bundle-121.md](../journal/2026-05-27-bundle-121.md).
+  below and [docs/journal/2026-05-digest.md#bundle-121](../journal/2026-05-digest.md#bundle-121).
 
 ## Context
 

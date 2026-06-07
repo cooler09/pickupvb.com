@@ -156,7 +156,7 @@ export default async function ProfilePage(props: {
           </a>
           <Link
             href={'/profile/account/delete' as Route}
-            className="text-sm font-medium text-red-600 hover:underline"
+            className="text-md-error text-sm font-medium hover:underline"
           >
             Delete account
           </Link>

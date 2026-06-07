@@ -107,7 +107,7 @@ export function TimerView({ code, initialConfig }: { code: string; initialConfig
 
       <div className="flex flex-1 flex-col items-center justify-center px-4">
         {state.label ? (
-          <div className="mb-2 text-2xl font-semibold tracking-wide text-white/60 sm:text-4xl">
+          <div className="text-headline-sm sm:text-display-sm mb-2 font-semibold tracking-wide text-white/60">
             {state.label}
           </div>
         ) : null}

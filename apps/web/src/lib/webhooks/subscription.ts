@@ -7,6 +7,7 @@
 import type Stripe from 'stripe';
 import { findHostByStripeCustomerId, upsertHostSubscriptionFromStripe } from '@/lib/pro';
 import { analytics } from '@/lib/handlers';
+import { recordAuditEvent } from '@/lib/audit-log';
 import { log } from '@/lib/log';
 
 /**
@@ -74,6 +75,21 @@ export async function handleSubscriptionChange(
     currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
     trialEnd: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
     cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+  });
+
+  // Audit trail of subscription state transitions (security audit P3 #8).
+  // System-driven (Stripe webhook), so there's no actor; the host is the target.
+  await recordAuditEvent({
+    action: 'host_subscription.changed',
+    entityType: 'host_subscription',
+    entityId: sub.id,
+    targetUserId: userId,
+    metadata: {
+      eventType,
+      status: sub.status,
+      plan,
+      cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
+    },
   });
 
   // Pro funnel analytics (audit P2 #5). Fires after the DB row is up to

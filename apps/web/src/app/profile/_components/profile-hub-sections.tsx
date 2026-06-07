@@ -45,7 +45,7 @@ export function ProfileIdentityHero({
         ) : (
           <div
             aria-hidden
-            className="bg-primary/15 text-primary flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-semibold sm:h-20 sm:w-20 sm:text-2xl"
+            className="bg-primary/15 text-primary text-title-lg sm:text-headline-sm flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-semibold sm:h-20 sm:w-20"
           >
             {displayInitials}
           </div>
@@ -53,7 +53,7 @@ export function ProfileIdentityHero({
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-muted text-xs font-semibold tracking-wide uppercase">Your profile</p>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-bold">{profile.display_name}</h1>
+            <h1 className="text-headline-sm truncate font-bold">{profile.display_name}</h1>
             {viewerIsAdmin && <AdminBadge />}
             {viewerIsPro && <ProBadge asLink />}
           </div>
@@ -111,12 +111,12 @@ export function ProfileQuickActions({ isHost }: { isHost: boolean }) {
 /** "Pending team invites" call-out (only when there are invites). */
 export function PendingInvitesSection({ invites }: { invites: Model['pendingInvites'] }) {
   return (
-    <section className="rounded-shape-sm space-y-3 border border-amber-500/40 bg-amber-500/5 p-5">
+    <section className="rounded-shape-sm border-md-warning/40 bg-md-warning/5 space-y-3 border p-5">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-wide text-amber-700 uppercase dark:text-amber-400">
+        <h2 className="text-md-warning text-sm font-semibold tracking-wide uppercase">
           Pending team invites
         </h2>
-        <span className="text-xs text-amber-700 dark:text-amber-400">{invites.length} waiting</span>
+        <span className="text-md-warning text-xs">{invites.length} waiting</span>
       </div>
       <ul className="space-y-2">
         {invites.map((t) => (

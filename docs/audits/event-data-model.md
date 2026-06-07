@@ -875,7 +875,7 @@ team_id IS NOT NULL AND deleted_at IS NULL` can't be targeted by
   All four verify steps green (`pnpm typecheck && pnpm lint && pnpm
 test && pnpm build`). Lint warnings unchanged. Migration not applied
   locally (Docker off); CI/CD applies on deploy. Follow-ups captured
-  in [journal entry](../journal/2026-05-30-bundle-step-5b.md) and
+  in [journal entry](../journal/2026-05-digest.md#bundle-step-5b) and
   tagged **Step 5b.ii**.
 
 - **2026-05-30 — P2 #6.6 (Step 5b.ii — aggregate + boundary cleanup)
@@ -913,7 +913,7 @@ NOTHING` against the partial unique index in one statement.
   check constraint remain on `event_team_entries`; `isHostProxy`'s
   audit fact has no permanent home if we want to keep the
   duplicate-check skip but drop the local variable. Full narrative
-  in [journal entry](../journal/2026-05-30-bundle-step-5b-ii.md).
+  in [journal entry](../journal/2026-05-digest.md#bundle-step-5b-ii).
 
 - **2026-05-30 — P2 #6.7 (thin pass with bridge views) landed.**
   Collapsed `event_attendees` + `event_free_agents` into one
@@ -968,7 +968,7 @@ NOTHING` against the partial unique index in one statement.
   payment row to `'pending'`) — documented in the journal entry
   but not pre-emptively fixed because every current caller sets
   the field explicitly. Full narrative in
-  [journal entry](../journal/2026-05-30-bundle-step-6-7.md).
+  [journal entry](../journal/2026-05-digest.md#bundle-step-6-7).
 
 - **2026-05-30 — P1 #2 (thin pass) landed.** Added the
   `league_schedule_matches` table + `LeagueSchedule` domain
@@ -2264,7 +2264,7 @@ captain-RLS gap flagged in the `save_league_schedule` / `save_bracket`
 scope notes — is fixed. It's an authorization concern, so the finding
 
 - full write-up live in [security.md § P2 #4](security.md) and the
-  [journal entry](../journal/2026-12-04-bundle-captain-rls-match-result.md);
+  [journal entry](../journal/2026-05-digest.md#bundle-captain-rls-match-result);
   recorded here because the follow-up was tracked on this audit.
 
 **The gap.** Recording a match result (bracket: `RecordMatchResultHandler`

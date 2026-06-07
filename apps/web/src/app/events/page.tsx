@@ -63,7 +63,7 @@ export default async function EventsPage(props: {
     <section className="space-y-6">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-3xl font-bold">Find events</h1>
+          <h1 className="text-headline-lg font-bold">Find events</h1>
           {signedIn && (
             <Link href="/events/new" className={primaryButtonClass('sm')}>
               Host an event

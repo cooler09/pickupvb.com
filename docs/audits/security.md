@@ -6,6 +6,78 @@
 **Method:** read-only static review. Server actions, API routes, auth flows,
 RLS policies, third-party integrations, secrets handling, logging.
 
+**Status update (2026-06-07) — fresh re-audit (chat / media / badges / waitlist /
+GDPR surface):** read-only pass over the large feature surface added since the
+2026-05-30 re-audit — chat messaging, media posts, gamification badges, capacity
+waitlist, account deletion + GDPR export, host-added teams, live scoring, the new
+cron + data-export routes. Lens: authorization on write paths, admin-client (RLS
+bypass) usage, RLS column-pinning, route auth. **Headline: 2 P1 (one a confirmed
+un-applied regression) + 1 P2 worsened + 1 P2 new + 1 P3 new.** Full write-up:
+[§ Reevaluation — 2026-06-07](#reevaluation--2026-06-07).
+
+> **✅ All five findings remediated (2026-06-07):** the two P1s, the cron
+> fail-open (P2 #13), the RLS column-pinning gaps (P2 #16), and the public
+> `/api/sentry-test` (P3 #17) are fixed and verified
+> (`pnpm typecheck && lint && test && build` green) — see the
+> [P1 bundle entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening), the
+> [P2 #16 entry](#2026-06-07--p2-16-rls-column-pinning-on-media_posts--messages),
+> and the [P3 #17 entry](#2026-06-07--p3-17-sentry-test-gated) (the two trigger
+> migrations are **deploy-gated** — CI applies them). The bullets below describe
+> the findings as-found. _(Pre-existing backlog also addressed 2026-06-07: the
+> P1 #14 `getBracketMeta` spectator follow-up and P3 #8 audit-log coverage are
+> both closed; **P2 #3b** (CSP nonce) was assessed and closed
+> **wontfix-with-rationale** — see [§ 3b](#3b-nonce-based-csp-hardening-drop-unsafe-inline).
+> No open security items remain on this file.)_
+
+- **P1 #12 is STILL OPEN — the 2026-05-30 recommended fix was never applied.**
+  Re-confirmed exploitable at HEAD: `addEventCoHost` / `add|update|removeEventDivision`
+  ([co-host-actions.ts#L48](../../apps/web/src/app/events/[id]/co-host-actions.ts#L48),
+  [division-actions.ts#L91](../../apps/web/src/app/events/[id]/division-actions.ts#L91))
+  still only `requireSession()` (any signed-in, incl. anonymous, user); the handlers
+  still carry the "authz lives at the DB layer (RLS)" comment with **no app-layer host
+  check** ([co-host.handler.ts](../../packages/application/src/commands/co-host.handler.ts),
+  [event-division.handler.ts](../../packages/application/src/commands/event-division.handler.ts));
+  and `eventRepo` is still `new SupabaseEventRepository()` with no client →
+  lazy service-role admin → RLS bypassed
+  ([handlers.ts#L166](../../apps/web/src/lib/handlers.ts#L166),
+  [supabase-event-repository.ts#L304-L313](../../packages/infrastructure/src/supabase-event-repository.ts#L304-L313)).
+  Any signed-in user self-adds as co-host of any event (privilege escalation into the
+  full host surface incl. attendee-PII CSV export) or adds/edits/**deletes** divisions
+  on any event (data loss).
+- **P1 #15 (new) — `GET /api/events/[id]` leaks any scoped / private / draft event,
+  unauthenticated.** The unclosed REST sibling of P1 #14:
+  [route.ts](../../apps/web/src/app/api/events/[id]/route.ts) → `GetEventByIdHandler`
+  reads via the admin client with **no viewer and no visibility gate** and returns full
+  detail including the **exact street address + latitude/longitude**, for any event id
+  regardless of `visibility` (`friends_of_host` / `invite_only`) or `status`
+  (draft/unpublished). The route has **no auth check at all**. The 2026-06-04 fix only
+  covered the page loader + `generateMetadata`. The endpoint is also unreferenced by the
+  frontend (stale-but-live surface).
+- **P2 #13 worsened — cron fail-open spread to 6 routes, still no shared helper.** The
+  `if (!secret) return true` pattern was copied verbatim into three new crons, including
+  the **destructive** `account/execute-deletions` (hard-deletes accounts after the grace
+  window), `community-listings/auto-approve`, and `badges/reconcile`.
+- **P2 #16 (new) — RLS `UPDATE` policies don't pin privileged columns.** Two instances
+  let a row's owner escalate via a direct PostgREST `PATCH`: `media_posts_update`
+  (self-set `featured=true` → bypasses the host-gated `feature_event_stream` RPC;
+  self-set `status='active'` → reverses report auto-hide) and `messages_update`
+  (`WITH CHECK` never re-validates `can_access_conversation`, doesn't pin
+  `conversation_id` / `deleted_at` → cross-room message injection + self-undelete of a
+  moderator-removed message). The app's own code paths are clean; the gap is the RLS
+  policy, reachable directly with the user's JWT.
+- **P3 #17 (new) — `/api/sentry-test` is publicly invokable** with no auth — anyone can
+  flood Sentry or force unhandled rejections (`?kind=unhandled`). Stale debug surface;
+  gate to non-prod or remove.
+
+Verified still-safe this pass: `pnpm audit --prod` reports **0 vulnerabilities**; the
+P1 #14 page + metadata visibility gate is present
+([load-event-detail.ts#L228-L268](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts#L228-L268));
+chat access helpers (`can_access_conversation` / `can_moderate_conversation`),
+`list_room_recipients` (service-role only), `event_waitlist` RLS, `set_user_badge_hidden`
+(owner-scoped), `feature_event_stream` (host-gated RPC), and the `awardEventBadge`
+`canManage` gate are all sound. SECURITY DEFINER hygiene is good — almost all new
+definers run `set search_path = ''` with schema-qualified refs.
+
 **Status update (2026-06-04) — scoped-event read leak (e2e-surfaced):** the
 persona e2e suite (`persona-olivia-social`) caught a **P1 privacy leak**, the
 read-side twin of P1 #12 / [P2 #4](#4-admin-supabase-client-used-for-user-driven-writes).
@@ -23,14 +95,17 @@ read-side twin of P1 #12 / [P2 #4](#4-admin-supabase-client-used-for-user-driven
   (2026-06-04):** [load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts)
   gates logged-in viewers with a cheap user-scoped existence check against the
   RLS-protected base `events` table (delegate to the canonical `events_select`
-  policy — invite*only stays link-readable), and anon viewers with a static
+  policy — invite\*only stays link-readable), and anon viewers with a static
   `published && (public|invite_only)` check;
   [page.tsx](../../apps/web/src/app/events/[id]/page.tsx) `generateMetadata`
   gated the same way. **Deploy-gated** (fix ships to dev on the next deploy).
-  **Open follow-up:** the bracket / schedule / watch spectator pages read
-  via `getBracketMeta` (same admin client, no gate), so a \_scoped* tournament's
-  metadata still leaks there — left open (intended-shareable spectator surfaces;
-  tournaments are usually public).
+  **Follow-up (✅ closed 2026-06-07):** the bracket / schedule / watch spectator
+  pages read via `getBracketMeta` (same admin client, no gate), so a _scoped_
+  tournament's title + division structure leaked there (page bodies, both
+  `generateMetadata`s, and the bracket-watch OG image). Closed with a shared,
+  cache-preserving [`assertEventVisibleOrNotFound`](../../apps/web/src/lib/event-visibility.ts)
+  gate — see the
+  [remediation entry](#2026-06-07--p1-14-spectator-follow-up-bracketschedulewatch).
 
 **Status update (2026-05-30) — fresh re-audit:** read-only pass over the
 feature surface added since the 2026-05-17 audit (brackets, leagues, event
@@ -190,7 +265,7 @@ baseline headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`,
 `X-Frame-Options`, `Permissions-Policy`) added 2026-05-17. CSP shipped
 2026-05-24 as `Content-Security-Policy-Report-Only` with the full
 third-party allowlist (Supabase REST/Realtime, Cloudflare Turnstile,
-OSM tiles); see the [Bundle 15 journal](../journal/2026-05-24-bundle-15.md).
+OSM tiles); see the [Bundle 15 journal](../journal/2026-05-digest.md#bundle-15).
 Bundle 27 (2026-05-22) promoted the same policy to enforcing
 `Content-Security-Policy` after a clean soak window. Nonce-based
 hardening of `'unsafe-inline'` on `script-src` / `style-src` (to drop
@@ -214,6 +289,48 @@ HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and
 Supabase, Sentry, Turnstile, OSM tiles, fonts, images) — roll it out behind
 `Content-Security-Policy-Report-Only` first.
 
+### 3b. Nonce-based CSP hardening (drop `'unsafe-inline'`)
+
+**Status:** 🟡 _Assessed 2026-06-07 — **wontfix-with-rationale** (cost ≫ benefit;
+re-open triggers below)._ The enforcing CSP retains `'unsafe-inline'` on
+`script-src` and `style-src` ([next.config.mjs](../../apps/web/next.config.mjs#L75-L76)).
+Dropping it was assessed in full and is **not worth implementing as the app is
+built today**:
+
+- **`style-src` — infeasible.** CSP nonces only cover `<style>` _elements_, not
+  inline `style={{…}}` _attributes_. The app has ~9 inline-style sites (event-map
+  height, dashboard widgets) plus libraries (Leaflet / Radix) that inject inline
+  styles at runtime. None can carry a nonce, so `'unsafe-inline'` on `style-src`
+  cannot be removed without refactoring every inline style to a class/CSS-var
+  **and** guaranteeing no dependency ever injects one — brittle and high-maintenance
+  for no change to the actual attack surface.
+- **`script-src` — feasible but net-negative.** The only inline scripts are
+  JSON-LD (`<script type="application/ld+json">`), emitted by `layout.tsx` on
+  **every page**. JSON-LD is dynamic (per-event), so it can't be hashed — it needs
+  a per-request **nonce**, which means moving CSP generation into `proxy.ts` and
+  reading the nonce at render time. That **forces dynamic rendering site-wide and
+  defeats static/ISR caching** — directly counter to this codebase's caching
+  investment (e.g. the cache-preserving P1 #14 spectator gate). The benefit is
+  marginal: the only `dangerouslySetInnerHTML` is server-built `JSON.stringify` of
+  trusted data (verified under "✅ Verified safe" — XSS), so `'unsafe-inline'` is a
+  defense-in-depth gap here, not a live vector.
+
+**Recommended posture:** keep `'unsafe-inline'` until a re-open trigger fires, and
+prefer the lower-cost mitigations already in place (no user-controlled HTML
+rendering; typed/escaped JSON-LD; `object-src 'none'`, `base-uri 'self'`,
+`frame-ancestors 'none'`).
+
+**Re-open triggers** (any one flips this back to an actionable P2):
+
+- The app starts rendering **user-influenced HTML** (a rich-text/markdown field,
+  a CMS block, an embed the user controls) — then inline-script XSS becomes real
+  and the nonce cost is justified.
+- The app **moves off static/ISR caching** for the pages that emit JSON-LD (so a
+  per-request nonce no longer costs cacheability), or Next ships first-class
+  nonce support that preserves caching.
+- A dependency is added that requires a tighter CSP for compliance (PCI/SOC2
+  control, a partner requirement).
+
 ### 4. Admin Supabase client used for user-driven writes
 
 **Status:** ✅ _Resolved 2026-05-24 (Bundle 14)_ — all three call sites
@@ -224,7 +341,7 @@ adds self-service policies for `event_attendees` /
 `paid`) plus host-update policies for the manage-payments flow and a
 host-insert policy for `event_payment_audit`. Stripe webhook handlers
 continue to use the admin client (correct — they run with no user
-session). See the [Bundle 14 journal](../journal/2026-05-24-bundle-14.md).
+session). See the [Bundle 14 journal](../journal/2026-05-digest.md#bundle-14).
 
 **Follow-on (2026-12-04):** a second instance of this same pattern
 surfaced in the bracket / league **match-result** writes — the repos
@@ -234,7 +351,7 @@ entirely to RLS policies that the admin client bypassed. Closed via
 user-scoped clients + authorization-gated RPCs; see the
 [2026-12-04 remediation entry](#2026-12-04--captain-rls-on-match-result-writes-p2-4-follow-on)
 and the
-[journal entry](../journal/2026-12-04-bundle-captain-rls-match-result.md).
+[journal entry](../journal/2026-05-digest.md#bundle-captain-rls-match-result).
 **Durable lesson:** "swap admin → server client" only fixes the call
 sites you can see — an adapter that self-constructs the admin client
 internally hides the same gap behind the port. Audit repository
@@ -330,6 +447,19 @@ otherwise.
 
 ### 8. Audit log coverage gaps
 
+**Status:** ✅ _Resolved 2026-06-07 (deploy-gated)._ Added a generic append-only
+[`audit_log`](../../supabase/migrations/20260923000000_audit_log.sql) table
+(service-role write/read only, mirroring `event_payment_audit`) + a fail-quiet
+[`recordAuditEvent`](../../apps/web/src/lib/audit-log.ts) helper, wired into all
+four flagged categories: group member add/remove/role
+([member-actions.ts](../../apps/web/src/app/groups/member-actions.ts)), event
+co-host add/remove
+([co-host-actions.ts](../../apps/web/src/app/events/[id]/co-host-actions.ts)),
+Stripe Connect account mirrors
+([connect.ts](../../apps/web/src/lib/webhooks/connect.ts)), and host-subscription
+state changes ([subscription.ts](../../apps/web/src/lib/webhooks/subscription.ts)).
+See the [remediation entry](#2026-06-07--p3-8-audit-log-coverage).
+
 `event_payment_audit` table exists ([20260516000000_ticketed_events.sql](../../supabase/migrations/20260516000000_ticketed_events.sql#L76))
 but the pattern isn't extended to:
 
@@ -390,6 +520,222 @@ not just trust the client.
 
 ---
 
+## Reevaluation — 2026-06-07
+
+Read-only re-audit against HEAD, graded with the
+[audits README rubric](README.md#how-findings-are-graded) (P1 = ship-blocking
+bug / data-loss / broken authz; P2 = next-sprint hardening; P3 = nice-to-have).
+Scope: the feature surface added since the 2026-05-30 re-audit — chat messaging
+(`conversations` / `messages` / `user_blocks`), media posts, gamification badges,
+the capacity waitlist, account deletion + GDPR export, host-added teams, live
+match scoring — plus the cron + data-export routes that grew alongside them.
+
+### What's solid (verified safe this pass)
+
+- **`pnpm audit --prod` → 0 vulnerabilities.** The P1 #0 / Bundle-2 dependency
+  posture holds.
+- **Chat access control** — `can_access_conversation` / `can_moderate_conversation`
+  / `is_blocked_pair` are SECURITY DEFINER, `search_path = ''`, schema-qualified,
+  and reused as the single gate by every chat RLS policy; `list_room_recipients`
+  is **service-role only** (revoked from `public`). DM creation gates on block +
+  anonymous + self-DM. `messages_insert` correctly enforces membership, non-anon,
+  and the bidirectional block check.
+- **`event_waitlist` RLS** — own-row select/insert/delete, host sees all; the
+  promote-on-leave side effect runs admin (app-authorized, pitfall #8). Sound.
+- **`set_user_badge_hidden`** is owner-scoped (`where user_id = auth.uid()`);
+  **`feature_event_stream`** is host-gated (`is_event_host`); **`awardEventBadge`**
+  self-authorizes via `canManage` and scopes deletes to `source='host'`.
+- **GDPR export** ([account/export](../../apps/web/src/app/api/account/export/route.ts))
+  runs entirely on the **user-scoped** client, every category filtered to the
+  caller's own id, and excludes the push `auth` secret — RLS is the safety net.
+- **P1 #14 page gate** is present (`load-event-detail.ts` + `generateMetadata`),
+  deploy-gated as recorded — but see **P1 #15** for the REST route it missed.
+
+---
+
+### P1 #12 — ✅ RESOLVED 2026-06-07 (was a re-confirmed still-open regression): co-host / division CRUD bypass authorization
+
+As-found, this was unchanged from 2026-05-30 except that it had survived two
+deploys without the fix landing. **Fixed 2026-06-07** at the server-action
+boundary (not the handler): `addEventCoHost` / `removeEventCoHost` and the three
+division actions now call `assertCanManage(eventId)`, which loads
+`GetEventDetailQuery.canManage` (host / co-host / group-owner-or-admin — the exact
+set the manage UI gates on) and rejects everyone else before the admin-backed
+handler runs. **Why the action boundary, not the handler** (a deviation from the
+original recommendation): `canManage` is computed in the web layer from co-host +
+group-membership data that the pure `@pickupvb/application` handler has no port
+for, and the in-repo precedent for host-gated admin-client writes
+(`record-division-winner-actions.ts`, `award-badge-actions.ts`,
+`edit/sponsor-actions.ts`, `edit/badge-actions.ts`) all gate at the action with
+`assertCanManage`. Matched that pattern. No action-level test was added — the
+events/[id] action directory has none and the four sibling gates are untested
+too; a future shared `requireEventManager` helper (DRY-ing all six copies) is the
+natural home for a unit test. See the
+[remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+
+---
+
+### P1 #15 — ✅ RESOLVED 2026-06-07: `GET /api/events/[id]` leaks any scoped / private / draft event, unauthenticated 🆕 2026-06-07
+
+> **✅ Resolved 2026-06-07** via fix option (1): the route file
+> `apps/web/src/app/api/events/[id]/route.ts` was **deleted** (it was unreferenced
+> by the frontend — the app drives event detail through the page loader + server
+> actions). The underlying `GetEventByIdHandler` is now unused by any route but
+> remains wired in `handlers.ts`; it is still **ungated** and must not be
+> re-exposed without a viewer/visibility gate. The orphaned `api/events`
+> (GET/POST), `api/events/[id]/join`, and `.../leave` routes were left in place
+> (authenticated, not leaking) pending confirmation there's no external API
+> consumer. See the
+> [remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+
+**Category:** Broken access control / PII disclosure
+**Files:**
+
+- [apps/web/src/app/api/events/[id]/route.ts](../../apps/web/src/app/api/events/[id]/route.ts) — `GET` calls `handlers.getEventById.execute(new GetEventByIdQuery(params.id))` with **no `requireUser()` and no viewer**.
+- [packages/application/src/queries/event-queries.handler.ts](../../packages/application/src/queries/event-queries.handler.ts) — `GetEventByIdHandler.execute({ id })` reads `repo.findById(id)` (admin client) and returns `title`, `description`, `rules`, `startsAt`, `attendeeCount`, and the full `location` block including `addressLine`, `latitude`, `longitude`. No `visibility` / `status` gate.
+
+**Issue:** This is the **unclosed REST sibling of P1 #14.** The 2026-06-04 fix
+gated the event-detail _page_ loader and `generateMetadata`, but this standalone
+JSON endpoint reads the same admin-client repo with no gate and **no
+authentication at all**. `GET /api/events/<id>` returns the full record for any
+event id — including `friends_of_host` / `friends_of_attendees` / `invite_only`
+events and **unpublished drafts** — to an anonymous, unauthenticated caller. The
+exposed `location.addressLine` + `latitude` + `longitude` make this a
+physical-location disclosure for private events, not just a metadata leak.
+
+**Why P1:** Production-exploitable, unauthenticated disclosure of private user
+data. Event UUIDs leak through share links, OG cards, and search; an attacker who
+has (or enumerates) one reads a scoped event's address and exact coordinates with
+a single unauthenticated GET. The endpoint is also **unreferenced by the frontend**
+(no `fetch` call anywhere in `apps/web/src`), so it's pure attack surface with no
+product value to weigh against removing it.
+
+**Fix (pick one):**
+
+1. **Delete the route** (and the now-orphaned `api/events/[id]/join`,
+   `.../leave`, and `api/events` GET/POST if they're equally unused — confirm no
+   external/mobile consumer first). Smallest surface.
+2. **Gate it like the page:** add `requireUser()` and thread the viewer id into a
+   visibility-aware query (delegate to the RLS-protected base `events` SELECT, the
+   same pattern `load-event-detail.ts` now uses), returning 404 for events the
+   viewer can't see. Anonymous callers get the static `published && (public |
+invite_only)` check.
+
+Either way, add a regression test (or e2e) asserting a `friends_of_host` event
+returns 404 from this endpoint for a non-friend / anonymous caller — the same
+shape as the `persona-olivia-social` spec that caught P1 #14.
+
+---
+
+### P2 #16 — RLS `UPDATE` policies don't pin privileged columns (owner can self-escalate via direct PostgREST) 🆕 2026-06-07
+
+> **✅ Resolved 2026-06-07 (deploy-gated).** Added a `BEFORE UPDATE` guard trigger
+> on each table — [media_posts](../../supabase/migrations/20260922000000_media_posts_guard_privileged_columns.sql)
+> and [messages](../../supabase/migrations/20260922000100_messages_guard_privileged_columns.sql).
+> Both are SECURITY INVOKER so `current_user` reflects the real caller: the
+> trusted paths (SECURITY DEFINER functions running as the owner, and the
+> `service_role` admin client) bypass; the event host / platform admin bypass on
+> media_posts. A direct anon/authenticated write is then rejected for
+> `media_posts` (featured false→true, status→'active', report_count edits — while
+> still allowing the submitter's content edits, soft-remove, and the harmless
+> featured true→false from remove/end-stream) and for `messages`
+> (`conversation_id`/`sender_id` mutation, clearing `deleted_at`, report_count
+> edits). No app-code or generated-types change — the app already authorizes via
+> the handlers; this is the DB-level enforcement for direct-API callers.
+> `media_posts_insert` was intentionally left open (community posting is allowed;
+> the only escalation it enabled is closed by the featured guard). See the
+> [remediation entry](#2026-06-07--p2-16-rls-column-pinning-on-media_posts--messages).
+
+**Category:** Broken authorization / RLS column scoping
+**Files:**
+
+- [supabase/migrations/20260820000000_media_posts.sql#L223-L234](../../supabase/migrations/20260820000000_media_posts.sql#L223-L234) — `media_posts_update` `WITH CHECK` is `submitter_user_id = auth.uid() OR is_event_host(...) OR is_platform_admin()` with no column restriction; `media_posts_insert#L214-L220` requires only `submitter_user_id = auth.uid()` (no event-membership check).
+- [supabase/migrations/20260824000000_chat_messaging.sql#L518-L527](../../supabase/migrations/20260824000000_chat_messaging.sql#L518-L527) — `messages_update` `USING`/`WITH CHECK` is `sender_id = auth.uid() OR can_moderate_conversation(...)`; it never re-asserts `can_access_conversation(conversation_id)` (unlike `messages_insert`) and doesn't pin `conversation_id` or `deleted_at`.
+
+**Issue:** Supabase grants table-level `UPDATE` to `authenticated` by default; RLS
+is the only gate, and an `UPDATE` policy that checks _who owns the row_ but not
+_which columns changed_ lets the owner mutate **privileged** columns the feature
+intends to be controlled elsewhere. Two concrete escalations, both reachable with
+the caller's own JWT via a direct `PATCH` to PostgREST (the app's own code paths
+are clean — `SupabaseMessageRepository.update` only writes `body`/`edited_at`/
+`deleted_at`, and featuring goes through the host-gated RPC — so this is invisible
+to the UI but live at the API):
+
+1. **media_posts — bypass host curation + reverse moderation.** Any user may
+   `INSERT` a `live_stream` media post pointed at **any event** (insert policy
+   doesn't check event membership), then `PATCH featured=true` — the
+   `media_posts_one_featured_stream` partial unique index only forbids _two_
+   featured streams, so if none is featured the attacker's video becomes the
+   host-promoted featured stream on someone else's event, despite
+   `feature_event_stream` being host-gated. Separately, a submitter whose post was
+   auto-hidden at 3 reports (or hidden by a host) can `PATCH status='active'` to
+   un-hide it.
+2. **messages — cross-room injection + un-delete.** A member of room A can `PATCH`
+   one of their own messages, setting `conversation_id` to room B (which they
+   cannot access); `WITH CHECK` passes on `sender_id` alone, the `broadcast_message`
+   trigger fans it out live to `chat:B`, and room-B members see a message from a
+   non-member. A sender can also `PATCH deleted_at=null` to resurrect a message a
+   moderator soft-deleted.
+
+**Why P2 (not P1):** conditional on an attacker hand-crafting PostgREST calls (no
+UI path), and the blast radius is content-integrity / moderation rather than PII
+or account takeover — but it's a genuine authorization bypass on write paths, the
+same class as pitfall #8, and the two surfaces are the app's primary UGC
+moderation story.
+
+**Fix:** RLS `WITH CHECK` can't compare to `OLD`, so pin privileged columns with a
+`BEFORE UPDATE` trigger (SECURITY DEFINER, `search_path=''`) that rejects changes
+to the protected columns unless the actor is the privileged party:
+
+- `media_posts`: reject a change to `featured` / `status` / `report_count` unless
+  `is_event_host(old.event_id) OR is_platform_admin()` (let the submitter still
+  edit `title` / `description` / `video_url`). Also add an event-membership /
+  host check to `media_posts_insert` if posting is meant to be scoped.
+- `messages`: reject any change to `conversation_id` (immutable); reject clearing
+  `deleted_at` unless `can_moderate_conversation(conversation_id)`. Equivalent:
+  route edits/soft-deletes through a SECURITY DEFINER RPC and drop the broad
+  table `UPDATE` grant.
+
+Add a regression test per surface (e.g. "submitter cannot self-feature",
+"sender cannot move a message across conversations").
+
+---
+
+### P3 #17 — `/api/sentry-test` is publicly invokable 🆕 2026-06-07
+
+> **✅ Resolved 2026-06-07.** The `GET` now gates on
+> [`isCronAuthorized`](../../apps/web/src/lib/cron-auth.ts) — open in local dev
+> (no `CRON_SECRET`), secret-required on every deployed environment — and returns
+> 404 to unauthorized callers so the debug surface stays invisible. Kept (not
+> deleted) so Sentry can still be verified on a deployed env via
+> `curl -H "Authorization: Bearer $CRON_SECRET" …`. See the
+> [remediation entry](#2026-06-07--p3-17-sentry-test-gated).
+
+**Category:** Stale debug surface / abuse
+**File:** [apps/web/src/app/api/sentry-test/route.ts](../../apps/web/src/app/api/sentry-test/route.ts)
+
+**Issue:** A `GET` endpoint that intentionally `throw`s, captures a Sentry message,
+or fires an unhandled rejection (`?kind=unhandled`) — with no auth. Anyone can hit
+it in a loop to inflate Sentry error volume / quota cost and pollute the error
+feed, and `?kind=unhandled` deliberately creates unhandled rejections in the
+serverless runtime. It's a debug helper that shouldn't be reachable in production.
+
+**Fix:** Return 404 when `NODE_ENV === 'production'` (or gate behind the same
+`CRON_SECRET`/admin check as the crons), or delete it — the Sentry integration is
+long since verified.
+
+**Stale-code note (informational):** while confirming P1 #15, the REST routes
+`api/events` (GET/POST), `api/events/[id]` (GET), `api/events/[id]/join`, and
+`.../leave` were found to have **no `fetch` references anywhere in
+`apps/web/src`** — the app drives all of this through server actions. The
+authenticated ones (`join` / `leave` / create) are not insecure, but they are
+unmonitored attack surface with no product consumer. Recommend confirming there's
+no external/mobile API consumer, then deleting them (closes P1 #15 for free) or
+documenting them as a supported public API with explicit auth + rate-limit
+expectations.
+
+---
+
 ## Reevaluation — 2026-05-30
 
 Read-only re-audit against HEAD, graded with the
@@ -416,6 +762,23 @@ captain check in the app layer before any admin write. Two paths did not.
 ---
 
 ### P1 #12 — Division CRUD + co-host add/remove bypass authorization (admin-client → RLS-bypass; privilege escalation + data loss) 🆕 2026-05-30
+
+> **✅ Resolved 2026-06-07.** Both server actions now gate on `assertCanManage(eventId)`
+> (the host / co-host / group-owner-or-admin `canManage` set, mirroring
+> `record-division-winner-actions.ts`) before invoking the handler; the handlers'
+> RLS-reliance comments were corrected to point at the action-boundary gate. See the
+> [remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+>
+> **🔴 As-found 2026-06-07 — was STILL OPEN; the 2026-05-30 fix was never applied.**
+> Re-verified exploitable at HEAD. Both server actions still only `requireSession()`,
+> both handlers still carry the unchanged "authz lives at the DB layer (RLS)" comment
+> with no app-layer host check, and `eventRepo = new SupabaseEventRepository()`
+> ([handlers.ts#L166](../../apps/web/src/lib/handlers.ts#L166)) still has no injected
+> client, so it lazily builds a **service-role** client and the RLS the comments rely on
+> never fires. The `mapErrorAndFlash` in
+> [co-host-actions.ts#L34](../../apps/web/src/app/events/[id]/co-host-actions.ts#L34)
+> even maps `UnauthorizedError` to a flash — but nothing on the path ever throws it.
+> This is the single highest-priority open item in this file.
 
 **Category:** Broken authorization / privilege escalation
 **Files:**
@@ -486,6 +849,27 @@ but the pattern is easy to re-introduce.
 ---
 
 ### P2 #13 — Cron routes fail _open_ when `CRON_SECRET` is unset 🆕 2026-05-30
+
+> **✅ Resolved 2026-06-07.** All seven routes (the six Vercel crons + the
+> pg_cron-triggered `badges/reconcile`) now call the shared
+> [`isCronAuthorized`](../../apps/web/src/lib/cron-auth.ts), which **fails closed in
+> production** (unset `CRON_SECRET` ⇒ only non-prod may run unauthenticated) and uses
+> a constant-time token compare. Regression test:
+> [cron-auth.test.ts](../../apps/web/src/lib/cron-auth.test.ts). See the
+> [remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
+>
+> **🟠 As-found 2026-06-07 — was STILL OPEN and WORSE.** The fail-open guard was
+> copied verbatim into three crons added since: `account/execute-deletions`
+> ([route.ts#L22-L26](../../apps/web/src/app/api/account/execute-deletions/route.ts#L22-L26))
+> — **hard-deletes accounts** past the grace window —
+> `community-listings/auto-approve`
+> ([route.ts#L24-L28](../../apps/web/src/app/api/community-listings/auto-approve/route.ts#L24-L28)),
+> and `badges/reconcile`
+> ([route.ts#L27-L31](../../apps/web/src/app/api/badges/reconcile/route.ts#L27-L31)).
+> Six cron routes now share the same `if (!secret) return true` line; none has been
+> factored into the shared `lib/cron-auth.ts` helper the original finding recommended.
+> The destructive account-deletion endpoint raises the blast radius from "spam /
+> cost" to "mass account deletion" if `CRON_SECRET` is ever absent in prod.
 
 **Category:** Authentication / fail-safe defaults
 **Files:**
@@ -569,14 +953,111 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-06-07 — P3 #8 (audit-log coverage)
+
+Extended the refund-only `event_payment_audit` to a generic append-only
+[`audit_log`](../../supabase/migrations/20260923000000_audit_log.sql) covering
+the four flagged categories. Service-role write/read only (RLS-on, no policies —
+mirrors `event_payment_audit`; a user-writable audit trail is worthless). The
+[`recordAuditEvent`](../../apps/web/src/lib/audit-log.ts) helper is **fail-quiet**
+(an audit write never blocks/fails the action it records) and is called only
+after the underlying mutation succeeds.
+
+| Category                      | Site                                                                        | Action(s)                                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Group member add/remove/role  | [member-actions.ts](../../apps/web/src/app/groups/member-actions.ts)        | `group_member.added` / `.removed` / `.role_changed` (actor + target + role)                                     |
+| Event co-host add/remove      | [co-host-actions.ts](../../apps/web/src/app/events/[id]/co-host-actions.ts) | `event.co_host_added` / `.co_host_removed` (actor + target user / group)                                        |
+| Stripe Connect account mirror | [connect.ts](../../apps/web/src/lib/webhooks/connect.ts)                    | `host_stripe.account_updated` (host + charges/payouts/details flags; host lookup hoisted, reused for analytics) |
+| Host-subscription state       | [subscription.ts](../../apps/web/src/lib/webhooks/subscription.ts)          | `host_subscription.changed` (host + eventType/status/plan/cancelAtPeriodEnd)                                    |
+
+`entity_id` is text (holds our uuids + Stripe `acct_…`/`sub_…` ids); actor/target
+FKs are `ON DELETE SET NULL` so the ADR 0029 account-deletion purge preserves the
+trail. Generated types were hand-edited to add `audit_log` (will be canonicalised
+on the next `gen:types`). Verified `pnpm typecheck && lint && test && build` green.
+**Deploy-gated** — CI applies the migration. Follow-up: a retention cron to prune
+old rows (noted in the migration), and surfacing the trail in an admin view.
+
+### 2026-06-07 — P1 #14 spectator follow-up (bracket/schedule/watch)
+
+Closed the last open branch of P1 #14: the bracket / schedule / watch spectator
+pages read event metadata via `getBracketMeta` on the admin client (RLS-bypassed),
+leaking a _scoped_ (`friends_of_*` / `private`) or unpublished tournament's title +
+division structure. New shared helper
+[event-visibility.ts](../../apps/web/src/lib/event-visibility.ts):
+
+| Piece                              | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assertEventVisibleOrNotFound(id)` | Cache-preserving page-body gate. A published public/invite_only event passes for everyone with one admin-client `status,visibility` read and **no `cookies()`** (the page stays cacheable); only a scoped/unpublished event falls back to a per-viewer RLS existence check (delegating to `events_select`). Applied to [bracket](../../apps/web/src/app/events/[id]/bracket/page.tsx), [watch](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx), [schedule](../../apps/web/src/app/events/[id]/schedule/page.tsx) page bodies. |
+| `isEventPubliclyVisible(id)`       | Used by `generateMetadata` (watch + schedule) and the shared bracket-watch OG renderer ([\_og.tsx](../../apps/web/src/app/events/[id]/bracket/watch/_og.tsx)) to emit a **generic** title/card for non-anon-visible events instead of leaking the real one. The `status,visibility` read is deduped across `generateMetadata` + body via React `cache`.                                                                                                                                                                                  |
+
+Design note: the bracket data itself is intentionally public (`event_brackets` /
+`bracket_matches` RLS is `using (true)`) and most tournaments are public, so the
+common path is unchanged + still cacheable; only scoped/draft events (where the
+host is the audience) become per-viewer dynamic. No domain/type change. Verified
+`pnpm typecheck && lint && test && build` green (268 web tests).
+
+### 2026-06-07 — P3 #17 (sentry-test gated)
+
+[apps/web/src/app/api/sentry-test/route.ts](../../apps/web/src/app/api/sentry-test/route.ts)
+`GET` now returns 404 unless `isCronAuthorized` passes (open in local dev with no
+`CRON_SECRET`; Bearer-secret-required on every deployed env). Closes the
+public-abuse vector (loop-to-inflate-Sentry-quota / forced unhandled rejections)
+while keeping the diagnostic usable by an authorized caller — gated rather than
+deleted because the maintainer keeps such diagnostics (cf. the `test-push`
+route). Reuses the P2 #13 helper rather than a bespoke `NODE_ENV` check, which
+would also have 404'd on Vercel **preview** (where `NODE_ENV=production`).
+Verified `pnpm typecheck && lint && test && build` green. **This closes every
+finding from the 2026-06-07 re-audit.**
+
+### 2026-06-07 — P2 #16 (RLS column-pinning on media_posts + messages)
+
+Closed the two RLS `UPDATE` column-pinning gaps with `BEFORE UPDATE` guard
+triggers (RLS WITH CHECK can't reference the OLD row). Both triggers are
+SECURITY INVOKER + `search_path = ''`; the legitimate writers were mapped from
+the aggregate + handlers first so no real flow breaks.
+
+| Item                  | Status                  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **media_posts** guard | ✅ Fixed (deploy-gated) | [20260922000000](../../supabase/migrations/20260922000000_media_posts_guard_privileged_columns.sql) — rejects, for a direct anon/authenticated non-host write: `featured` false→true (self-feature, bypassing the host-gated `feature_event_stream` RPC), `status`→'active' (resurrecting a reported/hidden post), and `report_count` edits. Allows the submitter's content edits, `remove()`→'removed', and the harmless `featured` true→false side-effect of remove/end-stream. Host/admin and SECURITY DEFINER/`service_role` paths bypass. |
+| **messages** guard    | ✅ Fixed (deploy-gated) | [20260922000100](../../supabase/migrations/20260922000100_messages_guard_privileged_columns.sql) — rejects `conversation_id`/`sender_id` mutation (immutable; closes cross-room injection), clearing `deleted_at` (soft-delete is one-way; closes moderator-removal resurrection), and `report_count` edits. The sender-edit / soft-delete / `messages_after_report` paths are unaffected.                                                                                                                                                     |
+
+No TypeScript, app-code, or generated-types change (no schema/column change).
+`media_posts_insert` left open by design (community posting is allowed; the
+escalation it enabled is closed by the featured guard). Verified
+`pnpm typecheck && lint && test && build` green (SQL-only ⇒ full turbo cache).
+**Deploy-gated** — CI applies the migrations on deploy; can't verify locally per
+the repo's no-local-Docker policy, so correctness is established by reasoning
+(documented in each migration preamble). A future pgTAP/e2e check (submitter
+cannot self-feature; sender cannot move a message across conversations) would pin
+it executably.
+
+### 2026-06-07 — P1 #12 + P1 #15 + P2 #13 (authz + cron hardening)
+
+Three findings from the same-day re-audit, fixed in one bundle.
+
+| Item                                           | Status   | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **P1 #12** — co-host / division authz bypass   | ✅ Fixed | `assertCanManage(eventId)` added to both [co-host-actions.ts](../../apps/web/src/app/events/[id]/co-host-actions.ts) and [division-actions.ts](../../apps/web/src/app/events/[id]/division-actions.ts) — gates on `GetEventDetailQuery.canManage` (host / co-host / group-owner-or-admin) before the admin-backed handler runs. The five handlers' false "authz lives at RLS" comments were corrected to point at the action-boundary gate. Co-host gate throws `UnauthorizedError` (→ existing `?cohost=unauthorized` flash); division gate redirects to `?rsvp=forbidden` (mirrors `record-division-winner-actions.ts`). |
+| **P1 #15** — unauthenticated event-detail leak | ✅ Fixed | Deleted the unreferenced `api/events/[id]/route.ts`. `GetEventByIdHandler` is now route-less but still wired + ungated — flagged not to re-expose without a viewer gate.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **P2 #13** — cron fail-open                    | ✅ Fixed | New shared [`isCronAuthorized`](../../apps/web/src/lib/cron-auth.ts) — **fails closed in production** (unset `CRON_SECRET` ⇒ only non-prod runs unauthenticated) + constant-time compare. Wired into all 7 routes: `worker`, `reminders`, `league-reminders`, `outbox-purge`, `account/execute-deletions`, `community-listings/auto-approve`, `badges/reconcile`. New test [cron-auth.test.ts](../../apps/web/src/lib/cron-auth.test.ts) (5 cases incl. fail-closed-in-prod).                                                                                                                                              |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(268 web tests pass; lint 0 errors). Deleting the route left a stale
+`.next/types` validator → cleared `apps/web/.next` and rebuilt to regenerate.
+
+**Still open from the 2026-06-07 re-audit:** **P2 #16** (RLS `UPDATE`
+column-pinning on `media_posts` + `messages` — needs `BEFORE UPDATE` trigger
+migrations, deferred) and **P3 #17** (`/api/sentry-test` public — one-line
+`NODE_ENV` gate or delete).
+
 ### 2026-06-04 — scoped event-detail visibility gate (P1 #14)
 
-| Item                | Status                  | Notes                                                                                                                                                                                                                  |
-| ------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Logged-in read gate | ✅ fixed (deploy-gated) | `loadEventDetail` runs a user-scoped existence check on the RLS-protected base `events` table before returning; a viewer who can't `SELECT` the row → `notFound()`. Delegates to the canonical `events_select` policy. |
-| Anon read gate      | ✅ fixed (deploy-gated) | `loadEventDetail` gates the cacheable anon path with a static `published && (public \| invite_only)` check (anon has no friend edges).                                                                                 |
-| Metadata gate       | ✅ fixed (deploy-gated) | `generateMetadata` emits a generic, noindex title for non-anon-visible events so scoped titles don't leak in `<head>`/og.                                                                                              |
-| Spectator pages     | ⏳ open                 | `getBracketMeta` (bracket/schedule/watch) still reads admin-side with no gate — scoped tournament metadata leaks. Deferred (intended-shareable surfaces).                                                              |
+| Item                | Status                  | Notes                                                                                                                                                                                                                                                                                    |
+| ------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Logged-in read gate | ✅ fixed (deploy-gated) | `loadEventDetail` runs a user-scoped existence check on the RLS-protected base `events` table before returning; a viewer who can't `SELECT` the row → `notFound()`. Delegates to the canonical `events_select` policy.                                                                   |
+| Anon read gate      | ✅ fixed (deploy-gated) | `loadEventDetail` gates the cacheable anon path with a static `published && (public \| invite_only)` check (anon has no friend edges).                                                                                                                                                   |
+| Metadata gate       | ✅ fixed (deploy-gated) | `generateMetadata` emits a generic, noindex title for non-anon-visible events so scoped titles don't leak in `<head>`/og.                                                                                                                                                                |
+| Spectator pages     | ✅ fixed 2026-06-07     | `getBracketMeta` (bracket/schedule/watch) page bodies + both `generateMetadata`s + the bracket-watch OG image now gate via `assertEventVisibleOrNotFound` / `isEventPubliclyVisible`. See the [2026-06-07 spectator entry](#2026-06-07--p1-14-spectator-follow-up-bracketschedulewatch). |
 
 Regression coverage: `apps/web/tests/e2e/persona-olivia-social.authed.spec.ts`
 (asserts a `friends_of_host` event is hidden from a non-friend). Deploy-gated —
@@ -593,7 +1074,7 @@ the e2e goes green once the fix ships to dev. See
 
 Verified after landing: `pnpm --filter @pickupvb/web build` ✅ (validates the
 header config + route type generation). Full narrative:
-[journal](../journal/2026-05-31-csp-media-embeds.md).
+[journal](../journal/2026-05-digest.md#csp-media-embeds).
 
 ### 2026-12-04 — Captain-RLS on match-result writes (P2 #4 follow-on)
 
@@ -630,7 +1111,7 @@ Stripe webhook handlers and the host-gated bracket/league operations keep
 the admin client (correct — webhooks run session-less; host ops are
 app-layer-authorized). `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 green. Full narrative:
-[journal](../journal/2026-12-04-bundle-captain-rls-match-result.md).
+[journal](../journal/2026-05-digest.md#bundle-captain-rls-match-result).
 
 ### 2026-05-23 — Bundle 53: Security P3 audit-text closure (#9, #10, #11)
 
@@ -679,7 +1160,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 | `signupAsGuest` gated               | ✅ Done | [apps/web/src/app/events/%5Bid%5D/guest-actions.ts](../../apps/web/src/app/events/%5Bid%5D/guest-actions.ts) — same limits, only when an email is supplied (the abuse vector for P2 #6).                                                                                                                                                               |
 | `startGuestTicketCheckout` gated    | ✅ Done | [apps/web/src/app/events/%5Bid%5D/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts) — same limits; `backWithError(eventId, 'rate_limited', …)` flash to surface the error.                                                                                                                                              |
 | `rate_limited` banner               | ✅ Done | [apps/web/src/lib/event-rsvp-flash.ts](../../apps/web/src/lib/event-rsvp-flash.ts) — new `rate_limited` entry, `error` tone.                                                                                                                                                                                                                           |
-| `api/notifications/worker/route.ts` | ⏭ Skip | Listed by the audit but cron-only and `CRON_SECRET`-guarded. No user-driven abuse surface; per-IP / per-email keys would be meaningless. Documented in the [Bundle 16 journal](../journal/2026-05-24-bundle-16.md).                                                                                                                                    |
+| `api/notifications/worker/route.ts` | ⏭ Skip | Listed by the audit but cron-only and `CRON_SECRET`-guarded. No user-driven abuse surface; per-IP / per-email keys would be meaningless. Documented in the [Bundle 16 journal](../journal/2026-05-digest.md#bundle-16).                                                                                                                                |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
@@ -699,11 +1180,11 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 
 ### 2026-05-22 — Bundle 27: CSP enforcement (P2 #3a)
 
-| Item                                     | Status  | Notes                                                                                                                                                                                                                                                                                                                                                             |
-| ---------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Swap header to `Content-Security-Policy` | ✅ Done | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) — single one-line swap from `Content-Security-Policy-Report-Only`. Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24); no policy changes. Browsers now block any script / style / connect / img / frame / font / worker target that isn't on the allowlist.                    |
-| Comment refresh                          | ✅ Done | Updated the inline policy-rationale comment in `next.config.mjs` to reflect enforcement mode and re-pointed the nonce follow-up at the new **P2 #3b** entry.                                                                                                                                                                                                      |
-| Nonce-based hardening                    | 🔴 Open | `'unsafe-inline'` is still required on `script-src` (JSON-LD `<script type="application/ld+json">` in [layout.tsx](../../apps/web/src/app/layout.tsx) + [event-jsonld.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-jsonld.tsx)) and `style-src` (Tailwind utility classes). Tracked as **P2 #3b** — requires nonce threading through middleware. |
+| Item                                     | Status                           | Notes                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Swap header to `Content-Security-Policy` | ✅ Done                          | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) — single one-line swap from `Content-Security-Policy-Report-Only`. Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24); no policy changes. Browsers now block any script / style / connect / img / frame / font / worker target that isn't on the allowlist. |
+| Comment refresh                          | ✅ Done                          | Updated the inline policy-rationale comment in `next.config.mjs` to reflect enforcement mode and re-pointed the nonce follow-up at the new **P2 #3b** entry.                                                                                                                                                                                   |
+| Nonce-based hardening                    | 🟡 Wontfix (assessed 2026-06-07) | `'unsafe-inline'` stays on `script-src` (dynamic JSON-LD, can't be hashed; a nonce forces site-wide dynamic rendering) + `style-src` (inline `style` attributes + Leaflet/Radix can't carry a nonce). Full cost/benefit + re-open triggers in **[P2 #3b](#3b-nonce-based-csp-hardening-drop-unsafe-inline)**.                                  |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
@@ -733,9 +1214,9 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 
 ### 2026-05-22 — Bundle 2: postcss override
 
-| Item                             | Status  | Notes                                                                                                                                                                                            |
-| -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| P2 transitive `postcss` advisory | ✅ Done | Added `pnpm.overrides.postcss: ">=8.5.10"` to root `package.json`. `pnpm install`; `pnpm audit --prod` now reports 0 vulnerabilities. See [Bundle 2 journal](../journal/2026-05-22-bundle-2.md). |
+| Item                             | Status  | Notes                                                                                                                                                                                                |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2 transitive `postcss` advisory | ✅ Done | Added `pnpm.overrides.postcss: ">=8.5.10"` to root `package.json`. `pnpm install`; `pnpm audit --prod` now reports 0 vulnerabilities. See [Bundle 2 journal](../journal/2026-05-digest.md#bundle-2). |
 
 ### 2026-05-22 — Quick-win bundle landed
 

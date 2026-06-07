@@ -16,7 +16,7 @@ export default async function NewCommunityListingPage() {
   return (
     <section className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-1">
-        <h1 className="text-3xl font-bold">Submit a community listing</h1>
+        <h1 className="text-headline-lg font-bold">Submit a community listing</h1>
         <p className="text-muted text-sm">
           Share a volleyball event from Facebook, Meetup, or anywhere else on the web. Your listing
           links out to the original source — players RSVP there.

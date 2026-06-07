@@ -40,4 +40,4 @@ export const fieldInputClass =
 export const fieldHintClass = 'mt-1 text-xs text-muted';
 
 /** Inline error copy under a field (pair with `FieldError` for the a11y wiring). */
-export const fieldErrorClass = 'mt-1 text-xs text-red-600';
+export const fieldErrorClass = 'mt-1 text-xs text-md-error';

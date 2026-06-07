@@ -35,6 +35,10 @@ export interface ProfileDetailsEdit {
   socialHandles: ProfileSocialHandles;
   autoAcceptTeamInvites: boolean;
   showProBadge: boolean;
+  /** Opt into discovery (the /players directory, name search, and being added
+   * to someone else's team/group). `false` makes the player private — still
+   * able to join events and create their own team. */
+  discoverable: boolean;
 }
 
 /** Buyer-side business fields rendered on printable receipts. */
@@ -92,6 +96,7 @@ export class UserProfile extends AggregateRoot<UserId> {
     private _socialHandles: ProfileSocialHandles,
     private _autoAcceptTeamInvites: boolean,
     private _showProBadge: boolean,
+    private _discoverable: boolean,
     private _themePreference: string,
     private _heroImageUrl: string | null,
     private _avatarUrl: string | null,
@@ -131,6 +136,7 @@ export class UserProfile extends AggregateRoot<UserId> {
       emptySocialHandles(),
       false,
       false,
+      true,
       'light',
       null,
       null,
@@ -157,6 +163,7 @@ export class UserProfile extends AggregateRoot<UserId> {
     socialHandles: ProfileSocialHandles;
     autoAcceptTeamInvites: boolean;
     showProBadge: boolean;
+    discoverable: boolean;
     themePreference: string;
     heroImageUrl: string | null;
     avatarUrl: string | null;
@@ -173,6 +180,7 @@ export class UserProfile extends AggregateRoot<UserId> {
       { ...props.socialHandles },
       props.autoAcceptTeamInvites,
       props.showProBadge,
+      props.discoverable,
       props.themePreference,
       props.heroImageUrl,
       props.avatarUrl,
@@ -208,6 +216,9 @@ export class UserProfile extends AggregateRoot<UserId> {
   get showProBadge(): boolean {
     return this._showProBadge;
   }
+  get discoverable(): boolean {
+    return this._discoverable;
+  }
   get themePreference(): string {
     return this._themePreference;
   }
@@ -240,6 +251,7 @@ export class UserProfile extends AggregateRoot<UserId> {
     this._socialHandles = { ...edit.socialHandles };
     this._autoAcceptTeamInvites = edit.autoAcceptTeamInvites;
     this._showProBadge = edit.showProBadge;
+    this._discoverable = edit.discoverable;
   }
 
   /**

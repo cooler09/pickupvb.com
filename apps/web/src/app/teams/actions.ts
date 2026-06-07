@@ -69,17 +69,27 @@ export async function addMemberFromForm(
   if (!userId) return;
   const { supabase, user } = await requireSession(returnPath);
 
-  // Look up the invitee's auto-accept preference. This column is owner-only
-  // (not in profiles_public) so we use the admin client to read it.
+  // Look up the invitee's auto-accept + discoverability preferences. These
+  // columns are owner-only (not exposed for filtering here) so we use the admin
+  // client to read them.
   const admin = createSupabaseAdminClient();
   const { data: pref } = await admin
     .from('profiles')
-    .select('auto_accept_team_invites')
+    .select('auto_accept_team_invites, discoverable')
     .eq('id', userId)
     .maybeSingle();
-  const autoAccept = Boolean(
-    (pref as { auto_accept_team_invites: boolean | null } | null)?.auto_accept_team_invites,
-  );
+  const prefRow = pref as {
+    auto_accept_team_invites: boolean | null;
+    discoverable: boolean | null;
+  } | null;
+
+  // Private players (`discoverable = false`) opted out of being added to other
+  // people's teams. They're already hidden from the picker; this is the hard
+  // guarantee against a direct/stale user id. Swallow like the typed-error
+  // branches below — the page re-renders without the member added.
+  if (prefRow?.discoverable === false) return;
+
+  const autoAccept = Boolean(prefRow?.auto_accept_team_invites);
 
   try {
     await handlers.addTeamMember.execute(

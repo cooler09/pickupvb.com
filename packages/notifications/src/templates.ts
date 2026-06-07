@@ -298,6 +298,19 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'View event',
     ),
   }),
+  'community.listing.auto_hidden': (p) => ({
+    subject: `Your community listing was hidden: ${p.listingTitle}`,
+    text: `Your community listing "${p.listingTitle}" was hidden after ${p.reportCount} report${p.reportCount === 1 ? '' : 's'} from other users, so it's no longer visible to the public. If you think that's a mistake, review and unhide it: ${APP_URL}/community/${p.listingSlug}`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">Your listing was hidden</h2>
+             <p>Your community listing <strong>${escapeHtml(p.listingTitle)}</strong> was hidden after
+             <strong>${p.reportCount}</strong> report${p.reportCount === 1 ? '' : 's'} from other users, so
+             it's no longer visible to the public.</p>
+             <p>If you think that's a mistake, review the listing and unhide it.</p>`,
+      `${APP_URL}/community/${p.listingSlug}`,
+      'Review listing',
+    ),
+  }),
   'account.deletion.requested': (p) => ({
     subject: 'Your PickupVB account is scheduled for deletion',
     text: `Your PickupVB account is scheduled to be permanently deleted on ${formatDate(p.scheduledFor)}. If you didn't request this — or change your mind — you can cancel any time before then from your profile.`,
@@ -381,6 +394,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   }),
   'community.claim.approved': (p) => ({
     body: `PickupVB: your claim on "${p.listingTitle}" was approved. ${APP_URL}/community/${p.listingSlug}`,
+  }),
+  'community.listing.auto_hidden': (p) => ({
+    body: `PickupVB: your listing "${p.listingTitle}" was hidden after ${p.reportCount} reports. Review or unhide: ${APP_URL}/community/${p.listingSlug}`,
   }),
   'account.deletion.requested': (p) => ({
     body: `PickupVB: Your account is scheduled for deletion on ${formatDate(p.scheduledFor)}. Cancel before then: ${APP_URL}/profile/account/delete`,
@@ -483,6 +499,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
   'community.claim.approved': (p) => ({
     title: 'Your listing claim was approved',
     body: `"${p.listingTitle}" now points to your event`,
+    href: `/community/${p.listingSlug}`,
+  }),
+  'community.listing.auto_hidden': (p) => ({
+    title: 'Your listing was hidden',
+    body: `"${p.listingTitle}" was hidden after ${p.reportCount} report${p.reportCount === 1 ? '' : 's'} — review or unhide it`,
     href: `/community/${p.listingSlug}`,
   }),
   'account.deletion.requested': (p) => ({

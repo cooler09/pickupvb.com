@@ -36,7 +36,7 @@ export function MyVideosSection({ items }: { items: MediaPostItem[] }) {
               <form action={removeProfileMediaFromForm.bind(null, item.id)}>
                 <button
                   type="submit"
-                  className="border-border-base hover:bg-fg/5 rounded-md border px-2.5 py-1 text-xs font-medium text-red-600"
+                  className="border-border-base hover:bg-fg/5 text-md-error rounded-md border px-2.5 py-1 text-xs font-medium"
                 >
                   Remove
                 </button>

@@ -68,7 +68,7 @@ export default async function PricingPage() {
   return (
     <section className="space-y-10">
       <header className="mx-auto max-w-2xl space-y-3 text-center">
-        <h1 className="text-4xl font-bold">Simple, host-friendly pricing</h1>
+        <h1 className="text-display-sm font-bold">Simple, host-friendly pricing</h1>
         <p className="text-muted">
           PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events,
           half the platform fee, templates, analytics, and the full host toolkit.
@@ -79,10 +79,10 @@ export default async function PricingPage() {
         {/* ---- Free tier ---- */}
         <article className="border-border-base bg-surface rounded-shape-sm flex flex-col gap-4 border p-6">
           <div>
-            <h2 className="text-xl font-semibold">Free</h2>
+            <h2 className="text-title-lg font-semibold">Free</h2>
             <p className="text-muted mt-1 text-sm">For casual hosts and free pickups.</p>
           </div>
-          <p className="text-4xl font-bold">
+          <p className="text-display-sm font-bold">
             $0<span className="text-muted ml-1 text-base font-normal">/forever</span>
           </p>
           <ul className="space-y-2 text-sm">
@@ -105,7 +105,7 @@ export default async function PricingPage() {
         {/* ---- Pro tier ---- */}
         <article className="border-primary bg-surface rounded-shape-sm flex flex-col gap-4 border-2 p-6 shadow-sm">
           <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-xl font-semibold">Pro Host</h2>
+            <h2 className="text-title-lg font-semibold">Pro Host</h2>
             <span className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase">
               Recommended
             </span>
@@ -114,7 +114,7 @@ export default async function PricingPage() {
             For organizers who run paid leagues, clinics, or ticketed tournaments.
           </p>
           <div className="flex items-baseline gap-3">
-            <p className="text-4xl font-bold">
+            <p className="text-display-sm font-bold">
               ${PRO_MONTHLY_PRICE_USD}
               <span className="text-muted ml-1 text-base font-normal">/mo</span>
             </p>
@@ -163,7 +163,7 @@ export default async function PricingPage() {
                 >
                   Manage subscription ↗
                 </OpenInNewTabButton>
-                <p className="text-center text-xs text-emerald-700">
+                <p className="text-md-success text-center text-xs">
                   You&apos;re on Pro — thanks for supporting PickupVB.
                 </p>
               </>
@@ -194,7 +194,7 @@ export default async function PricingPage() {
 
       {/* ---- Side-by-side comparison ---- */}
       <section className="space-y-3">
-        <h2 className="text-2xl font-semibold">Compare tiers</h2>
+        <h2 className="text-headline-sm font-semibold">Compare tiers</h2>
         <div className="border-border-base rounded-shape-sm overflow-x-auto border">
           <table className="w-full text-sm">
             <thead className="bg-fg/5 text-left">
@@ -241,7 +241,7 @@ export default async function PricingPage() {
 
       {/* ---- FAQ ---- */}
       <section className="space-y-4">
-        <h2 className="text-2xl font-semibold">FAQ</h2>
+        <h2 className="text-headline-sm font-semibold">FAQ</h2>
         <Faq
           q="Do I need to pay to host free events?"
           a="No. Free events have no platform fee and no subscription required. You also get co-hosts, group pages, waitlists, broadcasts, and check-in tools at no cost."

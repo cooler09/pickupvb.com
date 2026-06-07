@@ -123,7 +123,7 @@ export default async function SchedulerPage(props: {
         <p className="text-primary text-xs font-semibold tracking-wide uppercase">
           Host tool · Free
         </p>
-        <h1 className="text-3xl font-bold">Round-robin scheduler</h1>
+        <h1 className="text-headline-lg font-bold">Round-robin scheduler</h1>
         <p className="text-muted text-sm">
           Paste your teams and get a full round-robin schedule — everyone plays everyone once,
           spread across your courts. Updates live as you type. Nothing is saved.
@@ -143,7 +143,7 @@ export default async function SchedulerPage(props: {
       </div>
 
       <div className="space-y-4">
-        <h2 className="text-fg text-xl font-semibold">FAQ</h2>
+        <h2 className="text-fg text-title-lg font-semibold">FAQ</h2>
         <dl className="space-y-3">
           {faqs.map((f) => (
             <div key={f.q} className="border-border-base rounded-md border p-3">
