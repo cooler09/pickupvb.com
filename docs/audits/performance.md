@@ -1057,11 +1057,17 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 (typecheck 15/15; lint 0 errors, pre-existing warnings only; test 547 domain +
 145 application + 262 web; build 8/8).
 
-**Follow-up surfaced:** auto-hide (3 reports → `hidden`) is a DB trigger with
-**no notification** to the submitter — the `/community` recovery strip is the
-only signal. A submitter notification on auto-hide would be the durable fix and
-would let the recovery strip become optional. Not a perf item — filed here for
-visibility; belongs in the moderation/notifications backlog.
+**Follow-up surfaced — ✅ implemented 2026-06-07:** auto-hide (3 reports →
+`hidden`) was a DB trigger with **no notification** to the submitter — the
+`/community` recovery strip was the only signal. Now closed: a new
+`community.listing.auto_hidden` notification (transactional, email + bell) pings
+the submitter when their listing crosses the threshold, deep-linked to
+review/unhide. The report handler returns `{ autoHidden }` (detected via a
+post-report status re-read) and the report action fires
+`notifyListingAutoHidden` only on the transition. See the
+[auto-hide notification journal](../journal/2026-06-07-bundle-community-auto-hide-notification.md).
+(The recovery strip stays as the in-list affordance; the notification is the
+push signal.)
 
 See the [journal](../journal/2026-06-07-bundle-community-listing-isr.md) for the
 cookie-vs-searchParams cacheability calibration and the recovery-island decision.

@@ -39,6 +39,56 @@ DB inspection.
   underlying member table, which exposes `email` and `user_id` to any
   authenticated client regardless of what the React layer renders.
 
+## 2026-06-07 re-audit — status update (post-audit feature sweep)
+
+Re-ran the privacy review focused on everything shipped **after** the 2026-05-31
+re-audit (migrations `20260901000000` → `20260919000000` — profiles geo, badges,
+walk-in roster teams on leagues, the capacity waitlist, room-message fan-out,
+media posts/votes, broadcast notifications, save-event/bracket RPCs). The
+2026-05-31 posture is intact; the new features mostly land sound RLS, but the
+sweep surfaced **four new findings** (one P1, one P2, two P3).
+
+- **#16 (P1, data leak) — walk-in captain phone is REST-readable.** The
+  account-less walk-in/ad-hoc team feature stores a freeform `captain_phone` on
+  `event_team_entries`, whose SELECT policy is `using (deleted_at is null)` —
+  i.e. every live row is readable by **anon + authenticated** via the REST API.
+  The rendered event page is safe (the loader only surfaces `captain_phone` in
+  the host projection), but a direct `GET
+/rest/v1/event_team_entries?select=name,captain_phone&captain_phone=not.is.null`
+  with the public anon key bulk-harvests every walk-in captain's phone number —
+  non-consenting third parties entered by hosts. **Exactly the P1 #5 mechanism**
+  (the ad-hoc `event_team_registration_members.email` leak), which we fixed for
+  the members table but the captain-phone column on the _entries_ table was
+  never tightened. See #16.
+- **#17 (P2, location exposure) — `profiles_public` publishes raw player
+  coordinates to anon.** `20260901000000_profiles_geo.sql` added
+  `latitude`/`longitude` (geocoded from the free-text `home_city`) and surfaced
+  them on the anon-readable `profiles_public` view at full geocoder precision,
+  with no rounding/fuzzing and no separate opt-out. City-typed input is harmless
+  (centroid), but the field accepts a full street address → rooftop precision,
+  published to the whole internet and bulk-queryable. See #17.
+- **#18 (P3, export completeness) — new tables absent from the GDPR export.**
+  `GET /api/account/export` predates several user-data tables and was never
+  extended: `media_posts` (the user's submitted clips — clearly portable
+  content), `media_post_votes`, `media_post_reports`, `user_badges`, and
+  `event_waitlist` are all missing. See #18.
+- **#19 (P3, retention) — `media_post_reports.reason` is freeform with no
+  purge.** Same class as the resolved P2 #8 (`community_listing_reports`): a
+  reporter's free text + `reporter_user_id` accumulate forever with no template
+  dropdown and no purge cron. See #19.
+
+**Verified sound (no change needed):** `user_badges` (owner-only base SELECT +
+definer `user_badges_public` view filtering `hidden` + `deleted_at`),
+`media_post_votes` (own-ballot-only SELECT + aggregate-only `media_post_vote_counts`
+view with no voter ids), `event_waitlist` RLS (self-or-host), `list_room_recipients`
+(SECURITY DEFINER, `service_role`-only, mirrors `can_access_conversation`),
+`broadcast_notification` (per-recipient `realtime.messages` topic RLS),
+`event_badge_access` (admin/webhook-only Stripe mirror, `purchased_by_user_id`
+SET NULL). Account **deletion** covers the new tables via FK CASCADE to
+`profiles` (`media_posts`, `media_post_votes`, `user_badges`, `event_waitlist`);
+the gap is **export**, not deletion (#18). `media_posts` stores external
+`https://` URLs only (no uploads) — no storage-orphan retention gap.
+
 ## 2026-05-31 re-audit — status update
 
 Re-ran the privacy review against the current tree. **Compliance posture from
@@ -287,6 +337,157 @@ read `email` directly via the Supabase JS client.
 Until step 2 ships, the leak surface is narrower (anyone calling the
 Supabase REST API directly with an anon key, not anyone loading the
 event page) but it's still a real exposure.
+
+### 16. Walk-in captain phone is REST-readable on `event_team_entries` (PII leak)
+
+**Files:**
+
+- [supabase/migrations/20260731000000_collapse_team_registration_tables.sql#L104-L107](../../supabase/migrations/20260731000000_collapse_team_registration_tables.sql#L104-L107)
+  — `captain_phone text` lives on `event_team_entries`.
+- [supabase/migrations/20260731000000_collapse_team_registration_tables.sql#L386-L388](../../supabase/migrations/20260731000000_collapse_team_registration_tables.sql#L386-L388)
+  — `event_team_entries_select … using (deleted_at is null)` (the whole live row,
+  including `captain_phone`, is readable by every role).
+- [apps/web/src/app/events/[id]/walk-in-team-actions.ts#L100-L118](../../apps/web/src/app/events/[id]/walk-in-team-actions.ts#L100-L118)
+  — the host types the account-less captain's phone here.
+
+**Category:** PII leak via public read path
+**Status:** open (filed 2026-06-07)
+
+The walk-in / host-added team feature (ADR 0017 → ADR 0033, generalized to
+roster/league divisions in `20260909000000`) lets a host register a team that
+paid off-platform, capturing the captain's **phone number** as a freeform
+`captain_phone`. That column lives on `event_team_entries`, whose SELECT policy
+is `using (deleted_at is null)` — permissive for **anon + authenticated** (the
+default Supabase table grants apply). So a direct REST call with the public anon
+key:
+
+```
+GET /rest/v1/event_team_entries?select=name,captain_phone&captain_phone=not.is.null
+```
+
+returns every live walk-in captain's name + phone across all events — a bulk PII
+harvest of non-consenting third parties (the captain never signed up or accepted
+a privacy policy; the host entered their number).
+
+The **rendered page is safe**: `loadAdHocPublicRowsCached` reads only safe
+columns on the admin client, and the loader surfaces `captain_phone` only in the
+host (`hostRows`) projection
+([load-event-detail.ts#L579-L610](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L579-L610)).
+The exposure is the **table-level RLS**, exactly the residual P1 #5 fixed for the
+ad-hoc _members_ table (`event_team_registration_members.email`) — we tightened
+the members base SELECT + added a narrow public view, but the **entries** table
+kept `using (deleted_at is null)` and that's where `captain_phone` sits.
+
+**Recommended fix (cleanest, no app churn):** a column-level GRANT revoke — keep
+the permissive row policy (lots of user-scoped reads of `event_team_entries`
+rely on it for `name`/`source`/`display_name`), but stop exposing the phone
+column to public roles:
+
+```sql
+-- captain_phone is host-only PII; the host read goes through the admin client
+-- (loadAdHocRowsCached), so revoking the column grant breaks no app path.
+revoke select on public.event_team_entries from anon, authenticated;
+grant  select (id, division_id, source, team_id, captain_id,
+               captain_display_name, name, registered_at, deleted_at,
+               created_at, updated_at)
+  on public.event_team_entries to anon, authenticated;
+```
+
+`captain_display_name` stays public (it's the roster name the page renders);
+`captain_phone` is simply not selectable by anon/authenticated. Verify the
+public roster loader (admin client) and any user-scoped `event_team_entries`
+reads (bracket/schedule/league) don't select `captain_phone` — they don't today.
+Add a follow-up migration (never edit `20260731000000`).
+
+### 17. `profiles_public` publishes raw player coordinates to anon (location exposure)
+
+**Files:**
+
+- [supabase/migrations/20260901000000_profiles_geo.sql#L34-L59](../../supabase/migrations/20260901000000_profiles_geo.sql#L34-L59)
+  — `latitude` / `longitude` added to the anon-readable `profiles_public` view at
+  full precision.
+- [apps/web/src/app/profile/actions.ts#L110-L121](../../apps/web/src/app/profile/actions.ts#L110-L121)
+  — geocodes the free-text `home_city` and writes the raw coords.
+
+**Category:** quasi-identifier / location exposure
+**Status:** open (filed 2026-06-07)
+
+`profiles_geo` (players "near me", PL-5) geocodes a profile's `home_city` to
+lat/lng and exposes both columns on `profiles_public`, which is granted to
+`anon, authenticated`. Two concerns:
+
+1. **Unbounded precision.** `home_city` is a free-text field (up to 120 chars).
+   A user who types just a city gets a harmless centroid, but the field accepts a
+   full street address, and MapTiler will geocode that to rooftop precision. That
+   precise home coordinate is then published to the entire internet.
+2. **Bulk-queryable, no opt-out.** Anyone with the anon key can enumerate
+   `profiles_public` and pull every player's coordinates — location profiling of
+   the whole user base. There's no toggle to display a city without publishing
+   coords, and the onboarding "complete your profile" rule encourages filling
+   `home_city`.
+
+A player's home coordinate is more sensitive than an event venue (which is
+intentionally public). The directory only needs ~metro proximity, so full
+precision buys nothing.
+
+**Recommended fix:** round the coordinates **in the view** so precision is
+bounded regardless of what the user typed — e.g. `round(latitude::numeric, 2)`
+(~1.1 km) — keeping full precision (if ever needed) on the owner-only base
+`profiles` row:
+
+```sql
+-- in the profiles_public rebuild
+round(latitude::numeric,  2) as latitude,
+round(longitude::numeric, 2) as longitude,
+```
+
+2-decimal rounding still drives the bounding-box "near me" filter + distance
+chip. Optionally add a `share_location` opt-out column gating whether coords are
+projected at all. Follow-up migration; rebuild `profiles_public` (DROP+CREATE,
+re-grant) per the existing pattern.
+
+### 18. New user-data tables are absent from the GDPR data export
+
+**File:** [apps/web/src/app/api/account/export/route.ts#L37-L158](../../apps/web/src/app/api/account/export/route.ts#L37-L158)
+**Category:** legal feature gap (Art. 20 portability)
+**Status:** open (filed 2026-06-07)
+
+The export (P3 #12) covers a fixed 15-category list and predates several tables
+that store the caller's own data:
+
+- `media_posts` (`submitter_user_id = uid`) — the user's submitted clips/streams
+  (title, description, `video_url`). User-generated **content** — the clearest
+  Art. 20 case of the four.
+- `media_post_votes` (`voter_user_id = uid`) — their ballots.
+- `media_post_reports` (`reporter_user_id = uid`) — their reports.
+- `user_badges` (`user_id = uid`) — earned achievements (read via the
+  `set_user_badge_hidden`-style owner SELECT policy).
+- `event_waitlist` (`user_id = uid`) — their queue entries.
+
+**Recommended fix:** add these as categories in the `Promise.all`, each filtered
+to `uid` on the user-scoped client (every one has an owner/self RLS read path, so
+the filter and policy agree — matching the existing pattern). `media_posts` and
+`event_waitlist` read cleanly under their own RLS; `user_badges` SELECT-own is
+owner-scoped. Keep the throw-on-partial guard so a missing category fails loudly.
+
+### 19. `media_post_reports.reason` is freeform with no purge
+
+**File:** [supabase/migrations/20260820000000_media_posts.sql#L67-L74](../../supabase/migrations/20260820000000_media_posts.sql#L67-L74)
+**Category:** user-supplied PII / retention
+**Status:** open (filed 2026-06-07)
+
+`media_post_reports.reason` is freeform text + `reporter_user_id`, retained
+indefinitely — the same shape as `community_listing_reports.reason`, which P2 #8
+resolved with a template dropdown + a 180-day purge. The media-report path has
+neither.
+
+**Recommended fix:** mirror the P2 #8 remediation — front the report form with a
+reason dropdown (spam, inappropriate, off-topic, broken link, other) so freeform
+is the exception, truncate to 500 chars at the boundary, and add a
+`media_post_reports` older-than-180-days delete to the existing daily maintenance
+cron in
+[api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts)
+(where the `community_listing_reports` purge already lives).
 
 ### 13. Owner-only `profiles` RLS broke display cards in chat + media (regression)
 
