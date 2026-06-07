@@ -111,7 +111,7 @@ export function ProfileQuickActions({ isHost }: { isHost: boolean }) {
 /** "Pending team invites" call-out (only when there are invites). */
 export function PendingInvitesSection({ invites }: { invites: Model['pendingInvites'] }) {
   return (
-    <section className="rounded-shape-sm space-y-3 border border-amber-500/40 bg-amber-500/5 p-5">
+    <section className="rounded-shape-sm border-md-warning/40 bg-md-warning/5 space-y-3 border p-5">
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-md-warning text-sm font-semibold tracking-wide uppercase">
           Pending team invites

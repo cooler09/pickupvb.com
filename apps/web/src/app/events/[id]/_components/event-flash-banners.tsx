@@ -20,11 +20,7 @@ export function EventFlashBanners({
           Share the link above or invite co-hosts so players can find your event.
         </Alert>
       )}
-      {tip === 'thanks' && (
-        <div className="rounded-shape-sm border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
-          Thanks for tipping the host!
-        </div>
-      )}
+      {tip === 'thanks' && <Alert variant="success">Thanks for tipping the host!</Alert>}
       {tip === 'cancel' && (
         <div className="border-border-base bg-surface rounded-shape-sm border p-3 text-sm">
           Tip cancelled.

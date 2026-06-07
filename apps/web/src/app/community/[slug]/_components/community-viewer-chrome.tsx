@@ -76,7 +76,7 @@ export function CommunityViewerAlerts() {
         <PendingClaimReview detail={detail} pendingClaim={pendingClaim} />
       )}
       {viewerIsClaimant && !detail.canManage && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="border-md-warning/30 bg-md-warning-container text-md-on-warning-container rounded-md border p-3 text-sm">
           Your claim is awaiting review by the original submitter or a platform admin. Until
           it&rsquo;s approved, the listing still links to the external page.
         </div>
@@ -128,7 +128,7 @@ export function CommunityRestrictedView() {
   return (
     <>
       {showHiddenWarning && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="border-md-warning/30 bg-md-warning-container text-md-on-warning-container rounded-md border p-3 text-sm">
           This listing is currently <strong>{detail.status}</strong> and not visible to the public.
           {detail.reportCount > 0 && (
             <>

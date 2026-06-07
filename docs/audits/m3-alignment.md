@@ -71,11 +71,14 @@
 > and its symmetric counterpart — the **inline success/warning text**
 > (`text-emerald-700` "saved" → `text-md-success`, `text-amber-700` labels →
 > `text-md-warning`, 12 files) — completing the inline semantic-text migration.
-> **Net: raw palette 555 → 277.** Pattern in [AGENTS.md #17](../../AGENTS.md).
-> **Open:** the app-wide surface migration (now unblocked — a visual-review
-> bundle) + bg-tinted status badges (the bulk of what's left) + hand-rolled
-> notice boxes (→ `<Alert>`) + decorative palette (scoreboard red/green are
-> _team_ colors). See the
+> **Net: raw palette 555 → 277.** Then the hand-rolled **warning/success notice
+> panels** (community claim/hidden, billing, edit-event locks, the Pro section,
+> the tip-thanks flash) → container roles (`bg-md-warning-container` / `*/5`
+> tints), **555 → 227.** Pattern in [AGENTS.md #17](../../AGENTS.md).
+> **Open — the visual-review remainder:** bg-tinted **status badges** (mixed
+> semantics + pale-pill-on-dark behavior), the **app-wide surface migration**,
+> and decorative palette (scoreboard red/green are _team_ colors). These want
+> eyes on the running app, not more blind recolors. See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
@@ -1212,6 +1215,46 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Hand-rolled notice boxes → warning/success container roles (2026-06-07)
+
+Eighth S2 step. Migrated the hand-rolled **warning / success notice panels**
+(the larger info boxes the `<Alert>` banner sweep didn't cover) off raw
+amber/emerald onto the container roles — consistent with the danger-panels
+treatment, and notices _should_ tone with the theme:
+
+- **amber warning panels** → `border-md-warning/30 bg-md-warning-container` +
+  `text-md-on-warning-container` (drop `dark:` forks):
+  [community-action-sections](../../apps/web/src/app/community/[slug]/_components/community-action-sections.tsx)
+  (pending-claim), [community-viewer-chrome](../../apps/web/src/app/community/[slug]/_components/community-viewer-chrome.tsx)
+  ×2 (claim-awaiting-review), [my-hidden-community-listings](../../apps/web/src/app/community/_components/my-hidden-community-listings.tsx),
+  [edit-event-form](../../apps/web/src/app/events/[id]/edit/edit-event-form.tsx)
+  ×2 (pricing/payment locked).
+- **emerald success panels** → `bg-md-success-container` /
+  `text-md-on-success-container`:
+  [billing/pro](../../apps/web/src/app/profile/billing/pro/page.tsx) ×2
+  (subscription-activating + the "Pro" section).
+- **subtle tints kept as tints** (not container): the `bg-amber-500/{5,10}`
+  boxes ([billing](../../apps/web/src/app/profile/billing/page.tsx) anon-payout,
+  [profile-hub](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx)
+  team-invites, [setup-view](../../apps/web/src/app/events/[id]/bracket/_components/setup-view.tsx)
+  seed-changes) → `bg-md-warning/{5,10}` + `text-md-warning`, preserving the
+  understated look. (Rule: solid `-50` → container; `/5`–`/10` tint → role-at-alpha.)
+- [event-flash-banners](../../apps/web/src/app/events/[id]/_components/event-flash-banners.tsx)
+  tip-thanks box → `<Alert variant="success">` (the file already used `<Alert>`
+  for its sibling flash).
+
+**Net: raw palette 277 → 227.** Confirmed the new alpha utilities
+(`bg-md-warning/5`, `bg-md-success-container/40`, …) emit via `color-mix`.
+**Still open — these are the visual-review remainder:** bg-tinted **status
+badges** (`bg-emerald-500/15`/`bg-amber-500/15`/`bg-red-500/10` paid/role/
+live-draft pills + subscription status maps in billing, members-section,
+signup-section, team-card, bracket/schedule, event-card waitlist/fundraiser) —
+mixed semantics (owner/fundraiser/draft aren't error/warning/success) and a
+dark-mode visual change (pale pills that pop on dark → theme-flipping
+containers), so they want eyes on the app; the **app-wide surface migration**;
+and decorative palette (scoreboard team red/green, violet "added-by-host" tag).
+Verify: 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
 
 ### Inline success/warning text → `text-md-success` / `text-md-warning` (2026-06-07)
 

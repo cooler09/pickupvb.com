@@ -92,9 +92,13 @@ transparent)` with a solid `rgb(var(...))` fallback rule — verified in the
   `text-amber-700` labels/counts → `text-md-warning`, 12 files) — via exact
   full-className subs (green/amber _shares_ shades with bg-badges, so no blanket
   codemod; only the 12 inline files changed, zero badges). **Net 305 → 277**;
-  inline semantic-text migration now complete (red+green+amber). See the
-  m3-alignment remediation log. Remaining: bg-tinted status badges (the bulk),
-  hand-rolled notice boxes (→ `<Alert>`) — each a per-surface recolor follow-up.
+  inline semantic-text migration now complete (red+green+amber). Then the
+  hand-rolled **warning/success notice panels** (community/billing/edit-event +
+  the tip-thanks flash → `<Alert>`) → container roles (`bg-md-warning-container`
+  / `*/5` tints). **Net 277 → 227.** See the m3-alignment remediation log. The
+  **remainder is visual-review** — bg-tinted status badges (mixed semantics +
+  pale-pill-on-dark behavior) + the app-wide surface migration — best done with
+  eyes on the running app, not more blind recolors.
 - **No palette ratchet yet** — raw red/amber/emerald can't reach zero
   (decorative/team uses remain), so the lint lock waits until a _fully
   migratable_ sub-bucket exists.

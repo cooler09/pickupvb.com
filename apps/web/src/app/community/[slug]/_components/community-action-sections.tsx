@@ -31,12 +31,12 @@ export function PendingClaimReview({
   pendingClaim: PendingClaim;
 }) {
   return (
-    <section className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+    <section className="border-md-warning/30 bg-md-warning-container space-y-3 rounded-md border p-4 text-sm">
       <div className="space-y-1">
-        <p className="font-semibold text-amber-900 dark:text-amber-100">
+        <p className="text-md-on-warning-container font-semibold">
           Pending claim — review required
         </p>
-        <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
+        <p className="text-md-on-warning-container/80 text-xs">
           <strong>{pendingClaim.claimantName}</strong> has claimed this listing and asked to link it
           to their PickupVB event:{' '}
           {pendingClaim.eventSlug ? (

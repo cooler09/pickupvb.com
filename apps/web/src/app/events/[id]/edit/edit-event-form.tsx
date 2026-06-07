@@ -302,7 +302,7 @@ export default function EditEventForm({
         <fieldset className="border-border-base space-y-3 rounded-md border p-4">
           <legend className="text-fg px-1 text-sm font-semibold">Pricing</legend>
           {pricingLocked && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            <div className="border-md-warning/30 bg-md-warning-container text-md-on-warning-container rounded-md border p-2 text-xs">
               Pricing is locked because at least one ticket has been sold. Refund all attendees
               first to change price, fee, or refund window.
             </div>
@@ -397,7 +397,7 @@ export default function EditEventForm({
         <fieldset className="border-border-base space-y-3 rounded-md border p-4">
           <legend className="text-fg px-1 text-sm font-semibold">Payment settings</legend>
           {pricingLocked && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            <div className="border-md-warning/30 bg-md-warning-container text-md-on-warning-container rounded-md border p-2 text-xs">
               Payment settings are locked because at least one ticket has been sold.
             </div>
           )}

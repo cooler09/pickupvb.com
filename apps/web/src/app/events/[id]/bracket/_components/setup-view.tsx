@@ -104,7 +104,7 @@ export function SetupView(props: {
       </div>
 
       {(newlyAdded.length > 0 || droppedSeedCount > 0) && (
-        <div className="rounded-shape-sm border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+        <div className="rounded-shape-sm border-md-warning/40 bg-md-warning/10 text-md-warning border p-3 text-xs">
           {newlyAdded.length > 0 && (
             <p>
               {newlyAdded.length} newly registered team

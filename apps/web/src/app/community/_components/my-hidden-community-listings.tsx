@@ -40,12 +40,10 @@ export function MyHiddenCommunityListings() {
   if (!listings || listings.length === 0) return null;
 
   return (
-    <section className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
+    <section className="border-md-warning/30 bg-md-warning-container space-y-3 rounded-md border p-4">
       <div className="space-y-1">
-        <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-          Your hidden listings
-        </h2>
-        <p className="text-xs text-amber-900/80 dark:text-amber-200/80">
+        <h2 className="text-md-on-warning-container text-sm font-semibold">Your hidden listings</h2>
+        <p className="text-md-on-warning-container/80 text-xs">
           These are hidden from everyone else — either you hid them, or they were auto-hidden after
           multiple reports. Open one to review or unhide it.
         </p>

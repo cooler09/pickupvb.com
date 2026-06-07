@@ -64,7 +64,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       )}
 
       {sp.status === 'success' && (
-        <div className="rounded-shape-sm border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800">
+        <div className="rounded-shape-sm border-md-success/30 bg-md-success-container text-md-on-success-container border p-4 text-sm">
           Thanks! Your subscription is being activated — it usually shows as active within a few
           seconds.
         </div>
@@ -122,7 +122,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       </section>
 
       {active && sub ? (
-        <section className="rounded-shape-sm space-y-4 border border-emerald-300 bg-emerald-50/40 p-6">
+        <section className="rounded-shape-sm border-md-success/30 bg-md-success-container/40 space-y-4 border p-6">
           <div className="flex items-baseline justify-between">
             <h2 className="text-title-lg font-semibold">Pro {sub.plan ? `(${sub.plan})` : ''}</h2>
             <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white uppercase">
