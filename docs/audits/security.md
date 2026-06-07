@@ -15,11 +15,14 @@ bypass) usage, RLS column-pinning, route auth. **Headline: 2 P1 (one a confirmed
 un-applied regression) + 1 P2 worsened + 1 P2 new + 1 P3 new.** Full write-up:
 [§ Reevaluation — 2026-06-07](#reevaluation--2026-06-07).
 
-> **✅ Remediated same day (2026-06-07):** the two P1s and the cron fail-open were
-> fixed and verified (`pnpm typecheck && lint && test && build` green) — see the
-> [2026-06-07 remediation entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening).
-> **Still open: P2 #16** (RLS column-pinning — needs migrations) and **P3 #17**
-> (`/api/sentry-test`). The bullets below describe the findings as-found.
+> **✅ Remediated (2026-06-07):** the two P1s + the cron fail-open (P2 #13) and the
+> RLS column-pinning gaps (P2 #16) are fixed and verified
+> (`pnpm typecheck && lint && test && build` green) — see the
+> [P1 bundle entry](#2026-06-07--p1-12--p1-15--p2-13-authz--cron-hardening) and the
+> [P2 #16 entry](#2026-06-07--p2-16-rls-column-pinning-on-media_posts--messages)
+> (the two trigger migrations are **deploy-gated** — CI applies them). **Still
+> open: P3 #17** (`/api/sentry-test`). The bullets below describe the findings
+> as-found.
 
 - **P1 #12 is STILL OPEN — the 2026-05-30 recommended fix was never applied.**
   Re-confirmed exploitable at HEAD: `addEventCoHost` / `add|update|removeEventDivision`
@@ -563,6 +566,23 @@ shape as the `persona-olivia-social` spec that caught P1 #14.
 
 ### P2 #16 — RLS `UPDATE` policies don't pin privileged columns (owner can self-escalate via direct PostgREST) 🆕 2026-06-07
 
+> **✅ Resolved 2026-06-07 (deploy-gated).** Added a `BEFORE UPDATE` guard trigger
+> on each table — [media_posts](../../supabase/migrations/20260922000000_media_posts_guard_privileged_columns.sql)
+> and [messages](../../supabase/migrations/20260922000100_messages_guard_privileged_columns.sql).
+> Both are SECURITY INVOKER so `current_user` reflects the real caller: the
+> trusted paths (SECURITY DEFINER functions running as the owner, and the
+> `service_role` admin client) bypass; the event host / platform admin bypass on
+> media_posts. A direct anon/authenticated write is then rejected for
+> `media_posts` (featured false→true, status→'active', report_count edits — while
+> still allowing the submitter's content edits, soft-remove, and the harmless
+> featured true→false from remove/end-stream) and for `messages`
+> (`conversation_id`/`sender_id` mutation, clearing `deleted_at`, report_count
+> edits). No app-code or generated-types change — the app already authorizes via
+> the handlers; this is the DB-level enforcement for direct-API callers.
+> `media_posts_insert` was intentionally left open (community posting is allowed;
+> the only escalation it enabled is closed by the featured guard). See the
+> [remediation entry](#2026-06-07--p2-16-rls-column-pinning-on-media_posts--messages).
+
 **Category:** Broken authorization / RLS column scoping
 **Files:**
 
@@ -861,6 +881,28 @@ The bigger items deserve their own PR each:
 ---
 
 ## Remediation log
+
+### 2026-06-07 — P2 #16 (RLS column-pinning on media_posts + messages)
+
+Closed the two RLS `UPDATE` column-pinning gaps with `BEFORE UPDATE` guard
+triggers (RLS WITH CHECK can't reference the OLD row). Both triggers are
+SECURITY INVOKER + `search_path = ''`; the legitimate writers were mapped from
+the aggregate + handlers first so no real flow breaks.
+
+| Item                  | Status                  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **media_posts** guard | ✅ Fixed (deploy-gated) | [20260922000000](../../supabase/migrations/20260922000000_media_posts_guard_privileged_columns.sql) — rejects, for a direct anon/authenticated non-host write: `featured` false→true (self-feature, bypassing the host-gated `feature_event_stream` RPC), `status`→'active' (resurrecting a reported/hidden post), and `report_count` edits. Allows the submitter's content edits, `remove()`→'removed', and the harmless `featured` true→false side-effect of remove/end-stream. Host/admin and SECURITY DEFINER/`service_role` paths bypass. |
+| **messages** guard    | ✅ Fixed (deploy-gated) | [20260922000100](../../supabase/migrations/20260922000100_messages_guard_privileged_columns.sql) — rejects `conversation_id`/`sender_id` mutation (immutable; closes cross-room injection), clearing `deleted_at` (soft-delete is one-way; closes moderator-removal resurrection), and `report_count` edits. The sender-edit / soft-delete / `messages_after_report` paths are unaffected.                                                                                                                                                     |
+
+No TypeScript, app-code, or generated-types change (no schema/column change).
+`media_posts_insert` left open by design (community posting is allowed; the
+escalation it enabled is closed by the featured guard). Verified
+`pnpm typecheck && lint && test && build` green (SQL-only ⇒ full turbo cache).
+**Deploy-gated** — CI applies the migrations on deploy; can't verify locally per
+the repo's no-local-Docker policy, so correctness is established by reasoning
+(documented in each migration preamble). A future pgTAP/e2e check (submitter
+cannot self-feature; sender cannot move a message across conversations) would pin
+it executably.
 
 ### 2026-06-07 — P1 #12 + P1 #15 + P2 #13 (authz + cron hardening)
 
