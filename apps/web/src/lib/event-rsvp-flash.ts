@@ -76,6 +76,14 @@ const BASE_BANNERS: Record<string, RsvpBanner> = {
     tone: 'error',
     text: "Stripe didn't respond — please try again in a moment.",
   },
+  refund_failed: {
+    tone: 'error',
+    text: "We couldn't process your refund automatically — your spot is still reserved. Please message the host to sort out the refund.",
+  },
+  refund_window_closed: {
+    tone: 'error',
+    text: 'The refund window just closed, so we kept your spot. Message the host if you need to cancel and get a refund.',
+  },
   rate_limited: {
     tone: 'error',
     text: 'Too many attempts. Please wait a few minutes and try again.',

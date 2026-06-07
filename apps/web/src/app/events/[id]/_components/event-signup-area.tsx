@@ -14,6 +14,7 @@ import { FreeAgentSignupPanel } from './free-agent-signup-panel';
 import { EventClosedState } from './event-closed-state';
 import type { EventDetailReadModel, EventPosition } from '@pickupvb/domain';
 import type { EventPricing } from '@/lib/event-pricing';
+import type { RefundBlockReason } from '@/lib/refund-eligibility';
 import type { ViewerPaymentStatus } from '../_loaders/load-event-detail';
 
 type Breakdown = {
@@ -33,6 +34,7 @@ export function EventSignupArea({
   breakdown,
   priceLabel,
   viewerPaymentStatus,
+  refundBlockReason,
   isRealUser,
   user,
   returnPath,
@@ -57,6 +59,8 @@ export function EventSignupArea({
   breakdown: Breakdown | null;
   priceLabel: string;
   viewerPaymentStatus: ViewerPaymentStatus | undefined;
+  /** Why the paid viewer can't be refunded in-app, or null if refundable. */
+  refundBlockReason: RefundBlockReason | null;
   isRealUser: boolean;
   user: { id: string } | null;
   returnPath: string;
@@ -146,6 +150,7 @@ export function EventSignupArea({
             processingFeeCents={breakdown.processingFeeCents}
             refundWindowHours={pricing!.refundWindowHours}
             paymentsOffPlatform={effectiveOffPlatform}
+            refundBlockReason={refundBlockReason}
             {...(viewerPaymentStatus ? { viewerPaymentStatus } : {})}
           />
         ) : event.positionRoster ? (
