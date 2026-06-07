@@ -498,7 +498,7 @@ function CaptainRegistrationCard({
                     returnPath,
                   )}
                 >
-                  <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+                  <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
                     Remove
                   </SubmitButton>
                 </form>
@@ -549,7 +549,7 @@ function CaptainRegistrationCard({
         )}
         {!isPaid && (
           <form action={withdrawAdHocTeamFromForm.bind(null, eventId, registration.id, returnPath)}>
-            <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+            <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
               Withdraw team
             </SubmitButton>
           </form>

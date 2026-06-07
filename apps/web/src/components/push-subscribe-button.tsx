@@ -185,7 +185,7 @@ export function PushSubscribeButton({ vapidPublicKey }: { vapidPublicKey: string
           {state === 'working' ? 'Working…' : 'Enable push on this device'}
         </button>
       )}
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      {error ? <p className="text-md-error text-xs">{error}</p> : null}
     </div>
   );
 }

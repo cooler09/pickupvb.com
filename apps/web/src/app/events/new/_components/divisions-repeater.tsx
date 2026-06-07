@@ -186,7 +186,7 @@ export default function DivisionsRepeater({
               <button
                 type="button"
                 onClick={() => remove(row.key)}
-                className="text-xs text-red-600 hover:underline"
+                className="text-md-error text-xs hover:underline"
               >
                 Remove
               </button>

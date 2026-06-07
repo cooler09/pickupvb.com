@@ -310,10 +310,7 @@ export function MatchRow(props: {
             </form>
 
             <form action={removeMatch.bind(null, eventId, divisionId, matchId, returnPath)}>
-              <button
-                type="submit"
-                className="text-xs text-red-600 hover:underline dark:text-red-400"
-              >
+              <button type="submit" className="text-md-error text-xs hover:underline">
                 Delete match
               </button>
             </form>

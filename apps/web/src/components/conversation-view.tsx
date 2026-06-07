@@ -505,7 +505,7 @@ export function ConversationView({
                         <button
                           type="button"
                           onClick={() => void remove(m.id)}
-                          className="text-muted text-xs hover:text-red-600"
+                          className="text-muted hover:text-md-error text-xs"
                         >
                           Delete
                         </button>
@@ -514,7 +514,7 @@ export function ConversationView({
                       <button
                         type="button"
                         onClick={() => void report(m.id)}
-                        className="text-muted text-xs hover:text-red-600"
+                        className="text-muted hover:text-md-error text-xs"
                       >
                         Report
                       </button>
@@ -606,7 +606,7 @@ export function ConversationView({
         </button>
       </form>
       {error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-md-error text-xs">
           {error}
         </p>
       )}

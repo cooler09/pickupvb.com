@@ -172,7 +172,7 @@ export function MediaCard({
 
         {item.canManage && (
           <form action={removeMediaFromForm.bind(null, eventId, item.id)}>
-            <button type="submit" className={`${actionButtonClass} text-red-600`}>
+            <button type="submit" className={`${actionButtonClass} text-md-error`}>
               Remove
             </button>
           </form>

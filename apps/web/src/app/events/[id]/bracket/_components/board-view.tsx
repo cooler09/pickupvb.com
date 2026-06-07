@@ -250,11 +250,11 @@ export function BoardView(props: {
           )}
           {props.isHost && props.status === 'active' && (
             <details className="text-xs">
-              <summary className="cursor-pointer rounded border border-red-500/40 px-2 py-1 text-red-600 hover:bg-red-500/10">
+              <summary className="border-md-error/40 text-md-error hover:bg-md-error/10 cursor-pointer rounded border px-2 py-1">
                 Reset bracket
               </summary>
-              <div className="mt-2 space-y-2 rounded border border-red-500/30 bg-red-500/5 p-2">
-                <p className="text-red-700 dark:text-red-300">
+              <div className="border-md-error/30 bg-md-error/5 mt-2 space-y-2 rounded border p-2">
+                <p className="text-md-error">
                   Returns the bracket to seeding so you can swap teams in or out, then re-generate.
                   Any entered match results will be discarded.
                 </p>

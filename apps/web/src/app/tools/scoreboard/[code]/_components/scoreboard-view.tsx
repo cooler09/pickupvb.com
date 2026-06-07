@@ -762,7 +762,7 @@ function BoundWinnerActions({
   }
   return (
     <div className="mt-6 flex flex-col items-center gap-3">
-      {error && <p className="max-w-xs text-xs text-red-600">{error}</p>}
+      {error && <p className="text-md-error max-w-xs text-xs">{error}</p>}
       <div className="flex justify-center gap-3">
         <button
           type="button"

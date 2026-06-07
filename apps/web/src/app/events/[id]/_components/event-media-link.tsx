@@ -28,7 +28,7 @@ export function EventMediaLink({
         </h2>
         <p className="text-muted text-xs">
           {liveCount > 0 && (
-            <span className="font-medium text-red-600">🔴 {liveCount} live now · </span>
+            <span className="text-md-error font-medium">🔴 {liveCount} live now · </span>
           )}
           {totalCount > 0
             ? 'Streams, match videos, and highlights.'

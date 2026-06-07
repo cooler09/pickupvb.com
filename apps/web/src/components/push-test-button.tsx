@@ -65,7 +65,7 @@ export function PushTestButton() {
         {working ? 'Sending…' : 'Send test notification'}
       </button>
       {msg ? (
-        <p className={`text-xs ${tone === 'ok' ? 'text-muted' : 'text-red-600'}`}>{msg}</p>
+        <p className={`text-xs ${tone === 'ok' ? 'text-muted' : 'text-md-error'}`}>{msg}</p>
       ) : null}
     </div>
   );

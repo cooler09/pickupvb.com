@@ -338,7 +338,7 @@ export function HostAdHocTeamsPanel({ eventId, returnPath, divisions, rows }: Pr
                         returnPath,
                       )}
                     >
-                      <SubmitButton className="rounded-md border border-red-300 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50">
+                      <SubmitButton className="border-md-error/40 text-md-error hover:bg-md-error/10 rounded-md border px-3 py-1 text-xs font-medium disabled:opacity-50">
                         Remove team
                       </SubmitButton>
                     </form>

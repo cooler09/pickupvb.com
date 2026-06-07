@@ -269,7 +269,7 @@ function DraftCard({
         <button
           type="button"
           onClick={onRemove}
-          className="text-muted mt-7 shrink-0 text-sm hover:text-red-600"
+          className="text-muted hover:text-md-error mt-7 shrink-0 text-sm"
         >
           Remove
         </button>

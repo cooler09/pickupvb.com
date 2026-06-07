@@ -62,7 +62,7 @@ export function TeamMemberRow({ teamId, member, isCaptain, viewerIsCaptain, retu
       </div>
       {canRemove && (
         <form action={removeMemberFromForm.bind(null, teamId, member.userId, returnPath)}>
-          <SubmitButton className="text-xs font-medium text-red-600 hover:underline disabled:opacity-50">
+          <SubmitButton className="text-md-error text-xs font-medium hover:underline disabled:opacity-50">
             {isPending ? 'Cancel' : 'Remove'}
           </SubmitButton>
         </form>

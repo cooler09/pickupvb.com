@@ -84,10 +84,12 @@ transparent)` with a solid `rgb(var(...))` fallback rule — verified in the
   recipes** — `fieldErrorClass` / `FieldError` / `TextField` error,
   `StatusPill`, the 3 duplicated payment-status maps, `rsvp-flash` error, the
   inline Paid/Pending/Refunded labels — moved to role tokens, fixing dark-mode
-  error text app-wide (was dark-red-on-dark). **Net 395 → 350.** See the
-  m3-alignment remediation log. Remaining: destructive text-buttons
-  (`text-red-600` Withdraw/Leave/Remove), hand-rolled notice boxes, bg-tinted
-  status badges — each a per-surface recolor follow-up.
+  error text app-wide (was dark-red-on-dark). **Net 395 → 350.** Then every
+  **destructive text-button + inline error** (`text-red-600` Withdraw/Leave/
+  Remove + `role=alert` error `<p>`s, 29 sites) → `text-md-error` via a
+  token-safe global codemod (`text-red-600` is never a bg-badge). **Net 350 → 305.** See the m3-alignment remediation log. Remaining: hand-rolled notice
+  boxes, bg-tinted status badges, green/amber inline success/warning text (the
+  symmetric counterpart) — each a per-surface recolor follow-up.
 - **No palette ratchet yet** — raw red/amber/emerald can't reach zero
   (decorative/team uses remain), so the lint lock waits until a _fully
   migratable_ sub-bucket exists.

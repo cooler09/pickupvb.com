@@ -84,7 +84,7 @@ export function SetupView(props: {
             {orderedTeams.length} team{orderedTeams.length === 1 ? '' : 's'} seeded
           </p>
           {!genCheck.ok && (
-            <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+            <p className="text-md-error text-xs" role="alert">
               {genCheck.reason}
             </p>
           )}

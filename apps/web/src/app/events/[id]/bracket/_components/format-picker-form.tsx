@@ -584,7 +584,7 @@ export function FormatPickerForm(props: {
             })}
           </div>
           {enforceMin && props.teamCount >= 2 && belowMin && (
-            <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+            <p className="text-md-error text-xs" role="alert">
               {selectedMeta.title} needs at least {selectedMeta.minTeams} teams — you have{' '}
               {props.teamCount}. Pick another format or wait for more registrations.
             </p>
@@ -857,7 +857,7 @@ export function FormatPickerForm(props: {
                   : `With ${props.teamCount} teams in ${poolCount} pools, that’s ~${teamsPerPool} per pool. The top ${resolvedAdvance} from each pool advance to a single-elim playoff.`}
             </p>
             {poolPlayUnderfilled && (
-              <p className="basis-full text-xs text-red-600 dark:text-red-400" role="alert">
+              <p className="text-md-error basis-full text-xs" role="alert">
                 {poolCount === 1
                   ? `A single-pool playoff of ${resolvedAdvance} needs at least ${resolvedAdvance} teams; you have ${props.teamCount}. Lower the playoff size or wait for more teams to register.`
                   : `${poolCount} pools advancing ${resolvedAdvance} per pool needs at least ${poolCount * resolvedAdvance} teams; you have ${props.teamCount}. Reduce pools or advance-per-pool, or wait for more teams to register.`}
@@ -937,17 +937,17 @@ export function FormatPickerForm(props: {
           </p>
         )}
         {enforceMin && props.teamCount < 2 && (
-          <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+          <p className="text-md-error mt-2 text-xs" role="alert">
             Need at least 2 registered teams to create a bracket.
           </p>
         )}
         {enforceMin && props.teamCount >= 2 && belowMin && (
-          <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+          <p className="text-md-error mt-2 text-xs" role="alert">
             {selectedMeta.title} needs at least {selectedMeta.minTeams} teams.
           </p>
         )}
         {poolPlayUnderfilled && (
-          <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+          <p className="text-md-error mt-2 text-xs" role="alert">
             This pool configuration needs more teams than are registered. Go back and lower the
             pools or advance-per-pool.
           </p>

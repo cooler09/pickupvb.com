@@ -66,11 +66,13 @@
 > recipes** (`fieldErrorClass`/`FieldError`/`TextField` error, `StatusPill`, the
 > 3 duplicated payment-status maps, rsvp-flash error, the inline Paid/Pending/
 > Refunded labels) moved to role tokens — fixing dark-mode error text app-wide.
-> **Net: raw palette 555 → 350.** Pattern in [AGENTS.md #17](../../AGENTS.md).
+> Then every **destructive text-button + inline error** (`text-red-600`
+> Withdraw/Leave/Remove + `role=alert` error `<p>`s, 29 sites) → `text-md-error`.
+> **Net: raw palette 555 → 305.** Pattern in [AGENTS.md #17](../../AGENTS.md).
 > **Open:** the app-wide surface migration (now unblocked — a visual-review
-> bundle) + destructive text-buttons (`text-red-600` Withdraw/Leave/Remove) +
-> hand-rolled notice boxes + bg-tinted status badges + decorative palette
-> (scoreboard red/green are _team_ colors). See the
+> bundle) + hand-rolled notice boxes + bg-tinted status badges + green/amber
+> inline success/warning text + decorative palette (scoreboard red/green are
+> _team_ colors). See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
@@ -1207,6 +1209,41 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Destructive text-buttons + inline error text → `text-md-error` (2026-06-07)
+
+Sixth S2 step. Recolored every `text-red-600` (29 sites) → `text-md-error`
+across ~18 files, plus dropped the now-orphaned `dark:text-red-400` companions
+(7 sites) — the role token flips per theme, so the dark fork is redundant.
+Two clean categories, one migration:
+
+- **Destructive text-buttons / links** — `text-red-600 hover:underline`
+  (Withdraw / Leave / Remove me from pool / delete-division / remove-member,
+  in the signup panels, team-member-row, team-viewer-chrome, divisions-repeater,
+  my-videos, profile) and `hover:text-red-600` icon actions (conversation-view
+  delete-message, block-control, import-client, hosts-section).
+- **Hand-rolled inline error text** — `text-red-600` on `<p role="alert">`
+  (format-picker-form ×5, setup-view, scoreboard-view, push-test/-subscribe,
+  conversation-view) — now consistent with `fieldErrorClass` from the prior
+  bundle.
+
+Done via a token-safe global codemod (`\btext-red-600\b` is **never** a
+bg-badge — badges use `text-red-700`+`dark:text-red-300`, left untouched), plus
+two per-site bordered destructive buttons recolored by hand:
+[host-ad-hoc-teams-panel](../../apps/web/src/app/events/[id]/_components/host-ad-hoc-teams-panel.tsx)
+remove (`border-red-300 … text-red-700 hover:bg-red-50` → `border-md-error/40 …
+text-md-error hover:bg-md-error/10`) and
+[board-view](../../apps/web/src/app/events/[id]/bracket/_components/board-view.tsx)
+"Reset bracket" disclosure (`border-red-500/40 … bg-red-500/5` → `border-md-error/…
+bg-md-error/5`). `text-md-error` adoption 6 → 42.
+
+**Net: raw palette 350 → 305.** **Still open:** hand-rolled notice boxes
+(billing/media/community-viewer-chrome/event-flash-banners/edit-event-form →
+`<Alert>` or container roles), bg-tinted status badges (`bg-amber-100`/
+`bg-red-500/15` fundraiser/waitlist/status pills), the green/amber inline
+_success/warning_ text (the symmetric counterpart to this red sweep —
+`text-emerald-700` "saved" etc.), and the unblocked app-wide surface migration.
+Verify: 15/15 typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build.
 
 ### Semantic recipes + payment-status pills → role tokens (2026-06-07)
 
