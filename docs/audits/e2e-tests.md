@@ -273,7 +273,7 @@ timeout })`, so the `timeout` arg actually polls. Verified: e2e tsc baseline
 > auth-extended 2 / player-social 1), `playwright --list` parses all 186 tests.
 > **#3 (per-worker storage state) closed in increment C** (per-worker auth
 > fixture; see below) — Phase 0 is now done. See the
-> [increment-B journal entry](../journal/2026-05-30-bundle-e2e-phase0-increment-b.md).
+> [increment-B journal entry](../journal/2026-05-digest.md#bundle-e2e-phase0-increment-b).
 >
 > **Update (2026-05-30):** the **`.catch(() => false)` sweep is done** —
 > 42 → 1 suite-wide; the one survivor is a response-promise coercion in
@@ -282,7 +282,7 @@ timeout })`, so the `timeout` arg actually polls. Verified: e2e tsc baseline
 > real `waitForLoadState('networkidle')` calls). Both verified type-clean
 > (e2e tsc baseline unchanged at 23) and `playwright --list` parses all
 > 186 tests. See the remediation log and the
-> [Phase 0 increment-A journal entry](../journal/2026-05-30-bundle-e2e-phase0-increment-a.md).
+> [Phase 0 increment-A journal entry](../journal/2026-05-digest.md#bundle-e2e-phase0-increment-a).
 > Still open under C7: the `browser.ts` / `navigation.ts` helpers and the
 > skip-budget guard (deferred to a later increment), plus a latent
 > follow-up — `isVisibleOrTimeout`'s `timeout` arg is a Playwright no-op
@@ -458,7 +458,7 @@ everything else.
 > the fix is structural — but a live `--workers=4+` run against dev is still
 > needed to confirm the race is gone in practice, and the secondary roles
 > (attendee-b / hosts / admin) still share files (follow-up). See the
-> [increment-C journal](../journal/2026-05-30-bundle-e2e-phase0-increment-c.md).
+> [increment-C journal](../journal/2026-05-digest.md#bundle-e2e-phase0-increment-c).
 
 [playwright.config.ts#L31-L40](../../apps/web/playwright.config.ts#L31-L40)
 documents the issue: `fullyParallel: true` + shared `STORAGE_STATE` +
@@ -870,7 +870,7 @@ Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-per
 - **New coverage for the post-audit standalone-bracket feature.** ADR 0025
   shipped event-free, owner-scoped brackets after this audit's snapshot was
   taken, and the
-  [standalone-brackets journal](../journal/2026-05-30-standalone-brackets.md)
+  [standalone-brackets journal](../journal/2026-05-digest.md#standalone-brackets)
   flagged the explicit gap: _"No e2e yet. A Playwright spec (create → add teams
   → seed → generate → record → open watch link) should be added and run green
   against dev."_ This bundle implements exactly that.
@@ -915,7 +915,7 @@ Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-per
   errors); prettier-clean. **Not verified:** a live run against
   `dev.pickupvb.com` (no creds here; the tests mutate + the spec depends on the
   three `20260821*` migrations being deployed to dev). Full rationale:
-  [journal 2026-05-31-bundle-e2e-standalone-brackets](../journal/2026-05-31-bundle-e2e-standalone-brackets.md).
+  [journal 2026-05-31-bundle-e2e-standalone-brackets](../journal/2026-05-digest.md#bundle-e2e-standalone-brackets).
 
 ### 2026-05-30 — Phase 2: league schedule + record + forfeit (closes C2)
 
@@ -962,7 +962,7 @@ Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-per
   config-artifact `process` warning shared by every helper); prettier-clean. **Not
   verified:** a live run against `dev.pickupvb.com` (no creds here; tests mutate via the
   admin client). Full rationale:
-  [journal 2026-05-30-bundle-e2e-phase2-leagues](../journal/2026-05-30-bundle-e2e-phase2-leagues.md).
+  [journal 2026-05-30-bundle-e2e-phase2-leagues](../journal/2026-05-digest.md#bundle-e2e-phase2-leagues).
 
 ### 2026-05-30 — Phase 1: bracket result-advances-winner + read-only authz (closes C3)
 
@@ -999,7 +999,7 @@ Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-per
   — took `tournament` 14 → 11); `playwright --list` = **190 tests / 31 files**
   (was 186/30); prettier-clean. **Not verified:** a live run against
   `dev.pickupvb.com` (no creds here) — maintainer to confirm green. Full
-  rationale: [journal 2026-05-30-bundle-e2e-phase1-brackets](../journal/2026-05-30-bundle-e2e-phase1-brackets.md).
+  rationale: [journal 2026-05-30-bundle-e2e-phase1-brackets](../journal/2026-05-digest.md#bundle-e2e-phase1-brackets).
 
 ### 2026-05-30 — Phase 0 increment C: per-worker auth (closes #3 → Phase 0 done)
 
@@ -1023,7 +1023,7 @@ Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-per
   clean), `playwright --list` = 186 tests / 30 files (all migrated specs
   collect), reporter fires. **Not verified:** the live parallel-load payoff —
   needs a `--workers=4+` run against `dev.pickupvb.com` (maintainer).
-- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-c](../journal/2026-05-30-bundle-e2e-phase0-increment-c.md).
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-c](../journal/2026-05-digest.md#bundle-e2e-phase0-increment-c).
 
 ### 2026-05-30 — Phase 0 increment B: helpers, `withAuthContext`, skip-budget (closes #6, #8, C1)
 
@@ -1057,7 +1057,7 @@ Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-per
   One self-inflicted reporter type error (`onEnd` return type, TS2416) was
   caught by this check and fixed before hand-off.
 - **Still open in Phase 0:** #3 (per-worker storage state) only.
-- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-b](../journal/2026-05-30-bundle-e2e-phase0-increment-b.md).
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-b](../journal/2026-05-digest.md#bundle-e2e-phase0-increment-b).
 
 ### 2026-05-30 — Phase 0 increment A: defensive-`catch` sweep (C7, partial)
 
@@ -1077,7 +1077,7 @@ Journals: [2026-06-03-bundle-persona-e2e-suite](../journal/2026-06-03-bundle-per
 - **Deferred** (still open under C7 / Phase 0): `browser.ts`
   `withAuthContext` (#8), `navigation.ts` (#6), skip-budget guard (C1), and
   fixing `isVisibleOrTimeout`'s no-op `timeout` arg.
-- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-a](../journal/2026-05-30-bundle-e2e-phase0-increment-a.md).
+- Full rationale: [journal 2026-05-30-bundle-e2e-phase0-increment-a](../journal/2026-05-digest.md#bundle-e2e-phase0-increment-a).
 
 ### 2026-05-30 — helper layer landed; coverage pass added
 

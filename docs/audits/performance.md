@@ -92,7 +92,7 @@ inbox cap, the `/events` + `/community` discovery-feed caps) are **deferred** �
 both need a production RPC migration, and the feeds also need a feed-vs-directory
 product call. Full write-up:
 [Remediation log](#2026-05-31--pagination-sweep-unbounded-ui-lists) ·
-[journal](../journal/2026-05-31-pagination-sweep.md).
+[journal](../journal/2026-05-digest.md#pagination-sweep).
 
 **Status update (2026-05-31) — P2 #14 + P3 #15 resolved:** the two open
 spectator-page items from the 2026-05-30 re-audit are shipped.
@@ -107,7 +107,7 @@ query. Full-route CDN caching stays bounded by the `division` searchParam (the
 same constraint `/watch` has) — left as a deferred follow-up. Full write-up:
 [Remediation log](#2026-05-31--bracket--schedule-cacheable-spectator-pages-p2-14--p3-15)
 
-- [journal](../journal/2026-05-31-bracket-schedule-cacheable.md).
+- [journal](../journal/2026-05-digest.md#bracket-schedule-cacheable).
 
 **Status update (2026-05-30) — fresh re-audit:** read-only pass over the
 feature surface added since the 2026-05-17 audit (brackets, leagues, event
@@ -139,7 +139,7 @@ viewers still fetch the viewer-aware read model but skip ~4 side-loads.
 The full structural ISR refactor of `/events/[id]` (lifting RSVP / manage
 / flash-banner chrome out of the page render) remains deferred — see the
 [Bundle 26 remediation log entry](#2026-05-22--bundle-26-eventsid-viewer-independent-cache-layer)
-and [journal](../journal/2026-05-22-bundle-26.md). P1 #1 status: 3 of 5
+and [journal](../journal/2026-05-digest.md#bundle-26). P1 #1 status: 3 of 5
 target detail pages fully ISR, 1 (`/events/[id]`) partial, 1 (`/events`)
 still deferred pending friends/following split.
 
@@ -169,7 +169,7 @@ fewer page-level RTTs per event detail render. Closes the page-level
 portion of P1 #4. The infrastructure `getDetail()` repository method
 still issues two parallel rounds totalling ~17 queries; reducing _that_
 query count needs JOINs against co-host profiles + team captains and is
-left as a follow-up. See the [Bundle 9 journal](../journal/2026-05-24-bundle-9.md).
+left as a follow-up. See the [Bundle 9 journal](../journal/2026-05-digest.md#bundle-9).
 
 **Status update (2026-05-24, Bundle 10):** Infrastructure `getDetail()`
 JOIN consolidation shipped. Co-host detail (profiles + groups) now
@@ -181,7 +181,7 @@ removed from wave 2 (`coHostUsersRes`, `coHostGroupsRes`,
 the page _and_ infrastructure level. Remaining sub-wave (viewer
 captained-team member counts) is a small leaf still open; aggregating
 it via a PostgREST `count` projection is a future micro-optimization.
-See the [Bundle 10 journal](../journal/2026-05-24-bundle-10.md).
+See the [Bundle 10 journal](../journal/2026-05-digest.md#bundle-10).
 
 **Status update (2026-05-24, Bundle 11):** Three small wins shipped to
 close out the easier P2/P3 items, plus a CI/Sentry build fix.
@@ -210,7 +210,7 @@ Received undefined` because the Sentry plugin was wrapped
   `nextConfig` is exported. Local build was masking the issue because
   `silent: !process.env.CI` suppresses plugin errors outside CI.
 
-See the [Bundle 11 journal](../journal/2026-05-24-bundle-11.md) for the
+See the [Bundle 11 journal](../journal/2026-05-digest.md#bundle-11) for the
 full rationale and the CI-vs-local asymmetry lesson.
 
 **Status update (2026-05-24, Bundle 12):** Three more small wins shipped
@@ -230,7 +230,7 @@ stale-while-revalidate=86400`. All four `opengraph-image.tsx` routes
   inherit the header, so the unfurler thundering-herd on share lands on
   Vercel's edge cache instead of Supabase.
 
-See the [Bundle 12 journal](../journal/2026-05-24-bundle-12.md).
+See the [Bundle 12 journal](../journal/2026-05-digest.md#bundle-12).
 
 **Status update (2026-05-22, Bundle 25):** Three more public pages now
 ISR-cacheable for anonymous traffic — `/teams/[id]`, `/groups/[id]`, and
@@ -242,7 +242,7 @@ into a single client island per page. Shared loaders
 (`loadVisibleHostedEvents`, `loadVisibleGroupHostedEvents`) accept either
 client now. `/events` and `/events/[id]` remain deferred — RSVP /
 co-host / following overlay needs a wider split. See the
-[Bundle 25 journal](../journal/2026-05-22-bundle-25.md).
+[Bundle 25 journal](../journal/2026-05-digest.md#bundle-25).
 
 **Status update (2026-05-24, Bundle 13a):** Listings-Suspense refactor
 landed for three of the four listing pages — `/players`, `/groups`, and
@@ -254,7 +254,7 @@ sections) moved into client components that fetch their own session via
 `createSupabaseBrowserClient()` after hydration. `/events` plus all
 `/[id]` detail pages are deferred to a follow-up bundle because the
 friends / following / RSVP overlay is wider in scope. See the
-[Bundle 13a journal](../journal/2026-05-24-bundle-13a.md).
+[Bundle 13a journal](../journal/2026-05-digest.md#bundle-13a).
 
 ---
 
@@ -1139,7 +1139,7 @@ where bounded in practice.
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
-See [Bundle journal](../journal/2026-05-31-pagination-sweep.md) for the
+See [Bundle journal](../journal/2026-05-digest.md#pagination-sweep) for the
 in-memory-slice-vs-`.range()` decision, the attendee server-component
 constraint, and why the friends fix skipped the domain port.
 
@@ -1157,7 +1157,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 E2E (bracket Playwright specs against dev) not yet re-run — flagged as the
 remaining manual check.
 
-See [Bundle journal](../journal/2026-05-31-bracket-schedule-cacheable.md) for
+See [Bundle journal](../journal/2026-05-digest.md#bracket-schedule-cacheable) for
 the admin-client cacheability finding, the `canManage`-vs-`is_event_host`
 decision, and the searchParams caching constraint.
 
@@ -1171,7 +1171,7 @@ decision, and the searchParams caching constraint.
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
-See [Bundle 26 journal](../journal/2026-05-22-bundle-26.md) for the
+See [Bundle 26 journal](../journal/2026-05-digest.md#bundle-26) for the
 pragmatic-vs-structural decision, the admin-client cache-safety rationale,
 and the tradeoffs accepted (60 s anonymous staleness; no per-action tag
 invalidation; viewer-aware chrome still inside the dynamic render).
@@ -1188,7 +1188,7 @@ invalidation; viewer-aware chrome still inside the dynamic render).
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
-See [Bundle 25 journal](../journal/2026-05-22-bundle-25.md) for the
+See [Bundle 25 journal](../journal/2026-05-digest.md#bundle-25) for the
 slot-pattern decision, the anon-only public events tradeoff, and the
 single-island-per-page rationale.
 
@@ -1250,7 +1250,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 | P1 #0 `react-hooks/set-state-in-effect` (hydration-mount flags) | ✅ Done      | Extracted [use-is-mounted.ts](../../apps/web/src/lib/use-is-mounted.ts) (`useSyncExternalStore`-based). Migrated `local-datetime`, `datetime-picker`, `share-link`; `mobile-menu` pathname-effect ref-guarded. |
 | P1 #0 `react-hooks/set-state-in-effect` (debounce-fetch)        | 🟡 Annotated | `address-autocomplete` + `user-picker` use per-line `eslint-disable` with rationale — no cleaner primitive for debounce-then-display flows.                                                                    |
 
-See [Bundle 2 journal](../journal/2026-05-22-bundle-2.md) for rationale.
+See [Bundle 2 journal](../journal/2026-05-digest.md#bundle-2) for rationale.
 
 ### 2026-05-22 — Quick-win bundle landed
 

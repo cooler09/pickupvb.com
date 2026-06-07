@@ -83,5 +83,5 @@ league from the public event page.
 - Season → playoff bracket handoff (audit P1 #2).
 - Schedule-page quality items (TZ-aware datetimes, co-host writes, realtime
   refresh) from
-  [2026-05-30-bundle-league-schedule-ui.md](2026-05-30-bundle-league-schedule-ui.md).
+  [2026-05-digest.md#bundle-league-schedule-ui](2026-05-digest.md#bundle-league-schedule-ui).
   </content>

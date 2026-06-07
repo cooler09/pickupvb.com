@@ -7,13 +7,13 @@
 - **Relates to:** [ADR 0031 — Gamification badges](0031-gamification-badges.md)
   (the "thresholds in TS, facts aggregated by infra" pattern this reuses, and the
   `first-host` / "First Whistle" badge that doubles as the host capstone reward),
-  [docs/user-onboarding.md](../user-onboarding.md) (the idea backlog this graduates
+  [docs/feature-education.md](../feature-education.md) (the idea backlog this graduates
   B1/B2 from), [docs/journal/2026-06-01-profile-onboarding.md](../journal/2026-06-01-profile-onboarding.md)
   (the PR-3 first-run "Get started" card this supersedes).
 
 ## Context
 
-PickupVB has [two cold-start problems](../user-onboarding.md): a **new player**
+PickupVB has [two cold-start problems](../feature-education.md): a **new player**
 needs to find a game and show up; a **new host** needs to create an event, get
 paid, and publish. The backlog (B1/B2) calls for two **gamified checklists** that
 "piggyback on the badges system." Today the only onboarding scaffolding is the
@@ -137,7 +137,7 @@ gen:types dependency), consistent with Phase 1's rationale.
   first signup") needs a participants-across-the-host's-events count (a cross-join
   cleaner as an RPC); lands with the persistence path above.
 - **E1 empty-state teaching + richer step copy / GIFs** (backlog E1/C1) remain
-  open in [docs/user-onboarding.md](../user-onboarding.md).
+  open in [docs/feature-education.md](../feature-education.md).
 
 ## Consequences
 

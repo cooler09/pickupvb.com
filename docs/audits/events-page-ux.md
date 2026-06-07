@@ -125,7 +125,7 @@ from a share link, while keeping the page useful for hosts and attendees.
 > (P2). All recorded in the journal entry; pick up when the events
 > page UX is re-opened.
 >
-> See the [Bundle 127 journal](../journal/2026-05-27-bundle-127.md).
+> See the [Bundle 127 journal](../journal/2026-05-digest.md#bundle-127).
 
 > **Status update (2026-05-23, Bundle 66):** **2026-05-22 architectural
 > regression notes both verified-stale and cleared.** The two follow-ups
@@ -153,7 +153,7 @@ from a share link, while keeping the page useful for hosts and attendees.
 > No new UX work in this bundle — audit-doc reconciliation only.
 > The events page UX audit itself remains closed; remaining items are
 > the explicit Won't-do deferrals further down. See the
-> [Bundle 66 journal](../journal/2026-05-23-bundle-66.md).
+> [Bundle 66 journal](../journal/2026-05-digest.md#bundle-66).
 >
 > **Status update (2026-05-22):** UX findings still closed. Architectural
 > note: the page is now 837 LOC (was ~520 when this audit ran) — see the

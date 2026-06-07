@@ -54,7 +54,7 @@
 > `generateMetadata` (title + canonical + OG, status-based noindex); the
 > `force-dynamic`/viewer-island half was **already resolved** by the
 > 2026-05-31 performance bundle (see
-> [docs/journal/2026-05-31-bracket-schedule-cacheable.md](../journal/2026-05-31-bracket-schedule-cacheable.md)),
+> [docs/journal/2026-05-digest.md#bracket-schedule-cacheable](../journal/2026-05-digest.md#bracket-schedule-cacheable)),
 > so the page reaches `bracket/watch` parity. (P3 #9) community detail pages
 > now ship a tailored `opengraph-image.tsx` + a `SportsEvent` + `BreadcrumbList`
 > JSON-LD (emitted only on indexable statuses). Verify quad green (web 79
@@ -94,7 +94,7 @@
 > authoritative rich-results signal is the existing `SportsEvent`
 > JSON-LD block, which Google's rich-results parser uses. Documented so
 > the finding stops surfacing in audit scans. See the
-> [Bundle 54 journal](../journal/2026-05-23-bundle-54.md).
+> [Bundle 54 journal](../journal/2026-05-digest.md#bundle-54).
 >
 > **Status update (2026-05-24):** Bundle 18 shipped — P3 `BreadcrumbList` JSON-LD added to all four detail pages (events/groups/players/teams) via a shared [`BreadcrumbJsonLd`](../../apps/web/src/app/_components/breadcrumb-jsonld.tsx) component. Renders 3-segment trail (Home → listing → entity) with absolute URLs per spec. Bundle 20 shipped — P3 `SportsTeam` JSON-LD on `/teams/[slug]` and `SportsOrganization` JSON-LD on `/groups/[slug]`, co-located alongside the existing `BreadcrumbList` block. Bundle 21 shipped — dropped the `/teams/[slug]` login redirect that was contradicting the page's sitemap inclusion + structured data; anonymous visitors and crawlers now see the team's roster + JSON-LD, with management UI still gated on `isCaptain`.
 

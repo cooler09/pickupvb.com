@@ -4,6 +4,8 @@ Conventions and gotchas for AI coding agents working in this repo. Read this
 before making changes. Related reading:
 
 - [README.md](README.md) — human setup docs.
+- [docs/README.md](docs/README.md) — map of the whole `docs/` tree (reference
+  docs, ADRs, audits, journal) — start here to find a doc.
 - [packages/domain/README.md](packages/domain/README.md) — how the domain layer
   is organized and how to extend an aggregate.
 - [docs/adr/](docs/adr/) — architecture decision records (why hexagonal, why
@@ -46,7 +48,12 @@ conventions in [docs/audits/README.md](docs/audits/README.md):
   fixes land. Create a new file under `docs/audits/` only if the topic
   doesn't fit an existing one (use the existing files as a template).
 - **Update the index table** in [docs/audits/README.md](docs/audits/README.md)
-  with the new date and status.
+  with the new date and a **one-line** status. The index Status column is a
+  scannable summary only — open backlog (counts) or `✅ closed` + date; the full
+  narrative lives at the **top of the audit file**, not in the table. (Pasting
+  status blocks into the table once ballooned it to 825 KB / un-openable —
+  collapsed 2026-06-07.) Lead each audit file with its **current** status and
+  keep historical status-update blocks in the file's remediation log below.
 - An ad-hoc chat-only summary is fine for a quick sanity scan, but **call
   that out explicitly** ("quick scan, not a full audit") and offer to write
   it up into the relevant audit file.
@@ -57,7 +64,11 @@ Audits record **what** is broken; the journal records **why** a change was
 made and **how** the codebase reached its current state. After shipping a
 non-trivial bundle of changes, write a dated entry under
 [docs/journal/](docs/journal/). See
-[docs/journal/README.md](docs/journal/README.md) for the format.
+[docs/journal/README.md](docs/journal/README.md) for the format and
+[docs/journal/INDEX.md](docs/journal/INDEX.md) to navigate. Closed months are
+condensed into a single `YYYY-MM-digest.md` (one anchored section per bundle,
+citations rewritten to `…-digest.md#<slug>`); the current month stays as
+individual entries — see the README's digest convention.
 
 Use the journal for:
 

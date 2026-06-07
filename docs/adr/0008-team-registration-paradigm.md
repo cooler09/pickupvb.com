@@ -91,8 +91,8 @@ Both `EventTeamRegistration` and the free-agent join row carry
 model. Persisting it goes through dedicated repository ports
 (`attachTeamToDivision`, `attachFreeAgentToDivision`) that the handler
 calls after the aggregate runs its invariants. See
-[Bundle 1 journal](../journal/2026-05-22-bundle-1.md) and
-[Bundle 5 journal](../journal/2026-05-24-bundle-5.md).
+[Bundle 1 journal](../journal/2026-05-digest.md#bundle-1) and
+[Bundle 5 journal](../journal/2026-05-digest.md#bundle-5).
 
 This "side-step the aggregate" pattern is the right primitive **while
 divisions are read-only at registration time**. If divisions ever

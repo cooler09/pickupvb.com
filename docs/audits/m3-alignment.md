@@ -113,7 +113,7 @@
 > breaks the build, warning now floods lint with ~900 entries and buries
 > the 3 real pre-existing warnings. Verify 15/15 typecheck · lint 3
 > pre-existing warnings · 179+50 tests · 8/8 build. See
-> [Bundle 139 journal](../journal/2026-05-30-bundle-139.md).
+> [Bundle 139 journal](../journal/2026-05-digest.md#bundle-139).
 
 > **Status update (2026-05-28, Bundle 138):** System theme mode shipped
 > — **P3 #19 closed.** Three-way preference (`light | dark | system`)
@@ -143,7 +143,7 @@
 > exploration, #21 Switch primitive, #22 Chip primitive, #18 data-table
 > primitive) stay opportunistic per their original guidance. Verify
 > 15/15 typecheck · lint 3 pre-existing warnings · 179+50 tests · 8/8
-> build. See [Bundle 138 journal](../journal/2026-05-28-bundle-138.md).
+> build. See [Bundle 138 journal](../journal/2026-05-digest.md#bundle-138).
 
 > **Status update (2026-05-28, Bundle 137):** Density scale shipped
 > — **P2 #15 vocabulary + reference call sites shipped** (responsive
@@ -168,7 +168,7 @@
 > primitive (P3 #18) explicitly deferred "until a third table
 > appears," per the original audit guidance. Verify 15/15 typecheck
 > · lint 3 pre-existing warnings · 179+50 tests · 8/8 build. See
-> [Bundle 137 journal](../journal/2026-05-28-bundle-137.md).
+> [Bundle 137 journal](../journal/2026-05-digest.md#bundle-137).
 
 > **Status update (2026-05-28, Bundle 136):** Dropdown menu on Radix
 > shipped — **P2 #12 closed** for `<NavDropdown>` (the one Menu-style
@@ -200,7 +200,7 @@
 >   panel and remaining `<details>` disclosures are content panels
 >   (richer than a menu), not Menu-pattern targets — deferred. Verify
 >   15/15 typecheck · lint 3 pre-existing warnings · 179+50 tests ·
->   8/8 build. See [Bundle 136 journal](../journal/2026-05-28-bundle-136.md).
+>   8/8 build. See [Bundle 136 journal](../journal/2026-05-digest.md#bundle-136).
 
 > **Status update (2026-05-28, Bundle 135):** TextField primitive
 > shipped — **P2 #13 primitive + reference call site shipped**
@@ -225,7 +225,7 @@
 > `<input>` + `<FieldError>` call sites keep working untouched per
 > the audit's surface-by-surface migration plan. Verify 15/15
 > typecheck · lint 3 pre-existing warnings · 179+50 tests · 8/8
-> build. See [Bundle 135 journal](../journal/2026-05-28-bundle-135.md).
+> build. See [Bundle 135 journal](../journal/2026-05-digest.md#bundle-135).
 
 > **Status update (2026-05-28, Bundle 134):** Dialog + BottomSheet
 > shipped — **P2 #9 closed** and **P2 #14 closed**.
@@ -256,7 +256,7 @@
 > `RadixDialog.Close` carries `tap-target` + `state-layer` (Bundles
 > 130/131). Verify 15/15 typecheck · lint 3 pre-existing warnings ·
 > 179+50 tests · 8/8 build. See
-> [Bundle 134 journal](../journal/2026-05-28-bundle-134.md).
+> [Bundle 134 journal](../journal/2026-05-digest.md#bundle-134).
 
 > **Status update (2026-05-28, Bundle 133):** BottomNav + FAB primitive
 > shipped — **P2 #11 closed**; **P2 #10 primitive + reference call site
@@ -285,7 +285,7 @@
 > [events/page.tsx](../../apps/web/src/app/events/page.tsx) renders
 > the FAB for signed-in viewers with `href="/events/new"` /
 > `label="Host an event"`. Verify 15/15 typecheck · lint 3 pre-existing
-> warnings · 179+50 tests · 8/8 build. See [Bundle 133 journal](../journal/2026-05-28-bundle-133.md).
+> warnings · 179+50 tests · 8/8 build. See [Bundle 133 journal](../journal/2026-05-digest.md#bundle-133).
 
 > **Status update (2026-05-28, Bundle 132):** Radix Toast shipped —
 > **P2 #8 closed**. [toast.tsx](../../apps/web/src/components/toast.tsx)
@@ -311,7 +311,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > (Bundle 130) preserved on Close + Action buttons. Radix convention
 > documented in [AGENTS.md](../../AGENTS.md#ui-primitives--radix-ui).
 > Verify 15/15 typecheck · lint warnings only · 179+50 tests · 8/8
-> build. See [Bundle 132 journal](../journal/2026-05-28-bundle-132.md).
+> build. See [Bundle 132 journal](../journal/2026-05-digest.md#bundle-132).
 
 > **Status update (2026-05-28, Bundle 131):** State layers + button
 > vocabulary shipped — vocabulary half of P2 #4 closed. New
@@ -330,7 +330,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > `hover:bg-fg/5` on nav items, `<details>` triggers, list rows,
 > etc.) stays open and is drawn down by the per-component bundles.
 > Verify 15/15 typecheck · lint warnings only · 179+50 tests · 8/8
-> build. See [Bundle 131 journal](../journal/2026-05-28-bundle-131.md).
+> build. See [Bundle 131 journal](../journal/2026-05-digest.md#bundle-131).
 
 > **Status update (2026-05-28, Bundle 130):** Touch-targets sweep
 > shipped — P1 #3 closed. New `tap-target` Tailwind 4 `@utility`
@@ -342,7 +342,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > bracket board move-earlier/later, walk-in player remove. Visual change
 > is intentionally minimal — only the **hit area** grows. Verify 15/15
 > typecheck · lint warnings only · 179+50 tests · 8/8 build. See
-> [Bundle 130 journal](../journal/2026-05-28-bundle-130.md).
+> [Bundle 130 journal](../journal/2026-05-digest.md#bundle-130).
 
 > **Status update (2026-05-28, Bundle 129):** Tokens bundle shipped —
 > the **vocabulary half** of P1 #1 (color roles), P1 #2 (type scale),
@@ -365,7 +365,7 @@ altText?, onClick }` wired through `<RadixToast.Action>` for
 > `text-headline-md`, `pt-safe`/`pb-safe`/…) ready for opt-in migration
 > in Bundles 2 onward. Per-finding headers flipped to **🟡 Tokens
 > shipped** — the call-site migration half remains open.
-> See [Bundle 129 journal](../journal/2026-05-28-bundle-129.md) and the
+> See [Bundle 129 journal](../journal/2026-05-digest.md#bundle-129) and the
 > [Remediation log](#remediation-log).
 
 > **Status (2026-05-28):** New audit. Driven by the observation that
@@ -1890,7 +1890,7 @@ required maxLength={80} />`. The format `<select>` stays on the
   surface-by-surface; one reference call site + the primitive is
   the right cut. Each form migration is a small reviewable diff.
 
-**Follow-ups deferred** (tracked in [Bundle 135 journal](../journal/2026-05-28-bundle-135.md)):
+**Follow-ups deferred** (tracked in [Bundle 135 journal](../journal/2026-05-digest.md#bundle-135)):
 
 - **SelectField primitive** — needs a separate bundle. Open
   question: wrap native `<select>` for accessibility + form-data
@@ -1996,7 +1996,7 @@ Closes **P2 #9** (Dialog primitive lacks M3 affordances) and **P2 #14**
   an option; Radix Dialog alone covers the visual + a11y story.
   Touch-drag dismiss is a follow-up if real usage demands it.
 
-**Follow-ups deferred** (tracked in [Bundle 134 journal](../journal/2026-05-28-bundle-134.md)):
+**Follow-ups deferred** (tracked in [Bundle 134 journal](../journal/2026-05-digest.md#bundle-134)):
 
 - Migrate the two existing `ModalFooter` call sites to
   `<ModalActions>` once a real change touches those forms (cheap
@@ -2094,7 +2094,7 @@ shadow-elevation-3 hover:shadow-elevation-4`. Positioned
   but needs a small client-state subscription so the count stays
   fresh without a reload — deferred to keep this bundle tight.
 
-**Follow-ups deferred** (tracked in [Bundle 133 journal](../journal/2026-05-28-bundle-133.md)):
+**Follow-ups deferred** (tracked in [Bundle 133 journal](../journal/2026-05-digest.md#bundle-133)):
 
 - Multi-page FAB rollout: `/events/[id]` host view, `/groups`,
   `/groups/[id]` admin view, `/teams`, `/teams/[slug]` captain view

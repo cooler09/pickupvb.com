@@ -101,7 +101,7 @@ pnpm --filter @pickupvb/web e2e          # playwright test
 `config.resolve.extensionAlias` so NodeNext-style `.js` import specifiers
 resolve to the workspace packages' `.ts` sources. Turbopack ignores the
 `webpack()` callback today, so dropping the flag breaks the build. See
-the [Bundle 29 journal](../../docs/journal/2026-05-22-bundle-29.md) for
+the [Bundle 29 journal](../../docs/journal/2026-05-digest.md#bundle-29) for
 the full investigation. A Turbopack-native migration is deferred to its
 own bundle.
 

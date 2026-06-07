@@ -13,7 +13,7 @@ infra (`SupabaseLeagueScheduleRepository`), and the host-facing UI
 **except the one thing that lets a league come into existence in-product: the
 create-event form never offered "League" as a type.** The
 [scaffolding migration](../../supabase/migrations/20260729000100_add_league_to_event_type.sql)
-and the [e2e Phase 2 journal](2026-05-30-bundle-e2e-phase2-leagues.md) both
+and the [e2e Phase 2 journal](2026-05-digest.md#bundle-e2e-phase2-leagues) both
 flagged this gap explicitly ("League events can be inserted via the API but
 have no first-class create flow yet"). Everything downstream is gated on
 `event.type === 'league'`, so with no way to set that, none of it rendered.
@@ -101,6 +101,6 @@ exercise the rest of the stack.
   (audit P1 #2: playoff reuses `tournament_brackets` on the same division).
 - Schedule-page quality follow-ups (TZ-aware datetimes, co-host writes,
   realtime refresh) remain open from
-  [2026-05-30-bundle-league-schedule-ui.md](2026-05-30-bundle-league-schedule-ui.md).
+  [2026-05-digest.md#bundle-league-schedule-ui](2026-05-digest.md#bundle-league-schedule-ui).
   </content>
   </invoke>

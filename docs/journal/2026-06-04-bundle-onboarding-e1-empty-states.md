@@ -4,7 +4,7 @@
 
 Third onboarding bundle, after the [B1/B2 checklist cards](2026-06-04-bundle-onboarding-checklists.md)
 and the [M1 funnel](2026-06-04-bundle-onboarding-m1-funnel.md). Closes **E1** from
-the [user-onboarding backlog](../user-onboarding.md): _"make every empty state a
+the [user-onboarding backlog](../feature-education.md): _"make every empty state a
 teacher"_ — replace blank/sad empty lists with a one-line **why**, a single
 primary **CTA**, and a short **what-this-unlocks**, reusing the existing CTA
 vocabulary. E1 is the cheap companion to the checklists: their steps point users
@@ -62,6 +62,6 @@ onto it**, not a from-scratch teaching pass.
 - Remaining onboarding backlog: the host **"first registration" payoff step** and
   the **`compute_onboarding_stats` RPC + `user_onboarding` persistence** (only
   justified by a future "you're 1 step away" nudge; Docker-gated), plus **C1**
-  (looping GIFs at decision points). All in [user-onboarding.md](../user-onboarding.md).
+  (looping GIFs at decision points). All in [feature-education.md](../feature-education.md).
 - The `EmptyState` primitive is available for any future unbounded-list empty —
   prefer it over a new bespoke dashed box.

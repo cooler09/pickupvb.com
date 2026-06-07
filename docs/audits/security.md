@@ -265,7 +265,7 @@ baseline headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`,
 `X-Frame-Options`, `Permissions-Policy`) added 2026-05-17. CSP shipped
 2026-05-24 as `Content-Security-Policy-Report-Only` with the full
 third-party allowlist (Supabase REST/Realtime, Cloudflare Turnstile,
-OSM tiles); see the [Bundle 15 journal](../journal/2026-05-24-bundle-15.md).
+OSM tiles); see the [Bundle 15 journal](../journal/2026-05-digest.md#bundle-15).
 Bundle 27 (2026-05-22) promoted the same policy to enforcing
 `Content-Security-Policy` after a clean soak window. Nonce-based
 hardening of `'unsafe-inline'` on `script-src` / `style-src` (to drop
@@ -341,7 +341,7 @@ adds self-service policies for `event_attendees` /
 `paid`) plus host-update policies for the manage-payments flow and a
 host-insert policy for `event_payment_audit`. Stripe webhook handlers
 continue to use the admin client (correct — they run with no user
-session). See the [Bundle 14 journal](../journal/2026-05-24-bundle-14.md).
+session). See the [Bundle 14 journal](../journal/2026-05-digest.md#bundle-14).
 
 **Follow-on (2026-12-04):** a second instance of this same pattern
 surfaced in the bracket / league **match-result** writes — the repos
@@ -351,7 +351,7 @@ entirely to RLS policies that the admin client bypassed. Closed via
 user-scoped clients + authorization-gated RPCs; see the
 [2026-12-04 remediation entry](#2026-12-04--captain-rls-on-match-result-writes-p2-4-follow-on)
 and the
-[journal entry](../journal/2026-12-04-bundle-captain-rls-match-result.md).
+[journal entry](../journal/2026-05-digest.md#bundle-captain-rls-match-result).
 **Durable lesson:** "swap admin → server client" only fixes the call
 sites you can see — an adapter that self-constructs the admin client
 internally hides the same gap behind the port. Audit repository
@@ -1074,7 +1074,7 @@ the e2e goes green once the fix ships to dev. See
 
 Verified after landing: `pnpm --filter @pickupvb/web build` ✅ (validates the
 header config + route type generation). Full narrative:
-[journal](../journal/2026-05-31-csp-media-embeds.md).
+[journal](../journal/2026-05-digest.md#csp-media-embeds).
 
 ### 2026-12-04 — Captain-RLS on match-result writes (P2 #4 follow-on)
 
@@ -1111,7 +1111,7 @@ Stripe webhook handlers and the host-gated bracket/league operations keep
 the admin client (correct — webhooks run session-less; host ops are
 app-layer-authorized). `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 green. Full narrative:
-[journal](../journal/2026-12-04-bundle-captain-rls-match-result.md).
+[journal](../journal/2026-05-digest.md#bundle-captain-rls-match-result).
 
 ### 2026-05-23 — Bundle 53: Security P3 audit-text closure (#9, #10, #11)
 
@@ -1160,7 +1160,7 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 | `signupAsGuest` gated               | ✅ Done | [apps/web/src/app/events/%5Bid%5D/guest-actions.ts](../../apps/web/src/app/events/%5Bid%5D/guest-actions.ts) — same limits, only when an email is supplied (the abuse vector for P2 #6).                                                                                                                                                               |
 | `startGuestTicketCheckout` gated    | ✅ Done | [apps/web/src/app/events/%5Bid%5D/checkout-actions.ts](../../apps/web/src/app/events/%5Bid%5D/checkout-actions.ts) — same limits; `backWithError(eventId, 'rate_limited', …)` flash to surface the error.                                                                                                                                              |
 | `rate_limited` banner               | ✅ Done | [apps/web/src/lib/event-rsvp-flash.ts](../../apps/web/src/lib/event-rsvp-flash.ts) — new `rate_limited` entry, `error` tone.                                                                                                                                                                                                                           |
-| `api/notifications/worker/route.ts` | ⏭ Skip | Listed by the audit but cron-only and `CRON_SECRET`-guarded. No user-driven abuse surface; per-IP / per-email keys would be meaningless. Documented in the [Bundle 16 journal](../journal/2026-05-24-bundle-16.md).                                                                                                                                    |
+| `api/notifications/worker/route.ts` | ⏭ Skip | Listed by the audit but cron-only and `CRON_SECRET`-guarded. No user-driven abuse surface; per-IP / per-email keys would be meaningless. Documented in the [Bundle 16 journal](../journal/2026-05-digest.md#bundle-16).                                                                                                                                |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 
@@ -1214,9 +1214,9 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 
 ### 2026-05-22 — Bundle 2: postcss override
 
-| Item                             | Status  | Notes                                                                                                                                                                                            |
-| -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| P2 transitive `postcss` advisory | ✅ Done | Added `pnpm.overrides.postcss: ">=8.5.10"` to root `package.json`. `pnpm install`; `pnpm audit --prod` now reports 0 vulnerabilities. See [Bundle 2 journal](../journal/2026-05-22-bundle-2.md). |
+| Item                             | Status  | Notes                                                                                                                                                                                                |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2 transitive `postcss` advisory | ✅ Done | Added `pnpm.overrides.postcss: ">=8.5.10"` to root `package.json`. `pnpm install`; `pnpm audit --prod` now reports 0 vulnerabilities. See [Bundle 2 journal](../journal/2026-05-digest.md#bundle-2). |
 
 ### 2026-05-22 — Quick-win bundle landed
 
