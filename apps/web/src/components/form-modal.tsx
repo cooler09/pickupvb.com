@@ -94,7 +94,7 @@ export function FormModal({
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="md-dialog-overlay fixed inset-0 z-50 bg-black/50" />
         <RadixDialog.Content
-          className={`border-border-base bg-surface text-fg shadow-elevation-3 z-50 border p-0 ${positionClass}`}
+          className={`border-border-base bg-md-surface-container-high text-fg shadow-elevation-3 z-50 border p-0 ${positionClass}`}
         >
           {(presentation === 'sheet' || presentation === 'auto') && (
             <div

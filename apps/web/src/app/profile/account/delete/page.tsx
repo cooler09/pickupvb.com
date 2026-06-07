@@ -12,7 +12,7 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
+const cardClass = 'border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6';
 
 function formatDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -70,7 +70,7 @@ export default async function DeleteAccountPage(props: {
       ) : (
         <section className={cardClass}>
           <h2 className="text-lg font-bold">Permanently delete your account</h2>
-          <div className="text-muted mt-2 space-y-2 text-sm">
+          <div className="text-md-on-surface-variant mt-2 space-y-2 text-sm">
             <p>
               This schedules your account for permanent deletion after a{' '}
               <strong>30-day grace period</strong>. You can cancel any time before then. When it

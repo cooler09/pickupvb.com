@@ -1010,3 +1010,25 @@ and must **not** be remapped onto these roles. No lint ratchet yet for the same
 reason: raw `red`/`amber`/`emerald` can't be driven to zero (m3-alignment
 audit S2 — open). Reference bundle: the 2026-06-07 semantic-roles bundle
 (Alert + Toast).
+
+**Surfaces — the M3 surface family is HAND-AUTHORED, not generated.** The brand
+hue-flips between themes (warm sand surfaces in light, teal in dark), which a
+single M3 neutral tonal palette can't produce, so the
+`--md-sys-color-{surface,surface-variant,surface-container-*,on-surface,on-surface-variant,outline,outline-variant,background}`
+block in [globals.css](apps/web/src/app/globals.css) is authored by hand (a warm
+ramp for light, a teal ramp for dark). **`gen-palette.ts` still emits cool-cyan
+neutral rows from the `#183334` seed — never paste them over the hand-authored
+block** (only the chroma roles regenerate). `surface-container` is anchored to
+equal the brand `--tw-color-surface` exactly, so `bg-surface` →
+`bg-md-surface-container` is a **zero-change** migration; `on-surface-variant`
+== `--tw-color-muted` likewise. When elevating a surface, step UP the ramp —
+the recommended level map: page = `surface`; base card/panel =
+`surface-container`; raised card / dialog / menu / popover =
+`surface-container-high`; nested emphasis = `surface-container-highest`. The
+hierarchy gives elevation via _tone_ (M3's dark-mode model), so prefer it over
+piling on `shadow-*`. The app-wide `bg-surface`/`border-border-base`/`text-muted`
+→ surface-role migration is open (m3-alignment S2) and is a visual-review
+bundle — it's no longer blocked, but `border-border-base` →
+`border-md-outline-variant` adds a faint visible hairline in light mode, so
+verify in both themes. Reference: the 2026-06-07 surface-ramp bundle (account
+card + dialog/menu).

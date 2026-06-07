@@ -6,6 +6,15 @@
  * paste the printed CSS into [apps/web/src/app/globals.css] under the
  * "M3 color roles" block.
  *
+ * ⚠️  The CHROMA roles only (primary / secondary / tertiary / error / warning /
+ * success + their on-/container pairs) should be pasted. The SURFACE / NEUTRAL
+ * family (`background`, `surface`, `surface-variant`, `surface-container-*`,
+ * `on-surface*`, `outline*`, `inverse-*`) is **hand-authored** in globals.css,
+ * because the brand uses warm surfaces in light + teal surfaces in dark — a
+ * hue-flip a single neutral tonal palette can't produce. This script still
+ * emits cool-cyan neutral rows from the `#183334` seed; do NOT copy them over
+ * the hand-authored block. See docs/audits/m3-alignment.md S2.
+ *
  * Why a one-shot script instead of a build-time codegen: the brand seeds
  * change once a year at most, so generating on every build adds latency
  * + a runtime / build-time dependency for no reason. Keep the script in

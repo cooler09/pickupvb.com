@@ -57,11 +57,16 @@
 > account-delete) followed — account-delete being the first all-three-roles
 > consumer outside Alert/Toast. Then the ~8 hand-rolled form **error/notice
 > banners** were swapped for `<Alert variant>` (dedupe + delete their `dark:`
-> forks). **Net: raw palette 555 → 395.** Pattern in
-> [AGENTS.md #17](../../AGENTS.md). **Open:** surface-container hierarchy (still
-> 0 usages) + inline status pills / destructive text-links + genuinely
-> decorative palette (scoreboard red/green are _team_ colors) — so no
-> codemod/ratchet. See the
+> forks). **Net: raw palette 555 → 395.** Finally, the **surface-container
+> hierarchy** was unblocked: it sat at 0 usages because the generated surfaces
+> were cool-cyan (off-brand) and the brand's warm-light/teal-dark scheme can't
+> come from one M3 neutral seed — so the surface/outline family was
+> **hand-authored** to match the brand (`surface-container` == brand card, exact
+> zero-change) + a reference adoption landed. Pattern in
+> [AGENTS.md #17](../../AGENTS.md). **Open:** the app-wide surface migration (now
+> unblocked — a visual-review bundle) + inline status pills / destructive
+> text-links + decorative palette (scoreboard red/green are _team_ colors). See
+> the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
@@ -658,14 +663,19 @@ re-grade of the root cause.
 > import-client) were swapped for `<Alert variant>` — dedupes ~8 copies, deletes
 > their `dark:` forks (see the
 > [error-banners entry](#errornotice-banners--alert-2026-06-07)). **Net: raw
-> palette 555 → 395.** **Still open:** the surface-container hierarchy
-> (`md-surface-container*`, `md-outline*`, `md-on-surface-variant`) remains at
-> **0** usages; inline status pills (payment `· Paid`/`· Pending`/`· Refunded`)
->
-> - destructive text-links (`text-red-600` Withdraw/Leave) are a follow-up; and
->   the genuinely decorative palette (the scoreboard's red/green _team_ colors)
->   stays raw by design — so no codemod, no ratchet yet. See the
->   [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
+> palette 555 → 395.** **Then the surface-container hierarchy was unblocked:**
+> the finding wasn't neglect — the generated surface roles were cool-cyan
+> (off-brand) and the brand's warm-light/teal-dark scheme can't come from one M3
+> neutral seed, so the surface/outline family was **hand-authored** to match the
+> brand (warm ramp light, teal ramp dark, `surface-container` == brand card) and
+> a zero-change reference adoption landed (account card + dialog/menu). See the
+> [surface entry](#surface-container-hierarchy--brand-matched-ramps-authored-2026-06-07).
+> **Still open:** the app-wide surface migration (now unblocked — assign
+> elevation levels per surface, a visual-review bundle); inline status pills
+> (payment `· Paid`/`· Pending`/`· Refunded`) + destructive text-links
+> (`text-red-600` Withdraw/Leave); and the genuinely decorative palette (the
+> scoreboard's red/green _team_ colors) stays raw by design. See the
+> [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 - **Where:** [globals.css#L68-L213](../../apps/web/src/app/globals.css#L68-L213)
   hand-declares **102 `--md-sys-color-*` custom properties** across
@@ -1193,6 +1203,69 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Surface-container hierarchy — brand-matched ramps authored (2026-06-07)
+
+Fourth S2 step. Investigating why the surface-container hierarchy sat at **0
+usages** surfaced a real blocker, not neglect:
+
+- **The generated values were off-brand.** Seeded from `neutral: '#183334'`
+  (deep teal), the M3 surface roles came out **cool cyan** (`surface` light =
+  `228 254 255`), but the brand uses **warm** light surfaces (`#F9EBD9` /
+  `#EBD6D7`). Adopting `bg-md-surface-container*` as-is would have recolored
+  every card warm → cyan.
+- **The brand's scheme isn't expressible as one M3 neutral palette.** The brand
+  hue-**flips** between themes — warm sand in light, **teal** in dark
+  (`#0E2A2C` / `#1B3F42`). A single neutral tonal palette is one hue, so it
+  physically can't produce warm-light + teal-dark. The surface family therefore
+  **cannot be generated** — it must be hand-authored.
+
+**Fix — hand-authored brand-matched ramps** in
+[globals.css](../../apps/web/src/app/globals.css) (replacing the cool-cyan
+generated block in both `:root` themes), anchored so **`surface-container` ==
+the brand card colour** (`#EBD6D7` light / `#1B3F42` dark) and the other steps
+ramp lighter/darker around it:
+
+| role                      | light (warm)              | dark (teal)               |
+| ------------------------- | ------------------------- | ------------------------- |
+| surface (page)            | 249 235 217               | 14 42 44                  |
+| surface-container-lowest  | 255 250 244               | 9 30 32                   |
+| surface-container-low     | 242 225 216               | 18 48 50                  |
+| **surface-container**     | **235 214 215**           | **27 63 66**              |
+| surface-container-high    | 228 205 206               | 33 71 74                  |
+| surface-container-highest | 221 196 197               | 40 80 83                  |
+| on-surface(-variant)      | 24 51 52 / 85 95 96       | 249 235 217 / 159 191 190 |
+| outline / -variant        | 140 126 122 / 219 205 203 | 122 140 140 / 42 85 87    |
+
+Because `surface-container` and the brand `--tw-color-surface` resolve to the
+**identical RGB** (verified in the built CSS), and `on-surface-variant` ==
+`--tw-color-muted` exactly, the reference swaps below are **zero visual
+change**. [gen-palette.ts](../../scripts/gen-palette.ts) got a ⚠️ header: it
+still emits cool-cyan neutral rows, but those must **not** be pasted over the
+hand-authored block (only the chroma roles are regenerable).
+
+**Reference adoption** (makes the dormant tokens live + demonstrates the ramp):
+
+- [account/delete](../../apps/web/src/app/profile/account/delete/page.tsx) base
+  card → `bg-md-surface-container` + `text-md-on-surface-variant` (both **exact
+  zero-change**).
+- [form-modal](../../apps/web/src/components/form-modal.tsx) (dialog) +
+  [nav-dropdown](../../apps/web/src/components/nav-dropdown.tsx) (menu) — the
+  canonical **elevated** surfaces → `bg-md-surface-container-high` (a few RGB
+  units more elevated than the base card, the correct M3 direction; a small
+  delta worth an eyeball in both themes).
+
+**Recommended level map for the future app-wide adoption** (its own
+visual-review bundle): page = `surface`; base card / panel = `surface-container`;
+raised card / dialog / menu / popover = `surface-container-high`; nested
+emphasis = `surface-container-highest`; `border-border-base` →
+`border-md-outline-variant` (light gains a faint visible hairline — an
+intentional change to verify); `text-muted` → `text-md-on-surface-variant`.
+
+**Findings updated:** S2 → 🟡 (surface tokens now brand-correct + ready; the
+app-wide surface migration remains, but is no longer blocked). Verify: 15/15
+typecheck · lint 0 err / 3 pre-existing · 268 web tests · 8/8 build · built-CSS
+confirms the warm/teal ramps ship and `surface-container` == brand surface.
 
 ### Error/notice banners → `<Alert>` (2026-06-07)
 
