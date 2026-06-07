@@ -33,6 +33,68 @@ export type Database = {
   };
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string;
+          actor_user_id: string | null;
+          entity_id: string;
+          entity_type: string;
+          id: string;
+          metadata: Json;
+          occurred_at: string;
+          target_user_id: string | null;
+        };
+        Insert: {
+          action: string;
+          actor_user_id?: string | null;
+          entity_id: string;
+          entity_type: string;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          target_user_id?: string | null;
+        };
+        Update: {
+          action?: string;
+          actor_user_id?: string | null;
+          entity_id?: string;
+          entity_type?: string;
+          id?: string;
+          metadata?: Json;
+          occurred_at?: string;
+          target_user_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'audit_log_actor_user_id_fkey';
+            columns: ['actor_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'audit_log_actor_user_id_fkey';
+            columns: ['actor_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'audit_log_target_user_id_fkey';
+            columns: ['target_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'audit_log_target_user_id_fkey';
+            columns: ['target_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       bracket_match_sets: {
         Row: {
           match_id: string;

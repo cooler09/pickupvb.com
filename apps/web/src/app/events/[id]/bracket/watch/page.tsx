@@ -5,6 +5,7 @@ import { GetEventBracketMetaQuery } from '@pickupvb/application';
 import { DivisionId, EventId, NotFoundError } from '@pickupvb/domain';
 import { ShareLink } from '@/components/share-link';
 import { handlers, repositories } from '@/lib/handlers';
+import { assertEventVisibleOrNotFound, isEventPubliclyVisible } from '@/lib/event-visibility';
 import { isPro } from '@/lib/pro';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 import { LiveScoresProvider } from '../../_components/live-scores-provider';
@@ -31,6 +32,11 @@ export async function generateMetadata(props: {
   const { id } = await props.params;
   const sp = await props.searchParams;
   const divisionParam = pickQuery(sp, 'division') ?? null;
+  // Don't leak a scoped/unpublished event's title into <head>/OG — emit a
+  // generic title unless the event is anon-visible (security audit P1 #14).
+  if (!(await isEventPubliclyVisible(id))) {
+    return { title: 'Live bracket — PickupVB' };
+  }
   try {
     const event = await handlers.getEventBracketMeta.execute(new GetEventBracketMetaQuery(id));
     const division =
@@ -87,6 +93,10 @@ export default async function BracketWatchPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const params = await props.params;
+
+  // Gate scoped/unpublished events: getBracketMeta reads on the admin client
+  // (RLS-bypassed), so re-assert visibility before exposing title/structure.
+  await assertEventVisibleOrNotFound(params.id);
 
   let event;
   try {

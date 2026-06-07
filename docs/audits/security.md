@@ -23,8 +23,11 @@ un-applied regression) + 1 P2 worsened + 1 P2 new + 1 P3 new.** Full write-up:
 > [P2 #16 entry](#2026-06-07--p2-16-rls-column-pinning-on-media_posts--messages),
 > and the [P3 #17 entry](#2026-06-07--p3-17-sentry-test-gated) (the two trigger
 > migrations are **deploy-gated** — CI applies them). The bullets below describe
-> the findings as-found. _(Pre-existing backlog untouched: P2 #3b CSP nonce,
-> P3 #8 audit-log coverage, and the P1 #14 `getBracketMeta` spectator follow-up.)_
+> the findings as-found. _(Pre-existing backlog also addressed 2026-06-07: the
+> P1 #14 `getBracketMeta` spectator follow-up and P3 #8 audit-log coverage are
+> both closed; **P2 #3b** (CSP nonce) was assessed and closed
+> **wontfix-with-rationale** — see [§ 3b](#3b-nonce-based-csp-hardening-drop-unsafe-inline).
+> No open security items remain on this file.)_
 
 - **P1 #12 is STILL OPEN — the 2026-05-30 recommended fix was never applied.**
   Re-confirmed exploitable at HEAD: `addEventCoHost` / `add|update|removeEventDivision`
@@ -92,14 +95,17 @@ read-side twin of P1 #12 / [P2 #4](#4-admin-supabase-client-used-for-user-driven
   (2026-06-04):** [load-event-detail.ts](../../apps/web/src/app/events/[id]/_loaders/load-event-detail.ts)
   gates logged-in viewers with a cheap user-scoped existence check against the
   RLS-protected base `events` table (delegate to the canonical `events_select`
-  policy — invite*only stays link-readable), and anon viewers with a static
+  policy — invite\*only stays link-readable), and anon viewers with a static
   `published && (public|invite_only)` check;
   [page.tsx](../../apps/web/src/app/events/[id]/page.tsx) `generateMetadata`
   gated the same way. **Deploy-gated** (fix ships to dev on the next deploy).
-  **Open follow-up:** the bracket / schedule / watch spectator pages read
-  via `getBracketMeta` (same admin client, no gate), so a \_scoped* tournament's
-  metadata still leaks there — left open (intended-shareable spectator surfaces;
-  tournaments are usually public).
+  **Follow-up (✅ closed 2026-06-07):** the bracket / schedule / watch spectator
+  pages read via `getBracketMeta` (same admin client, no gate), so a _scoped_
+  tournament's title + division structure leaked there (page bodies, both
+  `generateMetadata`s, and the bracket-watch OG image). Closed with a shared,
+  cache-preserving [`assertEventVisibleOrNotFound`](../../apps/web/src/lib/event-visibility.ts)
+  gate — see the
+  [remediation entry](#2026-06-07--p1-14-spectator-follow-up-bracketschedulewatch).
 
 **Status update (2026-05-30) — fresh re-audit:** read-only pass over the
 feature surface added since the 2026-05-17 audit (brackets, leagues, event
@@ -283,6 +289,48 @@ HSTS, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and
 Supabase, Sentry, Turnstile, OSM tiles, fonts, images) — roll it out behind
 `Content-Security-Policy-Report-Only` first.
 
+### 3b. Nonce-based CSP hardening (drop `'unsafe-inline'`)
+
+**Status:** 🟡 _Assessed 2026-06-07 — **wontfix-with-rationale** (cost ≫ benefit;
+re-open triggers below)._ The enforcing CSP retains `'unsafe-inline'` on
+`script-src` and `style-src` ([next.config.mjs](../../apps/web/next.config.mjs#L75-L76)).
+Dropping it was assessed in full and is **not worth implementing as the app is
+built today**:
+
+- **`style-src` — infeasible.** CSP nonces only cover `<style>` _elements_, not
+  inline `style={{…}}` _attributes_. The app has ~9 inline-style sites (event-map
+  height, dashboard widgets) plus libraries (Leaflet / Radix) that inject inline
+  styles at runtime. None can carry a nonce, so `'unsafe-inline'` on `style-src`
+  cannot be removed without refactoring every inline style to a class/CSS-var
+  **and** guaranteeing no dependency ever injects one — brittle and high-maintenance
+  for no change to the actual attack surface.
+- **`script-src` — feasible but net-negative.** The only inline scripts are
+  JSON-LD (`<script type="application/ld+json">`), emitted by `layout.tsx` on
+  **every page**. JSON-LD is dynamic (per-event), so it can't be hashed — it needs
+  a per-request **nonce**, which means moving CSP generation into `proxy.ts` and
+  reading the nonce at render time. That **forces dynamic rendering site-wide and
+  defeats static/ISR caching** — directly counter to this codebase's caching
+  investment (e.g. the cache-preserving P1 #14 spectator gate). The benefit is
+  marginal: the only `dangerouslySetInnerHTML` is server-built `JSON.stringify` of
+  trusted data (verified under "✅ Verified safe" — XSS), so `'unsafe-inline'` is a
+  defense-in-depth gap here, not a live vector.
+
+**Recommended posture:** keep `'unsafe-inline'` until a re-open trigger fires, and
+prefer the lower-cost mitigations already in place (no user-controlled HTML
+rendering; typed/escaped JSON-LD; `object-src 'none'`, `base-uri 'self'`,
+`frame-ancestors 'none'`).
+
+**Re-open triggers** (any one flips this back to an actionable P2):
+
+- The app starts rendering **user-influenced HTML** (a rich-text/markdown field,
+  a CMS block, an embed the user controls) — then inline-script XSS becomes real
+  and the nonce cost is justified.
+- The app **moves off static/ISR caching** for the pages that emit JSON-LD (so a
+  per-request nonce no longer costs cacheability), or Next ships first-class
+  nonce support that preserves caching.
+- A dependency is added that requires a tighter CSP for compliance (PCI/SOC2
+  control, a partner requirement).
+
 ### 4. Admin Supabase client used for user-driven writes
 
 **Status:** ✅ _Resolved 2026-05-24 (Bundle 14)_ — all three call sites
@@ -398,6 +446,19 @@ otherwise.
 ## P3 — nice to have
 
 ### 8. Audit log coverage gaps
+
+**Status:** ✅ _Resolved 2026-06-07 (deploy-gated)._ Added a generic append-only
+[`audit_log`](../../supabase/migrations/20260923000000_audit_log.sql) table
+(service-role write/read only, mirroring `event_payment_audit`) + a fail-quiet
+[`recordAuditEvent`](../../apps/web/src/lib/audit-log.ts) helper, wired into all
+four flagged categories: group member add/remove/role
+([member-actions.ts](../../apps/web/src/app/groups/member-actions.ts)), event
+co-host add/remove
+([co-host-actions.ts](../../apps/web/src/app/events/[id]/co-host-actions.ts)),
+Stripe Connect account mirrors
+([connect.ts](../../apps/web/src/lib/webhooks/connect.ts)), and host-subscription
+state changes ([subscription.ts](../../apps/web/src/lib/webhooks/subscription.ts)).
+See the [remediation entry](#2026-06-07--p3-8-audit-log-coverage).
 
 `event_payment_audit` table exists ([20260516000000_ticketed_events.sql](../../supabase/migrations/20260516000000_ticketed_events.sql#L76))
 but the pattern isn't extended to:
@@ -892,6 +953,49 @@ The bigger items deserve their own PR each:
 
 ## Remediation log
 
+### 2026-06-07 — P3 #8 (audit-log coverage)
+
+Extended the refund-only `event_payment_audit` to a generic append-only
+[`audit_log`](../../supabase/migrations/20260923000000_audit_log.sql) covering
+the four flagged categories. Service-role write/read only (RLS-on, no policies —
+mirrors `event_payment_audit`; a user-writable audit trail is worthless). The
+[`recordAuditEvent`](../../apps/web/src/lib/audit-log.ts) helper is **fail-quiet**
+(an audit write never blocks/fails the action it records) and is called only
+after the underlying mutation succeeds.
+
+| Category                      | Site                                                                        | Action(s)                                                                                                       |
+| ----------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Group member add/remove/role  | [member-actions.ts](../../apps/web/src/app/groups/member-actions.ts)        | `group_member.added` / `.removed` / `.role_changed` (actor + target + role)                                     |
+| Event co-host add/remove      | [co-host-actions.ts](../../apps/web/src/app/events/[id]/co-host-actions.ts) | `event.co_host_added` / `.co_host_removed` (actor + target user / group)                                        |
+| Stripe Connect account mirror | [connect.ts](../../apps/web/src/lib/webhooks/connect.ts)                    | `host_stripe.account_updated` (host + charges/payouts/details flags; host lookup hoisted, reused for analytics) |
+| Host-subscription state       | [subscription.ts](../../apps/web/src/lib/webhooks/subscription.ts)          | `host_subscription.changed` (host + eventType/status/plan/cancelAtPeriodEnd)                                    |
+
+`entity_id` is text (holds our uuids + Stripe `acct_…`/`sub_…` ids); actor/target
+FKs are `ON DELETE SET NULL` so the ADR 0029 account-deletion purge preserves the
+trail. Generated types were hand-edited to add `audit_log` (will be canonicalised
+on the next `gen:types`). Verified `pnpm typecheck && lint && test && build` green.
+**Deploy-gated** — CI applies the migration. Follow-up: a retention cron to prune
+old rows (noted in the migration), and surfacing the trail in an admin view.
+
+### 2026-06-07 — P1 #14 spectator follow-up (bracket/schedule/watch)
+
+Closed the last open branch of P1 #14: the bracket / schedule / watch spectator
+pages read event metadata via `getBracketMeta` on the admin client (RLS-bypassed),
+leaking a _scoped_ (`friends_of_*` / `private`) or unpublished tournament's title +
+division structure. New shared helper
+[event-visibility.ts](../../apps/web/src/lib/event-visibility.ts):
+
+| Piece                              | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assertEventVisibleOrNotFound(id)` | Cache-preserving page-body gate. A published public/invite_only event passes for everyone with one admin-client `status,visibility` read and **no `cookies()`** (the page stays cacheable); only a scoped/unpublished event falls back to a per-viewer RLS existence check (delegating to `events_select`). Applied to [bracket](../../apps/web/src/app/events/[id]/bracket/page.tsx), [watch](../../apps/web/src/app/events/[id]/bracket/watch/page.tsx), [schedule](../../apps/web/src/app/events/[id]/schedule/page.tsx) page bodies. |
+| `isEventPubliclyVisible(id)`       | Used by `generateMetadata` (watch + schedule) and the shared bracket-watch OG renderer ([\_og.tsx](../../apps/web/src/app/events/[id]/bracket/watch/_og.tsx)) to emit a **generic** title/card for non-anon-visible events instead of leaking the real one. The `status,visibility` read is deduped across `generateMetadata` + body via React `cache`.                                                                                                                                                                                  |
+
+Design note: the bracket data itself is intentionally public (`event_brackets` /
+`bracket_matches` RLS is `using (true)`) and most tournaments are public, so the
+common path is unchanged + still cacheable; only scoped/draft events (where the
+host is the audience) become per-viewer dynamic. No domain/type change. Verified
+`pnpm typecheck && lint && test && build` green (268 web tests).
+
 ### 2026-06-07 — P3 #17 (sentry-test gated)
 
 [apps/web/src/app/api/sentry-test/route.ts](../../apps/web/src/app/api/sentry-test/route.ts)
@@ -948,12 +1052,12 @@ migrations, deferred) and **P3 #17** (`/api/sentry-test` public — one-line
 
 ### 2026-06-04 — scoped event-detail visibility gate (P1 #14)
 
-| Item                | Status                  | Notes                                                                                                                                                                                                                  |
-| ------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Logged-in read gate | ✅ fixed (deploy-gated) | `loadEventDetail` runs a user-scoped existence check on the RLS-protected base `events` table before returning; a viewer who can't `SELECT` the row → `notFound()`. Delegates to the canonical `events_select` policy. |
-| Anon read gate      | ✅ fixed (deploy-gated) | `loadEventDetail` gates the cacheable anon path with a static `published && (public \| invite_only)` check (anon has no friend edges).                                                                                 |
-| Metadata gate       | ✅ fixed (deploy-gated) | `generateMetadata` emits a generic, noindex title for non-anon-visible events so scoped titles don't leak in `<head>`/og.                                                                                              |
-| Spectator pages     | ⏳ open                 | `getBracketMeta` (bracket/schedule/watch) still reads admin-side with no gate — scoped tournament metadata leaks. Deferred (intended-shareable surfaces).                                                              |
+| Item                | Status                  | Notes                                                                                                                                                                                                                                                                                    |
+| ------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Logged-in read gate | ✅ fixed (deploy-gated) | `loadEventDetail` runs a user-scoped existence check on the RLS-protected base `events` table before returning; a viewer who can't `SELECT` the row → `notFound()`. Delegates to the canonical `events_select` policy.                                                                   |
+| Anon read gate      | ✅ fixed (deploy-gated) | `loadEventDetail` gates the cacheable anon path with a static `published && (public \| invite_only)` check (anon has no friend edges).                                                                                                                                                   |
+| Metadata gate       | ✅ fixed (deploy-gated) | `generateMetadata` emits a generic, noindex title for non-anon-visible events so scoped titles don't leak in `<head>`/og.                                                                                                                                                                |
+| Spectator pages     | ✅ fixed 2026-06-07     | `getBracketMeta` (bracket/schedule/watch) page bodies + both `generateMetadata`s + the bracket-watch OG image now gate via `assertEventVisibleOrNotFound` / `isEventPubliclyVisible`. See the [2026-06-07 spectator entry](#2026-06-07--p1-14-spectator-follow-up-bracketschedulewatch). |
 
 Regression coverage: `apps/web/tests/e2e/persona-olivia-social.authed.spec.ts`
 (asserts a `friends_of_host` event is hidden from a non-friend). Deploy-gated —
@@ -1076,11 +1180,11 @@ Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
 
 ### 2026-05-22 — Bundle 27: CSP enforcement (P2 #3a)
 
-| Item                                     | Status  | Notes                                                                                                                                                                                                                                                                                                                                                             |
-| ---------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Swap header to `Content-Security-Policy` | ✅ Done | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) — single one-line swap from `Content-Security-Policy-Report-Only`. Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24); no policy changes. Browsers now block any script / style / connect / img / frame / font / worker target that isn't on the allowlist.                    |
-| Comment refresh                          | ✅ Done | Updated the inline policy-rationale comment in `next.config.mjs` to reflect enforcement mode and re-pointed the nonce follow-up at the new **P2 #3b** entry.                                                                                                                                                                                                      |
-| Nonce-based hardening                    | 🔴 Open | `'unsafe-inline'` is still required on `script-src` (JSON-LD `<script type="application/ld+json">` in [layout.tsx](../../apps/web/src/app/layout.tsx) + [event-jsonld.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-jsonld.tsx)) and `style-src` (Tailwind utility classes). Tracked as **P2 #3b** — requires nonce threading through middleware. |
+| Item                                     | Status                           | Notes                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Swap header to `Content-Security-Policy` | ✅ Done                          | [apps/web/next.config.mjs](../../apps/web/next.config.mjs) — single one-line swap from `Content-Security-Policy-Report-Only`. Same allowlist that soaked behind Report-Only since Bundle 15 (2026-05-24); no policy changes. Browsers now block any script / style / connect / img / frame / font / worker target that isn't on the allowlist. |
+| Comment refresh                          | ✅ Done                          | Updated the inline policy-rationale comment in `next.config.mjs` to reflect enforcement mode and re-pointed the nonce follow-up at the new **P2 #3b** entry.                                                                                                                                                                                   |
+| Nonce-based hardening                    | 🟡 Wontfix (assessed 2026-06-07) | `'unsafe-inline'` stays on `script-src` (dynamic JSON-LD, can't be hashed; a nonce forces site-wide dynamic rendering) + `style-src` (inline `style` attributes + Leaflet/Radix can't carry a nonce). Full cost/benefit + re-open triggers in **[P2 #3b](#3b-nonce-based-csp-hardening-drop-unsafe-inline)**.                                  |
 
 Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅.
 

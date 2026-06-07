@@ -17,6 +17,7 @@ import {
 import { handlers } from '@/lib/handlers';
 import { redirectEventNotice } from '@/lib/server-redirects';
 import { getViewer } from '@/lib/server-auth';
+import { recordAuditEvent } from '@/lib/audit-log';
 
 /**
  * Server action wrappers around AddEventCoHostCommand / RemoveEventCoHostCommand
@@ -75,6 +76,14 @@ export async function addEventCoHost(
   try {
     const userId = await assertCanManage(eventId);
     await handlers.addEventCoHost.execute(new AddEventCoHostCommand(eventId, party, userId));
+    await recordAuditEvent({
+      action: 'event.co_host_added',
+      entityType: 'event',
+      entityId: eventId,
+      actorUserId: userId,
+      targetUserId: party.userId ?? null,
+      ...(party.groupId ? { metadata: { groupId: party.groupId } } : {}),
+    });
   } catch (err) {
     mapErrorAndFlash(eventId, err);
   }
@@ -94,6 +103,14 @@ export async function removeEventCoHost(
   try {
     const userId = await assertCanManage(eventId);
     await handlers.removeEventCoHost.execute(new RemoveEventCoHostCommand(eventId, party, userId));
+    await recordAuditEvent({
+      action: 'event.co_host_removed',
+      entityType: 'event',
+      entityId: eventId,
+      actorUserId: userId,
+      targetUserId: party.userId ?? null,
+      ...(party.groupId ? { metadata: { groupId: party.groupId } } : {}),
+    });
   } catch (err) {
     mapErrorAndFlash(eventId, err);
   }
