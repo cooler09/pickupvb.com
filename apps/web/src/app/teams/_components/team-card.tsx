@@ -26,7 +26,7 @@ export function TeamCard({
       : role === 'pending'
         ? {
             label: 'Pending',
-            className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+            className: 'bg-md-warning/15 text-md-warning',
           }
         : role === 'member'
           ? { label: 'Member', className: 'bg-fg/10 text-fg/80' }

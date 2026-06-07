@@ -31,7 +31,7 @@ function initials(name: string): string {
 }
 
 const ROLE_BADGE: Record<GroupMember['role'], string> = {
-  owner: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  owner: 'bg-md-warning/15 text-md-warning',
   admin: 'bg-primary/10 text-primary',
   member: 'bg-fg/5 text-muted',
 };

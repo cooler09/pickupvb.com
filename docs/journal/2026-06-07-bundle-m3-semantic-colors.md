@@ -95,10 +95,14 @@ transparent)` with a solid `rgb(var(...))` fallback rule — verified in the
   inline semantic-text migration now complete (red+green+amber). Then the
   hand-rolled **warning/success notice panels** (community/billing/edit-event +
   the tip-thanks flash → `<Alert>`) → container roles (`bg-md-warning-container`
-  / `*/5` tints). **Net 277 → 227.** See the m3-alignment remediation log. The
-  **remainder is visual-review** — bg-tinted status badges (mixed semantics +
-  pale-pill-on-dark behavior) + the app-wide surface migration — best done with
-  eyes on the running app, not more blind recolors.
+  / `*/5` tints). **Net 277 → 227.** Finally the bg-tinted **status badges** →
+  `bg-md-{role}/15 text-md-{role}` tints (tint not container — small pills'
+  pale-pop-on-dark is intentional; exact-string subs so the scoreboard's
+  solid-500 CTAs stay untouched). **Net 227 → 118.** See the m3-alignment
+  remediation log. **The semantic colour migration is effectively done
+  (555 → 118, −79%)** — the remaining 118 is decorative/non-semantic (violet
+  tag, neutral greys, scoreboard CTAs, env-banner) and stays raw. The one
+  **open** S2 item is the app-wide **surface migration** (visual-review).
 - **No palette ratchet yet** — raw red/amber/emerald can't reach zero
   (decorative/team uses remain), so the lint lock waits until a _fully
   migratable_ sub-bucket exists.

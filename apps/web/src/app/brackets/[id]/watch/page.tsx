@@ -75,12 +75,12 @@ export default async function StandaloneBracketWatchPage(props: {
         <div className="flex items-center gap-2">
           <h1 className="text-fg text-headline-sm font-bold">Live bracket</h1>
           {bracket.status === 'active' && (
-            <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+            <span className="bg-md-error/10 text-md-error rounded-full px-2 py-0.5 text-xs font-medium">
               ● LIVE
             </span>
           )}
           {bracket.status === 'completed' && (
-            <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+            <span className="bg-md-success/10 text-md-success rounded-full px-2 py-0.5 text-xs font-medium">
               Final
             </span>
           )}

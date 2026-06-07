@@ -117,13 +117,13 @@ export function AttendeeList({
                   </span>
                 )}
                 {a.waitlist && (
-                  <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase">
+                  <span className="bg-md-warning/15 text-md-warning ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
                     Waitlist
                   </span>
                 )}
                 {pay && pay.status === 'paid' && (
                   <span
-                    className="ml-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-800 uppercase"
+                    className="bg-md-success/15 text-md-success ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase"
                     title={pay.viaStripe ? 'Paid via Stripe' : 'Marked paid by host'}
                   >
                     Paid

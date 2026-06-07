@@ -39,7 +39,7 @@ function ChecklistStep({
 }) {
   const ring =
     state === 'done'
-      ? 'bg-emerald-500/15 text-emerald-700 ring-emerald-500/40 dark:text-emerald-300'
+      ? 'bg-md-success/15 text-md-success ring-md-success/40'
       : state === 'current'
         ? 'bg-primary/10 text-primary ring-primary/40'
         : 'bg-fg/5 text-muted ring-border-base';
@@ -146,9 +146,9 @@ export default async function BillingPage(props: { searchParams: SearchParams })
             <span
               className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
                 ready
-                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                  ? 'bg-md-success/15 text-md-success'
                   : inProgress
-                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                    ? 'bg-md-warning/15 text-md-warning'
                     : 'bg-fg/10 text-muted'
               }`}
             >

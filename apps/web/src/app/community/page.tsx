@@ -262,7 +262,7 @@ export default async function CommunityListingsPage(props: {
         </div>
       </form>
 
-      <p className="rounded-md bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+      <p className="bg-md-warning/10 text-md-warning rounded-md p-3 text-xs">
         Community listings link out to external sites. PickupVB doesn&rsquo;t verify or moderate the
         events themselves. RSVP and pay through the linked source.
       </p>

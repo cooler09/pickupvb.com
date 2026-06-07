@@ -94,7 +94,7 @@ export function PositionRsvpPanel({
                       ({filled}/{target})
                     </span>
                     {overFull && (
-                      <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase">
+                      <span className="bg-md-warning/15 text-md-warning ml-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
                         Waitlist
                       </span>
                     )}

@@ -42,9 +42,7 @@ export function TeamLeagueRecords({ records }: { records: ReadonlyArray<TeamLeag
               </div>
               <span
                 className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
-                  r.state === 'final'
-                    ? 'bg-fg/10 text-muted'
-                    : 'bg-green-500/10 text-green-700 dark:text-green-300'
+                  r.state === 'final' ? 'bg-fg/10 text-muted' : 'bg-md-success/10 text-md-success'
                 }`}
               >
                 {r.state === 'final' ? 'Final' : 'In progress'}

@@ -25,7 +25,7 @@ type Props = {
 };
 
 const BADGE_TONE: Record<Tone, string> = {
-  free: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300',
+  free: 'bg-md-success/10 text-md-success border-md-success/30',
   paid: 'bg-primary/10 text-primary border-primary/30',
   external: 'bg-secondary/10 text-secondary border-secondary/30',
   closed: 'bg-fg/5 text-muted border-border-base',
