@@ -10,12 +10,13 @@ read from — the `event_payment_audit` ledger.
 
 > **Status (2026-06-08): new audit — 1 P1 · 3 P2 · 8 P3.**
 > **Fixed same day (quad-green, uncommitted, migrations deploy-gated): R-1, R-2,
-> R-3, R-8, R-9, R-11 + partial R-4/R-7.** The ledger now records tip and
-> team-entry payments (+ refunds) under a new `category` column with a backfill;
-> the host read filters to income categories; CSV cells are formula-injection
-> safe; the dead `'failed'` action is gone (CHECK tightened); off-platform
-> receipts print a clean number. **Remaining open: R-5, R-6, R-10, R-12, and the
-> leftover R-4/R-7 grouping-reducer extraction.** See the remediation log.
+> R-3, R-4, R-7, R-8, R-9, R-11.** The ledger now records tip and team-entry
+> payments (+ refunds) under a new `category` column with a backfill; the host
+> read filters to income categories; CSV cells are formula-injection safe; the
+> group-by-payment-intent reducer + fee math + CSV escaping each live in one
+> shared, unit-tested module; the dead `'failed'` action is gone (CHECK
+> tightened); off-platform receipts print a clean number. **Remaining open: R-5,
+> R-6, R-10, R-12** (all P3). See the remediation log.
 >
 > RLS posture is sound (`event_payment_audit` reads are scoped by the
 > `_select_own` / `_select_host` policies; `tax_id` / `business_*` are
@@ -62,10 +63,10 @@ to the entire receipts/tax surface.
 | R-1  | P1  | ✅ FIXED — tip + team (ad-hoc/roster) payments + refunds now recorded under a `category` column; backfilled  |
 | R-2  | P2  | ✅ FIXED — earnings reads now filter `events.host_id`; was over-counting a host who is also a buyer          |
 | R-3  | P2  | ✅ FIXED — CSV cells now neutralize formula injection (`=`/`+`/`-`/`@`/TAB/CR); shared helper                |
-| R-4  | P2  | ◑ PARTIAL — `csvCell` now unit-tested; grouping/fee math still untested (tied to R-7 extraction)             |
+| R-4  | P2  | ✅ FIXED — grouping reducer + fee math extracted to `lib/receipts.ts` and unit-tested (csvCell already was)  |
 | R-5  | P3  | Off-platform cash payments get a phantom platform-fee deduction in earnings                                  |
 | R-6  | P3  | Off-platform paid+refund pairs don't net (each null-PI row gets its own group key)                           |
-| R-7  | P3  | ◑ PARTIAL — `csvCell` extracted to one tested home; the group-by-PI reducer is still copy-pasted 4×          |
+| R-7  | P3  | ✅ FIXED — the group-by-PI reducer (4 copies) + `csvCell` now each live in one shared, tested module         |
 | R-8  | P3  | ✅ FIXED — dead `'failed'` removed: 4 `.neq` filters + type unions dropped, CHECK tightened to paid/refunded |
 | R-9  | P3  | ✅ FIXED — synthetic rows now print `#<SHORT>` instead of the raw `audit:<uuid>` key                         |
 | R-10 | P3  | Receipts/earnings fetch the entire ledger every render (force-dynamic, uncached) then slice                  |
@@ -344,6 +345,33 @@ tax identifiers.
 ---
 
 ## Remediation log
+
+### 2026-06-08 (pt. 4) — R-4, R-7 fixed (quad-green, uncommitted)
+
+Extracted the duplicated read-projection logic into one tested home,
+[lib/receipts.ts](../../apps/web/src/lib/receipts.ts):
+
+- **`groupAuditRowsByPaymentIntent(rows, project)`** — the group-by-payment-intent
+  fold that was copy-pasted (with subtle drift) across the receipts page,
+  receipts CSV, earnings loader, and earnings CSV. Generic over a `project`
+  callback that supplies each reader's per-transaction static fields (event
+  title, city, host, …) and returns `null` to skip a row (preserving the
+  callers' `if (!r.events) continue` guard). All four readers now call it; the
+  local `Txn` / `TransactionRow` types and ~25-line loops are gone (R-7). A
+  dead-but-set `eventStartsAt` projection on the receipts page was dropped in
+  passing.
+- **`estimatePlatformFeeCents(net, feeRate)`** — the `Math.round(net * feeRate)`
+  fee estimate, previously inlined four times across the two earnings readers.
+- **Tests** — [lib/receipts.test.ts](../../apps/web/src/lib/receipts.test.ts)
+  (9 cases): paid+refund netting, distinct PIs, synthetic `audit:<id>` keys for
+  null-PI rows, earliest-paidAt / latest-refundedAt selection, null-projection
+  skip, first-row field projection, and the fee rounding. This closes the R-4
+  "grouping + fee math untested" gap (`csvCell` was already tested in pt. 1).
+
+Behaviour is unchanged — each reader keeps its own sort and downstream
+aggregation; only the shared fold/fee moved. The single-receipt detail page was
+left as-is (it aggregates one PI and pulls richer event fields — not the same
+multi-transaction fold).
 
 ### 2026-06-08 (pt. 3) — R-8, R-9 fixed (quad-green, uncommitted, migration deploy-gated)
 

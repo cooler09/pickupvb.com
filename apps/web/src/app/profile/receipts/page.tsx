@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { getServerSupabase } from '@/lib/supabase';
 import { Pagination } from '@/components/pagination';
+import { groupAuditRowsByPaymentIntent } from '@/lib/receipts';
 import { BusinessInfoForm } from './business-info-form';
 
 export const dynamic = 'force-dynamic';
@@ -22,18 +23,6 @@ type AuditRow = {
   payment_intent_id: string | null;
   occurred_at: string;
   events: { title: string; starts_at: string } | null;
-};
-
-type TransactionRow = {
-  paymentIntentId: string;
-  eventId: string;
-  eventTitle: string;
-  eventStartsAt: string;
-  paidCents: number;
-  refundedCents: number;
-  netCents: number;
-  paidAt: string;
-  refundedAt: string | null;
 };
 
 function formatUsd(cents: number): string {
@@ -90,38 +79,9 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
   const rows = (rawRows as unknown as AuditRow[] | null) ?? [];
 
   // Group by payment_intent_id (fall back to audit id for legacy rows).
-  const byPi = new Map<string, TransactionRow>();
-  for (const r of rows) {
-    if (!r.events) continue;
-    const key = r.payment_intent_id ?? `audit:${r.id}`;
-    const existing = byPi.get(key);
-    if (existing) {
-      if (r.action === 'paid') {
-        existing.paidCents += r.amount_cents;
-        if (r.occurred_at < existing.paidAt) existing.paidAt = r.occurred_at;
-      } else if (r.action === 'refunded') {
-        existing.refundedCents += r.amount_cents;
-        if (!existing.refundedAt || r.occurred_at > existing.refundedAt) {
-          existing.refundedAt = r.occurred_at;
-        }
-      }
-      existing.netCents = existing.paidCents - existing.refundedCents;
-    } else {
-      byPi.set(key, {
-        paymentIntentId: r.payment_intent_id ?? `audit:${r.id}`,
-        eventId: r.event_id,
-        eventTitle: r.events.title,
-        eventStartsAt: r.events.starts_at,
-        paidCents: r.action === 'paid' ? r.amount_cents : 0,
-        refundedCents: r.action === 'refunded' ? r.amount_cents : 0,
-        netCents: r.action === 'paid' ? r.amount_cents : -r.amount_cents,
-        paidAt: r.occurred_at,
-        refundedAt: r.action === 'refunded' ? r.occurred_at : null,
-      });
-    }
-  }
-
-  const transactions = Array.from(byPi.values()).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
+  const transactions = groupAuditRowsByPaymentIntent(rows, (r) =>
+    r.events ? { eventId: r.event_id, eventTitle: r.events.title } : null,
+  ).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
 
   const totalNet = transactions.reduce((s, t) => s + t.netCents, 0);
   const currentYear = new Date().getFullYear();

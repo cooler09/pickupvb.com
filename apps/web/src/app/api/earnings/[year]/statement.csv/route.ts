@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase';
 import { csvCell } from '@/lib/csv';
+import { groupAuditRowsByPaymentIntent, estimatePlatformFeeCents } from '@/lib/receipts';
 import { isPro, PRO_PLATFORM_FEE_BPS } from '@/lib/pro';
 import { PLATFORM_FEE_BPS } from '@/lib/stripe';
 
@@ -79,38 +80,9 @@ export async function GET(
 
   const rows = (rawRows as unknown as AuditRow[] | null) ?? [];
 
-  type Txn = {
-    paymentIntentId: string;
-    eventTitle: string;
-    eventStartsAt: string;
-    paidCents: number;
-    refundedCents: number;
-    paidAt: string;
-  };
-  const byPi = new Map<string, Txn>();
-  for (const r of rows) {
-    if (!r.events) continue;
-    const key = r.payment_intent_id ?? `audit:${r.id}`;
-    const existing = byPi.get(key);
-    if (existing) {
-      if (r.action === 'paid') {
-        existing.paidCents += r.amount_cents;
-        if (r.occurred_at < existing.paidAt) existing.paidAt = r.occurred_at;
-      } else {
-        existing.refundedCents += r.amount_cents;
-      }
-    } else {
-      byPi.set(key, {
-        paymentIntentId: r.payment_intent_id ?? `audit:${r.id}`,
-        eventTitle: r.events.title,
-        eventStartsAt: r.events.starts_at,
-        paidCents: r.action === 'paid' ? r.amount_cents : 0,
-        refundedCents: r.action === 'refunded' ? r.amount_cents : 0,
-        paidAt: r.occurred_at,
-      });
-    }
-  }
-  const transactions = Array.from(byPi.values()).sort((a, b) => (a.paidAt < b.paidAt ? -1 : 1));
+  const transactions = groupAuditRowsByPaymentIntent(rows, (r) =>
+    r.events ? { eventTitle: r.events.title, eventStartsAt: r.events.starts_at } : null,
+  ).sort((a, b) => (a.paidAt < b.paidAt ? -1 : 1));
 
   const usd = (c: number): string => (c / 100).toFixed(2);
   const header = [
@@ -130,7 +102,7 @@ export async function GET(
   let totalRefund = 0;
   for (const t of transactions) {
     const net = t.paidCents - t.refundedCents;
-    const fee = Math.round(net * feeRate);
+    const fee = estimatePlatformFeeCents(net, feeRate);
     const payout = net - fee;
     totalGross += t.paidCents;
     totalRefund += t.refundedCents;
@@ -149,7 +121,7 @@ export async function GET(
     );
   }
   const totalNet = totalGross - totalRefund;
-  const totalFee = Math.round(totalNet * feeRate);
+  const totalFee = estimatePlatformFeeCents(totalNet, feeRate);
   const totalPayout = totalNet - totalFee;
   lines.push(
     [

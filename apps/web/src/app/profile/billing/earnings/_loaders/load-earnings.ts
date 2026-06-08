@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getServerSupabase } from '@/lib/supabase';
 import { isPro, PRO_PLATFORM_FEE_BPS } from '@/lib/pro';
 import { PLATFORM_FEE_BPS } from '@/lib/stripe';
+import { groupAuditRowsByPaymentIntent, estimatePlatformFeeCents } from '@/lib/receipts';
 
 export const EVENTS_PER_PAGE = 20;
 
@@ -100,49 +101,20 @@ export async function loadEarnings(page: number): Promise<EarningsModel> {
 
   const rows = (rawRows as unknown as AuditRow[] | null) ?? [];
 
-  type Txn = {
-    paymentIntentId: string;
-    eventId: string;
-    eventTitle: string;
-    eventStartsAt: string;
-    paidCents: number;
-    refundedCents: number;
-    paidAt: string;
-  };
-  const byPi = new Map<string, Txn>();
-  for (const r of rows) {
-    if (!r.events) continue;
-    const key = r.payment_intent_id ?? `audit:${r.id}`;
-    const existing = byPi.get(key);
-    if (existing) {
-      if (r.action === 'paid') {
-        existing.paidCents += r.amount_cents;
-        if (r.occurred_at < existing.paidAt) existing.paidAt = r.occurred_at;
-      } else {
-        existing.refundedCents += r.amount_cents;
-      }
-    } else {
-      byPi.set(key, {
-        paymentIntentId: r.payment_intent_id ?? `audit:${r.id}`,
-        eventId: r.event_id,
-        eventTitle: r.events.title,
-        eventStartsAt: r.events.starts_at,
-        paidCents: r.action === 'paid' ? r.amount_cents : 0,
-        refundedCents: r.action === 'refunded' ? r.amount_cents : 0,
-        paidAt: r.occurred_at,
-      });
-    }
-  }
-  const transactions = Array.from(byPi.values()).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
+  const transactions = groupAuditRowsByPaymentIntent(rows, (r) =>
+    r.events
+      ? { eventId: r.event_id, eventTitle: r.events.title, eventStartsAt: r.events.starts_at }
+      : null,
+  ).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
 
   const currentYear = new Date().getFullYear();
   const ytd = transactions.filter((t) => new Date(t.paidAt).getFullYear() === currentYear);
 
-  function totals(txns: Txn[]): Totals {
+  function totals(txns: ReadonlyArray<{ paidCents: number; refundedCents: number }>): Totals {
     const gross = txns.reduce((s, t) => s + t.paidCents, 0);
     const refunded = txns.reduce((s, t) => s + t.refundedCents, 0);
     const net = gross - refunded;
-    const platformFee = Math.round(net * feeRate);
+    const platformFee = estimatePlatformFeeCents(net, feeRate);
     const estPayout = net - platformFee;
     return { gross, refunded, net, platformFee, estPayout };
   }
