@@ -221,6 +221,7 @@ export default async function EventDetailPage(props: {
         timeZone={event.timeZone}
         spotsRemaining={event.spotsRemaining}
         attendeeCount={event.attendeeCount}
+        offPlatform={event.paymentsOffPlatform || isExternal}
       />
 
       <EventMetaSection
@@ -238,7 +239,11 @@ export default async function EventDetailPage(props: {
         timeZone={event.timeZone}
       />
 
-      <DivisionsSection divisions={event.divisions} teamCounts={teamCountByDivision} />
+      <DivisionsSection
+        divisions={event.divisions}
+        teamCounts={teamCountByDivision}
+        offPlatform={event.paymentsOffPlatform || isExternal}
+      />
 
       <EventSignupArea
         event={event}
