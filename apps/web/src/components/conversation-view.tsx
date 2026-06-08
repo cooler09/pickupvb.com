@@ -122,9 +122,9 @@ function imageDimensions(file: File): Promise<{ width: number; height: number }>
 /**
  * The reusable live chat surface (ADR 0028) — message list, "load earlier",
  * composer (text + image attachments), and per-message edit / delete / report.
- * Shared by the team-room island ({@link TeamChatPanel}, which bootstraps
- * client-side then mounts this) and the DM thread page (which bootstraps
- * server-side). It owns no access logic — the caller decides whether to render
+ * Shared by the context-room island ({@link RoomChatPanel}, which bootstraps
+ * client-side then mounts this for team / event / group rooms) and the DM thread
+ * page (which bootstraps server-side). It owns no access logic — the caller decides whether to render
  * it; this just needs an opened `conversationId` + the initial page, and
  * subscribes to the private `chat:{conversationId}` Broadcast topic for live
  * INSERT / UPDATE (the same pattern as the notification bell, ADR 0027).

@@ -115,6 +115,23 @@ DB `messages_nonempty` CHECK), threaded through `SendMessageCommand` → the
 repository's insert/read/broadcast. Upload is client-side in the shared
 `ConversationView` composer, so both team rooms and DMs got attachments at once.
 
+**Phase 5 (shipped 2026-06-08): event + group rooms.** Phase 0 built the schema,
+RLS, `get_or_create_conversation`, `can_access_conversation`, `list_room_recipients`,
+and inbox title/slug resolution for **all three** room kinds, but Phases 1–4 only
+mounted the **team** room — so event and group rooms were inert capability (the
+notifications-messaging audit logged this as M-1: backend complete, no UI, inbox
+routing left dangling). This phase finishes them with **no new migration**: the
+team-only `openTeamChat` action + `TeamChatPanel` were generalized to
+`openRoomChat(kind, contextId)` + a shared `RoomChatPanel`
+(`apps/web/src/components/room-chat-panel.tsx`), mounted on `/events/[id]`
+(roster = host + co-hosts + attendees; access = host/co-host/registered-attendee
+per the existing RPC) and `/groups/[id]` (roster = members; access = any member).
+The inbox already routed `event`/`group` rows to their context pages, so it became
+correct once the panels existed — no `inboxHref` change. The bell still deep-links
+rooms to `/messages/{id}` (the kind-agnostic thread page renders them, with
+live-author names degrading to "Member" — the broadcast-sender-card follow-up
+below); the context-page panel is the roster-aware home.
+
 ## Consequences
 
 - **Positive:** one engine for all room kinds + DMs; membership is never

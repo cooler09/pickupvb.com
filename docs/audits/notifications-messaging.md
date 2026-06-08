@@ -60,9 +60,14 @@ engine deep-dive" section below.\*\*
 `chatErrorMessage` + `useToast`; failed edits keep the editor open), M-5 (inbox
 dates render in ET, not server UTC), M-6 (`SendMessageHandler` returns the
 moderated body so the notification preview can't leak masked room text; pinned by
-a handler test), M-11 (player "Message" button → `neutralButtonClass`). Remaining
-chat backlog: M-1 (event/group rooms decision), M-3 (Realtime token refresh +
-verify), M-4/7/8/9/10/12.**
+a handler test), M-11 (player "Message" button → `neutralButtonClass`).**
+**2026-06-08 — M-1 FIXED (uncommitted, quad-green): event + group rooms finished
+(ADR 0028 Phase 5). No migration — `openTeamChat`/`TeamChatPanel` generalized to
+`openRoomChat(kind, contextId)` + a shared `RoomChatPanel`, mounted on
+`/events/[id]` (host + co-hosts + attendees) and `/groups/[id]` (members); inbox
+routing was already correct. Remaining chat backlog: M-3 (Realtime token refresh +
+verify), M-4/7/8/9/10/12 (P3 — pagination, broadcast sender card, scroll anchor,
+blocked banner, text rate limit, e2e).**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -400,7 +405,7 @@ storage gated by `can_access_conversation`), the aggregate carries the real
 invariants, and the notify fan-out is solid. Findings are mostly **gaps and
 half-wired surfaces**, not broken code.
 
-### M-1 — Event & group room chat is half-built: backend complete, no UI, inbox mis-routes — P2
+### M-1 — Event & group room chat is half-built: backend complete, no UI, inbox mis-routes — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 
 The engine was designed for four `kind`s (`team`/`event`/`group`/`dm`) and the
 **entire backend for event and group rooms exists**: the `conversations` shape,
@@ -425,13 +430,22 @@ direct `rpc()` call it would surface two inconsistencies —
 
 ADR 0028's phased rollout only claims a "team-room MVP" for Phase 1, but the
 schema/RLS/inbox/notify were all built for all three room kinds up front, so this
-reads as an unfinished phase rather than a deliberate scope cut. **Fix:** either
-(a) finish it — mount an `EventChatPanel`/`GroupChatPanel` (clone
-`TeamChatPanel`, pass `kind`), wire `OpenConversationCommand('event'|'group', …)`,
-and point `inboxHref` for event/group at `/messages/{conversationId}` for
-consistency with the bell; or (b) explicitly defer it — note the deferral in ADR
-0028 and drop the `event`/`group` branches from `inboxHref` so a stray room can't
-dead-end. Don't leave it latent.
+reads as an unfinished phase rather than a deliberate scope cut.
+
+**Fix shipped — finished both (ADR 0028 Phase 5).** No new migration. The
+team-only `openTeamChat` + `TeamChatPanel` were generalized to
+`openRoomChat(kind, contextId)`
+([chat-actions.ts](../../apps/web/src/app/_actions/chat-actions.ts)) + a shared
+`RoomChatPanel` ([room-chat-panel.tsx](../../apps/web/src/components/room-chat-panel.tsx)),
+mounted on [events/[id]/page.tsx](../../apps/web/src/app/events/[id]/page.tsx)
+(roster = host + co-hosts + attendees; access = host/co-host/registered-attendee
+via the existing RPC) and [groups/[id]/page.tsx](../../apps/web/src/app/groups/[id]/page.tsx)
+(roster = members). The panel self-hides for non-members (RPC → `'forbidden'`), so
+it's safe on the public pages. `inboxHref` already routed `event`/`group` to their
+context pages, so it became correct once the panels existed — **no routing change
+needed**. The bell still deep-links rooms to `/messages/{id}` (functional; live
+author names degrade to "Member" until M-7 lands) — a minor bell-vs-inbox
+inconsistency, left to the M-7 broadcast-sender-card fix.
 
 ### M-2 — Edit / delete / report / DM-start failures are swallowed with no user feedback — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 

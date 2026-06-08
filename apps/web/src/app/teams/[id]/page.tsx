@@ -4,10 +4,10 @@ import { SupabaseProfileRepository } from '@pickupvb/infrastructure';
 import { createSupabaseAnonClient } from '@pickupvb/supabase/anon';
 import { TeamMemberRow, type TeamRosterMember } from './_components/team-member-row';
 import { TeamViewerChrome } from './_components/team-viewer-chrome';
-import { TeamChatPanel } from './_components/team-chat-panel';
 import { TeamLeagueRecords } from './_components/team-league-records';
 import { TeamJsonLd } from './_components/team-jsonld';
 import { loadTeamLeagueRecords } from './_loaders/load-team-league-records';
+import { RoomChatPanel } from '@/components/room-chat-panel';
 import { ShareLink } from '@/components/share-link';
 import { BreadcrumbJsonLd } from '@/app/_components/breadcrumb-jsonld';
 
@@ -160,8 +160,10 @@ export default async function TeamDetailPage(props: { params: Promise<{ id: stri
         returnPath={returnPath}
       />
 
-      <TeamChatPanel
-        teamId={team.id}
+      <RoomChatPanel
+        kind="team"
+        contextId={team.id}
+        label="Team chat"
         participants={members.map((m) => ({
           id: m.userId,
           name: m.profile?.displayName ?? 'Player',

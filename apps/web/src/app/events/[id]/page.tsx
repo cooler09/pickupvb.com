@@ -27,6 +27,7 @@ import { EventSubpageLink } from './_components/event-subpage-link';
 import { EventManageBanner } from './_components/event-manage-banner';
 import { loadEventDetail, loadEventReadModelPublic } from './_loaders/load-event-detail';
 import { HeroImage } from '@/components/hero-image';
+import { RoomChatPanel } from '@/components/room-chat-panel';
 
 export async function generateMetadata(props: {
   params: Promise<{ id: string }>;
@@ -160,6 +161,21 @@ export default async function EventDetailPage(props: {
   for (const r of adHocAllRegistrations) {
     teamCountByDivision.set(r.divisionId, (teamCountByDivision.get(r.divisionId) ?? 0) + 1);
   }
+
+  // Roster for live-message author resolution in the event room chat (host +
+  // co-hosts + attendees, deduped). Best-effort — the initial message page
+  // already carries server-resolved names; this only labels live broadcast rows.
+  const chatParticipants = [
+    ...new Map(
+      [
+        ...(event.primaryHostUser
+          ? [{ id: event.primaryHostUser.id, name: event.primaryHostUser.displayName }]
+          : []),
+        ...event.coHostUsers.map((u) => ({ id: u.id, name: u.displayName })),
+        ...attendeesForList.map((a) => ({ id: a.user_id, name: a.profiles.display_name })),
+      ].map((p) => [p.id, p] as const),
+    ).values(),
+  ];
 
   return (
     <article className="mx-auto max-w-3xl space-y-8">
@@ -331,6 +347,13 @@ export default async function EventDetailPage(props: {
         searchParams={Object.fromEntries(
           Object.entries(searchParams ?? {}).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
         )}
+      />
+
+      <RoomChatPanel
+        kind="event"
+        contextId={event.id}
+        label="Event chat"
+        participants={chatParticipants}
       />
 
       {event.type === 'tournament' && !event.paymentsOffPlatform && !isExternal && (

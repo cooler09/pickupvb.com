@@ -6,6 +6,7 @@ import {
   type ConversationKind,
   type MessageAttachment,
   type MessagePage,
+  type RoomKind,
 } from '@pickupvb/domain';
 import {
   DeleteMessageCommand,
@@ -82,19 +83,23 @@ async function viewer(): Promise<{ id: string; isAnon: boolean } | null> {
 }
 
 /**
- * Bootstrap a team room: get-or-create its conversation, load the most recent
- * page, and advance the caller's read cursor. One round-trip for the
- * `TeamChatPanel` island to mount against.
+ * Bootstrap a context room (team / event / group): get-or-create its
+ * conversation, load the most recent page, and advance the caller's read cursor.
+ * One round-trip for a {@link RoomChatPanel} island to mount against. Membership
+ * against the source table is enforced server-side by the
+ * `get_or_create_conversation` RPC, so a non-member surfaces as `'forbidden'` and
+ * the panel renders nothing.
  */
-export async function openTeamChat(
-  teamId: string,
+export async function openRoomChat(
+  kind: RoomKind,
+  contextId: string,
 ): Promise<ChatResult<{ conversationId: string; viewerId: string; page: MessagePage }>> {
   const v = await viewer();
   if (!v || v.isAnon) return { ok: false, error: 'anon' };
   try {
     const h = await getChatHandlers();
     const { id: conversationId } = await h.openConversation.execute(
-      new OpenConversationCommand('team', teamId),
+      new OpenConversationCommand(kind, contextId),
     );
     const page = await h.listMessages.execute(new ListMessagesQuery(conversationId, PAGE_SIZE));
     await h.markConversationRead.execute(new MarkConversationReadCommand(conversationId, v.id));
