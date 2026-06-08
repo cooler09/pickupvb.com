@@ -732,7 +732,11 @@ function buildCta(args: {
 }): EventHeroCta {
   const { event, isExternal, signupsOpen, hasStarted, paid } = args;
   if (event.status === 'cancelled' || event.status === 'draft') return null;
-  if (isExternal && signupsOpen && event.externalRegistrationUrl) {
+  // `signupsOpen` is forced false for external events (it gates on-platform
+  // signup logic), so the external CTA can't reuse it. Show "Register
+  // externally" whenever the event is published and hasn't started — the
+  // window in which the host's off-platform registration is still relevant.
+  if (isExternal && event.status === 'published' && !hasStarted && event.externalRegistrationUrl) {
     return {
       kind: 'external',
       href: event.externalRegistrationUrl,
