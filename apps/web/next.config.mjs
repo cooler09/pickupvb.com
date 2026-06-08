@@ -70,9 +70,21 @@ const nextConfig = {
   //     entries, and embeds aren't a CORS concern (no cross-origin fetch from
   //     our code — the browser just renders the iframe).
   async headers() {
+    // Dev-only `'unsafe-eval'`: `next dev --webpack` serves modules as
+    // `eval()`-wrapped strings and applies Fast Refresh updates the same way, so
+    // the dev runtime needs `'unsafe-eval'`. Without it the client bundle is
+    // CSP-blocked, hydration fails, and Fast Refresh falls back to full-page
+    // reloads — i.e. the page "keeps refreshing" in dev. A real `next build`
+    // emits no eval'd code, so production keeps the strict policy (eval is never
+    // allowed there).
+    const isDev = process.env.NODE_ENV !== 'production';
+    const scriptSrc =
+      "script-src 'self' 'unsafe-inline'" +
+      (isDev ? " 'unsafe-eval'" : '') +
+      ' https://challenges.cloudflare.com https://vercel.live https://*.i.posthog.com';
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://vercel.live https://*.i.posthog.com",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline' https://vercel.live",
       "img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://api.maptiler.com https://*.tile.openstreetmap.org https://vercel.live https://vercel.com",
       "font-src 'self' data: https://vercel.live https://assets.vercel.com",

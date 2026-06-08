@@ -80,6 +80,16 @@ batches, cheapest/most-isolated first, games last.
   refs for physics, state only for score, `const`-rebind to keep `canvas`/`ctx`
   non-null in nested closures, `visibilitychange` pause, reduced-motion static
   fallback.
+- **Dev CSP was missing `'unsafe-eval'`, which `next dev --webpack` needs.**
+  Surfaced while debugging a "the 404 keeps refreshing" report: the enforced CSP
+  in [next.config.mjs](../../apps/web/next.config.mjs) (`script-src` without
+  `'unsafe-eval'`) blocks the webpack dev runtime's `eval()`-wrapped modules and
+  HMR updates, so Fast Refresh falls back to full-page reloads. It's global, not
+  404-specific (a headless probe showed the same eval pageerror on the homepage
+  and, notably, no reload loop in headless — the loop is browser/HMR-timing
+  specific). Fix: add `'unsafe-eval'` **only when `NODE_ENV !== 'production'`** —
+  verified a real `next build` still emits the strict policy (no eval), so prod
+  security is unchanged.
 
 ## Follow-ups
 
