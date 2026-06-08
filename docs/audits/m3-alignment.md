@@ -74,11 +74,26 @@
 > **Net: raw palette 555 → 277.** Then the hand-rolled **warning/success notice
 > panels** (community claim/hidden, billing, edit-event locks, the Pro section,
 > the tip-thanks flash) → container roles (`bg-md-warning-container` / `*/5`
-> tints), **555 → 227.** Pattern in [AGENTS.md #17](../../AGENTS.md).
-> **Open — the visual-review remainder:** bg-tinted **status badges** (mixed
-> semantics + pale-pill-on-dark behavior), the **app-wide surface migration**,
-> and decorative palette (scoreboard red/green are _team_ colors). These want
-> eyes on the running app, not more blind recolors. See the
+> tints), **555 → 227.** Finally the bg-tinted **status badges** (payment/role/
+> live-draft pills + status maps) → `bg-md-{role}/15 text-md-{role}` tints
+> (preserving the pop-on-dark; exact-string subs so the scoreboard's solid-500
+> CTA buttons stay untouched), **227 → 118.**
+> **The semantic red/amber/green/emerald → role-token migration is effectively
+> done (555 → 118, −79%)** — the remaining 118 is **decorative/non-semantic**
+> (violet "added-by-host" tag, neutral/slate UI greys, orange/sky accents,
+> scoreboard solid-500 tool CTAs, dev env-banner) and legitimately stays raw; no
+> ratchet (the family can't reach zero while decorative uses remain). Pattern in
+> [AGENTS.md #17](../../AGENTS.md). Then the **surface roles were adopted**: all
+> 165 `bg-surface` (cards/panels/inputs) → `bg-md-surface-container`,
+> **byte-identical** (the ramp was authored so `surface-container` == brand
+> `--tw-color-surface`) — closing S2's "surface-container hierarchy at 0 usages"
+> finding and (with the committed dialog/menu→`-high`) giving a working 2-level
+> elevation hierarchy. **Net: the S2 color + surface migration is substantially
+> done.** **Open (low-value / visual-review, not blocking):** per-level
+> elevation differentiation, `border-border-base`→`border-md-outline-variant`
+> (faint hairline), `text-muted`→`text-md-on-surface-variant` (low-ROI rename) —
+> plus the audit's deferred judgment items (`rounded-md`, `shadow-*`, body-text
+> scale `text-{sm,lg,xs}`). See the
 > [remediation log](#semantic-color-roles--alert--toast-2026-06-07).
 
 > **Status update (2026-05-30, Bundle 139):** Adoption reality-check +
@@ -1215,6 +1230,69 @@ per [AGENTS.md](../../AGENTS.md) and a journal entry under
 ---
 
 ## Remediation log
+
+### Surface roles adopted — `bg-surface` → `bg-md-surface-container` (2026-06-07)
+
+Closes the **surface-container hierarchy at 0 usages** half of S2 (the original
+P1 #1 motivation). All 165 `bg-surface` uses (cards, panels, popovers, inputs,
+the site header — every elevated surface; pages use `bg-background`, untouched)
+→ `bg-md-surface-container`. Because the surface ramp was hand-authored so
+`surface-container` **equals the brand `--tw-color-surface` exactly** (verified
+again in the built CSS: both `235 214 215` light / `27 63 66` dark), this is a
+**byte-identical, zero-visual-change** migration — same trick as the type
+scale's `text-2xl`→`headline-sm`.
+
+Combined with the dialog/menu already at `bg-md-surface-container-high` (the
+surface-ramp reference adoption), the app now has a working **2-level elevation
+hierarchy**: cards/inputs/panels = `surface-container`, dialogs/menus =
+`surface-container-high`. The surface roles go from ~0 → 168 usages — the "dead
+vocabulary" finding is closed.
+
+**Still open (low-value / visual-review, not blocking):** per-level elevation
+_differentiation_ beyond the 2 levels (nested → `-highest`, subtle → `-low` —
+opportunistic); `border-border-base` → `border-md-outline-variant` (adds a
+faint light-mode hairline — visual-review); `text-muted` →
+`text-md-on-surface-variant` (exact zero-change but a 752-site rename with no
+elevation/ratchet payoff — low ROI, deferred). Verify: 15/15 typecheck · lint 0
+err / 3 pre-existing · 268 web tests · 8/8 build · built-CSS confirms
+`surface-container` == brand surface (the zero-change proof).
+
+### Status badges → role tints (2026-06-07) — semantic color migration effectively complete
+
+Ninth (final) S2 color step. Migrated the bg-tinted **status badges** —
+payment/role/live-draft pills + status maps across ~16 files (event-card
+free/paid/Fundraiser/spots, attendee-list/position-rsvp waitlist+paid,
+event-meta, event-hero, media-card/page, profile-video-grid, the bracket/
+schedule **live-draft** maps, billing subscription status, members/team-card
+**owner** role, signup-section free, community-listing-card, team-league W).
+
+**Mapping decision — `/15` tint, NOT container.** Small badge pills differ from
+notice panels: the pale-pill-that-pops-on-dark is intentional, and a full
+`*-container` would make the pill _recede_ on dark. So badges use
+`bg-md-{role}/15 text-md-{role}` (+ `border-md-{role}/30`, `dark:` forks
+dropped) — a theme-aware tint that preserves the pop in both modes and unifies
+the app's previously-mixed `-100`-solid vs `/15`-tint badges onto one recipe.
+green/emerald → success, amber → warning, red → error (incl. live=success /
+draft=error, preserving the existing colour choice without redesigning it).
+
+**Done via exact full-className subs, not a token codemod** — critical because
+the scoreboard tool uses **solid `bg-emerald-500`/`bg-red-500`** for CTA buttons
+
+- connection status (decorative, not badges); a blanket `bg-emerald-*` replace
+  would have recoloured those. Verified the 5 scoreboard CTAs are untouched.
+
+**Net: raw palette 227 → 118.** The remaining **118 is decorative / non-semantic
+and legitimately stays raw**: the violet "added-by-host" tag (no M3 role maps to
+violet), neutral/slate/gray UI greys, orange/sky/rose/cyan/fuchsia accents, the
+scoreboard solid-500 tool CTAs, and the dev `env-banner` bar. **So the semantic
+red/amber/green/emerald → role-token migration that drove S2 is effectively
+done** (555 → 118, **−79%**, all remaining being non-semantic). **No palette
+ratchet** — the family can't reach zero while decorative uses remain (as the
+audit predicted). **Still open (separate, visual-review):** the app-wide
+**surface migration** (`bg-surface`/`border-border-base`/`text-muted` → surface
+roles; tokens authored + ready). Verify: 15/15 typecheck · lint 0 err / 3
+pre-existing · 268 web tests · 8/8 build · built-CSS confirms the `/15`/`/10`
+role-tint utilities emit via `color-mix`.
 
 ### Hand-rolled notice boxes → warning/success container roles (2026-06-07)
 

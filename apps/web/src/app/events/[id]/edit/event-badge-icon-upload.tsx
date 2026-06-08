@@ -66,7 +66,7 @@ export function EventBadgeIconUpload({ eventId, userId, badgeId }: Props) {
             width={48}
             height={48}
             unoptimized
-            className="border-border-base bg-surface h-12 w-12 rounded-full border object-cover"
+            className="border-border-base bg-md-surface-container h-12 w-12 rounded-full border object-cover"
           />
           <button
             type="button"

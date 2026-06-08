@@ -27,6 +27,7 @@ import {
   type TeamId,
 } from '../../_lib/types.js';
 import type { MatchBinding } from '../../_lib/binding.js';
+import { useLiveFavicon } from '@/components/use-live-favicon';
 import {
   finalizeMatchFromScoreboard,
   pushLiveScore,
@@ -180,6 +181,12 @@ export function ScoreboardView({ code, initialConfig, binding }: Props) {
   const winner = matchWinner(state);
   const setPointA = isSetWon(state, 'A');
   const setPointB = isSetWon(state, 'B');
+
+  // Delight #2 (docs/delight-backlog.md): pulse a "LIVE" dot on the tab favicon
+  // while a match is in progress — i.e. play has started and no one's won yet.
+  // Route-scoped to the scoreboard, so it costs nothing elsewhere.
+  const matchStarted = state.scoreA > 0 || state.scoreB > 0 || state.setsA > 0 || state.setsB > 0;
+  useLiveFavicon(!winner && matchStarted);
 
   // Single source of truth for the "save this live score into the official
   // record" action, shared by the bottom status bar and the winner overlay so

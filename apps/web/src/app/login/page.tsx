@@ -135,7 +135,7 @@ function LoginForm() {
           <div className="border-border-base w-full border-t" />
         </div>
         <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-surface text-fg/50 px-2">Or</span>
+          <span className="bg-md-surface-container text-fg/50 px-2">Or</span>
         </div>
       </div>
 

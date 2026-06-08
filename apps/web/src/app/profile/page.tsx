@@ -7,6 +7,7 @@ import { BadgeShelf } from '@/components/badge-shelf';
 import { BadgeUnlockToast } from '@/components/badge-unlock-toast';
 import { KonamiListener } from '@/components/konami-listener';
 import { OnboardingChecklist } from './_components/onboarding-checklist';
+import { OnboardingCelebration } from './_components/onboarding-celebration';
 import { SectionHeader, cardClass } from './_components/profile-section-primitives';
 import {
   FollowingSection,
@@ -90,6 +91,10 @@ export default async function ProfilePage(props: {
           progress={hostOnboarding.progress}
         />
       )}
+      <OnboardingCelebration
+        complete={playerOnboarding.requiredComplete}
+        storageKey={`pickupvb:onboarding-celebrated:${userId}`}
+      />
 
       <ProfileQuickActions isHost={isHost} />
 
@@ -117,7 +122,7 @@ export default async function ProfilePage(props: {
       <details
         id="edit-profile"
         open={editOpen}
-        className="group border-border-base bg-surface rounded-shape-sm border"
+        className="group border-border-base bg-md-surface-container rounded-shape-sm border"
       >
         <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4 text-sm font-medium">
           <span>Edit profile</span>

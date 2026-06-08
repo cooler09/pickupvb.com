@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
+import KeepieUppie from '@/components/keepie-uppie-lazy';
 import type { Timeframe } from './event-timeframe-tabs';
 
 /** Why the Following tab has nothing to show (drives the empty-state copy). */
@@ -23,6 +24,10 @@ export function EventsEmptyState({
 }) {
   let title = 'No events match your filters';
   let body: string | null = null;
+  // Delight #13: only the calm "nothing scheduled yet" state gets the keep-ups
+  // game — a filtered/empty-following list is a "try something else" moment, not
+  // an idle one, so it stays game-free.
+  let showGame = false;
   if (when === 'past') {
     title = 'No past events match your filters';
   } else if (when === 'following') {
@@ -41,31 +46,35 @@ export function EventsEmptyState({
     body = canHost
       ? 'Be the first to host one in your area.'
       : 'Check back soon or sign in to host an event.';
+    showGame = true;
   } else {
     body = 'Try clearing a filter or widening your radius.';
   }
 
   return (
-    <div className="border-border-base bg-surface rounded-shape-sm border p-8 text-center">
-      <h3 className="text-fg text-base font-semibold">{title}</h3>
-      {body && <p className="text-muted mt-1 text-sm">{body}</p>}
-      <div className="mt-4 flex flex-wrap justify-center gap-3">
-        {hasAnyFilter && (
-          <Link href={clearAllHref} className={secondaryButtonClass('sm')}>
-            Clear filters
-          </Link>
-        )}
-        {when === 'following' && reason === 'not_signed_in' && (
-          <Link href="/login" className={primaryButtonClass('sm')}>
-            Sign in
-          </Link>
-        )}
-        {canHost && (
-          <Link href="/events/new" className={primaryButtonClass('sm')}>
-            Host an event
-          </Link>
-        )}
+    <div>
+      <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-8 text-center">
+        <h3 className="text-fg text-base font-semibold">{title}</h3>
+        {body && <p className="text-muted mt-1 text-sm">{body}</p>}
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
+          {hasAnyFilter && (
+            <Link href={clearAllHref} className={secondaryButtonClass('sm')}>
+              Clear filters
+            </Link>
+          )}
+          {when === 'following' && reason === 'not_signed_in' && (
+            <Link href="/login" className={primaryButtonClass('sm')}>
+              Sign in
+            </Link>
+          )}
+          {canHost && (
+            <Link href="/events/new" className={primaryButtonClass('sm')}>
+              Host an event
+            </Link>
+          )}
+        </div>
       </div>
+      {showGame && <KeepieUppie className="mt-4" />}
     </div>
   );
 }

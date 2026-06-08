@@ -26,3 +26,22 @@ export async function claimKonamiBadge(): Promise<{ newlyGranted: boolean }> {
   }
   return { newlyGranted };
 }
+
+/**
+ * Claim the hidden "Pepper" badge — invoked by the logo tap-streak easter egg
+ * in the site header (tap the wordmark 7× fast). Same idempotent, validated,
+ * signed-out-safe shape as {@link claimKonamiBadge}; the only difference is the
+ * badge key.
+ */
+export async function claimPepperBadge(): Promise<{ newlyGranted: boolean }> {
+  const { user } = await getCurrentUser();
+  if (!user) return { newlyGranted: false };
+  const newlyGranted = await grantEasterEggBadge(user.id, 'pepper');
+  if (newlyGranted) {
+    const title = getBadgeDefinition('pepper')?.title ?? 'Secret';
+    await notify('badge.earned', user.id, { badgeTitle: title }).catch(() => undefined);
+    revalidatePath('/profile');
+    updateTag(profileCacheTag(user.id));
+  }
+  return { newlyGranted };
+}

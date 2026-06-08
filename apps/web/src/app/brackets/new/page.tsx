@@ -75,7 +75,7 @@ export default async function NewStandaloneBracketPage(props: {
             </Link>
             <Link
               href="/brackets"
-              className="border-border-base bg-surface hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
+              className="border-border-base bg-md-surface-container hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
             >
               My brackets
             </Link>

@@ -258,7 +258,7 @@ export function HostDivisionsManager({ eventId, returnPath, divisions }: Props) 
         {divisions.map((d) => (
           <li
             key={d.id}
-            className="border-border-base bg-surface flex items-center justify-between gap-2 rounded-md border p-3"
+            className="border-border-base bg-md-surface-container flex items-center justify-between gap-2 rounded-md border p-3"
           >
             <span className="text-fg min-w-0 truncate text-sm font-medium">{d.label}</span>
             <div className="flex shrink-0 items-center gap-1">

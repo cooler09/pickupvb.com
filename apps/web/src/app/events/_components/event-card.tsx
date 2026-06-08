@@ -186,7 +186,7 @@ export function EventCard({ event, friendNameById }: Props) {
   const price = priceLabel(eventPriceCents(event), event.priceUnit ?? divisions[0]?.priceUnit);
 
   return (
-    <li className="card-lift border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
+    <li className="card-lift border-border-base bg-md-surface-container hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative border p-4 focus-within:ring-2">
       <CardThumb url={event.heroImageUrl} surface={event.surface} />
       {/* Stretched link makes the whole tile tappable; there are no other
           interactive children, so `focus-within` rings the entire card on
@@ -243,7 +243,7 @@ export function EventCard({ event, friendNameById }: Props) {
           <span
             className={
               price.free
-                ? 'rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-800'
+                ? 'bg-md-success/15 text-md-success rounded px-1.5 py-0.5 font-medium'
                 : 'bg-fg/5 text-fg rounded px-1.5 py-0.5 font-semibold'
             }
           >
@@ -287,7 +287,7 @@ export function EventCard({ event, friendNameById }: Props) {
           </span>
         )}
         {event.isFundraiser && (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Fundraiser</span>
+          <span className="bg-md-warning/15 text-md-warning rounded px-1.5 py-0.5">Fundraiser</span>
         )}
         {(() => {
           // Capacity urgency. spots_remaining is populated on every tab —
@@ -300,7 +300,7 @@ export function EventCard({ event, friendNameById }: Props) {
           }
           if (spots <= LOW_SPOTS_THRESHOLD) {
             return (
-              <span className="spots-pulse rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">
+              <span className="spots-pulse bg-md-warning/15 text-md-warning rounded px-1.5 py-0.5 font-medium">
                 {spots} left
               </span>
             );

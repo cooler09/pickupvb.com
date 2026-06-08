@@ -30,7 +30,7 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
   const place = [listing.city, listing.region].filter(Boolean).join(', ');
 
   return (
-    <li className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm border p-4">
+    <li className="border-border-base bg-md-surface-container hover:border-primary/40 rounded-shape-sm border p-4">
       <Link href={`/community/${listing.slug}`} className="hover:text-primary block font-semibold">
         {listing.title}
       </Link>
@@ -47,13 +47,11 @@ export function CommunityListingCard({ listing }: { listing: CommunityListingCar
       )}
       <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
         {listing.status === 'hidden' && (
-          <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-red-700 dark:text-red-300">
+          <span className="bg-md-error/15 text-md-error rounded px-1.5 py-0.5">
             Hidden — only you
           </span>
         )}
-        <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
-          Community
-        </span>
+        <span className="bg-md-warning/15 text-md-warning rounded px-1.5 py-0.5">Community</span>
         {listing.surface && (
           <span className="bg-fg/5 rounded px-1.5 py-0.5">
             {SURFACE_LABEL[listing.surface] ?? listing.surface}

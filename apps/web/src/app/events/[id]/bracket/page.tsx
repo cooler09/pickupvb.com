@@ -177,8 +177,8 @@ export default async function BracketPage(props: {
           role={notice.tone === 'success' ? 'status' : 'alert'}
           className={`rounded border px-3 py-2 text-sm ${
             notice.tone === 'success'
-              ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300'
-              : 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
+              ? 'border-md-success/30 bg-md-success/10 text-md-success'
+              : 'border-md-error/30 bg-md-error/10 text-md-error'
           }`}
         >
           {notice.text}

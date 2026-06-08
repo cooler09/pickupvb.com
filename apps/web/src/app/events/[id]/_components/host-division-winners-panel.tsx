@@ -54,7 +54,7 @@ export function HostDivisionWinnersPanel({
           return (
             <li
               key={d.id}
-              className="border-border-base bg-surface space-y-2 rounded-md border p-3"
+              className="border-border-base bg-md-surface-container space-y-2 rounded-md border p-3"
             >
               <span className="text-fg text-sm font-medium">{d.label}</span>
               <ul className="space-y-2">

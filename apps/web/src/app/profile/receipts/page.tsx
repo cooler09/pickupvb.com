@@ -157,20 +157,20 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
       </div>
 
       {transactions.length === 0 ? (
-        <div className="border-border-base bg-surface text-muted rounded-shape-sm border p-6 text-sm">
+        <div className="border-border-base bg-md-surface-container text-muted rounded-shape-sm border p-6 text-sm">
           No paid signups yet. When you pay online for an event, a receipt will show up here.
         </div>
       ) : (
         <>
           {/* ── Totals ──────────────────────────────────────── */}
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="border-border-base bg-surface rounded-shape-sm border p-4">
+            <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
               <p className="text-muted text-xs font-semibold tracking-wide uppercase">
                 {currentYear} total
               </p>
               <p className="text-headline-sm mt-1 font-bold">{formatUsd(ytdNet)}</p>
             </div>
-            <div className="border-border-base bg-surface rounded-shape-sm border p-4">
+            <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
               <p className="text-muted text-xs font-semibold tracking-wide uppercase">
                 All-time total
               </p>
@@ -181,7 +181,7 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
           {/* ── Transactions table ──────────────────────────── */}
           <div
             id="receipts"
-            className="border-border-base bg-surface rounded-shape-sm overflow-hidden border"
+            className="border-border-base bg-md-surface-container rounded-shape-sm overflow-hidden border"
           >
             <table className="md-table md-density-compact md:md-density-comfortable w-full text-sm">
               <thead className="bg-fg/5 text-muted text-left text-xs font-semibold tracking-wide uppercase">
@@ -250,7 +250,7 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
           {/* ── Annual statements + business info ───────────── */}
           <div className="grid gap-4 md:grid-cols-2">
             {yearsWithActivity.length > 0 && (
-              <section className="border-border-base bg-surface rounded-shape-sm border p-4">
+              <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
                 <h2 className="text-fg text-sm font-semibold">Annual statements</h2>
                 <p className="text-muted mt-1 text-xs">
                   CSV of every paid signup in a calendar year. Good for expense reports and taxes.
@@ -269,7 +269,7 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
               </section>
             )}
 
-            <details className="group border-border-base bg-surface rounded-shape-sm border">
+            <details className="group border-border-base bg-md-surface-container rounded-shape-sm border">
               <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4">
                 <div>
                   <h2 className="text-fg text-sm font-semibold">Business / receipt info</h2>

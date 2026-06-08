@@ -229,7 +229,7 @@ export default function NewEventForm({
       {/* ──────────────────────────────────────────────────────────────────
          Sticky footer — keeps the primary CTA reachable on long forms.
       ────────────────────────────────────────────────────────────────── */}
-      <div className="border-border-base bg-surface/95 fixed inset-x-0 bottom-0 z-10 border-t backdrop-blur sm:static sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div className="border-border-base bg-md-surface-container/95 fixed inset-x-0 bottom-0 z-10 border-t backdrop-blur sm:static sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-3 sm:px-0">
           <Link href="/events" className="text-muted hover:text-primary text-sm">
             Cancel

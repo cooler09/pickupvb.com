@@ -78,7 +78,7 @@ export type TextFieldProps = SingleLineProps | MultilineProps;
 // Chassis classes that paint the M3 outlined surface. Pulled out so the
 // single-line and multiline branches share the recipe verbatim.
 const chassisBase =
-  'flex w-full items-center gap-2 rounded-md border bg-surface text-sm text-fg transition-colors focus-within:ring-2 focus-within:ring-offset-2';
+  'flex w-full items-center gap-2 rounded-md border bg-md-surface-container text-sm text-fg transition-colors focus-within:ring-2 focus-within:ring-offset-2';
 const chassisIdle =
   'border-border-base focus-within:border-md-primary focus-within:ring-md-primary';
 const chassisError = 'border-md-error focus-within:border-md-error focus-within:ring-md-error';

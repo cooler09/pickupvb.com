@@ -133,6 +133,7 @@ export default async function EventDetailPage(props: {
     primaryHostUserSocial,
     payments,
     viewerPaymentStatus,
+    refundBlockReason,
     adHocViewerRegistrations,
     adHocAllRegistrations,
     attendeesForList,
@@ -249,6 +250,7 @@ export default async function EventDetailPage(props: {
         breakdown={breakdown}
         priceLabel={priceLabel}
         viewerPaymentStatus={viewerPaymentStatus}
+        refundBlockReason={refundBlockReason}
         isRealUser={isRealUser}
         user={user}
         returnPath={returnPath}

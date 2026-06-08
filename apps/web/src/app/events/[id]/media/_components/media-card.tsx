@@ -99,12 +99,12 @@ export function MediaCard({
 
       <div className="flex flex-wrap items-center gap-1.5">
         {item.isLive && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+          <span className="bg-md-error/15 text-md-error inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
             <span aria-hidden="true">🔴</span> Live
           </span>
         )}
         {item.featured && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
+          <span className="bg-md-warning/15 text-md-warning inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold">
             <span aria-hidden="true">★</span> Featured
           </span>
         )}

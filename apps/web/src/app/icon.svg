@@ -1,8 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Pickup volleyball">
   <title>Pickup volleyball — option B (net + ball)</title>
+  <!-- Delight #1 (docs/delight-backlog.md): the ball hops once when the favicon
+       first loads. CSS (not SMIL) so a reduced-motion request silences it, and
+       so the static rasterization (t=0 = ball at rest) stays correct. Chrome /
+       Firefox animate SVG favicons; Safari renders the resting frame. -->
+  <style>
+    .ball { transform-box: fill-box; transform-origin: center; animation: pvb-hop 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 1 both; }
+    @keyframes pvb-hop { 0%, 100% { transform: translateY(0); } 28% { transform: translateY(-7px); } 60% { transform: translateY(-2px); } }
+    @media (prefers-reduced-motion: reduce) { .ball { animation: none; } }
+  </style>
   <rect width="64" height="64" rx="14" fill="#F9EBD9"/>
   <!-- Ball -->
-  <circle cx="32" cy="24" r="10" fill="none" stroke="#439093" stroke-width="3"/>
+  <circle class="ball" cx="32" cy="24" r="10" fill="none" stroke="#439093" stroke-width="3"/>
   <!-- Net -->
   <line x1="8"  y1="44" x2="56" y2="44" stroke="#183334" stroke-width="3" stroke-linecap="round"/>
   <!-- Net posts on each end (flush with top net line, extend below the mesh) -->

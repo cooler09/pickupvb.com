@@ -42,7 +42,7 @@ export function BadgeShelf({
   if (totalEarned === 0 && lockedDefs.length === 0) return null;
 
   return (
-    <section className="border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6">
+    <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6">
       <h2 className="text-fg text-lg font-semibold">
         {heading} <span className="text-muted text-sm font-normal">({totalEarned})</span>
       </h2>

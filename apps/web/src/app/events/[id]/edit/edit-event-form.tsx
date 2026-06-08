@@ -525,7 +525,7 @@ export default function EditEventForm({
 
       <AdvancedDetailsPanel initial={initial.extensions} />
 
-      <div className="border-border-base bg-surface/95 sticky bottom-2 z-10 -mx-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2 shadow-sm backdrop-blur">
+      <div className="border-border-base bg-md-surface-container/95 sticky bottom-2 z-10 -mx-2 flex items-center justify-between gap-3 rounded-md border px-3 py-2 shadow-sm backdrop-blur">
         <Link href={`/events/${eventId}`} className="text-primary text-sm hover:underline">
           ← Cancel
         </Link>

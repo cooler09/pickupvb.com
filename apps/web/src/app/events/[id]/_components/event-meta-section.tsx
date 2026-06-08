@@ -67,7 +67,7 @@ export function EventMetaSection({
         )}
         {isFundraiser && (
           <Row term="Fundraiser">
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+            <span className="bg-md-warning/15 text-md-warning rounded-full px-2 py-0.5 text-xs font-medium">
               {fundraiserBeneficiary ?? 'Charity event'}
             </span>
           </Row>

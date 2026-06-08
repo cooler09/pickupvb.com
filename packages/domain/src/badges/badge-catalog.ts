@@ -22,7 +22,8 @@ export type BadgeIcon =
   | 'compass'
   | 'flame'
   | 'loyalty'
-  | 'sparkle';
+  | 'sparkle'
+  | 'volleyball';
 
 export type BadgeCategory = 'accomplishment' | 'milestone' | 'secret';
 
@@ -147,6 +148,14 @@ export const EASTER_EGG_BADGES: readonly EasterEggDefinition[] = [
     category: 'secret',
     tier: 'gold',
     icon: 'sparkle',
+  },
+  {
+    key: 'pepper',
+    title: 'Pepper',
+    description: 'You kept the ball alive on the logo. Nice warm-up.',
+    category: 'secret',
+    tier: 'silver',
+    icon: 'volleyball',
   },
 ];
 

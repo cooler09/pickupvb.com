@@ -13,6 +13,7 @@ import { EventCard, type EventCardData } from './events/_components/event-card';
 import { GroupCard } from './groups/_components/group-card';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { NetDivider } from '@/components/net-divider';
 import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 
 /**
@@ -150,7 +151,8 @@ export default async function HomePage(props: {
             and let players sign up automatically.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Link href="/events" className={primaryButtonClass('md')}>
+            <Link href="/events" className={`${primaryButtonClass('md')} ball-serve-cta`}>
+              <Icon name="volleyball" className="ball-serve mr-2 -ml-0.5 inline-block size-5" />
               Find events
             </Link>
             <Link
@@ -231,6 +233,7 @@ export default async function HomePage(props: {
       {/* ── What you can do ─────────────────────────────────────── */}
       <section className="space-y-4">
         <h2 className="text-headline-sm font-bold">What you can do here</h2>
+        <NetDivider className="max-w-xs" />
         <div className="grid gap-3 md:grid-cols-3">
           <ValueCard
             icon="volleyball"
@@ -280,7 +283,7 @@ export default async function HomePage(props: {
       )}
 
       {/* ── Host pitch ──────────────────────────────────────────── */}
-      <section className="border-border-base bg-surface rounded-shape-lg border p-6 md:p-8">
+      <section className="border-border-base bg-md-surface-container rounded-shape-lg border p-6 md:p-8">
         <div className="grid gap-6 md:grid-cols-[2fr,1fr] md:items-center">
           <div className="space-y-3">
             <h2 className="text-headline-sm font-bold">Running a league or club?</h2>
@@ -367,7 +370,7 @@ function ValueCard({
   return (
     <Link
       href={href}
-      className="group border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex flex-col gap-2 border p-4"
+      className="group border-border-base bg-md-surface-container hover:border-primary/40 rounded-shape-sm flex flex-col gap-2 border p-4"
     >
       <div className="bg-primary/10 text-primary flex h-10 w-10 items-center justify-center rounded-md">
         <Icon name={icon} size={22} />

@@ -147,7 +147,7 @@ export function MobileMenu({ theme, user, pendingTeamInvites }: Props) {
             role="dialog"
             aria-modal="true"
             aria-label="Main menu"
-            className="border-border-base bg-surface fixed inset-x-0 top-[57px] z-50 border-b px-4 py-4 shadow-lg"
+            className="border-border-base bg-md-surface-container fixed inset-x-0 top-[57px] z-50 border-b px-4 py-4 shadow-lg"
           >
             {/* Primary destinations (Events / Groups / Teams / Profile) moved
                 to `<BottomNav>` in Bundle 5. The hamburger now carries

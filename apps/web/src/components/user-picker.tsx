@@ -145,7 +145,7 @@ export function UserPicker({
             {label}
           </label>
         )}
-        <div className="border-border-base bg-surface flex items-center justify-between gap-2 rounded-md border px-3 py-2">
+        <div className="border-border-base bg-md-surface-container flex items-center justify-between gap-2 rounded-md border px-3 py-2">
           <span className="flex min-w-0 items-center gap-2">
             {selected.avatarUrl ? (
               <Image
@@ -212,7 +212,7 @@ export function UserPicker({
         aria-controls={listboxId}
         aria-autocomplete="list"
         {...(open && activeIdx >= 0 ? { 'aria-activedescendant': optionId(activeIdx) } : {})}
-        className="border-border-base bg-surface focus:border-primary focus-visible:ring-primary block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+        className="border-border-base bg-md-surface-container focus:border-primary focus-visible:ring-primary block w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
       />
       {/* Hidden field carries the value the form submits. Empty until a
        *  selection is made; the server action no-ops on empty input.
@@ -240,7 +240,7 @@ export function UserPicker({
         <ul
           id={listboxId}
           role="listbox"
-          className="border-border-base bg-surface absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border shadow-lg"
+          className="border-border-base bg-md-surface-container absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-md border shadow-lg"
         >
           {!loading && results.length === 0 && query.trim().length >= 2 && (
             <li className="text-muted px-3 py-2 text-xs" role="presentation">

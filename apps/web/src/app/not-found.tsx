@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { KeepieUppie } from '@/components/keepie-uppie';
 
 export const metadata = {
   title: 'Page not found',
@@ -17,28 +18,28 @@ export default function NotFound() {
       <nav aria-label="Recovery links" className="mt-8 grid gap-3 sm:grid-cols-2">
         <Link
           href="/events"
-          className="rounded-shape-sm border-border-base bg-surface hover:bg-fg/5 border px-4 py-3 text-left"
+          className="rounded-shape-sm border-border-base bg-md-surface-container hover:bg-fg/5 border px-4 py-3 text-left"
         >
           <div className="text-fg font-semibold">Find events</div>
           <div className="text-muted text-sm">Browse pickup volleyball near you.</div>
         </Link>
         <Link
           href="/groups"
-          className="rounded-shape-sm border-border-base bg-surface hover:bg-fg/5 border px-4 py-3 text-left"
+          className="rounded-shape-sm border-border-base bg-md-surface-container hover:bg-fg/5 border px-4 py-3 text-left"
         >
           <div className="text-fg font-semibold">Groups</div>
           <div className="text-muted text-sm">Discover clubs and crews.</div>
         </Link>
         <Link
           href="/players"
-          className="rounded-shape-sm border-border-base bg-surface hover:bg-fg/5 border px-4 py-3 text-left"
+          className="rounded-shape-sm border-border-base bg-md-surface-container hover:bg-fg/5 border px-4 py-3 text-left"
         >
           <div className="text-fg font-semibold">Players</div>
           <div className="text-muted text-sm">Find people in your area.</div>
         </Link>
         <Link
           href="/teams"
-          className="rounded-shape-sm border-border-base bg-surface hover:bg-fg/5 border px-4 py-3 text-left"
+          className="rounded-shape-sm border-border-base bg-md-surface-container hover:bg-fg/5 border px-4 py-3 text-left"
         >
           <div className="text-fg font-semibold">Teams</div>
           <div className="text-muted text-sm">Tournament rosters and recruiting.</div>
@@ -48,6 +49,17 @@ export default function NotFound() {
       <p className="mt-8 text-sm">
         <Link href="/" className="text-primary hover:underline">
           ← Back to home
+        </Link>
+      </p>
+
+      {/* Delight #11 (docs/delight-backlog.md): the 404 is an idle screen, so
+          turn the dead end into a tiny keep-ups game. Client + route-isolated —
+          its chunk only loads here. */}
+      <KeepieUppie className="mt-12" />
+      <p className="text-muted mt-3 text-center text-xs">
+        Want a real match?{' '}
+        <Link href="/play" className="text-primary hover:underline">
+          Play volley-pong →
         </Link>
       </p>
     </main>

@@ -3,7 +3,8 @@ import type { Route } from 'next';
 
 /** Shared surface for the profile-hub cards (identity, your-events, following,
  *  hosting, videos, privacy). */
-export const cardClass = 'border-border-base bg-surface rounded-shape-sm border p-5 sm:p-6';
+export const cardClass =
+  'border-border-base bg-md-surface-container rounded-shape-sm border p-5 sm:p-6';
 
 /** Card section heading with an optional `(count)` and a right-aligned action
  *  link. Extracted from profile/page.tsx (architecture audit P3-1). */
@@ -64,7 +65,7 @@ export function ActionTile({
             // system alphas) for hover/focus/pressed — same signature as
             // `primaryButtonClass`, not a one-off `hover:opacity-90` (PR-5).
             'bg-primary text-primary-fg state-layer rounded-shape-sm block p-4'
-          : 'border-border-base bg-surface hover:border-primary/40 rounded-shape-sm block border p-4 transition'
+          : 'border-border-base bg-md-surface-container hover:border-primary/40 rounded-shape-sm block border p-4 transition'
       }
     >
       <p className="text-sm font-semibold">{title}</p>

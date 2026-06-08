@@ -44,7 +44,7 @@ export function MyGroupsSection({ groups }: Props) {
             <li key={g.id}>
               <Link
                 href={`/groups/${g.slug}`}
-                className="rounded-shape-sm border-border-base bg-surface hover:border-primary/40 flex items-center gap-3 border p-2"
+                className="rounded-shape-sm border-border-base bg-md-surface-container hover:border-primary/40 flex items-center gap-3 border p-2"
               >
                 {g.avatarUrl ? (
                   <Image

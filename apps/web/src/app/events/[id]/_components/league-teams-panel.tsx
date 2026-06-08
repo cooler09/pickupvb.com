@@ -40,7 +40,7 @@ export function LeagueTeamsPanel({ eventId, returnPath, divisions, teamsByDivisi
             return (
               <li
                 key={d.id}
-                className="border-border-base bg-surface space-y-2 rounded-md border p-3"
+                className="border-border-base bg-md-surface-container space-y-2 rounded-md border p-3"
               >
                 <div className="text-fg text-sm font-medium">{d.label}</div>
                 {teams.length === 0 ? (

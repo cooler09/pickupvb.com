@@ -34,7 +34,7 @@ export function GroupCard({ group, action }: { group: GroupCardData; action?: Re
     ? `${group.memberCount} ${group.memberCount === 1 ? 'member' : 'members'}`
     : '';
   return (
-    <li className="card-lift border-border-base bg-surface hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative flex items-start gap-3 border p-3 focus-within:ring-2">
+    <li className="card-lift border-border-base bg-md-surface-container hover:border-primary/40 focus-within:ring-primary/40 rounded-shape-sm relative flex items-start gap-3 border p-3 focus-within:ring-2">
       {group.avatarUrl ? (
         <Image
           src={group.avatarUrl}

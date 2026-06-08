@@ -22,6 +22,7 @@ import type { ViewerSession } from '@/lib/server-auth';
 import { isAnonymousUser } from '@/lib/server-auth';
 import { getServerSupabase } from '@/lib/supabase';
 import { renderNowMs } from '@/lib/render-now';
+import { refundBlockReason as refundBlock, type RefundBlockReason } from '@/lib/refund-eligibility';
 import { attendeeChargeBreakdownAsync, isPaidEvent, type EventPricing } from '@/lib/event-pricing';
 import { PRICE_UNIT_LABEL } from '@/lib/enum-labels';
 import type { SocialHandles } from '@/lib/social-handles';
@@ -171,6 +172,12 @@ export type EventDetailViewModel = {
   leagueTeamsByDivision: ReadonlyMap<string, LeagueTeamView[]>;
   payments: Map<string, AttendeePaymentInfo> | undefined;
   viewerPaymentStatus: ViewerPaymentStatus | undefined;
+  /**
+   * For a paid attendee, why an in-app self-cancel can't refund online
+   * (off-platform charge / host Stripe gone / past the window), or `null`
+   * when fully refundable. Drives the PaidTicketPanel "no refund" warning.
+   */
+  refundBlockReason: RefundBlockReason | null;
 
   // Ad-hoc tournament registrations.
   adHocViewerRegistrations: ReadonlyArray<AdHocTeamRegistration>;
@@ -327,11 +334,27 @@ export async function loadEventDetail(
   const needsManagePayments = paid && event.canManage;
 
   // Wave 2 — paid-event-only side-loads.
-  const [breakdown, payments, viewerPaymentStatus] = await Promise.all([
+  const [breakdown, payments, viewerPayment] = await Promise.all([
     pricing && paid ? attendeeChargeBreakdownAsync(pricing) : Promise.resolve(null),
     needsManagePayments ? loadAttendeePayments(event.id) : Promise.resolve(undefined),
     needsViewerPayment ? loadViewerPaymentStatus(event.id, user!.id) : Promise.resolve(undefined),
   ]);
+  const viewerPaymentStatus = viewerPayment?.status;
+
+  // Render-time mirror of the runtime refund gate: why (if at all) the
+  // paid viewer's in-app self-cancel can't issue an online refund, so the
+  // PaidTicketPanel can drop the "& refund" promise and warn instead of
+  // silently removing them with no money back.
+  const refundBlockReason: RefundBlockReason | null = viewerPayment
+    ? refundBlock({
+        paymentStatus: viewerPayment.status,
+        viaStripe: viewerPayment.viaStripe,
+        hostStripeReady,
+        startsAtMs: event.startsAt.getTime(),
+        refundWindowHours: pricing?.refundWindowHours ?? 24,
+        nowMs,
+      })
+    : null;
 
   // Map the read model to the legacy snake_case shape AttendeeList expects.
   const attendeesForList: AttendeeListRow[] = event.attendees.map((a) => ({
@@ -399,6 +422,7 @@ export async function loadEventDetail(
     leagueTeamsByDivision,
     payments,
     viewerPaymentStatus,
+    refundBlockReason,
     adHocViewerRegistrations: adHocBundle.viewerRegistrations,
     adHocAllRegistrations: adHocBundle.allRegistrations,
     adHocHostRows: adHocBundle.hostRows,
@@ -641,20 +665,25 @@ async function loadAttendeePayments(eventId: string): Promise<Map<string, Attend
 async function loadViewerPaymentStatus(
   eventId: string,
   userId: string,
-): Promise<ViewerPaymentStatus | undefined> {
+): Promise<{ status: ViewerPaymentStatus; viaStripe: boolean } | undefined> {
   const sb = await getServerSupabase();
   const { data: row } = await sb
     .from('event_participants')
     .select(
-      'payment:event_participant_payments(payment_status), division:event_divisions!inner(event_id)',
+      'payment:event_participant_payments(payment_status, payment_intent_id), division:event_divisions!inner(event_id)',
     )
     .eq('role', 'attendee')
     .eq('division.event_id', eventId)
     .eq('user_id', userId)
     .maybeSingle();
-  const raw = (row as { payment?: { payment_status?: string } | null } | null)?.payment
-    ?.payment_status;
-  return raw === 'paid' || raw === 'pending' || raw === 'none' ? raw : undefined;
+  const payment = (
+    row as {
+      payment?: { payment_status?: string; payment_intent_id?: string | null } | null;
+    } | null
+  )?.payment;
+  const raw = payment?.payment_status;
+  if (raw !== 'paid' && raw !== 'pending' && raw !== 'none') return undefined;
+  return { status: raw, viaStripe: !!payment?.payment_intent_id };
 }
 
 /**

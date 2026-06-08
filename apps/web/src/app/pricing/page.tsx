@@ -77,7 +77,7 @@ export default async function PricingPage() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* ---- Free tier ---- */}
-        <article className="border-border-base bg-surface rounded-shape-sm flex flex-col gap-4 border p-6">
+        <article className="border-border-base bg-md-surface-container rounded-shape-sm flex flex-col gap-4 border p-6">
           <div>
             <h2 className="text-title-lg font-semibold">Free</h2>
             <p className="text-muted mt-1 text-sm">For casual hosts and free pickups.</p>
@@ -103,7 +103,7 @@ export default async function PricingPage() {
         </article>
 
         {/* ---- Pro tier ---- */}
-        <article className="border-primary bg-surface rounded-shape-sm flex flex-col gap-4 border-2 p-6 shadow-sm">
+        <article className="border-primary bg-md-surface-container rounded-shape-sm flex flex-col gap-4 border-2 p-6 shadow-sm">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-title-lg font-semibold">Pro Host</h2>
             <span className="bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase">
@@ -299,7 +299,7 @@ function Row({ label, free, pro }: { label: string; free: string; pro: string })
 
 function Faq({ q, a }: { q: string; a: string }) {
   return (
-    <details className="group border-border-base bg-surface rounded-shape-sm border p-4">
+    <details className="group border-border-base bg-md-surface-container rounded-shape-sm border p-4">
       <summary className="cursor-pointer list-none text-sm font-semibold">
         <span className="text-primary mr-2 inline-block transition-transform group-open:rotate-90">
           ›

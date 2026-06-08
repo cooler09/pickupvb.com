@@ -36,7 +36,7 @@ export function EarningsTotals({
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="border-border-base bg-surface rounded-shape-sm border p-4">
+        <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
           <p className="text-muted text-xs font-semibold tracking-wide uppercase">
             {currentYear} estimated payout
           </p>
@@ -56,7 +56,7 @@ export function EarningsTotals({
             </div>
           </dl>
         </div>
-        <div className="border-border-base bg-surface rounded-shape-sm border p-4">
+        <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
           <p className="text-muted text-xs font-semibold tracking-wide uppercase">
             All-time estimated payout
           </p>
@@ -101,7 +101,7 @@ export function EarningsByEventTable({
   return (
     <section
       id="by-event"
-      className="border-border-base bg-surface rounded-shape-sm overflow-hidden border"
+      className="border-border-base bg-md-surface-container rounded-shape-sm overflow-hidden border"
     >
       <div className="border-border-base border-b p-4">
         <h2 className="text-fg text-sm font-semibold">By event</h2>
@@ -185,7 +185,10 @@ export function EarningsMonthlyStatements({
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {months.length > 0 && (
-        <details className="group border-border-base bg-surface rounded-shape-sm border" open>
+        <details
+          className="group border-border-base bg-md-surface-container rounded-shape-sm border"
+          open
+        >
           <summary className="hover:bg-fg/5 flex cursor-pointer items-center justify-between gap-2 p-4">
             <div>
               <h2 className="text-fg text-sm font-semibold">{currentYear} by month</h2>
@@ -228,7 +231,7 @@ export function EarningsMonthlyStatements({
       )}
 
       {yearsWithActivity.length > 0 && (
-        <section className="border-border-base bg-surface rounded-shape-sm border p-4">
+        <section className="border-border-base bg-md-surface-container rounded-shape-sm border p-4">
           <h2 className="text-fg text-sm font-semibold">Annual statements</h2>
           <p className="text-muted mt-1 text-xs">
             Per-year CSV of every paid signup. Good for taxes and bookkeeping.

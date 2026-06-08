@@ -192,7 +192,7 @@ export default async function CommunityListingsPage(props: {
 
       <form
         method="get"
-        className="border-border-base bg-surface rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+        className="border-border-base bg-md-surface-container rounded-shape-sm grid gap-3 border p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
       >
         <input type="hidden" name="when" value={when} />
         {/* Preserve an active location across an Apply (the GET form would
@@ -262,7 +262,7 @@ export default async function CommunityListingsPage(props: {
         </div>
       </form>
 
-      <p className="rounded-md bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+      <p className="bg-md-warning/10 text-md-warning rounded-md p-3 text-xs">
         Community listings link out to external sites. PickupVB doesn&rsquo;t verify or moderate the
         events themselves. RSVP and pay through the linked source.
       </p>

@@ -51,7 +51,7 @@ export function LocationSearch({ basePath = '/events' }: { basePath?: Route } = 
         onChange={(e) => setValue(e.target.value)}
         placeholder="City or ZIP"
         aria-label="Find events by city or ZIP code"
-        className="border-border-base bg-surface w-32 rounded-md border px-3 py-2 text-sm sm:w-40"
+        className="border-border-base bg-md-surface-container w-32 rounded-md border px-3 py-2 text-sm sm:w-40"
       />
       <button type="submit" disabled={pending} className={secondaryButtonClass('sm')}>
         {pending ? 'Searching…' : 'Search'}

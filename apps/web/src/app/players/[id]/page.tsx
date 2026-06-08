@@ -108,7 +108,7 @@ export default async function PlayerProfilePage(props: {
       />
 
       {/* ── Identity card ─────────────────────────────────────── */}
-      <header className="border-border-base bg-surface rounded-shape-sm border p-5">
+      <header className="border-border-base bg-md-surface-container rounded-shape-sm border p-5">
         <div className="flex items-start gap-4">
           {profile.avatarUrl ? (
             <Image

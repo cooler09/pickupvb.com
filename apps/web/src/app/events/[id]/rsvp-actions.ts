@@ -117,9 +117,7 @@ export async function leaveEvent(eventId: string): Promise<void> {
   // If this is a paid attendee, refund through Stripe BEFORE removing the
   // row. The `charge.refunded` webhook will delete the row + free capacity
   // and write the audit log entry, so we just need to make the refund call
-  // and bounce the user back to the event page. Outside the refund window
-  // (now > starts_at - refund_window_hours), we still let them leave but
-  // do not refund — they should reach out to the host.
+  // and bounce the user back to the event page.
   const outcome = await refundAttendeeTicket(eventId, userId);
   if (outcome.kind === 'refunded') {
     // Webhook handles row deletion + audit; bounce optimistically.
@@ -127,11 +125,41 @@ export async function leaveEvent(eventId: string): Promise<void> {
     await captureEventLeft(eventId, userId);
     back(eventId, 'left');
   }
-  if (outcome.kind === 'window_closed' || outcome.kind === 'failed') {
-    back(eventId, 'error', outcome.reason);
-  }
-  // outcome.kind === 'not_paid' → fall through to LeaveEventCommand.
+  // The window closed between page render and click (race): the user
+  // expected a refund, so don't forfeit their spot — keep them in and
+  // point them at the host. (The panel pre-empts this with the "no refund"
+  // variant once the window is known-closed at render time.)
+  if (outcome.kind === 'window_closed') back(eventId, 'refund_window_closed');
+  // Stripe rejected the reversal (transient error, or the host's account
+  // can no longer receive it). Keep them signed up and surface friendly
+  // copy instead of the raw Stripe message (already logged in refundAttendeeTicket).
+  if (outcome.kind === 'failed') back(eventId, 'refund_failed');
+  // outcome.kind === 'not_paid' → fall through to the plain leave.
 
+  await plainLeave(eventId, userId);
+}
+
+/**
+ * The "Cancel sign-up (no refund)" variant. The attendee has already
+ * confirmed (in the panel's confirm dialog) that no refund will be issued —
+ * this fires when a refund can't run in-app at all: an off-platform charge
+ * with nothing to reverse, the host's Stripe Connect account is gone, or
+ * we're past the refund window. Skip the Stripe attempt entirely and just
+ * release the spot; the host can still refund out-of-band from their
+ * dashboard. Bound from the JSX as `leaveEventNoRefund.bind(null, eventId)`.
+ */
+export async function leaveEventNoRefund(eventId: string): Promise<void> {
+  const userId = await userIdOrFlash(eventId);
+  await plainLeave(eventId, userId);
+}
+
+/**
+ * Remove the viewer from the event with no refund side-effects: run
+ * `LeaveEventCommand`, notify any auto-promoted waitlister (ADR 0036),
+ * revalidate, and flash `left`. Always terminates in a redirect (`back`),
+ * so it never returns normally.
+ */
+async function plainLeave(eventId: string, userId: string): Promise<void> {
   let promotedUserId: string | null = null;
   try {
     const result = await handlers.leaveEvent.execute(new LeaveEventCommand(eventId, userId));

@@ -56,7 +56,7 @@ export function TeamChatPanel({ teamId, participants }: Props) {
     <section className="space-y-2" aria-label="Team chat">
       <h2 className="text-muted text-sm font-semibold tracking-wide uppercase">Team chat</h2>
       {state.status === 'loading' ? (
-        <div className="border-border-base bg-surface rounded-shape-sm text-muted flex min-h-48 items-center justify-center border p-3 text-sm">
+        <div className="border-border-base bg-md-surface-container rounded-shape-sm text-muted flex min-h-48 items-center justify-center border p-3 text-sm">
           Loading messages…
         </div>
       ) : (

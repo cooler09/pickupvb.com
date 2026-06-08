@@ -140,7 +140,7 @@ export function TournamentSignupPanel({
               return (
                 <li
                   key={t.teamId}
-                  className="border-border-base bg-surface flex items-center justify-between gap-3 rounded-md border p-3"
+                  className="border-border-base bg-md-surface-container flex items-center justify-between gap-3 rounded-md border p-3"
                 >
                   <div className="min-w-0">
                     <Link
@@ -235,7 +235,7 @@ export function TournamentSignupPanel({
                 name="team_id"
                 required
                 defaultValue=""
-                className="border-border-base bg-surface min-w-[12rem] flex-1 rounded-md border px-3 py-2 text-sm"
+                className="border-border-base bg-md-surface-container min-w-[12rem] flex-1 rounded-md border px-3 py-2 text-sm"
               >
                 <option value="" disabled>
                   Pick a team…
@@ -254,7 +254,7 @@ export function TournamentSignupPanel({
                   name="division_id"
                   required
                   defaultValue=""
-                  className="border-border-base bg-surface min-w-[10rem] flex-1 rounded-md border px-3 py-2 text-sm"
+                  className="border-border-base bg-md-surface-container min-w-[10rem] flex-1 rounded-md border px-3 py-2 text-sm"
                 >
                   <option value="" disabled>
                     Pick a division…

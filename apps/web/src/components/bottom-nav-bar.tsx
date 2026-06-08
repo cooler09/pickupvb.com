@@ -136,7 +136,7 @@ export function BottomNavBar({ isAuthenticated }: { isAuthenticated: boolean }) 
     <nav
       aria-label="Primary"
       data-hidden={hidden ? 'true' : 'false'}
-      className="border-border-base bg-surface shadow-elevation-2 fixed inset-x-0 bottom-0 z-40 border-t transition-transform duration-200 ease-out data-[hidden=true]:translate-y-full md:hidden"
+      className="border-border-base bg-md-surface-container shadow-elevation-2 fixed inset-x-0 bottom-0 z-40 border-t transition-transform duration-200 ease-out data-[hidden=true]:translate-y-full md:hidden"
     >
       <ul className="pb-safe grid h-16 grid-cols-4">
         {items.map((item) => {

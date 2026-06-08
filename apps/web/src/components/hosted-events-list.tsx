@@ -173,7 +173,7 @@ export function HostedEventsList({
         return (
           <li
             key={e.id}
-            className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm border p-3"
+            className="border-border-base bg-md-surface-container hover:border-primary/40 rounded-shape-sm border p-3"
           >
             <Link
               href={`/events/${e.id}`}

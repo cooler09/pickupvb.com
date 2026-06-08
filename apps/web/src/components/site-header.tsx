@@ -12,6 +12,7 @@ import { MobileMenu } from './mobile-menu';
 import { NavDropdown, type NavDropdownItem } from './nav-dropdown';
 import { NotificationBell } from './notification-bell';
 import { MessagesNavLink } from './messages-nav-link';
+import { BrandMark } from './brand-mark';
 import { signOut } from './actions';
 
 function initialsOf(name: string): string {
@@ -87,11 +88,9 @@ export default async function SiteHeader({ theme }: { theme: ThemePreference }) 
   }
 
   return (
-    <header className="border-border-base bg-surface border-b">
+    <header className="border-border-base bg-md-surface-container border-b">
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="text-primary text-title-lg font-bold">
-          PickupVB
-        </Link>
+        <BrandMark />
 
         {/* Desktop nav — top-level links plus grouped dropdowns so every
             destination from the mobile drawer stays reachable without

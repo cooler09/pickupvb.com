@@ -141,7 +141,7 @@ export function WalkInTeamForm(props: {
       {added.length > 0 && (
         <div
           aria-live="polite"
-          className="rounded border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-700 dark:text-green-300"
+          className="border-md-success/30 bg-md-success/10 text-md-success rounded border px-3 py-2 text-xs"
         >
           <p className="font-medium">✓ Added this session ({added.length})</p>
           <ul className="mt-1 space-y-0.5">
@@ -159,7 +159,7 @@ export function WalkInTeamForm(props: {
           ref={errorRef}
           tabIndex={-1}
           role="alert"
-          className="rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 outline-none dark:text-red-300"
+          className="border-md-error/30 bg-md-error/10 text-md-error rounded border px-3 py-2 text-xs outline-none"
         >
           {error}
         </p>

@@ -34,6 +34,10 @@ export function AttendeesPanel({
   // Open-play with unlimited capacity has no upper bound on roster size, so
   // page the rendered list; hosts who want the whole roster use the CSV export.
   const pageAttendees = attendees.slice((page - 1) * ATTENDEES_PER_PAGE, page * ATTENDEES_PER_PAGE);
+  // Delight #7: when the event has just filled, the first page of roster avatars
+  // does one celebratory high-five bump. `spotsRemaining` is null for unlimited
+  // capacity, so this only fires for genuinely-full fixed-capacity events.
+  const celebrateFull = event.spotsRemaining === 0 && page === 1;
   return (
     <section id="attendees">
       <h2 className="text-fg mb-3 text-lg font-semibold">
@@ -48,6 +52,7 @@ export function AttendeesPanel({
         eventId={event.id}
         {...(payments ? { payments } : {})}
         canManagePayments={paid && event.canManage}
+        celebrateFull={celebrateFull}
       />
       {attendees.length > ATTENDEES_PER_PAGE && (
         <div className="mt-3">

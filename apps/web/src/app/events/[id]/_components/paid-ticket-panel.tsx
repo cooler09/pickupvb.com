@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { StatusPill, type StatusPillTone } from '@/components/status-pill';
+import type { RefundBlockReason } from '@/lib/refund-eligibility';
 import { startTicketCheckout, startGuestTicketCheckout } from '../checkout-actions';
 import GuestSignupForm from '../guest-signup-form';
 import { GuestSignupFields } from './guest-signup-fields';
-import { joinEvent, leaveEvent } from '../rsvp-actions';
+import { joinEvent, leaveEvent, leaveEventNoRefund } from '../rsvp-actions';
 
 type Props = {
   eventId: string;
@@ -23,6 +24,21 @@ type Props = {
   paymentsOffPlatform: boolean;
   /** Viewer's own payment status, used to colour the "you're in" pill. */
   viewerPaymentStatus?: 'paid' | 'pending' | 'none';
+  /**
+   * For a paid viewer, why an in-app self-cancel can't refund online, or
+   * null when fully refundable. When set, the cancel button drops the
+   * "& refund" promise and warns no money is returned.
+   */
+  refundBlockReason: RefundBlockReason | null;
+};
+
+const REFUND_BLOCK_COPY: Record<RefundBlockReason, string> = {
+  off_platform:
+    'You paid the host directly, so there’s no online payment to refund. Cancelling here only releases your spot — contact the host for a refund.',
+  host_not_ready:
+    'The host isn’t set up to issue online refunds right now. Cancelling here only releases your spot — contact the host to arrange a refund.',
+  window_closed:
+    'The refund window has closed. Cancelling here releases your spot without a refund — contact the host if you need one.',
 };
 
 function formatUsd(cents: number): string {
@@ -53,6 +69,7 @@ export function PaidTicketPanel({
   refundWindowHours,
   paymentsOffPlatform,
   viewerPaymentStatus,
+  refundBlockReason,
 }: Props) {
   const total = ticketCents + platformFeeCents + processingFeeCents;
   const pill = viewerPaymentStatus
@@ -92,20 +109,38 @@ export function PaidTicketPanel({
         <div className="flex flex-col items-end gap-2">
           <StatusPill tone={pill.tone}>{pill.label}</StatusPill>
           {viewerPaymentStatus === 'paid' ? (
-            <>
-              <form action={leaveEvent.bind(null, eventId)}>
-                <ConfirmSubmitButton
-                  label="Cancel sign-up & refund"
-                  pendingLabel="Refunding…"
-                  confirmMessage={`Cancel your sign-up for "${eventTitle}" and request a refund of ${formatUsd(total)}?`}
-                  destructive
-                />
-              </form>
-              <p className="text-muted text-xs">
-                Refunds available up to {refundWindowHours} hour
-                {refundWindowHours === 1 ? '' : 's'} before the event starts.
-              </p>
-            </>
+            refundBlockReason ? (
+              <>
+                <form action={leaveEventNoRefund.bind(null, eventId)}>
+                  <ConfirmSubmitButton
+                    label="Cancel sign-up (no refund)"
+                    pendingLabel="Cancelling…"
+                    confirmTitle="Cancel sign-up"
+                    confirmMessage={`Cancel your sign-up for "${eventTitle}"? No refund will be issued — you'll need to contact the host for any refund.`}
+                    confirmLabel="Cancel sign-up"
+                    destructive
+                  />
+                </form>
+                <p className="text-md-on-warning-container bg-md-warning-container rounded-shape-sm max-w-[18rem] px-3 py-2 text-right text-xs">
+                  {REFUND_BLOCK_COPY[refundBlockReason]}
+                </p>
+              </>
+            ) : (
+              <>
+                <form action={leaveEvent.bind(null, eventId)}>
+                  <ConfirmSubmitButton
+                    label="Cancel sign-up & refund"
+                    pendingLabel="Refunding…"
+                    confirmMessage={`Cancel your sign-up for "${eventTitle}" and request a refund of ${formatUsd(total)}?`}
+                    destructive
+                  />
+                </form>
+                <p className="text-muted text-xs">
+                  Refunds available up to {refundWindowHours} hour
+                  {refundWindowHours === 1 ? '' : 's'} before the event starts.
+                </p>
+              </>
+            )
           ) : (
             <form action={leaveEvent.bind(null, eventId)}>
               <ConfirmSubmitButton

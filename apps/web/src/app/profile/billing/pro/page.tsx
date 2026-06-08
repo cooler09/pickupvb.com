@@ -58,7 +58,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
       </header>
 
       {!isStripeConfigured() && (
-        <div className="border-border-base bg-surface rounded-shape-sm border p-4 text-sm">
+        <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-4 text-sm">
           Payments are not configured on this server.
         </div>
       )}
@@ -142,7 +142,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
           )}
           <OpenInNewTabButton
             getUrl={getBillingPortalUrl}
-            className="border-border-base bg-surface hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
+            className="border-border-base bg-md-surface-container hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
           >
             Manage subscription ↗
           </OpenInNewTabButton>

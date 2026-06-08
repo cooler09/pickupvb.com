@@ -85,7 +85,7 @@ export function ConfirmSubmitButton({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
-        className="border-border-base bg-surface text-fg rounded-shape-sm m-auto w-full max-w-sm border p-0 shadow-xl backdrop:bg-black/50"
+        className="border-border-base bg-md-surface-container text-fg rounded-shape-sm m-auto w-full max-w-sm border p-0 shadow-xl backdrop:bg-black/50"
       >
         <div className="space-y-3 p-5">
           <h2 id={titleId} className="text-base font-semibold">

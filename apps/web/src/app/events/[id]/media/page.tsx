@@ -90,8 +90,8 @@ export default async function EventMediaPage(props: {
           role="status"
           className={
             notice.tone === 'ok'
-              ? 'rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800'
-              : 'rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900'
+              ? 'border-md-success/30 bg-md-success/15 text-md-success rounded-md border px-3 py-2 text-sm'
+              : 'border-md-warning/30 bg-md-warning/15 text-md-warning rounded-md border px-3 py-2 text-sm'
           }
         >
           {notice.text}

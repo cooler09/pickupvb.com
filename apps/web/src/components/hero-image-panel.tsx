@@ -24,7 +24,7 @@ export function HeroImagePanel({ entityType, entityId, userId, currentUrl, retur
   }
 
   return (
-    <div className="border-border-base bg-surface rounded-shape-sm space-y-3 border p-5">
+    <div className="border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-5">
       <div className="space-y-1">
         <h2 className="text-base font-semibold">Hero image</h2>
         <p className="text-muted text-xs">

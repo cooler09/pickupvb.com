@@ -158,7 +158,7 @@ export function EventHero({
         {liveNow && (
           <Link
             href={`/events/${eventId}/media` as Route}
-            className="inline-flex items-center gap-1 rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+            className="border-md-error/30 bg-md-error/15 text-md-error hover:bg-md-error/10 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold"
             aria-label="A live stream is broadcasting now — watch"
           >
             <span aria-hidden="true">🔴</span> Live now
@@ -166,7 +166,7 @@ export function EventHero({
         )}
         {closingSoon && registrationClosesAt !== null && (
           <span
-            className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900"
+            className="border-md-warning/30 bg-md-warning/15 text-md-warning inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium"
             aria-label="Registration closing soon"
           >
             <span aria-hidden="true">⏳</span>

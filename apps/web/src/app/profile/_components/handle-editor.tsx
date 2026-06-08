@@ -66,7 +66,7 @@ export function HandleEditor({ currentHandle }: { currentHandle: string }) {
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          className="border-border-base bg-surface flex-1 rounded-md border px-2 py-1 font-mono text-sm"
+          className="border-border-base bg-md-surface-container flex-1 rounded-md border px-2 py-1 font-mono text-sm"
         />
         <SaveBtn />
         <button

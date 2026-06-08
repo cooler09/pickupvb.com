@@ -31,7 +31,7 @@ type Props = {
 export function GroupHeader({ group, stats, actions }: Props) {
   const place = [group.homeCity, group.region].filter(Boolean).join(', ');
   return (
-    <header className="border-border-base bg-surface rounded-shape-sm space-y-5 border p-5 sm:p-6">
+    <header className="border-border-base bg-md-surface-container rounded-shape-sm space-y-5 border p-5 sm:p-6">
       <div className="flex items-start gap-4">
         {group.avatarUrl ? (
           <Image

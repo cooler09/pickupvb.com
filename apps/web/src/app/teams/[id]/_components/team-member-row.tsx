@@ -41,7 +41,7 @@ export function TeamMemberRow({ teamId, member, isCaptain, viewerIsCaptain, retu
   const canRemove = viewerIsCaptain && !isCaptain;
   const isPending = member.status === 'pending';
   return (
-    <li className="border-border-base bg-surface flex items-center justify-between gap-3 rounded-md border p-3">
+    <li className="border-border-base bg-md-surface-container flex items-center justify-between gap-3 rounded-md border p-3">
       <div className="flex min-w-0 items-center gap-3">
         <span
           aria-hidden="true"

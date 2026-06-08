@@ -145,7 +145,7 @@ function ToggleCard({
   defaultChecked: boolean;
 }) {
   return (
-    <label className="border-border-base bg-surface hover:bg-fg/5 has-[:checked]:border-primary has-[:checked]:bg-highlight/40 flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm">
+    <label className="border-border-base bg-md-surface-container hover:bg-fg/5 has-[:checked]:border-primary has-[:checked]:bg-highlight/40 flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm">
       <input name={name} type="checkbox" defaultChecked={defaultChecked} className="mt-0.5" />
       <span className="space-y-0.5">
         <span className="text-fg block font-medium">{title}</span>

@@ -74,5 +74,14 @@ export function BadgeGlyph({ icon, className }: { icon: BadgeIcon; className?: s
           <path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z" />
         </svg>
       );
+    case 'volleyball':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 3c-2 2.6-3 5.6-3 9s1 6.4 3 9" />
+          <path d="M3.9 8.7c3 1.4 6.4 1.7 9.6.9 3-.7 5.8-.1 7.7 1.6" />
+          <path d="M5.4 18.4c1.8-2.6 4.6-4.2 7.8-4.4 3-.2 6 .9 8-1.9" />
+        </svg>
+      );
   }
 }

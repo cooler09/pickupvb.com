@@ -26,7 +26,7 @@ export function TeamCard({
       : role === 'pending'
         ? {
             label: 'Pending',
-            className: 'bg-amber-500/15 text-amber-700 dark:text-amber-400',
+            className: 'bg-md-warning/15 text-md-warning',
           }
         : role === 'member'
           ? { label: 'Member', className: 'bg-fg/10 text-fg/80' }
@@ -35,7 +35,7 @@ export function TeamCard({
     <li>
       <Link
         href={`/teams/${team.slug}`}
-        className="border-border-base bg-surface hover:border-primary/40 rounded-shape-sm flex items-start justify-between gap-3 border p-3"
+        className="border-border-base bg-md-surface-container hover:border-primary/40 rounded-shape-sm flex items-start justify-between gap-3 border p-3"
       >
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{team.name}</p>

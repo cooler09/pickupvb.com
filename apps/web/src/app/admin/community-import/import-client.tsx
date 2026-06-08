@@ -256,7 +256,7 @@ function DraftCard({
   }
 
   return (
-    <fieldset className="border-border-base bg-surface space-y-4 rounded-md border p-4">
+    <fieldset className="border-border-base bg-md-surface-container space-y-4 rounded-md border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
           <label className={labelClass}>Title</label>
