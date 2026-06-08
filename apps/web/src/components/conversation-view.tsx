@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createSupabaseBrowserClient } from '@pickupvb/supabase/browser';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
@@ -25,6 +25,10 @@ import {
 } from '@/app/_actions/chat-actions';
 
 const BUCKET = 'chat-attachments';
+
+/** Layout effect on the client, no-op on the server — avoids the SSR warning
+ * while still adjusting scroll before paint (so "load earlier" doesn't flash). */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 /** Human-readable copy for a {@link ChatError}. Shared by every mutation in the
  * view so a failed send/edit/delete/report always tells the user something
@@ -53,6 +57,9 @@ type Props = {
   initialNextBefore: string | null;
   /** Name lookup for live broadcast rows (which carry only `sender_id`). */
   participants: { id: string; name: string }[];
+  /** DM only: the viewer has blocked the counterpart. Replaces the composer with
+   * a banner so they don't type into a send that RLS will reject (audit M-9). */
+  blocked?: boolean;
 };
 
 type SenderCard = { name: string; avatar: string | null };
@@ -137,6 +144,7 @@ export function ConversationView({
   initialHasMore,
   initialNextBefore,
   participants,
+  blocked = false,
 }: Props) {
   const [messages, setMessages] = useState<MessageView[]>(initialMessages);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -157,6 +165,10 @@ export function ConversationView({
   const listRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Set by `loadOlder` just before prepending an older page, so the next layout
+  // pass can restore the viewport to where the reader was instead of jumping
+  // (audit M-8). Holds the pre-prepend scrollHeight + scrollTop.
+  const restoreScrollRef = useRef<{ prevHeight: number; prevTop: number } | null>(null);
 
   // Sender card lookup, seeded from the roster and enriched (avatars) as
   // messages with embedded sender cards load.
@@ -295,10 +307,21 @@ export function ConversationView({
     };
   }, [conversationId, recordToView, ensureSenderCard, viewerId]);
 
-  // ---- Auto-scroll to newest when already at the bottom -------------------
-  useEffect(() => {
+  // ---- Scroll management on message change --------------------------------
+  // Runs before paint: if `loadOlder` just prepended a page, restore the
+  // viewport to the reader's prior position (height grew at the top, so add the
+  // delta to scrollTop — M-8); otherwise, if already at the bottom, stick to the
+  // newest message.
+  useIsomorphicLayoutEffect(() => {
     const el = listRef.current;
-    if (el && atBottomRef.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const restore = restoreScrollRef.current;
+    if (restore) {
+      el.scrollTop = el.scrollHeight - restore.prevHeight + restore.prevTop;
+      restoreScrollRef.current = null;
+      return;
+    }
+    if (atBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   const onScroll = useCallback(() => {
@@ -418,6 +441,10 @@ export function ConversationView({
     if (!res.ok) return;
     learnSenders(res.value.messages);
     atBottomRef.current = false;
+    // Capture the pre-prepend metrics so the layout effect can hold the reader's
+    // position once the older page is inserted above the current view (M-8).
+    const el = listRef.current;
+    if (el) restoreScrollRef.current = { prevHeight: el.scrollHeight, prevTop: el.scrollTop };
     setMessages((prev) => mergeMessages(prev, res.value.messages));
     setHasMore(res.value.hasMore);
     setNextBefore(res.value.nextBefore);
@@ -603,84 +630,92 @@ export function ConversationView({
         })}
       </div>
 
-      {pending.length > 0 && (
-        <div className="border-border-base flex flex-wrap gap-2 border-t p-2">
-          {pending.map((p) => (
-            <div key={p.attachment.path} className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element -- local object-URL preview before send */}
-              <img
-                src={p.previewUrl}
-                alt="Attachment preview"
-                className="h-16 w-16 rounded-md object-cover"
-              />
-              <button
-                type="button"
-                onClick={() => removePending(p.attachment.path)}
-                aria-label="Remove attachment"
-                className="bg-fg/70 absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
-              >
-                ×
-              </button>
+      {blocked ? (
+        <p className="border-border-base text-muted border-t p-3 text-center text-sm">
+          You’ve blocked this person. Unblock above to send a message.
+        </p>
+      ) : (
+        <>
+          {pending.length > 0 && (
+            <div className="border-border-base flex flex-wrap gap-2 border-t p-2">
+              {pending.map((p) => (
+                <div key={p.attachment.path} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- local object-URL preview before send */}
+                  <img
+                    src={p.previewUrl}
+                    alt="Attachment preview"
+                    className="h-16 w-16 rounded-md object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePending(p.attachment.path)}
+                    aria-label="Remove attachment"
+                    className="bg-fg/70 absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      <form
-        className="border-border-base flex items-end gap-2 border-t p-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => void pickFiles(e.target.files)}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading || pending.length >= MAX_ATTACHMENTS}
-          aria-label="Attach image"
-          className="tap-target text-fg/70 hover:bg-fg/5 hover:text-primary rounded-md disabled:opacity-50"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-          </svg>
-        </button>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
+          <form
+            className="border-border-base flex items-end gap-2 border-t p-2"
+            onSubmit={(e) => {
               e.preventDefault();
               void send();
-            }
-          }}
-          rows={1}
-          maxLength={4000}
-          placeholder={uploading ? 'Uploading…' : 'Type a message…'}
-          aria-label="Message"
-          className={`${fieldInputClass} resize-none`}
-        />
-        <button type="submit" disabled={!canSend} className={primaryButtonClass('md')}>
-          Send
-        </button>
-      </form>
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => void pickFiles(e.target.files)}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || pending.length >= MAX_ATTACHMENTS}
+              aria-label="Attach image"
+              className="tap-target text-fg/70 hover:bg-fg/5 hover:text-primary rounded-md disabled:opacity-50"
+            >
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+            </button>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+              rows={1}
+              maxLength={4000}
+              placeholder={uploading ? 'Uploading…' : 'Type a message…'}
+              aria-label="Message"
+              className={`${fieldInputClass} resize-none`}
+            />
+            <button type="submit" disabled={!canSend} className={primaryButtonClass('md')}>
+              Send
+            </button>
+          </form>
+        </>
+      )}
       {error && (
         <p role="alert" className="text-md-error text-xs">
           {error}

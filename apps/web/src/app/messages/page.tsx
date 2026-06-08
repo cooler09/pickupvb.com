@@ -5,6 +5,9 @@ import type { InboxItem } from '@pickupvb/domain';
 import { getCurrentUser } from '@/lib/server-auth';
 import { getChatHandlers } from '@/lib/handlers';
 import { EmptyState } from '@/components/empty-state';
+import { Pagination } from '@/components/pagination';
+
+const PER_PAGE = 20;
 
 export const metadata = {
   title: 'Messages — PickupVB',
@@ -53,12 +56,22 @@ function stamp(iso: string | null): string {
   });
 }
 
-export default async function MessagesPage() {
+export default async function MessagesPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { user } = await getCurrentUser();
   if (!user) redirect('/login?next=/messages');
 
+  const rawSearchParams = await props.searchParams;
+  const searchParams: Record<string, string | undefined> = Object.fromEntries(
+    Object.entries(rawSearchParams).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]),
+  );
+  const page = Math.max(1, Number.parseInt(searchParams.page ?? '1', 10) || 1);
+
   const { listInbox } = await getChatHandlers();
   const items = await listInbox.execute();
+  // Slice for display; counts/empty-state read the full set (pattern #12).
+  const pageItems = items.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 py-4">
@@ -76,7 +89,7 @@ export default async function MessagesPage() {
         />
       ) : (
         <ul className="space-y-2">
-          {items.map((item) => {
+          {pageItems.map((item) => {
             const href = inboxHref(item);
             const title = item.title ?? KIND_LABEL[item.kind];
             const preview =
@@ -126,6 +139,14 @@ export default async function MessagesPage() {
           })}
         </ul>
       )}
+
+      <Pagination
+        basePath="/messages"
+        page={page}
+        pageSize={PER_PAGE}
+        total={items.length}
+        searchParams={searchParams}
+      />
     </div>
   );
 }

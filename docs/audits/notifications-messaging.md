@@ -76,9 +76,15 @@ help. Added explanatory comments at both subscribe sites (the explicit initial
 **2026-06-08 — M-7 FIXED (uncommitted, quad-green): live broadcast rows no longer
 stick on the "Member" fallback. `recordToView` stops caching the fallback, and an
 unknown live sender is enriched once from `profiles_public` (deduped
-`ensureSenderCard`) then patched into the rendered rows. Remaining chat backlog:
-M-4/8/9/10/12 (all P3 — inbox pagination, load-earlier scroll anchor, blocked
-banner, text rate limit, e2e).**
+`ensureSenderCard`) then patched into the rendered rows.**
+**2026-06-08 — remaining P3s FIXED (uncommitted, quad-green): M-4 (inbox paginated
+— `INBOX_FETCH_LIMIT=200` + shared `Pagination`, 20/page), M-8 (load-earlier scroll
+anchor via an isomorphic layout effect + `restoreScrollRef`), M-9 (blocked-state
+banner — new `DmThread` wrapper shares one `blocked` state across a controlled
+`BlockControl` + a `blocked` prop on `ConversationView`; only the viewer's own
+block is detectable under RLS), M-10 (general per-message cap 60/60s on every send,
+stacking with the attachment/day cap). **Every chat-engine finding is now resolved
+except M-12 (e2e), which is deferred — it must run against a deployed target.\*\*\*\*
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -523,14 +529,18 @@ refresh; don't add a redundant `onAuthStateChange→setAuth`, don't remove the
 initial call). Re-open only if the browser client is ever switched to the
 custom-`accessToken` (third-party-auth) mode, which disables step 2.
 
-### M-4 — Inbox is not paginated (hard cap 50) — P3
+### M-4 — Inbox is not paginated (hard cap 50) — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 
-[`get_inbox(p_limit := 50)`](../../apps/web/src/app/messages/page.tsx#L49) caps
-at 50 conversations and [the page](../../apps/web/src/app/messages/page.tsx#L66-L117)
-renders them all with no `Pagination` — violating AGENTS.md pattern #12 (paginate
-unbounded list views). A heavy user silently loses conversations 51+. **Fix:**
-add a `page` searchParam + the shared `Pagination` (slice in memory or extend the
-RPC with offset), per the directory-page precedent.
+`get_inbox(p_limit := 50)` capped at 50 conversations and the page rendered them
+all with no `Pagination` — violating AGENTS.md pattern #12, silently losing
+conversations 51+. **Fix shipped** (no migration): the adapter now fetches a
+generous window (`INBOX_FETCH_LIMIT = 200`,
+[supabase-messaging-repository.ts](../../packages/infrastructure/src/supabase-messaging-repository.ts)),
+and the [page](../../apps/web/src/app/messages/page.tsx) reads a `page`
+searchParam, slices the loaded set (20/page), and renders the shared
+`Pagination` — the in-memory-slice variant per pattern #12 (the inbox is a
+derived list; the empty-state + total read the full set). Beyond 200 active
+conversations the viewer sees the 200 most-recent by activity.
 
 ### M-5 — Inbox dates render in the server's UTC, not the viewer's zone — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 
@@ -585,35 +595,44 @@ contract and is deploy-unverifiable, while this works uniformly for all room kin
   embed remains a possible future optimization (saves the round-trip) but isn't worth
   the migration + deploy-gated risk today.
 
-### M-8 — "Load earlier messages" jumps the scroll position — P3
+### M-8 — "Load earlier messages" jumps the scroll position — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 
-[`loadOlder`](../../apps/web/src/components/conversation-view.tsx#L356-L367)
-prepends older messages and sets `atBottomRef = false`, but nothing preserves the
-scroll anchor — prepended content shifts the viewport, bouncing the reader away
-from where they were. **Fix:** capture `scrollHeight` before the merge and restore
-`scrollTop += (newHeight - oldHeight)` after (the standard reverse-infinite-scroll
-anchor).
+`loadOlder` prepended older messages without preserving the scroll anchor, so the
+prepended content shifted the viewport and bounced the reader away. **Fix shipped**
+([conversation-view.tsx](../../apps/web/src/components/conversation-view.tsx)):
+`loadOlder` captures `{ scrollHeight, scrollTop }` just before the prepend into a
+`restoreScrollRef`, and the scroll effect — now an **isomorphic layout effect**
+(client `useLayoutEffect`, SSR-safe no-op) so the correction lands before paint
+(no flash) — restores `scrollTop = newHeight − prevHeight + prevTop`. The
+at-bottom auto-scroll is unchanged.
 
-### M-9 — No blocked-state banner; composer stays enabled when blocked — P3 (ADR follow-up)
+### M-9 — No blocked-state banner; composer stays enabled when blocked — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 
-`BlockControl` only reflects the viewer's own block of the counterpart
-([block-control.tsx](../../apps/web/src/app/messages/[id]/_components/block-control.tsx)).
-If the **other** party blocked **you**, there's no indication — you type, send,
-and get the generic "You can no longer post in this conversation." And after you
-block someone the composer remains enabled until the next send is rejected.
-**Fix (ADR follow-up):** render a dedicated banner when either direction is
-blocked and disable the composer, instead of relying on the send-time rejection.
+After you blocked a DM counterpart the composer stayed enabled until the next send
+was rejected. **Fix shipped:** a new client wrapper
+[`DmThread`](../../apps/web/src/app/messages/[id]/_components/dm-thread.tsx) owns
+one `blocked` state shared by the (now-controlled)
+[`BlockControl`](../../apps/web/src/app/messages/[id]/_components/block-control.tsx)
+toggle and the `ConversationView`, which gained a `blocked` prop that **replaces
+the composer with a banner** ("You've blocked this person. Unblock above to send a
+message."). Blocking now updates the composer immediately (optimistic, reverts on
+failure). **Scope note:** only the viewer's _own_ block is detectable — RLS scopes
+`user_blocks` SELECT to `blocker_id = auth.uid()`, so "the **other** party blocked
+**you**" can't be read client-side without a leak; that case still surfaces via the
+M-2 send-rejection copy ("You can no longer post in this conversation.").
 
-### M-10 — Text messages have no rate limit — P3
+### M-10 — Text messages have no rate limit — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 
-The only chat throttle is on **attachment-bearing** messages (40/day,
-[chat-actions.ts:37-38, 136-143](../../apps/web/src/app/_actions/chat-actions.ts#L136-L143)).
-Text sends are unbounded — an authenticated member can spam a room/DM with no
-per-user cap. Blast radius is limited (RLS confines it to rooms they belong to,
-and notification coalescing caps pings at one per conversation per 5-min window),
-but the DB writes + broadcast fan-out are uncapped. **Fix:** add a generous
-fixed-window text cap (e.g. 60/min) on the existing limiter, fail-open like the
-attachment cap.
+The only chat throttle was on **attachment-bearing** messages (40/day); text sends
+were unbounded, so a member could spam a room/DM with uncapped DB writes +
+broadcast fan-out (RLS confines blast radius, but the write rate itself was
+ungated). **Fix shipped** ([chat-actions.ts](../../apps/web/src/app/_actions/chat-actions.ts)):
+every send now consumes a general per-message cap (`chat-msg`, **60 / 60s**) on the
+existing fixed-window limiter before the handler runs; the attachment/day cap
+(`chat-attach`) stacks on top for image sends. Both fail open (a DB blip never
+blocks a real send). Pinned by updated `chat-actions.test.ts` cases (text consumes
+only the message cap; images consume both; either cap rejects with `rate_limited`
+before the handler).
 
 ### M-11 — Player "Message" button hand-rolls its class string — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 

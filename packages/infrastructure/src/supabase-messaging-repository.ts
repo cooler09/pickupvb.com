@@ -334,13 +334,20 @@ function rowToInbox(row: InboxRpcRow): InboxItem {
   };
 }
 
+/** Upper bound on conversations fetched for the inbox; the page paginates this
+ * in memory (audit M-4). Generous enough that real users never hit it. */
+const INBOX_FETCH_LIMIT = 200;
+
 export class SupabaseConversationQueries implements ConversationQueries {
   constructor(private readonly client: SupabaseClient) {}
 
   async listInbox(): Promise<InboxItem[]> {
     // SECURITY INVOKER RPC — RLS on `conversations` scopes the result to the
     // caller's accessible rooms; the RPC resolves titles/previews/slugs in SQL.
-    const { data, error } = await this.client.rpc('get_inbox', { p_limit: 50 });
+    // Fetch a generous window (the inbox page slices it with `Pagination` — audit
+    // M-4); a viewer with more than this many active conversations sees the most
+    // recent INBOX_FETCH_LIMIT, ordered by last activity.
+    const { data, error } = await this.client.rpc('get_inbox', { p_limit: INBOX_FETCH_LIMIT });
     if (error) throw new Error(`listInbox failed: ${error.message}`);
     return ((data as unknown as InboxRpcRow[] | null) ?? []).map(rowToInbox);
   }

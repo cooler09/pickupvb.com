@@ -10,9 +10,9 @@ vi.mock('@/lib/supabase', () => ({
 }));
 
 const consumeRateLimitMock =
-  vi.fn<() => Promise<{ allowed: boolean; retryAfterSeconds: number }>>();
+  vi.fn<(args: { key: string }) => Promise<{ allowed: boolean; retryAfterSeconds: number }>>();
 vi.mock('@/lib/rate-limit', () => ({
-  consumeRateLimit: () => consumeRateLimitMock(),
+  consumeRateLimit: (args: { key: string }) => consumeRateLimitMock(args),
   rateLimitKey: (scope: string, dim: string, val: string) => `${scope}:${dim}:${val}`,
 }));
 
@@ -35,7 +35,7 @@ const image: MessageAttachment = {
   size: 1234,
 };
 
-describe('sendChatMessage — chat-attachment upload cap (R-2 Path A cost-control)', () => {
+describe('sendChatMessage — rate limits (general message cap + R-2 attachment cap)', () => {
   beforeEach(() => {
     getUserMock.mockReset();
     consumeRateLimitMock.mockReset();
@@ -45,22 +45,42 @@ describe('sendChatMessage — chat-attachment upload cap (R-2 Path A cost-contro
     consumeRateLimitMock.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
   });
 
-  it('never throttles a text-only message', async () => {
+  it('throttles a text-only send through the general message cap only', async () => {
     const res = await sendChatMessage('c1', 'hello', []);
     expect(res).toEqual({ ok: true, value: { id: 'm1' } });
-    expect(consumeRateLimitMock).not.toHaveBeenCalled();
+    // The general per-message cap is consumed; the attachment/day cap is not.
+    expect(consumeRateLimitMock).toHaveBeenCalledOnce();
+    expect(consumeRateLimitMock).toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'chat-msg:user:u1' }),
+    );
     expect(sendMessageExecute).toHaveBeenCalledOnce();
   });
 
-  it('consumes the limiter for an image-bearing message and still sends when allowed', async () => {
+  it('consumes both the message cap and the attachment cap for an image-bearing send', async () => {
     const res = await sendChatMessage('c1', '', [image]);
     expect(res.ok).toBe(true);
-    expect(consumeRateLimitMock).toHaveBeenCalledOnce();
+    expect(consumeRateLimitMock).toHaveBeenCalledTimes(2);
+    const keys = consumeRateLimitMock.mock.calls.map(([a]) => a.key);
+    expect(keys).toContain('chat-msg:user:u1');
+    expect(keys).toContain('chat-attach:user:u1');
     expect(sendMessageExecute).toHaveBeenCalledOnce();
   });
 
-  it('rejects an image-bearing message over the cap without ever calling the handler', async () => {
-    consumeRateLimitMock.mockResolvedValue({ allowed: false, retryAfterSeconds: 3600 });
+  it('rejects a send over the general message cap before the handler or attachment cap', async () => {
+    consumeRateLimitMock.mockImplementation(async (args) => ({
+      allowed: args.key !== 'chat-msg:user:u1',
+      retryAfterSeconds: 60,
+    }));
+    const res = await sendChatMessage('c1', 'spam', []);
+    expect(res).toEqual({ ok: false, error: 'rate_limited' });
+    expect(sendMessageExecute).not.toHaveBeenCalled();
+  });
+
+  it('rejects an image-bearing send over the attachment cap without calling the handler', async () => {
+    consumeRateLimitMock.mockImplementation(async (args) => ({
+      allowed: args.key !== 'chat-attach:user:u1',
+      retryAfterSeconds: 3600,
+    }));
     const res = await sendChatMessage('c1', 'pics', [image]);
     expect(res).toEqual({ ok: false, error: 'rate_limited' });
     expect(sendMessageExecute).not.toHaveBeenCalled();
