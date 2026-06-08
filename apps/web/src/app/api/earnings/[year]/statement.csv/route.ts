@@ -55,9 +55,11 @@ export async function GET(
   type AuditRow = {
     id: string;
     event_id: string;
+    user_id: string | null;
     action: 'paid' | 'refunded';
     amount_cents: number;
     payment_intent_id: string | null;
+    off_platform: boolean;
     occurred_at: string;
     events: { title: string; starts_at: string } | null;
   };
@@ -70,7 +72,7 @@ export async function GET(
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
-      'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
+      'id, event_id, user_id, action, amount_cents, payment_intent_id, off_platform, occurred_at, events:events!inner(title, starts_at)',
     )
     .eq('events.host_id', user.id)
     .in('category', ['ticket', 'tip', 'team'])
@@ -100,12 +102,15 @@ export async function GET(
 
   let totalGross = 0;
   let totalRefund = 0;
+  let totalFee = 0;
   for (const t of transactions) {
     const net = t.paidCents - t.refundedCents;
-    const fee = estimatePlatformFeeCents(net, feeRate);
+    // Cash the host collected off-platform carries no PickupVB fee (R-5).
+    const fee = t.offPlatform ? 0 : estimatePlatformFeeCents(net, feeRate);
     const payout = net - fee;
     totalGross += t.paidCents;
     totalRefund += t.refundedCents;
+    totalFee += fee;
     lines.push(
       [
         csvCell(t.paidAt.slice(0, 10)),
@@ -116,12 +121,11 @@ export async function GET(
         usd(net),
         usd(fee),
         usd(payout),
-        csvCell(t.paymentIntentId),
+        csvCell(t.offPlatform ? 'off-platform' : t.paymentIntentId),
       ].join(','),
     );
   }
   const totalNet = totalGross - totalRefund;
-  const totalFee = estimatePlatformFeeCents(totalNet, feeRate);
   const totalPayout = totalNet - totalFee;
   lines.push(
     [

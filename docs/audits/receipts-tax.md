@@ -9,14 +9,16 @@ and the business / tax-ID profile fields. Covers the read paths
 read from — the `event_payment_audit` ledger.
 
 > **Status (2026-06-08): new audit — 1 P1 · 3 P2 · 8 P3.**
-> **Fixed same day (quad-green, uncommitted, migrations deploy-gated): R-1, R-2,
-> R-3, R-4, R-7, R-8, R-9, R-11.** The ledger now records tip and team-entry
-> payments (+ refunds) under a new `category` column with a backfill; the host
-> read filters to income categories; CSV cells are formula-injection safe; the
-> group-by-payment-intent reducer + fee math + CSV escaping each live in one
-> shared, unit-tested module; the dead `'failed'` action is gone (CHECK
-> tightened); off-platform receipts print a clean number. **Remaining open: R-5,
-> R-6, R-10, R-12** (all P3). See the remediation log.
+> **10 of 12 fixed same day (quad-green, uncommitted, migrations deploy-gated):
+> R-1…R-9 + R-11.** The ledger records tip + team-entry payments (and refunds)
+> under a `category` column with a backfill; the host read filters to income
+> categories; cash payments carry an `off_platform` flag that excludes them from
+> the fee estimate (R-5) and nets a cash paid+refund pair (R-6); CSV cells are
+> formula-injection safe; the group-by-payment-intent reducer + fee math + CSV
+> escaping live in one shared, unit-tested module; the dead `'failed'` action is
+> gone; synthetic receipts print a clean number. **Remaining open: R-10
+> (whole-ledger fetch — perf, deferred) and R-12 (`tax_id` plaintext —
+> acknowledged).** See the remediation log.
 >
 > RLS posture is sound (`event_payment_audit` reads are scoped by the
 > `_select_own` / `_select_host` policies; `tax_id` / `business_*` are
@@ -64,8 +66,8 @@ to the entire receipts/tax surface.
 | R-2  | P2  | ✅ FIXED — earnings reads now filter `events.host_id`; was over-counting a host who is also a buyer          |
 | R-3  | P2  | ✅ FIXED — CSV cells now neutralize formula injection (`=`/`+`/`-`/`@`/TAB/CR); shared helper                |
 | R-4  | P2  | ✅ FIXED — grouping reducer + fee math extracted to `lib/receipts.ts` and unit-tested (csvCell already was)  |
-| R-5  | P3  | Off-platform cash payments get a phantom platform-fee deduction in earnings                                  |
-| R-6  | P3  | Off-platform paid+refund pairs don't net (each null-PI row gets its own group key)                           |
+| R-5  | P3  | ✅ FIXED — `off_platform` flag added; earnings fee estimate now excludes cash the host collected directly    |
+| R-6  | P3  | ✅ FIXED — cash rows now group by `cash:<event>:<user>` so a paid + later refund net into one transaction    |
 | R-7  | P3  | ✅ FIXED — the group-by-PI reducer (4 copies) + `csvCell` now each live in one shared, tested module         |
 | R-8  | P3  | ✅ FIXED — dead `'failed'` removed: 4 `.neq` filters + type unions dropped, CHECK tightened to paid/refunded |
 | R-9  | P3  | ✅ FIXED — synthetic rows now print `#<SHORT>` instead of the raw `audit:<uuid>` key                         |
@@ -345,6 +347,34 @@ tax identifiers.
 ---
 
 ## Remediation log
+
+### 2026-06-08 (pt. 5) — R-5, R-6 fixed (quad-green, uncommitted, migration deploy-gated)
+
+Both off-platform-cash findings, fixed together via an explicit
+`event_payment_audit.off_platform` flag
+([20260928000000_payment_audit_off_platform.sql](../../supabase/migrations/20260928000000_payment_audit_off_platform.sql) —
+default false, backfills existing null-payment-intent rows to true; the cash
+write path in
+[manage-payments-actions.ts](../../apps/web/src/app/events/[id]/manage-payments-actions.ts)
+now sets it). Chose an explicit flag over inferring from a null
+`payment_intent_id` so the intent is self-documenting and future non-cash
+null-intent paths can't be mistaken for cash.
+
+- **R-5 (phantom fee).** The earnings page + CSV now compute the platform-fee
+  estimate over **on-platform net only** (`txns.filter((t) => !t.offPlatform)`);
+  cash the host collected directly keeps 100% (estimated payout = net − fee, and
+  fee excludes cash). The fee math still routes through
+  `estimatePlatformFeeCents`.
+- **R-6 (cash pairs don't net).** `groupAuditRowsByPaymentIntent` now keys an
+  off-platform row by `cash:<event_id>:<user_id>` (instead of the per-row
+  `audit:<id>`), so a cash "mark paid" + later "mark unpaid" net into one
+  transaction. The single-receipt page learned a third lookup branch for the
+  `cash:` key (aggregates every off-platform row for that event + viewer), the
+  R-9 receipt number renders `Off-platform` for it, and both CSV
+  `payment_intent_id` columns print `off-platform` rather than the synthetic key.
+- **Tests** — [receipts.test.ts](../../apps/web/src/lib/receipts.test.ts) gains
+  cash netting + per-payer separation cases (11 total); `offPlatform` now rides
+  on every `LedgerTransaction`.
 
 ### 2026-06-08 (pt. 4) — R-4, R-7 fixed (quad-green, uncommitted)
 

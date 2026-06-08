@@ -9,9 +9,11 @@ export const EVENTS_PER_PAGE = 20;
 type AuditRow = {
   id: string;
   event_id: string;
+  user_id: string | null;
   action: 'paid' | 'refunded';
   amount_cents: number;
   payment_intent_id: string | null;
+  off_platform: boolean;
   occurred_at: string;
   events: { title: string; starts_at: string } | null;
 };
@@ -93,7 +95,7 @@ export async function loadEarnings(page: number): Promise<EarningsModel> {
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
-      'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
+      'id, event_id, user_id, action, amount_cents, payment_intent_id, off_platform, occurred_at, events:events!inner(title, starts_at)',
     )
     .eq('events.host_id', user.id)
     .in('category', ['ticket', 'tip', 'team'])
@@ -110,11 +112,19 @@ export async function loadEarnings(page: number): Promise<EarningsModel> {
   const currentYear = new Date().getFullYear();
   const ytd = transactions.filter((t) => new Date(t.paidAt).getFullYear() === currentYear);
 
-  function totals(txns: ReadonlyArray<{ paidCents: number; refundedCents: number }>): Totals {
+  function totals(
+    txns: ReadonlyArray<{ paidCents: number; refundedCents: number; offPlatform: boolean }>,
+  ): Totals {
     const gross = txns.reduce((s, t) => s + t.paidCents, 0);
     const refunded = txns.reduce((s, t) => s + t.refundedCents, 0);
     const net = gross - refunded;
-    const platformFee = estimatePlatformFeeCents(net, feeRate);
+    // The platform fee applies only to on-platform (Stripe) sales; cash the host
+    // collected directly carries no PickupVB fee, so estPayout keeps 100% of it
+    // (receipts-tax R-5).
+    const onPlatformNet = txns
+      .filter((t) => !t.offPlatform)
+      .reduce((s, t) => s + (t.paidCents - t.refundedCents), 0);
+    const platformFee = estimatePlatformFeeCents(onPlatformNet, feeRate);
     const estPayout = net - platformFee;
     return { gross, refunded, net, platformFee, estPayout };
   }

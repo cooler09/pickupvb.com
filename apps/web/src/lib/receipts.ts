@@ -8,15 +8,24 @@
 /** Minimal `event_payment_audit` shape the fold needs. */
 export interface AuditLedgerRow {
   id: string;
+  event_id: string;
+  user_id: string | null;
   action: 'paid' | 'refunded';
   amount_cents: number;
   payment_intent_id: string | null;
+  /** Host-recorded cash / Venmo payment — no Stripe charge, no platform fee. */
+  off_platform: boolean;
   occurred_at: string;
 }
 
 /** Money + timing fields derived for one transaction. */
 export interface LedgerTransaction {
-  /** `payment_intent_id`, or a synthetic `audit:<row-id>` for off-platform / legacy rows. */
+  /**
+   * Stable transaction key: the Stripe `payment_intent_id`, a
+   * `cash:<event>:<user>` key for an off-platform (cash) payment so its
+   * paid/refund rows net (receipts-tax R-6), or a synthetic `audit:<row-id>`
+   * for a legacy null-intent row.
+   */
   paymentIntentId: string;
   paidCents: number;
   refundedCents: number;
@@ -25,6 +34,17 @@ export interface LedgerTransaction {
   paidAt: string;
   /** Latest refunded `occurred_at`, or null when nothing was refunded. */
   refundedAt: string | null;
+  /** Paid out-of-band (cash) — excluded from the platform-fee estimate (R-5). */
+  offPlatform: boolean;
+}
+
+/** The transaction grouping key for one audit row (see {@link LedgerTransaction.paymentIntentId}). */
+function transactionKey(r: AuditLedgerRow): string {
+  if (r.payment_intent_id) return r.payment_intent_id;
+  // Cash rows share no payment intent; key on (event, payer) so a paid + later
+  // "mark unpaid" net into one transaction instead of two (R-6).
+  if (r.off_platform) return `cash:${r.event_id}:${r.user_id ?? 'anon'}`;
+  return `audit:${r.id}`;
 }
 
 /**
@@ -46,7 +66,7 @@ export function groupAuditRowsByPaymentIntent<R extends AuditLedgerRow, X extend
   for (const r of rows) {
     const fields = project(r);
     if (fields === null) continue;
-    const key = r.payment_intent_id ?? `audit:${r.id}`;
+    const key = transactionKey(r);
     const existing = byKey.get(key);
     if (existing) {
       if (r.action === 'paid') {
@@ -69,6 +89,7 @@ export function groupAuditRowsByPaymentIntent<R extends AuditLedgerRow, X extend
         netCents: paidCents - refundedCents,
         paidAt: r.occurred_at,
         refundedAt: r.action === 'refunded' ? r.occurred_at : null,
+        offPlatform: r.off_platform,
       };
       // `fields` (X) and the money fields are disjoint in every caller; the
       // money keys win on the off chance a projection collides.

@@ -67,22 +67,32 @@ export default async function ReceiptDetailPage({
   } = await supabase.auth.getUser();
   if (!user) redirect(`/login?next=/profile/receipts/${rawId}`);
 
-  // The list page uses `audit:<row-id>` as a synthetic key when the audit
-  // row has no `payment_intent_id` (rare: legacy rows or non-Stripe paths).
-  // Detect and look up by row id in that case.
+  // The list page keys a transaction by its Stripe `payment_intent_id`, or one
+  // of two synthetic forms: `cash:<eventId>:<userId>` for an off-platform (cash)
+  // payment — every cash row for that event nets into one receipt (R-6) — or
+  // `audit:<row-id>` for a legacy null-intent row. Resolve the lookup per form.
+  const isCash = paymentIntentId.startsWith('cash:');
   const isAuditFallback = paymentIntentId.startsWith('audit:');
   const auditRowId = isAuditFallback ? paymentIntentId.slice('audit:'.length) : null;
+  const cashEventId = isCash ? (paymentIntentId.split(':')[1] ?? null) : null;
 
   const baseSelect =
     'id, event_id, user_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(id, title, starts_at, location_address, location_city, location_region, host_id)';
 
-  const query = supabase.from('event_payment_audit').select(baseSelect).eq('user_id', user.id);
+  const baseQuery = () =>
+    supabase
+      .from('event_payment_audit')
+      .select(baseSelect)
+      .eq('user_id', user.id)
+      .order('occurred_at', { ascending: true });
 
-  const { data: rawRows } = isAuditFallback
-    ? await query.eq('id', auditRowId!).order('occurred_at', { ascending: true })
-    : await query
-        .eq('payment_intent_id', paymentIntentId)
-        .order('occurred_at', { ascending: true });
+  const { data: rawRows } = isCash
+    ? await baseQuery()
+        .eq('off_platform', true)
+        .eq('event_id', cashEventId ?? '')
+    : isAuditFallback
+      ? await baseQuery().eq('id', auditRowId!)
+      : await baseQuery().eq('payment_intent_id', paymentIntentId);
 
   const rows = (rawRows as unknown as AuditRow[] | null) ?? [];
   if (rows.length === 0) notFound();
@@ -138,12 +148,13 @@ export default async function ReceiptDetailPage({
     .map((r) => r.occurred_at)
     .pop();
 
-  // Off-platform / legacy rows have no Stripe payment intent, so the grouping
-  // key is a synthetic `audit:<row-id>`. Show a clean short reference rather
-  // than the raw key on the printable receipt (receipts-tax R-9).
-  const receiptNumber = isAuditFallback
-    ? `#${auditRowId!.slice(0, 8).toUpperCase()}`
-    : paymentIntentId;
+  // Synthetic keys have no Stripe payment intent — show a clean reference
+  // rather than the raw `cash:`/`audit:` key on the printable receipt (R-9).
+  const receiptNumber = isCash
+    ? 'Off-platform'
+    : isAuditFallback
+      ? `#${auditRowId!.slice(0, 8).toUpperCase()}`
+      : paymentIntentId;
 
   const addressLine = [
     event.location_address,

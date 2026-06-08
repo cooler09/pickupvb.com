@@ -41,9 +41,11 @@ export async function GET(
   type AuditRow = {
     id: string;
     event_id: string;
+    user_id: string | null;
     action: 'paid' | 'refunded';
     amount_cents: number;
     payment_intent_id: string | null;
+    off_platform: boolean;
     occurred_at: string;
     events: {
       title: string;
@@ -57,7 +59,7 @@ export async function GET(
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
-      'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at, location_city, location_region, host_id)',
+      'id, event_id, user_id, action, amount_cents, payment_intent_id, off_platform, occurred_at, events:events!inner(title, starts_at, location_city, location_region, host_id)',
     )
     .eq('user_id', user.id)
     .gte('occurred_at', start)
@@ -119,7 +121,8 @@ export async function GET(
         usd(t.paidCents),
         usd(t.refundedCents),
         usd(t.paidCents - t.refundedCents),
-        csvCell(t.paymentIntentId),
+        // Off-platform (cash) rows have no Stripe payment intent.
+        csvCell(t.offPlatform ? 'off-platform' : t.paymentIntentId),
       ].join(','),
     ),
   ];

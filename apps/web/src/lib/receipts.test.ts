@@ -5,16 +5,18 @@ import {
   type AuditLedgerRow,
 } from './receipts';
 
-type Row = AuditLedgerRow & { event_id: string; title: string | null };
+type Row = AuditLedgerRow & { title: string | null };
 
 function row(over: Partial<Row> = {}): Row {
   return {
     id: 'a1',
+    event_id: 'e1',
+    user_id: 'u1',
     action: 'paid',
     amount_cents: 1000,
     payment_intent_id: 'pi_1',
+    off_platform: false,
     occurred_at: '2026-06-01T00:00:00.000Z',
-    event_id: 'e1',
     title: 'Beach Bash',
     ...over,
   };
@@ -33,6 +35,7 @@ describe('groupAuditRowsByPaymentIntent', () => {
         netCents: 1000,
         paidAt: '2026-06-01T00:00:00.000Z',
         refundedAt: null,
+        offPlatform: false,
         eventId: 'e1',
         eventTitle: 'Beach Bash',
       },
@@ -103,6 +106,41 @@ describe('groupAuditRowsByPaymentIntent', () => {
       project,
     );
     expect(txns.map((t) => t.paymentIntentId)).toEqual(['pi_2']);
+  });
+
+  it('nets an off-platform (cash) paid + later refund by (event, user) — not two rows (R-6)', () => {
+    const txns = groupAuditRowsByPaymentIntent(
+      [
+        row({ id: 'c1', payment_intent_id: null, off_platform: true, action: 'paid' }),
+        row({
+          id: 'c2',
+          payment_intent_id: null,
+          off_platform: true,
+          action: 'refunded',
+          occurred_at: '2026-06-04T00:00:00.000Z',
+        }),
+      ],
+      project,
+    );
+    expect(txns).toHaveLength(1);
+    expect(txns[0]).toMatchObject({
+      paymentIntentId: 'cash:e1:u1',
+      paidCents: 1000,
+      refundedCents: 1000,
+      netCents: 0,
+      offPlatform: true,
+    });
+  });
+
+  it('keeps cash payments from different payers on one event separate', () => {
+    const txns = groupAuditRowsByPaymentIntent(
+      [
+        row({ id: 'c1', payment_intent_id: null, off_platform: true, user_id: 'uA' }),
+        row({ id: 'c2', payment_intent_id: null, off_platform: true, user_id: 'uB' }),
+      ],
+      project,
+    );
+    expect(txns.map((t) => t.paymentIntentId)).toEqual(['cash:e1:uA', 'cash:e1:uB']);
   });
 
   it('projects static fields from the first row seen for a key', () => {

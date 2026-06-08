@@ -84,6 +84,10 @@ export async function setAttendeePaymentStatus(
     user_id: userId,
     action: status === 'paid' ? 'paid' : 'refunded',
     amount_cents: status === 'paid' ? pricing.priceCents : r.amount_paid_cents,
+    // Paid out-of-band (cash / Venmo) — no Stripe charge, no platform fee. The
+    // flag keeps it out of the earnings fee math and lets a cash paid/refund
+    // pair net by (event_id, user_id). See receipts-tax R-5 / R-6.
+    off_platform: true,
   });
 
   revalidatePath(`/events/${eventId}`);

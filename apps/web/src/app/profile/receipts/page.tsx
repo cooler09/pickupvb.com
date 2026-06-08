@@ -21,6 +21,7 @@ type AuditRow = {
   action: 'paid' | 'refunded';
   amount_cents: number;
   payment_intent_id: string | null;
+  off_platform: boolean;
   occurred_at: string;
   events: { title: string; starts_at: string } | null;
 };
@@ -71,7 +72,7 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
-      'id, event_id, user_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
+      'id, event_id, user_id, action, amount_cents, payment_intent_id, off_platform, occurred_at, events:events!inner(title, starts_at)',
     )
     .eq('user_id', user.id)
     .order('occurred_at', { ascending: false });

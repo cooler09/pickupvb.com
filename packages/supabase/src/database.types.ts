@@ -1150,6 +1150,7 @@ export type Database = {
           event_id: string;
           id: string;
           occurred_at: string;
+          off_platform: boolean;
           payment_intent_id: string | null;
           user_id: string | null;
         };
@@ -1160,6 +1161,7 @@ export type Database = {
           event_id: string;
           id?: string;
           occurred_at?: string;
+          off_platform?: boolean;
           payment_intent_id?: string | null;
           user_id?: string | null;
         };
@@ -1170,6 +1172,7 @@ export type Database = {
           event_id?: string;
           id?: string;
           occurred_at?: string;
+          off_platform?: boolean;
           payment_intent_id?: string | null;
           user_id?: string | null;
         };
