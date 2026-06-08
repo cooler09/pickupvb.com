@@ -40,6 +40,7 @@ snapshots with a remediation backlog.
 - [personas.md](personas.md) — named, detailed user personas.
 - [feature-education.md](feature-education.md) — **end-user** onboarding / feature-discovery idea backlog (distinct from the contributor-focused `onboarding.md`).
 - [example-events.md](example-events.md) — real tournament listings used as fixtures.
+- [delight-backlog.md](delight-backlog.md) — low-impact "delight" ideas (fun CSS, favicon tricks, easter eggs, tiny games) with shipped/backlog status.
 
 ## History & decisions (append-only)
 

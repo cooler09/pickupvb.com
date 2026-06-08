@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { KeepieUppie } from '@/components/keepie-uppie';
 
 export const metadata = {
   title: 'Page not found',
@@ -50,6 +51,11 @@ export default function NotFound() {
           ← Back to home
         </Link>
       </p>
+
+      {/* Delight #11 (docs/delight-backlog.md): the 404 is an idle screen, so
+          turn the dead end into a tiny keep-ups game. Client + route-isolated —
+          its chunk only loads here. */}
+      <KeepieUppie />
     </main>
   );
 }

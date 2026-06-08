@@ -22,7 +22,7 @@ export type SystemBadgeKey =
   | 'loyal';
 
 /** Hidden "easter egg" badges (Phase 3) — granted by playful triggers, not stats. */
-export type EasterEggBadgeKey = 'konami';
+export type EasterEggBadgeKey = 'konami' | 'pepper';
 
 /**
  * Where a granted badge came from. Drives both display treatment and the

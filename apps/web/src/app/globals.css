@@ -657,6 +657,37 @@ body {
   animation: confetti-pop 0.9s var(--md-sys-motion-easing-emphasized-decelerate) both;
 }
 
+/* --- Logo tap-streak bounce (delight #8) ----------------------------------- */
+/* One playful bump-and-settle for the <BrandMark/> wordmark when a tap-streak
+ * fires. `inline-block` so the transform applies to the inline <a>. Compositor-
+ * only (transform), and defanged to a no-op under reduced motion by the global
+ * rule. See docs/delight-backlog.md. */
+@keyframes logo-bounce {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-8px) scale(1.08);
+  }
+  45% {
+    transform: translateY(0) scale(0.97);
+  }
+  65% {
+    transform: translateY(-4px) scale(1.03);
+  }
+  85% {
+    transform: translateY(0) scale(0.99);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+.logo-bounce {
+  display: inline-block;
+  will-change: transform;
+  animation: logo-bounce 0.85s var(--md-sys-motion-easing-emphasized-decelerate) both;
+}
+
 /*
  * ============================================================================
  *  M3 safe-area utilities (Bundle 1 — P2 #16).
