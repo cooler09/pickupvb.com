@@ -147,11 +147,13 @@ export async function sendChatMessage(
       new SendMessageCommand(conversationId, v.id, body, v.isAnon, attachments, kind),
     );
     // Ping the recipient (DM bell + push) after the response is sent, so the
-    // notify fan-out never adds latency to the send. Best-effort inside.
+    // notify fan-out never adds latency to the send. Best-effort inside. Use the
+    // stored (moderated) body so a masked room message doesn't leak its raw text
+    // into the push/bell preview.
     const ping = notifyChatMessage({
       conversationId,
       senderId: v.id,
-      body,
+      body: out.body,
       attachmentsCount: attachments.length,
       kind,
     });
@@ -161,7 +163,7 @@ export async function sendChatMessage(
       // No request scope (e.g. unit tests) — let it run as a floating promise.
       void ping;
     }
-    return { ok: true, value: out };
+    return { ok: true, value: { id: out.id } };
   } catch (e) {
     return { ok: false, error: toChatError(e) };
   }

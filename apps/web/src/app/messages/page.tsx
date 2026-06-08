@@ -35,11 +35,22 @@ function inboxHref(item: InboxItem): Route | null {
   }
 }
 
+/** Default display zone for server-rendered times — this is a Virginia Beach
+ * community, so ET is the right default (mirrors the notifications templates
+ * `DEFAULT_TIME_ZONE`). Without it `toLocaleDateString` formats in the Node
+ * runtime's zone (UTC on Vercel), pushing a late-evening message to the next
+ * day's date in the inbox. */
+const DEFAULT_TIME_ZONE = 'America/New_York';
+
 /** Server-rendered absolute timestamp (pure — depends only on the ISO string,
  * so no `Date.now()` in render). The thread view renders live local times. */
 function stamp(iso: string | null): string {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: DEFAULT_TIME_ZONE,
+  });
 }
 
 export default async function MessagesPage() {

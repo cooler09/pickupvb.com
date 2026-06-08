@@ -14,15 +14,33 @@ import {
 import { primaryButtonClass, textButtonClass } from '@/components/primary-button';
 import { fieldInputClass } from '@/components/field-styles';
 import { ChatImage } from '@/components/chat-image';
+import { useToast } from '@/components/toast';
 import {
   deleteChatMessage,
   editChatMessage,
   loadOlderChatMessages,
   reportChatMessage,
   sendChatMessage,
+  type ChatError,
 } from '@/app/_actions/chat-actions';
 
 const BUCKET = 'chat-attachments';
+
+/** Human-readable copy for a {@link ChatError}. Shared by every mutation in the
+ * view so a failed send/edit/delete/report always tells the user something
+ * instead of silently no-op-ing. */
+function chatErrorMessage(error: ChatError): string {
+  switch (error) {
+    case 'forbidden':
+      return 'You can no longer post in this conversation.';
+    case 'rate_limited':
+      return 'You’ve shared a lot of photos today. Please try again later.';
+    case 'invalid':
+      return 'Message could not be sent.';
+    default:
+      return 'Something went wrong. Try again.';
+  }
+}
 
 type Props = {
   conversationId: string;
@@ -134,6 +152,7 @@ export function ConversationView({
   // Text fed to the sr-only polite live region (A5) when a message arrives
   // from someone else over Realtime.
   const [announcement, setAnnouncement] = useState('');
+  const { show } = useToast();
 
   const listRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
@@ -333,15 +352,7 @@ export function ConversationView({
       setMessages((prev) => prev.filter((m) => m.id !== tempView.id));
       setDraft(body);
       setPending(sentPending);
-      setError(
-        res.error === 'forbidden'
-          ? 'You can no longer post in this conversation.'
-          : res.error === 'rate_limited'
-            ? 'You’ve shared a lot of photos today. Please try again later.'
-            : res.error === 'invalid'
-              ? 'Message could not be sent.'
-              : 'Something went wrong. Try again.',
-      );
+      setError(chatErrorMessage(res.error));
       return;
     }
     for (const p of sentPending) URL.revokeObjectURL(p.previewUrl);
@@ -375,9 +386,18 @@ export function ConversationView({
         setMessages((prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, body, isEdited: true } : m)),
         );
+        setEditingId(null);
+        setEditDraft('');
+        setError(null);
+        return;
       }
-      setEditingId(null);
-      setEditDraft('');
+      // Keep the editor open so the user's text isn't lost. A moderation block
+      // comes back as 'invalid'.
+      setError(
+        res.error === 'invalid'
+          ? 'Your edit couldn’t be saved — it may contain blocked content.'
+          : chatErrorMessage(res.error),
+      );
     },
     [editDraft, kind],
   );
@@ -391,13 +411,23 @@ export function ConversationView({
           m.id === messageId ? { ...m, isDeleted: true, body: '', attachments: [] } : m,
         ),
       );
+    } else {
+      setError(chatErrorMessage(res.error));
     }
   }, []);
 
-  const report = useCallback(async (messageId: string) => {
-    if (!window.confirm('Report this message to the moderators?')) return;
-    await reportChatMessage(messageId, null);
-  }, []);
+  const report = useCallback(
+    async (messageId: string) => {
+      if (!window.confirm('Report this message to the moderators?')) return;
+      const res = await reportChatMessage(messageId, null);
+      show(
+        res.ok
+          ? { variant: 'success', message: 'Reported. Thanks for flagging it.' }
+          : { variant: 'error', message: chatErrorMessage(res.error) },
+      );
+    },
+    [show],
+  );
 
   const empty = useMemo(() => messages.filter((m) => !m.isDeleted).length === 0, [messages]);
   const canSend = (draft.trim().length > 0 || pending.length > 0) && !sending && !uploading;

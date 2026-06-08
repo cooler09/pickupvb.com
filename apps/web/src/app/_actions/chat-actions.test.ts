@@ -16,7 +16,7 @@ vi.mock('@/lib/rate-limit', () => ({
   rateLimitKey: (scope: string, dim: string, val: string) => `${scope}:${dim}:${val}`,
 }));
 
-const sendMessageExecute = vi.fn<() => Promise<{ id: string }>>();
+const sendMessageExecute = vi.fn<() => Promise<{ id: string; body: string }>>();
 vi.mock('@/lib/handlers', () => ({
   getChatHandlers: async () => ({ sendMessage: { execute: sendMessageExecute } }),
 }));
@@ -41,7 +41,7 @@ describe('sendChatMessage — chat-attachment upload cap (R-2 Path A cost-contro
     consumeRateLimitMock.mockReset();
     sendMessageExecute.mockReset();
     getUserMock.mockResolvedValue({ data: { user: { id: 'u1', is_anonymous: false } } });
-    sendMessageExecute.mockResolvedValue({ id: 'm1' });
+    sendMessageExecute.mockResolvedValue({ id: 'm1', body: 'hello' });
     consumeRateLimitMock.mockResolvedValue({ allowed: true, retryAfterSeconds: 0 });
   });
 

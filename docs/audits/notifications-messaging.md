@@ -45,6 +45,24 @@ set-wide (no > 20-unread badge flicker), and the worker tallies delivery from
 `RESEND_WEBHOOK_SECRET` + a Resend webhook config (like the cron/VAPID items).
 Remaining open: the older P3s (quiet hours, SMS, digests, push analytics) + ops
 items (P1 #1 cron/kick seeding, P1 #2 verify prod VAPID, P2 #3 webhook config).**
+**2026-06-08 — chat-engine deep-dive (ADR 0028).** Scope shifted from the
+delivery channels to the chat/DM engine itself (domain → RLS). 0 P1; 3 P2
+(M-1 event/group rooms are half-built — backend complete, no UI, inbox
+mis-routes; M-2 edit/delete/report/DM-start failures swallowed with no user
+feedback; M-3 Realtime auth token set once, never refreshed → long sessions may
+silently stop receiving) + 9 P3 (inbox unpaginated, server-UTC inbox dates,
+unmoderated notification preview, "Member" broadcast fallback, load-earlier
+scroll jump, no blocked-state banner, no text-message rate limit, hand-rolled
+button class, zero chat e2e). All findings + concrete fixes in the new "Chat
+engine deep-dive" section below.\*\*
+**2026-06-08 — cheap/high-value cluster FIXED (uncommitted, quad-green): M-2
+(swallowed edit/delete/report/DM-start failures now surface via a shared
+`chatErrorMessage` + `useToast`; failed edits keep the editor open), M-5 (inbox
+dates render in ET, not server UTC), M-6 (`SendMessageHandler` returns the
+moderated body so the notification preview can't leak masked room text; pinned by
+a handler test), M-11 (player "Message" button → `neutralButtonClass`). Remaining
+chat backlog: M-1 (event/group rooms decision), M-3 (Realtime token refresh +
+verify), M-4/7/8/9/10/12.**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -367,6 +385,217 @@ time).
   `in_app` row was already inserted separately and carries no idempotency key, so
   a retry can double the bell row while dropping the email/push. Rare and
   low-harm; note it if a retry-heavy kind ever shows duplicate bells.
+
+---
+
+## Chat engine deep-dive (ADR 0028) — 2026-06-08
+
+A focused pass over the **chat/DM engine** itself (the prior audit centered on
+the three delivery channels and treated chat as a consumer). Walked every layer:
+domain (`packages/domain/src/messaging/`), application handlers, the Supabase
+adapters, the web actions/views, and the seven migrations
+(`20260824…`–`20260922…`). The engine is well-built — the RLS posture is tight
+(definer access helpers, the privileged-column guard, tombstone-safe SELECT,
+storage gated by `can_access_conversation`), the aggregate carries the real
+invariants, and the notify fan-out is solid. Findings are mostly **gaps and
+half-wired surfaces**, not broken code.
+
+### M-1 — Event & group room chat is half-built: backend complete, no UI, inbox mis-routes — P2
+
+The engine was designed for four `kind`s (`team`/`event`/`group`/`dm`) and the
+**entire backend for event and group rooms exists**: the `conversations` shape,
+`can_access_conversation` branches, the `get_or_create_conversation` RPC
+(accepts `'event'`/`'group'`), `list_room_recipients`, the inbox title/slug
+resolution, and `KIND_LABEL`. But **nothing creates or renders them**:
+`OpenConversationCommand` is only ever constructed with `'team'`
+([chat-actions.ts:96-99](../../apps/web/src/app/_actions/chat-actions.ts#L96-L99)),
+and the only mounted room panel is `TeamChatPanel`
+([team-chat-panel.tsx](../../apps/web/src/app/teams/[id]/_components/team-chat-panel.tsx)) —
+the event and group pages render no chat (`grep ConversationView apps/web/src/app/events apps/web/src/app/groups` → none). So event/group rooms are
+**inert capability**: unreachable from the UI, and if one were created by a
+direct `rpc()` call it would surface two inconsistencies —
+
+- The **inbox routes them to the wrong place.**
+  [`inboxHref`](../../apps/web/src/app/messages/page.tsx#L25-L36) sends `event` →
+  `/events/{id}` and `group` → `/groups/{slug}` (pages with no chat), while the
+  chat **notification** deep-links `/messages/{conversationId}`
+  ([notify-chat.ts:86](../../apps/web/src/lib/notify-chat.ts#L86)) — which
+  _does_ render any kind via `/messages/[id]`. So the same room is a dead-end
+  from the inbox but works from the bell.
+
+ADR 0028's phased rollout only claims a "team-room MVP" for Phase 1, but the
+schema/RLS/inbox/notify were all built for all three room kinds up front, so this
+reads as an unfinished phase rather than a deliberate scope cut. **Fix:** either
+(a) finish it — mount an `EventChatPanel`/`GroupChatPanel` (clone
+`TeamChatPanel`, pass `kind`), wire `OpenConversationCommand('event'|'group', …)`,
+and point `inboxHref` for event/group at `/messages/{conversationId}` for
+consistency with the bell; or (b) explicitly defer it — note the deferral in ADR
+0028 and drop the `event`/`group` branches from `inboxHref` so a stray room can't
+dead-end. Don't leave it latent.
+
+### M-2 — Edit / delete / report / DM-start failures are swallowed with no user feedback — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
+
+`ConversationView`'s mutation callbacks branch on `res.ok` but have **no error
+path** — a failed action just no-ops:
+
+- [`saveEdit`](../../apps/web/src/components/conversation-view.tsx#L369-L383):
+  on failure it still closes the editor and clears the draft, **silently
+  discarding the user's edit**. The realistic trigger is a moderation block — a
+  DM edit containing Tier-B content throws `ValidationError` → `'invalid'`, and
+  the user's rewrite vanishes with no explanation.
+- [`remove`](../../apps/web/src/components/conversation-view.tsx#L385-L395) and
+  [`report`](../../apps/web/src/components/conversation-view.tsx#L397-L400): a
+  failed delete/report shows nothing (report shows nothing even on success).
+- [`handleMessage`](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx#L90-L95):
+  `startDmWithUser` failure is ignored, so clicking "Message" on a profile you've
+  blocked (or that blocked you) **does nothing** — the spinner stops and no
+  thread opens, with no hint why.
+
+Contrast `send`
+([conversation-view.tsx:332-345](../../apps/web/src/components/conversation-view.tsx#L332-L345)),
+which maps every `ChatError` to a message. **Fix shipped.** A shared
+`chatErrorMessage(ChatError)` helper now backs every mutation in
+[conversation-view.tsx](../../apps/web/src/components/conversation-view.tsx):
+`saveEdit` sets the alert and **keeps the editor open** on failure (a
+moderation-blocked edit reads "…it may contain blocked content"), `remove` sets
+the alert, and `report` shows a `useToast` success ("Reported. Thanks for
+flagging it.") / error toast. `handleMessage` in
+[player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx)
+toasts on a failed DM-start ("You can’t message this person." for a block). `send`
+was de-duplicated onto the same helper.
+
+### M-3 — Realtime auth token is set once and never refreshed — P2 (verify on dev)
+
+Both live subscribers set the JWT a single time at subscribe and never update it:
+[conversation-view.tsx:193-224](../../apps/web/src/components/conversation-view.tsx#L193-L224)
+and [subscribe-notifications.ts:56-71](../../apps/web/src/lib/subscribe-notifications.ts#L56-L71)
+call `supabase.realtime.setAuth(session.access_token)` once, then `subscribe()`.
+The `realtime.messages` SELECT policy that authorizes the private `chat:%` /
+`notifications:%` topic re-evaluates against the connection's token; once the
+access token expires (default ~1h) without a `setAuth` refresh, a long-lived tab
+can **silently stop receiving** new messages/pings — exactly the "graceful
+degradation: stops receiving live updates" the ADR calls out, but triggered by
+time, not misconfig. No data loss (messages persist; render on next open), so
+it's a reliability gap, not a correctness bug. **Fix:** subscribe to
+`supabase.auth.onAuthStateChange` and call `realtime.setAuth(newToken)` on
+`TOKEN_REFRESHED` (re-subscribe if the socket dropped). **Verify first** —
+confirm against a deployed target that a 1h+ idle tab really drops live delivery
+(the whole Realtime path is still deploy-gated per P2 #5/#6), since some
+supabase-js versions propagate the refreshed token automatically.
+
+### M-4 — Inbox is not paginated (hard cap 50) — P3
+
+[`get_inbox(p_limit := 50)`](../../apps/web/src/app/messages/page.tsx#L49) caps
+at 50 conversations and [the page](../../apps/web/src/app/messages/page.tsx#L66-L117)
+renders them all with no `Pagination` — violating AGENTS.md pattern #12 (paginate
+unbounded list views). A heavy user silently loses conversations 51+. **Fix:**
+add a `page` searchParam + the shared `Pagination` (slice in memory or extend the
+RPC with offset), per the directory-page precedent.
+
+### M-5 — Inbox dates render in the server's UTC, not the viewer's zone — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
+
+[`stamp`](../../apps/web/src/app/messages/page.tsx#L40-L43) is server-rendered
+(`toLocaleDateString` with no `timeZone`), so on Vercel it formats in **UTC** —
+a message sent at 11 PM ET shows the **next day's** date in the inbox. Same class
+as P2 #8 (notification times). The thread view's `timeLabel` is client-side so
+it's correct; only the inbox list is affected. **Fix shipped.** `stamp` now passes
+`timeZone: 'America/New_York'` (a local `DEFAULT_TIME_ZONE`, mirroring the
+templates fix — this is a Virginia Beach community, so ET is the right default).
+([messages/page.tsx](../../apps/web/src/app/messages/page.tsx#L40-L55))
+
+### M-6 — Notification/bell preview uses the raw, pre-moderation body — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
+
+`sendChatMessage` passes the **raw** `body` to `notifyChatMessage`
+([chat-actions.ts:151-157](../../apps/web/src/app/_actions/chat-actions.ts#L151-L157)),
+which `buildPreview`s it into the push/bell text
+([notify-chat.ts:85](../../apps/web/src/lib/notify-chat.ts#L85)). For a **room**
+(mask policy) the stored message is censored but the notification preview shows
+the **uncensored** original — masking leaks through the notification channel.
+**Fix shipped.** `SendMessageHandler.execute` now returns `{ id, body }` where
+`body` is the moderated (stored) text
+([message.handler.ts](../../packages/application/src/commands/message.handler.ts)),
+and `sendChatMessage` passes `out.body` (not the raw input) to `notifyChatMessage`
+([chat-actions.ts](../../apps/web/src/app/_actions/chat-actions.ts)). Pinned by a
+new `message.handler.test.ts` case asserting the returned body is masked.
+
+### M-7 — Live broadcast rows show "Member" and stick — P3 (ADR follow-up, still open)
+
+`broadcast_changes` emits the raw `messages` row (only `sender_id`), so a live
+message from someone not in the seeded roster renders as "Member" with no avatar.
+Worse, [`onWrite`](../../apps/web/src/components/conversation-view.tsx#L200-L207)
+calls `learnSenders` on the just-built view whose name already fell back to
+"Member" ([conversation-view.tsx:147-159](../../apps/web/src/components/conversation-view.tsx#L147-L159)),
+so the cache **pins "Member"** for that sender for the rest of the session (until
+a server-resolved page overwrites it on reload / load-earlier). Hits team rooms
+whenever the captain (allowed but maybe not a `team_members` row) or a just-joined
+member posts. **Fix:** the ADR's own follow-up — embed a sender card in the
+broadcast payload (a small view-row trigger or a definer enrichment), or have
+`onInsert` fetch the missing card from `profiles_public` once and patch it in.
+
+### M-8 — "Load earlier messages" jumps the scroll position — P3
+
+[`loadOlder`](../../apps/web/src/components/conversation-view.tsx#L356-L367)
+prepends older messages and sets `atBottomRef = false`, but nothing preserves the
+scroll anchor — prepended content shifts the viewport, bouncing the reader away
+from where they were. **Fix:** capture `scrollHeight` before the merge and restore
+`scrollTop += (newHeight - oldHeight)` after (the standard reverse-infinite-scroll
+anchor).
+
+### M-9 — No blocked-state banner; composer stays enabled when blocked — P3 (ADR follow-up)
+
+`BlockControl` only reflects the viewer's own block of the counterpart
+([block-control.tsx](../../apps/web/src/app/messages/[id]/_components/block-control.tsx)).
+If the **other** party blocked **you**, there's no indication — you type, send,
+and get the generic "You can no longer post in this conversation." And after you
+block someone the composer remains enabled until the next send is rejected.
+**Fix (ADR follow-up):** render a dedicated banner when either direction is
+blocked and disable the composer, instead of relying on the send-time rejection.
+
+### M-10 — Text messages have no rate limit — P3
+
+The only chat throttle is on **attachment-bearing** messages (40/day,
+[chat-actions.ts:37-38, 136-143](../../apps/web/src/app/_actions/chat-actions.ts#L136-L143)).
+Text sends are unbounded — an authenticated member can spam a room/DM with no
+per-user cap. Blast radius is limited (RLS confines it to rooms they belong to,
+and notification coalescing caps pings at one per conversation per 5-min window),
+but the DB writes + broadcast fan-out are uncapped. **Fix:** add a generous
+fixed-window text cap (e.g. 60/min) on the existing limiter, fail-open like the
+attachment cap.
+
+### M-11 — Player "Message" button hand-rolls its class string — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
+
+The `/players/[id]` "Message" button wrote `"border-border-base hover:bg-fg/5
+rounded-md border px-3 py-1.5 text-sm disabled:opacity-60"` — exactly the
+`neutralButtonClass` look the sibling Follow/Unfollow buttons already import
+(AGENTS.md pattern #11). **Fix shipped:** replaced with `neutralButtonClass('sm')`
+(no-visual-change dedup; the helper already carries `disabled:opacity-50`).
+([player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx))
+
+### M-12 — Zero automated coverage of the live chat paths — P3 (ADR follow-up)
+
+Unit coverage is good (domain/application/adapter/notify), but there is **no e2e**
+for chat at all (`grep -rl '/messages\|Type a message' apps/web/tests/e2e` →
+none), so the RLS gate, Realtime delivery, report-threshold auto-hide, and
+inbox-unread-clears paths — precisely the layers the quad can't see — are
+unverified. The ADR lists the exact spec to write ("member sends → second member
+receives live; non-member denied; report auto-hides; inbox unread → clears").
+**Fix:** author that spec against dev (two browser contexts), matching the
+`notification-broadcast-drain` e2e pattern. Also covers M-3's verification.
+
+### Non-findings (verified correct / by-design)
+
+- **Direct PostgREST `body` PATCH bypasses moderation masking.** The
+  privileged-column guard ([20260922000100](../../supabase/migrations/20260922000100_messages_guard_privileged_columns.sql))
+  blocks `conversation_id`/`sender_id`/`deleted_at`-restore/`report_count`, but a
+  sender can still PATCH their own `body` to unmasked text (masking is app-layer,
+  like `media_posts`). Consistent with the platform's mask-at-write posture;
+  flagging only — not a regression.
+- **Removed-before-send / failed-send attachments orphan in storage.** Handled by
+  the 24h `purge_chat_attachment_orphans` sweep
+  ([20260829000000](../../supabase/migrations/20260829000000_chat_retention.sql)) —
+  by design.
+- **DMs/small teams never reach the 5-report auto-hide.** Intended; captain/host/
+  admin moderate, and DMs are private.
 
 ---
 
