@@ -90,6 +90,7 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
       action: 'paid',
       amountCents: amountTotal,
       paymentIntentId: piId,
+      category: 'ticket',
     });
 
     const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));
@@ -114,6 +115,17 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
     await repositories.eventPaymentRepo.markTipPaid(meta.tip_id, {
       paymentIntentId: piId,
       paidAt,
+    });
+
+    // Ledger entry so the tip shows on the tipper's receipts and the host's
+    // earnings (receipts-tax R-1). `user_id` is null for an anon tipper.
+    await repositories.eventPaymentRepo.recordPaymentAudit({
+      eventId: meta.event_id,
+      userId: meta.user_id ?? null,
+      action: 'paid',
+      amountCents: amountTotal,
+      paymentIntentId: piId,
+      category: 'tip',
     });
 
     const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));

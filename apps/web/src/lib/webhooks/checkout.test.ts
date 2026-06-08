@@ -137,6 +137,7 @@ describe('handleCheckoutCompleted — attendee', () => {
       action: 'paid',
       amountCents: 2500,
       paymentIntentId: 'pi_1',
+      category: 'ticket',
     });
     expect(capture).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -167,6 +168,16 @@ describe('handleCheckoutCompleted — tip', () => {
     expect(repo.markTipPaid).toHaveBeenCalledWith('t1', {
       paymentIntentId: 'pi_1',
       paidAt: expect.any(String),
+    });
+    // The tip is also written to the audit ledger so it shows on the tipper's
+    // receipts and the host's earnings (receipts-tax R-1).
+    expect(repo.recordPaymentAudit).toHaveBeenCalledWith({
+      eventId: 'e1',
+      userId: 'u1',
+      action: 'paid',
+      amountCents: 2500,
+      paymentIntentId: 'pi_1',
+      category: 'tip',
     });
     expect(capture).toHaveBeenCalledWith(
       expect.objectContaining({ props: expect.objectContaining({ kind: 'tip' }) }),

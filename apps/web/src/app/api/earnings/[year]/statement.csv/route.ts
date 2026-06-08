@@ -72,6 +72,7 @@ export async function GET(
       'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
     )
     .eq('events.host_id', user.id)
+    .in('category', ['ticket', 'tip', 'team'])
     .neq('action', 'failed')
     .gte('occurred_at', start)
     .lt('occurred_at', end)

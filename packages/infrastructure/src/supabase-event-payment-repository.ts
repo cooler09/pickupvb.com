@@ -4,6 +4,7 @@ import type {
   PaidSponsorSlot,
   PaymentAuditEntry,
   RefundableAttendee,
+  TipRefundContext,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 
@@ -55,6 +56,7 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
       action: entry.action,
       amount_cents: entry.amountCents,
       payment_intent_id: entry.paymentIntentId,
+      category: entry.category,
     });
   }
 
@@ -145,14 +147,31 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
   async markTipsRefundedByPaymentIntent(
     paymentIntentId: string,
     refundedAt: string,
-  ): Promise<void> {
-    await this.client
+  ): Promise<TipRefundContext | null> {
+    // Guard on `status = 'paid'` so a webhook retry is a no-op (returns null,
+    // so no duplicate `refunded` ledger row). `.select()` hands back the
+    // refunded tip's audit context for the caller to record (receipts-tax R-1).
+    const { data } = await this.client
       .from('event_tips')
       .update({
         status: 'refunded',
         refunded_at: refundedAt,
       })
-      .eq('stripe_payment_intent_id', paymentIntentId);
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .eq('status', 'paid')
+      .select('event_id, tipper_user_id, amount_cents')
+      .maybeSingle();
+    const row = data as {
+      event_id: string;
+      tipper_user_id: string | null;
+      amount_cents: number;
+    } | null;
+    if (!row) return null;
+    return {
+      eventId: row.event_id,
+      userId: row.tipper_user_id,
+      amountCents: row.amount_cents,
+    };
   }
 
   async findRefundableAttendeeByPaymentIntent(

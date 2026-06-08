@@ -143,6 +143,7 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
       action: 'paid',
       amountCents: 2500,
       paymentIntentId: 'pi_1',
+      category: 'ticket',
     });
     expect(mock.ops).toEqual([
       {
@@ -154,6 +155,7 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
           action: 'paid',
           amount_cents: 2500,
           payment_intent_id: 'pi_1',
+          category: 'ticket',
         },
         filters: [],
       },
@@ -274,17 +276,37 @@ describe('SupabaseEventPaymentRepository — checkout.session.expired', () => {
 });
 
 describe('SupabaseEventPaymentRepository — charge.refunded', () => {
-  it('markTipsRefundedByPaymentIntent flips tips on the PI to refunded with the passed timestamp', async () => {
+  it('markTipsRefundedByPaymentIntent flips a paid tip to refunded and returns its audit context', async () => {
     const mock = makeClient();
-    await repo(mock).markTipsRefundedByPaymentIntent('pi_1', '2026-06-02T00:00:00.000Z');
+    mock.data['event_tips'] = {
+      event_id: 'e_1',
+      tipper_user_id: 'u_1',
+      amount_cents: 500,
+    };
+    const ctx = await repo(mock).markTipsRefundedByPaymentIntent(
+      'pi_1',
+      '2026-06-02T00:00:00.000Z',
+    );
+    expect(ctx).toEqual({ eventId: 'e_1', userId: 'u_1', amountCents: 500 });
     expect(mock.ops).toEqual([
       {
         table: 'event_tips',
         op: 'update',
         payload: { status: 'refunded', refunded_at: '2026-06-02T00:00:00.000Z' },
-        filters: [['eq', 'stripe_payment_intent_id', 'pi_1']],
+        select: 'event_id, tipper_user_id, amount_cents',
+        filters: [
+          ['eq', 'stripe_payment_intent_id', 'pi_1'],
+          ['eq', 'status', 'paid'],
+        ],
       },
     ]);
+  });
+
+  it('markTipsRefundedByPaymentIntent returns null when no paid tip matches (idempotent retry)', async () => {
+    const mock = makeClient();
+    expect(
+      await repo(mock).markTipsRefundedByPaymentIntent('pi_1', '2026-06-02T00:00:00.000Z'),
+    ).toBeNull();
   });
 
   it('findRefundableAttendeeByPaymentIntent maps the joined attendee row', async () => {

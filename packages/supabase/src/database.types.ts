@@ -1146,6 +1146,7 @@ export type Database = {
         Row: {
           action: string;
           amount_cents: number;
+          category: string;
           event_id: string;
           id: string;
           occurred_at: string;
@@ -1155,6 +1156,7 @@ export type Database = {
         Insert: {
           action: string;
           amount_cents: number;
+          category?: string;
           event_id: string;
           id?: string;
           occurred_at?: string;
@@ -1164,6 +1166,7 @@ export type Database = {
         Update: {
           action?: string;
           amount_cents?: number;
+          category?: string;
           event_id?: string;
           id?: string;
           occurred_at?: string;

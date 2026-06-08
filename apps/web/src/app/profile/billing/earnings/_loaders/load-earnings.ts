@@ -95,6 +95,7 @@ export async function loadEarnings(page: number): Promise<EarningsModel> {
       'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
     )
     .eq('events.host_id', user.id)
+    .in('category', ['ticket', 'tip', 'team'])
     .neq('action', 'failed')
     .order('occurred_at', { ascending: false });
 

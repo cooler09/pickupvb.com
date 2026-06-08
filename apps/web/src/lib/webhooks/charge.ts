@@ -50,10 +50,22 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
   if (!piId) return;
 
   // Refund could be on a tip or an attendee charge. Try tip first (cheap).
-  await repositories.eventPaymentRepo.markTipsRefundedByPaymentIntent(
+  const tipRefund = await repositories.eventPaymentRepo.markTipsRefundedByPaymentIntent(
     piId,
     new Date().toISOString(),
   );
+  if (tipRefund) {
+    // Matching `refunded` ledger row so the tip nets out on receipts/earnings
+    // (receipts-tax R-1). null return above (no paid tip / retry) skips this.
+    await repositories.eventPaymentRepo.recordPaymentAudit({
+      eventId: tipRefund.eventId,
+      userId: tipRefund.userId,
+      action: 'refunded',
+      amountCents: charge.amount_refunded ?? tipRefund.amountCents,
+      paymentIntentId: piId,
+      category: 'tip',
+    });
+  }
 
   const att = await repositories.eventPaymentRepo.findRefundableAttendeeByPaymentIntent(piId);
   if (att) {
@@ -66,6 +78,7 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
       action: 'refunded',
       amountCents: charge.amount_refunded ?? amountPaid,
       paymentIntentId: piId,
+      category: 'ticket',
     });
 
     // Notify the attendee. Best-effort; failures don't fail the webhook.

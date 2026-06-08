@@ -44,15 +44,16 @@ export default async function EarningsPage(props: { searchParams: Promise<{ page
           )}
         </div>
         <p className="text-muted text-sm">
-          Summary of your online ticket sales on PickupVB. For authoritative payout amounts and
-          Stripe&apos;s processing fees, see your Stripe Express dashboard.
+          Summary of your online sales on PickupVB — tickets, team entry fees, and tips. For
+          authoritative payout amounts and Stripe&apos;s processing fees, see your Stripe Express
+          dashboard.
         </p>
       </div>
 
       {!hasTransactions ? (
         <div className="border-border-base bg-md-surface-container text-muted rounded-shape-sm border p-6 text-sm">
-          No online ticket sales yet. When attendees pay for one of your events through PickupVB,
-          the totals will show up here.
+          No online sales yet. When attendees buy tickets, teams pay entry fees, or someone tips you
+          through PickupVB, the totals will show up here.
         </div>
       ) : (
         <>

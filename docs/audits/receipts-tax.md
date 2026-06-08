@@ -9,17 +9,17 @@ and the business / tax-ID profile fields. Covers the read paths
 read from — the `event_payment_audit` ledger.
 
 > **Status (2026-06-08): new audit — 1 P1 · 3 P2 · 8 P3.**
-> **R-2 + R-3 fixed same day (quad-green, deploy-gated); R-4 + R-7 partially
-> addressed by the shared CSV helper.** Remaining open: **R-1 (P1)** and the
-> P3 backlog. See the remediation log at the bottom.
+> **R-1 + R-2 + R-3 fixed same day (quad-green, uncommitted, migration
+> deploy-gated); R-4 + R-7 + R-11 also addressed.** The ledger now records tip
+> and team-entry payments (+ their refunds) under a new `category` column, with
+> a backfill for historical rows — so receipts, earnings, and annual statements
+> are no longer blank for tips/teams. Remaining open: the P3 backlog
+> (R-5/R-6/R-8/R-9/R-10/R-12) and the leftover R-4/R-7 grouping-reducer
+> extraction. See the remediation log at the bottom.
 >
 > RLS posture is sound (`event_payment_audit` reads are scoped by the
 > `_select_own` / `_select_host` policies; `tax_id` / `business_*` are
-> owner-only and absent from `profiles_public` — no PII leak). The headline
-> remaining issue is **completeness of the ledger**: only individual-attendee
-> ticket payments are written to `event_payment_audit`, so team-registration
-> entry fees, roster-team payments, and tips never appear in any receipt,
-> earnings summary, or annual statement (R-1).
+> owner-only and absent from `profiles_public` — no PII leak).
 
 ---
 
@@ -57,20 +57,20 @@ to the entire receipts/tax surface.
 
 ## Findings
 
-| ID   | Sev | Summary                                                                                             |
-| ---- | --- | --------------------------------------------------------------------------------------------------- |
-| R-1  | P1  | Team-registration, roster-team, and tip payments never written to the audit ledger                  |
-| R-2  | P2  | ✅ FIXED — earnings reads now filter `events.host_id`; was over-counting a host who is also a buyer |
-| R-3  | P2  | ✅ FIXED — CSV cells now neutralize formula injection (`=`/`+`/`-`/`@`/TAB/CR); shared helper       |
-| R-4  | P2  | ◑ PARTIAL — `csvCell` now unit-tested; grouping/fee math still untested (tied to R-7 extraction)    |
-| R-5  | P3  | Off-platform cash payments get a phantom platform-fee deduction in earnings                         |
-| R-6  | P3  | Off-platform paid+refund pairs don't net (each null-PI row gets its own group key)                  |
-| R-7  | P3  | ◑ PARTIAL — `csvCell` extracted to one tested home; the group-by-PI reducer is still copy-pasted 4× |
-| R-8  | P3  | `'failed'` action is dead — never written; constraint value, type unions, and `.neq` filters stale  |
-| R-9  | P3  | Synthetic `Receipt #audit:<uuid>` is ugly on a printable receipt                                    |
-| R-10 | P3  | Receipts/earnings fetch the entire ledger every render (force-dynamic, uncached) then slice         |
-| R-11 | P3  | Receipts page header copy is inaccurate given R-1/R-5                                               |
-| R-12 | P3  | `tax_id` stored plaintext, relies on the user heeding the "don't enter SSN" warning                 |
+| ID   | Sev | Summary                                                                                                     |
+| ---- | --- | ----------------------------------------------------------------------------------------------------------- |
+| R-1  | P1  | ✅ FIXED — tip + team (ad-hoc/roster) payments + refunds now recorded under a `category` column; backfilled |
+| R-2  | P2  | ✅ FIXED — earnings reads now filter `events.host_id`; was over-counting a host who is also a buyer         |
+| R-3  | P2  | ✅ FIXED — CSV cells now neutralize formula injection (`=`/`+`/`-`/`@`/TAB/CR); shared helper               |
+| R-4  | P2  | ◑ PARTIAL — `csvCell` now unit-tested; grouping/fee math still untested (tied to R-7 extraction)            |
+| R-5  | P3  | Off-platform cash payments get a phantom platform-fee deduction in earnings                                 |
+| R-6  | P3  | Off-platform paid+refund pairs don't net (each null-PI row gets its own group key)                          |
+| R-7  | P3  | ◑ PARTIAL — `csvCell` extracted to one tested home; the group-by-PI reducer is still copy-pasted 4×         |
+| R-8  | P3  | `'failed'` action is dead — never written; constraint value, type unions, and `.neq` filters stale          |
+| R-9  | P3  | Synthetic `Receipt #audit:<uuid>` is ugly on a printable receipt                                            |
+| R-10 | P3  | Receipts/earnings fetch the entire ledger every render (force-dynamic, uncached) then slice                 |
+| R-11 | P3  | ✅ FIXED — receipts + earnings copy now names tickets / team entries / tips (landed with R-1)               |
+| R-12 | P3  | `tax_id` stored plaintext, relies on the user heeding the "don't enter SSN" warning                         |
 
 ---
 
@@ -344,6 +344,51 @@ tax identifiers.
 ---
 
 ## Remediation log
+
+### 2026-06-08 (pt. 2) — R-1 fixed; R-11 fixed (quad-green, uncommitted, migration deploy-gated)
+
+The ledger now records **every host-payout revenue kind**, not just attendee
+tickets. A new `event_payment_audit.category` column classifies each row; the
+host-earnings reads filter to the income allow-list `('ticket','tip','team')`,
+while buyer receipts show all of a user's rows.
+
+- **Schema** —
+  [20260926000000_payment_audit_category.sql](../../supabase/migrations/20260926000000_payment_audit_category.sql):
+  `category text not null default 'ticket'` + CHECK (`ticket`/`tip`/`team`/
+  `sponsor_slot`/`badge_slot`, the last two reserved for forward-compat and not
+  recorded yet), an index, and an **idempotent backfill** of historical paid +
+  refunded tips (`event_tips`) and team entry fees (`event_team_payments` →
+  entry → division → event, covering ad-hoc **and** roster). Existing rows are
+  all tickets, so the default backfills them. Types hand-edited in
+  `packages/supabase/src/database.types.ts` (regen against the deployed schema
+  post-merge).
+- **Write paths** — `recordPaymentAudit` now carries `category`. Added calls in
+  the **tip** branch of [checkout.ts](../../apps/web/src/lib/webhooks/checkout.ts)
+  and all four team paid/refund paths in
+  [team-payment-mediators.ts](../../apps/web/src/lib/webhooks/team-payment-mediators.ts);
+  the **tip-refund** path in [charge.ts](../../apps/web/src/lib/webhooks/charge.ts)
+  records a matching `refunded` row (via `markTipsRefundedByPaymentIntent`, now
+  returning the refunded tip's context + guarded on `status='paid'` for retry
+  idempotency). The captain is the team payer; `user_id` is null for an
+  account-less captain / anon tip. The `PaymentAuditEntry.userId` type widened
+  to `string | null`.
+- **Read paths** — host earnings loader + CSV add `.in('category',
+['ticket','tip','team'])`. Buyer receipts unchanged (already user-scoped).
+- **R-11 copy** — receipts + earnings headers/empty-states now say "tickets,
+  team entry fees, and tips" instead of "ticket sales" / "event signup".
+- **Tests** — new
+  [team-payment-mediators.test.ts](../../apps/web/src/lib/webhooks/team-payment-mediators.test.ts)
+  (8 cases: paid/refund ledger rows for ad-hoc + roster, account-less captain,
+  refund-amount preference, idempotency); checkout/charge/adapter tests updated
+  for the new `category` field, the tip audit, and the tip-refund return.
+- **Deliberately deferred:** `sponsor_slot` / `badge_slot` are **not** recorded
+  (platform revenue / host add-on — ambiguous income-vs-expense; the earnings
+  allow-list already excludes them). The per-transaction earnings fee estimate
+  still applies the host's flat tier rate to tips (tips carry their own
+  `platform_fee_cents`) — acceptable under the page's "Stripe is authoritative"
+  disclaimer; revisit if exactness is needed.
+- **Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green
+  (313 web + 16 infra adapter tests pass).
 
 ### 2026-06-08 — R-2, R-3 fixed; R-4 / R-7 partially (quad-green, uncommitted, deploy-gated)
 

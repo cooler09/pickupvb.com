@@ -12,7 +12,7 @@ import type Stripe from 'stripe';
 vi.mock('@/lib/handlers', () => ({
   repositories: {
     eventPaymentRepo: {
-      markTipsRefundedByPaymentIntent: vi.fn(async () => {}),
+      markTipsRefundedByPaymentIntent: vi.fn(async () => null),
       findRefundableAttendeeByPaymentIntent: vi.fn(async () => null),
       deleteAttendee: vi.fn(async () => {}),
       recordPaymentAudit: vi.fn(async () => {}),
@@ -144,6 +144,24 @@ describe('handleChargeRefunded', () => {
     expect(notifyMock).not.toHaveBeenCalled();
   });
 
+  it('audits a refunded tip so it nets out on receipts/earnings (R-1)', async () => {
+    findAtt.mockResolvedValueOnce(null);
+    (repo.markTipsRefundedByPaymentIntent as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      eventId: 'e1',
+      userId: 'u1',
+      amountCents: 500,
+    });
+    await handleChargeRefunded(chargeOf({ amount_refunded: 500 }));
+    expect(repo.recordPaymentAudit).toHaveBeenCalledWith({
+      eventId: 'e1',
+      userId: 'u1',
+      action: 'refunded',
+      amountCents: 500,
+      paymentIntentId: 'pi_1',
+      category: 'tip',
+    });
+  });
+
   it('deletes the attendee, audits the refund, and notifies (amount_refunded wins)', async () => {
     findAtt.mockResolvedValueOnce({
       participantId: 'p1',
@@ -159,6 +177,7 @@ describe('handleChargeRefunded', () => {
       action: 'refunded',
       amountCents: 1500, // charge.amount_refunded preferred over amountPaidCents
       paymentIntentId: 'pi_1',
+      category: 'ticket',
     });
     expect(notifyMock).toHaveBeenCalledWith(
       'payment.refunded',

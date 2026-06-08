@@ -151,8 +151,8 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
         </Link>
         <h1 className="text-headline-lg font-bold">Receipts</h1>
         <p className="text-muted text-sm">
-          Every online payment you&apos;ve made for an event signup. Keep these for expense reports
-          and tax records.
+          Every online payment you&apos;ve made on PickupVB — event tickets, team entry fees, and
+          tips. Keep these for expense reports and tax records.
         </p>
       </div>
 

@@ -26,13 +26,37 @@ export interface RefundableAttendee {
   eventId: string;
 }
 
+/**
+ * Revenue kind an audit row records, so the host-earnings read can filter to
+ * host-payout income and the buyer-receipts read can show everything a user
+ * paid (receipts-tax audit R-1). `'ticket'` (individual attendee) and `'team'`
+ * (ad-hoc + roster team entry fees) and `'tip'` are host income;
+ * `'sponsor_slot'` / `'badge_slot'` are platform revenue / host add-ons and are
+ * reserved for forward-compat — they are not recorded yet and must stay out of
+ * the earnings allow-list.
+ */
+export type PaymentAuditCategory = 'ticket' | 'tip' | 'team' | 'sponsor_slot' | 'badge_slot';
+
 /** An `event_payment_audit` trail entry. */
 export interface PaymentAuditEntry {
   eventId: string;
-  userId: string;
+  /** Buyer / captain who paid. Null for account-less captains and anon tips. */
+  userId: string | null;
   action: 'paid' | 'refunded';
   amountCents: number;
   paymentIntentId: string | null;
+  category: PaymentAuditCategory;
+}
+
+/**
+ * The audit context of a tip that {@link EventPaymentRepository.markTipsRefundedByPaymentIntent}
+ * just flipped to refunded, so the caller can append a matching `refunded`
+ * ledger row. Null when no paid tip matched the PI.
+ */
+export interface TipRefundContext {
+  eventId: string;
+  userId: string | null;
+  amountCents: number;
 }
 
 /** The a-la-carte badge-authoring unlock mirrored from a completed checkout. */
@@ -101,8 +125,16 @@ export interface EventPaymentRepository {
   // and docs/audits/stripe-integration.md SI-1.
 
   // --- charge.refunded -------------------------------------------------------
-  /** Mark any tip on this PI `refunded`. `refundedAt` is an ISO-8601 stamp. */
-  markTipsRefundedByPaymentIntent(paymentIntentId: string, refundedAt: string): Promise<void>;
+  /**
+   * Mark a paid tip on this PI `refunded` and return its audit context (so the
+   * caller can append a `refunded` ledger row — receipts-tax R-1). `refundedAt`
+   * is an ISO-8601 stamp. Returns null when no paid tip matched (idempotent on
+   * a webhook retry).
+   */
+  markTipsRefundedByPaymentIntent(
+    paymentIntentId: string,
+    refundedAt: string,
+  ): Promise<TipRefundContext | null>;
   /** Find the paid attendee charge on this PI, or null. */
   findRefundableAttendeeByPaymentIntent(
     paymentIntentId: string,
