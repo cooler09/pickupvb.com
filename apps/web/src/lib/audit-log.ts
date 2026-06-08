@@ -21,9 +21,15 @@ export type AuditAction =
   | 'event.co_host_added'
   | 'event.co_host_removed'
   | 'host_stripe.account_updated'
-  | 'host_subscription.changed';
+  | 'host_subscription.changed'
+  | 'host_membership.changed';
 
-export type AuditEntityType = 'group' | 'event' | 'host_stripe_account' | 'host_subscription';
+export type AuditEntityType =
+  | 'group'
+  | 'event'
+  | 'host_stripe_account'
+  | 'host_subscription'
+  | 'host_membership';
 
 export interface AuditEntry {
   action: AuditAction;

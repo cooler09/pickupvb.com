@@ -18,7 +18,7 @@ import { SubmitButton } from '@/components/submit-button';
 export const metadata = {
   title: 'Pricing',
   description:
-    'PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events, half the platform fee, saved templates, analytics, sponsor slots, collectible badges, season passes, and more.',
+    'PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events, half the platform fee, saved templates, analytics, sponsor slots, collectible badges, season passes, memberships, and more.',
   alternates: { canonical: '/pricing' },
   openGraph: {
     title: 'Pricing · PickupVB',
@@ -51,6 +51,7 @@ const PRO_TIER_FEATURES = [
   'Unlimited standalone tournament brackets',
   'Saved event templates — publish new dates in one click',
   'Sell season passes — prepaid multi-session credit packs',
+  'Sell memberships — recurring monthly access to your open plays',
   'Host analytics — fill rate, GMV trend, repeat-attendee rate',
   'Sponsor slot included on every event',
   'Collectible event badges included on every event',
@@ -230,6 +231,7 @@ export default async function PricingPage() {
               <Row label="Stripe processing fee" free="~2.9% + 30¢" pro="~2.9% + 30¢" />
               <Row label="Saved event templates" free="—" pro="✓" />
               <Row label="Sell season passes" free="—" pro="✓" />
+              <Row label="Sell memberships" free="—" pro="✓" />
               <Row label="Host analytics dashboard" free="—" pro="✓" />
               <Row
                 label="Sponsor slot"
@@ -274,6 +276,10 @@ export default async function PricingPage() {
         <Faq
           q="What are season passes?"
           a="Pro hosts can sell a prepaid pack of session credits — for example a 10-session open-play pass. Attendees buy it once, then redeem one credit to sign up for any of your open-play events you've marked pass-eligible, with no per-session charge. You get committed revenue up front; they skip paying every week. You set the price, the number of sessions, and an optional expiry."
+        />
+        <Faq
+          q="What are memberships?"
+          a="Pro hosts can sell a recurring monthly membership to their open plays. While a member's subscription is active they sign up free to any of your pass-eligible open-play events — unlimited, no per-session charge. It's billed monthly to the member and pays out to you like a ticket (less the platform fee); members can cancel anytime and keep access through the period they've paid for."
         />
         <Faq
           q="What are event templates?"

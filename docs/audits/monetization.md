@@ -298,6 +298,33 @@ host-paid (never platform-sold third-party), capped at one per metro page, and
 never on the event-detail page. The host-owned **sponsor slot** already captures
 the community-safe version of "host pays to promote their thing."
 
+#### O-7 — Recurring memberships (Phase 2 of O-1) — ✅ Shipped 2026-06-08 ([ADR 0037 Phase 2](../adr/0037-season-passes.md))
+
+**Built** the recurring sibling of season passes: a Pro host sells a **monthly
+membership** (`host_membership_plans`); a buyer subscribes via a **Connect
+destination subscription** (Stripe `mode: 'subscription'`, `transfer_data` to the
+host + tiered `application_fee_percent` — the first recurring host-routed flow);
+while their `host_memberships` row is active (`is_active_member`, with the M-2
+past_due backstop) they **claim free spots** on the host's `accepts_pass_credits`
+open-play events via the `claim_membership_spot` RPC (no charge, unlimited).
+Subscription state mirrors from the `customer.subscription.*` webhook
+(`metadata.kind = 'host_membership'`, branched off the Pro path); cancel is
+`cancel_at_period_end` via the Stripe API. Surfaces: host management
+(`/profile/billing/memberships`), the extended event `PassPanel` (member-claim
+takes precedence over credits), buyer `/profile/passes` (cancel), pricing copy.
+`membership-helpers.test.ts` unit-tested; migration `20261001000000` deploy-gated.
+**Deferred:** annual interval; credit-refill variant; membership income in the
+earnings page / tax CSV; buyer-paid platform fee.
+
+#### O-8 / O-9 (catalogued, not started) — white-label event branding · waiver e-sign
+
+Surfaced in the 2026-06-08 opportunity review and recorded so they aren't lost:
+**O-8** — Pro-host custom event-page branding (logo/colors), a low-cost vanity
+perk that doesn't touch the attendee's wallet; **O-9** — per-event waiver /
+liability e-sign (Pro capability or à-la-carte unlock like the sponsor/badge
+slots), a real organized-tournament need. Both are net-new feature builds, not
+quota tweaks. Not yet scoped.
+
 ### Reaffirmed — the engine and the guardrails still hold
 
 The "What NOT to do" list below (no platform-sold ads, no clawback of free
@@ -1098,6 +1125,26 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — O-7 shipped: recurring memberships (Phase 2 of O-1; [ADR 0037 Phase 2](../adr/0037-season-passes.md), uncommitted; migration deploy-gated).**
+  A Pro host sells a monthly membership (`host_membership_plans`); a buyer
+  subscribes via a **Connect destination subscription** (`mode: 'subscription'`,
+  `transfer_data` + tiered `application_fee_percent` — the first recurring
+  host-routed flow); while active (`is_active_member`, M-2 past_due backstop) they
+  **claim free spots** on the host's `accepts_pass_credits` open plays via
+  `claim_membership_spot` (no charge, unlimited). Subscription state mirrors from
+  the `customer.subscription.*` webhook (branched on `metadata.kind =
+'host_membership'`); cancel = `cancel_at_period_end` via Stripe API. New:
+  migration `20261001000000_host_memberships.sql`, `lib/memberships.ts` +
+  `lib/membership-helpers.ts` (+ test), host plan CRUD
+  (`profile/billing/memberships/actions.ts`), buyer subscribe/claim/cancel
+  (`events/[id]/membership-actions.ts`), the webhook branch, host management page,
+  buyer `/profile/passes` (now "Passes & memberships" with cancel), extended
+  `PassPanel` (member-claim precedence), pricing/features/payments copy,
+  hand-edited DB types, `host_membership.changed` audit action. Quad-green.
+  Deferred: annual interval, credit-refill variant, earnings/CSV, buyer-paid fee.
+  Also catalogued **O-8** (white-label branding) / **O-9** (waiver e-sign) as
+  not-started.
 
 - **2026-06-08 — O-1 shipped: season passes ([ADR 0037](../adr/0037-season-passes.md), uncommitted; migration deploy-gated).**
   Built the strongest opportunity to a v1 vertical. A Pro host sells a prepaid

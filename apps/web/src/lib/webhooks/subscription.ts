@@ -9,6 +9,7 @@ import { findHostByStripeCustomerId, upsertHostSubscriptionFromStripe } from '@/
 import { analytics } from '@/lib/handlers';
 import { recordAuditEvent } from '@/lib/audit-log';
 import { log } from '@/lib/log';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 
 /**
  * Keep host_subscriptions in sync with Stripe. Fires on create/update/delete
@@ -23,6 +24,15 @@ export async function handleSubscriptionChange(
     | 'customer.subscription.deleted',
   previousAttributes?: Partial<Stripe.Subscription>,
 ): Promise<void> {
+  // Recurring HOST memberships (ADR 0037 Phase 2) are Connect destination
+  // subscriptions tagged with `metadata.kind = 'host_membership'`. They mirror
+  // into `host_memberships`, not the PickupVB-Pro `host_subscriptions` table —
+  // route them out before the Pro path below.
+  if (sub.metadata?.['kind'] === 'host_membership') {
+    await handleHostMembershipChange(sub);
+    return;
+  }
+
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
   // Resolve user_id: prefer subscription metadata, then customer metadata,
@@ -121,4 +131,76 @@ export async function handleSubscriptionChange(
       userId,
     );
   }
+}
+
+/**
+ * Mirror a host-membership (ADR 0037 Phase 2) Connect destination subscription
+ * into `host_memberships`. Identity comes from the subscription metadata set at
+ * Checkout (`plan_id` / `host_id` / `member_user_id`). Admin client —
+ * `host_memberships` writes are admin-only. Idempotent: update by
+ * `stripe_subscription_id` if the row exists, else insert; a redelivered webhook
+ * is a no-op beyond refreshing status.
+ */
+async function handleHostMembershipChange(sub: Stripe.Subscription): Promise<void> {
+  const planId = sub.metadata?.['plan_id'];
+  const hostId = sub.metadata?.['host_id'];
+  const memberUserId = sub.metadata?.['member_user_id'];
+  if (!planId || !hostId || !memberUserId) {
+    await log.error('[stripe-webhook] host_membership: missing metadata', null, {
+      subscriptionId: sub.id,
+    });
+    return;
+  }
+
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+  const periodEnd = (sub as unknown as { current_period_end?: number }).current_period_end;
+  const currentPeriodEnd = periodEnd ? new Date(periodEnd * 1000).toISOString() : null;
+  const cancelAtPeriodEnd = sub.cancel_at_period_end ?? false;
+
+  const admin = getAdminSupabase();
+
+  const { data: existing } = await admin
+    .from('host_memberships')
+    .select('id')
+    .eq('stripe_subscription_id', sub.id)
+    .maybeSingle();
+
+  if (existing) {
+    await admin
+      .from('host_memberships')
+      .update({
+        status: sub.status,
+        current_period_end: currentPeriodEnd,
+        cancel_at_period_end: cancelAtPeriodEnd,
+        stripe_customer_id: customerId,
+      })
+      .eq('stripe_subscription_id', sub.id);
+  } else {
+    const { data: planRow } = await admin
+      .from('host_membership_plans')
+      .select('title')
+      .eq('id', planId)
+      .maybeSingle();
+    const title = (planRow as { title: string } | null)?.title ?? 'Membership';
+
+    await admin.from('host_memberships').insert({
+      plan_id: planId,
+      host_id: hostId,
+      member_user_id: memberUserId,
+      title_snapshot: title,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: sub.id,
+      status: sub.status,
+      current_period_end: currentPeriodEnd,
+      cancel_at_period_end: cancelAtPeriodEnd,
+    });
+  }
+
+  await recordAuditEvent({
+    action: 'host_membership.changed',
+    entityType: 'host_membership',
+    entityId: sub.id,
+    targetUserId: memberUserId,
+    metadata: { status: sub.status, hostId, planId, cancelAtPeriodEnd },
+  });
 }

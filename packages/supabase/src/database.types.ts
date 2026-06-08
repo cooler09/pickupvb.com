@@ -1049,6 +1049,7 @@ export type Database = {
           checkout_session_id: string | null;
           created_at: string;
           paid_at: string | null;
+          membership_id: string | null;
           participant_id: string;
           pass_purchase_id: string | null;
           payment_intent_id: string | null;
@@ -1071,6 +1072,7 @@ export type Database = {
           checkout_session_id?: string | null;
           created_at?: string;
           paid_at?: string | null;
+          membership_id?: string | null;
           participant_id?: string;
           pass_purchase_id?: string | null;
           payment_intent_id?: string | null;
@@ -1090,6 +1092,13 @@ export type Database = {
             columns: ['pass_purchase_id'];
             isOneToOne: false;
             referencedRelation: 'pass_purchases';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_participant_payments_membership_id_fkey';
+            columns: ['membership_id'];
+            isOneToOne: false;
+            referencedRelation: 'host_memberships';
             referencedColumns: ['id'];
           },
         ];
@@ -1959,6 +1968,114 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [];
+      };
+      host_membership_plans: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          host_id: string;
+          id: string;
+          price_cents: number;
+          status: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          host_id: string;
+          id?: string;
+          price_cents: number;
+          status?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          host_id?: string;
+          id?: string;
+          price_cents?: number;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'host_membership_plans_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      host_memberships: {
+        Row: {
+          cancel_at_period_end: boolean;
+          created_at: string;
+          current_period_end: string | null;
+          host_id: string;
+          id: string;
+          member_user_id: string;
+          plan_id: string;
+          status: string;
+          stripe_customer_id: string | null;
+          stripe_subscription_id: string | null;
+          title_snapshot: string;
+          updated_at: string;
+        };
+        Insert: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          host_id: string;
+          id?: string;
+          member_user_id: string;
+          plan_id: string;
+          status?: string;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          title_snapshot: string;
+          updated_at?: string;
+        };
+        Update: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          host_id?: string;
+          id?: string;
+          member_user_id?: string;
+          plan_id?: string;
+          status?: string;
+          stripe_customer_id?: string | null;
+          stripe_subscription_id?: string | null;
+          title_snapshot?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'host_memberships_plan_id_fkey';
+            columns: ['plan_id'];
+            isOneToOne: false;
+            referencedRelation: 'host_membership_plans';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'host_memberships_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'host_memberships_member_user_id_fkey';
+            columns: ['member_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       host_passes: {
         Row: {
@@ -3994,6 +4111,7 @@ export type Database = {
         Args: { p_match_id: string };
         Returns: boolean;
       };
+      is_active_member: { Args: { p_user_id: string; p_host_id: string }; Returns: boolean };
       is_platform_admin: { Args: never; Returns: boolean };
       is_pro_host: { Args: { p_user_id: string }; Returns: boolean };
       kick_badge_reconcile: { Args: never; Returns: undefined };
@@ -4002,6 +4120,10 @@ export type Database = {
         Returns: {
           user_id: string;
         }[];
+      };
+      claim_membership_spot: {
+        Args: { p_event_id: string };
+        Returns: string;
       };
       longtransactionsenabled: { Args: never; Returns: boolean };
       redeem_pass_credit: {

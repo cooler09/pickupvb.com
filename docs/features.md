@@ -190,16 +190,17 @@ runs checkout.
 
 **What Pro unlocks.**
 
-| Capability              | Free                                           | Pro                                       |
-| ----------------------- | ---------------------------------------------- | ----------------------------------------- |
-| Free events             | Unlimited                                      | Unlimited                                 |
-| Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                                 |
-| Platform fee on tickets | 5%                                             | **2.5%**                                  |
-| Platform fee on tips    | None                                           | None                                      |
-| Standalone brackets     | 1 active at a time                             | Unlimited                                 |
-| Sell season passes      | —                                              | ✓ ([ADR 0037](adr/0037-season-passes.md)) |
-| CSV attendee export     | —                                              | ✓                                         |
-| Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`)          |
+| Capability              | Free                                           | Pro                                               |
+| ----------------------- | ---------------------------------------------- | ------------------------------------------------- |
+| Free events             | Unlimited                                      | Unlimited                                         |
+| Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                                         |
+| Platform fee on tickets | 5%                                             | **2.5%**                                          |
+| Platform fee on tips    | None                                           | None                                              |
+| Standalone brackets     | 1 active at a time                             | Unlimited                                         |
+| Sell season passes      | —                                              | ✓ ([ADR 0037](adr/0037-season-passes.md))         |
+| Sell memberships        | —                                              | ✓ ([ADR 0037 Phase 2](adr/0037-season-passes.md)) |
+| CSV attendee export     | —                                              | ✓                                                 |
+| Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`)                  |
 
 **Implementation.**
 
@@ -243,6 +244,32 @@ paying every event. Full design: [ADR 0037](adr/0037-season-passes.md).
 - **v1 follow-ups:** pass income isn't yet in the earnings page / tax CSV (host
   sees revenue on the management page); no buyer-paid fee line (host absorbs the
   platform fee).
+
+### Recurring memberships (Pro capability, ADR 0037 Phase 2)
+
+The recurring sibling of passes: a Pro host sells a **monthly membership**;
+while a member's subscription is active they claim a **free** spot on any of the
+host's `accepts_pass_credits` open-play events — unlimited, no credit ledger.
+
+- **Sell (Pro only):** create/manage plans at
+  [/profile/billing/memberships](../apps/web/src/app/profile/billing/memberships/)
+  (title, monthly price). Stored in `host_membership_plans`.
+- **Subscribe (any account):** a buyer subscribes via a **Connect destination
+  subscription** (Stripe Checkout `mode: 'subscription'`, `transfer_data` to the
+  host + `application_fee_percent` at the host's tier — host-routed, see
+  [payments.md](payments.md)). State mirrors into `host_memberships` from the
+  `customer.subscription.*` webhook (keyed on `metadata.kind = 'host_membership'`).
+- **Claim:** on an eligible event, an active member hits "Claim your spot"
+  ([`PassPanel`](../apps/web/src/app/events/%5Bid%5D/_components/pass-panel.tsx)) →
+  `claim_membership_spot` RPC reserves a normal attendee spot (capacity trigger
+  fires, **no charge**). Member claims always take precedence over pass credits.
+- **Manage:** the member sees + cancels (at period end) at
+  [/profile/passes](../apps/web/src/app/profile/passes/); cancel calls Stripe
+  directly (the subscription lives on the platform account — no billing portal).
+- **Active rule:** `is_active_member(user, host)` — trialing/active, or past_due
+  within a 30-day period-end grace (same backstop as `is_pro_host`).
+- **v1 follow-ups:** monthly only (no annual); unlimited-access only (no
+  credit-refill variant); membership income not yet in the earnings page / CSV.
 
 ---
 

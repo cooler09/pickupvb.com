@@ -59,18 +59,23 @@ Domain model:
 
 ## Payment routing — every entry point goes through `host_id`
 
-| Flow                       | File                                                                                                              | Destination resolved from                                                                                           |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Individual ticket checkout | [apps/web/src/app/events/[id]/checkout-actions.ts](../apps/web/src/app/events/[id]/checkout-actions.ts)           | `pricing.hostId` (= `events.host_id`) → `getHostStripeAccount(hostId)`                                              |
-| Team registration checkout | [apps/web/src/app/events/[id]/team-checkout-actions.ts](../apps/web/src/app/events/[id]/team-checkout-actions.ts) | `event.hostId` (= `events.host_id`) → `getHostStripeAccount(hostId)`                                                |
-| Tip jar                    | [apps/web/src/app/events/[id]/tip-actions.ts](../apps/web/src/app/events/[id]/tip-actions.ts)                     | `event.host_id` → `getHostStripeAccount(hostId)`; tip row also stores `host_id`                                     |
-| Season-pass purchase       | [apps/web/src/app/events/[id]/pass-actions.ts](../apps/web/src/app/events/[id]/pass-actions.ts)                   | `host_passes.host_id` → `getHostStripeAccount(hostId)`; tiered platform fee ([ADR 0037](adr/0037-season-passes.md)) |
+| Flow                       | File                                                                                                              | Destination resolved from                                                                                                                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Individual ticket checkout | [apps/web/src/app/events/[id]/checkout-actions.ts](../apps/web/src/app/events/[id]/checkout-actions.ts)           | `pricing.hostId` (= `events.host_id`) → `getHostStripeAccount(hostId)`                                                                                                                                         |
+| Team registration checkout | [apps/web/src/app/events/[id]/team-checkout-actions.ts](../apps/web/src/app/events/[id]/team-checkout-actions.ts) | `event.hostId` (= `events.host_id`) → `getHostStripeAccount(hostId)`                                                                                                                                           |
+| Tip jar                    | [apps/web/src/app/events/[id]/tip-actions.ts](../apps/web/src/app/events/[id]/tip-actions.ts)                     | `event.host_id` → `getHostStripeAccount(hostId)`; tip row also stores `host_id`                                                                                                                                |
+| Season-pass purchase       | [apps/web/src/app/events/[id]/pass-actions.ts](../apps/web/src/app/events/[id]/pass-actions.ts)                   | `host_passes.host_id` → `getHostStripeAccount(hostId)`; tiered platform fee ([ADR 0037](adr/0037-season-passes.md))                                                                                            |
+| Membership subscription    | [apps/web/src/app/events/[id]/membership-actions.ts](../apps/web/src/app/events/[id]/membership-actions.ts)       | `host_membership_plans.host_id` → `getHostStripeAccount(hostId)`; **recurring** Connect destination subscription, `application_fee_percent` at the host's tier ([ADR 0037 Phase 2](adr/0037-season-passes.md)) |
 
-> **Season passes are host-routed, not platform-direct.** A pass _purchase_ is a
-> destination charge to the host (above). Redeeming a pass credit moves **no
-> money** — it reserves a spot against the prepaid balance — so it isn't a
-> routing entry at all. (Contrast the sponsor/badge unlocks below, which charge
-> PickupVB's own account.)
+> **Passes and memberships are host-routed, not platform-direct.** A pass
+> _purchase_ and a membership _subscription_ are both destination charges to the
+> host (above) — the membership is a **recurring** Stripe subscription
+> (`mode: 'subscription'` + `subscription_data.transfer_data`), the only
+> recurring host-routed flow; the others are one-shot. Redeeming a pass credit or
+> claiming a member spot moves **no money** — it reserves a spot against the
+> prepaid balance / active subscription — so neither is a routing entry. (Contrast
+> the sponsor/badge unlocks below, which charge PickupVB's own account; and the
+> PickupVB-Pro subscription, which is platform-direct recurring.)
 
 `getHostStripeAccount(hostId)` (see
 [apps/web/src/lib/host-stripe-account.ts](../apps/web/src/lib/host-stripe-account.ts))

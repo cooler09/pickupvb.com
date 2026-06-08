@@ -6,28 +6,36 @@ import {
   type HostPass,
   type PassPurchase,
 } from '@/lib/passes';
+import {
+  listActiveMembershipPlans,
+  getActiveMembershipForHost,
+  type MembershipPlan,
+} from '@/lib/memberships';
 import { perSessionCents } from '@/lib/pass-helpers';
 import { renderNowMs } from '@/lib/render-now';
 import { SubmitButton } from '@/components/submit-button';
 import { primaryButtonClass, neutralButtonClass } from '@/components/primary-button';
 import { startPassPurchaseCheckout, redeemPassCredit } from '../pass-actions';
+import { startMembershipCheckout, claimMembershipSpot } from '../membership-actions';
 
 /**
- * Season-pass buy/redeem affordance on an open-play event that accepts pass
- * credits (ADR 0037). The data load is fully defensive (returns null on any
- * error) so the panel can never break the event-detail render; the JSX is
- * rendered outside the try/catch (a React error boundary, not try/catch, is
- * the right tool for render errors). Shows:
- *   - "Use a pass credit" when the viewer holds redeemable credits for the host;
- *   - otherwise the host's active passes with a "Buy pass" button.
+ * Pass + membership buy/redeem affordance on an open-play event that accepts
+ * pass credits (ADR 0037 + Phase 2 memberships). Fully defensive data load
+ * (returns null on any error) so it can never break event-detail; JSX renders
+ * outside the try/catch. Precedence:
+ *   1. active member → "claim your spot" (free, unlimited);
+ *   2. else redeemable pass credits → "use a credit";
+ *   3. else offer to buy → membership plans + pass packs.
  * Renders nothing for the host viewing their own event, or when the host sells
- * no passes / the event isn't pass-eligible.
+ * neither and the viewer holds neither.
  */
 
 type PanelData = {
+  isMember: boolean;
   best: PassPurchase | undefined;
   totalRemaining: number;
   activePasses: HostPass[];
+  membershipPlans: MembershipPlan[];
 };
 
 function usd(cents: number): string {
@@ -50,19 +58,32 @@ async function loadPassPanelData(eventId: string): Promise<PanelData | null> {
     if (realViewer?.user.id === ev.host_id) return null;
 
     const now = renderNowMs();
-    const [redeemable, activePasses] = await Promise.all([
+    const [redeemable, activePasses, membershipPlans, activeMembership] = await Promise.all([
       realViewer
         ? getRedeemablePassesForHost(realViewer.user.id, ev.host_id, now)
         : Promise.resolve([]),
       listActiveHostPasses(ev.host_id),
+      listActiveMembershipPlans(ev.host_id),
+      realViewer
+        ? getActiveMembershipForHost(realViewer.user.id, ev.host_id, now)
+        : Promise.resolve(null),
     ]);
 
-    if (activePasses.length === 0 && redeemable.length === 0) return null;
+    if (
+      !activeMembership &&
+      redeemable.length === 0 &&
+      activePasses.length === 0 &&
+      membershipPlans.length === 0
+    ) {
+      return null;
+    }
 
     return {
+      isMember: Boolean(activeMembership),
       best: redeemable[0],
       totalRemaining: redeemable.reduce((sum, p) => sum + p.creditsRemaining, 0),
       activePasses,
+      membershipPlans,
     };
   } catch {
     return null;
@@ -72,12 +93,23 @@ async function loadPassPanelData(eventId: string): Promise<PanelData | null> {
 export async function PassPanel({ eventId }: { eventId: string }) {
   const data = await loadPassPanelData(eventId);
   if (!data) return null;
-  const { best, totalRemaining, activePasses } = data;
+  const { isMember, best, totalRemaining, activePasses, membershipPlans } = data;
 
   return (
     <section className="border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-4">
-      <h2 className="text-fg text-lg font-semibold">Season pass</h2>
-      {best ? (
+      <h2 className="text-fg text-lg font-semibold">Passes &amp; membership</h2>
+
+      {isMember ? (
+        <form action={claimMembershipSpot.bind(null, eventId)} className="space-y-2">
+          <p className="text-muted text-sm">
+            You&apos;re a <strong className="text-fg">member</strong> of this host. Claim your spot
+            — no charge.
+          </p>
+          <SubmitButton className={primaryButtonClass('md')} pendingChildren="Claiming…">
+            Claim your spot
+          </SubmitButton>
+        </form>
+      ) : best ? (
         <form action={redeemPassCredit.bind(null, best.id, eventId)} className="space-y-2">
           <p className="text-muted text-sm">
             You have{' '}
@@ -91,26 +123,47 @@ export async function PassPanel({ eventId }: { eventId: string }) {
           </SubmitButton>
         </form>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-muted text-sm">
-            This host offers a prepaid pass — buy once, then sign up to sessions without paying each
-            time.
+            This host offers prepaid options — sign up to sessions without paying each time.
           </p>
-          <ul className="space-y-2">
-            {activePasses.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm">
-                  <strong className="text-fg">{p.title}</strong> — {p.creditCount} sessions ·{' '}
-                  {usd(p.priceCents)} ({usd(perSessionCents(p.priceCents, p.creditCount))}/session)
-                </span>
-                <form action={startPassPurchaseCheckout.bind(null, p.id, eventId)}>
-                  <SubmitButton className={neutralButtonClass('sm')} pendingChildren="…">
-                    Buy pass
-                  </SubmitButton>
-                </form>
-              </li>
-            ))}
-          </ul>
+
+          {membershipPlans.length > 0 && (
+            <ul className="space-y-2">
+              {membershipPlans.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm">
+                    <strong className="text-fg">{p.title}</strong> — {usd(p.priceCents)}/month,
+                    unlimited sessions while active
+                  </span>
+                  <form action={startMembershipCheckout.bind(null, p.id, eventId)}>
+                    <SubmitButton className={primaryButtonClass('sm')} pendingChildren="…">
+                      Become a member
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {activePasses.length > 0 && (
+            <ul className="space-y-2">
+              {activePasses.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm">
+                    <strong className="text-fg">{p.title}</strong> — {p.creditCount} sessions ·{' '}
+                    {usd(p.priceCents)} ({usd(perSessionCents(p.priceCents, p.creditCount))}
+                    /session)
+                  </span>
+                  <form action={startPassPurchaseCheckout.bind(null, p.id, eventId)}>
+                    <SubmitButton className={neutralButtonClass('sm')} pendingChildren="…">
+                      Buy pass
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </section>

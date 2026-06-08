@@ -145,9 +145,70 @@ redemptions`) with participant-delete cascade returning credits — no separate
   `event_participant_payments.pass_purchase_id` + cascade is simpler and correct
   for the v1 "return credit on cancel" policy.
 
+## Addendum 2026-06-08 — Phase 2: recurring memberships (monetization O-7)
+
+The finite credit pack (above) has a natural recurring sibling: a **monthly
+membership** to a host. Confirmed forks: **unlimited-while-active** (no credit
+counting), **monthly only**, **Pro-only to sell**, and it **reuses the same
+`events.accepts_pass_credits` opt-in** (an event that takes pass credits also
+takes active members). This is additive — the one-shot pass system is unchanged.
+
+### Decision
+
+1. A Pro host defines a `host_membership_plan` (title, description, monthly
+   `price_cents`, status). A buyer subscribes; while their `host_memberships` row
+   is **active** (`trialing` / `active`, or `past_due` within a 30-day
+   period-end grace — same backstop as `is_pro_host`, monetization M-2) they can
+   **claim a free spot on any of that host's `accepts_pass_credits` open-play
+   events** — no per-session charge, no credit ledger.
+2. **Billing routes to the host as a Connect destination _subscription_.** Stripe
+   Checkout `mode: 'subscription'` with `subscription_data.transfer_data.destination
+= host_acct` and `application_fee_percent` at the host's tier (Pro ⇒ 2.5%).
+   PickupVB stays merchant of record, consistent with passes/tickets. The platform
+   account receives the `customer.subscription.*` events; the subscription's
+   `metadata.kind = 'host_membership'` (+ `plan_id` / `host_id` / `member_user_id`)
+   routes the existing `handleSubscriptionChange` webhook to mirror state into
+   `host_memberships` (vs. the PickupVB-Pro path, which has no such metadata).
+3. **Claiming reuses the participant model.** `claim_membership_spot(p_event_id)`
+   — a SECURITY DEFINER RPC with an `auth.uid()` gate — verifies an active
+   membership for the event's host, then reserves the `event_participants` row
+   (capacity trigger fires) + a `paid`, zero-amount `event_participant_payments`
+   row stamped with `membership_id`. Leaving just deletes the participant; there's
+   no credit to return (unlimited model), so — unlike passes — no decrement
+   trigger is needed for memberships.
+4. **Cancellation** is `cancel_at_period_end` via the Stripe API (the
+   subscription lives on the platform account, so no billing-portal round-trip);
+   the member keeps access through the paid period.
+
+### Schema (migration `20261001000000_host_memberships.sql`)
+
+- `host_membership_plans` — the product (RLS like `host_passes`: public read of
+  `active`, owner writes; Pro enforced in the app).
+- `host_memberships` — a member's subscription state mirrored from Stripe
+  (member/host reads; admin/webhook writes — like `host_subscriptions`).
+- `event_participant_payments.membership_id` — nullable FK marking a
+  member-claimed spot.
+- `is_active_member(p_user_id, p_host_id)` — the period-end-backstopped status
+  check (reused by the claim RPC + the UI).
+- `claim_membership_spot(p_event_id)` — the reserve-a-spot RPC.
+
+### Precedence in the UI
+
+On a pass-eligible event the `PassPanel` resolves, in order: **active member →
+"claim your spot" (free)**; else **redeemable pass credits → "use a credit"**;
+else **offer to buy** (membership plans + pass packs). A member never burns a
+credit.
+
+### Deferred
+
+Annual interval; credit-refill membership variant (we shipped unlimited-access);
+membership/pass income in the earnings page + tax CSV (same `event_payment_audit`
+constraint deferral as O-1); a richer "manage membership" surface (v1 is
+view + cancel on `/profile/passes`).
+
 ## References
 
-- [docs/audits/monetization.md § O-1](../audits/monetization.md) — the opportunity.
+- [docs/audits/monetization.md § O-1](../audits/monetization.md) — the opportunity (Phase 1) and O-7 (Phase 2).
 - [docs/adr/0014-monetization-strategy.md](0014-monetization-strategy.md) —
   Pro-as-host-toolkit framing; passes are a net-new Pro perk.
 - [docs/payments.md](../payments.md) — host-routed vs platform-direct charges;
