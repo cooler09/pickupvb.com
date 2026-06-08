@@ -72,23 +72,25 @@ export function NotificationBell({ userId, initialUnreadCount, initialItems }: P
     };
   }, [open]);
 
-  // Mark unread items read when the popover opens.
+  // Mark unread read when the popover opens. Update *every* unread row for the
+  // user (RLS scopes the write to `auth.uid()`), not just the ≤20 in view — a
+  // user with >20 unread would otherwise see the badge drop to 0 while older
+  // rows stayed unread in the DB, flickering back on the next navigation (audit
+  // P3). With the set-wide write the badge and the DB agree.
   useEffect(() => {
     if (!open || unread === 0) return;
     const supabase = createSupabaseBrowserClient();
-    const unreadIds = items.filter((i) => !i.read_at).map((i) => i.id);
-    if (unreadIds.length === 0) return;
+    const now = new Date().toISOString();
     void supabase
       .from('notifications')
-      .update({ read_at: new Date().toISOString() })
-      .in('id', unreadIds)
+      .update({ read_at: now })
+      .eq('user_id', userId)
+      .is('read_at', null)
       .then(() => {
         setUnread(0);
-        setItems((prev) =>
-          prev.map((p) => (p.read_at ? p : { ...p, read_at: new Date().toISOString() })),
-        );
+        setItems((prev) => prev.map((p) => (p.read_at ? p : { ...p, read_at: now })));
       });
-  }, [open, unread, items]);
+  }, [open, unread, userId]);
 
   const badge = useMemo(() => (unread > 99 ? '99+' : String(unread)), [unread]);
 

@@ -5,9 +5,12 @@
  * Returns the provider message id on success, throws on failure. Callers
  * (the cron worker) translate throws into outbox `failed`/retry semantics.
  *
- * Hard-bounce handling lives in the Resend webhook (TBD); this adapter
- * just sends. Non-transactional mail carries a one-click `List-Unsubscribe`
- * header (RFC 8058) when the worker supplies a `listUnsubscribeUrl`.
+ * Hard-bounce / complaint handling lives in the Resend webhook
+ * ([api/webhooks/resend](../app/api/webhooks/resend/route.ts) → the
+ * `email_suppressions` sink); the outbox worker checks that sink before each
+ * send, so this adapter just sends. Non-transactional mail carries a one-click
+ * `List-Unsubscribe` header (RFC 8058) when the worker supplies a
+ * `listUnsubscribeUrl`.
  */
 
 const RESEND_API = 'https://api.resend.com/emails';

@@ -22,12 +22,14 @@ import { NextResponse } from 'next/server';
 import {
   SupabaseNotificationOutboxRepository,
   SupabasePushSubscriptionRepository,
+  SupabaseEmailSuppressionRepository,
 } from '@pickupvb/infrastructure';
 import type {
   NotificationOutboxDrainPort,
   OutboxRecord,
   PushSubscriptionPort,
   PushSubscriptionRecord,
+  EmailSuppressionPort,
 } from '@pickupvb/domain';
 import { createSupabaseAdminClient } from '@pickupvb/supabase';
 import {
@@ -55,13 +57,26 @@ const BACKOFF_MIN = [1, 5, 25, 120, 360] as const;
 // clear everything that's due, not just a single batch.
 const DRAIN_BUDGET_MS = 50_000;
 
+/**
+ * Deliver one row and return its terminal outcome so the caller tallies from
+ * what actually happened, not from `row.channel` — a `push` row with no live
+ * subscription is `skipped`, not `sent` (audit P3). Throws on a retryable
+ * failure (the caller maps that to `failed` + backoff).
+ */
 async function processRow(
   outbox: NotificationOutboxDrainPort,
   pushSubs: PushSubscriptionPort,
   row: OutboxRecord,
   pushSubsByUser: Map<string, PushSubscriptionRecord[]>,
-): Promise<void> {
+  suppressedEmails: Set<string>,
+): Promise<'sent' | 'skipped'> {
   if (row.channel === 'email') {
+    // Don't mail a hard-bounced / complained address (audit P2 #3) — re-sending
+    // burns sender reputation. The Resend webhook records these; we skip them.
+    if (suppressedEmails.has(row.toAddress.toLowerCase())) {
+      await outbox.markSkipped(row.id, 'email-suppressed');
+      return 'skipped';
+    }
     const p = row.payload as { subject: string; html: string; text: string };
     // One-click List-Unsubscribe (RFC 8058) on non-transactional mail only —
     // you can't unsubscribe from a receipt/confirmation (CAN-SPAM). An unknown
@@ -83,13 +98,13 @@ async function processRow(
       ...(listUnsubscribeUrl ? { listUnsubscribeUrl } : {}),
     });
     await outbox.markSent(row.id, result.id);
-    return;
+    return 'sent';
   }
 
   if (row.channel === 'sms') {
     // Twilio adapter not wired yet. Mark skipped so we don't retry.
     await outbox.markSkipped(row.id, 'sms-adapter-not-implemented');
-    return;
+    return 'skipped';
   }
 
   // push: fan out to every subscription this user has. We deliver each one
@@ -106,7 +121,7 @@ async function processRow(
 
   if (list.length === 0) {
     await outbox.markSkipped(row.id, 'no-push-subscriptions');
-    return;
+    return 'skipped';
   }
 
   // Fan out in parallel — per-device latency adds up fast when a user has
@@ -136,12 +151,12 @@ async function processRow(
   }
   if (anyOk) {
     await outbox.markSent(row.id);
-    return;
+    return 'sent';
   }
   if (errors.length === 0) {
     // Every subscription was gone — nothing to retry.
     await outbox.markSkipped(row.id, 'all-subscriptions-gone');
-    return;
+    return 'skipped';
   }
   throw new Error(`web-push-failed: ${errors.join('; ').slice(0, 400)}`);
 }
@@ -155,6 +170,7 @@ type DrainCounts = { claimed: number; sent: number; failed: number; skipped: num
 async function drainOneBatch(
   outbox: NotificationOutboxDrainPort,
   pushSubs: PushSubscriptionPort,
+  emailSuppressions: EmailSuppressionPort,
 ): Promise<DrainCounts> {
   const rows = await outbox.claimBatch(BATCH);
   if (rows.length === 0) return { claimed: 0, sent: 0, failed: 0, skipped: 0 };
@@ -165,7 +181,16 @@ async function drainOneBatch(
   const pushUserIds = Array.from(
     new Set(rows.filter((r) => r.channel === 'push').map((r) => r.toAddress)),
   );
-  const pushSubsByUser = await pushSubs.listByUsers(pushUserIds);
+  // Likewise, pre-fetch suppressed addresses for the batch's email rows (one
+  // query) so a hard-bounced / complained recipient is skipped, not re-mailed.
+  const emailAddresses = Array.from(
+    new Set(rows.filter((r) => r.channel === 'email').map((r) => r.toAddress)),
+  );
+  const [pushSubsByUser, suppressedList] = await Promise.all([
+    pushSubs.listByUsers(pushUserIds),
+    emailSuppressions.listSuppressed(emailAddresses),
+  ]);
+  const suppressedEmails = new Set(suppressedList.map((a) => a.toLowerCase()));
 
   let sent = 0;
   let failed = 0;
@@ -173,8 +198,8 @@ async function drainOneBatch(
 
   for (const row of rows) {
     try {
-      await processRow(outbox, pushSubs, row, pushSubsByUser);
-      if (row.channel === 'email' || row.channel === 'push') sent += 1;
+      const outcome = await processRow(outbox, pushSubs, row, pushSubsByUser, suppressedEmails);
+      if (outcome === 'sent') sent += 1;
       else skipped += 1;
     } catch (err) {
       failed += 1;
@@ -207,6 +232,7 @@ export async function GET(req: Request): Promise<Response> {
   const admin = createSupabaseAdminClient();
   const outbox = new SupabaseNotificationOutboxRepository(admin);
   const pushSubs = new SupabasePushSubscriptionRepository(admin);
+  const emailSuppressions = new SupabaseEmailSuppressionRepository(admin);
 
   // Drain the whole backlog, not just one batch — a single (debounced) kick
   // must deliver an entire broadcast burst, not leave the tail for the sweep
@@ -220,7 +246,7 @@ export async function GET(req: Request): Promise<Response> {
   let batches = 0;
 
   for (;;) {
-    const r = await drainOneBatch(outbox, pushSubs);
+    const r = await drainOneBatch(outbox, pushSubs, emailSuppressions);
     claimed += r.claimed;
     sent += r.sent;
     failed += r.failed;

@@ -642,6 +642,30 @@ export type Database = {
           },
         ];
       };
+      email_suppressions: {
+        Row: {
+          address: string;
+          created_at: string;
+          last_event_at: string;
+          provider_message_id: string | null;
+          reason: string;
+        };
+        Insert: {
+          address: string;
+          created_at?: string;
+          last_event_at?: string;
+          provider_message_id?: string | null;
+          reason: string;
+        };
+        Update: {
+          address?: string;
+          created_at?: string;
+          last_event_at?: string;
+          provider_message_id?: string | null;
+          reason?: string;
+        };
+        Relationships: [];
+      };
       event_badge_access: {
         Row: {
           access_kind: string;

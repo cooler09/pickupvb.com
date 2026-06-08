@@ -9,6 +9,16 @@
  * settings-page shape.
  */
 
+/**
+ * Per-category channel opt-outs. Keyed by notification category
+ * (`event_reminders`, `social`, …) then channel; a value of `false` subtracts
+ * that channel for that category (it can never *add* past the master toggle).
+ * Only `false` entries are stored — an absent key means "follow the master".
+ * This is the same shape the dispatch projection reads in
+ * `NotificationOutboxPort.loadPreferences`.
+ */
+export type NotificationChannelOverrides = Record<string, Record<string, boolean>>;
+
 export interface NotificationPreferenceSettings {
   emailEnabled: boolean;
   smsEnabled: boolean;
@@ -16,6 +26,7 @@ export interface NotificationPreferenceSettings {
   inAppEnabled: boolean;
   smsPhone: string | null;
   smsOptedInAt: string | null;
+  channelOverrides: NotificationChannelOverrides;
 }
 
 /** The channel toggles the settings form writes. */
@@ -23,6 +34,8 @@ export interface NotificationChannelToggles {
   emailEnabled: boolean;
   pushEnabled: boolean;
   inAppEnabled: boolean;
+  /** Per-category opt-outs; omitted leaves the stored overrides untouched. */
+  channelOverrides?: NotificationChannelOverrides;
 }
 
 export interface NotificationPreferencesPort {

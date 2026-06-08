@@ -33,7 +33,18 @@ lease-based reclaim in `claimBatch` recovers `sending` rows orphaned by a
 worker crash/timeout (no migration — reuses `scheduled_for`). P2 #8: notification
 times now render in the event's `time_zone` (threaded through all six event-time
 payloads + every send site), defaulting to ET instead of UTC; pinned by a new
-`templates.test.ts`. The three P3s remain open.**
+`templates.test.ts`.**
+**2026-06-08 — the three new P3s also FIXED (uncommitted, quad-green): a
+"Fine-tune by type" per-category prefs matrix (lights up the previously-dark
+`channel_overrides` dispatch tier), the bell now marks all unread read
+set-wide (no > 20-unread badge flicker), and the worker tallies delivery from
+`processRow`'s real outcome (skipped push no longer counts as sent).**
+**2026-06-08 — P2 #3 (email bounce/complaint suppression) FIXED in code
+(uncommitted, quad-green): `email_suppressions` sink + a Svix-verified
+`/api/webhooks/resend` route + a worker pre-send suppression check. Ops-gated on
+`RESEND_WEBHOOK_SECRET` + a Resend webhook config (like the cron/VAPID items).
+Remaining open: the older P3s (quiet hours, SMS, digests, push analytics) + ops
+items (P1 #1 cron/kick seeding, P1 #2 verify prod VAPID, P2 #3 webhook config).**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -156,13 +167,37 @@ but **zero `notify()` call sites**.
 Tests: [notify-follow.test.ts](../../apps/web/src/lib/notify-follow.test.ts),
 [webhooks/connect.test.ts](../../apps/web/src/lib/webhooks/connect.test.ts).
 
-### P2 #3 — No email bounce/complaint handling — OPEN
+### P2 #3 — No email bounce/complaint handling — ✅ FIXED 2026-06-08 (code; ops-gated)
 
-[email-resend.ts:8-9](../../apps/web/src/lib/email-resend.ts#L8-L9) flags
-hard-bounce handling as `TBD`; there's no Resend webhook and no suppression
-list, so a dead address is retried and re-sent indefinitely. **Fix:** add a
-Resend webhook route that records `bounced`/`complained` and skips future sends
-to that address.
+Previously [email-resend.ts](../../apps/web/src/lib/email-resend.ts) flagged
+hard-bounce handling as `TBD` — no Resend webhook, no suppression list — so a
+dead/complaining address was re-sent on every future notification, burning sender
+reputation. **Shipped:**
+
+- A **suppression sink** — `email_suppressions` table
+  ([20260925000000](../../supabase/migrations/20260925000000_email_suppressions.sql),
+  service-role only) behind an `EmailSuppressionPort`
+  ([port](../../packages/domain/src/notifications/email-suppression-port.ts) /
+  [repo](../../packages/infrastructure/src/supabase-email-suppression-repository.ts)),
+  addresses matched case-insensitively.
+- A **Resend webhook** at
+  [/api/webhooks/resend](../../apps/web/src/app/api/webhooks/resend/route.ts):
+  Svix-signature-verified ([resend-verify.ts](../../apps/web/src/lib/webhooks/resend-verify.ts),
+  hand-rolled HMAC + replay window — no `svix` dep), suppressing on a **permanent
+  bounce** or **complaint** and ignoring soft/transient bounces (the outbox retry
+  handles those) — [resend.ts](../../apps/web/src/lib/webhooks/resend.ts).
+- The **worker** pre-fetches suppressed addresses per batch and skips a
+  suppressed email row (`status -> skipped`, reason `email-suppressed`) before
+  the Resend POST
+  ([worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts)).
+
+Tests: `resend-verify.test.ts` (HMAC pass/tamper/replay/missing-header),
+`resend.test.ts` (bounce-vs-complaint-vs-soft classification, multi-recipient).
+**Ops-gated** (mirrors the cron/VAPID items): set `RESEND_WEBHOOK_SECRET`
+(`whsec_…`) and point a Resend webhook at `/api/webhooks/resend` for
+`email.bounced` + `email.complained`. Until then the route 503s and nothing is
+suppressed — sends are unaffected. The migration applies on deploy; types were
+hand-edited and will regenerate on the next `gen:types`.
 
 ### P2 #4 — No one-click `List-Unsubscribe` — ✅ resolved 2026-06-06
 
@@ -300,32 +335,31 @@ time).
 - **No push analytics.** No subscription-rate / delivery-success metrics to
   PostHog.
 - **No digest emails.**
-- **Per-category prefs are read but unsettable.** `dispatch` honors
-  `channel_overrides[category][channel]`
-  ([notify.ts:56,73](../../apps/web/src/lib/notify.ts#L56-L73)), but the prefs
-  page ([profile/notifications/page.tsx](../../apps/web/src/app/profile/notifications/page.tsx))
-  only renders the three master toggles (email / in-app / push) — no UI ever
-  writes `channel_overrides`, `quiet_hours_*`, or the SMS fields, and
-  `updateNotificationPreferences` only persists the three masters. So a user
-  can't, say, mute "social" while keeping "event_reminders": a whole tier of the
-  data model + dispatch logic is dark. Either add the granular UI or drop the
-  unsettable columns to avoid a "supported but impossible" gap.
-- **Bell "mark all read" zeroes the badge even with > 20 unread.** The popover
-  holds ≤ 20 rows; on open it marks only those read in the DB and then
-  unconditionally `setUnread(0)`
-  ([notification-bell.tsx:76-91](../../apps/web/src/components/notification-bell.tsx#L76-L91)).
-  A user with 50 unread sees the badge drop 50 → 0 while 30 rows stay unread in
-  the DB; the next navigation re-syncs the badge back to 30 (a flicker, not data
-  loss). Fix: decrement by the count actually marked, or mark-all-read server-side
-  (`update … where user_id = me and read_at is null`) so the badge and the DB
-  agree.
-- **Worker metrics conflate skipped pushes with sent.** In `drainOneBatch` a
-  `push` row counts toward `sent` even when `processRow` ended in `markSkipped`
-  (`no-push-subscriptions` / `all-subscriptions-gone`)
-  ([worker/route.ts:174-178](../../apps/web/src/app/api/notifications/worker/route.ts#L174-L178)).
-  Observability only (the response JSON over-reports delivery), but it hides the
-  "user has push enabled but no live subscription" failure mode. Have `processRow`
-  return its outcome and tally from that instead of inferring from `channel`.
+- **Per-category prefs are read but unsettable.** — ✅ FIXED 2026-06-08
+  (uncommitted). The settings page now renders a **"Fine-tune by type"** matrix
+  ([page.tsx](../../apps/web/src/app/profile/notifications/page.tsx)) — one row
+  per non-transactional category, each showing only the channels its kinds
+  actually send on (derived from the kind registry in
+  [categories.ts](../../apps/web/src/app/profile/notifications/categories.ts), so
+  Social shows just In-app, not a dead Email control). Unchecking a cell writes
+  `channel_overrides[category][channel] = false` via the extended
+  `upsertChannels` ([repo](../../packages/infrastructure/src/supabase-notification-preferences-repository.ts),
+  [port](../../packages/domain/src/notifications/preferences-port.ts)) — exactly
+  what `channelAllowedByPrefs` already reads, so the previously-dark dispatch tier
+  is now live. `quiet_hours_*` and the SMS fields stay unsettable by design (quiet
+  hours + SMS are their own open P3s below).
+- **Bell "mark all read" zeroes the badge even with > 20 unread.** — ✅ FIXED
+  2026-06-08 (uncommitted). The popover open-handler now marks **every** unread
+  row for the user (`update … .eq('user_id', me).is('read_at', null)`, RLS-scoped)
+  rather than just the ≤ 20 in view, so the badge and the DB agree —
+  no more 50 → 0 → 30 flicker on the next navigation.
+  ([notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx))
+- **Worker metrics conflate skipped pushes with sent.** — ✅ FIXED 2026-06-08
+  (uncommitted). `processRow` now returns its terminal outcome
+  (`'sent' | 'skipped'`) and `drainOneBatch` tallies from that instead of
+  inferring from `row.channel`, so a `push` row with no live subscription counts
+  as `skipped` — the response JSON no longer over-reports delivery.
+  ([worker/route.ts](../../apps/web/src/app/api/notifications/worker/route.ts))
 - **Batch `enqueue` is atomic across channels.** A fan-out builds one multi-row
   insert ([outbox repo `enqueue`](../../packages/infrastructure/src/supabase-notification-outbox-repository.ts#L90-L104));
   if any one row trips the `idempotency_key` unique constraint (a webhook retry of

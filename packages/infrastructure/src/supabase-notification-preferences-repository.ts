@@ -8,7 +8,7 @@ import type { createSupabaseAdminClient } from '@pickupvb/supabase';
 type SupabaseClient = ReturnType<typeof createSupabaseAdminClient>;
 
 const SETTINGS_COLUMNS =
-  'email_enabled, sms_enabled, push_enabled, in_app_enabled, sms_phone, sms_opted_in_at';
+  'email_enabled, sms_enabled, push_enabled, in_app_enabled, sms_phone, sms_opted_in_at, channel_overrides';
 
 type SettingsRow = {
   email_enabled: boolean;
@@ -17,6 +17,7 @@ type SettingsRow = {
   in_app_enabled: boolean;
   sms_phone: string | null;
   sms_opted_in_at: string | null;
+  channel_overrides: Record<string, Record<string, boolean>> | null;
 };
 
 /**
@@ -43,6 +44,7 @@ export class SupabaseNotificationPreferencesRepository implements NotificationPr
       inAppEnabled: row.in_app_enabled,
       smsPhone: row.sms_phone,
       smsOptedInAt: row.sms_opted_in_at,
+      channelOverrides: row.channel_overrides ?? {},
     };
   }
 
@@ -53,6 +55,9 @@ export class SupabaseNotificationPreferencesRepository implements NotificationPr
         email_enabled: toggles.emailEnabled,
         push_enabled: toggles.pushEnabled,
         in_app_enabled: toggles.inAppEnabled,
+        // Only written when the form supplies it, so callers that toggle only
+        // the master channels don't clobber stored per-category opt-outs.
+        ...(toggles.channelOverrides ? { channel_overrides: toggles.channelOverrides } : {}),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'user_id' },

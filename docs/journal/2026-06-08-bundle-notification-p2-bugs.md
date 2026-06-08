@@ -1,10 +1,11 @@
-# 2026-06-08 — Fix: two notification P2 bugs (UTC times + stranded `sending` rows)
+# 2026-06-08 — Notifications re-audit fixes (P2 + P3 backlog)
 
 Follows the 2026-06-07 whole-site notifications re-audit
-([notifications-messaging.md](../audits/notifications-messaging.md)), which
-surfaced two correctness/reliability bugs beyond the existing config/coverage
-backlog. This bundle fixes both. Quad-green (typecheck/lint/test/build),
-uncommitted.
+([notifications-messaging.md](../audits/notifications-messaging.md)). This bundle
+clears the actionable backlog: two new correctness/reliability bugs (P2 #7/#8),
+the three new P3s, and the previously-deferred P2 #3 (email bounce/complaint
+suppression). Quad-green (typecheck/lint/test/build), uncommitted. What's left is
+ops-config (cron/VAPID/Resend-webhook) + the older nice-to-have P3s.
 
 ## P2 #8 — Notification times rendered in server UTC
 
@@ -96,9 +97,83 @@ wake. The lease folds recovery into the existing claim for free.
   (consistent with the other outbox SQL) — it's exercised by the
   `notification-broadcast-drain` e2e on deploy, not a fake-client test.
 
+## P3 follow-ups — also fixed this pass
+
+The three P3s the re-audit raised landed in the same bundle:
+
+1. **Per-category prefs were read but unsettable.** `channelAllowedByPrefs`
+   already honored `channel_overrides[category][channel]`, but no UI wrote it —
+   so an entire dispatch tier was dark. Added a **"Fine-tune by type"** matrix to
+   the settings page. The honest part is
+   [categories.ts](../../apps/web/src/app/profile/notifications/categories.ts):
+   each category shows only the channels its kinds actually send on, derived from
+   the kind registry (`KIND_CATEGORY` × `KIND_DEFAULT_CHANNELS`) — an override can
+   only _subtract_ from the master, so offering "Email" for an in-app-only
+   category would be a dead control. The page + the action share that helper so
+   both iterate the same (category, channel) set (a checkbox only POSTs when
+   checked, so the writer must know the full set to record the unchecked ones as
+   `false`). Only `false` entries are stored, matching what dispatch reads. The
+   settings port (`find` / `upsertChannels`) gained the `channelOverrides` field;
+   `upsertChannels` writes it only when supplied, so a master-only save can't
+   clobber stored overrides.
+2. **Bell badge zeroed with > 20 unread.** The popover marked only its ≤ 20
+   loaded rows read, then `setUnread(0)` unconditionally → badge flickered
+   50 → 0 → 30. Now it marks **every** unread row for the user set-wide
+   (RLS-scoped `eq('user_id').is('read_at', null)`), so badge and DB agree.
+3. **Worker counted skipped pushes as sent.** `drainOneBatch` inferred `sent` vs
+   `skipped` from `row.channel`, so a `push` row with no live subscription
+   inflated the `sent` tally. `processRow` now returns `'sent' | 'skipped'` and
+   the caller tallies from that.
+
+## P2 #3 — Email bounce/complaint suppression
+
+### Root cause
+
+The Resend adapter flagged hard-bounce handling as `TBD`: there was no webhook
+and no suppression list, so a dead or complaining address was re-mailed on every
+future notification — degrading sender reputation and risking domain throttling.
+
+### Fix — sink + webhook + pre-send check
+
+Three pieces, each on the service-role path (the writer and reader are both
+session-less):
+
+1. **Sink.** `email_suppressions` table (address PK, `reason` ∈
+   {bounced, complained}) behind an `EmailSuppressionPort` /
+   `SupabaseEmailSuppressionRepository`. Addresses lowercased on both sides so
+   membership is case-insensitive.
+2. **Webhook.** `/api/webhooks/resend` verifies the Svix signature by hand —
+   HMAC-SHA256 over `${id}.${timestamp}.${body}` keyed by the decoded
+   `whsec_…` secret, plus a 5-min replay window — rather than adding the `svix`
+   SDK (mirrors the hand-rolled Resend _send_ adapter). It suppresses on a
+   **permanent bounce** or **complaint**; a _transient_ (soft) bounce is left to
+   the outbox retry/backoff. Classification is a pure function over the port, so
+   it's unit-tested without Supabase.
+3. **Pre-send check.** The worker pre-fetches suppressed addresses for the
+   batch's email rows (one query, like the push-subscription pre-fetch) and skips
+   a suppressed row (`status → skipped`, reason `email-suppressed`) before the
+   Resend POST.
+
+### Why hand-rolled signature verification
+
+The only consumer is this one route; the `svix` SDK is a dependency + bundle cost
+for ~20 lines of HMAC. The repo already hand-rolls the Resend _send_ path for the
+same reason, so verification matches that grain. Pinned by
+`resend-verify.test.ts` (valid / tampered-body / wrong-secret / stale-timestamp /
+missing-header).
+
+### Ops-gated (like cron + VAPID)
+
+The code ships inert until `RESEND_WEBHOOK_SECRET` is set and a Resend webhook is
+pointed at `/api/webhooks/resend` for `email.bounced` + `email.complained` —
+until then the route 503s and nothing is suppressed (sends unaffected). The
+migration applies on deploy; `database.types.ts` was hand-edited for the new
+table and regenerates on the next `gen:types`.
+
 ## Follow-ups (still open from the audit)
 
-Three P3s untouched: no per-category prefs UI (`channel_overrides` is read but
-never written), the bell zeroes its badge with > 20 unread, and worker metrics
-count skipped pushes as `sent`. Plus the standing ops items (P1 #1 dev cron/kick
-seeding, P1 #2 verify prod VAPID) and P2 #3 (Resend bounce/complaint webhook).
+Older P3s untouched (quiet hours, SMS adapter, digests, push analytics,
+mark-read-after-send, in-app chat dedup, the cross-channel `enqueue` atomicity
+note). Plus the standing ops items — P1 #1 dev cron/kick seeding, P1 #2 verify
+prod VAPID, and the P2 #3 webhook config (`RESEND_WEBHOOK_SECRET` + the Resend
+dashboard endpoint).
