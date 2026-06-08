@@ -70,10 +70,12 @@ function makeLeagueReminderPort(admin: AdminClient): LeagueReminderPort {
       );
       const { data: evRows } = await admin
         .from('events')
-        .select('id, title')
+        .select('id, title, time_zone')
         .in('id', [...new Set([...divToEvent.values()])]);
-      const eventTitle = new Map(
-        ((evRows as { id: string; title: string }[] | null) ?? []).map((e) => [e.id, e.title]),
+      const eventInfo = new Map(
+        ((evRows as { id: string; title: string; time_zone: string | null }[] | null) ?? []).map(
+          (e) => [e.id, { title: e.title, timeZone: e.time_zone }] as const,
+        ),
       );
 
       // entry → { display name, team }.
@@ -120,12 +122,14 @@ function makeLeagueReminderPort(admin: AdminClient): LeagueReminderPort {
       for (const m of matches) {
         const eventId = divToEvent.get(m.division_id);
         if (!eventId) continue;
+        const info = eventInfo.get(eventId);
         fixtures.push({
           matchId: m.id,
           eventId,
-          eventTitle: eventTitle.get(eventId) ?? 'your league',
+          eventTitle: info?.title ?? 'your league',
           scheduledAt: m.scheduled_at,
           courtLabel: m.court_label,
+          timeZone: info?.timeZone ?? null,
           home: side(m.home_entry_id!),
           away: side(m.away_entry_id!),
         });

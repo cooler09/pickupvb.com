@@ -35,6 +35,7 @@ function fixture(over: Partial<DueFixture> = {}): DueFixture {
     eventTitle: 'Tuesday League',
     scheduledAt: '2026-06-08T01:00:00.000Z',
     courtLabel: 'Court 1',
+    timeZone: 'America/New_York',
     home: { teamName: 'Spikers', userIds: ['h1', 'h2'] },
     away: { teamName: 'Diggers', userIds: ['a1'] },
     ...over,

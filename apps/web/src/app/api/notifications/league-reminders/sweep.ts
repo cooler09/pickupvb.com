@@ -38,6 +38,8 @@ export type DueFixture = {
   eventTitle: string;
   scheduledAt: string;
   courtLabel: string | null;
+  /** IANA zone of the event; the kickoff time renders in it. */
+  timeZone: string | null;
   home: FixtureSide;
   away: FixtureSide;
 };
@@ -48,6 +50,7 @@ export type LeagueReminderPayload = {
   opponentName: string;
   scheduledAt: string;
   courtLabel: string | null;
+  timeZone?: string;
 };
 
 export interface LeagueReminderPort {
@@ -118,6 +121,7 @@ export async function runLeagueReminderSweep(
             opponentName: job.opponentName,
             scheduledAt: fx.scheduledAt,
             courtLabel: fx.courtLabel,
+            ...(fx.timeZone ? { timeZone: fx.timeZone } : {}),
           },
           { idempotencyKey: `${fx.matchId}:${job.userId}` },
         );

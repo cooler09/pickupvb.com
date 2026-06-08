@@ -49,6 +49,7 @@ export type ReminderEvent = {
   starts_at: string;
   location_city: string | null;
   location_region: string | null;
+  time_zone: string | null;
 };
 
 export type ReminderAttendee = { id: string; userId: string };
@@ -58,6 +59,7 @@ export type ReminderPayload = {
   eventTitle: string;
   startsAt: string;
   location: string;
+  timeZone?: string;
 };
 
 /**
@@ -154,7 +156,13 @@ async function sweepWindow(
       dispatch(
         win.kind,
         att.userId,
-        { eventId: ev.id, eventTitle: ev.title, startsAt: ev.starts_at, location },
+        {
+          eventId: ev.id,
+          eventTitle: ev.title,
+          startsAt: ev.starts_at,
+          location,
+          ...(ev.time_zone ? { timeZone: ev.time_zone } : {}),
+        },
         { idempotencyKey: `${win.kind}:${ev.id}:${att.userId}` },
       ),
     );

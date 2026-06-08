@@ -23,6 +23,7 @@ function ev(id: string): ReminderEvent {
     starts_at: '2026-06-01T18:00:00.000Z',
     location_city: 'Norfolk',
     location_region: 'VA',
+    time_zone: 'America/New_York',
   };
 }
 

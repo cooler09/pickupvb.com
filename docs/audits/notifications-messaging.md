@@ -28,6 +28,12 @@ two reliability/correctness bugs (P2 #7 stranded `sending` rows, P2 #8 times
 render in server UTC) + three P3s (no per-category prefs UI, bell mark-read
 miscounts > 20 unread, worker metrics conflate skipped push as sent). Details
 below.**
+**2026-06-08 — both new P2 bugs FIXED (uncommitted, quad-green). P2 #7: a
+lease-based reclaim in `claimBatch` recovers `sending` rows orphaned by a
+worker crash/timeout (no migration — reuses `scheduled_for`). P2 #8: notification
+times now render in the event's `time_zone` (threaded through all six event-time
+payloads + every send site), defaulting to ET instead of UTC; pinned by a new
+`templates.test.ts`. The three P3s remain open.**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -205,7 +211,7 @@ fan-out + per-recipient coalesce. **Deploy-gated:** the RPC migration + the
 hand-edited `database.types.ts` entry need `gen:types` against the real schema,
 and the fan-out can only be exercised against a deployed DB.
 
-### P2 #7 — Outbox rows can strand in `sending` forever (no reaper) — OPEN
+### P2 #7 — Outbox rows can strand in `sending` forever (no reaper) — ✅ FIXED 2026-06-08 (uncommitted)
 
 [`claimBatch`](../../packages/infrastructure/src/supabase-notification-outbox-repository.ts#L108-L128)
 flips due `pending` rows to `sending`, then
@@ -222,15 +228,24 @@ purged (`purgeTerminal` only deletes `sent`/`skipped`, `purgeFailed` only
 the intent to recover them, but no query does. Silent in dev (low volume); a
 broadcast burst or a slow Resend/web-push window on prod is where it bites.
 
-**Fix:** add a stale-claim reaper. Either (a) widen `claimBatch` to also re-claim
-`status = 'sending' AND updated_at < now() - interval '5 min'` (add an
-`updated_at` touch on the `sending` flip), or (b) a small step at the top of the
-worker GET that resets `sending` rows older than a timeout back to `pending`
-(attempts unchanged, so the existing backoff still applies). Option (a) is fewer
-moving parts. Pin it with a sweep test that leaves a row `sending` and asserts the
-next run re-claims it.
+**Fix shipped — lease-based reclaim (no migration).**
+[`claimBatch`](../../packages/infrastructure/src/supabase-notification-outbox-repository.ts#L108-L140)
+now (1) widens the claim filter to `status IN ('pending','sending') AND
+scheduled_for <= now()` and (2) stamps `scheduled_for = now() + 5 min` (a lease)
+on the flip. A row actively being delivered carries a future `scheduled_for`, so a
+concurrent worker can't re-grab it; but if the worker dies before writing a
+terminal status, the lease lapses and the **next sweep re-claims the orphaned
+`sending` row** instead of stranding it. The 5-min lease ≫ the worker's 60s
+`maxDuration` ceiling, so an in-flight row is never double-claimed. `markFailed`
+still overwrites `scheduled_for` with the backoff time, so retries are unaffected.
+The table has no `updated_at`, so reusing `scheduled_for` avoids a schema change.
+A perpetually-timing-out row keeps its `attempts` (only `markFailed` increments),
+so it re-leases rather than burning retries — acceptable: a constant timeout is a
+systemic fault, not a poison row. (The claim is a thin Supabase adapter with no
+unit harness in-repo — like the other outbox SQL it's covered by the
+`notification-broadcast-drain` e2e on deploy, not a fake-client test.)
 
-### P2 #8 — Notification times render in the server's UTC, not the event's zone — OPEN
+### P2 #8 — Notification times render in the server's UTC, not the event's zone — ✅ FIXED 2026-06-08 (uncommitted)
 
 `formatStart` / `formatDate` in
 [templates.ts](../../packages/notifications/src/templates.ts#L45-L69) call
@@ -248,11 +263,24 @@ exists and is simply never threaded — `events.time_zone` (e.g.
   all omit it from both the SQL select and the `NotificationPayload`.
   (`notification_preferences.timezone` exists too but is likewise unused — P3.)
 
-**Fix:** add an optional `timeZone` to the event-bearing payloads, select
-`time_zone` everywhere an event notification is built, and pass it through
-`formatStart(iso, tz)` → `toLocaleString('en-US', { …, timeZone: tz ?? 'America/New_York' })`.
-Fall back to the event zone first, then a sensible default. A template unit test
-asserting a fixed ISO + `'America/New_York'` renders the ET wall-clock pins it.
+**Fix shipped.** `formatStart` / `formatDate`
+([templates.ts](../../packages/notifications/src/templates.ts#L34-L86)) now take an
+optional `tz` and pass `timeZone: tz || DEFAULT_TIME_ZONE` to `toLocaleString`,
+where `DEFAULT_TIME_ZONE = 'America/New_York'`. So even a send site that supplies
+no zone renders ET (this is a Virginia Beach community) instead of UTC, and the
+per-event zone makes out-of-zone events correct. An optional `timeZone` was added
+to the six event-time payloads ([kinds.ts](../../packages/notifications/src/kinds.ts#L126-L175))
+and threaded from every build site: `time_zone` is now selected and passed in the
+[signup-confirmed + waitlist](../../apps/web/src/app/events/[id]/rsvp-actions.ts)
+reads, [cancel](../../apps/web/src/app/events/[id]/edit/cancel-actions.ts) (via
+`detail.timeZone`), the [event-reminder sweep](../../apps/web/src/app/api/notifications/reminders/route.ts)
+(`ReminderEvent.time_zone`), and the [league-reminder sweep](../../apps/web/src/app/api/notifications/league-reminders/route.ts)
+(event→zone map → `DueFixture.timeZone`). Pinned by
+[templates.test.ts](../../packages/notifications/src/templates.test.ts): a fixed
+summer instant renders 7:30 PM in ET / 4:30 PM in `America/Los_Angeles`, never the
+11:30 PM UTC value. `notification_preferences.timezone` remains unused (recipient-zone
+override is a separate P3 — the event zone is the right default for an event's
+time).
 
 ---
 

@@ -81,7 +81,7 @@ export async function joinEvent(eventId: string): Promise<void> {
     const supabase = await getServerSupabase();
     const { data: ev } = await supabase
       .from('events')
-      .select('title, starts_at, location_city, location_region')
+      .select('title, starts_at, location_city, location_region, time_zone')
       .eq('id', eventId)
       .maybeSingle();
     const e = ev as {
@@ -89,6 +89,7 @@ export async function joinEvent(eventId: string): Promise<void> {
       starts_at: string;
       location_city: string | null;
       location_region: string | null;
+      time_zone: string | null;
     } | null;
     if (e) {
       await notify(
@@ -99,6 +100,7 @@ export async function joinEvent(eventId: string): Promise<void> {
           eventTitle: e.title,
           startsAt: e.starts_at,
           location: [e.location_city, e.location_region].filter(Boolean).join(', '),
+          ...(e.time_zone ? { timeZone: e.time_zone } : {}),
         },
         { idempotencyKey: `${eventId}:${userId}` },
       );
@@ -188,15 +190,20 @@ async function notifyWaitlistPromotion(eventId: string, promotedUserId: string):
     const supabase = await getServerSupabase();
     const { data } = await supabase
       .from('events')
-      .select('title, starts_at')
+      .select('title, starts_at, time_zone')
       .eq('id', eventId)
       .maybeSingle();
-    const e = data as { title: string; starts_at: string } | null;
+    const e = data as { title: string; starts_at: string; time_zone: string | null } | null;
     if (!e) return;
     await notify(
       'event.waitlist.promoted',
       promotedUserId,
-      { eventId, eventTitle: e.title, startsAt: e.starts_at },
+      {
+        eventId,
+        eventTitle: e.title,
+        startsAt: e.starts_at,
+        ...(e.time_zone ? { timeZone: e.time_zone } : {}),
+      },
       { idempotencyKey: `${eventId}:${promotedUserId}:${e.starts_at}` },
     );
   } catch {

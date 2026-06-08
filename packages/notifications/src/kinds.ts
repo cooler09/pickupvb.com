@@ -128,17 +128,21 @@ export type NotificationPayloadMap = {
     eventTitle: string;
     startsAt: string; // ISO
     location: string;
+    /** IANA zone of the event (e.g. 'America/New_York'); times render in it. */
+    timeZone?: string;
   };
   'event.waitlist.promoted': {
     eventId: string;
     eventTitle: string;
     startsAt: string;
+    timeZone?: string;
   };
   'event.cancelled': {
     eventId: string;
     eventTitle: string;
     startsAt: string;
     reason: string | null;
+    timeZone?: string;
   };
   'event.updated': {
     eventId: string;
@@ -150,12 +154,14 @@ export type NotificationPayloadMap = {
     eventTitle: string;
     startsAt: string;
     location: string;
+    timeZone?: string;
   };
   'event.reminder.2h': {
     eventId: string;
     eventTitle: string;
     startsAt: string;
     location: string;
+    timeZone?: string;
   };
   'league.match.reminder': {
     eventId: string;
@@ -166,6 +172,8 @@ export type NotificationPayloadMap = {
     scheduledAt: string;
     /** Court label, when the host set one. */
     courtLabel: string | null;
+    /** IANA zone of the event (e.g. 'America/New_York'); kickoff renders in it. */
+    timeZone?: string;
   };
   'payment.refunded': {
     eventId: string;
