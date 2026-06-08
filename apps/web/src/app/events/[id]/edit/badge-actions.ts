@@ -22,9 +22,7 @@ import { requireSession } from '@/lib/server-auth';
 import { buildOrigin } from '@/lib/server-redirects';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { eventCacheTag } from '@/lib/cache-tags';
-
-/** One-time price to unlock collectible badges for a single event (free tier). */
-const BADGE_SLOT_UNLOCK_CENTS = 500;
+import { BADGE_SLOT_UNLOCK_CENTS } from '@/lib/pro';
 
 /** Has this event's à-la-carte badge unlock been paid? Reads the access row on
  * the admin client (the table has no client RLS policies — webhook-written).

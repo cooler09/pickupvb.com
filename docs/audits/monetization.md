@@ -12,6 +12,281 @@ signal; P3 = opportunistic / post-product-market-fit.
 
 ---
 
+## Status — 2026-06-08 — Re-audit (code-quality + stale-code + opportunity pass)
+
+**Trigger:** user-requested monetization audit — find bugs, gaps, improvements,
+stale code, **and** new monetization opportunities that align with users
+(value-creating, not a tax). First pass with a code-correctness lens layered on
+the strategy lens. Since the 2026-05-31 re-eval the following monetization-touching
+surfaces shipped: **collectible event badges** ($5/event à-la-carte, Pro-included —
+[ADR 0031](../adr/0031-gamification-badges.md)), the capacity **waitlist + auto-promotion**
+([ADR 0036](../adr/0036-capacity-waitlist.md)), **free-agent pickup**, the
+**leagues container model**, and the receipts/tax ledger — plus two adjacent
+code-quality audits already landed: [stripe-integration.md](stripe-integration.md)
+and [receipts-tax.md](receipts-tax.md) (both 2026-06-08). This pass does **not**
+re-audit Stripe correctness or receipts (those two files own it) — it covers the
+monetization-specific surfaces those didn't.
+
+### Headline
+
+- **The revenue engine is still sound; no P1.** $10/mo Pro + 5%/2.5% ticket
+  take-rate + 0% tips + host-owned sponsor/badge slots is unchanged and
+  defensible ([ADR 0014](../adr/0014-monetization-strategy.md)). Nothing here
+  argues to move a price lever.
+- **The monetization _surface_ grew (badges) but the strategy docs didn't keep
+  up.** The two highest-value findings are documentation drift (M-4, M-5), not
+  bugs.
+- **One real hardening gap (M-2):** `is_pro_host` trusts the Stripe status
+  string with no period-end backstop and treats `past_due` as Pro — an
+  indefinite free-Pro leak if Stripe dunning isn't configured to eventually
+  cancel.
+- **The strongest unbuilt opportunity is the _season pass / multi-session
+  punch card_ (O-1)** — a host-priced bundle that wins for the attendee
+  (discount + convenience), the host (committed up-front cash, less weekly
+  Venmo chasing), and the platform (normal take-rate on a larger transaction).
+  It creates value rather than extracting it, which is exactly the brief.
+
+> **Update — 2026-06-08 (same day): all five code/gap findings implemented**
+> (uncommitted; the M-2 migration is deploy-gated). M-3 centralized the unlock
+> prices in [pro.ts](../../apps/web/src/lib/pro.ts); M-2 added the `is_pro_host`
+> period-end backstop migration + the integrations.md dunning note; M-3b
+> documented the deliberate non-recording in the webhook; M-4 amended ADR 0014
+>
+> - marked the stale sections historical; M-5 added payments.md § Platform-direct
+>   charges. `pnpm typecheck && lint && test && build` green. The six
+>   **opportunities (O-1…O-6) are left open** for a later strategy pass. See the
+>   remediation log at the bottom of this file.
+
+### Findings — code / correctness / stale
+
+#### M-2 (P2) — `is_pro_host` grants Pro on `past_due` forever, with no period-end backstop
+
+**File:** [supabase/migrations/20260517000000_pro_subscriptions.sql#L54-L67](../../supabase/migrations/20260517000000_pro_subscriptions.sql#L54-L67)
+(never redefined since — confirmed only definition in `supabase/migrations/`).
+
+`is_pro_host(uuid)` returns true for `status in ('trialing','active','past_due')`
+and reads **nothing else** — not `current_period_end`, not `trial_end`. The
+`past_due` grace is deliberate (Stripe retries ~3 weeks), but the safety of that
+grace is **entirely outsourced to Stripe Dashboard dunning config**: if "Manage
+failed payments" is set to _leave the subscription past_due_ (a valid setting)
+rather than _cancel after retries_, a host whose card permanently fails stays
+`past_due` → keeps Pro (unlimited paid events, 2.5% fee, all perks) **forever,
+for free**. There is no code-level backstop, and the dependency is undocumented.
+A missed final `customer.subscription.deleted`/`.updated` webhook has the same
+effect (the row never leaves `past_due`).
+
+**Recommended fix (defense-in-depth, pick one or both):**
+
+1. Add a period-end guard to the grace branch so an abandoned `past_due` row
+   self-expires:
+   ```sql
+   where user_id = p_user_id
+     and (
+       status in ('trialing','active')
+       or (status = 'past_due'
+           and current_period_end is not null
+           and current_period_end > now() - interval '30 days')
+     )
+   ```
+   This caps the grace at ~30d past the paid period regardless of webhook
+   delivery or dunning config.
+2. Document the **required** Stripe setting (Settings → Billing → Subscriptions
+   → Manage failed payments → "Cancel subscription" after retries) in
+   [integrations.md § Stripe](../integrations.md#stripe) and add it to the
+   launch checklist, so the ops side of the grace is explicit.
+
+#### M-3 (P3) — À-la-carte unlock prices are duplicated across 6 sites; no single source of truth
+
+**Files:** `SPONSOR_SLOT_UNLOCK_CENTS = 300`
+([sponsor-actions.ts#L19](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L19)),
+`BADGE_SLOT_UNLOCK_CENTS = 500`
+([badge-actions.ts#L27](../../apps/web/src/app/events/%5Bid%5D/edit/badge-actions.ts#L27)),
+and the **string literals** `"$3"` / `"$5"` hand-typed in
+[pricing/page.tsx#L34-L35](../../apps/web/src/app/pricing/page.tsx#L34-L35),
+[pricing/page.tsx#L225-L226](../../apps/web/src/app/pricing/page.tsx#L225-L226),
+the two FAQ answers ([#L263](../../apps/web/src/app/pricing/page.tsx#L263),
+[#L267](../../apps/web/src/app/pricing/page.tsx#L267)), and
+[profile/billing/pro/page.tsx#L110](../../apps/web/src/app/profile/billing/pro/page.tsx#L110).
+
+The charge amount lives as a private const in each action file and the
+marketing copy re-states the dollar figure as a literal. Bump the sponsor
+unlock to $4 and you must remember to edit five copy sites by hand or the
+pricing page lies. This is the same drift the audit closed for the _ticket_ fee
+by centralizing `PLATFORM_FEE_BPS` / `PRO_PLATFORM_FEE_BPS` in
+[pro.ts](../../apps/web/src/lib/pro.ts) / [stripe.ts](../../apps/web/src/lib/stripe.ts).
+
+**Recommended fix:** move both to [pro.ts](../../apps/web/src/lib/pro.ts) next to
+`PRO_MONTHLY_PRICE_USD` (e.g. `SPONSOR_SLOT_UNLOCK_CENTS`,
+`BADGE_SLOT_UNLOCK_CENTS`), import them in the two action files, and derive the
+copy (`$${SPONSOR_SLOT_UNLOCK_CENTS / 100}/event`) in the pricing + Pro pages so
+there is exactly one number to change — the discipline ADR 0014 already applies
+to the fee rate.
+
+#### M-3b (P3) — Host→PickupVB à-la-carte purchases record no in-app ledger row
+
+**File:** [checkout.ts#L211-L276](../../apps/web/src/lib/webhooks/checkout.ts#L211-L276)
+(`sponsor_slot` / `badge_slot` branches).
+
+Every other completed checkout kind (`attendee`, `tip`, `team_registration`,
+`roster_team_payment`) calls `recordPaymentAudit(...)` to write a payment-ledger
+row. The two à-la-carte unlocks do **not** — they only upsert the
+sponsor/badge-access row + fire analytics. So a host who pays PickupVB $3/$5 has
+**no in-app record** of that purchase (the host isn't the payee here — PickupVB
+is — so it's correctly absent from the host-earnings/receipts surfaces the
+receipts-tax audit owns, but there's also no "things I bought from PickupVB"
+view). Today the only receipt is whatever Stripe emails from the platform
+account if receipt emails are enabled.
+
+**Recommended fix (low priority):** confirm Stripe receipt emails are enabled on
+the **platform** account so the host at least gets an emailed receipt; longer
+term, if a host "purchase history" surface is ever built, write a lightweight
+ledger row here keyed `category: 'sponsor_unlock' | 'badge_unlock'`. Not urgent —
+flagged so it's a known gap, not a silent one. Coordinate with
+[receipts-tax.md](receipts-tax.md) before adding a ledger category.
+
+### Findings — documentation staleness (the real gaps)
+
+#### M-4 (P2) — This audit + ADR 0014 are stale on the perk set (badges) and the answered open-questions
+
+**Files:** this file (the 2026-05-24 "Today's monetization surface" + "Pro perks
+actually shipped" sections, and the unanswered-looking "Open questions" blocks);
+[ADR 0014 Consequences](../adr/0014-monetization-strategy.md) ("nine perks as of
+Bundle 98").
+
+Drift since 2026-05-31:
+
+- **Collectible event badges** are a live monetization surface ($5/event
+  à-la-carte / Pro-included) and appear on the pricing page + comparison table,
+  but this audit's "Today's monetization surface" section
+  ([§ Pro perks actually shipped](#pro-host-subscription) lists only three) and
+  ADR 0014's perk count predate them.
+- The **"Open questions (need the user)"** block at the top of the 2026-05-31
+  status and the bottom "Open questions for the user" are **fully answered** —
+  R-1 (live scoring built), R-3 (bracket cap shipped), R-5 (tips → 0% shipped),
+  media (Path A shipped). Reads as open backlog when it isn't.
+
+**Recommended fix:** refresh "Today's monetization surface" to the current perk
+set (add badges; note tips are 0%); add a one-line ADR 0014 amendment recording
+badges as a perk + the $5/$3 à-la-carte prices; collapse the answered open-question
+lists into the remediation log. (This status block is the start of that refresh.)
+
+#### M-5 (P2) — payments.md routing table omits the two platform-direct charge flows
+
+**File:** [docs/payments.md § Payment routing](../payments.md#payment-routing--every-entry-point-goes-through-host_id)
+(the routing table lists only ticket / team / tip).
+
+payments.md is explicitly "read this before touching payment routing," and its
+table documents the **three Connect destination charges** that flow to
+`events.host_id`. It does **not** mention the **two platform-direct charges** that
+intentionally bypass host routing entirely:
+
+- **Sponsor slot unlock** ($3) and **badge slot unlock** ($5) — created in
+  [sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts) /
+  [badge-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/badge-actions.ts)
+  with **no `transfer_data.destination`**, so the money lands in PickupVB's own
+  account and **no host Connect onboarding is required** (a free host with zero
+  Stripe setup can still buy an unlock). This is correct and deliberate, but a
+  reader of payments.md would not know these flows exist or that they're
+  routing-exempt.
+- The **Pro subscription** itself (Stripe Billing, platform account) is likewise
+  absent.
+
+**Recommended fix:** add a short "Platform-direct charges (not host-routed)"
+section to payments.md listing the sponsor/badge unlocks + Pro subscription,
+stating explicitly that they charge the platform account, take no
+`application_fee`/destination, and require no host Connect account — so a future
+agent doesn't "fix" them by adding destination routing.
+
+### Opportunities — value-aligned, not extractive (strategy / P3)
+
+The user asked specifically for monetization that _creates value for users
+rather than taxing them_. Ranked by alignment × reachability at 2–3 metros.
+None of these violate the "What NOT to do" list below.
+
+#### O-1 (strongest) — Season passes / multi-session punch cards
+
+A host sells a **bundle** — "10-session open-play punch card," "league season
+pass," "monthly membership" — at a host-set discount vs. drop-in. PickupVB takes
+its **normal ticket take-rate** on the (larger, up-front) transaction; no new
+fee, no new tax.
+
+- **Attendee wins:** lower per-session price + one payment instead of chasing a
+  Venmo every week.
+- **Host wins:** committed revenue up front, dramatically less weekly payment
+  admin (the #1 pain the off-platform upsell already targets), predictable
+  attendance.
+- **Platform wins:** larger transactions at the same rate, deeper lock-in to
+  on-platform payments (pulls Venmo hosts onto Stripe — the exact goal of the
+  Bundle-100 off-platform upsell), and a natural Pro hook (e.g. pass management
+  / auto-renew as a Pro capability).
+- **Shape:** a `passes` / `pass_purchases` model; redemption decrements a balance
+  at check-in (the check-in flow already exists). Per-player only (no team-mode
+  complexity v1). Probably 2–3 bundles; an ADR first. **This is the highest-value
+  net-new monetization surface and the most community-aligned.**
+
+#### O-2 — Club / Group tier with pooled payouts ("PickupVB Club")
+
+Resolves the standing limitation in
+[payments.md § Open question](../payments.md#open-question--known-limitation):
+there is no group-owned payout account. A paid **Club** tier (above individual
+Pro) could offer (a) a group-owned Stripe Connect destination so club admins
+share payouts without nominating a personal "treasurer," (b) multiple Pro-enabled
+admins under one subscription, (c) club-level analytics across all the club's
+events. Captures more value from the **highest-value persona** (the club running
+leagues — exactly the leagues-container work that just shipped) **without taxing
+casual hosts**, who never need it. Schema + routing work is non-trivial (the
+payments.md open-question spans `group_stripe_accounts`, a payout-owner column,
+and every routing site) — needs an ADR before any code. Reconsider once a launch
+metro has a multi-admin club running a league.
+
+#### O-3 — Referral credit (carry-over of P3 #10)
+
+A host who refers another host that publishes ≥3 paid events earns 1 free month
+of Pro. Standard PLG; rewards advocacy rather than extracting from users. Still
+deferred until the trial-conversion baseline exists (the funnel is now
+instrumented — Bundle 98), but it's the cheapest growth lever once there's a
+denominator to measure against.
+
+#### O-4 — Convert harder on levers already shipped (no new product)
+
+- **Cap-hit upgrade nudge:** the ADR-0014 thesis is that the _second paid event
+  in 30 days_ is the upgrade trigger. The block exists
+  ([host-paid-event-cap.ts](../../apps/web/src/lib/host-paid-event-cap.ts) returns
+  a `cta`), but it fires only at the moment of rejection. Consider a proactive
+  "you've used your 1 free paid event — Pro is unlimited" banner on the host
+  dashboard _before_ they hit the wall. Pure conversion, zero new cost to users.
+- **Annual-default framing (carry-over P3 #8):** annual is undersold as an
+  equal-weight button. For a new product annual is worth more (lower churn);
+  worth A/B-ing the default once there's a framework. No user cost.
+
+#### O-5 — SMS as a Pro perk when Twilio lands (carry-over R-4 / P3 #11)
+
+Unchanged: SMS has real per-message cost (~$0.008 US) and is the cleanest "Pro
+pays for what it costs us" lever. Decide gating **in** the SMS bundle (Pro-only
+or low free quota), not free-first-then-clawback.
+
+#### O-6 (flag — lean NO) — Platform "featured event" boost
+
+A host-paid "feature my event at the top of `/events?metro=…`" placement is the
+obvious next ask, and there is **no featured/boost surface today** (confirmed —
+nothing in the events tree). But it sits uncomfortably close to the
+ADR-0014-rejected "platform-sold discovery advertising": it degrades discovery
+quality (pay-to-win ordering) and once one host pays for the top slot, ranking
+decisions are partly defended on boost revenue. **Recommendation: don't ship
+pre-launch.** If ever revisited, gate it hard — clearly labeled "Promoted,"
+host-paid (never platform-sold third-party), capped at one per metro page, and
+never on the event-detail page. The host-owned **sponsor slot** already captures
+the community-safe version of "host pays to promote their thing."
+
+### Reaffirmed — the engine and the guardrails still hold
+
+The "What NOT to do" list below (no platform-sold ads, no clawback of free
+features, no chat/DM paywall, no per-metro price discrimination, no churning the
+$10 / 5% / 2.5% levers pre-launch) is unchanged and reaffirmed. ADR 0014's
+success-criteria triggers remain the only sanctioned reason to move price.
+
+---
+
 ## Status — 2026-05-31 — Re-evaluation (post chat / media / live-scoring / MapTiler)
 
 **Trigger:** a week of feature shipping since the 2026-05-24 audit — chat /
@@ -241,6 +516,15 @@ Quick-reference table. Detailed findings follow below.
 ---
 
 ## Today's monetization surface (the factual picture)
+
+> **Historical snapshot (2026-05-24/27).** The sections below predate the
+> collectible-badges surface and the tips→0% change. The **current** monetization
+> surface — Pro perk set incl. collectible event badges ($5/event à-la-carte /
+> Pro-included), sponsor slot ($3/event à-la-carte / Pro-included), 0% tips, and
+> the centralized à-la-carte prices in `lib/pro.ts` — is summarized in the
+> [2026-06-08 re-audit status block](#status--2026-06-08--re-audit-code-quality--stale-code--opportunity-pass)
+> at the top of this file (M-3 / M-4). The Pro perk list is authoritatively the
+> one rendered on the pricing page.
 
 ### Pro Host subscription
 
@@ -794,6 +1078,36 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — Re-audit + all five code/gap findings fixed (uncommitted; M-2
+  migration deploy-gated).** Re-ran the monetization lens with a code-correctness
+  layer (status block at top). Shipped:
+  - **M-2 (P2, bug)** — `is_pro_host` past_due grace had no period-end backstop →
+    indefinite free Pro if Stripe dunning is misconfigured. New migration
+    [20260929000000_is_pro_host_period_end_backstop.sql](../../supabase/migrations/20260929000000_is_pro_host_period_end_backstop.sql)
+    self-expires a past_due row ~30d past `current_period_end`; required Stripe
+    "cancel after retries" dunning setting documented in
+    [integrations.md § Stripe](../integrations.md#stripe). Signature unchanged,
+    no type regen.
+  - **M-3 (P3, stale)** — centralized `SPONSOR_SLOT_UNLOCK_CENTS` ($3) +
+    `BADGE_SLOT_UNLOCK_CENTS` ($5) in [pro.ts](../../apps/web/src/lib/pro.ts);
+    [sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts) /
+    [badge-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/badge-actions.ts)
+    import them; pricing + Pro page copy now derive the dollar figure (6 hand-typed
+    literals removed).
+  - **M-3b (P3, gap)** — documented the deliberate no-ledger-row decision for the
+    sponsor/badge unlocks in [checkout.ts](../../apps/web/src/lib/webhooks/checkout.ts)
+    (they're platform revenue, excluded from host earnings; category reserved for
+    forward-compat only).
+  - **M-4 (P2, gap)** — [ADR 0014](../adr/0014-monetization-strategy.md) amendment
+    records badges as a Pro perk + the centralized à-la-carte prices; the stale
+    "Today's monetization surface" section is flagged historical, pointing to the
+    2026-06-08 status block.
+  - **M-5 (P2, gap)** — [payments.md](../payments.md#platform-direct-charges-not-host-routed)
+    gained a "Platform-direct charges (NOT host-routed)" section covering the two
+    slot unlocks + the Pro subscription (no Connect destination, no host onboarding).
+  - **Opportunities O-1…O-6 left open** for a later strategy pass (O-1 season
+    passes is the strongest). `pnpm typecheck && lint && test && build` green.
 
 - **2026-06-01 — R-2 resolved (Path A, cost-control — no paywall).** Premise
   corrected first: ADR 0024 "media" is external links (≈$0 storage); avatar/hero/

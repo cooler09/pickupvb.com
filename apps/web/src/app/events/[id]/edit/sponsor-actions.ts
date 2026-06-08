@@ -15,8 +15,7 @@ import { getServerSupabase } from '@/lib/supabase';
 import { requireSession } from '@/lib/server-auth';
 import { buildOrigin } from '@/lib/server-redirects';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
-
-const SPONSOR_SLOT_UNLOCK_CENTS = 300;
+import { SPONSOR_SLOT_UNLOCK_CENTS } from '@/lib/pro';
 
 type SponsorRow = {
   access_kind: 'pro' | 'ala_carte';

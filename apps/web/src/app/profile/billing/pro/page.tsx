@@ -3,7 +3,13 @@ import { primaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/stripe';
-import { getHostSubscription, isPro, PRO_MONTHLY_PRICE_USD, PRO_YEARLY_PRICE_USD } from '@/lib/pro';
+import {
+  getHostSubscription,
+  isPro,
+  PRO_MONTHLY_PRICE_USD,
+  PRO_YEARLY_PRICE_USD,
+  SPONSOR_SLOT_UNLOCK_CENTS,
+} from '@/lib/pro';
 import { startProCheckout, getBillingPortalUrl } from './actions';
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 import { SubmitButton } from '@/components/submit-button';
@@ -107,7 +113,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
           <li>
             <strong className="text-fg">Sponsor slot included</strong> on every event. Add a local
             sponsor (logo, one-line message, optional discount code) at no extra charge. Free hosts
-            pay $3 per event.
+            pay ${SPONSOR_SLOT_UNLOCK_CENTS / 100} per event.
           </li>
           <li>
             <strong className="text-fg">Custom refund policy.</strong> Configure your own refund

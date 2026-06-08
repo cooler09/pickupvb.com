@@ -142,6 +142,19 @@ endpoint setup. Connect events use the same endpoint and signing secret
 **Local dev.** `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
 prints a temporary `whsec_…` — paste into `STRIPE_WEBHOOK_SECRET`.
 
+**Subscription dunning (required setting).** Pro access is gated by
+`is_pro_host()`, which grants perks during the `past_due` grace window while
+Stripe retries a failing card. For that grace to ever end, the **live** Stripe
+account must be set to **cancel the subscription after retries are exhausted**:
+Dashboard → Settings → Billing → Subscriptions and emails → **Manage failed
+payments** → "Cancel subscription" (not "Leave subscription as is"). If left on
+"do nothing", a host with a permanently-failing card would stay `past_due`
+forever and keep Pro for free. As a code-level backstop the `past_due` branch of
+`is_pro_host` self-expires ~30 days past `current_period_end`
+([20260929000000_is_pro_host_period_end_backstop.sql](../supabase/migrations/20260929000000_is_pro_host_period_end_backstop.sql),
+monetization audit M-2) — but the Dashboard setting is still the primary control
+and should be confirmed at launch.
+
 ---
 
 ## Resend

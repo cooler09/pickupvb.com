@@ -85,6 +85,41 @@ and the [ADR 0006 addendum](adr/0006-event-divisions.md#addendum-2026-05-30--lea
 
 ---
 
+## Platform-direct charges (NOT host-routed)
+
+Three money flows charge **PickupVB's own Stripe account** directly. They do
+**not** set `transfer_data.destination`, take **no** `application_fee`, and
+require **no host Connect onboarding** — a host with zero Stripe setup can still
+buy them. This revenue is PickupVB's, not host payout income, so `events.host_id`
+never enters the routing:
+
+| Flow                  | File                                                                                                               | Amount (source of truth)                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| Sponsor slot unlock   | [sponsor-actions.ts](../apps/web/src/app/events/[id]/edit/sponsor-actions.ts) → `startSponsorSlotCheckoutFromForm` | `SPONSOR_SLOT_UNLOCK_CENTS` ($3) — [lib/pro.ts](../apps/web/src/lib/pro.ts) |
+| Badge slot unlock     | [badge-actions.ts](../apps/web/src/app/events/[id]/edit/badge-actions.ts) → `startBadgeSlotCheckoutFromForm`       | `BADGE_SLOT_UNLOCK_CENTS` ($5) — [lib/pro.ts](../apps/web/src/lib/pro.ts)   |
+| Pro Host subscription | [pro/actions.ts](../apps/web/src/app/profile/billing/pro/actions.ts) (Stripe Billing)                              | `$10/mo` or `$100/yr` — `STRIPE_PRO_*_PRICE_ID` env                         |
+
+The two slot unlocks are Free-tier add-ons (Pro includes both); the subscription
+is recurring Pro. Their checkout sessions are created directly via
+`getStripe().checkout.sessions.create` — **not** through
+[checkout-session.ts](../apps/web/src/lib/checkout-session.ts)'s
+`createDestinationCheckoutSession`, precisely because there's no destination.
+
+**No ledger row, on purpose.** The `sponsor_slot` / `badge_slot` checkout
+webhooks ([checkout.ts](../apps/web/src/lib/webhooks/checkout.ts)) write the
+sponsor/badge-access row but **deliberately do not** write an
+`event_payment_audit` row: the host is the _buyer_ here, not the payee, so these
+are excluded from the host-earnings / receipts surfaces. The category enum +
+CHECK reserve `sponsor_slot`/`badge_slot` for forward-compat only — see
+[20260926000000_payment_audit_category.sql](../supabase/migrations/20260926000000_payment_audit_category.sql).
+The buyer's receipt is Stripe's emailed receipt from the platform account
+(confirm receipt emails are enabled on the **live** platform account).
+
+> **Do not "fix" these by adding `transfer_data.destination`.** Routing them to
+> the host would hand PickupVB's add-on / subscription revenue to the host.
+
+---
+
 ## Event creation: which Stripe account is gated?
 
 [apps/web/src/app/events/new/actions.ts](../apps/web/src/app/events/new/actions.ts):

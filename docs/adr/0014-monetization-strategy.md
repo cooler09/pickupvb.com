@@ -93,6 +93,28 @@ tier.** Ticket fees are unchanged (5% Free / 2.5% Pro).
   `application_fee_amount` when 0 so the destination charge transfers the full
   tip. Pricing / Pro / tip-jar copy updated. Source: monetization audit R-5.
 
+### Amendment 2026-06-08: collectible event badges perk + à-la-carte add-on prices
+
+Records two changes that landed after this ADR's original "nine perks" count in
+Consequences below (which is now stale — the authoritative current Pro perk set
+is whatever the pricing page lists).
+
+- **Collectible event badges are a Pro perk** ([ADR 0031](0031-gamification-badges.md)) —
+  Pro-included on every event; Free hosts unlock per-event à-la-carte. This
+  follows the same "Pro grows via net-new features, never takeaways" rule the
+  ADR commits to: the in-event badge surface is net-new, not a clawback.
+- **The two host add-on à-la-carte prices are centralized** in
+  [pro.ts](../../apps/web/src/lib/pro.ts) (monetization audit M-3): sponsor slot
+  `SPONSOR_SLOT_UNLOCK_CENTS` ($3/event) and badges `BADGE_SLOT_UNLOCK_CENTS`
+  ($5/event). The pricing + Pro page copy derives from these constants, so the
+  number lives in exactly one place. Per the "rate changes need an ADR
+  amendment" rule (Consequences below), **changing either value should be
+  recorded as an amendment here.**
+
+Both à-la-carte unlocks are **platform-direct charges** — PickupVB's own Stripe
+account, no Connect `transfer_data.destination`, no host onboarding required.
+See [docs/payments.md § Platform-direct charges](../payments.md#platform-direct-charges-not-host-routed).
+
 ### Free-tier cap: 1 paid event per rolling 30 days
 
 - **Why 1, not 0:** "zero paid events on Free" makes us pure

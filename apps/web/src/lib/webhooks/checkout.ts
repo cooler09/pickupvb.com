@@ -208,6 +208,15 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
     }
   }
 
+  // Sponsor + badge unlocks are PLATFORM-DIRECT charges (PickupVB's own account,
+  // no Connect destination — see docs/payments.md § Platform-direct charges).
+  // They deliberately do NOT write an `event_payment_audit` ledger row: the host
+  // is the *buyer* here, not the payee, so this revenue is platform income, not
+  // host payout income, and is intentionally excluded from the host-earnings /
+  // receipts surfaces. The `sponsor_slot` / `badge_slot` category values are
+  // reserved in the enum + CHECK for forward-compat only — see
+  // 20260926000000_payment_audit_category.sql. The buyer's receipt is Stripe's
+  // emailed receipt from the platform account. (monetization audit M-3b.)
   if (meta.kind === 'sponsor_slot' && meta.user_id) {
     const sponsorName = (meta.sponsor_name ?? '').trim();
     if (!sponsorName) return;

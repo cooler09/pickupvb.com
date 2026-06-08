@@ -8,6 +8,8 @@ import {
   PRO_MONTHLY_PRICE_USD,
   PRO_YEARLY_PRICE_USD,
   FREE_PAID_EVENT_CAP_30D,
+  SPONSOR_SLOT_UNLOCK_CENTS,
+  BADGE_SLOT_UNLOCK_CENTS,
 } from '@/lib/pro';
 import { startProCheckout, getBillingPortalUrl } from '@/app/profile/billing/pro/actions';
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
@@ -27,12 +29,17 @@ export const metadata = {
   },
 };
 
+// Derived from the canonical cents constants in lib/pro.ts so the marketing
+// copy can never drift from the actual charge amount (monetization audit M-3).
+const SPONSOR_SLOT_PRICE_USD = SPONSOR_SLOT_UNLOCK_CENTS / 100;
+const BADGE_SLOT_PRICE_USD = BADGE_SLOT_UNLOCK_CENTS / 100;
+
 const FREE_TIER_FEATURES = [
   'Unlimited free events',
   `${FREE_PAID_EVENT_CAP_30D} paid event per 30 days (rolling)`,
   '5% platform fee on tickets — never any fee on tips',
-  'Sponsor slot — $3/event à-la-carte',
-  'Collectible event badges — $5/event à-la-carte',
+  `Sponsor slot — $${SPONSOR_SLOT_PRICE_USD}/event à-la-carte`,
+  `Collectible event badges — $${BADGE_SLOT_PRICE_USD}/event à-la-carte`,
   'Standalone tournament bracket — 1 active at a time',
   'Group pages, co-hosts, free-agent signups',
   'Event check-in & roster management',
@@ -222,8 +229,16 @@ export default async function PricingPage() {
               <Row label="Stripe processing fee" free="~2.9% + 30¢" pro="~2.9% + 30¢" />
               <Row label="Saved event templates" free="—" pro="✓" />
               <Row label="Host analytics dashboard" free="—" pro="✓" />
-              <Row label="Sponsor slot" free="$3 / event" pro="Included" />
-              <Row label="Collectible event badges" free="$5 / event" pro="Included" />
+              <Row
+                label="Sponsor slot"
+                free={`$${SPONSOR_SLOT_PRICE_USD} / event`}
+                pro="Included"
+              />
+              <Row
+                label="Collectible event badges"
+                free={`$${BADGE_SLOT_PRICE_USD} / event`}
+                pro="Included"
+              />
               <Row label="Standalone tournament brackets" free="1 at a time" pro="Unlimited" />
               <Row label="Custom refund policy" free="—" pro="✓" />
               <Row label="Private / invite-only events" free="—" pro="✓" />
@@ -260,11 +275,11 @@ export default async function PricingPage() {
         />
         <Faq
           q="What does the sponsor slot do?"
-          a="You can add one sponsor block per event — your local sporting-goods store, gym, or brewery. It shows a logo, a one-line message, and an optional discount code below the event details. Pro hosts get it included; free hosts can unlock it for $3 per event."
+          a={`You can add one sponsor block per event — your local sporting-goods store, gym, or brewery. It shows a logo, a one-line message, and an optional discount code below the event details. Pro hosts get it included; free hosts can unlock it for $${SPONSOR_SLOT_PRICE_USD} per event.`}
         />
         <Faq
           q="What are collectible event badges?"
-          a="Give attendees a badge to collect for your event — auto-awarded when they play, or hand-picked for a standout like an MVP. Earned badges show on a player's profile and public player page alongside their achievement badges. Pro hosts get it included; free hosts can unlock it for $5 per event."
+          a={`Give attendees a badge to collect for your event — auto-awarded when they play, or hand-picked for a standout like an MVP. Earned badges show on a player's profile and public player page alongside their achievement badges. Pro hosts get it included; free hosts can unlock it for $${BADGE_SLOT_PRICE_USD} per event.`}
         />
         <Faq
           q="How many tournament brackets can I run?"
