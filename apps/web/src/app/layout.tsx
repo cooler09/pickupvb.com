@@ -10,6 +10,8 @@ import { EnvBanner } from '@/components/env-banner';
 import { WebVitalsClient } from '@/components/web-vitals-client';
 import { ConsentBanner } from '@/components/consent-banner';
 import { AuthStateSync } from '@/components/auth-state-sync';
+import { SlangListener } from '@/components/slang-listener';
+import { IdleTitleRally } from '@/components/idle-title-rally';
 import { JsonLd } from '@/components/json-ld';
 import { PostHogProvider } from '@/components/posthog-provider';
 import { getCurrentUser } from '@/lib/server-auth';
@@ -179,9 +181,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           Skip to main content
         </a>
         <AuthStateSync />
+        <SlangListener />
+        <IdleTitleRally />
         <EnvBanner />
-        <SiteHeader theme={preference} />
         <ToastProvider>
+          <SiteHeader theme={preference} />
           <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
             {children}
           </main>

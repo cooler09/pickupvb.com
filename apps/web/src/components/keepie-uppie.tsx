@@ -33,7 +33,7 @@ function readColor(prop: string, fallback: string): string {
   return v ? `rgb(${v})` : fallback;
 }
 
-export function KeepieUppie() {
+export function KeepieUppie({ className }: { className?: string } = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ball = useRef<Vec>({ x: 0, y: 0, vx: 0, vy: 0, grounded: true });
   const rallyRef = useRef(0);
@@ -226,7 +226,9 @@ export function KeepieUppie() {
   );
 
   return (
-    <div className="border-border-base bg-md-surface-container rounded-shape-sm mt-12 border p-4">
+    <div
+      className={`border-border-base bg-md-surface-container rounded-shape-sm border p-4 ${className ?? ''}`}
+    >
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="text-fg text-title-lg font-semibold">Keep it up 🏐</h2>
         <p className="text-muted text-sm tabular-nums" aria-live="polite">

@@ -688,6 +688,102 @@ body {
   animation: logo-bounce 0.85s var(--md-sys-motion-easing-emphasized-decelerate) both;
 }
 
+/* --- Net-draw section divider (delight #5) --------------------------------- */
+/* A volleyball-net hairline that "strings" left→right as it scrolls into view,
+ * driven by a CSS view-timeline (no JS, no IntersectionObserver). Browsers
+ * without scroll-timeline support ignore `animation-timeline`, and with no
+ * `animation-duration` the rule resolves instantly to the settled (fully-strung)
+ * end state — so the divider is always visible there. Reduced motion snaps it to
+ * the same settled state via the global rule. See docs/delight-backlog.md. */
+.net-divider {
+  height: 12px;
+  width: 100%;
+  overflow: hidden;
+}
+.net-divider__mesh {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background:
+    linear-gradient(rgb(var(--tw-color-primary) / 0.5), rgb(var(--tw-color-primary) / 0.5)) left
+      top / 100% 2px no-repeat,
+    repeating-linear-gradient(
+      90deg,
+      rgb(var(--tw-color-primary) / 0.28) 0 1px,
+      transparent 1px 9px
+    );
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: net-draw linear both;
+  animation-timeline: view();
+  animation-range: entry 0% entry 65%;
+}
+@keyframes net-draw {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* --- Ball "serve" spin on a CTA (delight #4) ------------------------------- */
+/* One 360° spin of an inline ball glyph when its CTA is hovered. Pointer devices
+ * only (no sticky spin after a tap); the individual `rotate` property so it
+ * never fights a `transform` on the same node. Defanged under reduced motion. */
+@keyframes ball-serve {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
+}
+.ball-serve {
+  transform-origin: center;
+}
+@media (hover: hover) {
+  .ball-serve-cta:hover .ball-serve {
+    animation: ball-serve var(--md-sys-motion-duration-medium4)
+      var(--md-sys-motion-easing-emphasized) 1;
+  }
+}
+
+/* --- Roster "high-five" on capacity (delight #7) -------------------------- */
+/* When an event fills, the visible roster avatars do one staggered bump — a
+ * one-shot mount entrance (no JS). Apply `.high-five` to the <ul> and
+ * `.avatar-pop` to each avatar; the avatar class is inert until the list is
+ * full. Reduced motion snaps it away via the global rule. */
+@keyframes high-five {
+  0% {
+    transform: translateY(0) scale(1) rotate(0);
+  }
+  35% {
+    transform: translateY(-7px) scale(1.12) rotate(-7deg);
+  }
+  60% {
+    transform: translateY(0) scale(0.97) rotate(3deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0);
+  }
+}
+.high-five > li .avatar-pop {
+  animation: high-five 0.7s var(--md-sys-motion-easing-emphasized-decelerate) both;
+}
+.high-five > li:nth-child(2) .avatar-pop {
+  animation-delay: 60ms;
+}
+.high-five > li:nth-child(3) .avatar-pop {
+  animation-delay: 120ms;
+}
+.high-five > li:nth-child(4) .avatar-pop {
+  animation-delay: 180ms;
+}
+.high-five > li:nth-child(5) .avatar-pop {
+  animation-delay: 240ms;
+}
+.high-five > li:nth-child(n + 6) .avatar-pop {
+  animation-delay: 300ms;
+}
+
 /*
  * ============================================================================
  *  M3 safe-area utilities (Bundle 1 — P2 #16).

@@ -55,7 +55,13 @@ export default function NotFound() {
       {/* Delight #11 (docs/delight-backlog.md): the 404 is an idle screen, so
           turn the dead end into a tiny keep-ups game. Client + route-isolated —
           its chunk only loads here. */}
-      <KeepieUppie />
+      <KeepieUppie className="mt-12" />
+      <p className="text-muted mt-3 text-center text-xs">
+        Want a real match?{' '}
+        <Link href="/play" className="text-primary hover:underline">
+          Play volley-pong →
+        </Link>
+      </p>
     </main>
   );
 }

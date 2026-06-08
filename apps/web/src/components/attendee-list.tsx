@@ -56,6 +56,7 @@ export function AttendeeList({
   eventId,
   payments,
   canManagePayments,
+  celebrateFull,
 }: {
   attendees: Attendee[];
   currentUserId: string | null;
@@ -67,6 +68,8 @@ export function AttendeeList({
   payments?: Map<string, AttendeePaymentInfo>;
   /** True when the viewer can flip manual payment status. */
   canManagePayments?: boolean;
+  /** Delight #7: when the event is full, the roster avatars do one high-five bump. */
+  celebrateFull?: boolean;
 }) {
   if (attendees.length === 0) {
     return (
@@ -77,7 +80,7 @@ export function AttendeeList({
   }
 
   return (
-    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <ul className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${celebrateFull ? 'high-five' : ''}`}>
       {attendees.map((a) => {
         const name = nameOf(a.profiles);
         const isYou = a.user_id === currentUserId;
@@ -98,12 +101,12 @@ export function AttendeeList({
                   alt=""
                   width={36}
                   height={36}
-                  className="h-9 w-9 rounded-full object-cover"
+                  className="avatar-pop h-9 w-9 rounded-full object-cover"
                 />
               ) : (
                 <span
                   aria-hidden="true"
-                  className="bg-primary/15 text-primary flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold"
+                  className="avatar-pop bg-primary/15 text-primary flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold"
                 >
                   {initialsOf(a.profiles)}
                 </span>
