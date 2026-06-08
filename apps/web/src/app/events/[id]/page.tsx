@@ -328,7 +328,7 @@ export default async function EventDetailPage(props: {
         )}
       />
 
-      {event.type === 'tournament' && !event.paymentsOffPlatform && (
+      {event.type === 'tournament' && !event.paymentsOffPlatform && !isExternal && (
         <TeamsRegisteredSection
           teams={event.teams}
           adHocRegistrations={adHocAllRegistrations}
