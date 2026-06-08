@@ -72,9 +72,13 @@ client, `autoRefreshToken: true`, no custom `accessToken`) auto-forwards every
 `TOKEN_REFRESHED` to `realtime.setAuth`, which re-authorizes already-joined
 channels — so long-lived chat/bell tabs stay live across token expiry without our
 help. Added explanatory comments at both subscribe sites (the explicit initial
-`setAuth` is still required — the client doesn't forward `INITIAL_SESSION`).
-Remaining chat backlog: M-4/7/8/9/10/12 (all P3 — pagination, broadcast sender
-card, scroll anchor, blocked banner, text rate limit, e2e).**
+`setAuth` is still required — the client doesn't forward `INITIAL_SESSION`).**
+**2026-06-08 — M-7 FIXED (uncommitted, quad-green): live broadcast rows no longer
+stick on the "Member" fallback. `recordToView` stops caching the fallback, and an
+unknown live sender is enriched once from `profiles_public` (deduped
+`ensureSenderCard`) then patched into the rendered rows. Remaining chat backlog:
+M-4/8/9/10/12 (all P3 — inbox pagination, load-earlier scroll anchor, blocked
+banner, text rate limit, e2e).**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -554,19 +558,32 @@ and `sendChatMessage` passes `out.body` (not the raw input) to `notifyChatMessag
 ([chat-actions.ts](../../apps/web/src/app/_actions/chat-actions.ts)). Pinned by a
 new `message.handler.test.ts` case asserting the returned body is masked.
 
-### M-7 — Live broadcast rows show "Member" and stick — P3 (ADR follow-up, still open)
+### M-7 — Live broadcast rows show "Member" and stick — ✅ FIXED 2026-06-08 (uncommitted, quad-green)
 
 `broadcast_changes` emits the raw `messages` row (only `sender_id`), so a live
-message from someone not in the seeded roster renders as "Member" with no avatar.
-Worse, [`onWrite`](../../apps/web/src/components/conversation-view.tsx#L200-L207)
-calls `learnSenders` on the just-built view whose name already fell back to
-"Member" ([conversation-view.tsx:147-159](../../apps/web/src/components/conversation-view.tsx#L147-L159)),
-so the cache **pins "Member"** for that sender for the rest of the session (until
-a server-resolved page overwrites it on reload / load-earlier). Hits team rooms
-whenever the captain (allowed but maybe not a `team_members` row) or a just-joined
-member posts. **Fix:** the ADR's own follow-up — embed a sender card in the
-broadcast payload (a small view-row trigger or a definer enrichment), or have
-`onInsert` fetch the missing card from `profiles_public` once and patch it in.
+message from someone not in the seeded roster rendered as "Member" with no avatar.
+Worse, `onWrite` called `learnSenders` on the just-built view whose name had
+already fallen back to "Member", so the cache **pinned "Member"** for that sender
+for the rest of the session. Hit team rooms whenever the captain (allowed but maybe
+not a `team_members` row) or a just-joined member posted — and got more visible
+with event rooms (large, churny rosters) shipped in Phase 5.
+
+**Fix shipped — client-side enrichment** (the ADR's fallback option; chosen over a
+broadcast-payload embed because that needs a migration + a changed payload
+contract and is deploy-unverifiable, while this works uniformly for all room kinds
+
+- DMs with no migration). In
+  [conversation-view.tsx](../../apps/web/src/components/conversation-view.tsx):
+  (1) `recordToView` no longer caches the "Member" fallback — an unknown sender stays
+  `null` and renders as 'Member' transiently; (2) `onWrite` calls a new deduped
+  `ensureSenderCard(id)` that fetches the sender's card from **`profiles_public`**
+  (pitfall #13 — the public projection, never base `profiles`; granted to
+  `authenticated`) once and `setMessages`-patches every already-rendered row from
+  that sender. The viewer + seeded roster are pre-cached, so it only fires for
+  genuinely unknown senders (a member who joined after page load), and the per-id
+  dedup means a burst from one new sender costs a single fetch. The broadcast-payload
+  embed remains a possible future optimization (saves the round-trip) but isn't worth
+  the migration + deploy-gated risk today.
 
 ### M-8 — "Load earlier messages" jumps the scroll position — P3
 

@@ -177,30 +177,67 @@ export function ConversationView({
     [],
   );
 
+  // Live broadcast rows carry only `sender_id` (ADR 0028 — `broadcast_changes`
+  // emits the raw `messages` row, no joined sender card). When a message arrives
+  // from someone not already cached — a member who joined after page load, or a
+  // captain who isn't on the seeded roster — fetch their public card once from
+  // `profiles_public` (pitfall #13: the public projection, never base
+  // `profiles`) and patch every already-rendered message from them. Deduped per
+  // id; the viewer + seeded roster are already cached, so this only fires for
+  // genuinely unknown senders. Resolves the "Member" fallback / sticky-cache
+  // issue (notifications-messaging audit M-7).
+  const pendingSenderFetches = useRef<Set<string>>(new Set());
+  const ensureSenderCard = useCallback((id: string) => {
+    if (!id || senderCards.current.has(id) || pendingSenderFetches.current.has(id)) return;
+    pendingSenderFetches.current.add(id);
+    void (async () => {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = await supabase
+        .from('profiles_public')
+        .select('display_name, avatar_url')
+        .eq('id', id)
+        .maybeSingle();
+      pendingSenderFetches.current.delete(id);
+      const row = data as { display_name: string | null; avatar_url: string | null } | null;
+      if (!row) return;
+      const card: SenderCard = {
+        name: row.display_name ?? 'Member',
+        avatar: row.avatar_url ?? null,
+      };
+      senderCards.current.set(id, card);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.senderId === id ? { ...m, senderName: card.name, senderAvatarUrl: card.avatar } : m,
+        ),
+      );
+    })();
+  }, []);
+
   // Seed sender names from the initial page once on mount.
   useEffect(() => {
     learnSenders(initialMessages);
   }, [initialMessages, learnSenders]);
 
-  const recordToView = useCallback(
-    (rec: BroadcastRow): MessageView => {
-      const deleted = rec.deleted_at !== null;
-      const who = resolveSender(rec.sender_id);
-      return {
-        id: rec.id,
-        conversationId: rec.conversation_id,
-        senderId: rec.sender_id,
-        senderName: who.name,
-        senderAvatarUrl: who.avatar,
-        body: deleted ? '' : rec.body,
-        attachments: deleted ? [] : toAttachmentViews(rec.attachments),
-        isDeleted: deleted,
-        isEdited: rec.edited_at !== null,
-        createdAt: rec.created_at,
-      };
-    },
-    [resolveSender],
-  );
+  const recordToView = useCallback((rec: BroadcastRow): MessageView => {
+    const deleted = rec.deleted_at !== null;
+    // Resolve from the cache; an unknown sender stays null (rendered as the
+    // 'Member' fallback) until `ensureSenderCard` fetches and patches it in.
+    // Deliberately NOT cached as 'Member' here — that's what made the fallback
+    // stick for the rest of the session (audit M-7).
+    const card = senderCards.current.get(rec.sender_id) ?? null;
+    return {
+      id: rec.id,
+      conversationId: rec.conversation_id,
+      senderId: rec.sender_id,
+      senderName: card?.name ?? null,
+      senderAvatarUrl: card?.avatar ?? null,
+      body: deleted ? '' : rec.body,
+      attachments: deleted ? [] : toAttachmentViews(rec.attachments),
+      isDeleted: deleted,
+      isEdited: rec.edited_at !== null,
+      createdAt: rec.created_at,
+    };
+  }, []);
 
   // ---- Realtime subscription ---------------------------------------------
   useEffect(() => {
@@ -226,8 +263,10 @@ export function ConversationView({
       const onWrite = (msg: { payload: unknown }): MessageView | null => {
         const rec = (msg.payload as { record?: BroadcastRow }).record;
         if (!rec) return null;
+        // Kick off a one-shot card fetch for an unknown sender (deduped); the
+        // view renders 'Member' until it resolves and patches in.
+        ensureSenderCard(rec.sender_id);
         const view = recordToView(rec);
-        learnSenders([view]);
         setMessages((prev) => mergeMessages(prev, [view]));
         return view;
       };
@@ -254,7 +293,7 @@ export function ConversationView({
       cancelled = true;
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [conversationId, recordToView, learnSenders, viewerId]);
+  }, [conversationId, recordToView, ensureSenderCard, viewerId]);
 
   // ---- Auto-scroll to newest when already at the bottom -------------------
   useEffect(() => {
