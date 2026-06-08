@@ -84,11 +84,17 @@ export async function loadEarnings(page: number): Promise<EarningsModel> {
   const feeBps = pro ? PRO_PLATFORM_FEE_BPS : PLATFORM_FEE_BPS;
   const feeRate = feeBps / 10_000;
 
+  // Scope to events THIS user hosts. The `_select_host` and `_select_own` RLS
+  // policies compose with OR, so without this filter a host who also bought a
+  // ticket on someone else's event would see that buyer row counted as their
+  // own earnings (receipts-tax audit R-2). Filter the embedded `events`
+  // resource by host_id; RLS still applies as defense-in-depth.
   const { data: rawRows } = await supabase
     .from('event_payment_audit')
     .select(
       'id, event_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
     )
+    .eq('events.host_id', user.id)
     .neq('action', 'failed')
     .order('occurred_at', { ascending: false });
 

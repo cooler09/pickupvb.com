@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase';
+import { csvCell } from '@/lib/csv';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,10 +178,4 @@ export async function GET(
       'cache-control': 'private, no-store',
     },
   });
-}
-
-function csvCell(s: string): string {
-  if (s == null) return '';
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
 }
