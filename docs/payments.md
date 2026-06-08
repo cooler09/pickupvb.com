@@ -15,15 +15,19 @@ For env vars and onboarding, see the Stripe section of
 
 ## TL;DR
 
-> **Every event has exactly one Stripe payout destination: the user in
-> `events.host_id`.** Groups, co-hosts, and `events.host_group_id` are
-> authorization metadata only — they never affect who the money lands
-> with. This is fixed at event creation time and cannot be changed
-> later.
+> **An event's payout destination is resolved by `getEventPayoutAccount(eventId,
+hostId)`** ([apps/web/src/lib/event-payout.ts](../apps/web/src/lib/event-payout.ts)):
+> the user in `events.host_id` by default, **or** the group's Connect account when
+> the host opted a **Club** group in via `events.payout_group_id` (ADR 0038). Every
+> existing and non-opted event resolves to `host_id` exactly as before. The
+> destination is frozen once a registration is paid (same lock as the price), and
+> **never falls back to the host** if a group-routed event's club account isn't
+> ready — it returns "not ready" instead, so club money can't land on an
+> individual. `host_group_id` and co-hosts remain authorization/display metadata.
 
-If you need a group to share payouts, the workaround is to designate one
-admin to own the Stripe account and create all the group's events while
-signed in as that user.
+The old workaround (nominate one admin to own Stripe and create all events as
+them) still works for groups without Club; **Club (ADR 0038) is the first-class
+fix** — see [§ Group payouts (Club tier)](#group-payouts-club-tier) below.
 
 ---
 
@@ -34,7 +38,9 @@ signed in as that user.
 | `events.host_id` (NOT NULL, FK → `profiles.id`)         | The user who owns the event and receives all payments.  | Set at creation. Cannot be changed afterwards (the edit form does not expose it).                   |
 | `events.host_group_id` (nullable, FK → `groups.id`)     | The group the event is hosted on behalf of.             | Pure metadata: drives RLS, "hosted by …" UI, and visibility. **Not** read by any payment code path. |
 | `event_co_hosts` (one row per extra host)               | Additional users or groups granted co-host permissions. | Same story — no effect on payment routing.                                                          |
-| `host_stripe_accounts.user_id` (PK, FK → `profiles.id`) | Stripe Connect account for a single user.               | **There is no `group_stripe_accounts` table.** Groups cannot own a Stripe account.                  |
+| `host_stripe_accounts.user_id` (PK, FK → `profiles.id`) | Stripe Connect account for a single user.               | Per-user payout account.                                                                            |
+| `group_stripe_accounts.group_id` (PK, FK → `groups.id`) | Stripe Connect account for a **Club** group.            | A group payout account (ADR 0038). Events opt in via `events.payout_group_id`. See § Group payouts. |
+| `events.payout_group_id` (nullable, FK → `groups.id`)   | Opt-in group payout destination for this event.         | NULL (default + all legacy rows) = pay out to `host_id`. Frozen once a registration is paid.        |
 
 Schema sources:
 
@@ -57,13 +63,21 @@ Domain model:
 
 ---
 
-## Payment routing — every entry point goes through `host_id`
+## Payment routing — per-event flows go through the payout resolver
+
+The three **per-event** money flows (ticket / team / tip — and the league
+roster-team checkout) resolve their destination through
+`getEventPayoutAccount(eventId, hostId)`
+([event-payout.ts](../apps/web/src/lib/event-payout.ts)): the group's Connect
+account when `events.payout_group_id` is set (Club opt-in, ADR 0038), else
+`events.host_id`'s account. The platform `application_fee` always keys on the
+host user's tier — Club changes only _where the payout lands_, not the fee.
 
 | Flow                       | File                                                                                                              | Destination resolved from                                                                                                                                                                                      |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Individual ticket checkout | [apps/web/src/app/events/[id]/checkout-actions.ts](../apps/web/src/app/events/[id]/checkout-actions.ts)           | `pricing.hostId` (= `events.host_id`) → `getHostStripeAccount(hostId)`                                                                                                                                         |
-| Team registration checkout | [apps/web/src/app/events/[id]/team-checkout-actions.ts](../apps/web/src/app/events/[id]/team-checkout-actions.ts) | `event.hostId` (= `events.host_id`) → `getHostStripeAccount(hostId)`                                                                                                                                           |
-| Tip jar                    | [apps/web/src/app/events/[id]/tip-actions.ts](../apps/web/src/app/events/[id]/tip-actions.ts)                     | `event.host_id` → `getHostStripeAccount(hostId)`; tip row also stores `host_id`                                                                                                                                |
+| Individual ticket checkout | [apps/web/src/app/events/[id]/checkout-actions.ts](../apps/web/src/app/events/[id]/checkout-actions.ts)           | `getEventPayoutAccount(eventId, pricing.hostId)` → group account if opted-in (ADR 0038), else `events.host_id`                                                                                                 |
+| Team registration checkout | [apps/web/src/app/events/[id]/team-checkout-actions.ts](../apps/web/src/app/events/[id]/team-checkout-actions.ts) | `getEventPayoutAccount(eventId, event.hostId)` (+ roster-team-checkout-actions.ts for leagues)                                                                                                                 |
+| Tip jar                    | [apps/web/src/app/events/[id]/tip-actions.ts](../apps/web/src/app/events/[id]/tip-actions.ts)                     | `getEventPayoutAccount(eventId, event.host_id)`; tip row also stores `host_id`                                                                                                                                 |
 | Season-pass purchase       | [apps/web/src/app/events/[id]/pass-actions.ts](../apps/web/src/app/events/[id]/pass-actions.ts)                   | `host_passes.host_id` → `getHostStripeAccount(hostId)`; tiered platform fee ([ADR 0037](adr/0037-season-passes.md))                                                                                            |
 | Membership subscription    | [apps/web/src/app/events/[id]/membership-actions.ts](../apps/web/src/app/events/[id]/membership-actions.ts)       | `host_membership_plans.host_id` → `getHostStripeAccount(hostId)`; **recurring** Connect destination subscription, `application_fee_percent` at the host's tier ([ADR 0037 Phase 2](adr/0037-season-passes.md)) |
 
@@ -297,22 +311,39 @@ genuinely absent for the event's whole lifecycle.
 
 ---
 
-## Open question / known limitation
+## Group payouts (Club tier)
 
-There is no support for **group-owned payout accounts** (e.g. a club
-treasury). If a group wants pooled payouts, the only current option is
-to nominate one admin as the "treasurer," do Stripe onboarding under
-that user, and have them create every paid event.
+> **Resolved 2026-06-08 by [ADR 0038](adr/0038-group-payouts-club-tier.md)** —
+> this used to be the open "no group payouts" limitation.
 
-If we ever need real group payouts, the work spans:
+A group on the paid **Club** tier (`group_subscriptions`, ~$25/mo Stripe Billing
+on the platform account, gated by `is_club_group`) can connect its **own** Stripe
+Connect account (`group_stripe_accounts`, keyed by `group_id`; onboarding mirrors
+the host flow, the account tagged `metadata.owner_type='group'` so the
+`account.updated` webhook mirrors into the group table). A **group-hosted** event
+can then opt to pay out to the club via `events.payout_group_id`.
 
-- A `group_stripe_accounts` table (or generalize `host_stripe_accounts`
-  with a polymorphic owner).
-- A "payout owner" column on `events` distinct from `host_id`, or a
-  resolver that picks user-vs-group per event.
-- Updating every site listed in the routing table above to consult the
-  new resolver instead of `event.host_id`.
-- A migration / backfill story for existing events.
+The money-safety rules (see ADR 0038):
 
-No ADR has been written for this; raise one before touching the
-routing.
+- **Opt-in + immutable-once-sold.** `payout_group_id` defaults null (= host_id,
+  unchanged for every existing event). It's set/cleared on the event edit page
+  only while the price is unlocked (`isPricingLocked` false); once a registration
+  is paid the destination is frozen, like `host_id`.
+- **No host fallback.** `getEventPayoutAccount` returns the group account when
+  opted-in; if that account isn't `charges_enabled` it returns `null` (checkout
+  shows "not ready"), **never** the host — club money can't land on an
+  individual.
+- **Fee unchanged.** The platform `application_fee` still keys on the host user's
+  tier; Club is a separate paid product, not a fee discount (multi-admin Pro is a
+  deferred follow-up).
+- **Scope:** ticket / team / tip per-event flows only. Passes + memberships are
+  host-user products and stay user-routed (rows above).
+
+Group management lives at `/groups/[slug]/billing`
+([page](../apps/web/src/app/groups/[id]/billing/page.tsx) +
+[actions](../apps/web/src/app/groups/[id]/billing/actions.ts)); the per-event
+opt-in is the "Club payouts" panel on the event edit page
+([payout-actions.ts](../apps/web/src/app/events/[id]/edit/payout-actions.ts)).
+
+**Deferred:** multi-admin Pro, club analytics, and surfacing club payout income
+in the (per-user) earnings page.

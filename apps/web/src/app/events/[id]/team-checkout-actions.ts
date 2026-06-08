@@ -11,7 +11,7 @@ import {
 } from '@pickupvb/domain';
 import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
-import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { getEventPayoutAccount } from '@/lib/event-payout';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { buyerProcessingFeeCents, platformFeeCentsFor } from '@/lib/event-pricing';
@@ -98,7 +98,7 @@ export async function startTeamRegistrationCheckout(registrationId: string): Pro
     backWithError(eventId, 'free_event');
   }
 
-  const hostAccountId = await getHostStripeAccount(event.hostId as unknown as string);
+  const hostAccountId = await getEventPayoutAccount(eventId, event.hostId as unknown as string);
   if (!hostAccountId) backWithError(eventId, 'host_not_ready');
 
   // host_absorbs_fee + pass_processing_fee_to_buyer mirror the attendee

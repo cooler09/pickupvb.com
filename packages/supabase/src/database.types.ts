@@ -1620,6 +1620,7 @@ export type Database = {
           pass_processing_fee_to_buyer: boolean;
           payment_instructions: string | null;
           payments_off_platform: boolean;
+          payout_group_id: string | null;
           postal_code: string;
           refund_window_hours: number;
           region: string;
@@ -1663,6 +1664,7 @@ export type Database = {
           pass_processing_fee_to_buyer?: boolean;
           payment_instructions?: string | null;
           payments_off_platform?: boolean;
+          payout_group_id?: string | null;
           postal_code: string;
           refund_window_hours?: number;
           region: string;
@@ -1706,6 +1708,7 @@ export type Database = {
           pass_processing_fee_to_buyer?: boolean;
           payment_instructions?: string | null;
           payments_off_platform?: boolean;
+          payout_group_id?: string | null;
           postal_code?: string;
           refund_window_hours?: number;
           region?: string;
@@ -1878,6 +1881,88 @@ export type Database = {
             columns: ['user_id'];
             isOneToOne: false;
             referencedRelation: 'profiles_public';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      group_stripe_accounts: {
+        Row: {
+          charges_enabled: boolean;
+          created_at: string;
+          details_submitted: boolean;
+          group_id: string;
+          payouts_enabled: boolean;
+          stripe_account_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          charges_enabled?: boolean;
+          created_at?: string;
+          details_submitted?: boolean;
+          group_id: string;
+          payouts_enabled?: boolean;
+          stripe_account_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          charges_enabled?: boolean;
+          created_at?: string;
+          details_submitted?: boolean;
+          group_id?: string;
+          payouts_enabled?: boolean;
+          stripe_account_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'group_stripe_accounts_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: true;
+            referencedRelation: 'groups';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      group_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean;
+          created_at: string;
+          current_period_end: string | null;
+          group_id: string;
+          status: string;
+          stripe_customer_id: string;
+          stripe_subscription_id: string | null;
+          trial_end: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          group_id: string;
+          status?: string;
+          stripe_customer_id: string;
+          stripe_subscription_id?: string | null;
+          trial_end?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          group_id?: string;
+          status?: string;
+          stripe_customer_id?: string;
+          stripe_subscription_id?: string | null;
+          trial_end?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'group_subscriptions_group_id_fkey';
+            columns: ['group_id'];
+            isOneToOne: true;
+            referencedRelation: 'groups';
             referencedColumns: ['id'];
           },
         ];
@@ -4112,6 +4197,7 @@ export type Database = {
         Returns: boolean;
       };
       is_active_member: { Args: { p_user_id: string; p_host_id: string }; Returns: boolean };
+      is_club_group: { Args: { p_group_id: string }; Returns: boolean };
       is_platform_admin: { Args: never; Returns: boolean };
       is_pro_host: { Args: { p_user_id: string }; Returns: boolean };
       kick_badge_reconcile: { Args: never; Returns: undefined };

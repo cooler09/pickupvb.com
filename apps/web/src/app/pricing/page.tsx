@@ -278,6 +278,10 @@ export default async function PricingPage() {
           a="Pro hosts can sell a prepaid pack of session credits — for example a 10-session open-play pass. Attendees buy it once, then redeem one credit to sign up for any of your open-play events you've marked pass-eligible, with no per-session charge. You get committed revenue up front; they skip paying every week. You set the price, the number of sessions, and an optional expiry."
         />
         <Faq
+          q="Can a club pool its payouts?"
+          a="Yes — PickupVB Club ($25/mo per group) lets a group connect one shared Stripe account, so events hosted by the club pay out to the club instead of an individual organizer. Manage it from your group's page (Club & payouts). Per-event opt-in, and the routing is locked once a ticket sells."
+        />
+        <Faq
           q="What are memberships?"
           a="Pro hosts can sell a recurring monthly membership to their open plays. While a member's subscription is active they sign up free to any of your pass-eligible open-play events — unlimited, no per-session charge. It's billed monthly to the member and pays out to you like a ticket (less the platform fee); members can cancel anytime and keep access through the period they've paid for."
         />

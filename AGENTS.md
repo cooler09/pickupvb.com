@@ -660,18 +660,29 @@ events. The reference pattern is the `attachTeamToDivision` port on
 [team-signup-actions.ts](apps/web/src/app/events/[id]/team-signup-actions.ts).
 Don't try to insert into `event_teams` without it.
 
-### 7. All event payments route through `events.host_id` — not the host group
+### 7. Event payments route through the payout resolver (`host_id`, or a Club group)
 
-Stripe Connect accounts are per-user only (`host_stripe_accounts.user_id`
-is the PK; there is no `group_stripe_accounts` table). `events.host_group_id`
-is authorization / display metadata — it never flows into ticket checkout,
-team checkout, or tips. The creating user's id becomes `events.host_id`
-and is the immutable payout destination for the life of the event.
-Stripe-readiness checks in
-[apps/web/src/app/events/new/actions.ts](apps/web/src/app/events/new/actions.ts)
-and [edit/actions.ts](apps/web/src/app/events/[id]/edit/actions.ts)
-gate on the host **user**, not the group. Full write-up:
-[docs/payments.md](docs/payments.md).
+Per-event charges (ticket / team / tip) resolve their Stripe destination through
+`getEventPayoutAccount(eventId, hostId)`
+([apps/web/src/lib/event-payout.ts](apps/web/src/lib/event-payout.ts)) — **never
+call `getHostStripeAccount` directly from a per-event checkout.** It returns the
+host user's account (`events.host_id`) by default, or the **group's** Connect
+account (`group_stripe_accounts`) when the host opted a **Club** group in via
+`events.payout_group_id` (ADR 0038). `events.host_group_id` remains
+authorization / display metadata; `payout_group_id` is the only thing that moves
+the money. Safety rules baked into the resolver: it **never falls back to the
+host** if a group-routed event's club account isn't `charges_enabled` (returns
+null → "not ready"), and `payout_group_id` is frozen once a registration is paid
+(`isPricingLocked`). The platform `application_fee` still keys on the host
+**user**'s tier — Club changes _where_ the money lands, not the fee.
+
+Passes + memberships are **host-user** products (`host_passes.host_id` / membership
+plans) and stay user-routed via `getHostStripeAccount` — they do **not** use the
+event resolver. Stripe-readiness checks in
+[events/new/actions.ts](apps/web/src/app/events/new/actions.ts) /
+[edit/actions.ts](apps/web/src/app/events/[id]/edit/actions.ts) still gate on the
+host **user** (group opt-in happens post-create on the edit page). Full write-up:
+[docs/payments.md](docs/payments.md) + [ADR 0038](docs/adr/0038-group-payouts-club-tier.md).
 
 ### 8. Don't enforce authorization on the admin (service-role) client
 

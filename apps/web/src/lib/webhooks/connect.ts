@@ -7,6 +7,7 @@
 import type Stripe from 'stripe';
 import { getAdminSupabase } from '@/lib/supabase-admin';
 import { mirrorStripeAccountUpdate } from '@/lib/host-stripe-account';
+import { mirrorGroupStripeAccountUpdate } from '@/lib/group-stripe-account';
 import { analytics } from '@/lib/handlers';
 import { recordAuditEvent } from '@/lib/audit-log';
 import { notify } from '@/lib/notify';
@@ -18,6 +19,18 @@ import { notify } from '@/lib/notify';
  * gate the "publish a paid event" UI.
  */
 export async function handleAccountUpdated(account: Stripe.Account): Promise<void> {
+  // Group-owned Connect accounts (ADR 0038 Club tier) are tagged at creation
+  // with metadata.owner_type='group' and mirror into group_stripe_accounts, not
+  // host_stripe_accounts. Handle + return before the host path.
+  if (account.metadata?.['owner_type'] === 'group') {
+    await mirrorGroupStripeAccountUpdate(account.id, {
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+      detailsSubmitted: account.details_submitted,
+    });
+    return;
+  }
+
   await mirrorStripeAccountUpdate(account.id, {
     chargesEnabled: account.charges_enabled,
     payoutsEnabled: account.payouts_enabled,

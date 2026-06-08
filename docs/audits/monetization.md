@@ -244,7 +244,25 @@ fee, no new tax.
   complexity v1). Probably 2–3 bundles; an ADR first. **This is the highest-value
   net-new monetization surface and the most community-aligned.**
 
-#### O-2 — Club / Group tier with pooled payouts ("PickupVB Club")
+#### O-2 — Club / Group tier with pooled payouts ("PickupVB Club") — ✅ Shipped 2026-06-08 ([ADR 0038](../adr/0038-group-payouts-club-tier.md))
+
+**Built** the v1 vertical (pooled payouts only). A group subscribes to **Club**
+(~$25/mo, Stripe Billing on the platform — `group_subscriptions`,
+`is_club_group`), connects its **own** Stripe Connect account
+(`group_stripe_accounts`, onboarding mirrors the host flow, `owner_type='group'`
+metadata routes the `account.updated` webhook), and opts group-hosted events to
+pay out to the club via `events.payout_group_id`. The three per-event flows
+(ticket/team/tip + roster-team) resolve through `getEventPayoutAccount` — group
+account if opted-in, else host; **never falls back to host** if the club account
+isn't ready; routing frozen once a registration is paid (`isPricingLocked`);
+existing/non-opted events unchanged; the platform fee still keys on the host
+user. Surfaces: `/groups/[slug]/billing` (subscribe + connect), event-edit "Club
+payouts" panel, group-page link. Migration `20261002000000` (deploy-gated).
+**Deferred (per scope):** multi-admin Pro, club analytics, club payout income in
+the per-user earnings page. payments.md + AGENTS Pattern 7 amended (the "no group
+payouts" limitation is resolved). Original rationale below.
+
+**Original opportunity (rationale):**
 
 Resolves the standing limitation in
 [payments.md § Open question](../payments.md#open-question--known-limitation):
@@ -1125,6 +1143,26 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — O-2 shipped: Club tier + group payouts ([ADR 0038](../adr/0038-group-payouts-club-tier.md), uncommitted; migration deploy-gated).**
+  The highest-risk bundle (touches money routing — payments.md "read before
+  touching"). v1 = pooled payouts only. A group subscribes to **Club** (~$25/mo,
+  Stripe Billing on the platform; `group_subscriptions` + `is_club_group`),
+  connects its **own** Connect account (`group_stripe_accounts`; onboarding mirrors
+  the host flow, `owner_type='group'` metadata branches the `account.updated`
+  webhook), and opts group-hosted events to it via `events.payout_group_id`. The
+  per-event flows (ticket/team/tip/roster-team) now resolve through
+  `getEventPayoutAccount(eventId, hostId)` — **never falls back to host** if the
+  club account isn't charges-enabled; routing frozen once a registration is paid;
+  existing + non-opted events route to `host_id` unchanged; platform fee still
+  keys on the host user. New: migration `20261002000000_group_payouts_club.sql`,
+  `lib/{group-stripe-account,club,event-payout}.ts`, `groups/[id]/billing/`
+  (page + actions), `events/[id]/edit/payout-actions.ts` + edit panel, webhook
+  branches (`account.updated` group + subscription `kind=club`), 4 checkout-site
+  swaps, hand-edited DB types. Docs: payments.md (TL;DR + routing + resolved the
+  open limitation), AGENTS Pattern 7 amended, features.md, pricing FAQ.
+  Quad-green. Deferred: multi-admin Pro, club analytics, club income in the
+  per-user earnings page. O-3/O-4/O-5/O-8/O-9 remain open.
 
 - **2026-06-08 — O-7 shipped: recurring memberships (Phase 2 of O-1; [ADR 0037 Phase 2](../adr/0037-season-passes.md), uncommitted; migration deploy-gated).**
   A Pro host sells a monthly membership (`host_membership_plans`); a buyer

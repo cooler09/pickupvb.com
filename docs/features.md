@@ -173,6 +173,28 @@ links to onboarding if charges aren't enabled yet.
   pool.
 - `charge.refunded` removes the attendee and notifies them.
 
+### Group payouts — Club tier (ADR 0038)
+
+By default an event pays out to `events.host_id` (a user). A group on the paid
+**Club** tier (`group_subscriptions`, ~$25/mo) can connect its **own** Stripe
+Connect account (`group_stripe_accounts`) and opt group-hosted events to pay out
+to the club instead.
+
+- **Resolver:** the per-event flows (ticket / team / tip) resolve their
+  destination via `getEventPayoutAccount(eventId, hostId)`
+  ([lib/event-payout.ts](../apps/web/src/lib/event-payout.ts)) — group account if
+  the event opted in (`events.payout_group_id`), else the host user's.
+- **Opt-in is per-event + immutable once sold:** set on the event edit page
+  ("Club payouts" panel) only while the price is unlocked; frozen after the first
+  paid registration, like `host_id`.
+- **No host fallback:** if a group-routed event's club account isn't ready, the
+  resolver returns null ("not ready") — it never routes club money to the host.
+- **Manage:** `/groups/[slug]/billing` (owner/admin) — subscribe to Club, connect
+  the payout account. Selling Club is gated to group owners/admins.
+- **Scope (v1):** ticket/team/tip only; passes + memberships stay host-user
+  routed; the platform fee still keys on the host user (no multi-admin Pro). Full
+  write-up: [payments.md § Group payouts](payments.md#group-payouts-club-tier).
+
 ---
 
 ## 5. Pro Host subscription

@@ -10,6 +10,7 @@ import { analytics } from '@/lib/handlers';
 import { recordAuditEvent } from '@/lib/audit-log';
 import { log } from '@/lib/log';
 import { getAdminSupabase } from '@/lib/supabase-admin';
+import { upsertGroupSubscriptionFromStripe } from '@/lib/club';
 
 /**
  * Keep host_subscriptions in sync with Stripe. Fires on create/update/delete
@@ -30,6 +31,13 @@ export async function handleSubscriptionChange(
   // route them out before the Pro path below.
   if (sub.metadata?.['kind'] === 'host_membership') {
     await handleHostMembershipChange(sub);
+    return;
+  }
+
+  // Group Club subscriptions (ADR 0038) mirror into group_subscriptions, not the
+  // per-user host_subscriptions table.
+  if (sub.metadata?.['kind'] === 'club') {
+    await handleClubSubscriptionChange(sub);
     return;
   }
 
@@ -202,5 +210,35 @@ async function handleHostMembershipChange(sub: Stripe.Subscription): Promise<voi
     entityId: sub.id,
     targetUserId: memberUserId,
     metadata: { status: sub.status, hostId, planId, cancelAtPeriodEnd },
+  });
+}
+
+/**
+ * Mirror a group Club subscription (ADR 0038) into `group_subscriptions`.
+ * Identity comes from `metadata.group_id` set at Checkout. Admin client (writes
+ * are admin-only); the upsert keys on the group_id PK so a redelivered webhook
+ * just refreshes status.
+ */
+async function handleClubSubscriptionChange(sub: Stripe.Subscription): Promise<void> {
+  const groupId = sub.metadata?.['group_id'];
+  if (!groupId) {
+    await log.error('[stripe-webhook] club: missing group_id metadata', null, {
+      subscriptionId: sub.id,
+    });
+    return;
+  }
+
+  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+  const periodEnd = (sub as unknown as { current_period_end?: number }).current_period_end;
+  const trialEnd = sub.trial_end;
+
+  await upsertGroupSubscriptionFromStripe({
+    groupId,
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: sub.id,
+    status: sub.status,
+    currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+    trialEnd: trialEnd ? new Date(trialEnd * 1000).toISOString() : null,
+    cancelAtPeriodEnd: sub.cancel_at_period_end ?? false,
   });
 }

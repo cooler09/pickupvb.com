@@ -6,7 +6,7 @@ import type { Route } from 'next';
 import { isStripeConfigured } from '@/lib/stripe';
 import { getServerSupabase } from '@/lib/supabase';
 import { getEventPricing, attendeeChargeBreakdownAsync } from '@/lib/event-pricing';
-import { getHostStripeAccount } from '@/lib/host-stripe-account';
+import { getEventPayoutAccount } from '@/lib/event-payout';
 import { buildOrigin, redirectEventNotice } from '@/lib/server-redirects';
 import { createDestinationCheckoutSession } from '@/lib/checkout-session';
 import { field } from '@/lib/form-data';
@@ -53,7 +53,7 @@ export async function startTicketCheckout(eventId: string): Promise<void> {
   // an on-platform charge the host never opted into.
   if (pricing.paymentsOffPlatform) backWithError(eventId, 'off_platform');
 
-  const hostAccountId = await getHostStripeAccount(pricing.hostId);
+  const hostAccountId = await getEventPayoutAccount(eventId, pricing.hostId);
   if (!hostAccountId) {
     backWithError(eventId, 'host_not_ready');
   }
