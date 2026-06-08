@@ -22,6 +22,12 @@ notify(kind,user,payload)
 
 **2026-06-04 — initial audit + P1 bundle shipped (uncommitted).**
 **2026-06-05 — root cause CONFIRMED by live outbox inspection (see P1 #1).**
+**2026-06-07 — full re-audit (whole-site sweep). All notification _kinds_ now
+have ≥1 live trigger (P2 #2 "dead kinds" fully closed). Five new findings:
+two reliability/correctness bugs (P2 #7 stranded `sending` rows, P2 #8 times
+render in server UTC) + three P3s (no per-category prefs UI, bell mark-read
+miscounts > 20 unread, worker metrics conflate skipped push as sent). Details
+below.**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -120,7 +126,7 @@ added `public/manifest.webmanifest`, linked `manifest` + `appleWebApp` +
 `push` to both ([kinds.ts](../../packages/notifications/src/kinds.ts)). Paired
 with the correctness fix below so transactional push still honors the opt-in.
 
-### P2 #2 — Three notification kinds defined but never triggered — ◑ mostly resolved 2026-06-06
+### P2 #2 — Three notification kinds defined but never triggered — ✅ resolved (all wired by 2026-06-07)
 
 `event.waitlist.promoted` (waitlist feature itself unimplemented),
 `host.stripe.action_required`, and `social.follow.new` had kinds + templates
@@ -136,8 +142,10 @@ but **zero `notify()` call sites**.
   `handleAccountUpdated` when `requirements.past_due` / `currently_due` /
   `disabled_reason` is set. Email/push dedup on a requirement-signature
   idempotency key; in_app coalesces on the unread bell.
-- **`event.waitlist.promoted` — still OPEN**, blocked on the waitlist feature
-  (P3 of the outstanding-items plan). It will be fired from the promote handler.
+- **`event.waitlist.promoted` — wired (2026-06-06).** Now fired from the web
+  `leaveEvent` action via `LeaveEventHandler`'s returned `promotedUserId` once the
+  capacity-waitlist feature landed (ADR 0036). With it, **every kind in the
+  registry has ≥ 1 live trigger** — this finding is fully closed.
 
 Tests: [notify-follow.test.ts](../../apps/web/src/lib/notify-follow.test.ts),
 [webhooks/connect.test.ts](../../apps/web/src/lib/webhooks/connect.test.ts).
@@ -197,6 +205,55 @@ fan-out + per-recipient coalesce. **Deploy-gated:** the RPC migration + the
 hand-edited `database.types.ts` entry need `gen:types` against the real schema,
 and the fan-out can only be exercised against a deployed DB.
 
+### P2 #7 — Outbox rows can strand in `sending` forever (no reaper) — OPEN
+
+[`claimBatch`](../../packages/infrastructure/src/supabase-notification-outbox-repository.ts#L108-L128)
+flips due `pending` rows to `sending`, then
+[the worker](../../apps/web/src/app/api/notifications/worker/route.ts#L155-L200)
+processes them one-by-one to a terminal state. But the claim query **only ever
+selects `status = 'pending'`** — nothing re-claims a `sending` row. So if the
+function dies between claim and terminal write — the 60s `maxDuration` hard kill
+mid-batch (a batch of 50 is all flipped to `sending` up front, and
+`DRAIN_BUDGET_MS` only breaks _between_ batches, never mid-batch), an
+unhandled throw, or a Vercel cold-stop — every claimed-but-unprocessed row is
+**orphaned in `sending` permanently**: never delivered, never retried, and not
+purged (`purgeTerminal` only deletes `sent`/`skipped`, `purgeFailed` only
+`failed`). The `notification_outbox_drain_idx` even indexes `sending`, signalling
+the intent to recover them, but no query does. Silent in dev (low volume); a
+broadcast burst or a slow Resend/web-push window on prod is where it bites.
+
+**Fix:** add a stale-claim reaper. Either (a) widen `claimBatch` to also re-claim
+`status = 'sending' AND updated_at < now() - interval '5 min'` (add an
+`updated_at` touch on the `sending` flip), or (b) a small step at the top of the
+worker GET that resets `sending` rows older than a timeout back to `pending`
+(attempts unchanged, so the existing backoff still applies). Option (a) is fewer
+moving parts. Pin it with a sweep test that leaves a row `sending` and asserts the
+next run re-claims it.
+
+### P2 #8 — Notification times render in the server's UTC, not the event's zone — OPEN
+
+`formatStart` / `formatDate` in
+[templates.ts](../../packages/notifications/src/templates.ts#L45-L69) call
+`new Date(iso).toLocaleString('en-US', { … })` **with no `timeZone` option**, so
+they format in the Node runtime's zone — **UTC on Vercel**. Every email / push /
+SMS / bell line that shows a time ("Tomorrow at …", "Starting soon …", signup
+confirmations, league-match kickoff, account-deletion date) is wrong for everyone
+not in UTC: a 7 PM ET event renders **"12:00 AM"**. The data to fix it already
+exists and is simply never threaded — `events.time_zone` (e.g.
+`'America/New_York'`) is a column on the row, and the
+[reminder sweep select](../../apps/web/src/app/api/notifications/reminders/route.ts#L44)
+
+- the [signup-confirmed read](../../apps/web/src/app/events/[id]/rsvp-actions.ts#L82-L105)
+- [cancel-actions](../../apps/web/src/app/events/[id]/edit/cancel-actions.ts#L100-L114)
+  all omit it from both the SQL select and the `NotificationPayload`.
+  (`notification_preferences.timezone` exists too but is likewise unused — P3.)
+
+**Fix:** add an optional `timeZone` to the event-bearing payloads, select
+`time_zone` everywhere an event notification is built, and pass it through
+`formatStart(iso, tz)` → `toLocaleString('en-US', { …, timeZone: tz ?? 'America/New_York' })`.
+Fall back to the event zone first, then a sensible default. A template unit test
+asserting a fixed ISO + `'America/New_York'` renders the ET wall-clock pins it.
+
 ---
 
 ## P3 — nice-to-have
@@ -215,6 +272,39 @@ and the fan-out can only be exercised against a deployed DB.
 - **No push analytics.** No subscription-rate / delivery-success metrics to
   PostHog.
 - **No digest emails.**
+- **Per-category prefs are read but unsettable.** `dispatch` honors
+  `channel_overrides[category][channel]`
+  ([notify.ts:56,73](../../apps/web/src/lib/notify.ts#L56-L73)), but the prefs
+  page ([profile/notifications/page.tsx](../../apps/web/src/app/profile/notifications/page.tsx))
+  only renders the three master toggles (email / in-app / push) — no UI ever
+  writes `channel_overrides`, `quiet_hours_*`, or the SMS fields, and
+  `updateNotificationPreferences` only persists the three masters. So a user
+  can't, say, mute "social" while keeping "event_reminders": a whole tier of the
+  data model + dispatch logic is dark. Either add the granular UI or drop the
+  unsettable columns to avoid a "supported but impossible" gap.
+- **Bell "mark all read" zeroes the badge even with > 20 unread.** The popover
+  holds ≤ 20 rows; on open it marks only those read in the DB and then
+  unconditionally `setUnread(0)`
+  ([notification-bell.tsx:76-91](../../apps/web/src/components/notification-bell.tsx#L76-L91)).
+  A user with 50 unread sees the badge drop 50 → 0 while 30 rows stay unread in
+  the DB; the next navigation re-syncs the badge back to 30 (a flicker, not data
+  loss). Fix: decrement by the count actually marked, or mark-all-read server-side
+  (`update … where user_id = me and read_at is null`) so the badge and the DB
+  agree.
+- **Worker metrics conflate skipped pushes with sent.** In `drainOneBatch` a
+  `push` row counts toward `sent` even when `processRow` ended in `markSkipped`
+  (`no-push-subscriptions` / `all-subscriptions-gone`)
+  ([worker/route.ts:174-178](../../apps/web/src/app/api/notifications/worker/route.ts#L174-L178)).
+  Observability only (the response JSON over-reports delivery), but it hides the
+  "user has push enabled but no live subscription" failure mode. Have `processRow`
+  return its outcome and tally from that instead of inferring from `channel`.
+- **Batch `enqueue` is atomic across channels.** A fan-out builds one multi-row
+  insert ([outbox repo `enqueue`](../../packages/infrastructure/src/supabase-notification-outbox-repository.ts#L90-L104));
+  if any one row trips the `idempotency_key` unique constraint (a webhook retry of
+  a keyed kind), the **whole** insert aborts and `notify` swallows it — but the
+  `in_app` row was already inserted separately and carries no idempotency key, so
+  a retry can double the bell row while dropping the email/push. Rare and
+  low-harm; note it if a retry-heavy kind ever shows duplicate bells.
 
 ---
 

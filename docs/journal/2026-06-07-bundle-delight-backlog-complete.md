@@ -90,6 +90,14 @@ batches, cheapest/most-isolated first, games last.
   specific). Fix: add `'unsafe-eval'` **only when `NODE_ENV !== 'production'`** —
   verified a real `next build` still emits the strict policy (no eval), so prod
   security is unchanged.
+  - **Correction (2026-06-07, later same day):** the `'unsafe-eval'` change was
+    a real dev-CSP hardening but **was not the cause of the reload loop** — the
+    loop kept happening after it landed. Root cause turned out to be
+    `AuthStateSync` calling `router.refresh()` on `TOKEN_REFRESHED`, which the
+    session-refreshing middleware turns into a back-to-back loop **for
+    signed-in viewers only** (that's why every logged-out headless probe missed
+    it). Full write-up + a live A/B repro in
+    [2026-06-07-bundle-auth-state-sync-reload-loop.md](2026-06-07-bundle-auth-state-sync-reload-loop.md).
 
 ## Follow-ups
 
