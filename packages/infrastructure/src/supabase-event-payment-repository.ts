@@ -136,29 +136,9 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
     await this.client.from('event_tips').delete().eq('id', tipId).eq('status', 'pending');
   }
 
-  // --- payment_intent.payment_failed -----------------------------------------
-
-  async deletePendingAttendeesByPaymentIntent(paymentIntentId: string): Promise<void> {
-    const { data: pendingPay } = await this.client
-      .from('event_participant_payments')
-      .select('participant_id')
-      .eq('payment_intent_id', paymentIntentId)
-      .eq('payment_status', 'pending');
-    const pids = ((pendingPay as { participant_id: string }[] | null) ?? []).map(
-      (r) => r.participant_id,
-    );
-    if (pids.length > 0) {
-      await this.client.from('event_participants').delete().in('id', pids);
-    }
-  }
-
-  async markPendingTipsFailedByPaymentIntent(paymentIntentId: string): Promise<void> {
-    await this.client
-      .from('event_tips')
-      .update({ status: 'failed' })
-      .eq('stripe_payment_intent_id', paymentIntentId)
-      .eq('status', 'pending');
-  }
+  // `payment_intent.payment_failed` is a no-op (see `handlePaymentFailed`), so
+  // there is no adapter method for it — pending cleanup is owned by the
+  // checkout.session.expired methods above + the cancel route.
 
   // --- charge.refunded -------------------------------------------------------
 

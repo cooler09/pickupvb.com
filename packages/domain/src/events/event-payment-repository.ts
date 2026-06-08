@@ -94,11 +94,11 @@ export interface EventPaymentRepository {
   /** Delete a still-pending tip row (idempotent). */
   deletePendingTip(tipId: string): Promise<void>;
 
-  // --- payment_intent.payment_failed -----------------------------------------
-  /** Drop all still-pending attendee reservations attached to a PI. */
-  deletePendingAttendeesByPaymentIntent(paymentIntentId: string): Promise<void>;
-  /** Mark still-pending tips on a PI as `failed` (kept for host visibility). */
-  markPendingTipsFailedByPaymentIntent(paymentIntentId: string): Promise<void>;
+  // Note: `payment_intent.payment_failed` is handled as a no-op — releasing a
+  // reservation while the Checkout Session is still retryable is unsafe (the
+  // buyer may complete on that same session). Cleanup is owned by
+  // `checkout.session.expired` + the cancel route. See `handlePaymentFailed`
+  // and docs/audits/stripe-integration.md SI-1.
 
   // --- charge.refunded -------------------------------------------------------
   /** Mark any tip on this PI `refunded`. `refundedAt` is an ISO-8601 stamp. */

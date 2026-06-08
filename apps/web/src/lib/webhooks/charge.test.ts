@@ -12,8 +12,6 @@ import type Stripe from 'stripe';
 vi.mock('@/lib/handlers', () => ({
   repositories: {
     eventPaymentRepo: {
-      deletePendingAttendeesByPaymentIntent: vi.fn(async () => {}),
-      markPendingTipsFailedByPaymentIntent: vi.fn(async () => {}),
       markTipsRefundedByPaymentIntent: vi.fn(async () => {}),
       findRefundableAttendeeByPaymentIntent: vi.fn(async () => null),
       deleteAttendee: vi.fn(async () => {}),
@@ -64,10 +62,16 @@ beforeEach(() => {
 });
 
 describe('handlePaymentFailed', () => {
-  it('drops pending attendees and fails pending tips for the PI', async () => {
-    await handlePaymentFailed({ id: 'pi_9' } as unknown as Stripe.PaymentIntent);
-    expect(repo.deletePendingAttendeesByPaymentIntent).toHaveBeenCalledWith('pi_9');
-    expect(repo.markPendingTipsFailedByPaymentIntent).toHaveBeenCalledWith('pi_9');
+  it('is a safe no-op — must not release a still-retryable reservation (SI-1)', async () => {
+    // The session is still `open` when this fires; releasing the pending row
+    // would lose the seat a later checkout.session.completed flips to paid.
+    // Cleanup is owned by checkout.session.expired + the cancel route, so the
+    // handler must touch no repo write. Asserting "no DB writes" pins that.
+    await expect(
+      handlePaymentFailed({ id: 'pi_9' } as unknown as Stripe.PaymentIntent),
+    ).resolves.toBeUndefined();
+    expect(repo.deleteAttendee).not.toHaveBeenCalled();
+    expect(repo.markTipsRefundedByPaymentIntent).not.toHaveBeenCalled();
   });
 });
 

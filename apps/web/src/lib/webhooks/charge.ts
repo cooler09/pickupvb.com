@@ -16,16 +16,25 @@ import {
 } from './team-payment-mediators';
 
 /**
- * Same cleanup as expired — bare payment_intent.payment_failed events fire
- * when the customer's card declines mid-checkout. We don't always get a
- * matching session here (Stripe sends both), but cleanup is idempotent.
+ * `payment_intent.payment_failed` — a card declined mid-checkout.
+ *
+ * Deliberately a no-op. It is **not safe** to release the buyer's pending
+ * reservation here: this event fires while the Checkout Session is still
+ * `open`, so the buyer can retry with another card and complete on that same
+ * session. Deleting the pending row now would lose the seat the subsequent
+ * `checkout.session.completed` expects to flip to `paid` — the buyer would be
+ * charged but hold nothing. Pending reservations are released only where the
+ * session is actually terminal: `checkout.session.expired` (the 30-minute TTL,
+ * see CHECKOUT_EXPIRES_SECS) and the explicit cancel route.
+ *
+ * This previously called `deletePendingAttendeesByPaymentIntent` /
+ * `markPendingTipsFailedByPaymentIntent`, but a pending row only ever stores its
+ * `checkout_session_id` (the PI is written at completion), so those matched zero
+ * rows. They were removed rather than "fixed" into the unsafe eager release
+ * above. See docs/audits/stripe-integration.md SI-1.
  */
-export async function handlePaymentFailed(pi: Stripe.PaymentIntent): Promise<void> {
-  // Drop pending attendee reservations attached to this PI (the payment
-  // cascades). Tips: mark failed rather than delete so the host can see
-  // attempted tips.
-  await repositories.eventPaymentRepo.deletePendingAttendeesByPaymentIntent(pi.id);
-  await repositories.eventPaymentRepo.markPendingTipsFailedByPaymentIntent(pi.id);
+export async function handlePaymentFailed(_pi: Stripe.PaymentIntent): Promise<void> {
+  // Intentionally empty — see the doc comment above.
 }
 
 /**

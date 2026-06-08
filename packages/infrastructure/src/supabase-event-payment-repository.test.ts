@@ -273,56 +273,6 @@ describe('SupabaseEventPaymentRepository — checkout.session.expired', () => {
   });
 });
 
-describe('SupabaseEventPaymentRepository — payment_intent.payment_failed', () => {
-  it('deletePendingAttendeesByPaymentIntent batch-deletes the pending participants', async () => {
-    const mock = makeClient();
-    mock.data['event_participant_payments'] = [
-      { participant_id: 'p_1' },
-      { participant_id: 'p_2' },
-    ];
-    await repo(mock).deletePendingAttendeesByPaymentIntent('pi_1');
-    expect(mock.ops).toEqual([
-      {
-        table: 'event_participant_payments',
-        op: 'select',
-        select: 'participant_id',
-        filters: [
-          ['eq', 'payment_intent_id', 'pi_1'],
-          ['eq', 'payment_status', 'pending'],
-        ],
-      },
-      {
-        table: 'event_participants',
-        op: 'delete',
-        filters: [['in', 'id', ['p_1', 'p_2']]],
-      },
-    ]);
-  });
-
-  it('deletePendingAttendeesByPaymentIntent skips the delete when none are pending', async () => {
-    const mock = makeClient();
-    mock.data['event_participant_payments'] = [];
-    await repo(mock).deletePendingAttendeesByPaymentIntent('pi_1');
-    expect(mock.ops).toHaveLength(1);
-  });
-
-  it('markPendingTipsFailedByPaymentIntent flips pending tips to failed', async () => {
-    const mock = makeClient();
-    await repo(mock).markPendingTipsFailedByPaymentIntent('pi_1');
-    expect(mock.ops).toEqual([
-      {
-        table: 'event_tips',
-        op: 'update',
-        payload: { status: 'failed' },
-        filters: [
-          ['eq', 'stripe_payment_intent_id', 'pi_1'],
-          ['eq', 'status', 'pending'],
-        ],
-      },
-    ]);
-  });
-});
-
 describe('SupabaseEventPaymentRepository — charge.refunded', () => {
   it('markTipsRefundedByPaymentIntent flips tips on the PI to refunded with the passed timestamp', async () => {
     const mock = makeClient();

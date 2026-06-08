@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { revalidatePath, updateTag } from 'next/cache';
 import { getAdminSupabase } from '@/lib/supabase-admin';
+import { eventCacheTag } from '@/lib/cache-tags';
 import { log } from '@/lib/log';
 
 /**
@@ -40,6 +42,19 @@ export async function GET(
         eventId,
         sessionId,
       });
+    } else if (pid) {
+      // Freed a reserved spot — evict the event-detail cache so the re-opened
+      // capacity shows immediately (same eviction the expired webhook does).
+      // Guarded so a revalidation hiccup can't break the redirect.
+      try {
+        updateTag(eventCacheTag(eventId));
+        revalidatePath(`/events/${eventId}`);
+      } catch (revalErr) {
+        log.warn('[checkout/cancel] revalidate failed', {
+          eventId,
+          err: String(revalErr),
+        });
+      }
     }
   }
 
