@@ -104,3 +104,52 @@ export async function handleChargeRefunded(charge: Stripe.Charge): Promise<void>
   await refundTeamRegistrationIfAny(piId, charge.amount_refunded ?? null);
   await refundRosterTeamPaymentIfAny(piId, charge.amount_refunded ?? null);
 }
+
+/**
+ * `charge.dispute.created` — a buyer filed a chargeback. Stripe withholds the
+ * funds and emails the Connect host directly, but we also surface it in-app +
+ * email so the host sees it inside PickupVB and knows to respond before the
+ * Stripe deadline.
+ *
+ * We deliberately do **not** auto-free the seat or flip payment state: a dispute
+ * can still be won (funds returned), and removing the buyer is the host's call —
+ * they're now notified and can refund/remove from the roster if they concede.
+ * Covers the ticket + tip surfaces; team-payment disputes still receive Stripe's
+ * own email (host-notify for them is a documented follow-up). See
+ * docs/audits/stripe-integration.md SI-3.
+ */
+export async function handleChargeDisputed(dispute: Stripe.Dispute): Promise<void> {
+  const piId =
+    typeof dispute.payment_intent === 'string'
+      ? dispute.payment_intent
+      : (dispute.payment_intent?.id ?? null);
+  if (!piId) return;
+
+  // Resolve the event + payout host this disputed charge belongs to.
+  let eventId: string | null = null;
+  let hostId: string | null = null;
+  const att = await repositories.eventPaymentRepo.findRefundableAttendeeByPaymentIntent(piId);
+  if (att) {
+    eventId = att.eventId;
+    hostId = await repositories.eventPaymentRepo.findEventHostId(att.eventId);
+  } else {
+    const tip = await repositories.eventPaymentRepo.findTipContextByPaymentIntent(piId);
+    if (tip) {
+      eventId = tip.eventId;
+      hostId = tip.hostId;
+    }
+  }
+  if (!eventId || !hostId) return;
+
+  const eventTitle = (await repositories.eventPaymentRepo.findEventTitle(eventId)) ?? 'your event';
+  try {
+    await notify(
+      'host.payment.disputed',
+      hostId,
+      { eventId, eventTitle, amountCents: dispute.amount ?? 0 },
+      { idempotencyKey: `dispute:${dispute.id}` },
+    );
+  } catch {
+    // best-effort — a notify failure must never reject the webhook.
+  }
+}

@@ -26,18 +26,22 @@ completed/expired/refund webhook handlers all evict the event cache. The
 free-tier paid-event cap RPC drift is **already fixed**
 ([20260913000000](../../supabase/migrations/20260913000000_fix_host_paid_event_count_30d_event_divisions.sql)).
 
-This audit found **no P1s**. **SI-1 + SI-2 fixed 2026-06-08** (uncommitted,
-quad-green). Remaining backlog: **5 P3.**
+This audit found **no P1s**. **All findings fixed 2026-06-08** (uncommitted,
+quad-green) — SI-1/SI-2 first, then the SI-3…SI-7 P3 sweep. Two narrow
+follow-ups were deliberately deferred (see the remediation log): **team-payment**
+dispute host-notify (SI-3 covers tickets + tips; team disputes still get
+Stripe's own host email) and the sponsor/badge **success-route reconcile**
+(SI-4 shipped the idempotency keys; the webhook already evicts on completion).
 
-| #    | Grade | Status   | One-line                                                                                             |
-| ---- | ----- | -------- | ---------------------------------------------------------------------------------------------------- |
-| SI-1 | P2    | ✅ Fixed | `payment_intent.payment_failed` handler matched zero rows (dead code) + latent eager-release footgun |
-| SI-2 | P2    | ✅ Fixed | Success/cancel reconcile routes mutated but didn't evict `eventCacheTag` → stale post-payment UI     |
-| SI-3 | P3    | Open     | No `charge.dispute.created` handling — chargeback leaves seat consumed + host un-notified            |
-| SI-4 | P3    | Open     | Sponsor / badge à-la-carte checkout: no Stripe idempotency key + no synchronous success reconcile    |
-| SI-5 | P3    | Open     | Stale comment in `pro/actions.ts` claims `invoice.*` webhook handling that doesn't exist             |
-| SI-6 | P3    | Open     | Off-platform guard gaps in `startTicketCheckout` + `EventPricing` (already noted in payments.md)     |
-| SI-7 | P3    | Open     | Minor: duplicate `platformFeeCentsFor` call per ticket checkout; `refund-window.ts` 4-space indent   |
+| #    | Grade | Status                  | One-line                                                                                                 |
+| ---- | ----- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| SI-1 | P2    | ✅ Fixed                | `payment_intent.payment_failed` handler matched zero rows (dead code) + latent eager-release footgun     |
+| SI-2 | P2    | ✅ Fixed                | Success/cancel reconcile routes mutated but didn't evict `eventCacheTag` → stale post-payment UI         |
+| SI-3 | P3    | ✅ Fixed (tickets+tips) | `charge.dispute.created` now notifies the host (in-app + email); team disputes deferred                  |
+| SI-4 | P3    | ✅ Fixed (keys)         | Sponsor/badge checkout gained Stripe idempotency keys; success-route reconcile deferred (low value)      |
+| SI-5 | P3    | ✅ Fixed                | Stale `invoice.*` comment in `pro/actions.ts` corrected                                                  |
+| SI-6 | P3    | ✅ Fixed                | Off-platform guard added to `startTicketCheckout`; `paymentsOffPlatform` threaded through `EventPricing` |
+| SI-7 | P3    | ✅ Fixed                | Deduped `platformFeeCentsFor` (now `breakdown.applicationFeeCents`); `refund-window.ts` reformatted      |
 
 ### Remediation log — 2026-06-08
 
@@ -68,6 +72,39 @@ revalidatePath()` added after the mutating reconcile in
   [checkout/cancel](../../apps/web/src/app/events/[id]/checkout/cancel/route.ts) —
   matching the webhook's eviction so a redirect that beats the webhook no longer
   shows stale state.
+- **SI-3 — dispute host-notify (tickets + tips).** New `host.payment.disputed`
+  notification kind (transactional, email + in-app) in
+  [kinds.ts](../../packages/notifications/src/kinds.ts) +
+  [templates.ts](../../packages/notifications/src/templates.ts); new
+  `charge.dispute.created` dispatch case →
+  [`handleChargeDisputed`](../../apps/web/src/lib/webhooks/charge.ts), which
+  resolves the event/host from the disputed PI (attendee ticket, else the new
+  `findTipContextByPaymentIntent` port method) and pings the host so they can
+  respond before Stripe's deadline. **Deliberately does NOT auto-free the seat**
+  — a dispute can be won, and removing the buyer is the host's call. **Deferred:**
+  team-payment disputes (rarer; route through their own aggregates and still get
+  Stripe's own host email) — a one-method follow-up if we want in-app parity.
+- **SI-4 — slot-checkout idempotency keys.** Added Stripe `idempotencyKey` to the
+  sponsor ([sponsor-actions.ts](../../apps/web/src/app/events/[id]/edit/sponsor-actions.ts),
+  keyed on a sha256 of the draft so changed details start a fresh session rather
+  than tripping Stripe's "same key, different body" error) and badge
+  ([badge-actions.ts](../../apps/web/src/app/events/[id]/edit/badge-actions.ts),
+  stable `badge:<eventId>:<userId>` — no per-attempt draft) checkouts.
+  **Deferred:** the synchronous success-route reconcile — low value, since the
+  completion webhook already evicts the event cache and the edit page reads the
+  slot fresh; only `stripe listen`-less local dev sees a lag.
+- **SI-5 — stale comment.** `pro/actions.ts` no longer claims an `invoice.*`
+  handler; the comment now states dunning rides on `customer.subscription.updated`
+  (→ `past_due`/`unpaid`), which `is_pro_host` already honors.
+- **SI-6 — off-platform guards.** `paymentsOffPlatform` threaded through
+  `EventPricing` ([event-pricing.ts](../../apps/web/src/lib/event-pricing.ts));
+  `attendeeChargeBreakdownAsync` short-circuits to face value (no wasted
+  platform-fee compute); `startTicketCheckout` now bounces with `off_platform`
+  before reserving a spot.
+- **SI-7 — cleanups.** `startTicketCheckout` reuses `breakdown.applicationFeeCents`
+  (new field on the breakdown — the platform's cut independent of the absorb
+  toggle) instead of a second `platformFeeCentsFor` call; `refund-window.ts`
+  reformatted to 2-space via Prettier.
 
 ---
 
@@ -199,6 +236,11 @@ policy on the seat (likely free it, mirroring `charge.refunded`'s
 delete-and-revalidate). Low frequency, so P3, but it's a money + capacity event
 that currently goes dark.
 
+**Fixed (2026-06-08) — see remediation log.** Added the `host.payment.disputed`
+kind + `charge.dispute.created` handler for the ticket + tip surfaces. On the
+seat policy we chose **not** to auto-free it (a dispute can be won; removal is
+the host's call now that they're notified). Team-payment disputes deferred.
+
 ### SI-4 — Sponsor / badge à-la-carte checkout: no idempotency key, no success reconcile
 
 The two platform-fee slot purchases build their Checkout Sessions inline
@@ -225,6 +267,11 @@ success-route reconcile (retrieve session → if paid, upsert the slot) mirrorin
 the ticket success route. Also consider `expires_at` for parity (these inherit
 Stripe's 24 h default vs. the 30 min the destination flows use).
 
+**Fixed (2026-06-08, idempotency keys) — see remediation log.** Sponsor keys on
+a draft-hash; badge keys on `badge:<eventId>:<userId>`. The success-route
+reconcile was deferred (low value — the completion webhook already evicts the
+event cache and the edit page reads the slot fresh).
+
 ### SI-5 — Stale comment: `invoice.*` webhook handling that doesn't exist
 
 [pro/actions.ts#L23](../../apps/web/src/app/profile/billing/pro/actions.ts#L23)
@@ -242,6 +289,9 @@ into thinking invoice events are wired.
 **Recommended fix:** drop `/ invoice.*` from the comment (or, if you want
 first-failed-invoice analytics / a dunning email, actually add the handler — but
 that's a feature, not a bug).
+
+**Fixed (2026-06-08) — see remediation log.** Comment corrected to state dunning
+rides on `customer.subscription.updated`.
 
 ### SI-6 — Off-platform guard gaps (already tracked in payments.md)
 
@@ -263,6 +313,8 @@ as known; restating so they live in the backlog:
 short-circuit the breakdown; add the `off_platform` guard to
 `startTicketCheckout`.
 
+**Fixed (2026-06-08) — see remediation log.** All three done.
+
 ### SI-7 — Minor cleanups
 
 - **Double fee compute per ticket checkout.** `startTicketCheckout` calls
@@ -277,6 +329,9 @@ short-circuit the breakdown; add the `off_platform` guard to
   ([refund-window.ts](../../apps/web/src/lib/refund-window.ts)) against the
   repo's 2-space norm — the only file in the payments path that does. Prettier
   reformat.
+
+**Fixed (2026-06-08) — see remediation log.** Fee compute deduped via the new
+`breakdown.applicationFeeCents`; `refund-window.ts` reformatted.
 
 ---
 

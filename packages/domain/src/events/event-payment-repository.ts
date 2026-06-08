@@ -111,4 +111,15 @@ export interface EventPaymentRepository {
   deleteAttendee(participantId: string): Promise<void>;
   /** Resolve an event's title for the refund notification. Null if deleted. */
   findEventTitle(eventId: string): Promise<string | null>;
+
+  // --- charge.dispute.created ------------------------------------------------
+  /**
+   * Resolve `{ eventId, hostId }` for a tip charged on this PI, for routing a
+   * chargeback notification to the host. Null when no tip matches (the charge
+   * was an attendee ticket, a team payment, or unrelated). See
+   * `handleChargeDisputed`.
+   */
+  findTipContextByPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<{ eventId: string; hostId: string } | null>;
 }

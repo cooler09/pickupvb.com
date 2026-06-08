@@ -1,5 +1,6 @@
 'use server';
 
+import { createHash } from 'node:crypto';
 import { revalidatePath, updateTag } from 'next/cache';
 import { eventCacheTag } from '@/lib/cache-tags';
 import { redirect } from 'next/navigation';
@@ -177,39 +178,48 @@ export async function startSponsorSlotCheckoutFromForm(
   const origin = await buildOrigin();
   const hostId = await loadEventHostId(eventId);
 
+  // Idempotency key folds the draft in: a re-submit of the SAME sponsor details
+  // (e.g. the SDK's own network retry) maps to one Checkout Session, but editing
+  // any field produces a new key — Stripe would otherwise reject a reused key
+  // with a changed body. (TPI-5 parity for the slot flows.)
+  const draftHash = createHash('sha256').update(JSON.stringify(draft)).digest('hex').slice(0, 16);
+
   let session: Stripe.Checkout.Session;
   try {
-    session = await getStripe().checkout.sessions.create({
-      mode: 'payment',
-      ...(user.email ? { customer_email: user.email } : {}),
-      allow_promotion_codes: true,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: 'usd',
-            unit_amount: SPONSOR_SLOT_UNLOCK_CENTS,
-            product_data: {
-              name: 'Event sponsor slot unlock',
-              description: 'One-time unlock for this event',
+    session = await getStripe().checkout.sessions.create(
+      {
+        mode: 'payment',
+        ...(user.email ? { customer_email: user.email } : {}),
+        allow_promotion_codes: true,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'usd',
+              unit_amount: SPONSOR_SLOT_UNLOCK_CENTS,
+              product_data: {
+                name: 'Event sponsor slot unlock',
+                description: 'One-time unlock for this event',
+              },
             },
           },
+        ],
+        metadata: {
+          kind: 'sponsor_slot',
+          event_id: eventId,
+          user_id: user.id,
+          ...(hostId ? { host_id: hostId } : {}),
+          sponsor_name: draft.name,
+          sponsor_blurb: draft.blurb ?? '',
+          sponsor_link_url: draft.linkUrl ?? '',
+          sponsor_logo_url: draft.logoUrl ?? '',
+          sponsor_discount_code: draft.discountCode ?? '',
         },
-      ],
-      metadata: {
-        kind: 'sponsor_slot',
-        event_id: eventId,
-        user_id: user.id,
-        ...(hostId ? { host_id: hostId } : {}),
-        sponsor_name: draft.name,
-        sponsor_blurb: draft.blurb ?? '',
-        sponsor_link_url: draft.linkUrl ?? '',
-        sponsor_logo_url: draft.logoUrl ?? '',
-        sponsor_discount_code: draft.discountCode ?? '',
+        success_url: `${origin}/events/${eventId}/edit?sponsor=checkout_success`,
+        cancel_url: `${origin}/events/${eventId}/edit?sponsor=checkout_cancel`,
       },
-      success_url: `${origin}/events/${eventId}/edit?sponsor=checkout_success`,
-      cancel_url: `${origin}/events/${eventId}/edit?sponsor=checkout_cancel`,
-    });
+      { idempotencyKey: `sponsor:${eventId}:${user.id}:${draftHash}` },
+    );
   } catch (err) {
     flashTo(
       eventId,

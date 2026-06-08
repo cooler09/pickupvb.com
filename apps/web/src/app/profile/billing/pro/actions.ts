@@ -20,8 +20,10 @@ import { log } from '@/lib/log';
  *   2. `openBillingPortal()` — one-click portal for existing subscribers to
  *      cancel / update payment method / switch plans.
  *
- * The webhook (`customer.subscription.*` / `invoice.*`) keeps the
- * `host_subscriptions` table in sync.
+ * The webhook (`customer.subscription.*`) keeps the `host_subscriptions` table
+ * in sync — including dunning, since a failed renewal flips the subscription to
+ * `past_due` / `unpaid` via `customer.subscription.updated` (no `invoice.*`
+ * handler is wired).
  */
 
 function priceIdFor(plan: 'monthly' | 'yearly'): string | null {

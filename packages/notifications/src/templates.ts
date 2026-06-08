@@ -217,6 +217,17 @@ const emailRenderers: { [K in NotificationKind]: EmailRenderer<K> } = {
       'Open Stripe',
     ),
   }),
+  'host.payment.disputed': (p) => ({
+    subject: `Payment disputed: ${formatUsd(p.amountCents)} for ${p.eventTitle}`,
+    text: `A buyer disputed a ${formatUsd(p.amountCents)} charge for ${p.eventTitle}. Stripe has placed the funds on hold — respond with evidence in your Stripe dashboard before the deadline or the dispute is lost by default. Open ${APP_URL}/profile/billing`,
+    html: layout(
+      `<h2 style="margin:0 0 12px">A payment was disputed</h2>
+             <p>A buyer disputed a <strong>${escapeHtml(formatUsd(p.amountCents))}</strong> charge for ${escapeHtml(p.eventTitle)}. Stripe has placed those funds on hold while the dispute is reviewed.</p>
+             <p>Respond with evidence in your Stripe dashboard before the deadline shown there — an unanswered dispute is lost by default.</p>`,
+      `${APP_URL}/profile/billing`,
+      'Open Stripe',
+    ),
+  }),
   'social.follow.new': (p) => ({
     subject: `${p.followerName} started following you`,
     text: `${p.followerName} started following you on PickupVB.`,
@@ -383,6 +394,9 @@ const smsRenderers: { [K in NotificationKind]: SmsRenderer<K> } = {
   'host.stripe.action_required': (p) => ({
     body: `PickupVB: Stripe needs attention — ${p.message} — ${APP_URL}/profile/billing`,
   }),
+  'host.payment.disputed': (p) => ({
+    body: `PickupVB: a ${formatUsd(p.amountCents)} charge for ${p.eventTitle} was disputed — respond in Stripe: ${APP_URL}/profile/billing`,
+  }),
   'social.follow.new': (p) => ({
     body: `PickupVB: ${p.followerName} started following you.`,
   }),
@@ -471,6 +485,11 @@ const inAppRenderers: { [K in NotificationKind]: InAppRenderer<K> } = {
   'host.stripe.action_required': (p) => ({
     title: `Stripe needs attention`,
     body: p.message,
+    href: `/profile/billing`,
+  }),
+  'host.payment.disputed': (p) => ({
+    title: `Payment disputed: ${formatUsd(p.amountCents)}`,
+    body: p.eventTitle,
     href: `/profile/billing`,
   }),
   'social.follow.new': (p) => ({

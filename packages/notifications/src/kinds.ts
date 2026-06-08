@@ -24,6 +24,7 @@ export type NotificationKind =
   | 'payment.refunded'
   | 'host.payout.paid'
   | 'host.stripe.action_required'
+  | 'host.payment.disputed'
   | 'social.follow.new'
   | 'event.free_agent.picked_up'
   | 'badge.earned'
@@ -60,6 +61,9 @@ export const KIND_CATEGORY: Record<NotificationKind, NotificationCategory> = {
   'payment.refunded': 'transactional',
   'host.payout.paid': 'host_payouts',
   'host.stripe.action_required': 'transactional',
+  // A chargeback has a hard Stripe response deadline — transactional so it can
+  // never be silently disabled away.
+  'host.payment.disputed': 'transactional',
   'social.follow.new': 'social',
   'event.free_agent.picked_up': 'group_activity',
   'badge.earned': 'social',
@@ -93,6 +97,7 @@ export const KIND_DEFAULT_CHANNELS: Record<NotificationKind, NotificationChannel
   'payment.refunded': ['email', 'in_app'],
   'host.payout.paid': ['email', 'in_app'],
   'host.stripe.action_required': ['email', 'in_app'],
+  'host.payment.disputed': ['email', 'in_app'],
   'social.follow.new': ['in_app'],
   'event.free_agent.picked_up': ['email', 'push', 'in_app'],
   'badge.earned': ['in_app'],
@@ -186,6 +191,12 @@ export type NotificationPayloadMap = {
   };
   'host.stripe.action_required': {
     message: string;
+  };
+  'host.payment.disputed': {
+    eventId: string;
+    eventTitle: string;
+    /** Disputed amount in cents (Stripe `dispute.amount`). */
+    amountCents: number;
   };
   'social.follow.new': {
     followerId: string;

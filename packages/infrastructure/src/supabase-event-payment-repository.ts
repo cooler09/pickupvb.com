@@ -196,4 +196,18 @@ export class SupabaseEventPaymentRepository implements EventPaymentRepository {
       .maybeSingle();
     return (evRow as { title: string } | null)?.title ?? null;
   }
+
+  // --- charge.dispute.created ------------------------------------------------
+
+  async findTipContextByPaymentIntent(
+    paymentIntentId: string,
+  ): Promise<{ eventId: string; hostId: string } | null> {
+    const { data } = await this.client
+      .from('event_tips')
+      .select('event_id, host_id')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .maybeSingle();
+    const row = data as { event_id: string; host_id: string } | null;
+    return row ? { eventId: row.event_id, hostId: row.host_id } : null;
+  }
 }
