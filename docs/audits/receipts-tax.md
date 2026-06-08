@@ -9,13 +9,13 @@ and the business / tax-ID profile fields. Covers the read paths
 read from — the `event_payment_audit` ledger.
 
 > **Status (2026-06-08): new audit — 1 P1 · 3 P2 · 8 P3.**
-> **R-1 + R-2 + R-3 fixed same day (quad-green, uncommitted, migration
-> deploy-gated); R-4 + R-7 + R-11 also addressed.** The ledger now records tip
-> and team-entry payments (+ their refunds) under a new `category` column, with
-> a backfill for historical rows — so receipts, earnings, and annual statements
-> are no longer blank for tips/teams. Remaining open: the P3 backlog
-> (R-5/R-6/R-8/R-9/R-10/R-12) and the leftover R-4/R-7 grouping-reducer
-> extraction. See the remediation log at the bottom.
+> **Fixed same day (quad-green, uncommitted, migrations deploy-gated): R-1, R-2,
+> R-3, R-8, R-9, R-11 + partial R-4/R-7.** The ledger now records tip and
+> team-entry payments (+ refunds) under a new `category` column with a backfill;
+> the host read filters to income categories; CSV cells are formula-injection
+> safe; the dead `'failed'` action is gone (CHECK tightened); off-platform
+> receipts print a clean number. **Remaining open: R-5, R-6, R-10, R-12, and the
+> leftover R-4/R-7 grouping-reducer extraction.** See the remediation log.
 >
 > RLS posture is sound (`event_payment_audit` reads are scoped by the
 > `_select_own` / `_select_host` policies; `tax_id` / `business_*` are
@@ -57,20 +57,20 @@ to the entire receipts/tax surface.
 
 ## Findings
 
-| ID   | Sev | Summary                                                                                                     |
-| ---- | --- | ----------------------------------------------------------------------------------------------------------- |
-| R-1  | P1  | ✅ FIXED — tip + team (ad-hoc/roster) payments + refunds now recorded under a `category` column; backfilled |
-| R-2  | P2  | ✅ FIXED — earnings reads now filter `events.host_id`; was over-counting a host who is also a buyer         |
-| R-3  | P2  | ✅ FIXED — CSV cells now neutralize formula injection (`=`/`+`/`-`/`@`/TAB/CR); shared helper               |
-| R-4  | P2  | ◑ PARTIAL — `csvCell` now unit-tested; grouping/fee math still untested (tied to R-7 extraction)            |
-| R-5  | P3  | Off-platform cash payments get a phantom platform-fee deduction in earnings                                 |
-| R-6  | P3  | Off-platform paid+refund pairs don't net (each null-PI row gets its own group key)                          |
-| R-7  | P3  | ◑ PARTIAL — `csvCell` extracted to one tested home; the group-by-PI reducer is still copy-pasted 4×         |
-| R-8  | P3  | `'failed'` action is dead — never written; constraint value, type unions, and `.neq` filters stale          |
-| R-9  | P3  | Synthetic `Receipt #audit:<uuid>` is ugly on a printable receipt                                            |
-| R-10 | P3  | Receipts/earnings fetch the entire ledger every render (force-dynamic, uncached) then slice                 |
-| R-11 | P3  | ✅ FIXED — receipts + earnings copy now names tickets / team entries / tips (landed with R-1)               |
-| R-12 | P3  | `tax_id` stored plaintext, relies on the user heeding the "don't enter SSN" warning                         |
+| ID   | Sev | Summary                                                                                                      |
+| ---- | --- | ------------------------------------------------------------------------------------------------------------ |
+| R-1  | P1  | ✅ FIXED — tip + team (ad-hoc/roster) payments + refunds now recorded under a `category` column; backfilled  |
+| R-2  | P2  | ✅ FIXED — earnings reads now filter `events.host_id`; was over-counting a host who is also a buyer          |
+| R-3  | P2  | ✅ FIXED — CSV cells now neutralize formula injection (`=`/`+`/`-`/`@`/TAB/CR); shared helper                |
+| R-4  | P2  | ◑ PARTIAL — `csvCell` now unit-tested; grouping/fee math still untested (tied to R-7 extraction)             |
+| R-5  | P3  | Off-platform cash payments get a phantom platform-fee deduction in earnings                                  |
+| R-6  | P3  | Off-platform paid+refund pairs don't net (each null-PI row gets its own group key)                           |
+| R-7  | P3  | ◑ PARTIAL — `csvCell` extracted to one tested home; the group-by-PI reducer is still copy-pasted 4×          |
+| R-8  | P3  | ✅ FIXED — dead `'failed'` removed: 4 `.neq` filters + type unions dropped, CHECK tightened to paid/refunded |
+| R-9  | P3  | ✅ FIXED — synthetic rows now print `#<SHORT>` instead of the raw `audit:<uuid>` key                         |
+| R-10 | P3  | Receipts/earnings fetch the entire ledger every render (force-dynamic, uncached) then slice                  |
+| R-11 | P3  | ✅ FIXED — receipts + earnings copy now names tickets / team entries / tips (landed with R-1)                |
+| R-12 | P3  | `tax_id` stored plaintext, relies on the user heeding the "don't enter SSN" warning                          |
 
 ---
 
@@ -344,6 +344,27 @@ tax identifiers.
 ---
 
 ## Remediation log
+
+### 2026-06-08 (pt. 3) — R-8, R-9 fixed (quad-green, uncommitted, migration deploy-gated)
+
+- **R-8 (dead `'failed'` action).** Removed the four `.neq('action','failed')`
+  reader filters (receipts page, receipts CSV, earnings loader, earnings CSV) and
+  narrowed the five `AuditRow.action` type unions from
+  `'paid' | 'refunded' | 'failed'` → `'paid' | 'refunded'`. Tightened the DB
+  CHECK to `action in ('paid','refunded')` in
+  [20260927000000_payment_audit_drop_failed_action.sql](../../supabase/migrations/20260927000000_payment_audit_drop_failed_action.sql)
+  (with a defensive `delete where action = 'failed'` — there are none — so the
+  constraint can re-add). Nothing wrote `'failed'` (the domain
+  `PaymentAuditEntry.action` was already `'paid' | 'refunded'`;
+  `payment_intent.payment_failed` is a no-op), so this is behaviour-preserving;
+  the DB now enforces the real invariant, which is what makes dropping the
+  reader filters safe-by-construction.
+- **R-9 (synthetic receipt number).** The single-receipt page now prints
+  `#<first-8-of-row-id, uppercased>` for off-platform / legacy rows whose
+  grouping key is `audit:<uuid>`, instead of the raw `Receipt #audit:3f2a…`.
+  Stripe-backed receipts still show the full payment-intent id. See
+  [receipts/[paymentIntentId]/page.tsx](../../apps/web/src/app/profile/receipts/[paymentIntentId]/page.tsx).
+- **Verify:** `pnpm typecheck && pnpm lint && pnpm test && pnpm build` all green.
 
 ### 2026-06-08 (pt. 2) — R-1 fixed; R-11 fixed (quad-green, uncommitted, migration deploy-gated)
 

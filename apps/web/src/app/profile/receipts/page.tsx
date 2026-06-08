@@ -17,7 +17,7 @@ type AuditRow = {
   id: string;
   event_id: string;
   user_id: string | null;
-  action: 'paid' | 'refunded' | 'failed';
+  action: 'paid' | 'refunded';
   amount_cents: number;
   payment_intent_id: string | null;
   occurred_at: string;
@@ -85,7 +85,6 @@ export default async function ReceiptsPage(props: { searchParams: Promise<{ page
       'id, event_id, user_id, action, amount_cents, payment_intent_id, occurred_at, events:events!inner(title, starts_at)',
     )
     .eq('user_id', user.id)
-    .neq('action', 'failed')
     .order('occurred_at', { ascending: false });
 
   const rows = (rawRows as unknown as AuditRow[] | null) ?? [];

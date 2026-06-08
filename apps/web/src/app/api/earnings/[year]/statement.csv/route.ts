@@ -54,7 +54,7 @@ export async function GET(
   type AuditRow = {
     id: string;
     event_id: string;
-    action: 'paid' | 'refunded' | 'failed';
+    action: 'paid' | 'refunded';
     amount_cents: number;
     payment_intent_id: string | null;
     occurred_at: string;
@@ -73,7 +73,6 @@ export async function GET(
     )
     .eq('events.host_id', user.id)
     .in('category', ['ticket', 'tip', 'team'])
-    .neq('action', 'failed')
     .gte('occurred_at', start)
     .lt('occurred_at', end)
     .order('occurred_at', { ascending: true });

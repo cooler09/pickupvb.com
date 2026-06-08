@@ -15,7 +15,7 @@ type AuditRow = {
   id: string;
   event_id: string;
   user_id: string | null;
-  action: 'paid' | 'refunded' | 'failed';
+  action: 'paid' | 'refunded';
   amount_cents: number;
   payment_intent_id: string | null;
   occurred_at: string;
@@ -138,6 +138,13 @@ export default async function ReceiptDetailPage({
     .map((r) => r.occurred_at)
     .pop();
 
+  // Off-platform / legacy rows have no Stripe payment intent, so the grouping
+  // key is a synthetic `audit:<row-id>`. Show a clean short reference rather
+  // than the raw key on the printable receipt (receipts-tax R-9).
+  const receiptNumber = isAuditFallback
+    ? `#${auditRowId!.slice(0, 8).toUpperCase()}`
+    : paymentIntentId;
+
   const addressLine = [
     event.location_address,
     [event.location_city, event.location_region].filter(Boolean).join(', '),
@@ -162,7 +169,7 @@ export default async function ReceiptDetailPage({
           </div>
           <div className="text-right text-sm">
             <p className="text-muted">Receipt #</p>
-            <p className="font-mono text-xs">{paymentIntentId}</p>
+            <p className="font-mono text-xs">{receiptNumber}</p>
             <p className="text-muted mt-2">Date paid</p>
             <p>{formatDateLong(paidAt)}</p>
           </div>
