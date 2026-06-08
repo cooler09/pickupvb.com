@@ -18,7 +18,7 @@ import { SubmitButton } from '@/components/submit-button';
 export const metadata = {
   title: 'Pricing',
   description:
-    'PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events, half the platform fee, saved templates, analytics, sponsor slots, collectible badges, and more.',
+    'PickupVB is free for hosts who run free events. Upgrade to Pro for unlimited paid events, half the platform fee, saved templates, analytics, sponsor slots, collectible badges, season passes, and more.',
   alternates: { canonical: '/pricing' },
   openGraph: {
     title: 'Pricing · PickupVB',

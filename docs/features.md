@@ -190,15 +190,16 @@ runs checkout.
 
 **What Pro unlocks.**
 
-| Capability              | Free                                           | Pro                              |
-| ----------------------- | ---------------------------------------------- | -------------------------------- |
-| Free events             | Unlimited                                      | Unlimited                        |
-| Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                        |
-| Platform fee on tickets | 5%                                             | **2.5%**                         |
-| Platform fee on tips    | None                                           | None                             |
-| Standalone brackets     | 1 active at a time                             | Unlimited                        |
-| CSV attendee export     | —                                              | ✓                                |
-| Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`) |
+| Capability              | Free                                           | Pro                                       |
+| ----------------------- | ---------------------------------------------- | ----------------------------------------- |
+| Free events             | Unlimited                                      | Unlimited                                 |
+| Paid events / 30 days   | 1 (rolling window — `FREE_PAID_EVENT_CAP_30D`) | Unlimited                                 |
+| Platform fee on tickets | 5%                                             | **2.5%**                                  |
+| Platform fee on tips    | None                                           | None                                      |
+| Standalone brackets     | 1 active at a time                             | Unlimited                                 |
+| Sell season passes      | —                                              | ✓ ([ADR 0037](adr/0037-season-passes.md)) |
+| CSV attendee export     | —                                              | ✓                                         |
+| Pro badge on profile    | —                                              | ✓ (opt-out via `show_pro_badge`)          |
 
 **Implementation.**
 
@@ -213,6 +214,35 @@ runs checkout.
   `customer.subscription.{created,updated,deleted}` webhooks into
   `host_subscriptions`.
 - Billing portal access goes through `openBillingPortal` server action.
+
+### Season passes (Pro capability)
+
+A Pro host sells a **prepaid pack of session credits** — e.g. a "10-session
+open-play pass" — that an attendee buys once and redeems per session, instead of
+paying every event. Full design: [ADR 0037](adr/0037-season-passes.md).
+
+- **Sell (Pro only):** create/manage packs at
+  [/profile/billing/passes](../apps/web/src/app/profile/billing/passes/) —
+  title, credit count, price, optional expiry. Stored in `host_passes`.
+- **Buy (any account):** a buyer purchases a pack as a **destination charge to
+  the host** (tiered platform fee, exactly like a ticket — host-routed, see
+  [payments.md](payments.md)). Balance lives in `pass_purchases`; the buyer sees
+  it at [/profile/passes](../apps/web/src/app/profile/passes/).
+- **Opt in per event:** the host flags an open-play event
+  `events.accepts_pass_credits` (edit page). v1 is open-play only.
+- **Redeem:** on an eligible event the buyer hits "Use a pass credit"
+  ([`PassPanel`](../apps/web/src/app/events/%5Bid%5D/_components/pass-panel.tsx)),
+  which reserves a normal attendee spot via the atomic `redeem_pass_credit`
+  SECURITY DEFINER RPC (capacity trigger fires, **no charge**). Cancelling
+  returns the credit automatically (participant-delete cascade decrements
+  `pass_purchases.credits_used`).
+- **Helpers:** [lib/passes.ts](../apps/web/src/lib/passes.ts) (reads) +
+  [lib/pass-helpers.ts](../apps/web/src/lib/pass-helpers.ts) (pure: credits
+  remaining, expiry). Purchase fulfillment is the `pass_purchase` checkout kind
+  in [webhooks/checkout.ts](../apps/web/src/lib/webhooks/checkout.ts).
+- **v1 follow-ups:** pass income isn't yet in the earnings page / tax CSV (host
+  sees revenue on the management page); no buyer-paid fee line (host absorbs the
+  platform fee).
 
 ---
 

@@ -98,6 +98,15 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
             pay. Tips are always fee-free for every host.
           </li>
           <li>
+            <strong className="text-fg">Sell season passes.</strong> Offer a prepaid pack of session
+            credits — buyers pay once and redeem one per open-play session instead of paying every
+            time. Set it up at{' '}
+            <a href="/profile/billing/passes" className="text-primary hover:underline">
+              /profile/billing/passes
+            </a>
+            .
+          </li>
+          <li>
             <strong className="text-fg">Saved event templates.</strong> Save any event as a
             template; apply it when creating a new one to prefill date, venue, pricing, and
             description in one click.
