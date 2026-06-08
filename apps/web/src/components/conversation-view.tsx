@@ -213,6 +213,13 @@ export function ConversationView({
         data: { session },
       } = await supabase.auth.getSession();
       if (cancelled) return;
+      // Set only the INITIAL realtime token here. supabase-js's own auth listener
+      // forwards every later TOKEN_REFRESHED to `realtime.setAuth`, which pushes
+      // the fresh JWT to already-joined channels — so a long-lived chat tab stays
+      // authorized against the `realtime.messages` RLS policy across token
+      // refresh. But that listener ignores INITIAL_SESSION, so the first token
+      // must be set explicitly. Don't add a manual refresh handler (it would
+      // duplicate the client's built-in one) and don't drop this initial call.
       if (session) await supabase.realtime.setAuth(session.access_token);
       if (cancelled) return;
 

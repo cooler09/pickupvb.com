@@ -65,9 +65,16 @@ a handler test), M-11 (player "Message" button → `neutralButtonClass`).**
 (ADR 0028 Phase 5). No migration — `openTeamChat`/`TeamChatPanel` generalized to
 `openRoomChat(kind, contextId)` + a shared `RoomChatPanel`, mounted on
 `/events/[id]` (host + co-hosts + attendees) and `/groups/[id]` (members); inbox
-routing was already correct. Remaining chat backlog: M-3 (Realtime token refresh +
-verify), M-4/7/8/9/10/12 (P3 — pagination, broadcast sender card, scroll anchor,
-blocked banner, text rate limit, e2e).**
+routing was already correct.**
+**2026-06-08 — M-3 RESOLVED by verification (no code change). Confirmed in
+`node_modules` that supabase-js 2.107.0 + @supabase/ssr 0.10.3 (default browser
+client, `autoRefreshToken: true`, no custom `accessToken`) auto-forwards every
+`TOKEN_REFRESHED` to `realtime.setAuth`, which re-authorizes already-joined
+channels — so long-lived chat/bell tabs stay live across token expiry without our
+help. Added explanatory comments at both subscribe sites (the explicit initial
+`setAuth` is still required — the client doesn't forward `INITIAL_SESSION`).
+Remaining chat backlog: M-4/7/8/9/10/12 (all P3 — pagination, broadcast sender
+card, scroll anchor, blocked banner, text rate limit, e2e).**
 
 The system is well-architected; the "push doesn't work" symptom is
 **configuration + coverage**, not broken code. Root causes, in order:
@@ -478,24 +485,39 @@ flagging it.") / error toast. `handleMessage` in
 toasts on a failed DM-start ("You can’t message this person." for a block). `send`
 was de-duplicated onto the same helper.
 
-### M-3 — Realtime auth token is set once and never refreshed — P2 (verify on dev)
+### M-3 — Realtime auth token is set once and never refreshed — ✅ RESOLVED 2026-06-08 (no code change — the client library already refreshes it)
 
-Both live subscribers set the JWT a single time at subscribe and never update it:
-[conversation-view.tsx:193-224](../../apps/web/src/components/conversation-view.tsx#L193-L224)
-and [subscribe-notifications.ts:56-71](../../apps/web/src/lib/subscribe-notifications.ts#L56-L71)
-call `supabase.realtime.setAuth(session.access_token)` once, then `subscribe()`.
-The `realtime.messages` SELECT policy that authorizes the private `chat:%` /
-`notifications:%` topic re-evaluates against the connection's token; once the
-access token expires (default ~1h) without a `setAuth` refresh, a long-lived tab
-can **silently stop receiving** new messages/pings — exactly the "graceful
-degradation: stops receiving live updates" the ADR calls out, but triggered by
-time, not misconfig. No data loss (messages persist; render on next open), so
-it's a reliability gap, not a correctness bug. **Fix:** subscribe to
-`supabase.auth.onAuthStateChange` and call `realtime.setAuth(newToken)` on
-`TOKEN_REFRESHED` (re-subscribe if the socket dropped). **Verify first** —
-confirm against a deployed target that a 1h+ idle tab really drops live delivery
-(the whole Realtime path is still deploy-gated per P2 #5/#6), since some
-supabase-js versions propagate the refreshed token automatically.
+Both live subscribers
+([conversation-view.tsx](../../apps/web/src/components/conversation-view.tsx) and
+[subscribe-notifications.ts](../../apps/web/src/lib/subscribe-notifications.ts))
+set `supabase.realtime.setAuth(session.access_token)` once at subscribe. The worry
+was that after the ~1h access-token expiry a long-lived tab would silently stop
+receiving (the `realtime.messages` SELECT policy re-evaluates against the
+connection's token). The audit flagged this **"verify first — some supabase-js
+versions propagate the refreshed token automatically."**
+
+**Verified — this stack (supabase-js 2.107.0 + @supabase/ssr 0.10.3 default
+browser client) auto-refreshes the realtime token. No app fix is warranted.** The
+chain, confirmed in `node_modules`:
+
+1. `@supabase/ssr`'s `createBrowserClient` builds the client with
+   `autoRefreshToken: true` (browser) and **no** custom `accessToken` option, so
+   auth-js proactively refreshes the JWT before expiry and fires `TOKEN_REFRESHED`.
+2. Because `accessToken` is unset, supabase-js wires `_listenForAuthEvents()` →
+   `_handleTokenChanged`, which on `TOKEN_REFRESHED`/`SIGNED_IN` calls
+   `this.realtime.setAuth(newToken)` (and `setAuth()` on `SIGNED_OUT`).
+3. realtime-js `setAuth(token)` updates each channel's join payload **and pushes
+   an `access_token` event to already-joined channels** (`channel.joinedOnce &&
+isJoined()`), re-authorizing the live socket — so the open `chat:%` /
+   `notifications:%` subscriptions keep delivering across refresh.
+
+The one thing the library does **not** auto-forward is `INITIAL_SESSION`, so the
+existing explicit `setAuth(session.access_token)` is still needed for the **first**
+token — it is correct and must stay. **Action taken:** added a code comment at both
+subscribe sites documenting this (set the initial token only; the client handles
+refresh; don't add a redundant `onAuthStateChange→setAuth`, don't remove the
+initial call). Re-open only if the browser client is ever switched to the
+custom-`accessToken` (third-party-auth) mode, which disables step 2.
 
 ### M-4 — Inbox is not paginated (hard cap 50) — P3
 
