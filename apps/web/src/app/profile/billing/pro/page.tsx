@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { primaryButtonClass } from '@/components/primary-button';
+import { primaryButtonClass, secondaryButtonClass } from '@/components/primary-button';
 import Link from 'next/link';
 import { getServerSupabase } from '@/lib/supabase';
 import { isStripeConfigured } from '@/lib/stripe';
@@ -13,7 +13,11 @@ import {
 import { startProCheckout, getBillingPortalUrl } from './actions';
 import { OpenInNewTabButton } from '@/components/open-in-new-tab-button';
 import { SubmitButton } from '@/components/submit-button';
+import { ShareLink } from '@/components/share-link';
+import { Alert } from '@/components/alert';
 import { renderNowMs } from '@/lib/render-now';
+import { getReferralStats, REFERRAL_QUALIFY_PAID_EVENTS } from '@/lib/referrals';
+import { activeProGrantUntil, REFERRAL_REWARD_DAYS } from '@/lib/pro-grants';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -48,6 +52,12 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
   const nowMs = renderNowMs();
   const trialActive = !!sub?.trial_end && new Date(sub.trial_end).getTime() > nowMs;
 
+  // Referrals (ADR 0039 / O-3): the viewer's referral stats + any comped Pro.
+  const [referralStats, grantUntil] = await Promise.all([
+    getReferralStats(user.id),
+    activeProGrantUntil(user.id),
+  ]);
+
   return (
     <section className="space-y-6">
       <header className="space-y-2">
@@ -62,6 +72,13 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
           sponsor slots, and more.
         </p>
       </header>
+
+      {grantUntil && (
+        <Alert variant="success" title="Pro is on us right now">
+          You have Pro free until <strong>{formatDate(grantUntil)}</strong> — earned from referrals.
+          Every Pro perk is unlocked until then.
+        </Alert>
+      )}
 
       {!isStripeConfigured() && (
         <div className="border-border-base bg-md-surface-container rounded-shape-sm border p-4 text-sm">
@@ -173,7 +190,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
             <p className="text-muted text-xs">14-day free trial.</p>
             <form action={startProCheckout.bind(null, 'monthly')}>
               <SubmitButton
-                className={`${primaryButtonClass('md')} w-full`}
+                className={`${secondaryButtonClass('md')} w-full`}
                 pendingChildren="Starting…"
               >
                 Start trial — monthly
@@ -184,7 +201,7 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
             <h2 className="text-lg font-semibold">
               Yearly{' '}
               <span className="bg-primary/10 text-primary ml-1 rounded px-2 py-0.5 text-xs font-medium">
-                Save ${PRO_MONTHLY_PRICE_USD * 12 - PRO_YEARLY_PRICE_USD}
+                Best value · save ${PRO_MONTHLY_PRICE_USD * 12 - PRO_YEARLY_PRICE_USD}
               </span>
             </h2>
             <p className="text-headline-lg font-bold">
@@ -203,6 +220,28 @@ export default async function ProBillingPage(props: { searchParams: SearchParams
           </article>
         </section>
       )}
+
+      {/* ── Refer a host, earn Pro (ADR 0039 / O-3) ─────────── */}
+      <section className="border-border-base rounded-shape-sm space-y-3 border p-6">
+        <h2 className="text-title-lg font-semibold">Refer a host, earn Pro</h2>
+        <p className="text-muted text-sm">
+          Share your link. When a host you refer publishes {REFERRAL_QUALIFY_PAID_EVENTS} paid
+          events, you get{' '}
+          <strong className="text-fg">{REFERRAL_REWARD_DAYS} days of Pro free</strong> — stacked if
+          you refer more.
+        </p>
+        <ShareLink path={`/r/${user.id}`} title="Host volleyball on PickupVB" />
+        <dl className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt className="text-muted text-xs tracking-wide uppercase">Referrals in progress</dt>
+            <dd className="text-fg text-title-lg font-bold">{referralStats.pending}</dd>
+          </div>
+          <div>
+            <dt className="text-muted text-xs tracking-wide uppercase">Rewards earned</dt>
+            <dd className="text-fg text-title-lg font-bold">{referralStats.rewarded}</dd>
+          </div>
+        </dl>
+      </section>
     </section>
   );
 }

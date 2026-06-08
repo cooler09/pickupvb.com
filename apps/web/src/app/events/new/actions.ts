@@ -18,6 +18,7 @@ import { validateHostPaidEventCap } from '@/lib/host-paid-event-cap';
 import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { captureOnboardingStep } from '@/lib/onboarding';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
+import { maybeQualifyReferral } from '@/lib/referrals';
 
 export type CreateEventState = {
   error?: string;
@@ -474,6 +475,15 @@ export async function createEventAction(
     if ((count ?? 0) === 1) captureOnboardingStep(user.id, 'host', 'create-event');
   } catch {
     // Swallow — analytics can't break the create flow.
+  }
+
+  // Referral milestone (ADR 0039): publishing a paid event may push a referred
+  // host to the ≥3-paid-events threshold that rewards their referrer a Pro
+  // month. Self-guards (no-op unless a pending referral exists + threshold met)
+  // and never throws; awaited so it completes before the redirect ends the
+  // request. Paid events only — free events don't count toward the threshold.
+  if (priceCents > 0) {
+    await maybeQualifyReferral(user.id);
   }
 
   revalidatePath('/events');

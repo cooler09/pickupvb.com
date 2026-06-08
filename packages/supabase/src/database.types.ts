@@ -3057,6 +3057,86 @@ export type Database = {
         };
         Relationships: [];
       };
+      pro_grants: {
+        Row: {
+          created_at: string;
+          granted_until: string;
+          id: string;
+          reason: string;
+          source_ref: string | null;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          granted_until: string;
+          id?: string;
+          reason?: string;
+          source_ref?: string | null;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          granted_until?: string;
+          id?: string;
+          reason?: string;
+          source_ref?: string | null;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'pro_grants_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      referrals: {
+        Row: {
+          created_at: string;
+          id: string;
+          qualified_at: string | null;
+          referred_user_id: string;
+          referrer_user_id: string;
+          rewarded_at: string | null;
+          status: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          qualified_at?: string | null;
+          referred_user_id: string;
+          referrer_user_id: string;
+          rewarded_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          qualified_at?: string | null;
+          referred_user_id?: string;
+          referrer_user_id?: string;
+          rewarded_at?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'referrals_referrer_user_id_fkey';
+            columns: ['referrer_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'referrals_referred_user_id_fkey';
+            columns: ['referred_user_id'];
+            isOneToOne: true;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       profiles: {
         Row: {
           auto_accept_team_invites: boolean;

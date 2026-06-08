@@ -277,25 +277,54 @@ payments.md open-question spans `group_stripe_accounts`, a payout-owner column,
 and every routing site) — needs an ADR before any code. Reconsider once a launch
 metro has a multi-admin club running a league.
 
-#### O-3 — Referral credit (carry-over of P3 #10)
+##### Club follow-ups (deferred from O-2 v1 — tracked backlog)
 
-A host who refers another host that publishes ≥3 paid events earns 1 free month
-of Pro. Standard PLG; rewards advocacy rather than extracting from users. Still
-deferred until the trial-conversion baseline exists (the funnel is now
-instrumented — Bundle 98), but it's the cheapest growth lever once there's a
-denominator to measure against.
+The O-2 v1 shipped pooled payouts only; these three were explicitly deferred and
+are tracked here so they aren't lost:
 
-#### O-4 — Convert harder on levers already shipped (no new product)
+- **O-2a — Multi-admin Pro.** A Club subscription grants every owner/admin of the
+  group full Pro benefits platform-wide. _Fix:_ OR an `is_club_group(<group the
+user owns/admins>)` check into `hasProBenefits`
+  ([apps/web/src/lib/admin.ts](../../apps/web/src/lib/admin.ts)). **Caveat:** this
+  widens the central Pro gate (passes, memberships, fees, sponsor/badge,
+  visibility, paid-event cap) — needs a deliberate review of every gated surface
+  - an abuse look (a member added to a Club group instantly gets Pro). Grade P3.
+- **O-2b — Club analytics dashboard.** Cross-event analytics for a club (fill
+  rate / GMV / repeat attendees across all the group's events), mirroring the
+  per-host [analytics page](../../apps/web/src/app/profile/billing/analytics/page.tsx)
+  but scoped to `events.host_group_id`. Read-only; new `/groups/[slug]/analytics`.
+  Grade P3.
+- **O-2c — Club payout income in the earnings page.** The earnings page
+  ([load-earnings.ts](../../apps/web/src/app/profile/billing/earnings/_loaders/load-earnings.ts))
+  is per-user (`event_payment_audit.user_id`); club-routed event income lands on
+  the group account and isn't surfaced to anyone in-app. _Fix:_ a club earnings
+  view keyed on `events.payout_group_id`, coordinated with
+  [receipts-tax.md](receipts-tax.md). Grade P2 (a host can't currently see club
+  income in-app — only in the Stripe dashboard).
 
-- **Cap-hit upgrade nudge:** the ADR-0014 thesis is that the _second paid event
-  in 30 days_ is the upgrade trigger. The block exists
-  ([host-paid-event-cap.ts](../../apps/web/src/lib/host-paid-event-cap.ts) returns
-  a `cta`), but it fires only at the moment of rejection. Consider a proactive
-  "you've used your 1 free paid event — Pro is unlimited" banner on the host
-  dashboard _before_ they hit the wall. Pure conversion, zero new cost to users.
-- **Annual-default framing (carry-over P3 #8):** annual is undersold as an
-  equal-weight button. For a new product annual is worth more (lower churn);
-  worth A/B-ing the default once there's a framework. No user cost.
+(See also the standalone opportunities **O-8** white-label branding and **O-9**
+per-event waiver e-sign below — both catalogued, not started.)
+
+#### O-3 — Referral credit — ✅ Shipped 2026-06-08 ([ADR 0039](../adr/0039-referrals-pro-grants.md))
+
+**Built.** A host shares `/r/<userId>`; first-touch attribution records a
+`referrals` row for genuinely-new signups (auth callback); when the referred host
+publishes **≥3 paid events** the referrer earns **30 days of Pro** as a
+`pro_grants` row. The grant is honored by `hasProBenefits` (not bare `isPro`), so
+it unlocks every Pro perk and stacks. No Stripe coupon — comp via our own gate.
+Surfaced on the Pro page (share link + counts + "Pro free until …"). Migration
+`20261003000000`. **Deferred:** referral leaderboard, referred-side reward.
+
+#### O-4 — Convert harder on levers already shipped — ✅ Shipped 2026-06-08
+
+- **Cap-hit upgrade nudge — built.** A free host who's already used their
+  rolling-30d paid-event allowance now sees a proactive banner at the top of
+  `/events/new` (linking to `/profile/billing/pro`) _before_ filling out a paid
+  event, not just at submit-time rejection. Free events stay unlimited.
+- **Annual-default framing — built.** On the Pro billing page the monthly button
+  is de-emphasized (secondary) and the yearly option is the filled default with a
+  "Best value · save $X" badge; the pricing page already led with yearly.
+  (Formal A/B left for when a framework exists.)
 
 #### O-5 — SMS as a Pro perk when Twilio lands (carry-over R-4 / P3 #11)
 
@@ -1143,6 +1172,21 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — O-3 + O-4 shipped; Club follow-ups tracked ([ADR 0039](../adr/0039-referrals-pro-grants.md), uncommitted; O-3 migration deploy-gated).**
+  - **O-3 (referrals + comped Pro):** `/r/<userId>` link → first-touch
+    attribution at signup (auth callback, new-accounts-only) → referred host
+    publishes ≥3 paid events → referrer earns 30d Pro as a `pro_grants` row that
+    `hasProBenefits` honors (comp, no Stripe coupon; stacks). New: migration
+    `20261003000000_referrals_pro_grants.sql`, `lib/{referrals,pro-grants}.ts`,
+    `hasProBenefits` extended, `/r/[code]` route, auth-callback + `new/actions`
+    hooks, Pro-page referral section + comped-Pro note, hand-edited types, ADR 0039.
+  - **O-4 (conversion, no new product):** proactive cap-hit upgrade banner on
+    `/events/new` for capped free hosts; annual de-emphasizes monthly + "Best
+    value" framing on the Pro billing page.
+  - **Club follow-ups tracked** as O-2a (multi-admin Pro), O-2b (club analytics),
+    O-2c (club payout income in earnings — P2) in the Opportunities section, plus
+    O-8/O-9 catalogued. Quad-green. Open: O-5 (SMS/Twilio), O-2a/b/c, O-8, O-9.
 
 - **2026-06-08 — O-2 shipped: Club tier + group payouts ([ADR 0038](../adr/0038-group-payouts-club-tier.md), uncommitted; migration deploy-gated).**
   The highest-risk bundle (touches money routing — payments.md "read before

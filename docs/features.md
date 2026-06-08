@@ -293,6 +293,21 @@ host's `accepts_pass_credits` open-play events — unlimited, no credit ledger.
 - **v1 follow-ups:** monthly only (no annual); unlimited-access only (no
   credit-refill variant); membership income not yet in the earnings page / CSV.
 
+### Referrals — earn Pro (ADR 0039)
+
+A host can refer other hosts and earn free Pro. Share `/r/<your-user-id>`
+([app/r/[code]/route.ts](../apps/web/src/app/r/%5Bcode%5D/route.ts) drops a
+30-day cookie, or attributes immediately if already signed in); the **auth
+callback** records the `referrals` row for genuinely-new accounts only. When a
+referred host publishes **≥3 paid events** (checked from
+[events/new/actions.ts](../apps/web/src/app/events/new/actions.ts) via
+`maybeQualifyReferral`), the referrer earns **30 days of Pro** as a row in
+`pro_grants` — which `hasProBenefits()` honors, so it unlocks every Pro perk
+(stacks across referrals). Surfaced on the Pro page (share link + counts +
+"Pro free until …"). Comp grants are why **every Pro perk gates on
+`hasProBenefits`, not bare `isPro`**. Full design:
+[ADR 0039](adr/0039-referrals-pro-grants.md).
+
 ---
 
 ## 6. Tip jar
