@@ -1050,6 +1050,7 @@ export type Database = {
           created_at: string;
           paid_at: string | null;
           participant_id: string;
+          pass_purchase_id: string | null;
           payment_intent_id: string | null;
           payment_status: string;
           updated_at: string;
@@ -1060,6 +1061,7 @@ export type Database = {
           created_at?: string;
           paid_at?: string | null;
           participant_id: string;
+          pass_purchase_id?: string | null;
           payment_intent_id?: string | null;
           payment_status?: string;
           updated_at?: string;
@@ -1070,6 +1072,7 @@ export type Database = {
           created_at?: string;
           paid_at?: string | null;
           participant_id?: string;
+          pass_purchase_id?: string | null;
           payment_intent_id?: string | null;
           payment_status?: string;
           updated_at?: string;
@@ -1080,6 +1083,13 @@ export type Database = {
             columns: ['participant_id'];
             isOneToOne: true;
             referencedRelation: 'event_participants';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'event_participant_payments_pass_purchase_id_fkey';
+            columns: ['pass_purchase_id'];
+            isOneToOne: false;
+            referencedRelation: 'pass_purchases';
             referencedColumns: ['id'];
           },
         ];
@@ -1581,6 +1591,7 @@ export type Database = {
       };
       events: {
         Row: {
+          accepts_pass_credits: boolean;
           address_line: string;
           city: string;
           country: string;
@@ -1632,6 +1643,7 @@ export type Database = {
           external_registration_instructions?: string | null;
           external_registration_url?: string | null;
           fundraiser_beneficiary?: string | null;
+          accepts_pass_credits?: boolean;
           geo: unknown;
           hero_image_url?: string | null;
           host_absorbs_fee?: boolean;
@@ -1674,6 +1686,7 @@ export type Database = {
           external_registration_instructions?: string | null;
           external_registration_url?: string | null;
           fundraiser_beneficiary?: string | null;
+          accepts_pass_credits?: boolean;
           geo?: unknown;
           hero_image_url?: string | null;
           host_absorbs_fee?: boolean;
@@ -1946,6 +1959,129 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [];
+      };
+      host_passes: {
+        Row: {
+          created_at: string;
+          credit_count: number;
+          description: string | null;
+          expires_in_days: number | null;
+          host_id: string;
+          id: string;
+          price_cents: number;
+          status: string;
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          credit_count: number;
+          description?: string | null;
+          expires_in_days?: number | null;
+          host_id: string;
+          id?: string;
+          price_cents: number;
+          status?: string;
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          credit_count?: number;
+          description?: string | null;
+          expires_in_days?: number | null;
+          host_id?: string;
+          id?: string;
+          price_cents?: number;
+          status?: string;
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'host_passes_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      pass_purchases: {
+        Row: {
+          amount_paid_cents: number | null;
+          buyer_user_id: string;
+          checkout_session_id: string | null;
+          created_at: string;
+          credits_total: number;
+          credits_used: number;
+          expires_at: string | null;
+          host_id: string;
+          id: string;
+          paid_at: string | null;
+          pass_id: string;
+          payment_intent_id: string | null;
+          payment_status: string;
+          price_cents: number;
+          title_snapshot: string;
+        };
+        Insert: {
+          amount_paid_cents?: number | null;
+          buyer_user_id: string;
+          checkout_session_id?: string | null;
+          created_at?: string;
+          credits_total: number;
+          credits_used?: number;
+          expires_at?: string | null;
+          host_id: string;
+          id?: string;
+          paid_at?: string | null;
+          pass_id: string;
+          payment_intent_id?: string | null;
+          payment_status?: string;
+          price_cents: number;
+          title_snapshot: string;
+        };
+        Update: {
+          amount_paid_cents?: number | null;
+          buyer_user_id?: string;
+          checkout_session_id?: string | null;
+          created_at?: string;
+          credits_total?: number;
+          credits_used?: number;
+          expires_at?: string | null;
+          host_id?: string;
+          id?: string;
+          paid_at?: string | null;
+          pass_id?: string;
+          payment_intent_id?: string | null;
+          payment_status?: string;
+          price_cents?: number;
+          title_snapshot?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'pass_purchases_pass_id_fkey';
+            columns: ['pass_id'];
+            isOneToOne: false;
+            referencedRelation: 'host_passes';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'pass_purchases_host_id_fkey';
+            columns: ['host_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'pass_purchases_buyer_user_id_fkey';
+            columns: ['buyer_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       host_stripe_accounts: {
         Row: {
@@ -3868,6 +4004,10 @@ export type Database = {
         }[];
       };
       longtransactionsenabled: { Args: never; Returns: boolean };
+      redeem_pass_credit: {
+        Args: { p_purchase_id: string; p_event_id: string };
+        Returns: string;
+      };
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string };

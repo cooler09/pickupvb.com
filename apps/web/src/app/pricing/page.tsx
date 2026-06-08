@@ -50,6 +50,7 @@ const PRO_TIER_FEATURES = [
   '2.5% platform fee on tickets (half of free) — never any fee on tips',
   'Unlimited standalone tournament brackets',
   'Saved event templates — publish new dates in one click',
+  'Sell season passes — prepaid multi-session credit packs',
   'Host analytics — fill rate, GMV trend, repeat-attendee rate',
   'Sponsor slot included on every event',
   'Collectible event badges included on every event',
@@ -228,6 +229,7 @@ export default async function PricingPage() {
               <Row label="Platform fee — tips" free="None" pro="None" />
               <Row label="Stripe processing fee" free="~2.9% + 30¢" pro="~2.9% + 30¢" />
               <Row label="Saved event templates" free="—" pro="✓" />
+              <Row label="Sell season passes" free="—" pro="✓" />
               <Row label="Host analytics dashboard" free="—" pro="✓" />
               <Row
                 label="Sponsor slot"
@@ -268,6 +270,10 @@ export default async function PricingPage() {
         <Faq
           q="How does the platform fee work?"
           a="Buyers pay the ticket price plus the platform fee (5% on Free, 2.5% on Pro) unless you choose to absorb it in your event settings. Tips are different — PickupVB never takes a fee on tips, so 100% reaches the host. Stripe's processing fee (~2.9% + 30¢) always comes out of your payout on any charge — it goes to Stripe, not PickupVB."
+        />
+        <Faq
+          q="What are season passes?"
+          a="Pro hosts can sell a prepaid pack of session credits — for example a 10-session open-play pass. Attendees buy it once, then redeem one credit to sign up for any of your open-play events you've marked pass-eligible, with no per-session charge. You get committed revenue up front; they skip paying every week. You set the price, the number of sessions, and an optional expiry."
         />
         <Faq
           q="What are event templates?"

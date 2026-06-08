@@ -11,6 +11,12 @@ import { isPricingLocked } from '@/lib/pricing-lock';
 import { SponsorPanel } from './sponsor-panel';
 import { EventBadgesPanel } from './event-badges-panel';
 import { HeroImagePanel } from '@/components/hero-image-panel';
+import Link from 'next/link';
+import type { Route } from 'next';
+import { SubmitButton } from '@/components/submit-button';
+import { Alert } from '@/components/alert';
+import { primaryButtonClass } from '@/components/primary-button';
+import { setEventAcceptsPasses } from './pass-eligibility-actions';
 
 function pickQuery(
   searchParams: Record<string, string | string[] | undefined> | undefined,
@@ -68,7 +74,11 @@ export default async function EditEventPage(props: {
         .select('name, blurb, link_url, logo_url, discount_code, access_kind, paid_at')
         .eq('event_id', id)
         .maybeSingle(),
-      admin.from('events').select('hero_image_url').eq('id', id).maybeSingle(),
+      admin
+        .from('events')
+        .select('hero_image_url, accepts_pass_credits')
+        .eq('id', id)
+        .maybeSingle(),
       admin
         .from('event_badges')
         .select('id, label, description, icon_url, grant_rule')
@@ -111,6 +121,11 @@ export default async function EditEventPage(props: {
   }));
   const badgeFlash = pickQuery(searchParams, 'badge');
   const badgeMsg = pickQuery(searchParams, 'badge_msg');
+
+  const acceptsPassCredits =
+    (heroRow as { accepts_pass_credits?: boolean } | null)?.accepts_pass_credits ?? false;
+  const passFlash = pickQuery(searchParams, 'pass');
+  const passMsg = pickQuery(searchParams, 'pass_msg');
 
   return (
     <section className="mx-auto max-w-2xl space-y-6">
@@ -202,6 +217,52 @@ export default async function EditEventPage(props: {
           {...(badgeFlash ? { badgeFlash } : {})}
           {...(badgeMsg ? { badgeMsg } : {})}
         />
+
+        {event.type === 'open_play' && viewerHasProBenefits && (
+          <section className="border-border-base bg-md-surface-container rounded-shape-sm space-y-3 border p-5">
+            <div>
+              <h3 className="text-fg font-semibold">Season passes</h3>
+              <p className="text-muted text-sm">
+                Let buyers of your{' '}
+                <Link
+                  href={'/profile/billing/passes' as Route}
+                  className="text-primary hover:underline"
+                >
+                  pass credits
+                </Link>{' '}
+                redeem one to sign up for this event — no per-session charge.
+              </p>
+            </div>
+            {passFlash === 'eligibility_saved' && <Alert variant="success">Saved.</Alert>}
+            {passFlash === 'pro' && (
+              <Alert variant="warning" title="Pro required">
+                Passes are a Pro feature.
+              </Alert>
+            )}
+            {passFlash === 'error' && (
+              <Alert variant="error" title="Couldn’t save">
+                {passMsg || 'Please try again.'}
+              </Alert>
+            )}
+            <form
+              action={setEventAcceptsPasses.bind(null, id, `/events/${id}`)}
+              className="flex flex-wrap items-center gap-3"
+            >
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  name="accepts"
+                  defaultChecked={acceptsPassCredits}
+                  className="h-4 w-4"
+                />
+                Accept pass credits for this event
+              </label>
+              <SubmitButton className={primaryButtonClass('sm')} pendingChildren="Saving…">
+                Save
+              </SubmitButton>
+            </form>
+          </section>
+        )}
       </div>
     </section>
   );

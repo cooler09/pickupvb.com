@@ -9,6 +9,8 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { analytics, repositories } from '@/lib/handlers';
 import { log } from '@/lib/log';
 import { eventCacheTag } from '@/lib/cache-tags';
+import { getAdminSupabase } from '@/lib/supabase-admin';
+import { computePassExpiresAt } from '@/lib/pass-helpers';
 import {
   expireRosterTeamPaymentCheckout,
   expireTeamRegistrationCheckout,
@@ -30,13 +32,17 @@ export type CheckoutMetadata = {
   sponsor_link_url?: string;
   sponsor_logo_url?: string;
   sponsor_discount_code?: string;
+  /** Season passes (ADR 0037). A pass purchase is host-level — it has no event_id. */
+  purchase_id?: string;
+  pass_id?: string;
   kind?:
     | 'attendee'
     | 'tip'
     | 'team_registration'
     | 'roster_team_payment'
     | 'sponsor_slot'
-    | 'badge_slot';
+    | 'badge_slot'
+    | 'pass_purchase';
 };
 
 /**
@@ -45,6 +51,14 @@ export type CheckoutMetadata = {
  */
 export async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
   const meta = (session.metadata ?? {}) as CheckoutMetadata;
+
+  // Season-pass purchases (ADR 0037) are host-level, so they carry no event_id —
+  // handle them before the event_id guard below.
+  if (meta.kind === 'pass_purchase') {
+    await handlePassPurchaseCompleted(session, meta);
+    return;
+  }
+
   if (!meta.event_id || !meta.kind) return;
 
   // Defense-in-depth: if `session.customer` is expanded and carries its own
@@ -314,11 +328,102 @@ async function lookupHostId(eventId: string): Promise<string | null> {
 }
 
 /**
+ * Season-pass purchase completed (ADR 0037). Flip the pending `pass_purchases`
+ * row to paid and stamp `expires_at` — re-deriving credits + expiry from the
+ * authoritative `host_passes` row so a tampered pending row can't grant extra
+ * credits. Admin client: `pass_purchases` writes are admin-only. Idempotent —
+ * the update only touches a still-`pending` row, so a redelivered webhook is a
+ * no-op. No event-cache eviction (a pass isn't event-scoped); the buyer's
+ * pass balance is a per-viewer read.
+ */
+async function handlePassPurchaseCompleted(
+  session: Stripe.Checkout.Session,
+  meta: CheckoutMetadata,
+): Promise<void> {
+  const purchaseId = meta.purchase_id;
+  if (!purchaseId) return;
+
+  const admin = getAdminSupabase();
+  const paidAt = new Date().toISOString();
+  const piId =
+    typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
+  const amountTotal = session.amount_total ?? 0;
+
+  // Re-derive credits + expiry from the pass (authoritative).
+  const { data: purchaseRow } = await admin
+    .from('pass_purchases')
+    .select('pass_id')
+    .eq('id', purchaseId)
+    .maybeSingle();
+  const passId = (purchaseRow as { pass_id: string } | null)?.pass_id ?? meta.pass_id ?? null;
+
+  let creditsTotal: number | null = null;
+  let expiresAt: string | null = null;
+  if (passId) {
+    const { data: passRow } = await admin
+      .from('host_passes')
+      .select('credit_count, expires_in_days')
+      .eq('id', passId)
+      .maybeSingle();
+    const p = passRow as { credit_count: number; expires_in_days: number | null } | null;
+    if (p) {
+      creditsTotal = p.credit_count;
+      expiresAt = computePassExpiresAt(paidAt, p.expires_in_days);
+    }
+  }
+
+  await admin
+    .from('pass_purchases')
+    .update({
+      payment_status: 'paid',
+      payment_intent_id: piId,
+      amount_paid_cents: amountTotal,
+      paid_at: paidAt,
+      expires_at: expiresAt,
+      ...(creditsTotal != null ? { credits_total: creditsTotal } : {}),
+    })
+    .eq('id', purchaseId)
+    .eq('payment_status', 'pending');
+
+  if (meta.host_id) {
+    analytics.capture(
+      {
+        name: 'checkout_completed',
+        props: {
+          eventId: '',
+          hostId: meta.host_id,
+          amountCents: amountTotal,
+          kind: 'pass_purchase',
+          paymentIntentId: piId ?? '',
+        },
+      },
+      meta.user_id ?? meta.host_id,
+    );
+  }
+}
+
+/**
  * Checkout session expired (30-min default) without a successful payment.
  * Drop the pending reservation so the spot opens back up.
  */
 export async function handleCheckoutExpired(session: Stripe.Checkout.Session): Promise<void> {
   const meta = (session.metadata ?? {}) as CheckoutMetadata;
+
+  // Pass purchases carry no event_id — drop the abandoned pending purchase so a
+  // stale row doesn't linger. Only deletes a still-pending row (idempotent).
+  if (meta.kind === 'pass_purchase') {
+    if (meta.purchase_id) {
+      await getAdminSupabase()
+        .from('pass_purchases')
+        .delete()
+        .eq('id', meta.purchase_id)
+        .eq('payment_status', 'pending');
+    }
+    return;
+  }
+
   if (!meta.event_id || !meta.kind) return;
 
   if (meta.kind === 'attendee' && meta.user_id) {

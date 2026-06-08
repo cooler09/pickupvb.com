@@ -219,6 +219,12 @@ export default async function BillingPage(props: { searchParams: SearchParams })
               >
                 Host analytics →
               </Link>
+              <Link
+                href={'/profile/billing/passes' as Route}
+                className="border-border-base hover:bg-fg/5 rounded-md border px-3 py-2 text-center text-sm font-medium"
+              >
+                Season passes →
+              </Link>
               <OpenInNewTabButton
                 getUrl={getStripeDashboardUrl}
                 className="border-border-base hover:bg-fg/5 w-full rounded-md border px-3 py-2 text-sm"

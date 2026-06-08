@@ -95,6 +95,11 @@ export function ProfileQuickActions({ isHost }: { isHost: boolean }) {
         description="Your payments"
       />
       <ActionTile
+        href={'/profile/passes' as Route}
+        title="My passes"
+        description="Prepaid session credits"
+      />
+      <ActionTile
         href={'/events/new' as Route}
         title="Host an event"
         description="Open play or tournament"

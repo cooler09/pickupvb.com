@@ -17,6 +17,7 @@ import { EventStructuredData } from './_components/event-structured-data';
 import { EventFlashBanners } from './_components/event-flash-banners';
 import { EventLocationSection } from './_components/event-location-section';
 import { EventSignupArea } from './_components/event-signup-area';
+import { PassPanel } from './_components/pass-panel';
 import { AttendeesPanel } from './_components/attendees-panel';
 import { EventSponsorSection } from './_components/event-sponsor-section';
 import { EventBadgesEarnSection } from './_components/event-badges-earn-section';
@@ -287,6 +288,8 @@ export default async function EventDetailPage(props: {
         team={pickQuery(searchParams, 'team')}
         fa={pickQuery(searchParams, 'fa')}
       />
+
+      <PassPanel eventId={event.id} />
 
       {event.description && (
         <section>

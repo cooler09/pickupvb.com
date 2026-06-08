@@ -203,7 +203,27 @@ The user asked specifically for monetization that _creates value for users
 rather than taxing them_. Ranked by alignment × reachability at 2–3 metros.
 None of these violate the "What NOT to do" list below.
 
-#### O-1 (strongest) — Season passes / multi-session punch cards
+#### O-1 (strongest) — Season passes / multi-session punch cards — ✅ Shipped 2026-06-08 ([ADR 0037](../adr/0037-season-passes.md))
+
+**Built** the v1 vertical: a Pro host sells a prepaid credit pack
+(`host_passes`); a buyer purchases it as a destination charge to the host
+(`pass_purchases`, tiered platform fee); the host flags open-play events
+`accepts_pass_credits`; the buyer redeems a credit to claim a spot via the
+atomic `redeem_pass_credit` SECURITY DEFINER RPC (capacity trigger fires, no
+Stripe charge); cancelling returns the credit automatically (participant-delete
+cascade → `event_participant_payments` delete trigger decrements `credits_used`).
+Surfaces: host management page (`/profile/billing/passes`, Pro-gated), event-edit
+opt-in, event-detail buy/redeem `PassPanel`, buyer `/profile/passes`, pricing
+copy. Pure helpers unit-tested (`pass-helpers.test.ts`); migration
+`20260930000000_season_passes.sql` (deploy-gated). **Deferred follow-ups:** pass
+income into the global earnings page / tax CSV (blocked on the
+`event_payment_audit.event_id` NOT NULL constraint — coordinate with
+[receipts-tax.md](receipts-tax.md)); a buyer-paid platform-fee line (v1 has the
+host absorb it); a post-purchase confirmation banner (the PassPanel balance is
+the current feedback); per-event refund-window nuance on credit return (v1
+returns the credit on any pre-event cancel). Rationale write-up retained below.
+
+**Original opportunity (rationale):**
 
 A host sells a **bundle** — "10-session open-play punch card," "league season
 pass," "monthly membership" — at a host-set discount vs. drop-in. PickupVB takes
@@ -1078,6 +1098,26 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — O-1 shipped: season passes ([ADR 0037](../adr/0037-season-passes.md), uncommitted; migration deploy-gated).**
+  Built the strongest opportunity to a v1 vertical. A Pro host sells a prepaid
+  credit pack (`host_passes`); a buyer purchases it as a **destination charge to
+  the host** (`pass_purchases`, tiered platform fee — host-routed, unlike the
+  platform-direct sponsor/badge unlocks); the host opts open-play events into
+  `events.accepts_pass_credits`; the buyer redeems a credit to reserve a spot via
+  the atomic `redeem_pass_credit` SECURITY DEFINER RPC (capacity trigger fires,
+  zero charge); cancelling returns the credit (participant-delete cascade → the
+  `event_participant_payments` AFTER DELETE trigger decrements `credits_used`).
+  New: migration `20260930000000_season_passes.sql`, `lib/passes.ts` +
+  `lib/pass-helpers.ts` (+ `pass-helpers.test.ts`), host actions
+  (`profile/billing/passes/actions.ts`), buyer actions
+  (`events/[id]/pass-actions.ts`), `pass_purchase` webhook fulfillment in
+  `webhooks/checkout.ts`, host management page, buyer `/profile/passes`,
+  event-detail `PassPanel`, event-edit opt-in, pricing copy, hand-edited DB
+  types. Hand-edited types flagged for regen on next `gen:types`.
+  `pnpm typecheck && lint && test && build` green. Deferred: earnings/CSV
+  ledger integration, buyer-paid fee line, post-purchase banner (PassPanel is
+  the feedback). O-2…O-6 remain open.
 
 - **2026-06-08 — Re-audit + all five code/gap findings fixed (uncommitted; M-2
   migration deploy-gated).** Re-ran the monetization lens with a code-correctness
