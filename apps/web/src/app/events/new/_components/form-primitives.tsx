@@ -119,7 +119,7 @@ export function TypeCard({
   const checked = value === current;
   return (
     <label
-      className={`rounded-shape-sm block cursor-pointer border p-4 transition-colors ${
+      className={`rounded-shape-sm has-focus-visible:ring-primary/70 block cursor-pointer border p-4 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-offset-1 ${
         checked
           ? 'border-primary bg-primary/5 ring-primary/30 ring-2'
           : 'border-border-base hover:bg-fg/5'

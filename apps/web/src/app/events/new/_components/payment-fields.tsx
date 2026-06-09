@@ -5,6 +5,12 @@
  * P3-1). Grouped together because they share the `StripeOnboardingBanner` +
  * `RefundWindowField` leaves: `PricingSubsection` (open-play, single price) and
  * `PaymentSettingsSubsection` (tournament, per-division prices set elsewhere).
+ *
+ * The off-platform toggle, payment-instructions field, and the two fee
+ * checkboxes are identical between the two subsections, so they live as shared
+ * leaf components (`OffPlatformToggle` / `PaymentInstructionsField` /
+ * `AbsorbServiceFeeCheckbox` / `PassProcessingFeeCheckbox`) rather than being
+ * copy-pasted (CE-7). Each subsection still owns its own layout wrappers.
  */
 import Link from 'next/link';
 import { useState } from 'react';
@@ -117,6 +123,122 @@ export function RefundWindowField({
   );
 }
 
+/**
+ * "I'll collect payment myself (off-platform)" toggle. Controlled by the parent
+ * form so the choice survives switching between open-play and tournament
+ * sections. Shared by both payment subsections (CE-7).
+ */
+export function OffPlatformToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-start gap-2 text-xs">
+      <input
+        type="checkbox"
+        name="paymentsOffPlatform"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5"
+      />
+      <span>
+        <span className="text-fg font-medium">I&apos;ll collect payment myself (off-platform)</span>
+        <span className="text-muted block">
+          Display the price but skip Stripe. Players RSVP without paying online.
+        </span>
+      </span>
+    </label>
+  );
+}
+
+/**
+ * Optional free-text "how to pay me" instructions. `id` differs per subsection
+ * so the label/textarea association stays unique. Shared by both payment
+ * subsections (CE-7).
+ */
+export function PaymentInstructionsField({
+  id,
+  values,
+}: {
+  id: string;
+  values: Record<string, string> | undefined;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className={labelClass}>
+        Payment instructions <span className="text-fg/50">(optional)</span>
+      </label>
+      <textarea
+        id={id}
+        name="paymentInstructions"
+        rows={2}
+        maxLength={2000}
+        defaultValue={val(values, 'paymentInstructions')}
+        placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
+        className={inputClass}
+      />
+    </div>
+  );
+}
+
+/** "Absorb the 5% service fee" checkbox. Shared by both payment subsections (CE-7). */
+export function AbsorbServiceFeeCheckbox({
+  values,
+  submitted,
+}: {
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
+}) {
+  return (
+    <label className="flex items-start gap-2 text-xs">
+      <input
+        type="checkbox"
+        name="hostAbsorbsFee"
+        defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
+        className="mt-0.5"
+      />
+      <span>
+        <span className="text-fg font-medium">Absorb the 5% service fee</span>
+        <span className="text-muted block">Otherwise added to ticket price.</span>
+      </span>
+    </label>
+  );
+}
+
+/** "Pass Stripe's processing fee to the buyer" checkbox. Shared by both payment
+ *  subsections (CE-7). */
+export function PassProcessingFeeCheckbox({
+  values,
+  submitted,
+}: {
+  values: Record<string, string> | undefined;
+  submitted: boolean | undefined;
+}) {
+  return (
+    <label className="flex items-start gap-2 text-xs">
+      <input
+        type="checkbox"
+        name="passProcessingFeeToBuyer"
+        defaultChecked={chk(values, submitted, 'passProcessingFeeToBuyer', true)}
+        className="mt-0.5"
+      />
+      <span>
+        <span className="text-fg font-medium">
+          Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
+        </span>
+        <span className="text-muted block">
+          Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you receive the
+          full advertised price. Disable to absorb it yourself. Ignored if you absorb the service
+          fee above.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 export function PricingSubsection({
   fieldErrors,
   values,
@@ -157,37 +279,8 @@ export function PricingSubsection({
           onCollectOffPlatform={() => setPaymentsOffPlatform(true)}
         />
       )}
-      <label className="flex items-start gap-2 text-xs">
-        <input
-          type="checkbox"
-          name="paymentsOffPlatform"
-          checked={paymentsOffPlatform}
-          onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="text-fg font-medium">
-            I&apos;ll collect payment myself (off-platform)
-          </span>
-          <span className="text-muted block">
-            Display the price but skip Stripe. Players RSVP without paying online.
-          </span>
-        </span>
-      </label>
-      <div>
-        <label htmlFor="paymentInstructionsOpen" className={labelClass}>
-          Payment instructions <span className="text-fg/50">(optional)</span>
-        </label>
-        <textarea
-          id="paymentInstructionsOpen"
-          name="paymentInstructions"
-          rows={2}
-          maxLength={2000}
-          defaultValue={val(values, 'paymentInstructions')}
-          placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
-          className={inputClass}
-        />
-      </div>
+      <OffPlatformToggle checked={paymentsOffPlatform} onChange={setPaymentsOffPlatform} />
+      <PaymentInstructionsField id="paymentInstructionsOpen" values={values} />
       <div
         className={
           showOnPlatformControls
@@ -216,38 +309,10 @@ export function PricingSubsection({
           <>
             <RefundWindowField values={values} viewerHasProBenefits={viewerHasProBenefits} />
             <div className="flex items-end">
-              <label className="flex items-start gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  name="hostAbsorbsFee"
-                  defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="text-fg font-medium">Absorb the 5% service fee</span>
-                  <span className="text-muted block">Otherwise added to ticket price.</span>
-                </span>
-              </label>
+              <AbsorbServiceFeeCheckbox values={values} submitted={submitted} />
             </div>
             <div className="sm:col-span-2">
-              <label className="flex items-start gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  name="passProcessingFeeToBuyer"
-                  defaultChecked={chk(values, submitted, 'passProcessingFeeToBuyer', true)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <span className="text-fg font-medium">
-                    Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
-                  </span>
-                  <span className="text-muted block">
-                    Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you
-                    receive the full advertised price. Disable to absorb it yourself. Ignored if you
-                    absorb the service fee above.
-                  </span>
-                </span>
-              </label>
+              <PassProcessingFeeCheckbox values={values} submitted={submitted} />
             </div>
           </>
         )}
@@ -297,76 +362,19 @@ export function PaymentSettingsSubsection({
           onCollectOffPlatform={() => setPaymentsOffPlatform(true)}
         />
       )}
-      <label className="flex items-start gap-2 text-xs">
-        <input
-          type="checkbox"
-          name="paymentsOffPlatform"
-          checked={paymentsOffPlatform}
-          onChange={(e) => setPaymentsOffPlatform(e.target.checked)}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="text-fg font-medium">
-            I&apos;ll collect payment myself (off-platform)
-          </span>
-          <span className="text-muted block">
-            Display the price but skip Stripe. Players RSVP without paying online.
-          </span>
-        </span>
-      </label>
-      <div>
-        <label htmlFor="paymentInstructionsTourney" className={labelClass}>
-          Payment instructions <span className="text-fg/50">(optional)</span>
-        </label>
-        <textarea
-          id="paymentInstructionsTourney"
-          name="paymentInstructions"
-          rows={2}
-          maxLength={2000}
-          defaultValue={val(values, 'paymentInstructions')}
-          placeholder="e.g. Venmo @league-org or pay at check-in (cash/card)."
-          className={inputClass}
-        />
-      </div>
+      <OffPlatformToggle checked={paymentsOffPlatform} onChange={setPaymentsOffPlatform} />
+      <PaymentInstructionsField id="paymentInstructionsTourney" values={values} />
       {showOnPlatformControls && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <RefundWindowField values={values} viewerHasProBenefits={viewerHasProBenefits} />
           <div className="flex items-end">
-            <label className="flex items-start gap-2 text-xs">
-              <input
-                type="checkbox"
-                name="hostAbsorbsFee"
-                defaultChecked={chk(values, submitted, 'hostAbsorbsFee', false)}
-                className="mt-0.5"
-              />
-              <span>
-                <span className="text-fg font-medium">Absorb the 5% service fee</span>
-                <span className="text-muted block">Otherwise added to ticket price.</span>
-              </span>
-            </label>
+            <AbsorbServiceFeeCheckbox values={values} submitted={submitted} />
           </div>
         </div>
       )}
       {showOnPlatformControls && (
         <div>
-          <label className="flex items-start gap-2 text-xs">
-            <input
-              type="checkbox"
-              name="passProcessingFeeToBuyer"
-              defaultChecked={chk(values, submitted, 'passProcessingFeeToBuyer', true)}
-              className="mt-0.5"
-            />
-            <span>
-              <span className="text-fg font-medium">
-                Pass Stripe&apos;s processing fee (~$1/ticket) to the buyer
-              </span>
-              <span className="text-muted block">
-                Buyer sees a separate &ldquo;Processing fee&rdquo; line at checkout so you receive
-                the full advertised price. Disable to absorb it yourself. Ignored if you absorb the
-                service fee above.
-              </span>
-            </span>
-          </label>
+          <PassProcessingFeeCheckbox values={values} submitted={submitted} />
         </div>
       )}
     </div>

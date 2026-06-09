@@ -342,9 +342,13 @@ export async function createEventAction(
       .update({ host_group_id: hostGroupId })
       .eq('id', result.id);
     if (groupErr) {
+      // Roll back so the host isn't stranded on a populated form for an event
+      // that already exists — resubmitting would otherwise create a duplicate
+      // (CE-2). Mirrors the open-play pricing rollback below.
+      await supabase.from('events').delete().eq('id', result.id);
       return {
         ...snapshot(formData),
-        error: `Event created, but couldn't set group host: ${groupErr.message}`,
+        error: `Couldn't set the group host: ${groupErr.message}. Nothing was created — please try again.`,
       };
     }
   }
@@ -417,9 +421,12 @@ export async function createEventAction(
       })
       .eq('id', result.id);
     if (priceErr) {
+      // Payment settings didn't persist — roll back rather than leave a
+      // half-configured event that invites a duplicate resubmit (CE-2).
+      await supabase.from('events').delete().eq('id', result.id);
       return {
         ...snapshot(formData),
-        error: `Event created, but pricing failed: ${priceErr.message}`,
+        error: `Couldn't save payment settings: ${priceErr.message}. Nothing was created — please try again.`,
       };
     }
   }

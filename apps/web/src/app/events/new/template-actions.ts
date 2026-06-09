@@ -13,12 +13,19 @@ export async function deleteEventTemplate(id: string): Promise<never> {
   redirect('/events/new');
 }
 
+// One-off, event-specific fields excluded from a saved template. A template is
+// for reusable setup (format, pricing, location, divisions) — not the specific
+// title or date/time of the event it was captured from. Re-seeding a stale
+// `title` and a past `startsAt` on apply was a footgun (CE-1).
+const TEMPLATE_OMIT_FIELDS = new Set(['title', 'startsAt', 'endsAt', 'registrationClosesAt']);
+
 function toPayload(formData: FormData): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of formData.entries()) {
     if (typeof v !== 'string') continue;
     if (k === 'templateName') continue;
     if (k.startsWith('$ACTION_')) continue;
+    if (TEMPLATE_OMIT_FIELDS.has(k)) continue;
     out[k] = v;
   }
   return out;
