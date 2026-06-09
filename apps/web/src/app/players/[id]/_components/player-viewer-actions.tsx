@@ -148,15 +148,32 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
   return (
     <>
       {state.isFollowing ? (
-        <button onClick={handleUnfollow} disabled={isPending} className={neutralButtonClass('sm')}>
+        <button
+          type="button"
+          onClick={handleUnfollow}
+          disabled={isPending}
+          aria-pressed={true}
+          className={neutralButtonClass('sm')}
+        >
           ✓ Following
         </button>
       ) : (
-        <button onClick={handleFollow} disabled={isPending} className={primaryButtonClass('sm')}>
+        <button
+          type="button"
+          onClick={handleFollow}
+          disabled={isPending}
+          aria-pressed={false}
+          className={primaryButtonClass('sm')}
+        >
           + Follow
         </button>
       )}
-      <button onClick={handleMessage} disabled={isMessaging} className={neutralButtonClass('sm')}>
+      <button
+        type="button"
+        onClick={handleMessage}
+        disabled={isMessaging}
+        className={neutralButtonClass('sm')}
+      >
         {isMessaging ? 'Opening…' : 'Message'}
       </button>
       <ShareLink path={`/players/${profileHandle}`} title={profileName} />

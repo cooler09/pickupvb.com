@@ -582,14 +582,20 @@ function SaveToMatchBar({
       <div className="flex items-center gap-3">
         {saved ? (
           <>
-            <span className="text-sm font-medium text-emerald-500">Saved ✓</span>
+            <span role="status" className="text-md-success text-sm font-medium">
+              Saved ✓
+            </span>
             <Link href={returnPath as Route} className={`text-sm underline ${subtle}`}>
               Back to event
             </Link>
           </>
         ) : (
           <>
-            {error && <span className="max-w-xs text-xs text-red-400">{error}</span>}
+            {error && (
+              <span role="alert" className="text-md-error max-w-xs text-xs">
+                {error}
+              </span>
+            )}
             <button
               type="button"
               onClick={onSave}
