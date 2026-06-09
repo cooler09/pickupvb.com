@@ -250,6 +250,8 @@ export default async function EventDetailPage(props: {
         tipMsg={pickQuery(searchParams, 'tip_msg')}
         cohost={pickQuery(searchParams, 'cohost')}
         cohostMsg={pickQuery(searchParams, 'cohost_msg')}
+        eventId={event.id}
+        canAddCoverPhoto={event.canManage && !heroImageUrl}
       />
 
       {isHostOfEvent &&

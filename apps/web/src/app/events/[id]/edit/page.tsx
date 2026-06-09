@@ -234,13 +234,19 @@ export default async function EditEventPage(props: {
           <p className="text-muted text-sm">Each section below saves on its own.</p>
         </div>
 
-        <HeroImagePanel
-          entityType="events"
-          entityId={id}
-          userId={user.id}
-          currentUrl={(heroRow as { hero_image_url: string | null } | null)?.hero_image_url ?? null}
-          returnPath={`/events/${id}`}
-        />
+        {/* `#cover-photo` is the deep-link target for the post-create
+            "Add a cover photo" nudge on the event detail page (CE-9). */}
+        <div id="cover-photo" className="scroll-mt-24">
+          <HeroImagePanel
+            entityType="events"
+            entityId={id}
+            userId={user.id}
+            currentUrl={
+              (heroRow as { hero_image_url: string | null } | null)?.hero_image_url ?? null
+            }
+            returnPath={`/events/${id}`}
+          />
+        </div>
 
         <SponsorPanel
           eventId={id}

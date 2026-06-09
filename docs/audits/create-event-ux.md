@@ -15,24 +15,47 @@ a free open-play pickup night — fast and obvious, while preserving the
 registration, per-division pricing, templates) for power hosts. Find bugs,
 gaps, streamlining opportunities, and stale code.
 
-> **Status (2026-06-09 — remediation bundle 1 shipped, quad-green, uncommitted):**
+> **Status (2026-06-09 — ✅ fully remediated, quad-green, uncommitted):**
 > First dedicated pass on this surface. The form is in good shape overall — the
 > type-driven section reshaping is clean, the sticky CTA + echo-on-error +
 > `useAlertReveal` plumbing is solid, and the anon-gate (persona-ux V-4) already
-> landed. Findings **CE-1 … CE-13**: **0 P1 · 3 P2 · 10 P3.**
+> landed. Findings **CE-1 … CE-13** (**0 P1 · 3 P2 · 10 P3**) are **all fixed**
+> across six quad-green bundles:
 >
-> **Bundle 1 fixed the 3 P2s + 4 cheap P3s — CE-1, CE-2, CE-3, CE-5, CE-6, CE-7,
-> CE-13** (see remediation log below). **Bundle 2 closed CE-1's deferred
-> follow-up** — saved templates now round-trip the `AdvancedDetailsPanel` fields
-> (venue / series / fundraiser / theme tags / sanctioning), so template apply is
-> fully complete. **Bundle 3 closed the three quick-win P3s — CE-8, CE-10,
-> CE-12.** **Bundle 4 closed CE-4** — `SegmentedControl` now implements the ARIA
-> radiogroup keyboard model (roving tabindex + arrow/Home/End + focus ring).
-> **Bundle 5 closed CE-11** — the edit form now exposes the 3-way capacity
-> selector (Unlimited / Fixed / By position) + the position-roster grid, at
-> create/edit parity. **Remaining open: CE-9** — P3, product-shaped (cover photo
-> at create time). Cross-refs: persona-ux V-4 (anon gate) and CC-1 (submit
-> button) already closed; this audit does not re-open them.
+> - **Bundle 1** — 3 P2s + 4 cheap P3s: CE-1, CE-2, CE-3, CE-5, CE-6, CE-7, CE-13.
+> - **Bundle 2** — CE-1's deferred follow-up: saved templates round-trip the
+>   `AdvancedDetailsPanel` fields, so template apply is fully complete.
+> - **Bundle 3** — quick wins CE-8, CE-10, CE-12.
+> - **Bundle 4** — CE-4: `SegmentedControl` ARIA radiogroup keyboard model.
+> - **Bundle 5** — CE-11: by-position capacity + roster editable at create/edit
+>   parity (shared `PositionRosterGrid` primitive).
+> - **Bundle 6** — CE-9: post-create "Add a cover photo" nudge.
+>
+> **Remaining backlog: none.** Cross-refs: persona-ux V-4 (anon gate) and CC-1
+> (submit button) were already closed before this audit; it did not re-open them.
+> One deliberate non-fix carried forward: the edit form still has its own copy of
+> the fee checkboxes (CE-7 was scoped to the create subsections — different
+> `pricingLocked` disabled states + copy).
+
+## Remediation log — 2026-06-09 (bundle 6)
+
+Quad-green, uncommitted. **CE-9 — closes the audit.**
+
+- **CE-9 — hosts get a cover-photo prompt right after creating.** `HeroImageUpload`
+  needs an `entityId`, so a photo can't be added inside the create form (the row
+  doesn't exist yet). Instead the post-create redirect (`/events/[id]?created=1`)
+  now surfaces a prominent **"Add a cover photo"** nudge in
+  [event-flash-banners.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-flash-banners.tsx),
+  shown **only** when `created === '1'`, the viewer can manage the event, and it
+  has no hero image yet (`event.canManage && !heroImageUrl`, wired from
+  [page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx)). The CTA
+  deep-links to `/events/[id]/edit#cover-photo`, an anchor added to the existing
+  `HeroImagePanel` on the edit page
+  ([edit/page.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/page.tsx),
+  `scroll-mt-24`) — reusing the tested upload UI rather than embedding a second
+  upload flow on the detail page. The nudge is naturally ephemeral: it's gone on
+  the next load once `?created=1` drops off the URL, and the host can still add a
+  photo from the edit page anytime.
 
 ## Remediation log — 2026-06-09 (bundle 5)
 
@@ -215,7 +238,7 @@ as-is (different `pricingLocked` disabled states + copy) — still deferred.
 | CE-5  | P3  | ✅ fixed | Stale code       | `div_${i}_present` hidden input is emitted per row but never read by the server action.               |
 | CE-6  | P3  | ✅ fixed | Stale code       | `useState(requireAtLeastOne ? 1 : 1)` — both ternary branches are `1`.                                |
 | CE-8  | P3  | ✅ fixed | Consistency      | Per-division skill-tier select is a flat 7-option list; open-play uses the grouped `SkillTierSelect`. |
-| CE-9  | P3  | open     | Gap / streamline | No hero-image upload at create time — host must create, then go to `/edit` to add a photo.            |
+| CE-9  | P3  | ✅ fixed | Gap / streamline | No hero-image upload at create time — host must create, then go to `/edit` to add a photo.            |
 | CE-10 | P3  | ✅ fixed | Streamline       | `atPaidEventCap` banner greets every capped free host, even one creating a free event.                |
 | CE-11 | P3  | ✅ fixed | Gap (parity)     | "By position" capacity + position roster are create-only; edit can't reach or tune them.              |
 | CE-12 | P3  | ✅ fixed | Clarity          | Required fields (title, address, dates) carry no required marker; only optional ones are labeled.     |
