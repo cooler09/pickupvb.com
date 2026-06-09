@@ -46,6 +46,11 @@ export function EventStickyCta({ cta, observeSelector }: Props) {
     <div
       ref={barRef}
       aria-hidden={hidden}
+      // `inert` (not just `aria-hidden`) so the still-rendered link leaves the
+      // tab order while faded out — `opacity-0` alone keeps it keyboard-
+      // focusable, and a focusable node inside an `aria-hidden` subtree is a
+      // WCAG 4.1.2 violation. Conditional spread avoids `inert={false}`.
+      {...(hidden ? { inert: true } : {})}
       className={`pointer-events-none fixed inset-x-0 bottom-0 z-40 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity duration-150 sm:hidden ${
         hidden ? 'opacity-0' : 'opacity-100'
       }`}

@@ -6,14 +6,20 @@ Audit of [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%
 Goal: prioritize the most important information and CTAs for visitors landing
 from a share link, while keeping the page useful for hosts and attendees.
 
-> **Status (2026-06-09 re-audit):** Open backlog — **0 P1 · 3 P2 · 6 P3**.
-> The 2026-05-18 → 2026-05-28 bundles still hold; this pass re-walked the page
-> after ~8 sections were appended since (Pass panel, Event chat, Teams, Tip,
-> Media, Badges, Waiver, Sponsor, hero image, manage banner) and the host
-> console moved to `/manage`. New findings tagged **EV-1 … EV-9** below. None
-> are ship-blocking. The biggest themes: a league CTA-label bug (EV-1), page
-> section sprawl with no grouping (EV-4), and a stale render-order map in this
-> very doc (EV-9, fixed in this edit).
+> **Status (2026-06-09 re-audit + first remediation bundle):** This pass
+> re-walked the page after ~8 sections were appended since the last audit (Pass
+> panel, Event chat, Teams, Tip, Media, Badges, Waiver, Sponsor, hero image,
+> manage banner) and the host console moved to `/manage`. Findings tagged
+> **EV-1 … EV-9** below.
+>
+> **Fixed (quad-green, uncommitted):** EV-1 (league CTA), EV-2 (stale `/edit`
+> link → `/manage`), EV-3 (sticky-CTA `inert` a11y), EV-8 (token bleed — bordered
+> neutral buttons → `neutralButtonClass`, validation `text-secondary` →
+> `text-md-error`, fuchsia theme chip made dark-aware), EV-9 (render-map
+> refreshed). **Remaining backlog — 1 P2 · 3 P3:** EV-4 (section sprawl), EV-5
+> (redundant bracket/schedule CTAs), EV-6 (sticky CTA non-action once
+> registered), EV-7 (team-event "Spots" framing — verify first). See the
+> remediation log at the foot of this section.
 
 ## 2026-06-09 re-audit — findings (EV-1 … EV-9)
 
@@ -29,7 +35,25 @@ from a share link, while keeping the page useful for hosts and attendees.
 | EV-7 | P3  | Gap (verify)     | "Spots" cell + hero use per-player framing on team events (tournament/league).              |
 | EV-8 | P3  | M3 / token bleed | `text-secondary` validation error, hard-coded fuchsia chip, hand-rolled neutral buttons.    |
 
-### EV-1 (P2) — League hero/sticky CTA is mislabeled (and missing once started)
+**Remediation log — 2026-06-09 (bundle 1):** EV-1, EV-2, EV-3, EV-8, EV-9
+fixed; quad-green (`pnpm typecheck && lint && test && build`), uncommitted.
+Files touched:
+[load-event-detail.ts](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts)
+(EV-1 — league branch in `buildCta`: "Register" while open, "View schedule"
+once started/completed),
+[event-closed-state.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-closed-state.tsx)
+(EV-2 `/edit`→`/manage` + EV-8 neutral button),
+[event-sticky-cta.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-sticky-cta.tsx)
+(EV-3 `inert` when hidden),
+[tip-jar.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/tip-jar.tsx) +
+[event-meta-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-meta-section.tsx) +
+[rsvp-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/rsvp-panel.tsx) +
+[position-rsvp-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/position-rsvp-panel.tsx)
+(EV-8). Deferred from EV-8: tip-jar's filled toggle/preset group kept as-is
+(distinct surface-filled control set, not standard CTAs). **Open: EV-4, EV-5,
+EV-6, EV-7.**
+
+### EV-1 (P2) ✅ FIXED 2026-06-09 — League hero/sticky CTA is mislabeled (and missing once started)
 
 [`buildCta`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L726-L767)
 has branches for `external`, `tournament`, and `open_play` but **no `league`
@@ -44,7 +68,7 @@ even though the page still wants to point at the schedule.
 while `signupsOpen`, and `{ kind:'internal', href:` `` `/events/${id}/schedule` `` `, label:'View schedule' }`
 once `hasStarted || status==='completed'` (mirroring the tournament/bracket branch).
 
-### EV-2 (P3) — "Manage event" closed-state link points at the old `/edit` target
+### EV-2 (P3) ✅ FIXED 2026-06-09 — "Manage event" closed-state link points at the old `/edit` target
 
 [event-closed-state.tsx#L80-L87](../../apps/web/src/app/events/%5Bid%5D/_components/event-closed-state.tsx#L80-L87)
 renders a host-only "Manage event" button linking to `/events/{id}/edit`. Since
@@ -55,7 +79,7 @@ sends hosts, and the hero comment notes "Host management… lives on the dedicat
 **Fix:** point it at `/events/{id}/manage` (or relabel to "Edit details" if the
 edit form is genuinely the intent).
 
-### EV-3 (P3) — Sticky CTA keeps a focusable link inside an `aria-hidden` subtree
+### EV-3 (P3) ✅ FIXED 2026-06-09 — Sticky CTA keeps a focusable link inside an `aria-hidden` subtree
 
 [event-sticky-cta.tsx#L41-L69](../../apps/web/src/app/events/%5Bid%5D/_components/event-sticky-cta.tsx#L41-L69)
 hides the bar with `opacity-0` and sets `aria-hidden={hidden}` on the wrapper,
@@ -120,7 +144,7 @@ team-capacity in the Spots cell (or hide the per-player framing) and reconcile
 with `DivisionsSection`. _Verify against a real single-division tournament before
 implementing — behaviour depends on whether the host set event-level capacity._
 
-### EV-8 (P3) — Token bleed against AGENTS pattern 11 / 17
+### EV-8 (P3) ✅ FIXED 2026-06-09 — Token bleed against AGENTS pattern 11 / 17
 
 Event-page components still carry raw-palette / hand-rolled strings:
 
@@ -140,7 +164,7 @@ Event-page components still carry raw-palette / hand-rolled strings:
   (`rsvp-panel` already imports `neutralButtonClass` for "Leave waitlist" — the
   others in the same file just weren't migrated.)
 
-### EV-9 (P2) — Stale render-order map (fixed in this edit)
+### EV-9 (P2) ✅ FIXED 2026-06-09 — Stale render-order map (fixed in this edit)
 
 The "Render order (current)" block below was last updated 2026-05-28 and was
 missing the Pass panel, Event chat, Teams, Tip, Media, Badges, Waiver, Sponsor,

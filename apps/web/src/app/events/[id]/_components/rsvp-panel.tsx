@@ -70,7 +70,7 @@ export function RsvpPanel({
                 pendingLabel="Leaving…"
                 confirmMessage="Remove yourself from this event?"
                 destructive
-                className="border-border-base text-fg/80 hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium disabled:opacity-50"
+                className={neutralButtonClass('md')}
               />
             </form>
           </>
@@ -99,10 +99,7 @@ export function RsvpPanel({
             />
           </form>
         ) : (
-          <Link
-            href={`/login?next=/events/${eventId}`}
-            className="border-border-base hover:bg-fg/5 rounded-md border px-4 py-2 text-sm font-medium"
-          >
+          <Link href={`/login?next=/events/${eventId}`} className={neutralButtonClass('md')}>
             Already have an account? Sign in
           </Link>
         )}
