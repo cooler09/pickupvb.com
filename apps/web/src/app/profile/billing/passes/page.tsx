@@ -11,7 +11,7 @@ import { Alert } from '@/components/alert';
 import { fieldInputClass, fieldLabelClass, fieldHintClass } from '@/components/field-styles';
 import { createPassFromForm, archivePass, reactivatePass } from './actions';
 
-export const dynamic = 'force-dynamic';
+// Dynamic via `getServerSupabase()` (reads cookies); no `force-dynamic` needed.
 export const metadata = {
   title: 'Season passes — PickupVB',
   robots: { index: false, follow: false },

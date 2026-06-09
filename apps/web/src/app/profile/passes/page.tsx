@@ -9,7 +9,7 @@ import { neutralButtonClass } from '@/components/primary-button';
 import { Alert } from '@/components/alert';
 import { cancelMembership } from '@/app/events/[id]/membership-actions';
 
-export const dynamic = 'force-dynamic';
+// Dynamic via `getServerSupabase()` (reads cookies); no `force-dynamic` needed.
 export const metadata = {
   title: 'Passes & memberships — PickupVB',
   robots: { index: false, follow: false },

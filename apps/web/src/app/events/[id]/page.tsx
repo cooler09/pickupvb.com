@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next/types';
 import { notFound } from 'next/navigation';
@@ -294,7 +295,13 @@ export default async function EventDetailPage(props: {
         fa={pickQuery(searchParams, 'fa')}
       />
 
-      <PassPanel eventId={event.id} />
+      {/* PassPanel + EventWaiverSection are async server components that do their
+          own (gated) reads. Suspense-wrap them so they stream off the critical
+          path instead of blocking the page as a third wave after loadEventDetail
+          (perf audit P3 #23). */}
+      <Suspense fallback={null}>
+        <PassPanel eventId={event.id} />
+      </Suspense>
 
       {event.description && (
         <section>
@@ -390,7 +397,12 @@ export default async function EventDetailPage(props: {
 
       <EventBadgesEarnSection badges={eventBadges.filter((b) => b.grantRule === 'on_attend')} />
 
-      <EventWaiverSection eventId={event.id} {...(waiverFlash ? { flashCode: waiverFlash } : {})} />
+      <Suspense fallback={null}>
+        <EventWaiverSection
+          eventId={event.id}
+          {...(waiverFlash ? { flashCode: waiverFlash } : {})}
+        />
+      </Suspense>
 
       <EventSponsorSection sponsor={sponsor} />
 

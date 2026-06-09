@@ -19,7 +19,7 @@ import {
   reactivateMembershipPlan,
 } from './actions';
 
-export const dynamic = 'force-dynamic';
+// Dynamic via `getServerSupabase()` (reads cookies); no `force-dynamic` needed.
 export const metadata = {
   title: 'Memberships — PickupVB',
   robots: { index: false, follow: false },

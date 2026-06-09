@@ -60,6 +60,19 @@ data-loss, no missing indexes. Full write-up:
 - **P3 #24** — redundant `force-dynamic` re-accumulated on 5 new private pages
   (no-op, same hygiene class as the resolved P1 #2 / P3 #18).
 
+> **2026-06-09 follow-up — the entire 2026-06-08 re-audit backlog is closed
+> (1 P2 + 3 P3 all resolved), quad-green.** #21 sitemap → cookie-free anon client
+>
+> - `revalidate = 3600` (build flips `/sitemap.xml` `ƒ` → `○ 1h`); #22 club
+>   dashboard → cheap narrow all-time read + 24-month windowed detail read (+ dead
+>   `months` dropped); #23 event-detail pass/waiver panels → `<Suspense>`-wrapped
+>   off the critical path; #24 → redundant `force-dynamic` deleted from the 5 pages
+>   (still build `ƒ`). Full write-up:
+>   [2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
+>   The standing open items remain the older deferrals (the `/events` +
+>   `/events/[id]` full ISR shells, the migration-gated discovery-feed paging, and
+>   the same-class `/profile/billing/analytics` unbounded read).
+
 **Status update (2026-06-06) — fresh re-audit (202 commits since 05-31):**
 read-only pass over the large feature surface added since the last audit —
 standalone brackets (ADR 0025), chat messaging, capacity waitlist, free-agent
@@ -686,7 +699,13 @@ status)` + `(host_id, status)`, `pro_grants(user_id, granted_until desc)`,
 
 ### P2 #21 — `sitemap.ts` is cookie-bound (fully dynamic + uncached) and re-runs ~5 queries per crawl 🆕 2026-06-08
 
-**Status:** 🔴 Open
+**Status:** ✅ _Resolved 2026-06-09_ — swapped `getServerSupabase()` for the
+cookie-free `createSupabaseAnonClient()` + added `export const revalidate = 3600`.
+The build route table now reports `/sitemap.xml` as `○ … 1h` (static + 1h ISR)
+instead of dynamic `ƒ`, so a recrawl serves cached XML rather than re-running ~5
+Supabase queries; RLS still filters to public rows for the anon role. The
+unbounded `teams` scan is left as the documented future pagination switch. See
+the [2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
 **Category:** Caching / revalidation
 **Files:**
 
@@ -724,7 +743,17 @@ the escalation once it isn't.
 
 ### P3 #22 — Club analytics dashboard reads `event_payment_audit` unbounded 🆕 2026-06-08
 
-**Status:** 🔴 Open
+**Status:** ✅ _Resolved 2026-06-09_ — split the single unbounded read into (1) a
+cheap **all-time** headline read (`action, amount_cents, off_platform` only — no
+`events` join, no order; gross/refunded/on-platform-net summed directly, since
+payment-intent grouping doesn't change those sums) and (2) a **windowed** detail
+read (trailing `DETAIL_WINDOW_MONTHS = 24`) for the per-event table + this-year
+totals. Both now filter on `event_id IN (club payout events)` instead of joining
+`events.payout_group_id`, so neither audit read carries the join. All-time totals
+stay correct across full history; the expensive ordered read no longer grows
+unbounded. Page copy notes the per-event table reflects the last 24 months. Also
+dropped the dead `months` / `ClubMonthAgg` (computed, never rendered). See the
+[2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
 **Category:** Over-fetch / unbounded read
 **File:**
 
@@ -759,7 +788,16 @@ a rolling window (e.g. trailing 24 months) while keeping a separate cheap
 
 ### P3 #23 — Event-detail `PassPanel` + `EventWaiverSection` add a third sequential wave (and `PassPanel` re-fetches the `events` row) 🆕 2026-06-08
 
-**Status:** 🔴 Open
+**Status:** ✅ _Resolved 2026-06-09 (Suspense-wrap)_ — wrapped both `<PassPanel>`
+and `<EventWaiverSection>` in `<Suspense fallback={null}>` so they stream
+off the critical path instead of blocking the page as a third wave after
+`loadEventDetail`. The event-detail shell now paints without waiting on the gated
+pass/waiver reads (each panel is still defensive + gated, so non-pass / non-waiver
+events render nothing). The deeper option (surface `acceptsPassCredits` on the
+read model + drop `PassPanel`'s redundant `events` re-fetch + fold into wave 1)
+was deliberately not taken — it touches domain + infra for a P3 micro-opt that
+Suspense already removes from the critical path. See the
+[2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
 **Category:** Sequential await / over-fetch
 **Files:**
 
@@ -802,7 +840,13 @@ the highest-fanout render in the app, so worth folding in the same way #19 was.
 
 ### P3 #24 — Redundant `force-dynamic` re-accumulated on 5 new private pages 🆕 2026-06-08
 
-**Status:** 🔴 Open
+**Status:** ✅ _Resolved 2026-06-09_ — deleted the redundant `export const dynamic
+= 'force-dynamic'` from all five pages (replaced with a one-line "dynamic via
+cookies" comment). The build route table still reports each as `ƒ` (dynamic via
+`cookies()`), confirming the flag was a true no-op — same outcome as the resolved
+P1 #2 / P3 #18. The deliberate `events/[id]/manage/page.tsx` keep (commented
+"never index") was left untouched. See the
+[2026-06-09 remediation log](#2026-06-09--monetization-perf-re-audit-fixes).
 **Category:** Caching / revalidation (clarity / stale code)
 **Files (each reads `cookies()` via auth, so the flag is a no-op):**
 
@@ -1258,6 +1302,24 @@ log.
 ---
 
 ## Remediation log
+
+### 2026-06-09 — monetization perf re-audit fixes
+
+Landed all four findings (#21–#24) from the 2026-06-08 re-audit. The two with a real
+minimal-vs-thorough choice (#22, #23) took the recommended lower-risk path.
+
+| Item                                  | Grade | Status  | Notes                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | ----- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #21 sitemap cookie-bound → ISR        | P2    | ✅ Done | [sitemap.ts](../../apps/web/src/app/sitemap.ts): `getServerSupabase()` → `createSupabaseAnonClient()` + `export const revalidate = 3600`. Build now reports `/sitemap.xml` as `○ … 1h` (was dynamic `ƒ`). RLS still filters to public rows for anon. Unbounded `teams` scan left as the documented pagination follow-up.                                                                             |
+| #22 club analytics unbounded read     | P3    | ✅ Done | [load-club-dashboard.ts](../../apps/web/src/app/groups/%5Bid%5D/analytics/_loaders/load-club-dashboard.ts): cheap narrow all-time read (3 cols, no join/order, summed directly) + windowed (24mo) detail read; both filter `event_id IN (payout events)` so neither joins `events`. All-time totals stay full-history; page copy notes the table is last-24mo. Dropped dead `months`/`ClubMonthAgg`. |
+| #23 event-detail pass/waiver 3rd wave | P3    | ✅ Done | [events/[id]/page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx): `<Suspense fallback={null}>` around `<PassPanel>` + `<EventWaiverSection>` so their gated reads stream off the critical path. Deeper read-model change deliberately skipped (Suspense already de-criticalizes them).                                                                                                        |
+| #24 redundant `force-dynamic` ×5      | P3    | ✅ Done | Dropped the no-op `force-dynamic` from `profile/passes`, `profile/billing/{memberships,passes}`, `groups/[id]/{analytics,billing}`. All five still build as `ƒ` (dynamic via `cookies()`), proving the flag was inert. Deliberate `events/[id]/manage` keep untouched.                                                                                                                               |
+
+Verified after landing: `pnpm typecheck && pnpm lint && pnpm test && pnpm build` ✅
+(typecheck 15/15; lint 0 errors, 3 pre-existing warnings in untouched files; test
+356 web + domain/application; build 8/8). Route-table proof: `/sitemap.xml` flipped
+`ƒ` → `○ 1h`; the five #24 pages stayed `ƒ`; `/events/[id]` unchanged `ƒ`. **This
+closes every finding from the 2026-06-08 re-audit (1 P2 + 3 P3).**
 
 ### 2026-06-07 — P3 #20: historical file-anchors note
 

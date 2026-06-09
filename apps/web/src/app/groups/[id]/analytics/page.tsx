@@ -6,7 +6,7 @@ import { isClubGroup } from '@/lib/club';
 import { primaryButtonClass } from '@/components/primary-button';
 import { loadClubDashboard, type ClubTotals } from './_loaders/load-club-dashboard';
 
-export const dynamic = 'force-dynamic';
+// Dynamic via `getServerSupabase()` (reads cookies); no `force-dynamic` needed.
 export const metadata = {
   title: 'Club analytics — PickupVB',
   robots: { index: false, follow: false },
@@ -91,7 +91,8 @@ export default async function GroupAnalyticsPage(props: { params: Promise<{ id: 
           Online sales on events that paid out to the club&apos;s Stripe account. PickupVB&apos;s
           platform fee is estimated at {(m.feeRate * 100).toFixed(1)}%; Stripe&apos;s processing fee
           (~2.9% + 30¢) is separate and deducted before payout — the Stripe dashboard is the final
-          word.
+          word. Totals are all-time; the per-event table below reflects the last{' '}
+          {m.detailWindowMonths} months.
         </p>
         {!m.hasEarnings ? (
           <p className="text-muted text-sm">
