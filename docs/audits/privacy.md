@@ -51,8 +51,8 @@ user-data table lands self/owner-or-host RLS, and the closest-to-#16 surface
 (`waiver_signatures.signed_name`, incl. host-recorded free-text names for
 non-account signers) is correctly gated `auth.uid() = user_id` so a NULL-user
 in-person row is **un-harvestable** via REST — the captain-phone mistake was not
-repeated. Three findings — **#21 (P2) and #20 (P3) fixed the same day**
-(2026-06-08); **#22 (P3) remains open**:
+repeated. Three findings — **all three fixed the same day** (2026-06-08): #21
+(P2), #20 (P3), and #22 (P3):
 
 - **#21 (P2, data preservation + deletion-blocking) — FIXED. New payment tables
   CASCADE'd to `profiles` where every other payment table SET-NULLs.** `pass_purchases` and
@@ -75,8 +75,8 @@ repeated. Three findings — **#21 (P2) and #20 (P3) fixed the same day**
   `referrals` / `pro_grants` / `host_passes` / `host_membership_plans`. The
   export keeps drifting behind each monetization bundle — worth a regression
   guard, not just another manual add. See #20.
-- **#22 (P3, retention + deletion completeness) — `email_suppressions` and
-  `audit_log` have no purge and aren't cleared on account deletion.**
+- **#22 (P3, retention + deletion completeness) — FIXED. `email_suppressions` and
+  `audit_log` had no purge and weren't cleared on account deletion.**
   `email_suppressions` is keyed on the raw lowercased address with no FK and no
   TTL, so a deleted user's bounced/complained address lingers indefinitely (and
   silently un-mails a future re-signup on the same address); `audit_log` grows
@@ -729,7 +729,18 @@ exemption — so the next monetization bundle can't silently drop a category.
   neither of these.
 
 **Category:** data retention + account-deletion completeness
-**Status:** ⬜ open (graded P3).
+**Status:** ✅ fixed (2026-06-08). Two app-code changes, no migration:
+(1) the daily maintenance cron
+([outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts))
+now also deletes `audit_log` rows older than 365 days and `email_suppressions`
+rows whose `reason = 'bounced'` and `last_event_at` is older than 365 days
+(spam `complained` rows are kept indefinitely — an explicit do-not-mail signal —
+and a still-dead bounce self-re-suppresses on its next send); (2) the
+account-deletion purge
+([account-purge.ts](../../apps/web/src/lib/account-purge.ts)) now deletes the
+deleting user's `email_suppressions` row (the address it already resolved for the
+closure email), since the table has no FK to `profiles` and the auth-delete
+cascade can't reach it. See the remediation log.
 
 Two service-role-only tables added this cycle accumulate user identifiers with no
 lifecycle:
@@ -1126,6 +1137,35 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-06-08 — #22: TTL the audit / suppression sinks + clear suppression on deletion
+
+Two app-code changes, no migration (both tables are service-role-only, RLS-on
+with no policies — the admin client bypasses RLS):
+
+- **Retention cron** —
+  [outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts)
+  (daily 04:00 UTC) gains two deletes alongside the existing outbox / report
+  purges: `audit_log` where `occurred_at < now() - 365d` (the security trail's
+  incident-investigation window; FKs already SET NULL so it's pure TTL), and
+  `email_suppressions` where `reason = 'bounced' and last_event_at < now() -
+365d`. The bounce TTL is **self-healing** — a still-dead address re-suppresses
+  on its next send, while a fixed/recycled mailbox recovers — and `complained`
+  rows are kept indefinitely (an explicit do-not-mail signal). Both counts are
+  surfaced in the JSON response (`audit_log`, `email_suppressions_bounced`).
+- **Deletion clear** —
+  [account-purge.ts](../../apps/web/src/lib/account-purge.ts) step 4 now also
+  deletes the deleting user's `email_suppressions` row, keyed on the
+  lowercased/trimmed address it already resolved in step 1 for the closure email.
+  `email_suppressions` has no FK to `profiles`, so the step-6 auth-delete cascade
+  could never reach it — without this the bounced address (residual PII) outlived
+  the account and silently un-mailed a future re-signup on the same mailbox.
+
+No test added — `account-purge.ts` and the cron route have no existing test
+harness (heavy admin-client / Stripe mocking), matching the AGENTS.md "skip when
+the surrounding area has no tests to match style with" guidance; both changes are
+additive deletes mirroring the established cron pattern. Verify quad green:
+typecheck 15/15, lint 0 errors, test (web 356), build 8/8.
 
 ### 2026-06-08 — #20: extend the GDPR export + add a drift guard
 
