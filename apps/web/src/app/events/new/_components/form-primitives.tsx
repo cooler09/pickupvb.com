@@ -9,10 +9,11 @@
  * `edit-event-form.tsx` (same form shape) can reuse them too (the DRY note in
  * the audit).
  */
-import { useRef, type KeyboardEvent } from 'react';
+import { useRef, type Dispatch, type KeyboardEvent, type SetStateAction } from 'react';
 import { useFormStatus } from 'react-dom';
-import { EventType } from '@pickupvb/domain';
+import { EVENT_POSITIONS, EventPosition, EventType } from '@pickupvb/domain';
 import { FieldError, fieldA11y } from '@/components/field-error';
+import { POSITION_LABEL } from '@/lib/enum-labels';
 import { primaryButtonClass } from '@/components/primary-button';
 import { fieldInputClass, fieldLabelClass } from '@/components/field-styles';
 
@@ -161,6 +162,73 @@ export function TypeCard({
       <div className="text-fg text-sm font-semibold">{title}</div>
       <div className="text-muted mt-1 text-xs">{description}</div>
     </label>
+  );
+}
+
+/** Sensible defaults for indoor 6's when a host first switches to a by-position
+ *  roster: 1 setter, 2 outsides, 1 opposite, 2 middles, 1 libero. Shared by the
+ *  create + edit forms so they seed the same starting grid. */
+export const DEFAULT_POSITION_ROSTER: Record<EventPosition, number> = {
+  [EventPosition.Setter]: 1,
+  [EventPosition.Outside]: 2,
+  [EventPosition.Opposite]: 1,
+  [EventPosition.Middle]: 2,
+  [EventPosition.Libero]: 1,
+  [EventPosition.DefensiveSpecialist]: 0,
+};
+
+/**
+ * Per-position target-count grid for a by-position open-play roster. Submits
+ * `position_${pos}` number inputs the server reads. Shared by the create
+ * (`OpenPlayBody`) and edit forms so they stay in lockstep (CE-11). Pass
+ * `fieldErrors` only where the server surfaces a `positionRoster` error (create).
+ */
+export function PositionRosterGrid({
+  positionCounts,
+  setPositionCounts,
+  positionTotal,
+  fieldErrors,
+}: {
+  positionCounts: Record<EventPosition, number>;
+  setPositionCounts: Dispatch<SetStateAction<Record<EventPosition, number>>>;
+  positionTotal: number;
+  fieldErrors?: Record<string, string> | undefined;
+}) {
+  return (
+    <div className="border-border-base mt-3 space-y-3 rounded-md border border-dashed p-3">
+      <p className="text-muted text-xs">
+        Set a target count for each indoor 6&apos;s position. Players over a position&apos;s count
+        get a <span className="italic">waitlist</span> badge.
+      </p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {EVENT_POSITIONS.map((pos) => (
+          <div key={pos}>
+            <label htmlFor={`pos-${pos}`} className="text-fg block text-xs font-medium">
+              {POSITION_LABEL[pos] ?? pos}
+            </label>
+            <input
+              id={`pos-${pos}`}
+              name={`position_${pos}`}
+              type="number"
+              min={0}
+              max={50}
+              value={positionCounts[pos]}
+              onChange={(e) =>
+                setPositionCounts((c) => ({
+                  ...c,
+                  [pos]: Math.max(0, Number(e.target.value) || 0),
+                }))
+              }
+              className={inputClass}
+            />
+          </div>
+        ))}
+      </div>
+      <p className="text-muted text-xs">
+        Total: <span className="text-fg font-semibold">{positionTotal}</span> spots
+      </p>
+      {fieldErrors ? <FieldError name="positionRoster" errors={fieldErrors} /> : null}
+    </div>
   );
 }
 

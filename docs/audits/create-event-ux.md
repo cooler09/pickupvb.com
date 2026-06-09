@@ -28,9 +28,46 @@ gaps, streamlining opportunities, and stale code.
 > fully complete. **Bundle 3 closed the three quick-win P3s — CE-8, CE-10,
 > CE-12.** **Bundle 4 closed CE-4** — `SegmentedControl` now implements the ARIA
 > radiogroup keyboard model (roving tabindex + arrow/Home/End + focus ring).
-> **Remaining open: CE-9, CE-11** — both P3 and product-shaped (create-time
-> photo, by-position edit parity). Cross-refs: persona-ux V-4 (anon gate) and
-> CC-1 (submit button) already closed; this audit does not re-open them.
+> **Bundle 5 closed CE-11** — the edit form now exposes the 3-way capacity
+> selector (Unlimited / Fixed / By position) + the position-roster grid, at
+> create/edit parity. **Remaining open: CE-9** — P3, product-shaped (cover photo
+> at create time). Cross-refs: persona-ux V-4 (anon gate) and CC-1 (submit
+> button) already closed; this audit does not re-open them.
+
+## Remediation log — 2026-06-09 (bundle 5)
+
+Quad-green, uncommitted. **CE-11.**
+
+- **CE-11 — by-position capacity is now editable.** The edit form's capacity
+  control was a 2-way radio (Unlimited / Fixed) that could neither reach
+  by-position nor tune the roster, so a host who picked the wrong mode at create
+  was stuck. It's now the same 3-way `SegmentedControl` the create form uses,
+  with the per-position grid.
+  - **Shared primitive (DRY):** extracted `DEFAULT_POSITION_ROSTER` and a
+    `PositionRosterGrid` component into
+    [form-primitives.tsx](../../apps/web/src/app/events/new/_components/form-primitives.tsx);
+    the create
+    [open-play-body.tsx](../../apps/web/src/app/events/new/_components/open-play-body.tsx)
+    and [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx)
+    were rewired onto them (deleting their inline copies), and the edit form
+    consumes the same two — so the grid and defaults can't drift between create
+    and edit.
+  - **Edit form:** [edit-event-form.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/edit-event-form.tsx)
+    seeds `capacityKind` to `by_position` when a `positionRoster` is present
+    (its DB `capacity_kind` is `unlimited`), renders the selector + grid, and
+    carries the value in a hidden `capacityKind` input (the segmented control is
+    buttons).
+  - **Read seed:** [edit/page.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/page.tsx)
+    passes `event.positionRoster` (already on the detail read model) into
+    `initial`.
+  - **Edit action:** [edit/actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/actions.ts)
+    parses `position_${pos}` when `capacityKind === 'by_position'`, writes the
+    roster to the primary division's `position_roster` JSON column with
+    `capacity_kind = 'unlimited'` / `max_spots = null`, and **clears** it (null)
+    on a switch back to unlimited/fixed — mirroring the create write path
+    (`SupabaseEventRepository` stamps the same column). By-position imposes no
+    hard cap (overflow waitlists per position), so the fixed-capacity
+    shrink-below-attendees guard correctly doesn't apply to it.
 
 ## Remediation log — 2026-06-09 (bundle 4)
 
@@ -180,7 +217,7 @@ as-is (different `pricingLocked` disabled states + copy) — still deferred.
 | CE-8  | P3  | ✅ fixed | Consistency      | Per-division skill-tier select is a flat 7-option list; open-play uses the grouped `SkillTierSelect`. |
 | CE-9  | P3  | open     | Gap / streamline | No hero-image upload at create time — host must create, then go to `/edit` to add a photo.            |
 | CE-10 | P3  | ✅ fixed | Streamline       | `atPaidEventCap` banner greets every capped free host, even one creating a free event.                |
-| CE-11 | P3  | open     | Gap (parity)     | "By position" capacity + position roster are create-only; edit can't reach or tune them.              |
+| CE-11 | P3  | ✅ fixed | Gap (parity)     | "By position" capacity + position roster are create-only; edit can't reach or tune them.              |
 | CE-12 | P3  | ✅ fixed | Clarity          | Required fields (title, address, dates) carry no required marker; only optional ones are labeled.     |
 | CE-13 | P3  | ✅ fixed | Streamline       | "Host as" select renders a useless single-option dropdown when the host manages zero groups.          |
 

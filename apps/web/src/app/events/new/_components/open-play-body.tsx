@@ -6,13 +6,13 @@
  * roster), and the "sign me up too" toggle.
  */
 import type { Dispatch, SetStateAction } from 'react';
-import { EVENT_POSITIONS, EventPosition } from '@pickupvb/domain';
+import { EventPosition } from '@pickupvb/domain';
 import { FieldError, fieldA11y } from '@/components/field-error';
-import { POSITION_LABEL } from '@/lib/enum-labels';
 import {
   chk,
   inputClass,
   labelClass,
+  PositionRosterGrid,
   SegmentedControl,
   SkillTierSelect,
   val,
@@ -97,40 +97,12 @@ export default function OpenPlayBody({
         )}
 
         {byPosition && (
-          <div className="border-border-base mt-3 space-y-3 rounded-md border border-dashed p-3">
-            <p className="text-muted text-xs">
-              Set a target count for each indoor 6&apos;s position. Players over a position&apos;s
-              count get a <span className="italic">waitlist</span> badge.
-            </p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {EVENT_POSITIONS.map((pos) => (
-                <div key={pos}>
-                  <label htmlFor={`pos-${pos}`} className="text-fg block text-xs font-medium">
-                    {POSITION_LABEL[pos] ?? pos}
-                  </label>
-                  <input
-                    id={`pos-${pos}`}
-                    name={`position_${pos}`}
-                    type="number"
-                    min={0}
-                    max={50}
-                    value={positionCounts[pos]}
-                    onChange={(e) =>
-                      setPositionCounts((c) => ({
-                        ...c,
-                        [pos]: Math.max(0, Number(e.target.value) || 0),
-                      }))
-                    }
-                    className={inputClass}
-                  />
-                </div>
-              ))}
-            </div>
-            <p className="text-muted text-xs">
-              Total: <span className="text-fg font-semibold">{positionTotal}</span> spots
-            </p>
-            <FieldError name="positionRoster" errors={fieldErrors} />
-          </div>
+          <PositionRosterGrid
+            positionCounts={positionCounts}
+            setPositionCounts={setPositionCounts}
+            positionTotal={positionTotal}
+            fieldErrors={fieldErrors}
+          />
         )}
       </div>
 

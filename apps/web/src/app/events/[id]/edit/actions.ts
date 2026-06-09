@@ -17,7 +17,7 @@ import { requireHostChargesEnabled } from '@/lib/host-stripe-account';
 import { isPricingLocked } from '@/lib/pricing-lock';
 import { validateTeamPricing } from '@/lib/event-team-pricing-validation';
 import { GetEventDetailQuery } from '@pickupvb/application';
-import { SkillTier } from '@pickupvb/domain';
+import { EVENT_POSITIONS, SkillTier } from '@pickupvb/domain';
 import type { TablesUpdate } from '@pickupvb/supabase';
 import { handlers } from '@/lib/handlers';
 import { notify } from '@/lib/notify';
@@ -94,7 +94,23 @@ export async function editEventAction(
   const capacityKind = fieldOrUndefined(formData, 'capacityKind');
   const maxSpotsRaw = fieldOrUndefined(formData, 'maxSpots');
   const isOpenPlay = detail.type === 'open_play';
-  const newCapacityKind = isOpenPlay ? (capacityKind === 'fixed' ? 'fixed' : 'unlimited') : null;
+  // By-position uses unlimited capacity with per-position targets (players over a
+  // position's count get waitlisted, not rejected); the roster lives on the
+  // primary division's `position_roster` JSON column (CE-11 — create/edit parity).
+  const byPosition = isOpenPlay && capacityKind === 'by_position';
+  const positionRoster: Record<string, number> = {};
+  if (byPosition) {
+    for (const pos of EVENT_POSITIONS) {
+      const raw = fieldOrUndefined(formData, `position_${pos}`);
+      const n = raw ? Math.max(0, Math.floor(Number(raw))) : 0;
+      if (Number.isFinite(n) && n > 0) positionRoster[pos] = n;
+    }
+  }
+  const newCapacityKind = !isOpenPlay
+    ? null
+    : byPosition || capacityKind !== 'fixed'
+      ? 'unlimited'
+      : 'fixed';
   const newMaxSpots =
     newCapacityKind === 'fixed' && maxSpotsRaw
       ? Math.max(1, Math.floor(Number(maxSpotsRaw)))
@@ -325,6 +341,10 @@ export async function editEventAction(
     if (isOpenPlay) {
       divisionUpdate.capacity_kind = newCapacityKind;
       divisionUpdate.max_spots = newMaxSpots;
+      // Stamp (or clear) the by-position roster on the primary division. A
+      // switch away from by-position nulls it so the event reverts cleanly.
+      divisionUpdate.position_roster =
+        byPosition && Object.keys(positionRoster).length > 0 ? positionRoster : null;
     }
     if (Object.keys(divisionUpdate).length > 0) {
       const { error: divErr } = await admin

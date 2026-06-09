@@ -193,6 +193,7 @@ export default async function EditEventPage(props: {
           endsAt: event.endsAt,
           capacityKind: cap.capacity_kind,
           maxSpots: cap.max_spots,
+          positionRoster: event.positionRoster ?? null,
           addressLine: event.location.addressLine,
           city: event.location.city,
           region: event.location.region,
