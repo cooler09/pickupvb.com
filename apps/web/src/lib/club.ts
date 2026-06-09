@@ -18,6 +18,17 @@ export const isClubGroup = cache(async (groupId: string): Promise<boolean> => {
   return data === true;
 });
 
+/**
+ * True when the user is an owner/admin of any group with a live Club
+ * subscription — i.e. they get Pro benefits on the house (O-2a). `hasProBenefits`
+ * ORs this in. Admin client (resolves for any user; no `cookies()` so it's safe
+ * in cached contexts), React.cache-memoized like the other gate reads.
+ */
+export const hasClubProBenefits = cache(async (userId: string): Promise<boolean> => {
+  const { data } = await getAdminSupabase().rpc('user_has_club_benefits', { p_user_id: userId });
+  return data === true;
+});
+
 export type GroupSubscriptionRow = {
   status: string;
   current_period_end: string | null;

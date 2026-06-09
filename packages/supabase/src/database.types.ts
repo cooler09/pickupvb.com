@@ -4278,6 +4278,7 @@ export type Database = {
       };
       is_active_member: { Args: { p_user_id: string; p_host_id: string }; Returns: boolean };
       is_club_group: { Args: { p_group_id: string }; Returns: boolean };
+      user_has_club_benefits: { Args: { p_user_id: string }; Returns: boolean };
       is_platform_admin: { Args: never; Returns: boolean };
       is_pro_host: { Args: { p_user_id: string }; Returns: boolean };
       kick_badge_reconcile: { Args: never; Returns: undefined };

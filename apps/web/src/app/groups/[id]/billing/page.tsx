@@ -126,13 +126,21 @@ export default async function GroupBillingPage(props: {
                   <strong>{new Date(sub.current_period_end).toLocaleDateString()}</strong>.
                 </p>
               )}
-              <OpenInNewTabButton
-                getUrl={getClubBillingPortalUrl.bind(null, slug)}
-                className={neutralButtonClass('md')}
-                nullMessage="No subscription to manage yet."
-              >
-                Manage subscription ↗
-              </OpenInNewTabButton>
+              <div className="flex flex-wrap items-center gap-3">
+                <OpenInNewTabButton
+                  getUrl={getClubBillingPortalUrl.bind(null, slug)}
+                  className={neutralButtonClass('md')}
+                  nullMessage="No subscription to manage yet."
+                >
+                  Manage subscription ↗
+                </OpenInNewTabButton>
+                <Link
+                  href={`/groups/${slug}/analytics` as Route}
+                  className="text-primary text-sm font-medium hover:underline"
+                >
+                  View club analytics →
+                </Link>
+              </div>
             </>
           ) : (
             <form action={startClubCheckout.bind(null, slug)}>

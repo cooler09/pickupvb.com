@@ -191,9 +191,17 @@ to the club instead.
   resolver returns null ("not ready") — it never routes club money to the host.
 - **Manage:** `/groups/[slug]/billing` (owner/admin) — subscribe to Club, connect
   the payout account. Selling Club is gated to group owners/admins.
-- **Scope (v1):** ticket/team/tip only; passes + memberships stay host-user
-  routed; the platform fee still keys on the host user (no multi-admin Pro). Full
-  write-up: [payments.md § Group payouts](payments.md#group-payouts-club-tier).
+- **Multi-admin Pro (O-2a):** an active Club confers full Pro benefits on the
+  group's **owners/admins** — `hasProBenefits` ORs in `user_has_club_benefits`,
+  so club admins get the fee discount, unlimited paid events, passes/memberships,
+  etc. (plain members don't).
+- **Club dashboard (O-2b/c):** `/groups/[slug]/analytics` (owner/admin + Club) —
+  engagement (events hosted, attendees, scoped to `host_group_id`) + **payout
+  income** (gross/net/est-payout scoped to `payout_group_id` — what the club's
+  Stripe account received, invisible to a host before this).
+- **Scope:** routing covers ticket/team/tip only; passes + memberships stay
+  host-user routed. Full write-up:
+  [payments.md § Group payouts](payments.md#group-payouts-club-tier).
 
 ---
 

@@ -277,33 +277,27 @@ payments.md open-question spans `group_stripe_accounts`, a payout-owner column,
 and every routing site) — needs an ADR before any code. Reconsider once a launch
 metro has a multi-admin club running a league.
 
-##### Club follow-ups (deferred from O-2 v1 — tracked backlog)
+##### Club follow-ups (deferred from O-2 v1) — ✅ All shipped 2026-06-08 ([ADR 0038 follow-up](../adr/0038-group-payouts-club-tier.md))
 
-The O-2 v1 shipped pooled payouts only; these three were explicitly deferred and
-are tracked here so they aren't lost:
+- **O-2a — Multi-admin Pro — ✅ built.** An active Club confers full Pro benefits
+  on the group's **owners/admins** (not plain members). `hasProBenefits`
+  ([admin.ts](../../apps/web/src/lib/admin.ts)) ORs in `user_has_club_benefits`
+  (SECURITY DEFINER RPC, migration
+  [20261004000000](../../supabase/migrations/20261004000000_club_member_pro_benefits.sql),
+  30-day past_due grace). Single-site gate widening (every perk already routes
+  through `hasProBenefits`): subscription OR platform-admin OR referral comp OR
+  Club-admin. Owner/admin-only limits the "added member gets Pro" abuse.
+- **O-2b — Club analytics + O-2c — Club payout income — ✅ built (one dashboard).**
+  `/groups/[slug]/analytics` (owner/admin + Club gated): engagement (events
+  hosted, attendees — scoped to `host_group_id`) + payout income
+  (gross/refunded/net/est-payout, YTD + all-time + per-event — scoped to
+  `payout_group_id`, the income the club's Stripe account received, previously
+  invisible in-app). Admin-client reads (a group admin isn't the event host);
+  reuses the earnings ledger helpers. Linked from the group billing page.
+  Migration `20261004000000` (O-2a only; the dashboard is read-only).
 
-- **O-2a — Multi-admin Pro.** A Club subscription grants every owner/admin of the
-  group full Pro benefits platform-wide. _Fix:_ OR an `is_club_group(<group the
-user owns/admins>)` check into `hasProBenefits`
-  ([apps/web/src/lib/admin.ts](../../apps/web/src/lib/admin.ts)). **Caveat:** this
-  widens the central Pro gate (passes, memberships, fees, sponsor/badge,
-  visibility, paid-event cap) — needs a deliberate review of every gated surface
-  - an abuse look (a member added to a Club group instantly gets Pro). Grade P3.
-- **O-2b — Club analytics dashboard.** Cross-event analytics for a club (fill
-  rate / GMV / repeat attendees across all the group's events), mirroring the
-  per-host [analytics page](../../apps/web/src/app/profile/billing/analytics/page.tsx)
-  but scoped to `events.host_group_id`. Read-only; new `/groups/[slug]/analytics`.
-  Grade P3.
-- **O-2c — Club payout income in the earnings page.** The earnings page
-  ([load-earnings.ts](../../apps/web/src/app/profile/billing/earnings/_loaders/load-earnings.ts))
-  is per-user (`event_payment_audit.user_id`); club-routed event income lands on
-  the group account and isn't surfaced to anyone in-app. _Fix:_ a club earnings
-  view keyed on `events.payout_group_id`, coordinated with
-  [receipts-tax.md](receipts-tax.md). Grade P2 (a host can't currently see club
-  income in-app — only in the Stripe dashboard).
-
-(See also the standalone opportunities **O-8** white-label branding and **O-9**
-per-event waiver e-sign below — both catalogued, not started.)
+(Standalone opportunities still open: **O-5** SMS/Twilio, **O-8** white-label
+branding, **O-9** per-event waiver e-sign.)
 
 #### O-3 — Referral credit — ✅ Shipped 2026-06-08 ([ADR 0039](../adr/0039-referrals-pro-grants.md))
 
@@ -1172,6 +1166,18 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — O-2a/b/c shipped: the deferred Club perks ([ADR 0038 follow-up](../adr/0038-group-payouts-club-tier.md), uncommitted; migration deploy-gated).**
+  - **O-2a (multi-admin Pro):** new `user_has_club_benefits` RPC (migration
+    `20261004000000_club_member_pro_benefits.sql`); `hasProBenefits`
+    ([admin.ts](../../apps/web/src/lib/admin.ts)) now ORs in Club owner/admin
+    benefits (`lib/club.ts` `hasClubProBenefits`) alongside subscription / admin /
+    referral comp. Owner/admin only.
+  - **O-2b + O-2c (one dashboard):** `/groups/[slug]/analytics` (owner/admin +
+    Club) — engagement (`host_group_id`) + club payout income (`payout_group_id`,
+    gross/net/est-payout + per-event); admin-client reads, reuses the earnings
+    ledger helpers. Linked from group billing.
+  - Quad-green. Closes the O-2 deferral list. Open: O-5, O-8, O-9.
 
 - **2026-06-08 — O-3 + O-4 shipped; Club follow-ups tracked ([ADR 0039](../adr/0039-referrals-pro-grants.md), uncommitted; O-3 migration deploy-gated).**
   - **O-3 (referrals + comped Pro):** `/r/<userId>` link → first-touch

@@ -115,6 +115,29 @@ platform account** (PickupVB charges the group), mirrored like `host_subscriptio
 - **Pooled payouts as a free feature.** Forfeits the O-2 monetization; the club
   persona is exactly who should fund the platform. Rejected for a paid Club tier.
 
+## Follow-up 2026-06-08 — O-2a/b/c shipped (the deferred Club perks)
+
+The three v1 deferrals are now built:
+
+- **O-2a — Multi-admin Pro.** An active Club confers full Pro benefits on the
+  group's **owners/admins** (not plain members). `hasProBenefits`
+  ([admin.ts](../../apps/web/src/lib/admin.ts)) ORs in
+  `user_has_club_benefits(user)` (a SECURITY DEFINER RPC,
+  [20261004000000](../../supabase/migrations/20261004000000_club_member_pro_benefits.sql),
+  same 30-day past_due grace as the other gates). So a Club admin gets the fee
+  discount, unlimited paid events, passes/memberships, sponsor/badge, visibility,
+  etc. across all their events. **The gate is now: subscription OR platform-admin
+  OR referral comp-grant OR Club-admin** — every Pro perk already routes through
+  `hasProBenefits`, so this was a single-site widening.
+- **O-2b — Club analytics** + **O-2c — Club payout income** ship together as one
+  dashboard at `/groups/[slug]/analytics` (owner/admin + Club gated): engagement
+  (events hosted, attendees) scoped to `host_group_id`, and payout income
+  (gross/refunded/net/est-payout, YTD + all-time + per-event) scoped to
+  `payout_group_id` — the income the club's Stripe account received, which a host
+  previously couldn't see in-app. Reads on the admin client (a group admin isn't
+  the event host, so per-host RLS wouldn't grant the rows); reuses the earnings
+  ledger helpers. Linked from the group billing page.
+
 ## References
 
 - [docs/payments.md](../payments.md) — routing (now with the group path) + the
