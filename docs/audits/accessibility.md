@@ -1,5 +1,22 @@
 # Accessibility audit — 2026-05-17
 
+> **Status update (2026-06-08, re-audit — monetization / chat / media / games
+> surface):** A large slab of new UI has shipped since the 2026-06-03 close-out
+> (passes + memberships, Club payouts & analytics, referrals, the waiver
+> e-sign, sponsor slots, event media posts + voting, event/group chat rooms +
+> DMs, the volley-pong / keepie-uppie games, conversion nudges). This pass
+> static-reviews that surface against the same WCAG 2.1 AA / Section 508 bar and
+> opens **2 P2 (C1–C2) + 4 P3 (C3–C6)** plus two stale-code / improvement items
+> (C7–C8). **Headline (C1): `text-destructive` is an undefined token** — nine
+> class usages emit no CSS, so several upload / template **error messages render
+> with no error color at all** (and no `role="alert"`), and the "Remove"
+> hover-red never fires. It's a pre-M3 leftover that typecheck / lint / build
+> can't catch (an unknown Tailwind utility just no-ops). The `<th scope>` lint
+> ratchet from the last pass is **holding** — zero bare `<th>` across the much
+> larger table surface. Full write-up in
+> **[2026-06-08 re-audit findings](#2026-06-08-re-audit--monetization--chat--media--games-surface)**.
+> The 2026-06-03 backlog below remains resolved; nothing here is fixed yet.
+
 > **Status update (2026-06-03, re-audit remediated):** The entire 2026-06-02
 > re-audit backlog is now closed — **all 5 P2 (A1–A5) and all 4 P3 (B1–B4)
 > shipped**, `pnpm typecheck && lint && test && build` green. Highlights: the
@@ -471,6 +488,219 @@ focus-visible:ring-offset-2 focus-visible:ring-primary` (or the shared
   `/messages/*`) — 16 `h1` / 16 `h2` / 6 `h3`, no skips observed.
 - **No raw `<img>`** in the new surfaces except the chat composer's local
   object-URL preview, which is correctly `alt`'d and eslint-annotated.
+
+---
+
+## 2026-06-08 re-audit — monetization / chat / media / games surface
+
+Static review (Tailwind-class + JSX inspection; no AT/keyboard runtime testing)
+of the UI shipped **after** the 2026-06-03 close-out: passes/memberships
+(`pass-panel`), Club payouts + the group analytics dashboard, host referrals,
+the liability-waiver e-sign (`event-waiver-section`), sponsor slots
+(`event-sponsor-section`, the logo/badge uploads), event media posts + award
+voting (`media-card`, `add-media-form`), the shared chat engine in event/group
+rooms + DMs (`conversation-view`, `dm-thread`, `room-chat-panel`,
+`block-control`), the volley-pong / keepie-uppie / 404 games, and the
+off-platform conversion nudge. Same WCAG 2.1 AA / Section 508 bar; grading per
+the [audits rubric](README.md).
+
+### P2 findings
+
+#### C1. `text-destructive` is an undefined token — error messages render with no error color, Remove-hover red never fires
+
+- **Where (error text, the real bug):**
+  [event-badge-icon-upload.tsx#L97](../../apps/web/src/app/events/[id]/edit/event-badge-icon-upload.tsx#L97),
+  [hero-image-upload.tsx#L122](../../apps/web/src/components/hero-image-upload.tsx#L122),
+  [avatar-upload.tsx#L169](../../apps/web/src/components/avatar-upload.tsx#L169),
+  [avatar-crop-dialog.tsx#L132](../../apps/web/src/components/avatar-crop-dialog.tsx#L132),
+  [templates-section.tsx#L86](../../apps/web/src/app/events/new/_components/templates-section.tsx#L86)
+  - [#L190](../../apps/web/src/app/events/new/_components/templates-section.tsx#L190).
+    **Where (hover-only, cosmetic):** the "Remove" buttons at
+    [hero-image-upload.tsx#L96](../../apps/web/src/components/hero-image-upload.tsx#L96),
+    [avatar-upload.tsx#L161](../../apps/web/src/components/avatar-upload.tsx#L161),
+    [templates-section.tsx#L146](../../apps/web/src/app/events/new/_components/templates-section.tsx#L146).
+- **Issue:** `destructive` is **not defined** anywhere in
+  [globals.css](../../apps/web/src/app/globals.css) or any theme config — only
+  `--color-md-error` is. Under Tailwind v4 an unknown utility emits **no CSS**,
+  so `text-destructive` is a silent no-op: the upload / template-save error
+  `<p>`/`<span>` inherit the surrounding `text-fg` and render in the **same
+  color as normal body text — the only error affordance (red) is missing**, and
+  none of these carry `role="alert"`, so AT gets nothing either. A failed
+  badge-icon / hero / avatar upload or template save therefore shows a message
+  that doesn't read as an error. This is a pre-M3 leftover that survived the
+  2026-06-07 semantic-color sweep, and **typecheck / lint / build can't catch
+  it** (unknown Tailwind utilities don't error).
+- **WCAG:** 1.4.1 Use of Color, 1.4.3 Contrast, 4.1.3 Status Messages.
+- **Fix:** Swap `text-destructive` → `text-md-error` and `hover:text-destructive`
+  → `hover:text-md-error` (the defined M3 error role; light + dark tuned per
+  AGENTS.md §17). Add `role="alert"` to the error `<p>`/`<span>` so the failure
+  is announced (the client upload widgets don't go through `useAlertReveal`).
+  Consider a `no-restricted-syntax` ratchet on `*-destructive` so the dead token
+  can't reappear, same strategy as the `<th scope>` and CTA/field vocab locks.
+
+#### C2. Form-error text uses raw `text-red-500` — fails AA contrast on the light surface
+
+- **Where:**
+  [host-broadcast-panel.tsx#L67](../../apps/web/src/app/events/[id]/_components/host-broadcast-panel.tsx#L67),
+  [captain-broadcast-panel.tsx#L73](../../apps/web/src/app/teams/[id]/_components/captain-broadcast-panel.tsx#L73),
+  [add-media-form.tsx#L82](../../apps/web/src/app/events/[id]/media/_components/add-media-form.tsx#L82),
+  [add-profile-video-form.tsx#L59](../../apps/web/src/app/profile/_components/add-profile-video-form.tsx#L59)
+  (+ the decorative "expired" pulse at
+  [timer-view.tsx#L116](../../apps/web/src/app/tools/timer/_components/timer-view.tsx#L116)).
+- **Issue:** `text-red-500` (`#ef4444`) on the warm-sand light surface computes
+  to ~**3.8:1** — below the 4.5:1 AA floor for `text-sm` normal-weight body
+  text. These are `role="alert"` error messages (so AT hears them), but a
+  low-vision sighted user in the default light theme gets sub-threshold error
+  copy. They escaped the 2026-06-07 `text-red-600 → text-md-error` sweep because
+  they're the `-500` step, not `-600`.
+- **WCAG:** 1.4.3 Contrast (Minimum).
+- **Fix:** Swap to `text-md-error` (the role token is contrast-tuned for both
+  themes). One-token change; completes the semantic-color migration. The
+  decorative `timer-view` pulse should also move to `text-md-error` for theme
+  correctness (it's a genuine "expired" warning, not a decorative team color).
+
+### P3 findings
+
+#### C3. Weak `focus:ring-1` focus ring regressed in new form inputs
+
+- **Where:**
+  [schedule/\_components/match-row.tsx#L40](../../apps/web/src/app/events/[id]/schedule/_components/match-row.tsx#L40)
+  (shared `inputClass` for the schedule inputs + team selects);
+  [bracket/\_components/walk-in-team-form.tsx#L36](../../apps/web/src/app/events/[id]/bracket/_components/walk-in-team-form.tsx#L36)
+  - [#L196](../../apps/web/src/app/events/[id]/bracket/_components/walk-in-team-form.tsx#L196)
+  - [#L212](../../apps/web/src/app/events/[id]/bracket/_components/walk-in-team-form.tsx#L212).
+- **Issue:** The 2026-05-17 P2 standardized focus rings across 9 inputs
+  (`focus:ring-1` → `focus-visible:ring-2 focus-visible:ring-offset-2`). New
+  code reintroduced the weak 1 px ring — and `walk-in-team-form` pairs it with
+  `focus:outline-none`, **removing the strong UA outline for a 1 px ring** that
+  rarely clears 3:1 against the input fill (the original P2's exact failure).
+- **WCAG:** 2.4.7 Focus Visible, 2.4.11 Focus Appearance.
+- **Fix:** Use the shared `fieldInputClass` from
+  [field-styles.ts](../../apps/web/src/components/field-styles.ts) (carries the
+  standardized ring), or inline `focus-visible:ring-2
+focus-visible:ring-offset-2 focus-visible:ring-primary`. These hand-rolled
+  input class strings also sidestep the AGENTS.md §11 field-vocab ratchet
+  because they're not named `inputClass`/`selectClass` at the lint-checked
+  shape — folding them onto `fieldInputClass` closes both gaps.
+
+#### C4. Hidden file input is `sr-only` (focusable but unlabeled) in 4 upload widgets
+
+- **Where:**
+  [sponsor-logo-upload.tsx#L118-L128](../../apps/web/src/app/events/[id]/edit/sponsor-logo-upload.tsx#L118-L128),
+  [event-badge-icon-upload.tsx#L100](../../apps/web/src/app/events/[id]/edit/event-badge-icon-upload.tsx#L100),
+  [avatar-upload.tsx#L174](../../apps/web/src/components/avatar-upload.tsx#L174),
+  [hero-image-upload.tsx#L125](../../apps/web/src/components/hero-image-upload.tsx#L125).
+- **Issue:** Each `<input type="file">` is hidden with `className="sr-only"`,
+  which keeps it **in the tab order with no accessible name** while a separate
+  visible, labeled button (`onClick={inputRef.current?.click()}`) is the real
+  control. A keyboard / SR user lands on an extra, nameless "file upload, edit"
+  tab stop. The chat composer already does this correctly with
+  `className="hidden"` ([conversation-view.tsx#L671-L675](../../apps/web/src/components/conversation-view.tsx#L671-L675)),
+  which removes it from the tab order.
+- **WCAG:** 1.3.1 Info and Relationships, 4.1.2 Name/Role/Value.
+- **Fix:** Either match the chat composer (`className="hidden"`), or keep
+  `sr-only` but add `tabIndex={-1}` + `aria-hidden="true"` so AT/keyboard only
+  see the visible labeled button.
+
+#### C5. New external links missing the "(opens in new tab)" cue
+
+- **Where:**
+  [event-waiver-section.tsx#L52-L60](../../apps/web/src/app/events/[id]/_components/event-waiver-section.tsx#L52-L60)
+  ("Read the full waiver ↗"),
+  [event-sponsor-section.tsx#L42-L53](../../apps/web/src/app/events/[id]/_components/event-sponsor-section.tsx#L42-L53)
+  (whole-card sponsor link),
+  [community-listing-article.tsx](../../apps/web/src/app/community/[slug]/_components/community-listing-article.tsx),
+  [social-links.tsx#L85-L94](../../apps/web/src/components/social-links.tsx#L85-L94)
+  (these carry a per-network `aria-label`/`title`, but no new-tab cue).
+- **Issue:** All open in a new tab (`target="_blank"`) with no programmatic
+  "opens in new tab" affordance — the recurrence pattern the 2026-05-17 P2 +
+  Bundle 42 addressed via `OpenInNewTabButton` / the `share-link` external
+  variant. New surfaces re-introduce the bare external link.
+- **WCAG:** 2.4.4 Link Purpose, 3.2.2 On Input.
+- **Fix:** Append an `sr-only` "(opens in new tab)" span next to the visible
+  arrow (the established pattern), or route through `OpenInNewTabButton` where
+  it's a button affordance.
+
+#### C6. Tiny text-only tap targets below the WCAG 2.2 §2.5.8 minimum
+
+- **Where:**
+  [block-control.tsx#L33-L42](../../apps/web/src/app/messages/[id]/_components/block-control.tsx#L33-L42)
+  ("Block" / "Unblock" — `text-xs`, **no padding**, so ~16 px tall);
+  the `text-xs px-2.5 py-1` action chips in
+  [media-card.tsx#L13-L17](../../apps/web/src/app/events/[id]/media/_components/media-card.tsx#L13-L17)
+  (Feature / Remove / Report / vote — ~24 px, borderline).
+- **Issue:** WCAG 2.2 added 2.5.8 Target Size (Minimum) at **AA** = 24×24 CSS px
+  (with a spacing exception). The block toggle has no padding and clearly falls
+  short; the media chips sit right on the line.
+- **WCAG:** 2.5.8 Target Size (Minimum) (AA in WCAG 2.2).
+- **Fix:** Add the shared `tap-target` utility (Bundle 130) or padding to clear
+  24 px. While there, give `BlockControl` `aria-pressed={blocked}` (it's a
+  binary state toggle, like the follow buttons) so the state — not just the
+  changing label — is exposed; an optional `aria-live` confirmation would also
+  announce the optimistic flip.
+
+### Stale code / improvement (open questions, advanced)
+
+#### C7. Hand-rolled dialogs/popovers now have a Radix replacement in-tree
+
+- **Where:** the scoreboard `ShareModal` + `WinnerOverlay` and their local
+  `useDialogFocusTrap`
+  ([scoreboard-view.tsx](../../apps/web/src/app/tools/scoreboard/[code]/_components/scoreboard-view.tsx));
+  the hand-rolled `role="dialog"` popovers in
+  [notification-bell.tsx](../../apps/web/src/components/notification-bell.tsx)
+  and [share-link.tsx](../../apps/web/src/components/share-link.tsx).
+- **Issue:** The 2026-06-03 A3 fix was explicitly an **interim hand-roll** to be
+  superseded "when the Radix Dialog primitive lands." It has landed —
+  [form-modal.tsx](../../apps/web/src/components/form-modal.tsx) is
+  `@radix-ui/react-dialog` with free Escape / focus-trap / return-focus /
+  `aria-labelledby`, and `nav-dropdown` already uses Radix. The interim
+  `useDialogFocusTrap` is now duplicated, hand-maintained focus logic where a
+  battle-tested primitive exists.
+- **Fix:** Migrate the scoreboard overlays to `FormModal` (or a thin
+  `RadixDialog` wrapper) and delete `useDialogFocusTrap`; move the
+  notification-bell / share-link popovers to `@radix-ui/react-popover` /
+  `-dialog`. Pure refactor — preserves behavior, removes hand-rolled a11y. This
+  is the AGENTS.md "UI primitives — Radix UI" Bundle-6 target.
+
+#### C8. Combobox primitive + end-to-end AT testing still outstanding
+
+- **Shared `Combobox`:** `address-autocomplete` and `user-picker` still each
+  hand-wire the full WAI-ARIA combobox pattern. Consolidating into one
+  primitive (now reasonable alongside the Radix adoption) would dedupe the ARIA
+  - close-behavior. Unchanged since 2026-05-23.
+- **End-to-end AT testing:** still not done. The chat live-region (`role="status"`
+  in `conversation-view`, now feeding DMs + the new event/group rooms), the
+  scoreboard win announcement, and the games' `role="img"` labels all want a
+  real VoiceOver/NVDA pass — static review can't judge announcement quality.
+
+### Verified good (new surface)
+
+- **The games** ([keepie-uppie.tsx](../../apps/web/src/components/keepie-uppie.tsx),
+  [volley-pong.tsx](../../apps/web/src/app/play/_components/volley-pong.tsx)) —
+  exemplary: `<canvas role="img">` with a descriptive `aria-label`, an
+  `aria-live="polite"` score readout, a reduced-motion pause path, keyboard
+  controls (space / arrow keys), and `focus-visible:ring-2`. Model for any
+  future canvas surface.
+- **`FormModal`** is on Radix Dialog with `aria-labelledby` (Title) +
+  `aria-describedby` (Description) + a labeled `Close` + automatic focus
+  trap/Escape — the right substrate for C7's migration.
+- **Chat live region (the 2026-06-03 A5 fix) lives in the shared
+  `ConversationView`**, so the new `dm-thread` and `room-chat-panel` (event /
+  group rooms) inherit the polite `role="status"` announce + the `role="alert"`
+  send error for free.
+- **Waiver e-sign** ([event-waiver-section.tsx](../../apps/web/src/app/events/[id]/_components/event-waiver-section.tsx))
+  — name input has `aria-label` (not placeholder-only), the agree checkbox is
+  wrapped in a `<label>`, success uses `text-md-success`.
+- **Media voting** ([media-card.tsx](../../apps/web/src/app/events/[id]/media/_components/media-card.tsx))
+  — vote chips carry `aria-pressed`; Live / Featured badges pair an
+  `aria-hidden` emoji with a text label.
+- **`<th scope>` lint ratchet is holding** — zero bare `<th>` across the
+  now-larger table surface (club analytics, receipts, schedule standings all
+  compliant). The ratchet-behind-fix strategy worked.
+- **Select labeling** — filters, schedule team selects, and the standings tool
+  all use a wrapping `<label>` or an explicit `aria-label` (e.g. "Home team").
+- **`off-platform-upsell`** — `<aside aria-label>` + an `aria-label`'d Dismiss
+  button.
 
 ---
 
