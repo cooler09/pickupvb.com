@@ -94,6 +94,11 @@ export function ProfileQuickActions({ isHost }: { isHost: boolean }) {
       />
       <ActionTile href={'/messages' as Route} title="Messages" description="Your conversations" />
       <ActionTile
+        href={'/profile/notifications' as Route}
+        title="Notifications"
+        description="Email, push & in-app"
+      />
+      <ActionTile
         href={'/profile/receipts' as Route}
         title="Receipts"
         description="Your payments"

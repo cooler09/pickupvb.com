@@ -260,10 +260,12 @@ cards, not the profile).
 
 #### PRV-2 — Quick-action grid drifted back to host/payment weight · **P3** · assessed → wontfix (2026-06-08)
 
-PR-2 deliberately demoted host depth, but the grid is now **6 tiles**
-([profile-hub-sections.tsx#L82-L113](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx#L82-L113)),
-of which **Receipts, My passes, Host an event, and Payouts/Get-set-up** are
-payment/host-oriented — 4 of 6 on a player-first hub.
+PR-2 deliberately demoted host depth, but the grid is now **7 tiles**
+([profile-hub-sections.tsx](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx)) —
+Find events, Messages, Notifications, Receipts, My passes, Host an event, and
+Payouts/Get-set-up — of which **Receipts, My passes, Host an event, and
+Payouts/Get-set-up** are payment/host-oriented (4 of 7). (The Notifications tile
+was added 2026-06-08 at the user's request, grouped with Messages as comms.)
 
 **Assessed → wontfix.** The obvious fix (gate the host tiles behind `isHost`)
 conflicts with a **deliberate, in-code decision**: the loader comment
