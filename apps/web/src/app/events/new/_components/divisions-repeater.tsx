@@ -18,6 +18,7 @@ import {
   fieldInputClass as inputClass,
   fieldLabelClass as labelClass,
 } from '@/components/field-styles';
+import { SkillTierOptions } from './form-primitives';
 
 type TeamRegistrationMode = 'ad_hoc' | 'roster' | 'none';
 type Composition = 'solo' | 'team' | 'pair_draw' | 'partners';
@@ -328,13 +329,7 @@ export default function DivisionsRepeater({
                 onChange={(e) => patch(row.key, { skillTier: e.target.value })}
                 className={inputClass}
               >
-                <option value="c">C</option>
-                <option value="b">B</option>
-                <option value="bb">BB</option>
-                <option value="bb3">BB-3</option>
-                <option value="a">A</option>
-                <option value="aa">AA</option>
-                <option value="open">Open</option>
+                <SkillTierOptions />
               </select>
             </div>
             <div>

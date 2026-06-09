@@ -40,6 +40,7 @@ export default function NewEventForm({
   templateValues,
   templateStatus,
   viewerHasProBenefits,
+  atPaidEventCap = false,
 }: {
   hostableGroups?: { id: string; name: string }[];
   /**
@@ -54,6 +55,12 @@ export default function NewEventForm({
   templateValues?: Record<string, string>;
   templateStatus?: string;
   viewerHasProBenefits: boolean;
+  /**
+   * True when a free host has already used their rolling-30d paid-event
+   * allowance. Surfaced contextually inside the pricing section once a price is
+   * entered, rather than as an always-on banner at the top of the form (CE-10).
+   */
+  atPaidEventCap?: boolean;
 }) {
   const [state, formAction] = useFormState(createEventAction, {
     ...initialState,
@@ -217,6 +224,7 @@ export default function NewEventForm({
         paymentsOffPlatform={paymentsOffPlatform}
         setPaymentsOffPlatform={setPaymentsOffPlatform}
         viewerHasProBenefits={viewerHasProBenefits}
+        atPaidEventCap={atPaidEventCap}
       />
 
       <VisibilitySection

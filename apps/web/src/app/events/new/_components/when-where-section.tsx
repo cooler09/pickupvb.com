@@ -9,7 +9,14 @@
 import type { Suggestion } from '@/components/address-autocomplete';
 import DateTimePicker from '@/components/datetime-picker';
 import { FieldError } from '@/components/field-error';
-import { cardClass, cardSubClass, cardTitleClass, inputClass, labelClass } from './form-primitives';
+import {
+  cardClass,
+  cardSubClass,
+  cardTitleClass,
+  inputClass,
+  labelClass,
+  RequiredMark,
+} from './form-primitives';
 import LocationFields from './location-fields';
 
 export default function WhenWhereSection({
@@ -61,6 +68,7 @@ export default function WhenWhereSection({
         <div>
           <label htmlFor="startsAt" className={labelClass}>
             Starts at
+            <RequiredMark />
           </label>
           <DateTimePicker
             name="startsAt"
@@ -74,6 +82,7 @@ export default function WhenWhereSection({
         <div>
           <label htmlFor="endsAt" className={labelClass}>
             Ends at
+            <RequiredMark />
           </label>
           <DateTimePicker
             name="endsAt"

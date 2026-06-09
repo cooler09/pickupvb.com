@@ -12,6 +12,7 @@ import {
   cardTitleClass,
   inputClass,
   labelClass,
+  RequiredMark,
   val,
 } from './form-primitives';
 
@@ -33,6 +34,7 @@ export default function BasicsSection({
       <div>
         <label htmlFor="title" className={labelClass}>
           Title
+          <RequiredMark />
         </label>
         <input
           id="title"

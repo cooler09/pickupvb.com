@@ -1,13 +1,10 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import type { Route } from 'next';
 import { SupabaseGroupQueryRepository } from '@pickupvb/infrastructure';
 import { getServerSupabase } from '@/lib/supabase';
 import { isAnonymousUser } from '@/lib/server-auth';
 import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { hasProBenefits } from '@/lib/admin';
 import { hostPaidEventCount30d, FREE_PAID_EVENT_CAP_30D } from '@/lib/pro';
-import { Alert } from '@/components/alert';
 import NewEventForm from './new-event-form';
 
 export const dynamic = 'force-dynamic';
@@ -97,16 +94,6 @@ export default async function NewEventPage(props: {
           Set up your pickup session, tournament, or league. You can edit any of this later.
         </p>
       </header>
-      {atPaidEventCap && (
-        <Alert variant="info" title="You've used your free paid event">
-          Free hosts get {FREE_PAID_EVENT_CAP_30D} paid event per 30 days — you&apos;re at the cap.
-          Your next paid event needs Pro;{' '}
-          <Link href={'/profile/billing/pro' as Route} className="font-medium underline">
-            upgrade for unlimited paid events →
-          </Link>{' '}
-          Free events are always unlimited.
-        </Alert>
-      )}
       <NewEventForm
         // Remount when the applied template changes so `useFormState`
         // re-seeds its initialState from the new `templateValues`. React's
@@ -119,6 +106,7 @@ export default async function NewEventPage(props: {
         canCollectPayments={canCollectPayments}
         templates={templates}
         viewerHasProBenefits={viewerHasProBenefits}
+        atPaidEventCap={atPaidEventCap}
         {...(templateStatus ? { templateStatus } : {})}
         {...(selectedTemplateId ? { selectedTemplateId } : {})}
         {...(templateValues ? { templateValues } : {})}

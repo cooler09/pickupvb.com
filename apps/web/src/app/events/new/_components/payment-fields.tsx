@@ -76,6 +76,26 @@ export function StripeOnboardingBanner({
 }
 
 /**
+ * Shown contextually once a free host who is already at their rolling-30d
+ * paid-event cap enters an **on-platform** price (CE-10). Mirrors the server
+ * gate (`validateHostPaidEventCap`), which only fires for on-platform paid
+ * events — off-platform paid events don't count, so callers also gate on
+ * `!paymentsOffPlatform`. Replaces the old always-on banner at the top of the
+ * form, which greeted free hosts even when setting up a free event.
+ */
+export function PaidEventCapBanner() {
+  return (
+    <Alert variant="warning" title="You've used your free paid event">
+      Free hosts get one paid event per 30 days, and you&apos;re at the cap — this one needs Pro.{' '}
+      <Link href="/profile/billing/pro" className="font-medium underline underline-offset-2">
+        Upgrade for unlimited paid events
+      </Link>
+      . Free events are always unlimited.
+    </Alert>
+  );
+}
+
+/**
  * Refund-window input. Pro hosts can configure any value in 0–720h; free
  * hosts see a disabled input pinned to the 24h default with an upgrade
  * nudge. The server action enforces the same clamp regardless of what's
@@ -247,6 +267,7 @@ export function PricingSubsection({
   paymentsOffPlatform,
   setPaymentsOffPlatform,
   viewerHasProBenefits,
+  atPaidEventCap,
 }: {
   fieldErrors: Record<string, string> | undefined;
   values: Record<string, string> | undefined;
@@ -255,6 +276,8 @@ export function PricingSubsection({
   paymentsOffPlatform: boolean;
   setPaymentsOffPlatform: (v: boolean) => void;
   viewerHasProBenefits: boolean;
+  /** Free host already at their rolling-30d paid-event cap (CE-10). */
+  atPaidEventCap: boolean;
 }) {
   // Track the price client-side so we can warn — before submit — when a host
   // who isn't set up for on-platform payments enters a price without choosing
@@ -273,6 +296,7 @@ export function PricingSubsection({
             : ''}
         </p>
       </div>
+      {atPaidEventCap && hasPrice && !paymentsOffPlatform && <PaidEventCapBanner />}
       {!canCollectPayments && (
         <StripeOnboardingBanner
           blocking={hasPrice && !paymentsOffPlatform}
@@ -330,6 +354,7 @@ export function PaymentSettingsSubsection({
   paymentsOffPlatform,
   setPaymentsOffPlatform,
   viewerHasProBenefits,
+  atPaidEventCap,
 }: {
   values: Record<string, string> | undefined;
   submitted: boolean | undefined;
@@ -340,6 +365,8 @@ export function PaymentSettingsSubsection({
   paymentsOffPlatform: boolean;
   setPaymentsOffPlatform: (v: boolean) => void;
   viewerHasProBenefits: boolean;
+  /** Free host already at their rolling-30d paid-event cap (CE-10). */
+  atPaidEventCap: boolean;
 }) {
   // Refund window + service-fee absorption only apply to on-platform
   // (Stripe-mediated) charges. Hide them when payments are off-platform
@@ -356,6 +383,7 @@ export function PaymentSettingsSubsection({
             : ''}
         </p>
       </div>
+      {atPaidEventCap && hasPaidDivision && !paymentsOffPlatform && <PaidEventCapBanner />}
       {!canCollectPayments && (
         <StripeOnboardingBanner
           blocking={hasPaidDivision && !paymentsOffPlatform}

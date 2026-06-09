@@ -31,6 +31,7 @@ export default function FormatSection({
   paymentsOffPlatform,
   setPaymentsOffPlatform,
   viewerHasProBenefits,
+  atPaidEventCap,
 }: {
   type: EventType;
   isExternal: boolean;
@@ -46,6 +47,7 @@ export default function FormatSection({
   paymentsOffPlatform: boolean;
   setPaymentsOffPlatform: (v: boolean) => void;
   viewerHasProBenefits: boolean;
+  atPaidEventCap: boolean;
 }) {
   const byPosition = capacityKind === 'by_position';
   const isLeague = type === EventType.League;
@@ -120,6 +122,7 @@ export default function FormatSection({
             paymentsOffPlatform={paymentsOffPlatform}
             setPaymentsOffPlatform={setPaymentsOffPlatform}
             viewerHasProBenefits={viewerHasProBenefits}
+            atPaidEventCap={atPaidEventCap}
           />
         )}
         {showPaymentSettings && (
@@ -131,6 +134,7 @@ export default function FormatSection({
             paymentsOffPlatform={paymentsOffPlatform}
             setPaymentsOffPlatform={setPaymentsOffPlatform}
             viewerHasProBenefits={viewerHasProBenefits}
+            atPaidEventCap={atPaidEventCap}
           />
         )}
       </section>

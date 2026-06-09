@@ -27,6 +27,19 @@ export const cardClass =
 export const cardTitleClass = 'text-fg text-base font-semibold';
 export const cardSubClass = 'text-muted text-sm';
 
+/**
+ * Visual required-field marker (CE-12). Native inputs carry the `required`
+ * attribute (which conveys requiredness to assistive tech), so this asterisk is
+ * decorative reinforcement and is hidden from AT to avoid a double-announce.
+ */
+export function RequiredMark() {
+  return (
+    <span className="text-md-error ml-0.5" aria-hidden="true">
+      *
+    </span>
+  );
+}
+
 /** Lookup a previously-submitted form value (echoed back on action error).
  *  Falls back to the `1_`-prefixed variant so templates saved under the old
  *  useFormState slot encoding still apply correctly. */
@@ -51,9 +64,34 @@ export function chk(
   return values?.[name] === 'on';
 }
 
+// The SkillTier ladder, grouped by SkillBand so the labels line up with the
+// legacy band buckets. Shared by the open-play `SkillTierSelect` and the
+// per-division select in the divisions repeater so both show the same grouping
+// (CE-8).
+export function SkillTierOptions() {
+  return (
+    <>
+      <optgroup label="Beginner">
+        <option value="c">C</option>
+        <option value="b">B</option>
+      </optgroup>
+      <optgroup label="Intermediate">
+        <option value="bb">BB</option>
+        <option value="bb3">BB-3</option>
+      </optgroup>
+      <optgroup label="Advanced">
+        <option value="a">A</option>
+      </optgroup>
+      <optgroup label="Competitive">
+        <option value="aa">AA</option>
+        <option value="open">Open</option>
+      </optgroup>
+    </>
+  );
+}
+
 // Renders the SkillTier ladder used by every division (incl. the implicit
-// division #1 that the top-level form represents). Grouped by SkillBand so
-// the labels still line up with the legacy band buckets.
+// division #1 that the top-level form represents).
 export function SkillTierSelect({
   fieldErrors,
   values,
@@ -73,21 +111,7 @@ export function SkillTierSelect({
         className={inputClass}
         {...fieldA11y('skillLevel', fieldErrors)}
       >
-        <optgroup label="Beginner">
-          <option value="c">C</option>
-          <option value="b">B</option>
-        </optgroup>
-        <optgroup label="Intermediate">
-          <option value="bb">BB</option>
-          <option value="bb3">BB-3</option>
-        </optgroup>
-        <optgroup label="Advanced">
-          <option value="a">A</option>
-        </optgroup>
-        <optgroup label="Competitive">
-          <option value="aa">AA</option>
-          <option value="open">Open</option>
-        </optgroup>
+        <SkillTierOptions />
       </select>
       <FieldError name="skillLevel" errors={fieldErrors} />
     </div>

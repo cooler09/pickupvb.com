@@ -18,7 +18,7 @@
  */
 import AddressAutocomplete, { type Suggestion } from '@/components/address-autocomplete';
 import { FieldError, fieldA11y } from '@/components/field-error';
-import { inputClass, labelClass } from './form-primitives';
+import { inputClass, labelClass, RequiredMark } from './form-primitives';
 
 export default function LocationFields({
   addressLine,
@@ -78,6 +78,7 @@ export default function LocationFields({
       <div>
         <label htmlFor="addressLine" className={labelClass}>
           Address
+          <RequiredMark />
         </label>
         <input
           id="addressLine"
@@ -115,6 +116,7 @@ export default function LocationFields({
           <div>
             <label htmlFor="city" className={labelClass}>
               City
+              <RequiredMark />
             </label>
             <input
               id="city"
@@ -161,6 +163,7 @@ export default function LocationFields({
           <div>
             <label htmlFor="country" className={labelClass}>
               Country
+              <RequiredMark />
             </label>
             <input
               id="country"

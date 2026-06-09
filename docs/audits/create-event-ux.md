@@ -25,11 +25,47 @@ gaps, streamlining opportunities, and stale code.
 > CE-13** (see remediation log below). **Bundle 2 closed CE-1's deferred
 > follow-up** — saved templates now round-trip the `AdvancedDetailsPanel` fields
 > (venue / series / fundraiser / theme tags / sanctioning), so template apply is
-> fully complete. **Remaining open: CE-4, CE-8, CE-9, CE-10, CE-11, CE-12** —
-> all P3, deferred (a11y roving-tabindex, skill-tier grouping, create-time photo,
-> contextual cap banner, by-position edit parity, required-field markers).
-> Cross-refs: persona-ux V-4 (anon gate) and CC-1 (submit button) already closed;
-> this audit does not re-open them.
+> fully complete. **Bundle 3 closed the three quick-win P3s — CE-8, CE-10,
+> CE-12.** **Remaining open: CE-4, CE-9, CE-11** — all P3 (a11y roving-tabindex,
+> create-time photo, by-position edit parity). Cross-refs: persona-ux V-4 (anon
+> gate) and CC-1 (submit button) already closed; this audit does not re-open them.
+
+## Remediation log — 2026-06-09 (bundle 3)
+
+Quad-green, uncommitted. **CE-8, CE-10, CE-12** — the three quick wins.
+
+- **CE-8 — per-division skill-tier select now matches the open-play ladder.**
+  Extracted the grouped option list into a shared `SkillTierOptions` component in
+  [form-primitives.tsx](../../apps/web/src/app/events/new/_components/form-primitives.tsx);
+  both `SkillTierSelect` (open-play / external) and the per-division `<select>` in
+  [divisions-repeater.tsx](../../apps/web/src/app/events/new/_components/divisions-repeater.tsx)
+  render it, so every surface shows the same
+  Beginner / Intermediate / Advanced / Competitive `<optgroup>` grouping instead
+  of a flat list.
+- **CE-10 — the paid-event-cap notice is now contextual.** The always-on info
+  `Alert` at the top of the page is gone; `atPaidEventCap` is threaded
+  page → form → `FormatSection` → both payment subsections, and a new
+  `PaidEventCapBanner` (warning) renders **only once an on-platform price is
+  entered** (`atPaidEventCap && hasPrice && !paymentsOffPlatform` for open-play;
+  `… && hasPaidDivision && …` for tournament/league) — matching exactly when the
+  server gate (`validateHostPaidEventCap`) actually fires. A free host setting up
+  a free pickup night no longer sees a monetization wall. The cap constant stays
+  server-side (`lib/pro` is `server-only`); only the boolean crosses to the
+  client. Files:
+  [page.tsx](../../apps/web/src/app/events/new/page.tsx),
+  [new-event-form.tsx](../../apps/web/src/app/events/new/new-event-form.tsx),
+  [format-section.tsx](../../apps/web/src/app/events/new/_components/format-section.tsx),
+  [payment-fields.tsx](../../apps/web/src/app/events/new/_components/payment-fields.tsx).
+- **CE-12 — required fields are now marked.** A shared decorative `RequiredMark`
+  (`*`, `aria-hidden` — native `required` already conveys requiredness to AT)
+  added to Title
+  ([basics-section.tsx](../../apps/web/src/app/events/new/_components/basics-section.tsx)),
+  Starts/Ends at
+  ([when-where-section.tsx](../../apps/web/src/app/events/new/_components/when-where-section.tsx)),
+  and Address / City / Country
+  ([location-fields.tsx](../../apps/web/src/app/events/new/_components/location-fields.tsx),
+  shared with the edit form, so both gain the markers). Complements the existing
+  `(optional)` labels.
 
 ## Remediation log — 2026-06-09 (bundle 2)
 
@@ -120,11 +156,11 @@ as-is (different `pricingLocked` disabled states + copy) — still deferred.
 | CE-4  | P3  | open     | A11y             | `SegmentedControl` announces `role=radiogroup`/`radio` but has no roving tabindex / arrow keys.       |
 | CE-5  | P3  | ✅ fixed | Stale code       | `div_${i}_present` hidden input is emitted per row but never read by the server action.               |
 | CE-6  | P3  | ✅ fixed | Stale code       | `useState(requireAtLeastOne ? 1 : 1)` — both ternary branches are `1`.                                |
-| CE-8  | P3  | open     | Consistency      | Per-division skill-tier select is a flat 7-option list; open-play uses the grouped `SkillTierSelect`. |
+| CE-8  | P3  | ✅ fixed | Consistency      | Per-division skill-tier select is a flat 7-option list; open-play uses the grouped `SkillTierSelect`. |
 | CE-9  | P3  | open     | Gap / streamline | No hero-image upload at create time — host must create, then go to `/edit` to add a photo.            |
-| CE-10 | P3  | open     | Streamline       | `atPaidEventCap` banner greets every capped free host, even one creating a free event.                |
+| CE-10 | P3  | ✅ fixed | Streamline       | `atPaidEventCap` banner greets every capped free host, even one creating a free event.                |
 | CE-11 | P3  | open     | Gap (parity)     | "By position" capacity + position roster are create-only; edit can't reach or tune them.              |
-| CE-12 | P3  | open     | Clarity          | Required fields (title, address, dates) carry no required marker; only optional ones are labeled.     |
+| CE-12 | P3  | ✅ fixed | Clarity          | Required fields (title, address, dates) carry no required marker; only optional ones are labeled.     |
 | CE-13 | P3  | ✅ fixed | Streamline       | "Host as" select renders a useless single-option dropdown when the host manages zero groups.          |
 
 ---
