@@ -12,6 +12,139 @@ signal; P3 = opportunistic / post-product-market-fit.
 
 ---
 
+## Status — 2026-06-08 — Sponsor slot focused audit (code / UX pass)
+
+**Trigger:** user-requested focused audit of the **sponsor slot** feature
+(Bundles 84–85) — bugs, gaps, improvements, stale code, UX/UI. Traced end to
+end: `event_sponsors` schema + RLS, the two server-action paths (Pro
+direct-save vs. free à-la-carte checkout in
+[sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts)),
+the Stripe webhook materialization
+([checkout.ts](../../apps/web/src/lib/webhooks/checkout.ts)), the cached public
+render ([event-sponsor-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-sponsor-section.tsx)),
+and the storage/orphan lifecycle.
+
+### Headline
+
+- **No P1 — the core machinery is sound.** Writes go through the user-scoped
+  client so RLS enforces the manager gate; the admin client is confined to the
+  session-less webhook; the checkout idempotency key folds the draft hash; the
+  orphan walker correctly tolerates the `?t=` cache-buster; the webhook + repo
+  upsert are unit-tested.
+- **The one real design flaw (SP-1/SP-2) is that entitlement is welded to the
+  content row.** `access_kind`/`paid_at` live _on_ `event_sponsors`, so
+  removing a sponsor destroys a paid à-la-carte unlock (re-charge risk), and the
+  authoring gate also gates removal (a lapsed-Pro host can't delete their own
+  sponsor). Badges already solved this with a separate `event_badge_access`
+  table — sponsors should mirror it.
+- **The rest is polish** — a dead `text-destructive` token, a hardcoded `$3`
+  that bypasses the `SPONSOR_SLOT_UNLOCK_CENTS` single-source-of-truth,
+  `object-cover` cropping rectangular logos, and a few vocab/robustness nits.
+
+> **Update — 2026-06-08 (same pass): all P3 quick wins applied** (uncommitted).
+> SP-3 (`text-destructive` → `text-md-error`), SP-4 (`$3` now derived from
+> `SPONSOR_SLOT_UNLOCK_CENTS`), SP-5 (`object-cover` → `object-contain` on both
+> the upload preview and the public render), SP-6 (dropped dead
+> `disabled={false}`), SP-7 (Remove button → `neutralButtonClass`). **SP-1/SP-2
+> (P2) and SP-8…SP-10 left open.** See the remediation log at the bottom.
+
+### Findings — sponsor slot
+
+#### SP-1 (P2) — Removing a sponsor destroys a paid à-la-carte unlock (re-charge risk)
+
+Entitlement is stored _on the content row_, so
+[`removeSponsor`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L248-L269)
+`DELETE`s the whole `event_sponsors` row — including `access_kind='ala_carte'`
+and `paid_at`, the only proof the host paid $3.
+[`hasAlaCarteAccess`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L91-L93)
+then returns false, so re-adding a sponsor charges the host **again**. Contrast
+badges, which decouple entitlement from content via a separate
+`event_badge_access` table ([edit/page.tsx#L91](../../apps/web/src/app/events/%5Bid%5D/edit/page.tsx#L91)).
+**Fix:** mirror that shape — an `event_sponsor_access` table (entitlement) +
+`event_sponsors` (content), or have `removeSponsor` null the content fields
+while preserving the entitlement columns. Ship with a test that fails against
+today's behavior.
+
+#### SP-2 (P2) — The authoring gate also gates removal → lapsed-Pro hosts get stuck
+
+[`removeSponsor#L260`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L260)
+flashes `pro` when the caller isn't _currently_ entitled. A host who created a
+sponsor while Pro, then let Pro lapse, can no longer **remove their own
+sponsor** — the block keeps rendering publicly but is unmanageable. Deleting
+your own data shouldn't be a premium capability. **Fix:** gate create/edit on
+entitlement; allow `removeSponsor` for anyone who passes `assertCanManage`.
+
+#### SP-3 (P3) — `text-destructive` is an undefined token (dead class) — ✅ fixed
+
+[sponsor-logo-upload.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-logo-upload.tsx)
+used `hover:text-destructive` / `text-destructive`, but no `destructive` color
+exists in [globals.css](../../apps/web/src/app/globals.css) or `gen-palette.ts`,
+so the Remove-logo hover and the upload-error message rendered with **no
+color**. Replaced with `text-md-error` (AGENTS pattern #17). **Follow-up
+(out of scope here):** the same dead token also appears in `avatar-upload`,
+`hero-image-upload`, `event-badge-icon-upload`, `avatar-crop-dialog`, and
+`templates-section` — worth a one-line sweep.
+
+#### SP-4 (P3) — Hardcoded "$3" in the panel defeats the single-source-of-truth — ✅ fixed
+
+[sponsor-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx)
+wrote `$3` as a literal in the info alert and the button label, while the
+pricing/Pro pages correctly derive it from `SPONSOR_SLOT_UNLOCK_CENTS`
+([pricing/page.tsx#L34](../../apps/web/src/app/pricing/page.tsx#L34)) —
+exactly the staleness M-3 / [pro.ts#L24-L33](../../apps/web/src/lib/pro.ts#L24-L33)
+set out to prevent. Now derived from the constant.
+
+#### SP-5 (P3) — `object-cover` crops rectangular logos — ✅ fixed
+
+Both the upload preview and the public render boxed a 48×48 logo with
+`object-cover`; real sponsor logos (gym, brewery) are usually wide and got
+center-cropped into unreadability despite the "Square works best" hint. Changed
+to `object-contain` in
+[sponsor-logo-upload.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-logo-upload.tsx)
+and [event-sponsor-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-sponsor-section.tsx).
+
+#### SP-6 (P3) — Dead `disabled={false}` on the save button — ✅ fixed
+
+Removed from [sponsor-panel.tsx](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx).
+
+#### SP-7 (P3) — Remove button hand-rolled classes — ✅ fixed
+
+The Remove button hand-wrote `border-border-base text-fg rounded-md border …`
+instead of the shared vocab (AGENTS pattern #11). Switched to
+`neutralButtonClass('md')` (preserves the bordered-neutral look). _Note:_ since
+removal is destructive, the error family (`errorOutlinedButtonClass` /
+`errorTextButtonClass`) is arguably the more correct fit — deferred to avoid a
+larger visual change in this pass.
+
+#### SP-8 (P3) — Sloppy/duplicated `catch` blocks swallow real errors as "unauthorized"
+
+In all three actions (e.g.
+[upsert#L104-L108](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L104-L108)),
+an unexpected error in `assertCanManage` (e.g. a DB failure) falls through to
+`flashTo(eventId, 'unauthorized')` — misleading, and it converts a genuine 500
+into a silent redirect with no log. The block is copy-pasted three times.
+**Fix:** extract one `guardManage()` helper that maps `NotFoundError` /
+`UnauthorizedError` and **re-throws** anything else.
+
+#### SP-9 (P3) — Panel header "Sponsor slot (Pro)" misleads free hosts
+
+[sponsor-panel.tsx#L47](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx#L47)
+labels the section Pro-only, but a free host can buy it à-la-carte. Minor copy
+tweak (e.g. drop the "(Pro)" suffix, or "Pro or $3/event").
+
+#### SP-10 (P3) — No test for the server-action gate
+
+The webhook ([checkout.test.ts#L241](../../apps/web/src/lib/webhooks/checkout.test.ts#L241))
+and repo upsert are covered, but the **gating logic** in `sponsor-actions.ts`
+(Pro → save, free+paid → save, free+unpaid → checkout, and SP-1's
+remove-destroys-entitlement) has no test. Since it guards money, a small unit
+test on `hasAlaCarteAccess` + branch selection is high-signal — pair it with the
+SP-1 fix. **Minor:** `parseDraft` re-reads `fieldOrNull(… 'link_url')` /
+`'logo_url'` twice each for validation (compute once); and it `throw`s a plain
+`Error` (caught locally → tolerable, but pattern #2 prefers typed).
+
+---
+
 ## Status — 2026-06-08 — Re-audit (code-quality + stale-code + opportunity pass)
 
 **Trigger:** user-requested monetization audit — find bugs, gaps, improvements,
@@ -1178,6 +1311,19 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — Sponsor slot focused audit + P3 quick wins (uncommitted).**
+  Authored the "Sponsor slot focused audit" status block at the top (SP-1…SP-10).
+  Applied all five P3 quick wins this pass: SP-3 (`text-destructive` →
+  `text-md-error` in `sponsor-logo-upload.tsx` — the token was undefined, so the
+  hover/error text had no color), SP-4 (`$3` in `sponsor-panel.tsx` now derived
+  from `SPONSOR_SLOT_UNLOCK_CENTS`), SP-5 (`object-cover` → `object-contain` on
+  the logo preview + public render so wide logos aren't cropped), SP-6 (removed
+  dead `disabled={false}`), SP-7 (Remove button → `neutralButtonClass`).
+  **Left open: SP-1/SP-2 (P2 — entitlement welded to the content row → re-charge
+  on remove + lapsed-Pro hosts can't remove; fix = decouple à la
+  `event_badge_access`), SP-8 (shared `guardManage()` helper), SP-9 (header
+  copy), SP-10 (server-action gate test).**
 
 - **2026-06-08 — O-9 shipped: waiver acknowledgement + signature tracking (free + soft; uncommitted, migration deploy-gated).**
   Reality-checked after a maintainer note (hosts have their own waivers + collect

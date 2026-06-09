@@ -75,7 +75,7 @@ export function SponsorLogoUpload({ eventId, userId, currentUrl }: Props) {
             width={48}
             height={48}
             unoptimized
-            className="border-border-base bg-md-surface-container h-12 w-12 rounded-md border object-cover"
+            className="border-border-base bg-md-surface-container h-12 w-12 rounded-md border object-contain"
           />
           <button
             type="button"
@@ -92,7 +92,7 @@ export function SponsorLogoUpload({ eventId, userId, currentUrl }: Props) {
             type="button"
             onClick={() => setUrl(null)}
             disabled={uploading}
-            className="text-muted hover:text-destructive focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2 disabled:opacity-60"
+            className="text-muted hover:text-md-error focus-visible:ring-primary rounded text-sm focus:outline-none focus-visible:ring-2 disabled:opacity-60"
           >
             Remove
           </button>
@@ -114,7 +114,7 @@ export function SponsorLogoUpload({ eventId, userId, currentUrl }: Props) {
           )}
         </button>
       )}
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && <p className="text-md-error text-xs">{error}</p>}
       <input
         ref={inputRef}
         type="file"

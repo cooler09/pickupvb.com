@@ -22,7 +22,7 @@ export function EventSponsorSection({ sponsor }: { sponsor: EventSponsor | null 
             width={48}
             height={48}
             unoptimized
-            className="border-border-base bg-md-surface-container h-12 w-12 rounded-md border object-cover"
+            className="border-border-base bg-md-surface-container h-12 w-12 rounded-md border object-contain"
           />
         )}
         <div className="min-w-0">
