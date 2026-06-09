@@ -240,6 +240,18 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
     const sponsorLogoUrl = (meta.sponsor_logo_url ?? '').trim() || null;
     const sponsorDiscountCode = (meta.sponsor_discount_code ?? '').trim() || null;
 
+    // Entitlement and content are decoupled (monetization audit SP-1): record
+    // the paid unlock in `event_sponsor_access` FIRST so removing the sponsor
+    // later never destroys the entitlement, then materialize the content. Both
+    // upsert on event_id, so a redelivered webhook is idempotent.
+    await repositories.eventPaymentRepo.unlockSponsorSlot({
+      eventId: meta.event_id,
+      purchasedByUserId: meta.user_id,
+      checkoutSessionId: session.id,
+      paymentIntentId: piId,
+      paidAt,
+    });
+
     await repositories.eventPaymentRepo.upsertSponsorSlot({
       eventId: meta.event_id,
       name: sponsorName,
@@ -247,10 +259,6 @@ export async function handleCheckoutCompleted(session: Stripe.Checkout.Session):
       linkUrl: sponsorLinkUrl,
       logoUrl: sponsorLogoUrl,
       discountCode: sponsorDiscountCode,
-      purchasedByUserId: meta.user_id,
-      checkoutSessionId: session.id,
-      paymentIntentId: piId,
-      paidAt,
     });
 
     const hostId = meta.host_id ?? (await lookupHostId(meta.event_id));

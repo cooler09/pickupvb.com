@@ -178,7 +178,10 @@ export function SponsorPanel({
             {canUseSponsors ? 'Save sponsor' : `Unlock sponsor slot ($${SPONSOR_SLOT_PRICE_USD})`}
           </button>
 
-          {sponsor && canUseSponsors && (
+          {/* Removal isn't entitlement-gated (SP-2): any event manager can delete
+              their own sponsor even after a Pro lapse. This panel only renders on
+              the manager-gated edit page, so `sponsor` alone is a safe condition. */}
+          {sponsor && (
             <button type="submit" formAction={removeAction} className={neutralButtonClass('md')}>
               Remove sponsor
             </button>

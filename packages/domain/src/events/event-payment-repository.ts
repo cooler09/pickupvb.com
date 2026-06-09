@@ -69,7 +69,12 @@ export interface PaidBadgeSlot {
   paidAt: string;
 }
 
-/** The a-la-carte sponsor slot purchase mirrored from a completed checkout. */
+/**
+ * The sponsor *content* materialized from a completed à-la-carte checkout. The
+ * entitlement (payment provenance) is recorded separately via
+ * {@link PaidSponsorAccess} so removing the sponsor never destroys the paid
+ * unlock (monetization audit SP-1).
+ */
 export interface PaidSponsorSlot {
   eventId: string;
   name: string;
@@ -77,6 +82,11 @@ export interface PaidSponsorSlot {
   linkUrl: string | null;
   logoUrl: string | null;
   discountCode: string | null;
+}
+
+/** The à-la-carte sponsor-slot *entitlement* mirrored from a completed checkout. */
+export interface PaidSponsorAccess {
+  eventId: string;
   purchasedByUserId: string;
   checkoutSessionId: string;
   paymentIntentId: string | null;
@@ -102,8 +112,10 @@ export interface EventPaymentRepository {
     tipId: string,
     paid: { paymentIntentId: string | null; paidAt: string },
   ): Promise<void>;
-  /** Upsert the a-la-carte sponsor slot (one per event). Throws on a DB error. */
+  /** Upsert the sponsor *content* (one per event). Throws on a DB error. */
   upsertSponsorSlot(slot: PaidSponsorSlot): Promise<void>;
+  /** Record the à-la-carte sponsor-slot *entitlement* (one per event). Throws on a DB error. */
+  unlockSponsorSlot(unlock: PaidSponsorAccess): Promise<void>;
   /** Unlock à-la-carte badge authoring for an event (one per event). Throws on a DB error. */
   unlockBadgeSlot(slot: PaidBadgeSlot): Promise<void>;
   /** Resolve an event's payout host. Null if the event was deleted mid-flight. */

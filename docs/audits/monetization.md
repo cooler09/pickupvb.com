@@ -45,12 +45,22 @@ and the storage/orphan lifecycle.
 > SP-3 (`text-destructive` → `text-md-error`), SP-4 (`$3` now derived from
 > `SPONSOR_SLOT_UNLOCK_CENTS`), SP-5 (`object-cover` → `object-contain` on both
 > the upload preview and the public render), SP-6 (dropped dead
-> `disabled={false}`), SP-7 (Remove button → `neutralButtonClass`). **SP-1/SP-2
-> (P2) and SP-8…SP-10 left open.** See the remediation log at the bottom.
+> `disabled={false}`), SP-7 (Remove button → `neutralButtonClass`).
+>
+> **Update — 2026-06-08 (same day): SP-1/SP-2 (P2) fixed** (uncommitted; migration
+> deploy-gated). Entitlement is now decoupled from content via a new
+> `event_sponsor_access` table (migration `20261006000000`), mirroring
+> `event_badge_access`: the webhook records the paid unlock there and upserts the
+> (now content-only) `event_sponsors` row separately, `removeSponsor` deletes only
+> the content row (entitlement survives → no re-charge), and removal is no longer
+> entitlement-gated (a lapsed-Pro host can delete their own sponsor). The 5
+> entitlement columns were dropped from `event_sponsors` after a backfill. Quad-green;
+> repo + webhook tests pin the split. **SP-8…SP-10 left open.** See the
+> remediation log at the bottom.
 
 ### Findings — sponsor slot
 
-#### SP-1 (P2) — Removing a sponsor destroys a paid à-la-carte unlock (re-charge risk)
+#### SP-1 (P2) — Removing a sponsor destroys a paid à-la-carte unlock (re-charge risk) — ✅ fixed
 
 Entitlement is stored _on the content row_, so
 [`removeSponsor`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L248-L269)
@@ -65,7 +75,7 @@ badges, which decouple entitlement from content via a separate
 while preserving the entitlement columns. Ship with a test that fails against
 today's behavior.
 
-#### SP-2 (P2) — The authoring gate also gates removal → lapsed-Pro hosts get stuck
+#### SP-2 (P2) — The authoring gate also gates removal → lapsed-Pro hosts get stuck — ✅ fixed
 
 [`removeSponsor#L260`](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L260)
 flashes `pro` when the caller isn't _currently_ entitled. A host who created a
@@ -1311,6 +1321,24 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — SP-1/SP-2 fixed: sponsor entitlement decoupled from content (uncommitted; migration deploy-gated).**
+  New migration `20261006000000_event_sponsor_access.sql` adds a per-event
+  `event_sponsor_access` entitlement table mirroring `event_badge_access` (RLS
+  on, no client policies — webhook-written, admin-read). The 5 entitlement
+  columns (`access_kind`, `purchased_by_user_id`, `stripe_*`, `paid_at`) were
+  dropped from `event_sponsors` after backfilling existing paid à-la-carte rows.
+  App layer: the `sponsor_slot` webhook now calls `unlockSponsorSlot` (access)
+  then `upsertSponsorSlot` (content-only); `removeSponsor` deletes only the
+  content row and is **no longer entitlement-gated** (SP-2 — a lapsed-Pro host
+  can delete their own sponsor); the edit-page/action gate reads `paid_at` from
+  the new table via the admin client. Domain port split into `PaidSponsorSlot`
+  (content) + `PaidSponsorAccess` (entitlement). `database.types.ts` hand-edited
+  to match (will be regenerated on the next deployed `gen:types`). Repo + webhook
+  unit tests pin the split (incl. a guard that the content write carries no
+  `access_kind`/`paid_at`). `pnpm typecheck && lint && test && build` green.
+  **Open: SP-8 (shared `guardManage()` helper), SP-9 (header copy), SP-10
+  (server-action gate test).**
 
 - **2026-06-08 — Sponsor slot focused audit + P3 quick wins (uncommitted).**
   Authored the "Sponsor slot focused audit" status block at the top (SP-1…SP-10).

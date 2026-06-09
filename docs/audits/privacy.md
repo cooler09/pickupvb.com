@@ -39,6 +39,66 @@ DB inspection.
   underlying member table, which exposes `email` and `user_id` to any
   authenticated client regardless of what the React layer renders.
 
+## 2026-06-08 re-audit — status update (monetization sweep: passes / memberships / club / referrals / waivers)
+
+Re-ran the privacy review over everything shipped **after** the 2026-06-07
+re-audit — migrations `20260925000000` → `20261005000000` (email-suppression
+sink, payment-audit categorization, season passes, host memberships, Club group
+payouts, referrals + comped Pro grants, per-event waivers + signatures) plus the
+two privileged-column guard triggers (`media_posts` / `messages`). **No new
+public PII leak** — the schema hygiene from the prior sweeps held: every new
+user-data table lands self/owner-or-host RLS, and the closest-to-#16 surface
+(`waiver_signatures.signed_name`, incl. host-recorded free-text names for
+non-account signers) is correctly gated `auth.uid() = user_id` so a NULL-user
+in-person row is **un-harvestable** via REST — the captain-phone mistake was not
+repeated. Three findings, **all open** (1 P2, 2 P3):
+
+- **#21 (P2, data preservation + deletion-blocking) — new payment tables CASCADE
+  to `profiles` where every other payment table SET-NULLs.** `pass_purchases` and
+  `host_memberships` point `host_id` / `buyer_user_id` / `member_user_id` at
+  `profiles` with `ON DELETE CASCADE`, contradicting the P1 #3 rule (every
+  financial FK — `event_tips`, `host_stripe_accounts`, `host_subscriptions`,
+  `event_attendees`, `event_team_payments` — is `SET NULL` so records survive
+  account deletion). Worse, the product FKs (`pass_purchases.pass_id`,
+  `host_memberships.plan_id`) are `ON DELETE RESTRICT`, so a host self-deletion
+  cascades into both the product table and the purchase table from one parent —
+  depending on Postgres' cascade ordering it either (a) destroys the buyers'/
+  members' paid-purchase records, or (b) trips the RESTRICT and **aborts the
+  purge at `auth.admin.deleteUser`**, leaving the user's email in `auth.users`
+  while the request is already marked `executed`. See #21.
+- **#20 (P3, export completeness) — new user-data tables absent from the GDPR
+  export (recurrence of #18).** `GET /api/account/export` was extended for
+  media/badges/waitlist on 2026-06-07 but predates this batch:
+  `pass_purchases`, `host_memberships`, and `waiver_signatures` (the user's own
+  purchases, subscriptions, and signed acknowledgements) are missing, as are
+  `referrals` / `pro_grants` / `host_passes` / `host_membership_plans`. The
+  export keeps drifting behind each monetization bundle — worth a regression
+  guard, not just another manual add. See #20.
+- **#22 (P3, retention + deletion completeness) — `email_suppressions` and
+  `audit_log` have no purge and aren't cleared on account deletion.**
+  `email_suppressions` is keyed on the raw lowercased address with no FK and no
+  TTL, so a deleted user's bounced/complained address lingers indefinitely (and
+  silently un-mails a future re-signup on the same address); `audit_log` grows
+  unbounded (its own comment defers "a future retention cron"). See #22.
+
+**Verified sound (no change needed):** `waiver_signatures` (self-only SELECT;
+host reads via admin client; NULL-user in-person rows unreadable by any API
+caller), `event_waivers` (host-authored content, `using (true)` read by design),
+`host_passes` / `host_membership_plans` (public read of `active` rows — product
+listings, no PII beyond the already-public `host_id`), `pass_purchases` /
+`host_memberships` **RLS** (buyer/member-or-host read, admin-only writes —
+mirrors `host_subscriptions`; the FK posture is the gap, not the read surface),
+`group_stripe_accounts` / `group_subscriptions` (owner/admin-only read),
+`referrals` / `pro_grants` (own-row read), `email_suppressions` / `audit_log`
+(RLS-on, no policies → service-role only), the `redeem_pass_credit` /
+`claim_membership_spot` / `is_active_member` / `is_club_group` /
+`user_has_club_benefits` definer RPCs (explicit `auth.uid()` gates per AGENTS
+pattern #8; gate helpers are existence-only booleans), the
+`media_posts`/`messages` **privileged-column guard triggers** (SECURITY INVOKER
+`current_user` check — a security-audit P2 #16 hardening, no privacy impact), and
+`profiles_public` (coords still 2-dp-rounded from #17; `discoverable` added, no
+name/business/tax columns).
+
 ## 2026-06-07 re-audit — status update (post-audit feature sweep)
 
 Re-ran the privacy review focused on everything shipped **after** the 2026-05-31
@@ -530,6 +590,150 @@ daily maintenance cron in
 [api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts),
 alongside the existing `community_listing_reports` purge (same `cutoff180`,
 returned in the response as `media_reports`). See the remediation log.
+
+### 21. New payment tables CASCADE to `profiles` (financial-record loss + deletion-block)
+
+**Files:**
+
+- [supabase/migrations/20260930000000_season_passes.sql#L99-L102](../../supabase/migrations/20260930000000_season_passes.sql#L99-L102)
+  — `pass_purchases`: `pass_id … on delete restrict`, `host_id … on delete
+cascade`, `buyer_user_id … on delete cascade`.
+- [supabase/migrations/20260930000000_season_passes.sql#L44](../../supabase/migrations/20260930000000_season_passes.sql#L44)
+  — `host_passes.host_id … on delete cascade`.
+- [supabase/migrations/20261001000000_host_memberships.sql#L84-L86](../../supabase/migrations/20261001000000_host_memberships.sql#L84-L86)
+  — `host_memberships`: `plan_id … on delete restrict`, `host_id … on delete
+cascade`, `member_user_id … on delete cascade`.
+- [supabase/migrations/20261001000000_host_memberships.sql#L35](../../supabase/migrations/20261001000000_host_memberships.sql#L35)
+  — `host_membership_plans.host_id … on delete cascade`.
+- [apps/web/src/lib/account-purge.ts#L96-L107](../../apps/web/src/lib/account-purge.ts#L96-L107)
+  — step 5 marks the request `executed`; step 6 (`auth.admin.deleteUser`) is
+  where the cascade fires.
+
+**Category:** data preservation + account-deletion correctness
+**Status:** ⬜ open (graded P2).
+
+P1 #3 established that **every** payment/financial FK to `profiles` is
+`ON DELETE SET NULL`, so the records survive an account deletion for tax /
+reconciliation (`event_tips.host_id`, `host_stripe_accounts.user_id`,
+`host_subscriptions.user_id`, `event_attendees.user_id`,
+`event_team_payments.captain_id` — all flipped to `SET NULL` in
+[20260620000000](../../supabase/migrations/20260620000000_pii_p1_soft_delete_and_fk_nullability.sql#L57-L192)).
+The two new payment tables broke that rule: `pass_purchases` and
+`host_memberships` reference `profiles` with `ON DELETE CASCADE` on **both** the
+host and the buyer/member side. Two distinct failure modes, both live now that
+account deletion (ADR 0029) ships:
+
+1. **Financial-record destruction on the buyer side.** A buyer who deletes their
+   account CASCADE-drops their `pass_purchases` row — the only record of what
+   they paid (pass purchases aren't even written to `event_payment_audit` in v1,
+   per ADR 0037 Decision #2, so this row **is** the platform's sole ledger of the
+   sale). Same as why P1 #3 kept `event_attendees.user_id` as `SET NULL`.
+
+2. **Purge abort on the host side.** When a host self-deletes, the `profiles`
+   delete cascades into **both** the product table (`host_passes` /
+   `host_membership_plans`, via `host_id`) **and** the purchase table
+   (`pass_purchases` / `host_memberships`, via `host_id`) from one parent. The
+   purchase table's product FK (`pass_id` / `plan_id`) is `ON DELETE RESTRICT`,
+   so if Postgres processes the product-table cascade before the purchase-table
+   cascade (likely — that FK/table is created first), the RESTRICT trips and the
+   whole `DELETE` raises. That propagates out of `auth.admin.deleteUser`, which
+   throws **after** the request was already marked `executed` (step 5) and the
+   profile scrubbed (step 3). Net result: the request never retries, the
+   `auth.users` row — **including the user's email (PII)** — lingers forever, and
+   the orphaned purchase rows survive pointing at a scrubbed profile. If instead
+   the purchase cascade runs first, you get failure mode #1 (records destroyed)
+   for every buyer of that host's passes — third-party financial data loss.
+
+The feature is brand-new (Pro-only, likely zero prod rows), which is why this is
+P2 not P1 — but it's a latent break in the legal-obligation erasure path that
+bites the first pass/membership-selling host who deletes.
+
+**Recommended fix:** a follow-up migration that flips the host/buyer/member FKs
+to `ON DELETE SET NULL` (making the columns nullable), exactly mirroring the
+P1 #3 pattern — `pass_purchases.host_id`, `pass_purchases.buyer_user_id`,
+`host_memberships.host_id`, `host_memberships.member_user_id`, and the two
+product tables' `host_id`. This both **preserves** the financial records (with
+the user nulled) and **eliminates the cascade↔RESTRICT collision** — once nothing
+cascade-deletes through the product table, `pass_id` / `plan_id` RESTRICT is
+never violated. Update the buyer/host reads to tolerate a null user (surface
+"Former member", like the other P1 #3 reads). Confirm against a real Postgres
+(the cascade-ordering hazard can't be reproduced locally per the migrations
+policy) — but the FK flip is correct regardless of which ordering PG picks.
+
+### 20. New monetization + waiver tables absent from the GDPR export (recurrence of #18)
+
+**File:** [apps/web/src/app/api/account/export/route.ts](../../apps/web/src/app/api/account/export/route.ts)
+**Category:** legal feature gap (Art. 20 portability)
+**Status:** ⬜ open (graded P3).
+
+The export was extended for `media_posts` / votes / reports / `user_badges` /
+`event_waitlist` on 2026-06-07 (#18), but the monetization bundle that landed the
+**same day and after** added more tables holding the caller's own data that the
+export does not read:
+
+- `pass_purchases` (`buyer_user_id = uid`) — the user's purchased passes +
+  remaining-credit balance + Stripe ids. A clear Art. 20 case (their purchase
+  history).
+- `host_memberships` (`member_user_id = uid`) — the user's recurring memberships
+  (subscription status, period end).
+- `waiver_signatures` (`user_id = uid`) — their own waiver acknowledgements
+  (`signed_name`, `waiver_version`, `signed_at`) — content they authored.
+- `referrals` (`referrer_user_id = uid` or `referred_user_id = uid`) and
+  `pro_grants` (`user_id = uid`) — their referral attribution + comped Pro time.
+- `host_passes` / `host_membership_plans` (`host_id = uid`) — products the host
+  created (host-content, like `events_hosted` already in the export).
+
+**Recommended fix:** add each as a category in the `Promise.all`, filtered to
+`uid` on the user-scoped client (every one has an owner/self/host RLS read path,
+so filter and policy agree), under the existing throw-on-partial guard. **More
+durably:** the export has now fallen behind on three consecutive sweeps (#15,
+#18, #20). Add a regression guard — a small test that enumerates the
+`user_id`/`*_user_id`-bearing `public` tables (or a hand-maintained allowlist of
+"export-exempt" tables, e.g. `audit_log` / `email_suppressions` / outbox) and
+fails when a new user-data table appears without an export entry or an explicit
+exemption — so the next monetization bundle can't silently drop a category.
+
+### 22. `email_suppressions` + `audit_log` have no retention/purge or deletion-clear
+
+**Files:**
+
+- [supabase/migrations/20260925000000_email_suppressions.sql#L23-L41](../../supabase/migrations/20260925000000_email_suppressions.sql#L23-L41)
+  — `email_suppressions(address pk, reason, …)`; RLS-on, no policies, no FK, no TTL.
+- [supabase/migrations/20260923000000_audit_log.sql#L26-L43](../../supabase/migrations/20260923000000_audit_log.sql#L26-L43)
+  — `audit_log(… actor_user_id, target_user_id, metadata jsonb)`; the comment
+  itself defers "a future retention cron can prune rows older than N days."
+- [apps/web/src/lib/account-purge.ts#L84-L95](../../apps/web/src/lib/account-purge.ts#L84-L95)
+  — the deletion purge touches `push_subscriptions` / `notification_*` but
+  neither of these.
+
+**Category:** data retention + account-deletion completeness
+**Status:** ⬜ open (graded P3).
+
+Two service-role-only tables added this cycle accumulate user identifiers with no
+lifecycle:
+
+1. **`email_suppressions`** keys on the **raw lowercased email** (PII) with no
+   purge and no link to `profiles`, so it's invisible to the FK-cascade erasure.
+   When a user deletes their account, the closure-email step reads their address
+   ([account-purge.ts#L40-L42](../../apps/web/src/lib/account-purge.ts#L40-L42))
+   but never removes a suppression row, so a hard-bounced/complained address
+   outlives the account indefinitely. Beyond the residual-PII angle this is also
+   a latent functional bug: a future re-signup on the same address is silently
+   suppressed. A suppression list is legitimately near-permanent, so the fix is a
+   **decision**, not necessarily a delete — either document the legitimate-interest
+   retention explicitly, add a re-validation TTL (e.g. expire `bounced` rows after
+   N months so a recycled mailbox can recover), and/or delete the suppression for
+   the deleting user's address in the purge (the address is already in hand at
+   [#L40-L42](../../apps/web/src/lib/account-purge.ts#L40-L42)).
+
+2. **`audit_log`** grows unbounded with `actor`/`target` user ids + a `metadata`
+   jsonb that can carry incidental PII. The FKs are correctly `ON DELETE SET NULL`
+   (the trail survives deletion with the user nulled — right call), so this is
+   purely a retention gap. **Recommended fix:** add an `audit_log` older-than-N
+   (e.g. 365-day) delete to the existing daily maintenance cron in
+   [api/notifications/outbox-purge/route.ts](../../apps/web/src/app/api/notifications/outbox-purge/route.ts),
+   alongside the outbox / listing-report / media-report purges — pick the window
+   with whoever owns the security-trail requirement (audit P3 #8).
 
 ### 13. Owner-only `profiles` RLS broke display cards in chat + media (regression)
 

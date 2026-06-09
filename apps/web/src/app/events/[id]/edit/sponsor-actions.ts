@@ -12,15 +12,11 @@ import { handlers, analytics } from '@/lib/handlers';
 import { field, fieldOrNull } from '@/lib/form-data';
 import { hasProBenefits } from '@/lib/admin';
 import { getServerSupabase } from '@/lib/supabase';
+import { getAdminSupabase } from '@/lib/supabase-admin';
 import { requireSession } from '@/lib/server-auth';
 import { buildOrigin } from '@/lib/server-redirects';
 import { getStripe, isStripeConfigured } from '@/lib/stripe';
 import { SPONSOR_SLOT_UNLOCK_CENTS } from '@/lib/pro';
-
-type SponsorRow = {
-  access_kind: 'pro' | 'ala_carte';
-  paid_at: string | null;
-};
 
 type SponsorDraft = {
   name: string;
@@ -72,24 +68,26 @@ async function assertCanManage(eventId: string, userId: string): Promise<void> {
   }
 }
 
-async function loadSponsorRow(eventId: string): Promise<SponsorRow | null> {
-  const sb = await getServerSupabase();
-  const { data } = await sb
-    .from('event_sponsors')
-    .select('access_kind, paid_at')
+/**
+ * Has this event's à-la-carte sponsor unlock been paid? Reads the entitlement
+ * row on the admin client — `event_sponsor_access` has no client RLS policies
+ * (webhook-written, AGENTS pitfall #8). Decoupled from the sponsor content so a
+ * removed sponsor keeps its paid unlock (monetization audit SP-1). Mirrors
+ * `badgeSlotPaid` in badge-actions.ts.
+ */
+async function sponsorSlotPaid(eventId: string): Promise<boolean> {
+  const { data } = await getAdminSupabase()
+    .from('event_sponsor_access')
+    .select('paid_at')
     .eq('event_id', eventId)
     .maybeSingle();
-  return (data as SponsorRow | null) ?? null;
+  return (data as { paid_at: string | null } | null)?.paid_at != null;
 }
 
 async function loadEventHostId(eventId: string): Promise<string | null> {
   const sb = await getServerSupabase();
   const { data } = await sb.from('events').select('host_id').eq('id', eventId).maybeSingle();
   return (data as { host_id: string } | null)?.host_id ?? null;
-}
-
-function hasAlaCarteAccess(row: SponsorRow | null): boolean {
-  return !!row && row.access_kind === 'ala_carte' && row.paid_at !== null;
 }
 
 export async function upsertSponsorFromForm(
@@ -114,8 +112,8 @@ export async function upsertSponsorFromForm(
     flashTo(eventId, 'invalid', err instanceof Error ? err.message : 'Invalid sponsor details.');
   }
 
-  const [pro, sponsorRow] = await Promise.all([hasProBenefits(user.id), loadSponsorRow(eventId)]);
-  if (!pro && !hasAlaCarteAccess(sponsorRow)) flashTo(eventId, 'pro');
+  const [pro, paid] = await Promise.all([hasProBenefits(user.id), sponsorSlotPaid(eventId)]);
+  if (!pro && !paid) flashTo(eventId, 'pro');
 
   const sb = await getServerSupabase();
   const { error } = await sb.from('event_sponsors').upsert(
@@ -126,7 +124,6 @@ export async function upsertSponsorFromForm(
       link_url: draft.linkUrl,
       logo_url: draft.logoUrl,
       discount_code: draft.discountCode,
-      ...(pro ? { access_kind: 'pro' as const } : {}),
     },
     { onConflict: 'event_id' },
   );
@@ -157,9 +154,9 @@ export async function startSponsorSlotCheckoutFromForm(
     flashTo(eventId, 'unauthorized');
   }
 
-  const [pro, sponsorRow] = await Promise.all([hasProBenefits(user.id), loadSponsorRow(eventId)]);
+  const [pro, paid] = await Promise.all([hasProBenefits(user.id), sponsorSlotPaid(eventId)]);
   // Entitled users should use the direct save path — no one-off checkout.
-  if (pro || hasAlaCarteAccess(sponsorRow)) {
+  if (pro || paid) {
     await upsertSponsorFromForm(eventId, returnPath, formData);
   }
 
@@ -256,9 +253,11 @@ export async function removeSponsor(eventId: string, returnPath: string): Promis
     flashTo(eventId, 'unauthorized');
   }
 
-  const [pro, sponsorRow] = await Promise.all([hasProBenefits(user.id), loadSponsorRow(eventId)]);
-  if (!pro && !hasAlaCarteAccess(sponsorRow)) flashTo(eventId, 'pro');
-
+  // Removal is NOT entitlement-gated (monetization audit SP-2): a host must be
+  // able to delete their own sponsor regardless of current Pro / à-la-carte
+  // status (e.g. after a Pro lapse). `assertCanManage` above is the only gate.
+  // Only the content row is deleted — the `event_sponsor_access` entitlement
+  // survives, so re-adding a sponsor later is free (SP-1).
   const sb = await getServerSupabase();
   const { error } = await sb.from('event_sponsors').delete().eq('event_id', eventId);
   if (error) flashTo(eventId, 'error', error.message);

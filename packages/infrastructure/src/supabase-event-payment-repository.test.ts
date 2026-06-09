@@ -179,7 +179,7 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
     ).rejects.toThrow('mark tip paid failed: nope');
   });
 
-  it('upsertSponsorSlot upserts on event_id with access_kind ala_carte', async () => {
+  it('upsertSponsorSlot upserts ONLY the sponsor content on event_id (entitlement decoupled — SP-1)', async () => {
     const mock = makeClient();
     await repo(mock).upsertSponsorSlot({
       eventId: 'e1',
@@ -188,10 +188,6 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
       linkUrl: 'https://acme.test',
       logoUrl: null,
       discountCode: 'ACME10',
-      purchasedByUserId: 'u1',
-      checkoutSessionId: 'cs_1',
-      paymentIntentId: 'pi_1',
-      paidAt: 'now',
     });
     expect(mock.ops[0]).toMatchObject({
       table: 'event_sponsors',
@@ -203,6 +199,30 @@ describe('SupabaseEventPaymentRepository — checkout.session.completed', () => 
         link_url: 'https://acme.test',
         logo_url: null,
         discount_code: 'ACME10',
+      },
+      opts: { onConflict: 'event_id' },
+    });
+    // The content write must NOT carry entitlement columns — those moved to
+    // `event_sponsor_access`. This guards against re-coupling (the bug that let
+    // `removeSponsor` destroy a paid unlock).
+    expect(mock.ops[0]?.payload).not.toHaveProperty('access_kind');
+    expect(mock.ops[0]?.payload).not.toHaveProperty('paid_at');
+  });
+
+  it('unlockSponsorSlot records the entitlement in event_sponsor_access on event_id', async () => {
+    const mock = makeClient();
+    await repo(mock).unlockSponsorSlot({
+      eventId: 'e1',
+      purchasedByUserId: 'u1',
+      checkoutSessionId: 'cs_1',
+      paymentIntentId: 'pi_1',
+      paidAt: 'now',
+    });
+    expect(mock.ops[0]).toMatchObject({
+      table: 'event_sponsor_access',
+      op: 'upsert',
+      payload: {
+        event_id: 'e1',
         access_kind: 'ala_carte',
         purchased_by_user_id: 'u1',
         stripe_checkout_session_id: 'cs_1',
