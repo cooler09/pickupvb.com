@@ -23,6 +23,7 @@ export function ProfileIdentityHero({
   positions,
   viewerIsAdmin,
   viewerIsPro,
+  hasPublicHandle,
 }: {
   profile: Model['profile'];
   userEmail: string;
@@ -30,6 +31,7 @@ export function ProfileIdentityHero({
   positions: string[];
   viewerIsAdmin: boolean;
   viewerIsPro: boolean;
+  hasPublicHandle: boolean;
 }) {
   return (
     <section className={cardClass}>
@@ -63,12 +65,14 @@ export function ProfileIdentityHero({
           </p>
           {positions.length > 0 && <p className="text-muted text-xs">{positions.join(' · ')}</p>}
         </div>
-        <Link
-          href={`/players/${profile.handle}` as Route}
-          className="border-border-base hover:bg-fg/5 shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium sm:text-sm"
-        >
-          Public view ↗
-        </Link>
+        {hasPublicHandle && (
+          <Link
+            href={`/players/${profile.handle}` as Route}
+            className="border-border-base hover:bg-fg/5 shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium sm:text-sm"
+          >
+            Public view ↗
+          </Link>
+        )}
       </div>
 
       <div className="border-border-base mt-5 border-t pt-4">

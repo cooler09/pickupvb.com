@@ -25,15 +25,18 @@ This file is complementary to — not a duplicate of:
 
 > **Status update (2026-06-08):** Re-audit of the hub after its split into
 > `_loaders/load-profile-page.ts` + `_components/`. The five 2026-06-01 findings
-> (PR-1…PR-5) remain resolved; this pass surfaced **4 P3s, none ship-blocking**
-> (PRV-1 this file was stale — it described a removed `HeroImagePanel` and
-> pre-refactor line numbers; PRV-2 the quick-action grid drifted back to 4-of-6
-> host/payment tiles; PRV-3 a missing-profile-row edge yields a `/players/<uuid>`
-> link; PRV-4 the `discoverable` copy over-promised privacy). PRV-4 is now
-> accurate after the public-profile fix — see
-> [public-profile-ux.md](public-profile-ux.md) **PUB-2** (de-index + sitemap
-> exclusion of opted-out players, shipped 2026-06-08). The public `/players/[id]`
-> surface is now its own audit file. See **Re-audit findings (2026-06-08)** below.
+> (PR-1…PR-5) remain resolved; this pass surfaced **4 P3s, none ship-blocking**,
+> all now closed: **PRV-1** (this file was stale — described a removed
+> `HeroImagePanel` + pre-refactor line numbers) corrected; **PRV-3** (a
+> missing-profile-row edge produced a `/players/<uuid>` 404 link) fixed via a
+> threaded `hasPublicHandle`; **PRV-4** (the `discoverable` copy over-promised
+> privacy) resolved by the public-profile **PUB-2** fix (de-index + sitemap
+> exclusion of opted-out players); **PRV-2** (quick-action grid is host/payment-
+> weighted) assessed → **wontfix** — the only mechanical fix regresses the
+> deliberate "always render the payout tile so new users can find Stripe
+> onboarding" decision in the loader. The public `/players/[id]` surface is now
+> its own audit file ([public-profile-ux.md](public-profile-ux.md)). See
+> **Re-audit findings (2026-06-08)** below.
 
 > **Status update (2026-06-01):** Full persona-lens evaluation of the profile
 > hub — **all five gradeable findings (PR-1…PR-5) shipped the same day; nothing
@@ -240,8 +243,9 @@ profile-local change was needed. See persona-ux V-4 + journal
 A second pass after the hub was split into
 [\_loaders/load-profile-page.ts](../../apps/web/src/app/profile/_loaders/load-profile-page.ts)
 
-- [\_components/](../../apps/web/src/app/profile/_components/). All P3; logged as
-  backlog (not fixed in the 2026-06-08 bundle, which shipped the public-profile P2s).
+- [\_components/](../../apps/web/src/app/profile/_components/). All P3. PRV-1
+  (stale doc) corrected, PRV-3 (uuid-link 404) fixed, and PRV-4 resolved via the
+  public-profile PUB-2 fix; PRV-2 assessed → wontfix (see below).
 
 #### PRV-1 — This audit file was stale · **P3** · ✅ corrected 2026-06-08
 
@@ -254,29 +258,39 @@ before the page split. The page no longer renders any `HeroImagePanel`
 (profiles carry no hero image — `heroImageUrl` in the loader is on the **event**
 cards, not the profile).
 
-#### PRV-2 — Quick-action grid drifted back to host/payment weight · **P3** · open
+#### PRV-2 — Quick-action grid drifted back to host/payment weight · **P3** · assessed → wontfix (2026-06-08)
 
 PR-2 deliberately demoted host depth, but the grid is now **6 tiles**
 ([profile-hub-sections.tsx#L82-L113](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx#L82-L113)),
 of which **Receipts, My passes, Host an event, and Payouts/Get-set-up** are
-payment/host-oriented — 4 of 6 on a player-first hub. The loader already computes
-`isHost` ([load-profile-page.ts#L232](../../apps/web/src/app/profile/_loaders/load-profile-page.ts#L232)),
-but only the payout tile's _copy_ adapts; the tile still always renders.
-**Fix:** gate the Host-an-event + Payouts tiles behind `isHost` (or host intent)
-so a brand-new player sees Find events / Messages / Passes, and host tiles appear
-once they show host intent.
+payment/host-oriented — 4 of 6 on a player-first hub.
 
-#### PRV-3 — Handle/avatar return-path can become a `/players/<uuid>` 404 · **P3** · open
+**Assessed → wontfix.** The obvious fix (gate the host tiles behind `isHost`)
+conflicts with a **deliberate, in-code decision**: the loader comment
+([load-profile-page.ts](../../apps/web/src/app/profile/_loaders/load-profile-page.ts))
+keeps the payout tile **always rendered** precisely so a brand-new user has a
+_discoverable path to Stripe onboarding before they've created any events_ —
+gating it behind host status (the original PR-2 attempt) "left no discoverable
+path to set up payments," so only its **copy** adapts. "Host an event" is
+likewise circular to gate (you can't become a host without it; it's already
+anon-claim-gated via V-4). And of the four "payment-ish" tiles, **Receipts** and
+**My passes** are legitimately player-facing (anyone who bought a ticket/pass).
+The order is already player-first (Find events → Messages → Receipts → …). Net:
+the premise is somewhat overstated and the only mechanical fix regresses a
+considered decision — left as-is. Revisit only if the hub adds a dedicated
+"host mode" toggle, at which point host depth can collapse behind it.
 
-When the `profiles` row is missing, `profile.handle` falls back to `user.id`
-([load-profile-page.ts#L163](../../apps/web/src/app/profile/_loaders/load-profile-page.ts#L163)),
-so "Public view ↗"
-([profile-hub-sections.tsx#L66-L71](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx#L66-L71))
-and the avatar `returnPath`
-([page.tsx#L136-L141](../../apps/web/src/app/profile/page.tsx#L136-L141)) become
-`/players/<uuid>`, which 404s. Edge case (a profile-row trigger normally prevents
-it). **Fix:** hide "Public view" / skip the public revalidate when
-`handle === userId`.
+#### PRV-3 — Handle/avatar return-path can become a `/players/<uuid>` 404 · **P3** · ✅ fixed 2026-06-08
+
+When the `profiles` row is missing, `profile.handle` falls back to `user.id`,
+so "Public view ↗" and the avatar `returnPath` became `/players/<uuid>`, which
+404s. Edge case (a profile-row trigger normally prevents it). **Fixed:** the
+loader now returns `hasPublicHandle = Boolean(row?.handle)`
+([load-profile-page.ts](../../apps/web/src/app/profile/_loaders/load-profile-page.ts));
+the identity hero hides "Public view" when it's false
+([profile-hub-sections.tsx](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx)),
+and the avatar `returnPath` falls back to `/profile`
+([page.tsx](../../apps/web/src/app/profile/page.tsx)).
 
 #### PRV-4 — `discoverable` copy over-promised privacy · **P3** · ✅ resolved via PUB-2 (2026-06-08)
 

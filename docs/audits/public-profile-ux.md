@@ -9,12 +9,14 @@ the ISR-cached card other players (and search engines) see at
 in [players-page-ux.md](players-page-ux.md); the player's own authenticated hub
 is [profile-page-ux.md](profile-page-ux.md).
 
-> **Status (2026-06-08):** First dedicated audit of this surface. **2 P2 fixed
-> same day** — PUB-1 (the host-only event list was titled "Upcoming events" and
-> rendered empty for the majority non-host player) and PUB-2 (a `discoverable =
-false` "private" player was still sitemapped and indexable). **4 P3 open**
-> (PUB-3 OG-image client/perf, PUB-4 helper duplication, PUB-5 silent follow
-> failure, PUB-6 avatar alt). No P1. See the **Remediation log** below.
+> **Status (2026-06-08):** First dedicated audit of this surface — **all
+> findings now resolved.** 2 P2 fixed: PUB-1 (the host-only event list was
+> titled "Upcoming events" and rendered empty for the majority non-host player)
+> and PUB-2 (a `discoverable = false` "private" player was still sitemapped and
+> indexable). The 4 P3s followed in the same bundle: PUB-3 (OG image now reads
+> the anon client), PUB-4 (`nameOf`/`initialsOf` consolidated into
+> `lib/player-name.ts`), PUB-5 (follow/unfollow now toast on failure), PUB-6
+> (avatar `alt`). No P1. See the **Remediation log** below.
 
 ---
 
@@ -100,7 +102,7 @@ link.")
 The page stays reachable by direct link (decision unchanged); it's just no
 longer crawled/indexed.
 
-### PUB-3 — OG image read is cookie-bound and inconsistent with the page · **P3** · open
+### PUB-3 — OG image read is cookie-bound and inconsistent with the page · **P3** · ✅ fixed 2026-06-08
 
 [opengraph-image.tsx#L14](../../apps/web/src/app/players/[id]/opengraph-image.tsx#L14)
 uses `getServerSupabase()` (reads `cookies()` → forces the OG route dynamic),
@@ -108,33 +110,36 @@ while the page and `generateMetadata` both use `createSupabaseAnonClient()`.
 `profiles_public` is anon-granted, so the OG route should use the anon client to
 match and stay cacheable. (Separately, the same row is read three times per
 render — `findCardByHandle` in metadata, `findPlayerByHandle` in the page,
-`findCardByHandle` in OG — masked by ISR but avoidable.) **Fix:** switch OG to
-`createSupabaseAnonClient()`.
+`findCardByHandle` in OG — masked by ISR but avoidable.) **Fixed:** OG now uses
+`createSupabaseAnonClient()`
+([opengraph-image.tsx](../../apps/web/src/app/players/[id]/opengraph-image.tsx)).
 
-### PUB-4 — `nameOf` / `initialsOf` duplicated across three files · **P3** · open
+### PUB-4 — `nameOf` / `initialsOf` duplicated across three files · **P3** · ✅ fixed 2026-06-08
 
 Identical helpers live in
 [players/[id]/page.tsx#L52-L60](../../apps/web/src/app/players/[id]/page.tsx#L52-L60),
 [players/page.tsx](../../apps/web/src/app/players/page.tsx), and a third
-`initials()` in
-[load-profile-page.ts#L117-L120](../../apps/web/src/app/profile/_loaders/load-profile-page.ts#L117-L120).
-**Fix:** hoist one `playerName` / `playerInitials` pair into a shared `lib/`
-helper (three consumers clears the AGENTS "extract pure helpers" bar).
+`initials()` in `load-profile-page.ts`. **Fixed:** all three now call
+`playerName` / `playerInitials` from the new
+[lib/player-name.ts](../../apps/web/src/lib/player-name.ts). The single-word case
+was unified to the two-letter form (the directory/public variant), so a player's
+hub and public-card initials now match (the hub previously showed one letter).
 
-### PUB-5 — Follow failure is silent · **P3** · open
+### PUB-5 — Follow failure is silent · **P3** · ✅ fixed 2026-06-08
 
 [player-viewer-actions.tsx#L70-L90](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx#L70-L90)
 optimistically flips state and silently reverts on a thrown
 `addFriend`/`removeFriend` — no toast — whereas `handleMessage` directly below
-toasts on failure. Inconsistent feedback. **Fix:** add a
-`show({ variant: 'error', … })` on the catch branches.
+toasts on failure. **Fixed:** both catch branches now
+`show({ variant: 'error', … })`
+([player-viewer-actions.tsx](../../apps/web/src/app/players/[id]/_components/player-viewer-actions.tsx)).
 
-### PUB-6 — Avatar `alt=""` · **P3** · open
+### PUB-6 — Avatar `alt=""` · **P3** · ✅ fixed 2026-06-08
 
 [page.tsx#L113-L120](../../apps/web/src/app/players/[id]/page.tsx#L113-L120)
-renders the player's photo with `alt=""` (decorative). Defensible since the
-adjacent `<h1>` carries the name, but a player photo is arguably content;
-consider `alt={`${name}'s profile photo`}`. Low priority.
+rendered the player's photo with `alt=""` (decorative). **Fixed:** the avatar
+now carries `alt={`${name}'s profile photo`}`
+([page.tsx](../../apps/web/src/app/players/[id]/page.tsx)).
 
 ---
 
@@ -151,5 +156,21 @@ Verified `pnpm typecheck && pnpm lint && pnpm test && pnpm build` (all green).
   emits `robots: noindex` and the sitemap excludes opted-out handles, so a
   "private" player is no longer crawled (direct-link reachability unchanged).
 
-_Open: PUB-3 (OG anon client), PUB-4 (helper duplication), PUB-5 (silent follow
-failure), PUB-6 (avatar alt) — all P3._
+### 2026-06-08 — P3 cleanup bundle (PUB-3…6)
+
+Same-day follow-up; verified `pnpm typecheck && pnpm lint && pnpm test && pnpm
+build` (all green).
+
+- **PUB-3 ✅** — `opengraph-image.tsx` now reads `createSupabaseAnonClient()`
+  instead of the cookie-bound `getServerSupabase()`, matching the page +
+  metadata and keeping the OG route cacheable.
+- **PUB-4 ✅** — new [lib/player-name.ts](../../apps/web/src/lib/player-name.ts)
+  (`playerName` / `playerInitials`) replaces three divergent copies (public
+  profile, players directory, hub loader). Single-word initials unified to the
+  two-letter form, so a player's hub + public-card initials now match.
+- **PUB-5 ✅** — `handleFollow` / `handleUnfollow` now toast on failure (was a
+  silent optimistic revert).
+- **PUB-6 ✅** — avatar `alt` now names the player.
+
+**All findings resolved.** Deferred product follow-up (not a finding): give the
+non-host public page more substance (a public "member of" groups/teams row).

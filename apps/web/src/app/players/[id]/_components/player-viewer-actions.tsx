@@ -74,6 +74,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
         await addFriend(profileId, returnPath);
       } catch {
         setState({ status: 'other', isFollowing: false });
+        show({ variant: 'error', message: 'Couldn’t follow. Try again.' });
       }
     });
   }
@@ -85,6 +86,7 @@ export function PlayerViewerActions({ profileId, profileHandle, profileName, ret
         await removeFriend(profileId, returnPath);
       } catch {
         setState({ status: 'other', isFollowing: true });
+        show({ variant: 'error', message: 'Couldn’t unfollow. Try again.' });
       }
     });
   }

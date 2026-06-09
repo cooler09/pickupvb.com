@@ -17,6 +17,7 @@ import { getHostStripeAccount } from '@/lib/host-stripe-account';
 import { type ShelfBadge } from '@/components/badge-shelf';
 import { reconcileUserBadges, getOwnBadges } from '@/lib/badges';
 import { loadPlayerOnboarding, loadHostOnboarding } from '@/lib/onboarding';
+import { playerInitials } from '@/lib/player-name';
 
 const HOSTED_PER_PAGE = 8;
 const FOLLOWING_PER_PAGE = 24;
@@ -88,6 +89,13 @@ export type ProfilePageModel = {
   userId: string;
   userEmail: string;
   profile: ProfileView;
+  /**
+   * Whether the user has a real vanity handle. When the `profiles` row is
+   * missing, `profile.handle` falls back to the user id (a UUID), so the public
+   * `/players/[handle]` page would 404 — callers gate the "Public view" link and
+   * the avatar's public revalidate on this (PRV-3).
+   */
+  hasPublicHandle: boolean;
   displayInitials: string;
   positions: string[];
   viewerIsPro: boolean;
@@ -113,11 +121,6 @@ export type ProfilePageModel = {
   vpage: number;
   apage: number;
 };
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
-}
 
 export async function loadProfilePage(
   rawSearchParams: Record<string, string | string[] | undefined>,
@@ -159,6 +162,10 @@ export async function loadProfilePage(
     .maybeSingle();
 
   const row = data as ProfileRow | null;
+  // A missing row (or a row with no handle) means there's no public vanity URL
+  // yet — the handle below falls back to the UUID for stable keys, but the
+  // public-facing links must not point at `/players/<uuid>` (PRV-3).
+  const hasPublicHandle = Boolean(row?.handle);
   const profile: ProfileView = {
     handle: row?.handle ?? user.id,
     first_name: row?.first_name ?? null,
@@ -291,7 +298,8 @@ export async function loadProfilePage(
     userId: user.id,
     userEmail: user.email ?? '',
     profile,
-    displayInitials: initials(profile.display_name),
+    hasPublicHandle,
+    displayInitials: playerInitials(profile.display_name),
     positions,
     viewerIsPro,
     viewerIsAdmin,
