@@ -40,6 +40,10 @@ export async function generateMetadata(props: { params: Promise<{ id: string }> 
     title: name,
     description,
     alternates: { canonical: `/players/${card.handle}` },
+    // Honor the discovery opt-out: a `discoverable = false` player stays
+    // reachable by direct link but is de-indexed (and dropped from the
+    // sitemap) so "stay private" isn't crawled. Default (null/true) indexes.
+    ...(card.discoverable === false ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       title: `${name} · PickupVB`,
       description,
@@ -173,28 +177,33 @@ export default async function PlayerProfilePage(props: {
         heading={`${name}'s badges`}
       />
 
-      <section id="upcoming-events" className="space-y-3">
-        <h2 className="text-fg text-lg font-semibold">
-          Upcoming events{' '}
-          <span className="text-muted text-sm font-normal">({upcoming.length})</span>
-        </h2>
-        <HostedEventsList
-          events={upcoming.slice(
-            (upage - 1) * UPCOMING_EVENTS_PER_PAGE,
-            upage * UPCOMING_EVENTS_PER_PAGE,
-          )}
-          emptyState={`${name} isn't hosting any upcoming events you can see.`}
-        />
-        <Pagination
-          basePath={`/players/${profile.handle}`}
-          page={upage}
-          pageSize={UPCOMING_EVENTS_PER_PAGE}
-          total={upcoming.length}
-          searchParams={searchParams}
-          pageParam="upage"
-          scrollToId="upcoming-events"
-        />
-      </section>
+      {/* "Hosting" — events this player is hosting. The section is host-scoped,
+          so it's hidden entirely for the (majority) non-host player rather than
+          showing an empty, mislabeled "Upcoming events (0)". Past-hosted events
+          render in their own section below. */}
+      {upcoming.length > 0 && (
+        <section id="upcoming-events" className="space-y-3">
+          <h2 className="text-fg text-lg font-semibold">
+            Hosting <span className="text-muted text-sm font-normal">({upcoming.length})</span>
+          </h2>
+          <HostedEventsList
+            events={upcoming.slice(
+              (upage - 1) * UPCOMING_EVENTS_PER_PAGE,
+              upage * UPCOMING_EVENTS_PER_PAGE,
+            )}
+            emptyState=""
+          />
+          <Pagination
+            basePath={`/players/${profile.handle}`}
+            page={upage}
+            pageSize={UPCOMING_EVENTS_PER_PAGE}
+            total={upcoming.length}
+            searchParams={searchParams}
+            pageParam="upage"
+            scrollToId="upcoming-events"
+          />
+        </section>
+      )}
       {videos.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-fg text-lg font-semibold">

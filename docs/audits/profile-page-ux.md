@@ -23,6 +23,18 @@ This file is complementary to — not a duplicate of:
   ([page.tsx#L365-L389](../../apps/web/src/app/profile/page.tsx#L365-L389)) is a
   privacy-audit surface; UX of it is fine, so it's not re-litigated here.
 
+> **Status update (2026-06-08):** Re-audit of the hub after its split into
+> `_loaders/load-profile-page.ts` + `_components/`. The five 2026-06-01 findings
+> (PR-1…PR-5) remain resolved; this pass surfaced **4 P3s, none ship-blocking**
+> (PRV-1 this file was stale — it described a removed `HeroImagePanel` and
+> pre-refactor line numbers; PRV-2 the quick-action grid drifted back to 4-of-6
+> host/payment tiles; PRV-3 a missing-profile-row edge yields a `/players/<uuid>`
+> link; PRV-4 the `discoverable` copy over-promised privacy). PRV-4 is now
+> accurate after the public-profile fix — see
+> [public-profile-ux.md](public-profile-ux.md) **PUB-2** (de-index + sitemap
+> exclusion of opted-out players, shipped 2026-06-08). The public `/players/[id]`
+> surface is now its own audit file. See **Re-audit findings (2026-06-08)** below.
+
 > **Status update (2026-06-01):** Full persona-lens evaluation of the profile
 > hub — **all five gradeable findings (PR-1…PR-5) shipped the same day; nothing
 > open but the PR-6 cross-ref to persona-ux V-4.** PR-1 — a new
@@ -220,6 +232,61 @@ into the bare create-event form. The "Payouts & Stripe" tile is already gated on
 `isHost` (PR-2), and an anon user has no Stripe account, so it doesn't show. No
 profile-local change was needed. See persona-ux V-4 + journal
 [2026-06-01-anon-host-gate.md](../journal/2026-06-01-anon-host-gate.md).
+
+---
+
+## Re-audit findings (2026-06-08)
+
+A second pass after the hub was split into
+[\_loaders/load-profile-page.ts](../../apps/web/src/app/profile/_loaders/load-profile-page.ts)
+
+- [\_components/](../../apps/web/src/app/profile/_components/). All P3; logged as
+  backlog (not fixed in the 2026-06-08 bundle, which shipped the public-profile P2s).
+
+#### PRV-1 — This audit file was stale · **P3** · ✅ corrected 2026-06-08
+
+The file read "all resolved," but PR-4 described an `AvatarPanel` **+
+`HeroImagePanel`** co-located in the Edit disclosure, and cited line numbers from
+before the page split. The page no longer renders any `HeroImagePanel`
+([page.tsx#L134-L142](../../apps/web/src/app/profile/page.tsx#L134-L142) — only
+`AvatarPanel`), and the old `page.tsx#L…` citations no longer resolve.
+**Corrected** by this re-audit header; PR-4's hero reference is superseded
+(profiles carry no hero image — `heroImageUrl` in the loader is on the **event**
+cards, not the profile).
+
+#### PRV-2 — Quick-action grid drifted back to host/payment weight · **P3** · open
+
+PR-2 deliberately demoted host depth, but the grid is now **6 tiles**
+([profile-hub-sections.tsx#L82-L113](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx#L82-L113)),
+of which **Receipts, My passes, Host an event, and Payouts/Get-set-up** are
+payment/host-oriented — 4 of 6 on a player-first hub. The loader already computes
+`isHost` ([load-profile-page.ts#L232](../../apps/web/src/app/profile/_loaders/load-profile-page.ts#L232)),
+but only the payout tile's _copy_ adapts; the tile still always renders.
+**Fix:** gate the Host-an-event + Payouts tiles behind `isHost` (or host intent)
+so a brand-new player sees Find events / Messages / Passes, and host tiles appear
+once they show host intent.
+
+#### PRV-3 — Handle/avatar return-path can become a `/players/<uuid>` 404 · **P3** · open
+
+When the `profiles` row is missing, `profile.handle` falls back to `user.id`
+([load-profile-page.ts#L163](../../apps/web/src/app/profile/_loaders/load-profile-page.ts#L163)),
+so "Public view ↗"
+([profile-hub-sections.tsx#L66-L71](../../apps/web/src/app/profile/_components/profile-hub-sections.tsx#L66-L71))
+and the avatar `returnPath`
+([page.tsx#L136-L141](../../apps/web/src/app/profile/page.tsx#L136-L141)) become
+`/players/<uuid>`, which 404s. Edge case (a profile-row trigger normally prevents
+it). **Fix:** hide "Public view" / skip the public revalidate when
+`handle === userId`.
+
+#### PRV-4 — `discoverable` copy over-promised privacy · **P3** · ✅ resolved via PUB-2 (2026-06-08)
+
+The toggle read _"Turn this off to stay private"_
+([profile-form.tsx#L288-L289](../../apps/web/src/app/profile/profile-form.tsx#L288-L289)),
+but the public page stayed indexed regardless. As of 2026-06-08 the public page
+de-indexes and is dropped from the sitemap when `discoverable = false`
+([public-profile-ux.md](public-profile-ux.md) PUB-2), so the copy now matches
+behavior (hidden from search, directory, _and_ crawlers; still reachable by
+direct link).
 
 ---
 

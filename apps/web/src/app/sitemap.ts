@@ -120,9 +120,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     }));
 
+    // Only advertise players who opted into discovery. A `discoverable = false`
+    // player keeps a direct-link-reachable page (documented decision, privacy.md)
+    // but is excluded from the sitemap and de-indexed in `generateMetadata` —
+    // otherwise "stay private" still ends up crawled.
     const { data: playerRows } = await supabase
       .from('profiles_public')
-      .select('handle, created_at');
+      .select('handle, created_at')
+      .eq('discoverable', true);
     type PlayerRow = { handle: string; created_at: string | null };
     const players = (playerRows as PlayerRow[] | null) ?? [];
     const playerEntries: MetadataRoute.Sitemap = players.map((p) => ({
