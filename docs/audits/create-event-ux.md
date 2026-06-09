@@ -26,9 +26,30 @@ gaps, streamlining opportunities, and stale code.
 > follow-up** — saved templates now round-trip the `AdvancedDetailsPanel` fields
 > (venue / series / fundraiser / theme tags / sanctioning), so template apply is
 > fully complete. **Bundle 3 closed the three quick-win P3s — CE-8, CE-10,
-> CE-12.** **Remaining open: CE-4, CE-9, CE-11** — all P3 (a11y roving-tabindex,
-> create-time photo, by-position edit parity). Cross-refs: persona-ux V-4 (anon
-> gate) and CC-1 (submit button) already closed; this audit does not re-open them.
+> CE-12.** **Bundle 4 closed CE-4** — `SegmentedControl` now implements the ARIA
+> radiogroup keyboard model (roving tabindex + arrow/Home/End + focus ring).
+> **Remaining open: CE-9, CE-11** — both P3 and product-shaped (create-time
+> photo, by-position edit parity). Cross-refs: persona-ux V-4 (anon gate) and
+> CC-1 (submit button) already closed; this audit does not re-open them.
+
+## Remediation log — 2026-06-09 (bundle 4)
+
+Quad-green, uncommitted. **CE-4.**
+
+- **CE-4 — `SegmentedControl` is now a conformant radiogroup.** It already
+  announced `role="radiogroup"` / `role="radio"` / `aria-checked` but had no
+  keyboard model, so the role was a lie — every option sat in the tab order and
+  arrow keys did nothing.
+  [form-primitives.tsx](../../apps/web/src/app/events/new/_components/form-primitives.tsx)
+  now applies **roving tabindex** (only the checked option is tabbable;
+  `tabIndex={i === tabbableIndex ? 0 : -1}`, first option when none match) and an
+  `onKeyDown` that moves selection **and** focus: ArrowRight/Down → next,
+  ArrowLeft/Up → previous (both wrap), Home → first, End → last. A
+  `focus-visible:ring-2` was added since arrow keys now move focus between
+  buttons and that focus must be visible (WCAG 2.4.7). The buttons never
+  unmount, so focusing the existing node synchronously after `onChange` is safe.
+  Single consumer — the open-play capacity selector
+  ([open-play-body.tsx](../../apps/web/src/app/events/new/_components/open-play-body.tsx)).
 
 ## Remediation log — 2026-06-09 (bundle 3)
 
@@ -153,7 +174,7 @@ as-is (different `pricingLocked` disabled states + copy) — still deferred.
 | CE-2  | P2  | ✅ fixed | Bug / data       | Two post-create update failures leave an orphaned event with no rollback → duplicate-create risk.     |
 | CE-7  | P2  | ✅ fixed | DRY              | `PricingSubsection` ↔ `PaymentSettingsSubsection` duplicate ~80 lines of payment markup.              |
 | CE-3  | P3  | ✅ fixed | A11y             | Event-type cards hide the radio `sr-only` and never show a keyboard focus ring (WCAG 2.4.7).          |
-| CE-4  | P3  | open     | A11y             | `SegmentedControl` announces `role=radiogroup`/`radio` but has no roving tabindex / arrow keys.       |
+| CE-4  | P3  | ✅ fixed | A11y             | `SegmentedControl` announces `role=radiogroup`/`radio` but has no roving tabindex / arrow keys.       |
 | CE-5  | P3  | ✅ fixed | Stale code       | `div_${i}_present` hidden input is emitted per row but never read by the server action.               |
 | CE-6  | P3  | ✅ fixed | Stale code       | `useState(requireAtLeastOne ? 1 : 1)` — both ternary branches are `1`.                                |
 | CE-8  | P3  | ✅ fixed | Consistency      | Per-division skill-tier select is a flat 7-option list; open-play uses the grouped `SkillTierSelect`. |

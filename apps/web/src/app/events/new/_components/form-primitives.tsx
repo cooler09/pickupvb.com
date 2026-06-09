@@ -9,6 +9,7 @@
  * `edit-event-form.tsx` (same form shape) can reuse them too (the DRY note in
  * the audit).
  */
+import { useRef, type KeyboardEvent } from 'react';
 import { useFormStatus } from 'react-dom';
 import { EventType } from '@pickupvb/domain';
 import { FieldError, fieldA11y } from '@/components/field-error';
@@ -174,22 +175,72 @@ export function SegmentedControl<T extends string>({
   onChange: (v: T) => void;
   ariaLabel: string;
 }) {
+  // ARIA radiogroup keyboard model (CE-4): only the checked option is in the tab
+  // order (roving tabindex); Arrow / Home / End move selection *and* focus among
+  // the options. Without this, the `role="radiogroup"` we announce is a lie —
+  // every option was tabbable and arrows did nothing.
+  const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const activeIndex = options.findIndex((o) => o.value === value);
+  // When the value matches no option, the first option is the tabbable one.
+  const tabbableIndex = activeIndex >= 0 ? activeIndex : 0;
+
+  function selectAndFocus(index: number) {
+    const next = options[index];
+    if (!next) return;
+    onChange(next.value);
+    // The buttons never unmount, so focusing the existing node synchronously is
+    // safe even though onChange schedules a re-render.
+    btnRefs.current[index]?.focus();
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const count = options.length;
+    if (count === 0) return;
+    const current = activeIndex >= 0 ? activeIndex : 0;
+    let nextIndex: number;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (current + 1) % count;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (current - 1 + count) % count;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = count - 1;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    selectAndFocus(nextIndex);
+  }
+
   return (
     <div
       role="radiogroup"
       aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
       className="border-border-base bg-fg/5 inline-flex flex-wrap rounded-md border p-0.5 text-sm"
     >
-      {options.map((opt) => {
+      {options.map((opt, i) => {
         const active = value === opt.value;
         return (
           <button
             key={opt.value}
+            ref={(el) => {
+              btnRefs.current[i] = el;
+            }}
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={i === tabbableIndex ? 0 : -1}
             onClick={() => onChange(opt.value)}
-            className={`rounded px-3 py-1.5 transition-colors ${
+            className={`focus-visible:ring-primary rounded px-3 py-1.5 transition-colors focus:outline-none focus-visible:ring-2 ${
               active ? 'bg-md-surface-container text-fg shadow-sm' : 'text-muted hover:text-fg'
             }`}
           >
