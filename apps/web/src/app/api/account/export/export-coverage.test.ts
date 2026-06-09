@@ -65,11 +65,6 @@ const EXEMPT = new Map<string, string>([
 // Per-user tables knowingly not yet exported — acknowledged follow-ups, not
 // failures. Promote one to the export (add a `.from()` in route.ts) to clear it.
 const BACKLOG = new Map<string, string>([
-  [
-    'community_listing_reports',
-    'own moderation reports — consistency candidate with media_post_reports',
-  ],
-  ['message_reports', 'own chat reports — consistency candidate with media_post_reports'],
   ['event_badge_access', 'host badge-slot purchase (Stripe mirror, buyer SET NULL)'],
   ['event_sponsor_access', 'host sponsor-slot purchase (Stripe mirror, buyer SET NULL)'],
   ['event_brackets', 'host tournament-tooling state, reconstructable'],
@@ -79,7 +74,11 @@ const BACKLOG = new Map<string, string>([
   ['team_members', 'team memberships — association, revisit on request'],
   ['host_event_templates', "host's saved event-form templates — convenience data"],
   ['host_stripe_accounts', 'Connect account status flags; the account lives on Stripe'],
-  ['host_subscriptions', 'PickupVB Pro subscription — consistency candidate with host_memberships'],
+  // host_subscriptions has NO owner SELECT policy (Pro status is read via the
+  // is_pro_host SECURITY DEFINER fn, not a table read), so a user-scoped export
+  // read returns []. Exporting it would need an admin read or a new RLS policy —
+  // unlike host_memberships, which has a member SELECT policy and IS exported.
+  ['host_subscriptions', 'no owner SELECT policy — would need admin read or new RLS'],
 ]);
 
 describe('GDPR export coverage', () => {

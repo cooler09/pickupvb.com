@@ -684,8 +684,8 @@ scans the generated types for every `public` base table with a `user_id` /
 `*_user_id` column and fails unless each is read by `route.ts` (derived from its
 `.from()` calls), explicitly EXEMPT (infra/trail/erasure-ledger — `audit_log`,
 `deletion_requests`, `notification_outbox`, `marketing_attribution`), or
-explicitly BACKLOG (12 acknowledged pre-existing gaps, e.g. `host_subscriptions`,
-`event_badge_access`, `group_members` — each promotable by adding a `.from()`).
+explicitly BACKLOG (10 acknowledged pre-existing gaps, e.g. `event_badge_access`,
+`group_members`, `host_subscriptions` — each promotable by adding a `.from()`).
 See the remediation log.
 
 The export was extended for `media_posts` / votes / reports / `user_badges` /
@@ -1187,15 +1187,26 @@ it parses the generated types for every `public` base table with a `user_id` /
 (`EXPORTED`, **derived** from the route's `.from('…')` calls so it can't go stale),
 explicitly `EXEMPT` (4 — infra / security-trail / erasure-ledger:
 `audit_log`, `deletion_requests`, `notification_outbox`, `marketing_attribution`),
-or explicitly `BACKLOG` (12 acknowledged pre-existing gaps, each with a one-line
-reason — e.g. `host_subscriptions` is a consistency candidate with the newly
-exported `host_memberships`, `event_badge_access` / `event_sponsor_access` are
-host slot-purchases, `group_members` / `team_members` are associations). A new
-per-user table lands in none of the three → the test fails until someone makes a
-portability call. Two stale-guard assertions keep `EXEMPT` / `BACKLOG` honest
-(every entry must still be detected and not already exported).
+or explicitly `BACKLOG` (acknowledged pre-existing gaps, each with a one-line
+reason — `event_badge_access` / `event_sponsor_access` are host slot-purchases,
+`group_members` / `team_members` are associations, `host_subscriptions` has no
+owner SELECT policy). A new per-user table lands in none of the three → the test
+fails until someone makes a portability call. Two stale-guard assertions keep
+`EXEMPT` / `BACKLOG` honest (every entry must still be detected and not already
+exported).
 
-Verify quad green: typecheck 15/15, lint 0 errors, test +3 (web 356), build 8/8.
+**Backlog promotion (same day):** the two report tables flagged in BACKLOG —
+`community_listing_reports` + `message_reports` (both own-report-readable RLS) —
+were promoted into the export (`id`, parent id, `reason`, `created_at`, filtered
+to `reporter_user_id`), matching the already-exported `media_post_reports`. That
+leaves 10 backlog tables. `host_subscriptions` was **deliberately not** promoted:
+unlike `host_memberships` (member SELECT policy → exported), it has **no owner
+SELECT policy** — Pro status is read via the `is_pro_host` SECURITY DEFINER fn, so
+a user-scoped export read returns `[]`; exporting it would need an admin read or a
+new RLS policy, out of scope here. The drift guard's `host_subscriptions` reason
+records this so it isn't mistaken for a trivial add.
+
+Verify quad green: typecheck 15/15, lint 0 errors, test (web 356), build 8/8.
 Pure app code (route + test) — no migration, no schema change.
 
 ### 2026-06-08 — #21: pass / membership FKs CASCADE → SET NULL

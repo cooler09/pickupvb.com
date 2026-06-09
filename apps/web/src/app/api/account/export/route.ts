@@ -68,6 +68,8 @@ export async function GET(): Promise<NextResponse> {
       proGrants,
       hostPasses,
       membershipPlans,
+      listingReports,
+      messageReports,
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
       supabase
@@ -198,6 +200,18 @@ export async function GET(): Promise<NextResponse> {
         .select('id, title, description, price_cents, status, created_at')
         .eq('host_id', uid)
         .order('created_at', { ascending: false }),
+      // Moderation reports the user filed (own-report RLS) — parity with the
+      // already-exported media_post_reports (#20 backlog promotion).
+      supabase
+        .from('community_listing_reports')
+        .select('id, listing_id, reason, created_at')
+        .eq('reporter_user_id', uid)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('message_reports')
+        .select('id, message_id, reason, created_at')
+        .eq('reporter_user_id', uid)
+        .order('created_at', { ascending: true }),
     ]);
 
     // A GDPR export that silently drops a category is worse than one that fails
@@ -231,6 +245,8 @@ export async function GET(): Promise<NextResponse> {
       proGrants,
       hostPasses,
       membershipPlans,
+      listingReports,
+      messageReports,
     };
     for (const [label, res] of Object.entries(parts)) {
       if (res.error) throw new Error(`${label}: ${res.error.message}`);
@@ -268,6 +284,8 @@ export async function GET(): Promise<NextResponse> {
       pro_grants: proGrants.data ?? [],
       host_passes: hostPasses.data ?? [],
       host_membership_plans: membershipPlans.data ?? [],
+      community_listing_reports: listingReports.data ?? [],
+      message_reports: messageReports.data ?? [],
     };
 
     return new NextResponse(JSON.stringify(payload, null, 2), {
