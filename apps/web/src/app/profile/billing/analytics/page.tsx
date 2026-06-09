@@ -34,6 +34,14 @@ type PaymentAuditRow = {
   occurred_at: string;
 };
 
+/** Narrow row for the all-time gross/refunds headline — no event_id/occurred_at. */
+type NarrowAuditRow = { action: string; amount_cents: number };
+
+// The monthly chart + per-event Net column read the windowed detail set so the
+// ordered audit read doesn't grow unbounded; the gross/refunds/net headline is a
+// separate cheap all-time sum so lifetime GMV stays correct (perf P3 #22 shape).
+const AUDIT_WINDOW_MONTHS = 24;
+
 type MonthAgg = {
   key: string;
   label: string;
@@ -97,26 +105,43 @@ export default async function HostAnalyticsPage() {
   const events = ((rawEvents as EventRow[] | null) ?? []).filter((e) => Boolean(e.id));
   const eventIds = events.map((e) => e.id);
 
+  // Bound the ordered detail audit read to a trailing window; the all-time
+  // headline comes from the separate narrow sum below (perf P3 #22 shape).
+  const auditWindowStart = new Date();
+  auditWindowStart.setUTCMonth(auditWindowStart.getUTCMonth() - AUDIT_WINDOW_MONTHS);
+
   let attendees: AttendeeRow[] = [];
   let divisions: DivisionRow[] = [];
-  let audits: PaymentAuditRow[] = [];
+  let allTimeAudits: NarrowAuditRow[] = [];
+  let windowedAudits: PaymentAuditRow[] = [];
 
   if (eventIds.length > 0) {
-    const [{ data: rawAttendees }, { data: rawDivisions }, { data: rawAudits }] = await Promise.all(
-      [
-        supabase
-          .from('event_participants')
-          .select('user_id, division:event_divisions!inner(event_id)')
-          .eq('role', 'attendee')
-          .in('division.event_id', eventIds),
-        supabase.from('event_divisions').select('event_id, max_spots').in('event_id', eventIds),
-        supabase
-          .from('event_payment_audit')
-          .select('event_id, action, amount_cents, occurred_at')
-          .in('event_id', eventIds)
-          .in('action', ['paid', 'refunded']),
-      ],
-    );
+    const [
+      { data: rawAttendees },
+      { data: rawDivisions },
+      { data: rawAllTimeAudits },
+      { data: rawWindowedAudits },
+    ] = await Promise.all([
+      supabase
+        .from('event_participants')
+        .select('user_id, division:event_divisions!inner(event_id)')
+        .eq('role', 'attendee')
+        .in('division.event_id', eventIds),
+      supabase.from('event_divisions').select('event_id, max_spots').in('event_id', eventIds),
+      // All-time gross/refunds headline — narrow (two columns, no order).
+      supabase
+        .from('event_payment_audit')
+        .select('action, amount_cents')
+        .in('event_id', eventIds)
+        .in('action', ['paid', 'refunded']),
+      // Windowed detail — monthly chart + per-event Net column.
+      supabase
+        .from('event_payment_audit')
+        .select('event_id, action, amount_cents, occurred_at')
+        .in('event_id', eventIds)
+        .in('action', ['paid', 'refunded'])
+        .gte('occurred_at', auditWindowStart.toISOString()),
+    ]);
 
     attendees = (
       (rawAttendees as { user_id: string; division: { event_id: string } | null }[] | null) ?? []
@@ -124,7 +149,8 @@ export default async function HostAnalyticsPage() {
       .filter((a) => a.division != null)
       .map((a) => ({ event_id: a.division!.event_id, user_id: a.user_id })) as AttendeeRow[];
     divisions = (rawDivisions as DivisionRow[] | null) ?? [];
-    audits = (rawAudits as PaymentAuditRow[] | null) ?? [];
+    allTimeAudits = (rawAllTimeAudits as NarrowAuditRow[] | null) ?? [];
+    windowedAudits = (rawWindowedAudits as PaymentAuditRow[] | null) ?? [];
   }
 
   const attendeeCountsByEvent = new Map<string, number>();
@@ -148,16 +174,18 @@ export default async function HostAnalyticsPage() {
   ).length;
   const fillRate = totalCapacity > 0 ? registrationsWithCapacity / totalCapacity : null;
 
-  const grossCents = audits
+  // All-time GMV headline — from the narrow full-history sum.
+  const grossCents = allTimeAudits
     .filter((a) => a.action === 'paid')
     .reduce((sum, a) => sum + a.amount_cents, 0);
-  const refundedCents = audits
+  const refundedCents = allTimeAudits
     .filter((a) => a.action === 'refunded')
     .reduce((sum, a) => sum + a.amount_cents, 0);
   const netCents = grossCents - refundedCents;
 
+  // Monthly chart (last 6 shown) + per-event Net — from the windowed detail set.
   const byMonth = new Map<string, MonthAgg>();
-  for (const row of audits) {
+  for (const row of windowedAudits) {
     const d = new Date(row.occurred_at);
     const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
     const existing = byMonth.get(key);
@@ -181,7 +209,7 @@ export default async function HostAnalyticsPage() {
     .slice(0, 6);
 
   const netByEvent = new Map<string, number>();
-  for (const row of audits) {
+  for (const row of windowedAudits) {
     const delta = row.action === 'paid' ? row.amount_cents : -row.amount_cents;
     netByEvent.set(row.event_id, (netByEvent.get(row.event_id) ?? 0) + delta);
   }
