@@ -6,21 +6,25 @@ Audit of [apps/web/src/app/events/[id]/page.tsx](../../apps/web/src/app/events/%
 Goal: prioritize the most important information and CTAs for visitors landing
 from a share link, while keeping the page useful for hosts and attendees.
 
-> **Status (2026-06-09 re-audit + first remediation bundle):** This pass
-> re-walked the page after ~8 sections were appended since the last audit (Pass
-> panel, Event chat, Teams, Tip, Media, Badges, Waiver, Sponsor, hero image,
-> manage banner) and the host console moved to `/manage`. Findings tagged
-> **EV-1 … EV-9** below.
+> **Status (2026-06-09 re-audit — ✅ fully remediated):** This pass re-walked
+> the page after ~8 sections were appended since the last audit (Pass panel,
+> Event chat, Teams, Tip, Media, Badges, Waiver, Sponsor, hero image, manage
+> banner) and the host console moved to `/manage`. Findings **EV-1 … EV-9** —
+> **all fixed across three quad-green bundles, uncommitted:**
 >
-> **Fixed (quad-green, uncommitted):** **bundle 1** — EV-1 (league CTA), EV-2
-> (stale `/edit` link → `/manage`), EV-3 (sticky-CTA `inert` a11y), EV-8 (token
-> bleed — bordered neutral buttons → `neutralButtonClass`, validation
-> `text-secondary` → `text-md-error`, fuchsia theme chip made dark-aware), EV-9
-> (render-map refreshed). **bundle 2** — EV-4 (section sprawl → sticky
-> auto-discovering in-page jump nav). **Remaining backlog — 0 P2 · 3 P3:** EV-5
-> (redundant bracket/schedule CTAs), EV-6 (sticky CTA non-action once
-> registered), EV-7 (team-event "Spots" framing — verify first). See the
-> remediation logs at the foot of this section.
+> - **bundle 1** — EV-1 (league CTA), EV-2 (stale `/edit` → `/manage`), EV-3
+>   (sticky-CTA `inert` a11y), EV-8 (token bleed — neutral buttons →
+>   `neutralButtonClass`, validation `text-secondary` → `text-md-error`, fuchsia
+>   theme chip made dark-aware), EV-9 (render-map refreshed).
+> - **bundle 2** — EV-4 (section sprawl → sticky auto-discovering in-page jump nav).
+> - **bundle 3** — EV-5 (sub-page bracket/schedule card suppressed on
+>   started/completed events — 3 controls → 2), EV-6 (mobile sticky CTA hidden
+>   once the viewer has registered while signups are open), EV-7 (event-level
+>   "Spots" cell + hero chip re-framed as **teams** for team-registration events).
+>
+> **Remaining backlog: none.** Two explicit deferrals remain nice-to-haves: the
+> passive bottom tail (Tip/Badges/Waiver/Sponsor) grouping inside EV-4, and the
+> "Won't-do" list at the foot of the file. See the remediation logs below.
 
 ## 2026-06-09 re-audit — findings (EV-1 … EV-9)
 
@@ -35,6 +39,18 @@ from a share link, while keeping the page useful for hosts and attendees.
 | EV-6 | P3  | Streamline       | Sticky mobile CTA persists "You're in — view details" once registered — a non-action.       |
 | EV-7 | P3  | Gap (verify)     | "Spots" cell + hero use per-player framing on team events (tournament/league).              |
 | EV-8 | P3  | M3 / token bleed | `text-secondary` validation error, hard-coded fuchsia chip, hand-rolled neutral buttons.    |
+
+**Remediation log — 2026-06-09 (bundle 3):** EV-5, EV-6, EV-7 — quad-green,
+uncommitted. All in
+[page.tsx](../../apps/web/src/app/events/%5Bid%5D/page.tsx) +
+[event-when-spots-section.tsx](../../apps/web/src/app/events/%5Bid%5D/_components/event-when-spots-section.tsx).
+EV-5: gate the bracket/schedule sub-page card on `!hasStarted && status !==
+'completed'`. EV-6: `showStickyCta = !(signupsOpen && viewerHasRegistered)` —
+hide the mobile bar once the viewer has RSVP'd / positioned / waitlisted /
+captained / free-agented while signups are open. EV-7: `teamSummary` (registered
+
+- summed cap + `reliable`) drives a "Teams" cell for team events; hero spots chip
+  nulled for team events. **All EV-1…EV-9 now closed.**
 
 **Remediation log — 2026-06-09 (bundle 2):** EV-4 — sticky in-page jump nav.
 Quad-green, uncommitted. New
@@ -137,7 +153,7 @@ already does, and re-order so the high-traffic returning-user destinations
 (chat, roster) aren't buried beneath one-time sections. Page composition:
 [page.tsx#L298-L409](../../apps/web/src/app/events/%5Bid%5D/page.tsx#L298-L409).
 
-### EV-5 (P3) — Redundant "view bracket / schedule" affordances on closed events
+### EV-5 (P3) ✅ FIXED 2026-06-09 (bundle 3) — Redundant "view bracket / schedule" affordances on closed events
 
 On a started/completed **tournament** the page surfaces the destination three
 times: the hero CTA "Open bracket", the
@@ -149,7 +165,7 @@ schedule" (subpage) — two. **Fix:** suppress the standalone subpage card once
 the closed-state already carries the same CTA (or fold the subpage link into the
 closed-state), so there's one obvious next click.
 
-### EV-6 (P3) — Mobile sticky CTA is a non-action once the viewer is registered
+### EV-6 (P3) ✅ FIXED 2026-06-09 (bundle 3) — Mobile sticky CTA is a non-action once the viewer is registered
 
 When `isAttending`, [`buildCta`](../../apps/web/src/app/events/%5Bid%5D/_loaders/load-event-detail.ts#L757-L758)
 returns "You're in — view details" (anchor to `#signup`), and
@@ -159,7 +175,21 @@ job is to scroll to the (now-collapsed) panel. **Fix:** suppress the sticky bar
 for already-registered viewers, or repoint it at a real next action ("Open event
 chat" / "View roster").
 
-### EV-7 (P3, verify) — "Spots" framing assumes individual attendees on team events
+### EV-7 (P3) ✅ FIXED 2026-06-09 (bundle 3) — "Spots" framing assumes individual attendees on team events
+
+**Verified + fixed.** Confirmed the event-level `capacity` is null for team
+events, so the cell read "Unlimited" (and the hero hid its chip) even when the
+division capped teams. Fix: the page computes a `teamSummary` (registered teams,
+summed team cap across divisions or null if any division is uncapped, plus a
+`reliable` flag that's false for external events) and passes it to
+[EventWhenSpotsSection](../../apps/web/src/app/events/%5Bid%5D/_components/event-when-spots-section.tsx);
+when present, the right-hand cell is labelled **"Teams"** and shows
+`registered / cap teams` (or a plain count / "Unlimited" when uncapped, or the
+cap alone for external events). The hero's per-player spots chip is suppressed
+for team events (`spotsRemaining={isTeamEvent ? null : …}`). Per-division team
+caps still live in `DivisionsSection` (multi-division). _Original finding:_
+
+### EV-7 (original, verify) — "Spots" framing assumes individual attendees on team events
 
 [`EventWhenSpotsSection`](../../apps/web/src/app/events/%5Bid%5D/_components/event-when-spots-section.tsx#L57-L70)
 and the hero spots chip render capacity as players ("N open · M signed up" /

@@ -185,6 +185,41 @@ export default async function EventDetailPage(props: {
     teamCountByDivision.set(r.divisionId, (teamCountByDivision.get(r.divisionId) ?? 0) + 1);
   }
 
+  // EV-7: team-registration events (tournament / league) measure capacity in
+  // teams, not individual players. Frame the event-level "Spots" cell — and
+  // suppress the hero's per-player spots chip — accordingly, so a single-
+  // division team event doesn't read "Unlimited" / "0 signed up" while its
+  // division actually caps teams. Caps sum across team divisions; null when any
+  // team division is uncapped (per-division counts then live in DivisionsSection).
+  const teamDivisions = event.divisions.filter((d) => d.teamRegistrationMode !== null);
+  const isTeamEvent = teamDivisions.length > 0;
+  const registeredTeamsTotal = [...teamCountByDivision.values()].reduce((a, b) => a + b, 0);
+  const allTeamDivisionsFixed =
+    isTeamEvent && teamDivisions.every((d) => d.capacityKind === 'fixed' && d.maxSpots !== null);
+  const teamCapTotal = allTeamDivisionsFixed
+    ? teamDivisions.reduce((sum, d) => sum + (d.maxSpots ?? 0), 0)
+    : null;
+  // For external events the on-platform registered count is unreliable; the
+  // component then shows the cap (or "Unlimited") without the live count.
+  const teamSummary = isTeamEvent
+    ? { registered: registeredTeamsTotal, cap: teamCapTotal, reliable: !isExternal }
+    : null;
+
+  // EV-6: once the viewer has taken the page's primary action (RSVP'd, holds a
+  // position, queued on the waitlist, captains/joined a team, or listed as a
+  // free agent) while signups are still open, the hero CTA degrades to a
+  // "You're in — view details" non-action. Suppress the mobile sticky bar in
+  // that window so it doesn't persistently mirror a control that does nothing.
+  // (Started / completed events keep the bar — its CTA is real navigation.)
+  const viewerHasRegistered =
+    event.isAttending ||
+    viewerPosition !== null ||
+    viewerWaitlistPosition !== null ||
+    adHocViewerRegistrations.length > 0 ||
+    event.viewerCaptainedTeams.length > 0 ||
+    event.isFreeAgent;
+  const showStickyCta = !(signupsOpen && viewerHasRegistered);
+
   // Roster for live-message author resolution in the event room chat (host +
   // co-hosts + attendees, deduped). Best-effort — the initial message page
   // already carries server-resolved names; this only labels live broadcast rows.
@@ -243,7 +278,7 @@ export default async function EventDetailPage(props: {
           timeZone={event.timeZone}
           city={event.location.city}
           region={event.location.region}
-          spotsRemaining={event.spotsRemaining}
+          spotsRemaining={isTeamEvent ? null : event.spotsRemaining}
           priceLabel={priceLabel}
           registrationClosesAt={event.registrationClosesAt}
           cta={cta}
@@ -261,6 +296,7 @@ export default async function EventDetailPage(props: {
         spotsRemaining={event.spotsRemaining}
         attendeeCount={event.attendeeCount}
         offPlatform={event.paymentsOffPlatform || isExternal}
+        teamSummary={teamSummary}
       />
 
       <EventMetaSection
@@ -343,7 +379,12 @@ export default async function EventDetailPage(props: {
         </div>
       )}
 
-      {event.type === 'tournament' && (
+      {/* EV-5: once the event has started / completed, the hero CTA and the
+          EventClosedState both surface "Open bracket" / "View schedule", so the
+          standalone sub-page card is redundant (3 controls → 2). Keep it only
+          while signups are upcoming, where it's the sole bracket/schedule
+          preview affordance (the hero CTA there is "Register"). */}
+      {event.type === 'tournament' && !hasStarted && event.status !== 'completed' && (
         <EventSubpageLink
           title="Bracket"
           description="View the tournament bracket, matchups, and live results."
@@ -352,7 +393,7 @@ export default async function EventDetailPage(props: {
         />
       )}
 
-      {event.type === 'league' && (
+      {event.type === 'league' && !hasStarted && event.status !== 'completed' && (
         <EventSubpageLink
           title="Schedule"
           description="View the weekly schedule, matchups, and scores."
@@ -439,7 +480,7 @@ export default async function EventDetailPage(props: {
 
       <EventSponsorSection sponsor={sponsor} />
 
-      <EventStickyCta cta={cta} observeSelector="#signup" />
+      {showStickyCta && <EventStickyCta cta={cta} observeSelector="#signup" />}
     </article>
   );
 }
