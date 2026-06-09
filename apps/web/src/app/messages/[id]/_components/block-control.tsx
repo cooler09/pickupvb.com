@@ -35,7 +35,8 @@ export function BlockControl({
       type="button"
       onClick={toggle}
       disabled={pending}
-      className="text-muted hover:text-md-error shrink-0 text-xs disabled:opacity-50"
+      aria-pressed={blocked}
+      className="text-muted hover:text-md-error -my-1 shrink-0 rounded px-2 py-1.5 text-xs disabled:opacity-50"
     >
       {blocked ? 'Unblock' : 'Block'}
     </button>

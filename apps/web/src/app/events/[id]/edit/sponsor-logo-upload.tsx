@@ -120,6 +120,8 @@ export function SponsorLogoUpload({ eventId, userId, currentUrl }: Props) {
         type="file"
         accept="image/jpeg,image/png,image/webp"
         className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void handleFile(file);

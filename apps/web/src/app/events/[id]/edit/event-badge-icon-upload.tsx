@@ -94,12 +94,18 @@ export function EventBadgeIconUpload({ eventId, userId, badgeId }: Props) {
           )}
         </button>
       )}
-      {error && <p className="text-destructive text-xs">{error}</p>}
+      {error && (
+        <p role="alert" className="text-md-error text-xs">
+          {error}
+        </p>
+      )}
       <input
         ref={inputRef}
         type="file"
         accept="image/jpeg,image/png,image/webp"
         className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void handleFile(file);

@@ -104,7 +104,7 @@ export function CommunityListingArticle({ detail }: { detail: CommunityListingDe
           rel="noopener noreferrer nofollow"
           className={`${primaryButtonClass('md')} gap-2`}
         >
-          Open on {hostLabel} →
+          Open on {hostLabel} →<span className="sr-only"> (opens in new tab)</span>
         </a>
         <p className="text-muted text-xs break-all">{detail.externalUrl}</p>
       </section>

@@ -56,7 +56,7 @@ export async function EventWaiverSection({
           rel="noopener noreferrer nofollow ugc"
           className="text-primary block text-sm font-medium hover:underline"
         >
-          Read the full waiver ↗
+          Read the full waiver ↗<span className="sr-only"> (opens in new tab)</span>
         </a>
       )}
       {waiver.body && (

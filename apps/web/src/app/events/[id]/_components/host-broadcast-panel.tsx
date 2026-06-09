@@ -64,7 +64,7 @@ export function HostBroadcastPanel({
           <p
             ref={errorRef}
             tabIndex={-1}
-            className="text-sm text-red-500 outline-none"
+            className="text-md-error text-sm outline-none"
             role="alert"
           >
             {state.error}

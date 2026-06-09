@@ -47,6 +47,7 @@ export function EventSponsorSection({ sponsor }: { sponsor: EventSponsor | null 
           className="focus-visible:ring-primary block rounded-md focus-visible:ring-2 focus-visible:outline-none"
         >
           {body}
+          <span className="sr-only"> (opens in new tab)</span>
         </a>
       ) : (
         body

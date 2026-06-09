@@ -37,7 +37,7 @@ const STATUS_LABEL: Record<Status, string> = {
 
 // eslint-disable-next-line no-restricted-syntax -- compact inline schedule-table cell input, not a labeled form field (persona-ux.md CC-2 exception)
 const inputClass =
-  'border-border-base bg-bg text-fg w-full rounded border px-2 py-1 text-sm focus:ring-1';
+  'border-border-base bg-bg text-fg focus-visible:ring-primary w-full rounded border px-2 py-1 text-sm focus-visible:ring-2 focus-visible:outline-none';
 
 function toDatetimeLocal(iso: string): string {
   // Echo back the value as `YYYY-MM-DDTHH:mm` in UTC. Time zone conversion
