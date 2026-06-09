@@ -9,8 +9,13 @@ export const dynamic = 'force-dynamic';
  *
  * GDPR Art. 20 / CCPA portability — a single machine-readable JSON file with the
  * authenticated user's own data across every table that stores it (privacy audit
- * P3 #12, incl. the chat surface from #15 and the media/badges/waitlist surface
- * from #18).
+ * P3 #12, incl. the chat surface from #15, the media/badges/waitlist surface from
+ * #18, and the passes/memberships/waiver/referral surface from #20).
+ *
+ * A drift guard (export-coverage.test.ts) scans the generated types for every
+ * `public` table with a per-user column and fails if one is neither exported here
+ * nor explicitly exempt/backlogged — so the next data-bearing table can't land
+ * without a portability decision (the recurring #15 → #18 → #20 gap).
  *
  * Runs on the **user-scoped** client so RLS is the safety net: every category is
  * filtered to the caller's own id, and there is no admin / RLS-bypass. Each table
@@ -56,6 +61,13 @@ export async function GET(): Promise<NextResponse> {
       mediaReports,
       badges,
       waitlist,
+      passPurchases,
+      memberships,
+      waiverSignatures,
+      referrals,
+      proGrants,
+      hostPasses,
+      membershipPlans,
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
       supabase
@@ -140,6 +152,52 @@ export async function GET(): Promise<NextResponse> {
         .select('event_id, created_at')
         .eq('user_id', uid)
         .order('created_at', { ascending: true }),
+      // #20 — the monetization + waiver surface (each owner/self-scoped under RLS).
+      supabase
+        .from('pass_purchases')
+        .select(
+          'id, pass_id, host_id, title_snapshot, credits_total, credits_used, expires_at, payment_status, amount_paid_cents, payment_intent_id, paid_at, created_at',
+        )
+        .eq('buyer_user_id', uid)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('host_memberships')
+        .select(
+          'id, plan_id, host_id, title_snapshot, status, current_period_end, cancel_at_period_end, created_at',
+        )
+        .eq('member_user_id', uid)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('waiver_signatures')
+        .select('id, event_id, waiver_version, signed_name, method, signed_at')
+        .eq('user_id', uid)
+        .order('signed_at', { ascending: true }),
+      // The user can be either side of a referral; both halves are their own data.
+      supabase
+        .from('referrals')
+        .select(
+          'id, referrer_user_id, referred_user_id, status, qualified_at, rewarded_at, created_at',
+        )
+        .or(`referrer_user_id.eq.${uid},referred_user_id.eq.${uid}`)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('pro_grants')
+        .select('id, granted_until, reason, source_ref, created_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: true }),
+      // Products the host authored (host-content, like events_hosted).
+      supabase
+        .from('host_passes')
+        .select(
+          'id, title, description, credit_count, price_cents, expires_in_days, status, created_at',
+        )
+        .eq('host_id', uid)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('host_membership_plans')
+        .select('id, title, description, price_cents, status, created_at')
+        .eq('host_id', uid)
+        .order('created_at', { ascending: false }),
     ]);
 
     // A GDPR export that silently drops a category is worse than one that fails
@@ -166,6 +224,13 @@ export async function GET(): Promise<NextResponse> {
       mediaReports,
       badges,
       waitlist,
+      passPurchases,
+      memberships,
+      waiverSignatures,
+      referrals,
+      proGrants,
+      hostPasses,
+      membershipPlans,
     };
     for (const [label, res] of Object.entries(parts)) {
       if (res.error) throw new Error(`${label}: ${res.error.message}`);
@@ -196,6 +261,13 @@ export async function GET(): Promise<NextResponse> {
       media_post_reports: mediaReports.data ?? [],
       badges: badges.data ?? [],
       event_waitlist: waitlist.data ?? [],
+      pass_purchases: passPurchases.data ?? [],
+      host_memberships: memberships.data ?? [],
+      waiver_signatures: waiverSignatures.data ?? [],
+      referrals: referrals.data ?? [],
+      pro_grants: proGrants.data ?? [],
+      host_passes: hostPasses.data ?? [],
+      host_membership_plans: membershipPlans.data ?? [],
     };
 
     return new NextResponse(JSON.stringify(payload, null, 2), {

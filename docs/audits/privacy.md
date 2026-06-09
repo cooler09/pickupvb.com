@@ -51,8 +51,8 @@ user-data table lands self/owner-or-host RLS, and the closest-to-#16 surface
 (`waiver_signatures.signed_name`, incl. host-recorded free-text names for
 non-account signers) is correctly gated `auth.uid() = user_id` so a NULL-user
 in-person row is **un-harvestable** via REST — the captain-phone mistake was not
-repeated. Three findings — **#21 (P2) fixed the same day** (2026-06-08); #20 and
-#22 (both P3) remain open:
+repeated. Three findings — **#21 (P2) and #20 (P3) fixed the same day**
+(2026-06-08); **#22 (P3) remains open**:
 
 - **#21 (P2, data preservation + deletion-blocking) — FIXED. New payment tables
   CASCADE'd to `profiles` where every other payment table SET-NULLs.** `pass_purchases` and
@@ -67,8 +67,8 @@ repeated. Three findings — **#21 (P2) fixed the same day** (2026-06-08); #20 a
   members' paid-purchase records, or (b) trips the RESTRICT and **aborts the
   purge at `auth.admin.deleteUser`**, leaving the user's email in `auth.users`
   while the request is already marked `executed`. See #21.
-- **#20 (P3, export completeness) — new user-data tables absent from the GDPR
-  export (recurrence of #18).** `GET /api/account/export` was extended for
+- **#20 (P3, export completeness) — FIXED. New user-data tables were absent from
+  the GDPR export (recurrence of #18).** `GET /api/account/export` was extended for
   media/badges/waitlist on 2026-06-07 but predates this batch:
   `pass_purchases`, `host_memberships`, and `waiver_signatures` (the user's own
   purchases, subscriptions, and signed acknowledgements) are missing, as are
@@ -674,7 +674,19 @@ policy) — but the FK flip is correct regardless of which ordering PG picks.
 
 **File:** [apps/web/src/app/api/account/export/route.ts](../../apps/web/src/app/api/account/export/route.ts)
 **Category:** legal feature gap (Art. 20 portability)
-**Status:** ⬜ open (graded P3).
+**Status:** ✅ fixed (2026-06-08). The export now reads all seven —
+`pass_purchases` (buyer), `host_memberships` (member), `waiver_signatures`
+(signer), `referrals` (either side, via `.or`), `pro_grants` (owner), and the
+host-authored `host_passes` / `host_membership_plans` — each owner/self-scoped on
+the user client under the existing throw-on-partial guard. **Drift is now guarded:**
+a new [export-coverage.test.ts](../../apps/web/src/app/api/account/export/export-coverage.test.ts)
+scans the generated types for every `public` base table with a `user_id` /
+`*_user_id` column and fails unless each is read by `route.ts` (derived from its
+`.from()` calls), explicitly EXEMPT (infra/trail/erasure-ledger — `audit_log`,
+`deletion_requests`, `notification_outbox`, `marketing_attribution`), or
+explicitly BACKLOG (12 acknowledged pre-existing gaps, e.g. `host_subscriptions`,
+`event_badge_access`, `group_members` — each promotable by adding a `.from()`).
+See the remediation log.
 
 The export was extended for `media_posts` / votes / reports / `user_badges` /
 `event_waitlist` on 2026-06-07 (#18), but the monetization bundle that landed the
@@ -1114,6 +1126,37 @@ RLS than UI.
   this gets a separate audit.
 
 ## Remediation log
+
+### 2026-06-08 — #20: extend the GDPR export + add a drift guard
+
+[api/account/export/route.ts](../../apps/web/src/app/api/account/export/route.ts)
+gains seven owner/self-scoped categories on the user-scoped client, under the
+existing throw-on-partial guard: `pass_purchases` (`buyer_user_id`),
+`host_memberships` (`member_user_id`), `waiver_signatures` (`user_id`),
+`referrals` (`.or(referrer_user_id, referred_user_id)` — both halves are the
+user's own), `pro_grants` (`user_id`), and the host-authored `host_passes` /
+`host_membership_plans` (`host_id`, like `events_hosted`). Stripe internal refs
+were trimmed to the minimum (kept `payment_intent_id` for receipt-matching parity
+with `payment_history`; dropped `checkout_session_id` / `stripe_subscription_id`).
+
+The recurring half of the finding — the export silently drifting behind each
+schema bump (#15 → #18 → #20) — is closed with
+[export-coverage.test.ts](../../apps/web/src/app/api/account/export/export-coverage.test.ts):
+it parses the generated types for every `public` base table with a `user_id` /
+`*_user_id` column (36 today) and asserts each is either read by `route.ts`
+(`EXPORTED`, **derived** from the route's `.from('…')` calls so it can't go stale),
+explicitly `EXEMPT` (4 — infra / security-trail / erasure-ledger:
+`audit_log`, `deletion_requests`, `notification_outbox`, `marketing_attribution`),
+or explicitly `BACKLOG` (12 acknowledged pre-existing gaps, each with a one-line
+reason — e.g. `host_subscriptions` is a consistency candidate with the newly
+exported `host_memberships`, `event_badge_access` / `event_sponsor_access` are
+host slot-purchases, `group_members` / `team_members` are associations). A new
+per-user table lands in none of the three → the test fails until someone makes a
+portability call. Two stale-guard assertions keep `EXEMPT` / `BACKLOG` honest
+(every entry must still be detected and not already exported).
+
+Verify quad green: typecheck 15/15, lint 0 errors, test +3 (web 356), build 8/8.
+Pure app code (route + test) — no migration, no schema change.
 
 ### 2026-06-08 — #21: pass / membership FKs CASCADE → SET NULL
 
