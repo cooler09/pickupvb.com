@@ -55,8 +55,17 @@ and the storage/orphan lifecycle.
 > the content row (entitlement survives → no re-charge), and removal is no longer
 > entitlement-gated (a lapsed-Pro host can delete their own sponsor). The 5
 > entitlement columns were dropped from `event_sponsors` after a backfill. Quad-green;
-> repo + webhook tests pin the split. **SP-8…SP-10 left open.** See the
-> remediation log at the bottom.
+> repo + webhook tests pin the split.
+>
+> **Update — 2026-06-08 (same day): SP-8/SP-9/SP-10 fixed — sponsor slot fully
+> closed (SP-1…SP-10)** (uncommitted). SP-8: extracted a shared `guardManage()`
+> that re-throws unexpected manage-check errors instead of masking them as
+> "unauthorized" (the three actions no longer copy-paste the catch block).
+> SP-9: dropped the misleading "(Pro)" from the panel header and surfaced the
+> "Pro or $3/event" framing in the subtext. SP-10: new
+> `sponsor-actions.test.ts` pins the gate branches (non-manager → unauthorized;
+> Pro / free+paid → save; free+unpaid → `pro` with no write; SP-8 re-throw; SP-2
+> ungated removal). Quad-green. See the remediation log at the bottom.
 
 ### Findings — sponsor slot
 
@@ -126,7 +135,7 @@ removal is destructive, the error family (`errorOutlinedButtonClass` /
 `errorTextButtonClass`) is arguably the more correct fit — deferred to avoid a
 larger visual change in this pass.
 
-#### SP-8 (P3) — Sloppy/duplicated `catch` blocks swallow real errors as "unauthorized"
+#### SP-8 (P3) — Sloppy/duplicated `catch` blocks swallow real errors as "unauthorized" — ✅ fixed
 
 In all three actions (e.g.
 [upsert#L104-L108](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts#L104-L108)),
@@ -136,13 +145,13 @@ into a silent redirect with no log. The block is copy-pasted three times.
 **Fix:** extract one `guardManage()` helper that maps `NotFoundError` /
 `UnauthorizedError` and **re-throws** anything else.
 
-#### SP-9 (P3) — Panel header "Sponsor slot (Pro)" misleads free hosts
+#### SP-9 (P3) — Panel header "Sponsor slot (Pro)" misleads free hosts — ✅ fixed
 
 [sponsor-panel.tsx#L47](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-panel.tsx#L47)
 labels the section Pro-only, but a free host can buy it à-la-carte. Minor copy
 tweak (e.g. drop the "(Pro)" suffix, or "Pro or $3/event").
 
-#### SP-10 (P3) — No test for the server-action gate
+#### SP-10 (P3) — No test for the server-action gate — ✅ fixed
 
 The webhook ([checkout.test.ts#L241](../../apps/web/src/lib/webhooks/checkout.test.ts#L241))
 and repo upsert are covered, but the **gating logic** in `sponsor-actions.ts`
@@ -1321,6 +1330,20 @@ hosts get fee discount + sponsor slot).
 ---
 
 ## Remediation log
+
+- **2026-06-08 — SP-8/SP-9/SP-10 fixed: sponsor slot fully closed (uncommitted).**
+  SP-8 — extracted `guardManage(eventId, userId)` in
+  [sponsor-actions.ts](../../apps/web/src/app/events/%5Bid%5D/edit/sponsor-actions.ts):
+  maps `NotFoundError`/`UnauthorizedError` to flash codes and **re-throws**
+  anything else (a DB failure no longer masquerades as "unauthorized"); the three
+  actions now call it instead of copy-pasting a catch block. SP-9 — dropped the
+  misleading "(Pro)" from the panel header and moved the "Pro or $3/event"
+  framing into the subtext (derived from `SPONSOR_SLOT_UNLOCK_CENTS`). SP-10 —
+  new `sponsor-actions.test.ts` (7 tests) pins the gate branch selection
+  (non-manager → unauthorized; Pro → save; free+paid → save; free+unpaid → `pro`
+  with **no write**; the SP-8 re-throw; and SP-2's ungated removal deleting only
+  the content row). `pnpm typecheck && lint && test && build` green. **Sponsor
+  slot SP-1…SP-10 all closed.**
 
 - **2026-06-08 — SP-1/SP-2 fixed: sponsor entitlement decoupled from content (uncommitted; migration deploy-gated).**
   New migration `20261006000000_event_sponsor_access.sql` adds a per-event

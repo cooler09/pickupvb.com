@@ -87,12 +87,21 @@ paid_at NULL`; that entitlement is re-derived from `hasProBenefits(host)` at
 to add `event_sponsor_access` + slim `event_sponsors` (regenerate on the next
 deployed `gen:types`).
 
-## Follow-ups (deferred from the audit)
+## Follow-ups — ✅ all shipped same day (SP-8/SP-9/SP-10)
 
-- **SP-8** — extract a shared `guardManage()` helper; the three sponsor actions
-  still copy-paste a catch block that mis-reports unexpected errors as
-  "unauthorized."
-- **SP-9** — panel header "Sponsor slot (Pro)" still misleads free hosts who can
-  buy à-la-carte.
-- **SP-10** — no unit test on the server-action gate branch selection itself
-  (Pro → save, free+paid → save, free+unpaid → checkout).
+The three deferred items were knocked out in a follow-up pass the same day, so
+the sponsor slot is now fully closed (SP-1…SP-10):
+
+- **SP-8 — done.** Extracted `guardManage(eventId, userId)`: maps
+  `NotFoundError`/`UnauthorizedError` to flash codes and **re-throws** anything
+  else (a DB failure in the manage check now surfaces as a real 500 + log, not
+  "unauthorized"). The three actions call it instead of copy-pasting the catch
+  block.
+- **SP-9 — done.** Dropped the misleading "(Pro)" from the panel header; the
+  "Pro or $3/event" framing moved into the subtext (derived from
+  `SPONSOR_SLOT_UNLOCK_CENTS`, so it can't go stale).
+- **SP-10 — done.** New `sponsor-actions.test.ts` (7 tests) pins the gate branch
+  selection — non-manager → unauthorized; Pro → save; free+paid → save;
+  free+unpaid → `pro` with **no write** (the money guard); the SP-8 re-throw; and
+  SP-2's ungated removal deleting only the content row. `redirect` is mocked to
+  throw a tagged error so `flashTo` halts exactly like the Next runtime.

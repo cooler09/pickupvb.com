@@ -48,9 +48,10 @@ export function SponsorPanel({
   return (
     <section className="border-border-base rounded-shape-sm space-y-4 border p-4">
       <header className="space-y-1">
-        <h2 className="text-fg text-lg font-semibold">Sponsor slot (Pro)</h2>
+        <h2 className="text-fg text-lg font-semibold">Sponsor slot</h2>
         <p className="text-muted text-sm">
-          Add one host-owned sponsor block to the event page. Keep copy short and local.
+          Add one host-owned sponsor block to the event page — included with Pro, or a one-time $
+          {SPONSOR_SLOT_PRICE_USD} unlock per event. Keep copy short and local.
         </p>
       </header>
 

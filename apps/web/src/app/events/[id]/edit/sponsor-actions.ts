@@ -69,6 +69,22 @@ async function assertCanManage(eventId: string, userId: string): Promise<void> {
 }
 
 /**
+ * Authorize the caller as an event manager, or flash-redirect. Maps the typed
+ * domain errors to flash codes and **re-throws anything unexpected** (monetization
+ * audit SP-8): a DB failure in the manage check must surface as a real 500 + log,
+ * not masquerade as "unauthorized". Shared by all three sponsor actions.
+ */
+async function guardManage(eventId: string, userId: string): Promise<void> {
+  try {
+    await assertCanManage(eventId, userId);
+  } catch (err) {
+    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
+    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
+    throw err;
+  }
+}
+
+/**
  * Has this event's à-la-carte sponsor unlock been paid? Reads the entitlement
  * row on the admin client — `event_sponsor_access` has no client RLS policies
  * (webhook-written, AGENTS pitfall #8). Decoupled from the sponsor content so a
@@ -96,14 +112,7 @@ export async function upsertSponsorFromForm(
   formData: FormData,
 ): Promise<never> {
   const { user } = await requireSession(`/events/${eventId}/edit`);
-
-  try {
-    await assertCanManage(eventId, user.id);
-  } catch (err) {
-    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
-    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
-    flashTo(eventId, 'unauthorized');
-  }
+  await guardManage(eventId, user.id);
 
   let draft: SponsorDraft;
   try {
@@ -145,14 +154,7 @@ export async function startSponsorSlotCheckoutFromForm(
   formData: FormData,
 ): Promise<void> {
   const { user } = await requireSession(`/events/${eventId}/edit`);
-
-  try {
-    await assertCanManage(eventId, user.id);
-  } catch (err) {
-    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
-    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
-    flashTo(eventId, 'unauthorized');
-  }
+  await guardManage(eventId, user.id);
 
   const [pro, paid] = await Promise.all([hasProBenefits(user.id), sponsorSlotPaid(eventId)]);
   // Entitled users should use the direct save path — no one-off checkout.
@@ -244,14 +246,7 @@ export async function startSponsorSlotCheckoutFromForm(
 
 export async function removeSponsor(eventId: string, returnPath: string): Promise<never> {
   const { user } = await requireSession(`/events/${eventId}/edit`);
-
-  try {
-    await assertCanManage(eventId, user.id);
-  } catch (err) {
-    if (err instanceof NotFoundError) flashTo(eventId, 'notfound');
-    if (err instanceof UnauthorizedError) flashTo(eventId, 'unauthorized');
-    flashTo(eventId, 'unauthorized');
-  }
+  await guardManage(eventId, user.id);
 
   // Removal is NOT entitlement-gated (monetization audit SP-2): a host must be
   // able to delete their own sponsor regardless of current Pro / à-la-carte
