@@ -22,11 +22,43 @@ gaps, streamlining opportunities, and stale code.
 > landed. Findings **CE-1 … CE-13**: **0 P1 · 3 P2 · 10 P3.**
 >
 > **Bundle 1 fixed the 3 P2s + 4 cheap P3s — CE-1, CE-2, CE-3, CE-5, CE-6, CE-7,
-> CE-13** (see remediation log below). **Remaining open: CE-4, CE-8, CE-9,
-> CE-10, CE-11, CE-12** — all P3, deferred (a11y roving-tabindex, skill-tier
-> grouping, create-time photo, contextual cap banner, by-position edit parity,
-> required-field markers). Cross-refs: persona-ux V-4 (anon gate) and CC-1
-> (submit button) already closed; this audit does not re-open them.
+> CE-13** (see remediation log below). **Bundle 2 closed CE-1's deferred
+> follow-up** — saved templates now round-trip the `AdvancedDetailsPanel` fields
+> (venue / series / fundraiser / theme tags / sanctioning), so template apply is
+> fully complete. **Remaining open: CE-4, CE-8, CE-9, CE-10, CE-11, CE-12** —
+> all P3, deferred (a11y roving-tabindex, skill-tier grouping, create-time photo,
+> contextual cap banner, by-position edit parity, required-field markers).
+> Cross-refs: persona-ux V-4 (anon gate) and CC-1 (submit button) already closed;
+> this audit does not re-open them.
+
+## Remediation log — 2026-06-09 (bundle 2)
+
+Quad-green, uncommitted. **Closes the CE-1 deferred follow-up: advanced-detail
+fields now round-trip through templates.**
+
+The create form renders `AdvancedDetailsPanel` with `hideExternal` and
+previously passed it **no `initial`**, so applying a saved template restored the
+top-level + division fields (bundle 1) but left venue / series / fundraiser /
+theme tags / sanctioning blank — even though `toPayload` already captured them.
+[visibility-section.tsx](../../apps/web/src/app/events/new/_components/visibility-section.tsx)
+now maps `templateValues → AdvancedDetailsInitial` via a local
+`advancedInitialFromValues()` and passes it as `initial` (spread so a
+template-less mount stays `undefined` → panel closed/blank). The panel
+auto-opens (`hasInitialAdvanced`) when a template carried any of these, so the
+host sees what was prefilled.
+
+- **One-off dates stay excluded.** `registrationClosesAt` is in
+  `TEMPLATE_OMIT_FIELDS` (alongside `startsAt` / `endsAt`), so it's never saved
+  and the mapper leaves it blank — applying a template never resurfaces a past
+  deadline.
+- **External registration was already covered** — it round-trips via the parent
+  form's `isExternal` state + `ExternalFields`' `val(values, …)` defaults, not
+  this panel, so `hideExternal` is untouched.
+- **Edit form unaffected** — it passes its own `initial.extensions`; this mapper
+  is create-only.
+
+With this, template apply on the create form is complete: type, basics,
+when/where, divisions, pricing, **and** advanced details all restore.
 
 ## Remediation log — 2026-06-09 (bundle 1)
 
@@ -73,10 +105,9 @@ CE-2, CE-3, CE-5, CE-6, CE-7, CE-13.**
 **Deferred follow-up surfaced during the bundle:** the create form's
 `AdvancedDetailsPanel` (venue / series / fundraiser / theme tags / sanctioning)
 takes no `initial`, so templates never round-tripped those fields either —
-pre-existing, out of CE-1's scope. Closing it means threading `templateValues`
-into the panel's `initial` (shared with the edit form). Likewise CE-7's edit-form
-duplication of the same fee checkboxes was left as-is (different `pricingLocked`
-disabled states + copy).
+pre-existing, out of CE-1's scope. **→ Closed in bundle 2** (see above).
+Separately, CE-7's edit-form duplication of the same fee checkboxes was left
+as-is (different `pricingLocked` disabled states + copy) — still deferred.
 
 ## Findings (CE-1 … CE-13)
 
